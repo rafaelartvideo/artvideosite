@@ -5,25 +5,24 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("integrações são acessíveis no menu da Union e a OLX sai do menu operacional", async () => {
+test("Integrações fica na Union e Conexões Operacionais não é mais um módulo", async () => {
   const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
   const nav = read("src/features/admin-shell/navigation-config.ts");
   const app = read("src/app/Admin.tsx");
-  const tenant = read("src/features/integrations/presentation/IntegrationsPage.tsx");
+  const routes = read("src/features/admin-shell/admin-routes.ts");
 
   assert.match(sidebar, /isPlatformOperatorOrganization && \(hasPermission\("organizations\.view"\)/);
   assert.match(sidebar, /id: "integrations", label: "Integrações", icon: Plug/);
   assert.doesNotMatch(nav.slice(nav.indexOf("export const operationItems"), nav.indexOf("export const utilityItems")), /id: "integrations"/);
+  assert.match(routes, /integrations: "\/admin\/integrations"/);
   assert.match(app, /<PlatformIntegrationsPage onBack=/);
-  assert.match(app, /<IntegrationsPage onBack=/);
-  assert.doesNotMatch(tenant, /OlxIntegrationPage|selected\("olx"\)/);
-  assert.match(tenant, /Canais de Atendimento/);
-  assert.match(tenant, /SAC Digital/);
+  assert.doesNotMatch(app, /<IntegrationsPage onBack=/);
+  assert.match(app, /path="operation\/integrations\/\*"/); // link legado redirecionado
+  assert.match(app, /path="integrations\/\*"/);
 
   for (const [file, source] of [
     ["AdminSidebar.tsx", sidebar],
     ["Admin.tsx", app],
-    ["IntegrationsPage.tsx", tenant],
     ["PlatformIntegrationsPage.tsx", read("src/features/integrations/presentation/PlatformIntegrationsPage.tsx")],
     ["OlxIntegrationPage.tsx", read("src/features/integrations/presentation/OlxIntegrationPage.tsx")],
   ]) {
@@ -47,20 +46,29 @@ test("distribuição reutiliza organization_modules, aplica permissões e não d
 });
 
 
-test("WhatsApp da Union usa canais próprios e separa motor de operação", () => {
+test("canais e SAC Digital possuem rotas próprias de configuração dentro de Ferramentas", () => {
   const platform = read("src/features/integrations/presentation/PlatformIntegrationsPage.tsx");
-  const tenant = read("src/features/integrations/presentation/IntegrationsPage.tsx");
   const admin = read("src/app/Admin.tsx");
   const navigation = read("src/features/admin-shell/navigation-config.ts");
+  const channels = read("src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx");
+  const permissions = read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
+  const sac = read("src/features/sac-digital/presentation/SacDigitalToolPage.tsx");
 
-  assert.match(platform, /showingOwnChannels/);
-  assert.match(platform, /<WhatsAppChannelsPage/);
-  assert.match(platform, /Canais da Union/);
+  assert.doesNotMatch(platform, /showingOwnChannels|<WhatsAppChannelsPage|Canais da Union/);
   assert.match(platform, /Atendimentos da Union/);
   assert.match(platform, /Gerenciar motor WuzAPI/);
-  assert.match(admin, /onConfigure=\{\(\) => navigate\(\x60\$\{adminPath\("integrations"\)\}\?channels=1\x60\)\}/);
-  assert.match(tenant, /hasModule\("whatsapp"\)/);
-  assert.match(navigation, /hasModule\("sac_digital"\) \|\| hasModule\("whatsapp"\)/);
+  assert.match(admin, /route\.subpage === "canais"/);
+  assert.match(admin, /route\.subpage === "configuracoes"/);
+  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "union-whatsapp", "canais"\)\}/);
+  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
+  assert.match(admin, /<WhatsAppChannelsPage/);
+  assert.match(admin, /<SacDigitalSettingsPage/);
+  assert.match(channels, /<WhatsAppRolePermissions onBack=\{onBack\}/);
+  assert.match(channels, /section !== "permissions" && <AdminStickyToolbar/);
+  assert.match(permissions, /onBack \? <AdminStickyToolbar/);
+  assert.match(permissions, /Salvar permissões/);
+  assert.match(sac, /onConfigure && hasPermission\("sac_digital.settings.manage"\)/);
+  assert.match(navigation, /if \(tab === "integrations"\) return true;/);
 });
 
 test("WhatsApp exige a liberação do módulo também nas duas Edge Functions", () => {
