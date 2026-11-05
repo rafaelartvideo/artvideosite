@@ -114,7 +114,6 @@ function RevealedCredential({ type, value }: { type: DeviceUnlockType; value: st
 export function OrderDeviceUnlockEditor({
   type,
   value,
-  authorized,
   existing,
   editing,
   orderId,
@@ -124,7 +123,6 @@ export function OrderDeviceUnlockEditor({
 }: {
   type: DeviceUnlockType;
   value: string;
-  authorized: boolean;
   existing: boolean;
   editing: boolean;
   orderId?: string;
@@ -161,7 +159,7 @@ export function OrderDeviceUnlockEditor({
       <LockKeyhole size={18} className="text-primary" />
       <div>
         <p className="text-sm font-bold text-foreground">Desbloqueio do aparelho</p>
-        <p className="text-xs text-muted-foreground">Opcional. Registre somente com autorização do cliente.</p>
+        <p className="text-xs text-muted-foreground">Opcional. O código é armazenado de forma protegida.</p>
       </div>
     </div>
     {existing && <p className="mb-3 text-xs font-medium text-emerald-700">Código já registrado de forma protegida.</p>}
@@ -171,7 +169,7 @@ export function OrderDeviceUnlockEditor({
           <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-type">Tipo de bloqueio</label>
           <select id="device-unlock-type" className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 sm:px-3 text-sm text-foreground"
             value={type}
-            onChange={event => onUpdate({ unlock_type: event.target.value, unlock_value: "", unlock_authorized: false, unlock_dirty: true })}>
+            onChange={event => onUpdate({ unlock_type: event.target.value, unlock_value: "", unlock_dirty: true })}>
             {Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
         </div>
@@ -214,13 +212,6 @@ export function OrderDeviceUnlockEditor({
           </div>
         )}
       </div>
-      {type !== "none" && (
-        <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
-          <input type="checkbox" className="mt-0.5 accent-primary" checked={authorized}
-            onChange={event => onUpdate({ unlock_authorized: event.target.checked, unlock_dirty: true })} />
-          Cliente autorizou o desbloqueio para testes.
-        </label>
-      )}
     </> : <p className="text-xs text-muted-foreground">A edição do desbloqueio exige uma permissão específica na Union.</p>}
     {editing && existing && canView && <div className="mt-3">
       <button type="button" disabled={loadingReveal} onClick={() => revealed ? setRevealed(null) : void reveal()}
