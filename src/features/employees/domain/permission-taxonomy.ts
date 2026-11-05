@@ -117,6 +117,7 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("technician_panel.actions.")) return "Ações";
   }
   if (module === "orders") {
+    if (key.startsWith("orders.unlock.")) return "Desbloqueio do aparelho";
     if (key === "orders.view") return "Acesso";
     if (key.includes(".kanban.")) return "Kanban";
     if (key.startsWith("orders.section.sla") || key === "orders.section.sla_cards") return "SLA";
@@ -282,6 +283,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "tools.sac_digital.use": ["tools.view"],
   "tools.uniq.use": ["tools.view"],
   "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
+  "orders.unlock.view": ["orders.details.view", "orders.view"], "orders.unlock.manage": ["orders.unlock.view", "orders.edit", "orders.view"],
   "orders.situation.change": ["orders.edit", "orders.view"], "orders.cancel": ["orders.edit", "orders.view"],
   "orders.request_parts": ["orders.section.parts", "orders.view"], "orders.manage_part_requests": ["orders.section.parts", "orders.view_all", "orders.view"],
   "orders.dispatch_parts": ["orders.section.parts", "orders.view"], "orders.confirm_part_delivery": ["orders.section.parts", "orders.view"],
