@@ -147,6 +147,20 @@ export function AdminDashboard({
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
   const crmMode = isPlatformOperatorOrganization && requestedCrmMode;
+
+  // Legacy bookmarks must open the appropriate settings directly, even when the
+  // user has no permission for the old Operation hub.
+  useEffect(() => {
+    const legacy = "/admin/operation/integrations";
+    if (loading || !activeOrganizationId || (location.pathname !== legacy && !location.pathname.startsWith(legacy + "/"))) return;
+    const params = new URLSearchParams(location.search);
+    const section = params.get("section");
+    const sectionSuffix = section ? `?section=${encodeURIComponent(section)}` : "";
+    const target = params.get("channels") === "1"
+      ? `${adminPath("tools", "union-whatsapp", "canais")}${sectionSuffix}`
+      : isPlatformOperatorOrganization && !crmMode ? adminPath("integrations") : adminPath("tools");
+    navigate(target, { replace: true });
+  }, [loading, activeOrganizationId, location.pathname, location.search, isPlatformOperatorOrganization, crmMode, navigate]);
   const activeMenuTab: AdminTab = crmMode ? "crm" : (locationState?.menuTab || activeTab);
   const activeWorkspaceKey = `${activeOrganizationId || "none"}:${crmMode ? "crm" : "tenant"}:${activeTab}`;
   const routeLocationSnapshot = {
