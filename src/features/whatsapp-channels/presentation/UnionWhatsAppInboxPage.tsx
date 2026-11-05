@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
-import { WhatsAppOperationsSettings, type WhatsAppOperationsSection } from "./WhatsAppOperationsSettings";
-import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -282,10 +280,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [targetDepartmentId,setTargetDepartmentId] = useState("");
   const [departments,setDepartments] = useState<Array<{id:string;name:string;is_active:boolean}>>([]);
   const [departmentFilter,setDepartmentFilter] = useState("all");
-  const [settingsOpen,setSettingsOpen] = useState(false);
-  const [settingsModal,setSettingsModal] = useState<WhatsAppOperationsSection|"permissions"|null>(null);
-  const [settingsCreateRequest,setSettingsCreateRequest] = useState(0);
-  const settingsMenuRef=useRef<HTMLDivElement|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
@@ -350,22 +344,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
   const messageIdentity = useRef(0);
-
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!settingsMenuRef.current?.contains(event.target as Node)) setSettingsOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSettingsOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [settingsOpen]);
 
   const organizationRef = useRef(activeOrganizationId);
   organizationRef.current=activeOrganizationId;
@@ -503,8 +481,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setNewConversationOpen(false);
     setContactsOpen(false);
     setEditContactId(null);
-    setSettingsOpen(false);
-    setSettingsModal(null);
     setOrdersOpen(false);
     setDepartments([]);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
@@ -879,15 +855,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const rows=result.departments||[];
     setDepartments(rows);
     return rows;
-  };
-  const closeSettingsModal=()=>{
-    const closing=settingsModal;
-    setSettingsModal(null);
-    if(closing==="queues" && activeOrganizationId){
-      void operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
-        .then(result=>setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS))
-        .catch(()=>undefined);
-    }
   };
   const viewProtocols = async () => {
     if(!selected || !activeOrganizationId || !activeChannelId || !activeChannelPhone || protocolsLoading)return;
@@ -1468,41 +1435,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canAction("manage_operators") || canAction("manage_queues")) &&
-          <div ref={settingsMenuRef} className="relative">
-            <button type="button" aria-label="Configurações dos atendimentos" aria-haspopup="menu"
-              aria-expanded={settingsOpen} title="Configurações" onClick={() => setSettingsOpen(value => !value)}
-              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <Settings2 size={20} strokeWidth={2}/>
-            </button>
-            {settingsOpen && <div role="menu" aria-label="Configurações dos atendimentos"
-              className="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-border bg-card p-1.5 shadow-xl">
-              {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);onConfigure();}}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Settings2 size={18}/> Canais de Atendimento
-                </button>}
-              {(canAction("manage_operators") || canAction("manage_queues")) && <>
-                {canAction("manage_queues") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("departments");}}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Building2 size={18}/> Departamentos e equipe
-                </button>}
-                {canAction("manage_queues") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("queues");}}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <MessageCircle size={18}/> Configurar filas
-                </button>}
-                {canAction("manage_operators") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("operators");}}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Users size={18}/> Operadores
-                </button>}
-                {canAction("manage_operators") && <button role="menuitem" type="button"
-                  onClick={() => {setSettingsOpen(false);setSettingsModal("permissions");}}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <ShieldCheck size={18}/> Perfis e Permissões
-                </button>}
-              </>}
-            </div>}
-          </div>}
+        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
+          <button type="button" aria-label="Abrir Canais de Atendimento" title="Configurações dos atendimentos"
+            onClick={onConfigure}
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <Settings2 size={20} strokeWidth={2}/>
+          </button>}
         {canAction("collaborate") && canSend && <AdminButton variant="secondary" onClick={()=>setRequestOpen(true)}>
           <Users size={15} className="mr-1.5"/> Solicitar participação
         </AdminButton>}
@@ -2087,26 +2025,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </div>
       </div>
     </div>}
-    {settingsModal === "permissions" && <WhatsAppRolePermissions
-      onClose={() => setSettingsModal(null)}
-      onSaved={() => void checkChannel()}
-    />}
-    {settingsModal && settingsModal !== "permissions" && <AdminDialog open={true}
-      onClose={closeSettingsModal}
-      title={settingsModal === "departments" ? "Departamentos e equipe" :
-        settingsModal === "queues" ? "Configurar filas" : "Operadores"}
-      description={settingsModal === "operators" ? "Vincule funcionários e defina seus perfis de atendimento." :
-        settingsModal === "queues" ? "Defina a fila principal e gerencie os responsáveis por cada fila." :
-        "Organize os departamentos e as equipes de atendimento."}
-      className="w-full max-w-4xl"
-      footer={<div className="flex flex-wrap items-center justify-end gap-2">
-        <AdminButton variant="secondary" onClick={closeSettingsModal}>Fechar</AdminButton>
-        {(settingsModal === "departments" || settingsModal === "queues") && canAction("manage_queues") &&
-          <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
-      </div>}>
-      <WhatsAppOperationsSettings key={settingsModal} section={settingsModal}
-        createRequest={settingsCreateRequest}/>
-    </AdminDialog>}
     <AdminDialog open={protocolsOpen} onClose={()=>setProtocolsOpen(false)}
       title="Histórico de atendimentos" className="w-full max-w-2xl"
       footer={<div className="flex justify-end">
