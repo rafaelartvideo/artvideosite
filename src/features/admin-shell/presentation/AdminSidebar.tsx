@@ -76,13 +76,19 @@ export function AdminSidebar({
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view")))
-    && (
+  const canAccessTools = (
+    hasPermission("tools.view")
+    || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
+    || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
+    || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
+  ) && (
       hasPermission("tools.view")
       ||       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       || canAccessTab("fieldTracking")
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
+      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
