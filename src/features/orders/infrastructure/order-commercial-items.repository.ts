@@ -147,6 +147,7 @@ export async function listOrderProductSimilars(
     p_service_order_id: serviceOrderId,
     p_source_inventory_ids: [...new Set(sourceInventoryItemIds)].slice(0, 30),
   });
+  if (error?.code === "PGRST202") return []; // migração de similares pendente
   if (error) throw error;
   return ((data || []) as OrderCompatibleProduct[]).map(item => ({
     ...item,
