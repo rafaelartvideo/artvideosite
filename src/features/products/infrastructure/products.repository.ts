@@ -95,3 +95,36 @@ export async function updateProductFlags(
   if (error) throw error;
 }
 
+
+export type RelatedProductCode = {
+  code: string;
+  relation_type: "previous" | "successor" | "compatible" | "alternate";
+};
+
+export async function listRelatedProductCodes(
+  organizationId: string, productId: string,
+): Promise<RelatedProductCode[]> {
+  const { data, error } = await supabase.from("product_related_codes")
+    .select("code,relation_type")
+    .eq("organization_id", organizationId)
+    .eq("product_id", productId)
+    .order("code");
+  if (error) throw error;
+  return (data || []) as RelatedProductCode[];
+}
+
+export async function replaceRelatedProductCodes(
+  organizationId: string, productId: string, codes: RelatedProductCode[],
+): Promise<number> {
+  const { data, error } = await supabase.rpc("replace_product_related_codes", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+    p_codes: codes.map(item => ({
+      code: item.code.trim().toUpperCase(),
+      relation_type: item.relation_type,
+    })),
+  });
+  if (error) throw error;
+  return Number(data || 0);
+}
+
