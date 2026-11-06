@@ -384,7 +384,12 @@ export function AdminDialog({
         </div>
       </div>}
       {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
-      <div ref={bodyRef} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>
+      <div ref={bodyRef} className={cn(
+         "min-h-0 min-w-0 flex-1 overflow-y-auto p-5",
+         // Um LoadingState como conteúdo principal ocupa o centro real do modal.
+         "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
+         bodyClassName,
+       )}>{children}</div>
       {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
