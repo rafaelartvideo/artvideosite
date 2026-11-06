@@ -21,10 +21,19 @@ export function OrdersHeader({
   onCreate: () => void;
   showViewToggle?: boolean;
 }) {
-  const hasActions = showViewToggle || canCreate || canConfigure;
+  const hasActions = showViewToggle || canCreate;
   return (
     <PageHeader
-      title="Ordens de Serviço"
+      title={<span className="inline-flex flex-wrap items-center gap-2">
+        Ordens de Serviço
+        {canConfigure && onConfigure && <button
+          type="button"
+          onClick={onConfigure}
+          aria-label="Configurações das Ordens de Serviço"
+          title="Configurações das Ordens de Serviço"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        ><Settings2 size={18} /></button>}
+      </span>}
       subtitle={filteredTotalLabel(total, false)}
       actions={hasActions ? (
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
@@ -50,14 +59,6 @@ export function OrdersHeader({
               <span className="ml-2 hidden sm:inline text-xs font-bold">Kanban</span>
             </button>
           </div>}
-
-          {canConfigure && onConfigure && <AdminButton
-            variant="icon"
-            onClick={onConfigure}
-            aria-label="Configurações das Ordens de Serviço"
-            title="Configurações das Ordens de Serviço"
-            className="h-11 w-11 !min-w-11 !px-0"
-          ><Settings2 size={18} /></AdminButton>}
 
           {canCreate && (
             <AdminButton onClick={onCreate} aria-label="Nova OS" title="Nova OS" className="h-11 min-w-11 px-3 sm:px-4">
