@@ -104,11 +104,10 @@ export type RelatedProductCode = {
 export async function listRelatedProductCodes(
   organizationId: string, productId: string,
 ): Promise<RelatedProductCode[]> {
-  const { data, error } = await supabase.from("product_related_codes")
-    .select("code,relation_type")
-    .eq("organization_id", organizationId)
-    .eq("product_id", productId)
-    .order("code");
+  const { data, error } = await supabase.rpc("list_product_related_codes", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+  });
   if (error) throw error;
   return (data || []) as RelatedProductCode[];
 }
