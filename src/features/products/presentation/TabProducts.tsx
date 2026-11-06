@@ -613,7 +613,8 @@ export function TabProducts({
         return code.length > 1 && !existing.has(code);
       }).slice(0, 5);
       setCodeSuggestions(candidates);
-      if (!candidates.length) setCodeSuggestionsError("Não foram encontrados outros códigos verificáveis neste catálogo.");
+      if (response.warning) setCodeSuggestionsError(response.warning);
+      else if (!candidates.length) setCodeSuggestionsError("Nenhuma referência adicional foi encontrada nessas bases. Você pode cadastrar códigos confirmados manualmente.");
     } catch (error) {
       setCodeSuggestionsError(systemErrorMessage(error, "Não foi possível consultar o catálogo externo."));
     } finally {
@@ -1252,6 +1253,7 @@ export function TabProducts({
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
                       <p className="text-xs text-muted-foreground">Referências substituídas, substitutas ou compatíveis. Só cadastre relações confirmadas.</p>
+                      <p className="text-xs text-muted-foreground">Consulta UPCitemdb e Open Food Facts; não verifica substituições oficiais de peças.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <AdminButton variant="secondary" size="sm" disabled={saving || codeSuggestionsLoading}
