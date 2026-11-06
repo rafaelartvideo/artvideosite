@@ -137,6 +137,24 @@ export async function listOrderProductCompatibilities(
   }));
 }
 
+/** Similaridade comercial explícita. Não equivale à compatibilidade técnica. */
+export async function listOrderProductSimilars(
+  serviceOrderId: string,
+  sourceInventoryItemIds: string[],
+): Promise<OrderCompatibleProduct[]> {
+  if (!serviceOrderId || !sourceInventoryItemIds.length) return [];
+  const { data, error } = await supabase.rpc("list_service_order_product_similars_v1", {
+    p_service_order_id: serviceOrderId,
+    p_source_inventory_ids: [...new Set(sourceInventoryItemIds)].slice(0, 30),
+  });
+  if (error) throw error;
+  return ((data || []) as OrderCompatibleProduct[]).map(item => ({
+    ...item,
+    stock: numberValue(item.stock),
+    price: item.price == null ? null : numberValue(item.price),
+  }));
+}
+
 export function searchOrderServices(serviceOrderId: string, search: string) {
   return searchCatalog("search_service_order_services_v1", serviceOrderId, search);
 }
