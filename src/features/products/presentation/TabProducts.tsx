@@ -460,6 +460,9 @@ export function TabProducts({
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
+    queryClient.invalidateQueries({ queryKey: ["products", "automatic-compatibilities"] }),
+    queryClient.invalidateQueries({ queryKey: ["pdv", "compatible-products"] }),
+    queryClient.invalidateQueries({ queryKey: ["orders", "auto-compatible"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
