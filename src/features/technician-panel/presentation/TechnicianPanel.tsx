@@ -25,6 +25,7 @@ import { OrderHistoryPage } from "@/features/orders/presentation/OrderHistoryPag
 import { OrderImageLightbox, OrderImageThumb, type OrderImage } from "@/features/orders/presentation/OrderImages";
 import { useTechnicianOrderRecords } from "../application/useTechnicianOrderRecords";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { assertOrderRulesForStage } from "@/features/orders/infrastructure/order-rules-validation.repository";
 import {
   captureTechnicianLocation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
   countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask, getMyTechnicianEquipmentPhotoUrl,
@@ -588,6 +589,9 @@ export function TechnicianPanel() {
     setBusy(true);
     setNotice(null);
     try {
+      if (action === "start" && activeOrganizationId) {
+        await assertOrderRulesForStage(activeOrganizationId, selected.service_order_id, "start");
+      }
       const coordinates = await captureTechnicianLocation();
       if (action === "start") await startMyTechnicianTask(selected.item_id, coordinates);
       else await finishMyTechnicianTask(selected.item_id, report, coordinates);
