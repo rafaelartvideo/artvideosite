@@ -27,5 +27,30 @@ test("fotos e campos obrigatórios são validados na etapa correta",()=>{
  assert.match(rules.validateRules(optional,{customer_notes:""},[],"create"),/Descrição do problema/);
  const staged={...optional,photos:{...optional.photos,equipment:{mode:"required",stage:"finish",minCount:2}}};
  assert.equal(rules.validateRules(staged,{customer_notes:"Defeito"},[],"create"),null);
- assert.match(rules.validateRules(staged,{customer_notes:"Defeito"},[],"finish"),/Fotos do equipamento/);
+ assert.match(rules.validateRules(staged,{customer_notes:"Defeito",diagnosis:"Identificado",solution:"Reparo concluído"},[],"finish"),/Fotos do equipamento/);
+});
+
+test("diagnóstico e solução podem ser exigidos, ocultos ou opcionais por empresa",()=>{
+ const defaults=rules.resolveRules([]);
+ assert.equal(defaults.fields.diagnosis.mode,"required");
+ assert.equal(defaults.fields.solution.mode,"required");
+ const base={...defaults,photos:{...defaults.photos,label:{mode:"optional",stage:"create"}}};
+ assert.match(rules.validateRules(base,{customer_notes:"Defeito"},[],"finish"),/Diagnóstico/);
+ const customized={...base,fields:{...base.fields,diagnosis:{mode:"hidden",stage:"finish"},solution:{mode:"optional",stage:"finish"}}};
+ assert.equal(rules.validateRules(customized,{customer_notes:"Defeito"},[],"finish"),null);
+});
+
+test("anexos personalizados são validados somente na etapa configurada",()=>{
+ const defaults=rules.resolveRules([]);
+ const withFile={...defaults,
+  fields:{...defaults.fields,diagnosis:{mode:"optional",stage:"finish"},solution:{mode:"optional",stage:"finish"}},
+  photos:{...defaults.photos,label:{mode:"optional",stage:"create"}},
+  custom_fields:[{key:"laudo",label:"Laudo técnico",type:"file",mode:"required",stage:"start"}],
+ };
+ const payload={customer_notes:"Defeito",custom_field_values:{}};
+ assert.equal(rules.validateRules(withFile,payload,[],"create"),null);
+ assert.match(rules.validateRules(withFile,payload,[],"start"),/Laudo técnico/);
+ assert.equal(rules.validateRules(withFile,{
+  ...payload,custom_field_values:{laudo:{media_id:"9fb20e0b-2be4-4d2e-913e-10f00af03623",file_name:"laudo.pdf"}}
+ },[],"start"),null);
 });
