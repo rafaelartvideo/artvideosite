@@ -541,7 +541,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           }}
         />
         : finance.detailQuery.isLoading
-        ? <div className="flex min-h-52 w-full items-center justify-center text-center"><LoadingState text="Carregando extrato" /></div>
+        ? <LoadingState text="Carregando extrato" />
         : finance.detailQuery.error
           ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{finance.detailQuery.error instanceof Error ? finance.detailQuery.error.message : "Não foi possível carregar a conta."}</div>
           : finance.detailQuery.data
