@@ -231,6 +231,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const categories = foundation.categoriesQuery.data || [];
   const accounts = foundation.accountsQuery.data || [];
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
+  const editingSelectedEntry = Boolean(editorOpen && editing && selectedEntryId && editing.id === selectedEntryId);
   const displayPaymentMethods = (entry: FinancialEntry) => {
     if (entry.payment_method_summary) return entry.payment_method_summary;
     const planned = Array.isArray(entry.source_details?.payment_plan) ? entry.source_details.payment_plan as Array<{payment_method_id:string}> : [];
@@ -247,10 +248,18 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   const save = async (draft: any) => {
     const id = await finance.saveMutation.mutateAsync(draft);
+    if (editingSelectedEntry) await finance.detailQuery.refetch();
     setEditorOpen(false);
     setEditing(null);
     setCounterpartySearch("");
     onSelectEntry(id);
+  };
+
+  const adjustSelectedInstallment = async (installmentId: string, newAmount: number, reason: string) => {
+    const entryId = finance.detailQuery.data?.id;
+    if (!entryId) throw new Error("O lançamento precisa estar carregado para ajustar a parcela.");
+    await finance.adjustInstallmentMutation.mutateAsync({ entryId, installmentId, newAmount, reason });
+    await finance.detailQuery.refetch();
   };
 
   const pagination = <PaginationBar
@@ -476,19 +485,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     {selectedEntryId && <AdminDialog
       open
       onClose={() => {
-        if (finance.settlementMutation.isPending) return;
+        if (finance.settlementMutation.isPending || finance.adjustInstallmentMutation.isPending || finance.saveMutation.isPending) return;
+        if (editingSelectedEntry) { closeEditor(); return; }
         if (settlementDialogOpen) setSettlementDialogOpen(false);
         else { setLastSettledEntryId(null); onSelectEntry(null); }
       }}
-      title={settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
-      description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
+      title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className={settlementDialogOpen
         ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,height] duration-300 ease-out"
         : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
       bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
-      footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
+      footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canCancelRecurring(finance.detailQuery.data)
           && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
@@ -498,14 +508,32 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           && <AdminButton onClick={() => openSettlement()}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
-      {settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
+      {editingSelectedEntry
+        ? <FinanceEntryEditorDialog
+            open embedded
+            entryType={entryType}
+            initial={editing}
+            counterparties={counterparties}
+            counterpartySearch={counterpartySearch}
+            counterpartyLoading={finance.counterpartiesQuery.isFetching}
+            onCounterpartySearchChange={setCounterpartySearch}
+            categories={categories}
+            paymentMethods={paymentMethods}
+            saving={finance.saveMutation.isPending}
+            onClose={closeEditor}
+            onSave={save}
+          />
+        : settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
         ? <FinanceSettlementDialog
           open={settlementDialogOpen}
           detail={finance.detailQuery.data}
           accounts={accounts}
           paymentMethods={paymentMethods}
           saving={finance.settlementMutation.isPending}
-          onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
+          forecastPending={finance.adjustInstallmentMutation.isPending}
+          canAdjustInstallment={!isReceivable && canEdit}
+          onAdjustInstallment={adjustSelectedInstallment}
+          onClose={() => { if (!finance.settlementMutation.isPending && !finance.adjustInstallmentMutation.isPending) setSettlementDialogOpen(false); }}
           onSave={async (draft: FinancialSettlementDraft) => {
             await finance.settlementMutation.mutateAsync(draft);
             setLastSettledEntryId(selectedEntryId);
@@ -536,6 +564,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               settlementError={finance.settlementMutation.error || finance.reverseSettlementMutation.error}
               onBack={() => onSelectEntry(null)}
               onEdit={() => {
+                setSettlementDialogOpen(false);
                 setCounterpartySearch("");
                 setEditing(finance.detailQuery.data || null);
                 setEditorOpen(true);
@@ -545,18 +574,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               onRegisterSettlement={async (draft: FinancialSettlementDraft) => { await finance.settlementMutation.mutateAsync(draft); }}
               onReverseSettlement={async (settlementId, reason) => { await finance.reverseSettlementMutation.mutateAsync({ settlementId, reason }); }}
               forecastPending={finance.adjustInstallmentMutation.isPending}
-              onAdjustInstallment={async (installmentId, newAmount, reason) => {
-                await finance.adjustInstallmentMutation.mutateAsync({
-                  entryId: finance.detailQuery.data!.id, installmentId, newAmount, reason,
-                });
-              }}
+              onAdjustInstallment={adjustSelectedInstallment}
             />
             : <p className="text-sm text-muted-foreground">Conta não encontrada.</p>}
     </AdminDialog>}
 
 
     <FinanceEntryEditorDialog
-      open={editorOpen}
+      open={editorOpen && !editingSelectedEntry}
       entryType={entryType}
       initial={editing}
       counterparties={counterparties}
