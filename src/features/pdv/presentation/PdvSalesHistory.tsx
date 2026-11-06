@@ -36,6 +36,14 @@ function useDebouncedValue(value: string, delay = 250) {
   return debounced;
 }
 
+function formatPdvDocument(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 11) return formatCpf(digits);
+  if (digits.length === 14) return formatCnpj(digits);
+  return value;
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString("pt-BR");
@@ -240,7 +248,7 @@ export function PdvSalesHistory({
                 <td className="text-sm text-[#5a6a82]">{formatDateTime(sale.sold_at)}</td>
                 <td>
                   <p className="max-w-[220px] truncate text-sm font-bold text-[#0d1b2e]">{sale.customer_name || "Consumidor não identificado"}</p>
-                  {sale.customer_document && <p className="mt-0.5 text-xs text-[#7a8aa0]">{sale.customer_document}</p>}
+                  {sale.customer_document && <p className="mt-0.5 text-xs text-[#7a8aa0]">{formatPdvDocument(sale.customer_document)}</p>}
                 </td>
                 <td className="text-sm text-[#5a6a82]">{sale.payment_methods.length ? sale.payment_methods.join(" + ") : "—"}</td>
                 <td className="text-sm text-[#5a6a82]">{sale.sold_by_name || "—"}</td>
@@ -331,6 +339,7 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
       <Info label="Situação" value={detail.status === "completed" ? "Concluída" : "Cancelada"} />
       <Info label="Operador" value={detail.sold_by_name || "—"} />
       <Info label="Cliente" value={detail.customer_name || "Consumidor não identificado"} />
+      {detail.customer_document && <Info label="CPF / CNPJ" value={formatPdvDocument(detail.customer_document)} />}
       <Info label="Total" value={formatCurrency(detail.total_amount)} strong />
     </div>
 
