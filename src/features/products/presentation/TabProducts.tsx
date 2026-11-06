@@ -2091,6 +2091,7 @@ export function TabProducts({
 
     {activeDetailsProduct && activeOrganizationId && <InventoryProductDetailsDialog
       product={activeDetailsProduct}
+      allProducts={products}
       organizationId={activeOrganizationId}
       canEdit={canEdit && canViewDetails}
       canMove={canCreateMovements}
