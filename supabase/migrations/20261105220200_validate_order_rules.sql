@@ -49,5 +49,5 @@ begin
    raise exception 'Campo personalizado obrigatório: %.',left(coalesce(item->>'label',key),80) using errcode='22023';
   end if;
  end loop;
-end $f$;
+end; $f$;
 revoke all on function private.validate_order_rules_v1(uuid,uuid,text,jsonb) from public,anon,authenticated;
