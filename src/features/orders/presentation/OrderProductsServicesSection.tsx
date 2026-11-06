@@ -718,19 +718,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     )}>{icon}{labels[status]}</span>;
   };
 
-  const renderItemIdentity = (item: OrderCommercialItem) => <div className="min-w-0">
-    <h4 className="break-words text-sm font-bold leading-snug text-foreground sm:text-[15px]">{item.title_snapshot}</h4>
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <span className={cn(
-        "inline-flex border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
-        item.item_type === "product"
-          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-          : "border-primary/25 bg-primary-soft text-primary",
-      )}>{typeLabel(item)}</span>
-      {renderStatusTag(item)}
-    </div>
-  </div>;
-
   const renderTechnicianColumn = (item: OrderCommercialItem) => {
     if (item.item_type === "product") return <span className="text-xs text-muted-foreground">—</span>;
     const task = tasks[item.id];
@@ -778,35 +765,40 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </div>;
   };
 
-  const renderTaskDetails = (item: OrderCommercialItem) => {
+  const renderTaskProgress = (item: OrderCommercialItem) => {
     const task = tasks[item.id];
     const status = task?.status || "pending";
     const progress = status === "completed" ? 100 : status === "in_progress" ? 55 : 0;
     const progressTone = status === "completed" ? STATUS_TONE_CLASSES.success.dot
       : status === "cancelled" ? STATUS_TONE_CLASSES.danger.dot
       : status === "in_progress" ? STATUS_TONE_CLASSES.progress.dot : STATUS_TONE_CLASSES.pending.dot;
+    const statusLabel = status === "pending" ? "Aguardando início"
+      : status === "in_progress" ? "Em execução" : status === "completed" ? "Finalizado" : "Cancelado";
+    return <div className="min-w-0 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Progresso</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          {status === "in_progress" && <Wrench size={13} className="animate-spin text-amber-600 motion-reduce:animate-none [animation-duration:3s]" />}
+          {statusLabel}
+        </span>
+      </div>
+      <div role="progressbar" aria-label={`Progresso de ${item.title_snapshot}`}
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full transition-[width] duration-700 ease-out", progressTone)}
+          style={{ width: `${progress}%` }} />
+      </div>
+      {!workflowReady && <p className="text-[11px] text-muted-foreground">Aguardando dados técnicos.</p>}
+    </div>;
+  };
+
+  const renderTaskDetails = (item: OrderCommercialItem) => {
+    const task = tasks[item.id];
     const locations = ([
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],
     ] as const).filter(([, location]) => location?.lat != null && location.lng != null);
-    return <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(140px,.85fr)_minmax(180px,1.2fr)_minmax(150px,1fr)_minmax(120px,.75fr)] lg:gap-5">
-      <div className="min-w-0">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Progresso</p>
-        <div className="mb-2 flex items-center gap-2">
-          {status === "in_progress" && <Wrench size={14} className="animate-spin text-amber-600 motion-reduce:animate-none [animation-duration:3s]" />}
-          <span className="text-xs font-semibold text-foreground">
-            {status === "pending" ? "Aguardando início" : status === "in_progress" ? "Em execução" : status === "completed" ? "Finalizado" : "Cancelado"}
-          </span>
-        </div>
-        <div role="progressbar" aria-label={`Progresso de ${item.title_snapshot}`}
-          aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className={cn("h-full rounded-full transition-[width] duration-700 ease-out", progressTone,
-            status === "in_progress" && "animate-pulse motion-reduce:animate-none")}
-            style={{ width: `${progress}%` }} />
-        </div>
-        {!workflowReady && <p className="mt-2 text-[11px] text-muted-foreground">Aguardando dados técnicos.</p>}
-      </div>
+    return <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <div className="min-w-0">
         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Serviço realizado</p>
         {task?.execution_report
@@ -1145,78 +1137,86 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         ? <LoadingState text="Carregando itens da OS..." />
         : items.length === 0
           ? <AdminSectionEmpty>Nenhum produto ou serviço foi adicionado a esta OS.</AdminSectionEmpty>
-          : <div className="grid min-w-0 gap-3 p-3 sm:gap-4 sm:p-4">
+          : <div className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-2">
             {items.map(item => (
               <article key={item.id}
                 aria-label={item.title_snapshot}
-                className="group min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 hover:bg-muted/15 focus-within:border-primary/50">
-                <div className="min-w-0 p-3.5 sm:p-4">
-                  <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-5 gap-y-2">
-                      <div className="min-w-[150px] flex-1">
-                        {renderItemIdentity(item)}
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                        {item.item_type !== "product" && workflowReady && editable &&
-                          tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
-                          !tasks[item.id]?.scheduled_start_at && <BtnSecondary
-                            disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>Agendar</BtnSecondary>}
-                        <strong aria-label={"Total do item: " + formatCurrency(nonNegativeNumber(item.subtotal))}
-                          className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
-                          {formatCurrency(nonNegativeNumber(item.subtotal))}
-                        </strong>
-                      </div>
+                className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 focus-within:border-primary/50">
+                <header className="flex min-w-0 items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{typeLabel(item)}</span>
+                    {item.item_type !== "product"
+                      ? renderStatusTag(item)
+                      : <span className="text-[10px] font-semibold text-muted-foreground">Registrado na OS</span>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {item.item_type !== "product" && workflowReady && editable &&
+                      tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
+                      !tasks[item.id]?.scheduled_start_at &&
+                      <AdminButton size="sm" variant="tertiary" className="h-9 px-2 text-[11px]"
+                        disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>
+                        <CalendarDays size={14}/> Agendar
+                      </AdminButton>}
+                    {editable && <AdminIconButton ariaLabel={"Remover " + item.title_snapshot} variant="danger"
+                      disabled={savingItemId === item.id} onClick={() => void removeItem(item)}>
+                      <Trash2 size={15} />
+                    </AdminIconButton>}
+                  </div>
+                </header>
+                <div className="min-w-0 flex-1 space-y-4 p-3.5 sm:p-4">
+                  <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+                    <strong className="min-w-0 break-words text-sm font-bold text-foreground">{item.title_snapshot}</strong>
+                    <span className="h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+                    <strong aria-label={"Total do item: " + formatCurrency(nonNegativeNumber(item.subtotal))}
+                      className="shrink-0 whitespace-nowrap text-sm font-black text-emerald-700 dark:text-emerald-300">
+                      {formatCurrency(nonNegativeNumber(item.subtotal))}
+                    </strong>
+                  </div>
+                  <div className="grid min-w-0 gap-3 border-t border-border/60 pt-3 sm:grid-cols-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</span>
+                      {renderQuantity(item, true)}
                     </div>
-                    <div className="shrink-0">
-                      <AdminIconButton
-                        ariaLabel={"Remover " + item.title_snapshot} variant="danger"
-                        disabled={!editable || savingItemId === item.id}
-                        onClick={() => void removeItem(item)}
-                      ><Trash2 size={14} /></AdminIconButton>
+                    <div className="min-w-0 space-y-1.5">
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</span>
+                      {renderPrice(item, true)}
+                    </div>
+                    <div className="min-w-0 space-y-1.5">
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</span>
+                      {renderAdditionalCost(item, true)}
                     </div>
                   </div>
-
-                  <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-border/60 pt-3 lg:flex-row lg:items-center lg:gap-4">
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Quantidade:</span>
-                        <div className="w-[94px] min-w-0">{renderQuantity(item, true)}</div>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Preço unitário:</span>
-                        <div className="w-[132px] min-w-0">{renderPrice(item, true)}</div>
-                      </div>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Custo adicional:</span>
-                        <div className="w-[132px] min-w-0">{renderAdditionalCost(item, true)}</div>
-                      </div>
+                  {item.description_snapshot && <div className="border-t border-border/60 pt-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Descrição</span>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">{item.description_snapshot}</p>
+                  </div>}
+                  {item.item_type !== "product" && <>
+                    <div className="min-w-0 space-y-1.5 border-t border-border/60 pt-3">
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</span>
+                      {renderTechnicianColumn(item)}
                     </div>
-                    {item.item_type !== "product" && (
-                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/60 pt-3 lg:min-h-9 lg:border-l lg:border-t-0 lg:py-1 lg:pl-4">
-                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Técnicos responsáveis:</span>
-                        <div className="min-w-0 flex-1">{renderTechnicianColumn(item)}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {item.item_type !== "product" && workflowReady &&
-                    tasks[item.id]?.scheduled_start_at && tasks[item.id]?.scheduled_end_at &&
-                    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 border-t border-border/60 pt-3">
-                      <span className="text-xs font-semibold text-foreground">
-                        {formatServiceSchedule(tasks[item.id].scheduled_start_at)} às {new Date(tasks[item.id].scheduled_end_at!).toLocaleTimeString("pt-BR", {
-                          timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
-                        })}
-                      </span>
-                      {editable && tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
-                        <BtnSecondary disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>Reagendar</BtnSecondary>}
-                    </div>}
-
-                  {item.item_type !== "product" && (
-                    <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 transition-colors duration-200 group-hover:bg-muted/45 sm:p-4">
+                    {workflowReady && tasks[item.id]?.scheduled_start_at && tasks[item.id]?.scheduled_end_at &&
+                      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border/60 pt-3">
+                        <span className="text-xs font-semibold text-foreground">
+                          {formatServiceSchedule(tasks[item.id].scheduled_start_at)} às {new Date(tasks[item.id].scheduled_end_at!).toLocaleTimeString("pt-BR", {
+                            timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
+                          })}
+                        </span>
+                        {editable && tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
+                          <BtnSecondary disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>Reagendar</BtnSecondary>}
+                      </div>}
+                    <div className="min-w-0 border-t border-border/60 pt-3">
                       {renderTaskDetails(item)}
                     </div>
-                  )}
+                  </>}
                 </div>
+                <footer className="border-t border-border bg-muted/20 px-3.5 py-3 sm:px-4">
+                  {item.item_type === "product"
+                    ? <p className="text-xs font-semibold text-muted-foreground">
+                        Produto registrado na OS · acompanhamento técnico não aplicável
+                      </p>
+                    : renderTaskProgress(item)}
+                </footer>
               </article>
             ))}
           </div>}
