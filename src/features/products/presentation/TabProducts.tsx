@@ -68,14 +68,13 @@ import {
   type InventorySupplier,
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
+import { parseRelatedCodesInput, validateRelatedCodesInput } from "../domain/related-code-input";
 import {
   findOrCreateInventoryBrand,
   findOrCreateInventoryCategory,
   loadProductGallery,
   resolveProductMediaImage,
   type ImportedProductImage,
-  searchExternalProducts,
-  type ExternalProductLookup,
 } from "../infrastructure/product-lookup.repository";
 
 type ProductEditorTab = "general" | "commercial" | "suppliers" | "store";
@@ -108,6 +107,7 @@ type ProductForm = {
   commercial_unit: "un" | "cx";
   conversion_factor: string;
   min_quantity: string;
+  sale_window_days: string;
   initial_quantity: string;
   initial_unit_cost: string;
   initial_supplier_entity_id: string;
@@ -214,6 +214,7 @@ function emptyForm(): ProductForm {
     commercial_unit: "un",
     conversion_factor: "1",
     min_quantity: "0",
+    sale_window_days: "",
     initial_quantity: "0",
     initial_unit_cost: "",
     initial_supplier_entity_id: "",
@@ -359,9 +360,7 @@ export function TabProducts({
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
-  const [codeSuggestions, setCodeSuggestions] = useState<ExternalProductLookup[]>([]);
-  const [codeSuggestionsLoading, setCodeSuggestionsLoading] = useState(false);
-  const [codeSuggestionsError, setCodeSuggestionsError] = useState("");
+  const [relatedCodesInput, setRelatedCodesInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -436,8 +435,7 @@ export function TabProducts({
     setFieldErrors({});
     setForm(emptyForm());
     setRelatedCodesLoaded(true);
-    setCodeSuggestions([]);
-    setCodeSuggestionsError("");
+    setRelatedCodesInput("");
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -481,6 +479,7 @@ export function TabProducts({
       commercial_unit: unit,
       conversion_factor: String(factor),
       min_quantity: String(displayStockValue(inventory?.min_quantity, unit, factor)),
+      sale_window_days: product.sale_window_days == null ? "" : String(product.sale_window_days),
       initial_quantity: "0",
       initial_unit_cost: "",
       initial_supplier_entity_id: "",
@@ -528,13 +527,13 @@ export function TabProducts({
         : [],
     });
     setEditItem(product);
-    setCodeSuggestions([]);
-    setCodeSuggestionsError("");
+    setRelatedCodesInput("");
     setRelatedCodesLoaded(false);
     if (activeOrganizationId) {
       void listRelatedProductCodes(activeOrganizationId, product.id)
         .then(codes => {
           setForm(current => ({ ...current, related_codes: codes }));
+          setRelatedCodesInput(codes.map(item => item.code).join(", "));
           setRelatedCodesLoaded(true);
         })
         .catch(error => {
@@ -595,33 +594,6 @@ export function TabProducts({
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
-  const searchCodeSuggestions = async () => {
-    if (!activeOrganizationId || codeSuggestionsLoading) return;
-    const query = form.manufacturer_code.trim() || form.model.trim();
-    if (!query) {
-      setCodeSuggestionsError("Informe o código do fabricante ou o modelo para consultar.");
-      return;
-    }
-    setCodeSuggestionsLoading(true);
-    setCodeSuggestionsError("");
-    setCodeSuggestions([]);
-    try {
-      const response = await searchExternalProducts(activeOrganizationId, query);
-      const existing = new Set([form.manufacturer_code.trim().toUpperCase(), ...form.related_codes.map(item => item.code.trim().toUpperCase())]);
-      const candidates = response.results.filter(item => {
-        const code = String(item.manufacturer_code || "").trim().toUpperCase();
-        return code.length > 1 && !existing.has(code);
-      }).slice(0, 5);
-      setCodeSuggestions(candidates);
-      if (response.warning) setCodeSuggestionsError(response.warning);
-      else if (!candidates.length) setCodeSuggestionsError("Nenhuma referência adicional foi encontrada nessas bases. Você pode cadastrar códigos confirmados manualmente.");
-    } catch (error) {
-      setCodeSuggestionsError(systemErrorMessage(error, "Não foi possível consultar o catálogo externo."));
-    } finally {
-      setCodeSuggestionsLoading(false);
-    }
-  };
-
   const validate = () => {
     const errors: ProductFieldErrors = {};
     const price = nullableNumber(form.price);
@@ -632,6 +604,9 @@ export function TabProducts({
     const initialUnitCost = nullableNumber(form.initial_unit_cost);
 
     if (!form.name.trim()) errors.name = "Nome do item é obrigatório.";
+    if (form.sale_window_days.trim() && (!Number.isInteger(Number(form.sale_window_days)) || Number(form.sale_window_days) < 1 || Number(form.sale_window_days) > 3650)) {
+      errors.sale_window_days = "Informe um prazo entre 1 e 3650 dias.";
+    }
     if (price !== null && price < 0) errors.price = "Informe um preço válido e não negativo.";
     if (form.barcode && !/^[0-9A-Za-z._-]{4,32}$/.test(form.barcode.trim())) {
       errors.barcode = "Informe um código de barras válido.";
@@ -657,17 +632,15 @@ export function TabProducts({
       errors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
     }
 
-    const normalizedCodes = form.related_codes.map(item => item.code.trim().toUpperCase());
+    const codesValidation = validateRelatedCodesInput(relatedCodesInput, form.manufacturer_code, form.related_codes);
     if (!relatedCodesLoaded) {
       setEditorTab("general");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
       return false;
     }
-    if (normalizedCodes.some(code => !/^[A-Z0-9][A-Z0-9 ./_-]{1,63}$/.test(code))
-      || new Set(normalizedCodes).size !== normalizedCodes.length
-      || normalizedCodes.includes(form.manufacturer_code.trim().toUpperCase())) {
+    if (codesValidation.error) {
       setEditorTab("general");
-      setToast({ msg: "Revise os códigos relacionados: devem ser válidos, únicos e diferentes do MPN principal.", type: "error" });
+      setToast({ msg: codesValidation.error, type: "error" });
       return false;
     }
 
@@ -682,7 +655,7 @@ export function TabProducts({
 
     if (Object.keys(errors).length > 0) {
       if (errors.name || errors.barcode) setEditorTab("general");
-      else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
+      else if (errors.price || errors.sale_window_days || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
       else if (errors.compare_at_price) setEditorTab("general");
       else setEditorTab("general");
       return false;
@@ -735,6 +708,7 @@ export function TabProducts({
         price,
         is_active: form.is_active,
         commercial_unit: form.commercial_unit,
+        sale_window_days: form.sale_window_days.trim() ? Number(form.sale_window_days) : null,
 
         ncm: form.ncm.trim() || null,
         cest: form.cest.trim() || null,
@@ -805,7 +779,7 @@ export function TabProducts({
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
       try {
-        await replaceRelatedProductCodes(activeOrganizationId, savedProductId, form.related_codes);
+        await replaceRelatedProductCodes(activeOrganizationId, savedProductId, parseRelatedCodesInput(relatedCodesInput, form.related_codes));
       } catch (codeError) {
         // O produto já foi gravado. Manter o ID e abrir para edição evita cadastro
         // duplicado caso o usuário tente salvar novamente os códigos relacionados.
@@ -1248,67 +1222,20 @@ export function TabProducts({
                   placeholder="Código original do fabricante"
                 />
 
-                <div className="space-y-3 rounded-xl border border-border p-3 sm:col-span-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
-                      <p className="text-xs text-muted-foreground">Referências substituídas, substitutas ou compatíveis. Só cadastre relações confirmadas.</p>
-                      <p className="text-xs text-muted-foreground">Consulta UPCitemdb e Open Food Facts; não verifica substituições oficiais de peças.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <AdminButton variant="secondary" size="sm" disabled={saving || codeSuggestionsLoading}
-                        loading={codeSuggestionsLoading} loadingText="Consultando..." onClick={() => void searchCodeSuggestions()}>
-                        <Search size={15} /> Consultar catálogo
-                      </AdminButton>
-                      <AdminButton variant="tertiary" size="sm" disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
-                        onClick={() => setForm(current => ({ ...current, related_codes: [...current.related_codes, { code: "", relation_type: "previous" }] }))}>
-                        <Plus size={15} /> Adicionar código
-                      </AdminButton>
-                    </div>
-                  </div>
-                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências do produto...</p>}
-                  {codeSuggestionsError && <p className="text-xs text-muted-foreground">{codeSuggestionsError}</p>}
-                  {codeSuggestions.length > 0 && <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-                    <p className="text-xs font-semibold text-foreground">Possíveis referências do catálogo externo — não são substituições confirmadas</p>
-                    {codeSuggestions.map(item => <div key={item.external_id || item.manufacturer_code || item.name}
-                      className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-t-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-foreground">{item.manufacturer_code}</p>
-                        <p className="text-xs text-muted-foreground">{item.name}{item.brand ? " · " + item.brand : ""} · {item.provider}</p>
-                      </div>
-                      <AdminButton variant="secondary" size="sm" disabled={saving || !relatedCodesLoaded}
-                        onClick={() => {
-                          const code = String(item.manufacturer_code || "").trim().toUpperCase();
-                          if (form.related_codes.some(related => related.code.trim().toUpperCase() === code)) return;
-                          setForm(current => ({ ...current, related_codes: [...current.related_codes, { code, relation_type: "alternate" }] }));
-                          setCodeSuggestions(current => current.filter(candidate => candidate !== item));
-                          setToast({ msg: "Referência adicionada como alternativa. Confirme a relação antes de salvar.", type: "success" });
-                        }}>Selecionar</AdminButton>
-                    </div>)}
-                  </div>}
-                  {relatedCodesLoaded && form.related_codes.length === 0 && <p className="text-xs text-muted-foreground">Nenhum código adicional cadastrado.</p>}
-                  {form.related_codes.map((item, index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
-                    <FInput label={`Código ${index + 1}`} value={item.code} disabled={saving}
-                      placeholder="Ex.: AKB76037602" onChange={(event: any) => setForm(current => ({ ...current,
-                        related_codes: current.related_codes.map((related, i) => i === index ? { ...related, code: event.target.value } : related),
-                      }))} />
-                    <FSelect label="Tipo de relação" value={item.relation_type} disabled={saving}
-                      options={[
-                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
-                        { value: "successor", label: "Código novo (substitui o atual)" },
-                        { value: "compatible", label: "Peça compatível" },
-                        { value: "alternate", label: "Outra referência do mesmo produto" },
-                      ]}
-                      onChange={(event: any) => setForm(current => ({ ...current,
-                        related_codes: current.related_codes.map((related, i) => i === index
-                          ? { ...related, relation_type: event.target.value as RelatedProductCode["relation_type"] } : related),
-                      }))} />
-                    <button type="button" disabled={saving} title="Excluir referência" aria-label={`Excluir código relacionado ${index + 1}`}
-                      className="flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-red-500/25 text-red-600 hover:bg-red-500/10 disabled:opacity-50"
-                      onClick={() => setForm(current => ({ ...current, related_codes: current.related_codes.filter((_, i) => i !== index) }))}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>)}
+                <div className="space-y-2 rounded-xl border border-border p-3 sm:col-span-2">
+                  <FTextarea
+                    label="Códigos relacionados"
+                    rows={3}
+                    value={relatedCodesInput}
+                    disabled={saving || !relatedCodesLoaded}
+                    onChange={(event: any) => setRelatedCodesInput(event.target.value)}
+                    placeholder="Ex.: AKB76037602, AKB75675304, EBR123456"
+                    hint="Informe códigos separados por vírgula. O sistema separa, remove repetições e salva as referências individualmente."
+                  />
+                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando códigos cadastrados...</p>}
+                  {relatedCodesLoaded && <p className="text-xs text-muted-foreground">
+                    {parseRelatedCodesInput(relatedCodesInput).length} código(s) identificado(s). Códigos anteriores mantêm suas relações já cadastradas.
+                  </p>}
                 </div>
 
                 <div className="sm:col-span-2">
