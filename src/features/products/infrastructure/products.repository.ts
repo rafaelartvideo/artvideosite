@@ -180,3 +180,24 @@ export async function listProductCodeCompatibilities(
     price: row.price == null ? null : Number(row.price),
   }));
 }
+
+/** Similares comerciais não implicam compatibilidade técnica. Relações recíprocas por empresa. */
+export async function listProductSimilarIds(
+  organizationId: string, productId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc("list_product_similar_ids_v1", {
+    p_organization_id: organizationId, p_product_id: productId,
+  });
+  if (error) throw error;
+  return ((data || []) as Array<{ product_id: string }>).map(row => row.product_id);
+}
+
+export async function replaceProductSimilarIds(
+  organizationId: string, productId: string, ids: string[],
+): Promise<number> {
+  const { data, error } = await supabase.rpc("replace_product_similar_ids_v1", {
+    p_organization_id: organizationId, p_product_id: productId, p_similar_ids: ids,
+  });
+  if (error) throw error;
+  return Number(data || 0);
+}
