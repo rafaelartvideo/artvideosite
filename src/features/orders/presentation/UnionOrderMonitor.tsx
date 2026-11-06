@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, Eraser, MoreVertical, Search } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
-import { AdminSelect, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
+import { AdminSelect, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
@@ -152,7 +153,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || situationId || orderSort);
   const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
   const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const monitoredOrganizationId = contextQuery.data?.order?.organization_id
     || contextQuery.data?.organization?.id
     || null;
@@ -182,43 +182,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
     setSelectedOrderId(null);
     onOrderRouteChange?.(null, null);
   };
-
-  const sortMenu = () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Ordenação atual: ${orderLabel}`}
-          title={`Ordenação: ${orderLabel}`}
-          className={cn(
-            "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0057e7]/40",
-            orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
-          )}
-        >
-          <OrderSortIcon size={17} className="shrink-0 text-[#0057e7]" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[190px]">
-        {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
-          <DropdownMenuItem
-            key={value || "default"}
-            onSelect={() => {
-              setOrderSort(value);
-              setPage(1);
-            }}
-            className={cn(
-              "cursor-pointer",
-              orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
-            )}
-          >
-            <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
-            <span>{label}</span>
-            {orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 
   const renderMobileFilter = () => {
     switch (mobileFilter) {
@@ -322,66 +285,20 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
       subtitle="Acompanhamento em tempo real das ordens de serviço vinculadas aos tipos monitorados das empresas parceiras."
     />
 
-    <AdminCard square className="overflow-hidden p-0">
-      <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 px-4 text-white md:h-11 admin-primary-bar">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]">
-            <Search size={14} className="shrink-0 text-white/90" />
-          </span>
-          <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
-          <AdminSearchSortMenu value={orderSort} onChange={value => { setOrderSort(value); setPage(1); }}
-            options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
-        </div>
-      </div>
-
-      <div className="p-4 md:p-3">
-        <div className="space-y-3 md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Buscar por: ${mobileFilterLabel}`}
-                className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"
-              >
-                <span className="min-w-0 truncate">
-                  <span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}
-                </span>
-                <ChevronDown size={15} className="shrink-0 text-[#5a6a82]" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[240px]">
-              {mobileFilterOptions.map(option => <DropdownMenuItem
-                key={option.value}
-                onSelect={() => setMobileFilter(option.value)}
-                className={cn(
-                  "cursor-pointer",
-                  mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
-                )}
-              >
-                <Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
-                <span>{option.label}</span>
-                {mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}
-              </DropdownMenuItem>)}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="min-w-0">{renderMobileFilter()}</div>
-        </div>
+    <AdminSearchPanel title="Buscar OS" headerActions={<>
+      {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
+      <AdminSearchSortMenu value={orderSort} onChange={value => { setOrderSort(value); setPage(1); }}
+        options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
+    </>}>
+      <AdminMobileSearchSwitch value={mobileFilter} options={mobileFilterOptions} onChange={setMobileFilter}>
+        {renderMobileFilter()}
+      </AdminMobileSearchSwitch>
 
         <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-5">
           <div className="min-w-0 xl:col-span-2">
-            <FInput
-              label="OS / Externa"
-              placeholder="Digite o número da OS ou OS externa"
-              value={search}
-              onChange={(event: any) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
+            <AdminSearchTextField label="OS / Externa" value={search}
+              onChange={value => { setSearch(value); setPage(1); }}
+              placeholder="Digite o número da OS ou OS externa" />
           </div>
           <FSelect
             label="Empresa"
@@ -417,8 +334,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
             ]}
           />
         </div>
-      </div>
-    </AdminCard>
+    </AdminSearchPanel>
 
     {optionsQuery.isError || listQuery.isError ? (
       <AdminCard className="p-5">
