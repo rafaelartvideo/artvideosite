@@ -161,7 +161,11 @@ export function useOrderResolution({
     }
     // Sempre usar a cópia persistida das regras, não os dados parciais da tabela.
     setDetail((current: any) => current?.id === order.id
-      ? { ...current, order_rules_snapshot: currentOrder?.order_rules_snapshot ?? null }
+      ? {
+          ...current,
+          order_rules_snapshot: currentOrder?.order_rules_snapshot ?? null,
+          cannot_be_solved: currentOrder?.cannot_be_solved ?? current?.cannot_be_solved ?? false,
+        }
       : current);
     if (currentOrder?.is_solved || order.is_solved) {
       showToast({
