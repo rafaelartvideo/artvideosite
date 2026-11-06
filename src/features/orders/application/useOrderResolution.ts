@@ -29,6 +29,7 @@ import {
   undoServiceOrderSolution,
   type ServiceOrderSolutionAttempt,
 } from "../infrastructure/order-solution-history.repository";
+import { requiredAt, type RuleSet } from "../domain/order-rules";
 import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-image";
 import { uploadServiceOrderMediaFile } from "@/shared/infrastructure/media.repository";
 
@@ -402,14 +403,15 @@ export function useOrderResolution({
 
     const diagnosis = solveDraft.diagnosis.trim();
     const solution = solveDraft.solution.trim();
-    if (!diagnosis) {
+    const resolutionFields = (detail?.order_rules_snapshot as RuleSet | null)?.fields;
+    if (!diagnosis && (!resolutionFields || requiredAt(resolutionFields.diagnosis,"finish"))) {
       showToast({
         msg: "Informe o diagnóstico antes de concluir a solução.",
         type: "error",
       });
       return;
     }
-    if (!solution) {
+    if (!solution && (!resolutionFields || requiredAt(resolutionFields.solution,"finish"))) {
       showToast({
         msg: "Informe a solução antes de concluir a OS.",
         type: "error",
