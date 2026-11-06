@@ -187,6 +187,7 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
 
 export function LoadingState({ text = "Carregando..." }: { text?: React.ReactNode }) {
   return <div
+    data-admin-loading-state="true"
     className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3 px-4 py-10 text-center"
     role="status"
     aria-live="polite"
