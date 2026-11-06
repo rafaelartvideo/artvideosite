@@ -1,3 +1,4 @@
+import { assertPreparedUploadImage } from "../_shared/upload-image-guard.mjs";
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const corsHeaders = {
@@ -467,6 +468,9 @@ async function uploadMobileDocument(context: any) {
     await requireSessionPermission(admin, session, "orders.images.situation." + situationId + ".upload", "Você não pode anexar imagens nesta situação.");
   }
 
+  if (ACCEPTED_IMAGE_TYPES.has(file.type)) {
+    await assertPreparedUploadImage(file, session.mobile_flow === "payment_proof" ? "payment-proof" : kind === "attachment" ? "document-image" : "service-photo");
+  }
   const safeName = safeFileName(file.name || "arquivo");
   const safeExt = safeName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
   const storagePath = "orders/" + session.service_order_id + "/" + (kind === "attachment" ? "attachments" : "situations/" + situationId)
@@ -898,6 +902,7 @@ async function uploadPhoto(context: any) {
     throw Object.assign(new Error("Use JPG, PNG ou WebP com até 10 MB."), { status: 400 });
   }
 
+  await assertPreparedUploadImage(file, "service-photo");
   const extension = extensionFor(file);
   const storagePath = `orders/${session.organization_id}/${session.service_order_id}/checklists/${checklist.id}/${item.id}/mobile/${crypto.randomUUID()}.${extension}`;
   const { error: uploadError } = await admin.storage.from("service-images")

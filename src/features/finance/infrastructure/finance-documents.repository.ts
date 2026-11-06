@@ -42,7 +42,7 @@ export async function uploadFinancialAttachment(
   if (!file) throw new Error("Selecione um arquivo.");
   if (file.size > 20 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 20 MB.");
 
-  const preparedFile = await prepareFileForUpload(file, "document-image");
+  const preparedFile = await prepareFileForUpload(file, attachmentType === "proof" ? "payment-proof" : "document-image");
   const path = `${org}/${entryId}/${crypto.randomUUID()}-${safeFileName(preparedFile.name)}`;
   const { error: uploadError } = await supabase.storage
     .from("financial-documents")

@@ -75,8 +75,8 @@ test("compressão de fotos e preservação de PDF continuam intactas", () => {
   const repository = read("src/features/orders/infrastructure/order-documents.repository.ts");
   const optimizer = read("src/shared/application/upload-file-optimizer.ts");
   const completion = read("src/features/orders/application/useOrderCompletion.ts");
-  assert.match(repository, /optimizePhoto && file\.type\.startsWith\("image\/"\) \? "service-label" : "document-image"/);
-  assert.match(optimizer, /"service-label": \{ maxDimension: 2200/);
-  assert.match(optimizer, /if \(preset === "document-image" \|\| !file\.type\.startsWith\("image\/"\)\)/);
+  assert.match(repository, /optimizePhoto \? "payment-proof" : "document-image"/);
+  assert.match(read("supabase/functions/_shared/upload-image-profiles.ts"), /"payment-proof": \{ maxDimension: 2200, quality: 0\.90/);
+  assert.match(optimizer, /prepareFileForUpload/);
   assert.match(completion, /optimizePhoto: true/);
 });

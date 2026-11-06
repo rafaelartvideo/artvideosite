@@ -199,8 +199,8 @@ export function TabSettings({ onBack, identityOnly = false }: {
 
         </>}
         {(identityOnly || section === "branding") && <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
-          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} onRemove={() => update("company_menu_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo do menu" />
+          <ImageUpload photoActions bucket="public-assets" imagePreset="logo-image" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
+          <ImageUpload photoActions bucket="public-assets" imagePreset="logo-image" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} onRemove={() => update("company_menu_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo do menu" />
         </div></Section>}
       </div>
       {!identityOnly && section === "data" && activeOrganization?.is_owner && !activeOrganization.is_platform_operator && activeOrganizationId && <CompanySegmentsSettings organizationId={activeOrganizationId} />}

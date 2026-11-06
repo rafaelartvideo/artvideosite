@@ -91,7 +91,9 @@ test("anexos: RLS vincula pasta pelo nome do arquivo no storage e arquivos falho
   assert.match(page,/setPendingFiles\(failedFiles\)/);
   assert.match(page,/persistedProviderId \|\| editing\?\.id/);
   assert.match(page,/setPersistedProviderId\(savedId\)/);
-  assert.match(repository,/\.upload\(path, file, \{ contentType: mime, upsert: false \}\)/);
+  assert.match(repository,/\.upload\(path, preparedFile, \{ contentType: preparedFile.type, upsert: false \}\)/);
+  assert.match(repository,/prepareFileForUpload\(typedFile, "document-image"\)/);
+  assert.match(repository,/mime_type: preparedFile.type, file_size: preparedFile.size/);
 });
 
 test("terceiro estilo compartilhado é aplicado aos ícones Editar e botões Consultar",()=>{

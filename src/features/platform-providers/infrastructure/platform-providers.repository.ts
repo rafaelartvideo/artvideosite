@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
 export const PLATFORM_PROVIDER_BUCKET = "platform-provider-documents";
 export type PlatformService = {
@@ -232,13 +233,16 @@ export async function addProviderAttachment(orgId: string, providerId: string, f
   const mime = mimeByExtension[extension];
   if (!mime) throw new Error("Formato não aceito. Use PDF, imagem, TXT, DOC ou DOCX.");
   if (file.size > 10 * 1024 * 1024) throw new Error("Cada anexo deve ter no máximo 10 MB.");
-  const path = orgId + "/" + providerId + "/" + crypto.randomUUID() + "." + extension;
+  // Camera/OS file pickers can omit MIME: use the validated extension for processing.
+  const typedFile = file.type === mime ? file : new File([file], file.name, { type: mime, lastModified: file.lastModified });
+  const preparedFile = await prepareFileForUpload(typedFile, "document-image");
+  const path = orgId + "/" + providerId + "/" + crypto.randomUUID() + "." + extensionForUploadFile(preparedFile);
   const { error: uploadError } = await supabase.storage.from(PLATFORM_PROVIDER_BUCKET)
-    .upload(path, file, { contentType: mime, upsert: false });
+    .upload(path, preparedFile, { contentType: preparedFile.type, upsert: false });
   if (uploadError) throw uploadError;
   const { error } = await supabase.from("platform_provider_attachments")
     .insert({ organization_id: orgId, provider_id: providerId, storage_path: path,
-      file_name: file.name.slice(0, 250), mime_type: mime, file_size: file.size });
+      file_name: preparedFile.name.slice(0, 250), mime_type: preparedFile.type, file_size: preparedFile.size });
   if (error) {
     await supabase.storage.from(PLATFORM_PROVIDER_BUCKET).remove([path]);
     throw error;

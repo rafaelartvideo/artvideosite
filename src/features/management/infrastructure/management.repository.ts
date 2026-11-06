@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { extensionForUploadFile, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
+import { extensionForUploadFile, prepareFileForUpload, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type ManagementSpace = {
   id: string; slug: string; name: string; description: string; icon_text: string;
@@ -110,8 +110,10 @@ export async function restoreManagementRecord(recordId: string) {
   if (error) throw error;
 }
 export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[], campaignRecordId?: string) {
-  for(const file of files) {
+  for(let file of files) {
     if(file.size>25*1024*1024) throw new Error("O limite é de 25 MB por arquivo.");
+    // This versioned file archive promises byte-for-byte recovery of each original.
+    file = await prepareFileForUpload(file, "document-image", { preserveOriginal: true, maxBytes: 25 * 1024 * 1024 });
     const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g,"").slice(0,10) || "bin";
     const path = `${spaceId}/${folderId}/${crypto.randomUUID()}.${extension}`;
     const uploaded = await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type || "application/octet-stream"});
@@ -144,7 +146,7 @@ export async function openManagementFile(path: string) {
 
 export async function uploadManagementLogo(spaceId: string, file: File, previousPath?: string | null) {
   if(!["image/png","image/jpeg","image/webp"].includes(file.type)) throw new Error("Use PNG, JPG ou WebP para a logomarca.");
-  const preparedFile = await prepareImageForUpload(file, "catalog-image", 3 * 1024 * 1024);
+  const preparedFile = await prepareImageForUpload(file, "logo-image", 3 * 1024 * 1024);
   const ext = extensionForUploadFile(preparedFile);
   const path=`${spaceId}/logos/${crypto.randomUUID()}.${ext}`;
   const uploaded=await supabase.storage.from(BUCKET).upload(path,preparedFile,{contentType:preparedFile.type});
@@ -183,6 +185,8 @@ export async function listManagementFileVersions(recordId: string): Promise<Mana
 export async function uploadManagementFileVersion(record: ManagementRecord, file: File) {
   if(record.kind!=="file" || !record.storage_path) throw new Error("Registro de arquivo inválido.");
   if(file.size>25*1024*1024) throw new Error("Limite de 25 MB por versão.");
+  // Each archive version is an immutable original, including signed/binary assets.
+  file = await prepareFileForUpload(file, "document-image", { preserveOriginal: true, maxBytes: 25 * 1024 * 1024 });
   const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g,"").slice(0,10) || "bin";
   const path = `${record.space_id}/${record.folder_id}/${crypto.randomUUID()}.${extension}`;
   const uploaded = await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type||"application/octet-stream"});

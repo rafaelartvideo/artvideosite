@@ -62,7 +62,7 @@ export function MobileOrderDocumentsSection({
     let count = 0;
     try {
       for (const file of files) {
-        await uploadMobileOrderDocument(pairing.id, pairing.token, kind, targetId, file);
+        await uploadMobileOrderDocument(pairing.id, pairing.token, kind, targetId, file, paymentProofOnly ? "payment-proof" : "document-image");
         count += 1;
       }
       await onRefresh();

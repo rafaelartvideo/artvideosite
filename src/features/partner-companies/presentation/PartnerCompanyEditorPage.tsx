@@ -587,6 +587,7 @@ export function PartnerCompanyEditorPage({
           {editing ? <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
             <ImageUpload
               bucket="public-assets"
+              imagePreset="logo-image"
               organizationId={company.id}
               currentMediaId={form.companyLogoMediaId}
               onUpload={(mediaId) => setField("companyLogoMediaId", mediaId)}
@@ -596,6 +597,7 @@ export function PartnerCompanyEditorPage({
             />
             <ImageUpload
               bucket="public-assets"
+              imagePreset="logo-image"
               organizationId={company.id}
               currentMediaId={form.menuLogoMediaId}
               onUpload={(mediaId) => setField("menuLogoMediaId", mediaId)}

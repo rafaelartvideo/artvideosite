@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
-import { getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
+import { getPublicStorageUrl, uploadMediaFile } from "@/shared/infrastructure/media.repository";
 
 export type ExternalProductLookup = {
   provider: "openfacts" | "upcitemdb" | string;
@@ -72,19 +72,23 @@ export async function importExternalProductImage(
   const { data, error } = await supabase.functions.invoke("product-lookup", {
     body: {
       organization_id: organizationId,
-      action: "import-image",
+      action: "fetch-image",
       image_url: imageUrl,
       alt_text: altText,
     },
   });
   if (error) await throwCatalogInvocationError(error);
-  if (!data?.success || !data?.media_id) {
+  if (!data?.success || !data?.image_base64 || !["image/jpeg", "image/png", "image/webp"].includes(data?.mime_type)) {
     throw new Error(data?.error || "Não foi possível importar a imagem.");
   }
-  return {
-    media_id: String(data.media_id),
-    public_url: String(data.public_url || ""),
-  };
+  const binary = atob(data.image_base64);
+  if (!binary.length || binary.length > 8 * 1024 * 1024) throw new Error("A imagem externa excede 8 MB ou está vazia.");
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  const extension = data.mime_type === "image/png" ? "png" : data.mime_type === "image/webp" ? "webp" : "jpg";
+  const file = new File([bytes], `external-${crypto.randomUUID()}.${extension}`, { type: data.mime_type });
+  const mediaId = await uploadMediaFile("product-images", file, organizationId, undefined, altText);
+  return resolveProductMediaImage(organizationId, mediaId);
 }
 
 export async function findOrCreateInventoryCategory(

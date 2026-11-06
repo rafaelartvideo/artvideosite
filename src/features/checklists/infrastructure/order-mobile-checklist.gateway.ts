@@ -185,10 +185,11 @@ export async function uploadMobileOrderDocument(
   kind: "attachment" | "situation",
   targetId: string,
   file: File,
+  purpose: "document-image" | "payment-proof" = "document-image",
 ) {
   const prepared = kind === "situation"
     ? await prepareImageForUpload(file, "service-photo", 10 * 1024 * 1024)
-    : await prepareFileForUpload(file, "document-image");
+    : await prepareFileForUpload(file, purpose);
   const body = new FormData();
   body.append("action", "upload_document");
   body.append("session_id", sessionId);

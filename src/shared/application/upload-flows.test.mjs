@@ -5,25 +5,32 @@ import { registerHooks } from 'node:module';
 const sourceRoot = new URL('../../', import.meta.url);
 const stubUrl = 'data:text/javascript,export const supabase=globalThis.__uploadTestSupabase;export const supabaseUrl="https://example.test";';
 registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier === '@/lib/active-organization') return { url: 'data:text/javascript,export const getActiveOrganizationId=async()=>"org";', shortCircuit: true };
   if (specifier === '@/lib/supabase') return { url: stubUrl, shortCircuit: true };
   if (specifier.startsWith('@/')) return nextResolve(new URL(`${specifier.slice(2)}.ts`, sourceRoot).href, context);
   return nextResolve(specifier, context);
 } });
 const calls = [];
 globalThis.__uploadTestSupabase = {
-  auth: { getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }) },
+  auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1' } } }, error: null }), getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }) },
   storage: { from: bucket => ({
     upload: async (path, file, options) => { calls.push({ kind: 'upload', bucket, path, file, options }); return { error: null }; },
     remove: async () => ({ error: null }),
   }) },
   rpc: async (name, args) => { calls.push({ kind: 'rpc', name, args }); return { data: { success: true, protocol: 'ORC-1' }, error: null }; },
   functions: { invoke: async (name, { body }) => { calls.push({ kind: 'invoke', name, body }); return { data: { success: true, outcome: 'accepted' }, error: null }; } },
-  from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }),
+  from: table => ({
+    update: () => ({ eq: async () => ({ error: null }) }),
+    select: () => { const query = { eq: () => query, maybeSingle: async () => ({ data: { id: 'order' }, error: null }) }; return query; },
+    insert: payload => { calls.push({ kind: 'insert', table, payload }); return { select: () => ({ single: async () => ({ data: { id: 'media-1' }, error: null }) }) }; },
+  }),
 };
 const { uploadTechnicianPhoto } = await import('../../features/technician-panel/infrastructure/technician-tasks.repository.ts');
 const { submitServiceBooking } = await import('../../features/public-services/infrastructure/service-booking.repository.ts');
 const { uploadManagementLogo } = await import('../../features/management/infrastructure/management.repository.ts');
 const { sendSacDigitalMediaMessage } = await import('../../features/sac-digital/infrastructure/sac-digital.repository.ts');
+const { attachOrderSituationDocument } = await import('../../features/orders/infrastructure/order-documents.repository.ts');
+const { uploadFinancialAttachment } = await import('../../features/finance/infrastructure/finance-documents.repository.ts');
 const { uploadMobileOrderDocument } = await import('../../features/checklists/infrastructure/order-mobile-checklist.gateway.ts');
 const originalDocument = globalThis.document;
 const originalBitmap = globalThis.createImageBitmap;
@@ -83,12 +90,12 @@ test('SAC compresses a camera photo to JPEG before its 1 MB provider cap', async
   assert.equal(body.get('file').type, 'image/jpeg');
   assert.equal(body.get('text'), 'Legenda');
 });
-test('mobile documents preserve original scan bytes while situation photos are optimized', async () => {
+test('mobile document photographs and situation photos upload optimized bytes', async () => {
   browser();
   const source = photo(2);
   await uploadMobileOrderDocument('session', 'token', 'attachment', 'target', source);
-  assert.equal(calls[0].body.get('file').size, source.size);
-  assert.equal(calls[0].body.get('file').type, source.type);
+  assert.equal(calls[0].body.get('file').size, 1000);
+  assert.equal(calls[0].body.get('file').type, 'image/webp');
   await uploadMobileOrderDocument('session', 'token', 'situation', 'target', photo(2));
   assert.equal(calls[1].body.get('file').size, 1000);
 });
@@ -103,4 +110,62 @@ test('mobile situation photo over the final 10 MB cap is rejected before invocat
   browser(11 * 1024 * 1024);
   await assert.rejects(uploadMobileOrderDocument('session', 'token', 'situation', 'target', photo(12)), /limite/i);
   assert.equal(calls.length, 0);
+});
+
+
+test('mobile payment proof uses high readability dimensions before multipart transfer', async () => {
+  browser();
+  const dimensions = [];
+  const create = globalThis.document.createElement;
+  globalThis.document.createElement = (...args) => {
+    const canvas = create(...args);
+    const encode = canvas.toBlob;
+    canvas.toBlob = (...encodeArgs) => { dimensions.push([canvas.width, canvas.height, encodeArgs[2]]); encode(...encodeArgs); };
+    return canvas;
+  };
+  await uploadMobileOrderDocument('session', 'token', 'attachment', 'proof-type', photo(), 'payment-proof');
+  assert.deepEqual(dimensions[0], [2200, 1650, 0.90]);
+  assert.equal(calls[0].body.get('file').size, 1000);
+});
+
+test('financial proof uploads and registers the same optimized bytes and metadata', async () => {
+  browser();
+  await uploadFinancialAttachment('org', 'entry', photo(), 'proof', 'settlement');
+  const upload = calls.find(call => call.kind === 'upload');
+  const registration = calls.find(call => call.kind === 'rpc');
+  assert.equal(upload.file.size, 1000);
+  assert.equal(upload.file.type, 'image/webp');
+  assert.match(upload.path, /camera\.webp$/);
+  assert.equal(registration.args.p_file_name, upload.file.name);
+  assert.equal(registration.args.p_size_bytes, upload.file.size);
+  assert.equal(registration.args.p_mime_type, upload.file.type);
+  assert.equal(registration.args.p_settlement_id, 'settlement');
+});
+
+test('financial and mobile PDF proofs preserve original bytes', async () => {
+  const pdf = new File(['%PDF signed bytes'], 'proof.pdf', { type: 'application/pdf' });
+  await uploadFinancialAttachment('org', 'entry', pdf, 'proof');
+  assert.equal(calls[0].file, pdf);
+  await uploadMobileOrderDocument('session', 'token', 'attachment', 'proof-type', pdf, 'payment-proof');
+  const sent = calls.find(call => call.kind === 'invoke').body.get('file');
+  assert.equal(await sent.text(), await pdf.text());
+  assert.equal(sent.type, 'application/pdf');
+});
+
+test('desktop completion proof sends optimized file and matching media to the existing attachment RPC', async () => {
+  browser();
+  await attachOrderSituationDocument({ organizationId: 'org', serviceOrderId: 'order', attachmentTypeId: 'proof-type', file: photo(), optimizePhoto: true });
+  const upload = calls.find(call => call.kind === 'upload');
+  const media = calls.find(call => call.kind === 'insert' && call.table === 'media');
+  const attachment = calls.find(call => call.kind === 'rpc');
+  assert.equal(upload.file.size, 1000);
+  assert.equal(upload.options.contentType, upload.file.type);
+  assert.equal(media.payload.file_name, upload.file.name);
+  assert.equal(media.payload.file_size, upload.file.size);
+  assert.equal(media.payload.mime_type, upload.file.type);
+  assert.equal(media.payload.organization_id, 'org');
+  assert.equal(attachment.name, 'attach_service_order_attachment');
+  assert.equal(attachment.args.p_media_id, 'media-1');
+  assert.equal(attachment.args.p_attachment_type_id, 'proof-type');
+  assert.equal(calls.filter(call => call.kind === 'upload').length,1);
 });

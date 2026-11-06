@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
-import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
+import { extensionForUploadFile, prepareFileForUpload, type UploadImagePreset } from "@/shared/application/upload-file-optimizer";
 import type { QueryClient } from "@tanstack/react-query";
 import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
 
@@ -21,7 +21,7 @@ export async function getAuthenticatedSession() {
   return session;
 }
 
-export async function createMediaRecord({ bucket, path, file, organizationId }: { bucket: MediaBucket; path: string; file: File; organizationId?: string | null }) {
+export async function createMediaRecord({ bucket, path, file, organizationId, altText }: { bucket: MediaBucket; path: string; file: File; organizationId?: string | null; altText?: string }) {
   const session = await getAuthenticatedSession();
   const payload: Record<string, unknown> = {
     bucket_id: bucket,
@@ -29,7 +29,7 @@ export async function createMediaRecord({ bucket, path, file, organizationId }: 
     file_name: file.name,
     file_size: file.size || null,
     mime_type: file.type || null,
-    alt_text: file.name,
+    alt_text: altText?.slice(0, 300) || file.name,
     uploaded_by: session.user.id,
   };
   if (organizationId) payload.organization_id = organizationId;
@@ -38,11 +38,11 @@ export async function createMediaRecord({ bucket, path, file, organizationId }: 
   return media.id as string;
 }
 
-async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, organizationId?: string | null) {
+async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, organizationId?: string | null, altText?: string) {
   const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type || undefined });
   if (error) throw error;
   try {
-    return await createMediaRecord({ bucket, path, file, organizationId });
+    return await createMediaRecord({ bucket, path, file, organizationId, altText });
   } catch (recordError) {
     const { error: cleanupError } = await supabase.storage.from(bucket).remove([path]);
     if (cleanupError) console.warn("[MEDIA] orphan cleanup failed:", cleanupError);
@@ -50,12 +50,14 @@ async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, 
   }
 }
 
-export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null) {
-  const preset = bucket === "product-images" || bucket === "brand-images" || bucket === "public-assets" || bucket === "avatars"
+export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null, imagePreset?: UploadImagePreset, altText?: string) {
+  const preset = imagePreset ?? (bucket === "avatars" ? "profile-image"
+    : bucket === "brand-images" ? "logo-image"
+    : bucket === "product-images" || bucket === "public-assets"
     ? "catalog-image"
     : bucket === "service-images"
       ? "service-photo"
-      : "document-image";
+      : "document-image");
   const preparedFile = await prepareFileForUpload(file, preset);
   const extension = extensionForUploadFile(preparedFile);
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
@@ -63,7 +65,7 @@ export async function uploadMediaFile(bucket: MediaBucket, file: File, organizat
   // registro em media. Sem ele, a política RLS bloqueia inclusive gestores.
   const resolvedOrganizationId = organizationId || await getActiveOrganizationId();
   const path = `${resolvedOrganizationId}/${fileName}`;
-  return uploadMediaAtPath(bucket, path, preparedFile, resolvedOrganizationId);
+  return uploadMediaAtPath(bucket, path, preparedFile, resolvedOrganizationId, altText);
 }
 
 export async function uploadServiceOrderMediaFile(
