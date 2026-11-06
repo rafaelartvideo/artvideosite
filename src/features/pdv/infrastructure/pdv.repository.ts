@@ -324,6 +324,23 @@ export async function searchPdvProducts(
 }
 
 
+export type PdvCompatibleProduct = PdvProduct & { source_product_id: string };
+
+/** Busca agrupada de alternativas reais, respeitando empresa, atividade e permissão de venda. */
+export async function listPdvCompatibleProducts(
+  organizationId: string,
+  sourceProductIds: string[],
+): Promise<PdvCompatibleProduct[]> {
+  if (!sourceProductIds.length) return [];
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("list_pdv_product_compatibilities_v1", {
+    p_organization_id: org,
+    p_source_product_ids: [...new Set(sourceProductIds)].slice(0, 30),
+  });
+  if (error) throw error;
+  return (data || []) as PdvCompatibleProduct[];
+}
+
 export async function searchPdvCustomers(
   organizationId: string,
   search = "",
