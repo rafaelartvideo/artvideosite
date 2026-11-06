@@ -18,12 +18,29 @@ create index if not exists product_related_codes_product_idx
 alter table public.product_related_codes enable row level security;
 revoke all on table public.product_related_codes from public,anon,authenticated;
 grant select on table public.product_related_codes to authenticated;
+drop policy if exists product_related_codes_tenant_select on public.product_related_codes;
 create policy product_related_codes_tenant_select on public.product_related_codes
 for select to authenticated
 using (
   private.has_tenant_module_permission(organization_id,'products','products.view')
   and exists (select 1 from public.products p where p.id=product_id and p.organization_id=organization_id)
 );
+
+-- Lista de referências por produto protegida pela política de leitura da empresa.
+-- Usa RPC para não depender da exposição automática de novas tabelas ao Data API.
+create or replace function public.list_product_related_codes(
+  p_organization_id uuid, p_product_id uuid
+)
+returns table(code text, relation_type text)
+language sql stable security invoker set search_path=''
+as $function$
+  select c.code,c.relation_type
+  from public.product_related_codes c
+  where c.organization_id=p_organization_id and c.product_id=p_product_id
+  order by c.code;
+$function$;
+revoke all on function public.list_product_related_codes(uuid,uuid) from public,anon;
+grant execute on function public.list_product_related_codes(uuid,uuid) to authenticated;
 
 -- Substituição transacional apenas por quem pode criar/editar produtos na empresa.
 create or replace function public.replace_product_related_codes(
@@ -43,13 +60,19 @@ declare
   v_count integer := 0;
 begin
   if auth.uid() is null then raise exception 'Usuário não autenticado.' using errcode='42501'; end if;
-  if not (
-    private.has_tenant_module_permission(p_organization_id,'products','products.update') or
-    private.has_tenant_module_permission(p_organization_id,'products','products.create')
-  ) then raise exception 'Sem permissão para alterar os códigos do produto.' using errcode='42501'; end if;
   select * into v_product from public.products
   where id=p_product_id and organization_id=p_organization_id for update;
   if not found then raise exception 'Produto não encontrado nesta empresa.' using errcode='P0002'; end if;
+  -- A permissão de criação não autoriza editar qualquer produto já existente.
+  -- O próprio criador pode anexar os códigos logo após salvar um item novo.
+  if not (
+    private.has_tenant_module_permission(p_organization_id,'products','products.update')
+    or (
+      private.has_tenant_module_permission(p_organization_id,'products','products.create')
+      and v_product.created_by=auth.uid()
+      and v_product.created_at>now()-interval '5 minutes'
+    )
+  ) then raise exception 'Sem permissão para alterar os códigos do produto.' using errcode='42501'; end if;
   if jsonb_typeof(coalesce(p_codes,'[]'::jsonb)) <> 'array' then
     raise exception 'Lista de códigos inválida.' using errcode='22023';
   end if;
@@ -189,6 +212,11 @@ begin
       v_search=''
       or lower(inventory.name) like '%'||v_search||'%'
       or lower(coalesce(inventory.sku,'')) like '%'||v_search||'%'
+      or exists (
+        select 1 from public.products p
+        where p.organization_id=inventory.organization_id and p.id=inventory.product_id
+          and lower(coalesce(p.manufacturer_code,'')) like '%'||v_search||'%'
+      )
       or exists (select 1 from public.product_related_codes code where code.organization_id=inventory.organization_id and code.product_id=inventory.product_id and code.is_verified and lower(code.code) like '%'||v_search||'%')
     )
   order by
