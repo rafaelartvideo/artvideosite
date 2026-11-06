@@ -46,8 +46,10 @@ function movementLabel(type: string) {
 
 export function PdvCashReports({
   onBack,
+  embedded = false,
 }: {
   onBack: () => void;
+  embedded?: boolean;
 }) {
   const { activeOrganizationId, activeOrganization } = useAuth();
   const organizationId = activeOrganizationId || "";
@@ -104,11 +106,11 @@ export function PdvCashReports({
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    <PageHeader
+    {!embedded && <PageHeader
       title="Caixas do PDV"
       subtitle="Acompanhe cada turno do caixa, vendas, recebimentos, sangrias, suprimentos e diferenças de fechamento."
       actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={15} /> Voltar ao PDV</AdminButton>}
-    />
+    />}
 
     <AdminCard>
       {sessionsQuery.isPending ? <LoadingState text="Carregando caixas..." /> : sessions.length === 0 ? (
