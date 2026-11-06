@@ -716,12 +716,14 @@ export function TabProducts({
 
     const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
     if (!relatedCodesLoaded) {
-      setEditorTab("general");
+      setEditorTab("relationships");
+      setRelationshipTab("compatible");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
       return false;
     }
     if (codesValidation.error) {
-      setEditorTab("general");
+      setEditorTab("relationships");
+      setRelationshipTab("compatible");
       setToast({ msg: codesValidation.error, type: "error" });
       return false;
     }
@@ -749,6 +751,26 @@ export function TabProducts({
   const handleSave = async () => {
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
+    if (variantRows.length) {
+      const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantRows);
+      const skus = variantRows.map(row => row.sku.trim().toUpperCase());
+      const gtins = variantRows.map(row => row.barcode.trim().toUpperCase()).filter(Boolean);
+      const valid = canCreate && canEdit && expected.length === variantRows.length
+        && variantRows.every((row, index) => row.label === expected[index]?.label
+          && row.label.length <= 100 && row.sku.trim().length > 0
+          && row.sku.trim().toUpperCase() !== form.sku.trim().toUpperCase()
+          && (!row.barcode || /^[0-9A-Za-z._-]{4,32}$/.test(row.barcode.trim()))
+          && (row.price.trim() === "" || (nullableNumber(row.price) !== null && nullableNumber(row.price)! >= 0))
+          && Number.isInteger(Number(row.quantity)) && Number(row.quantity) >= 0)
+        && new Set(skus).size === skus.length
+        && new Set(gtins).size === gtins.length;
+      if (!valid) {
+        setEditorTab("relationships");
+        setRelationshipTab("variations");
+        setToast({ msg: "Revise as variações: atributos, SKUs exclusivos, códigos de barras, preços e saldos inteiros não negativos.", type: "error" });
+        return;
+      }
+    }
     const photoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
     if (photoCount > 4) {
       setEditorTab("store");
@@ -874,6 +896,30 @@ export function TabProducts({
         });
         void refresh();
         return;
+      }
+
+      if (variantRows.length) {
+        try {
+          await createProductVariationCombinations(activeOrganizationId, savedProductId,
+            variantRows.map(row => ({
+              label: row.label, attributes: row.attributes, sku: row.sku.trim(),
+              barcode: row.barcode.trim() || null, price: nullableNumber(row.price),
+              quantity: Number(row.quantity),
+            })));
+          setVariantRows([]);
+          setVariantOptions([]);
+          await queryClient.invalidateQueries({ queryKey: ["products", "variation-family", activeOrganizationId] });
+        } catch (variantError) {
+          // O item principal já foi criado: não repetir seu cadastro ao tentar salvar de novo.
+          setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+          onRouteChange?.(savedProductId, "edit");
+          setEditorTab("relationships");
+          setRelationshipTab("variations");
+          setToast({ msg: "Produto salvo, mas não foi possível registrar as variações: " +
+            systemErrorMessage(variantError) + ". Revise e salve novamente.", type: "error" });
+          void refresh();
+          return;
+        }
       }
 
       closeEditorRoute();
