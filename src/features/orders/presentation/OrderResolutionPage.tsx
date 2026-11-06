@@ -89,9 +89,9 @@ export function OrderResolutionPage({
                 currentText={diagnosis} diagnosisText={diagnosis}
                 onApply={text => setSolveDraft(current => ({ ...current, diagnosis: text }))} />}
             </div>
-          </Section>
+          </Section>}
 
-          <Section title="Solução">
+          {solutionVisible && <Section title="Solução">
             <div className="space-y-1">
               <FTextarea label="Solução" aria-label="Solução" required={solutionRequired} autoCapitalize="sentences"
                 value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
