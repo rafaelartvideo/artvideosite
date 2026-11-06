@@ -1676,23 +1676,19 @@ export function TabProducts({
 
             <Section title="Estoque">
               <div className="space-y-4">
-                {editItem && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Saldo atual</p>
-                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{formatNumber(currentQuantity)} {form.commercial_unit}</p>
-                  </AdminCard>
-                  {canViewCosts && <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Último custo</p>
-                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{purchasePrice == null ? "—" : formatCurrency(purchasePrice)}</p>
-                  </AdminCard>}
-                  {canViewCosts && <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Custo médio</p>
-                    <p className="mt-1 text-base font-black text-[#0d1b2e]">{averageCost == null ? "—" : formatCurrency(averageCost)}</p>
-                  </AdminCard>}
-                  <AdminCard className="bg-[#f8fafc] p-3 shadow-none">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a96a8]">Cadastro</p>
-                    <p className="mt-1 text-sm font-black text-[#0d1b2e]">Item único do estoque</p>
-                  </AdminCard>
+                {editItem && <div className="flex flex-wrap gap-x-8 gap-y-3 border-b border-border pb-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Saldo atual</p>
+                    <p className="mt-1 text-base font-bold text-foreground">{formatNumber(currentQuantity)} {form.commercial_unit}</p>
+                  </div>
+                  {canViewCosts && <div>
+                    <p className="text-xs text-muted-foreground">Último custo</p>
+                    <p className="mt-1 text-base font-bold text-foreground">{purchasePrice == null ? "—" : formatCurrency(purchasePrice)}</p>
+                  </div>}
+                  {canViewCosts && <div>
+                    <p className="text-xs text-muted-foreground">Custo médio</p>
+                    <p className="mt-1 text-base font-bold text-foreground">{averageCost == null ? "—" : formatCurrency(averageCost)}</p>
+                  </div>}
                 </div>}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
