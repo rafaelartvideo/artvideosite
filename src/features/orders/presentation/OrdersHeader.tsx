@@ -1,4 +1,4 @@
-import { LayoutDashboard, List, Plus } from "lucide-react";
+import { LayoutDashboard, List, Plus, Settings2 } from "lucide-react";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { filteredTotalLabel } from "../domain/order-list-display.mjs";
 
@@ -6,6 +6,8 @@ export function OrdersHeader({
   total,
   displayMode,
   canCreate,
+  canConfigure = false,
+  onConfigure,
   onDisplayModeChange,
   onCreate,
   showViewToggle = true,
@@ -13,11 +15,13 @@ export function OrdersHeader({
   total: number;
   displayMode: "list" | "kanban";
   canCreate: boolean;
+  canConfigure?: boolean;
+  onConfigure?: () => void;
   onDisplayModeChange: (mode: "list" | "kanban") => void;
   onCreate: () => void;
   showViewToggle?: boolean;
 }) {
-  const hasActions = showViewToggle || canCreate;
+  const hasActions = showViewToggle || canCreate || canConfigure;
   return (
     <PageHeader
       title="Ordens de Serviço"
@@ -46,6 +50,14 @@ export function OrdersHeader({
               <span className="ml-2 hidden sm:inline text-xs font-bold">Kanban</span>
             </button>
           </div>}
+
+          {canConfigure && onConfigure && <AdminButton
+            variant="icon"
+            onClick={onConfigure}
+            aria-label="Configurações das Ordens de Serviço"
+            title="Configurações das Ordens de Serviço"
+            className="h-11 w-11 !min-w-11 !px-0"
+          ><Settings2 size={18} /></AdminButton>}
 
           {canCreate && (
             <AdminButton onClick={onCreate} aria-label="Nova OS" title="Nova OS" className="h-11 min-w-11 px-3 sm:px-4">
