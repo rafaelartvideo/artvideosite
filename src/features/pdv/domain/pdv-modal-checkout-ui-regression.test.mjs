@@ -4,18 +4,34 @@ import { readFileSync } from "node:fs";
 
 const source = (name) => readFileSync(new URL(`../presentation/${name}`, import.meta.url), "utf8");
 
-test("PDV Vendas e Caixas abrem em modal sem substituir toda a página", () => {
+test("PDV Vendas e Caixas são modais locais, sem modificar URL ou substituir página", () => {
   const routes = source("TabPdv.tsx");
   const sales = source("PdvSalesHistory.tsx");
   const cash = source("PdvCashReports.tsx");
-  assert.match(routes, /routeResourceId === "sales"[\s\S]*?return <AdminDialog/);
-  assert.match(routes, /routeResourceId === "cash"[\s\S]*?return <AdminDialog/);
+  assert.match(routes, /const \[workspaceModal, setWorkspaceModal\] = useState<"sales" \| "cash" \| null>\(null\)/);
+  assert.match(routes, /onClick=\{\(\) => setWorkspaceModal\("cash"\)\}/);
+  assert.match(routes, /onClick=\{\(\) => setWorkspaceModal\("sales"\)\}/);
+  assert.match(routes, /\{workspaceModal === "sales" && <AdminDialog/);
+  assert.match(routes, /\{workspaceModal === "cash" && canViewCashReports && <AdminDialog/);
   assert.match(routes, /<PdvSalesHistory embedded/);
   assert.match(routes, /<PdvCashReports embedded/);
+  assert.doesNotMatch(routes, /onRouteChange\?\.\("(?:sales|cash)", null\)/);
+  assert.doesNotMatch(routes, /if \(routeResourceId === "sales"\) \{\s*return <AdminDialog/);
+  assert.doesNotMatch(routes, /if \(routeResourceId === "cash" && canViewCashReports\) \{\s*return <AdminDialog/);
+  assert.match(routes, /if \(routeResourceId === "sales" \|\| routeResourceId === "cash"\)/);
+  assert.match(routes, /onRouteChange\?\.\(null, null\)/);
   assert.match(sales, /embedded = false/);
   assert.match(cash, /embedded = false/);
   assert.match(sales, /\{!embedded && <PageHeader/);
   assert.match(cash, /\{!embedded && <PageHeader/);
+});
+
+test("Suprimento é Estilo 3 e Sangria Estilo 4, alinhados ao centro", () => {
+  const code = source("TabPdv.tsx");
+  assert.match(code, /className="flex flex-wrap items-center justify-center gap-3"/);
+  assert.match(code, /<AdminButton variant="tertiary" className="min-w-36 justify-center" onClick=\{\(\) => openCashDialog\("supply"\)\}/);
+  assert.match(code, /<AdminButton variant="quaternary" className="min-w-36 justify-center" onClick=\{\(\) => openCashDialog\("withdraw"\)\}/);
+  assert.match(code, /variant=\{cashDialog === "supply" \? "tertiary" : cashDialog === "withdraw" \? "quaternary" : "primary"\}/);
 });
 
 test("carrinho não corta controles de condição nem rolagem do dropdown", () => {
