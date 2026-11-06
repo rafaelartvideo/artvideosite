@@ -19,6 +19,11 @@ signals as (
   cross join lateral (values (p.sku),(p.barcode),(p.manufacturer_code)) code(value)
   where p.organization_id=p_organization_id and length(btrim(coalesce(code.value,'')))>=2
   union all
+  select inventory.product_id,upper(btrim(inventory.sku)),false
+  from public.inventory_items inventory
+  where inventory.organization_id=p_organization_id and inventory.product_id is not null
+    and length(btrim(coalesce(inventory.sku,'')))>=2
+  union all
   select related.product_id,upper(btrim(related.code)),true
   from public.product_related_codes related
   where related.organization_id=p_organization_id and related.is_verified=true
@@ -155,7 +160,9 @@ begin
   then raise exception 'Sem permissão para consultar compatibilidades.' using errcode='42501'; end if;
   return query
   select product.id,product.name,product.sku,product.price,product.cover_media_id,
-    coalesce(inventory.quantity,0),
+    case when lower(coalesce(inventory.unit,'un'))='cx'
+      then coalesce(inventory.quantity,0)/greatest(1,coalesce(inventory.conversion_factor,1))
+      else coalesce(inventory.quantity,0) end,
     coalesce(inventory.unit,'un'),pair.matched_code
   from private.find_code_compatible_products_v1(p_organization_id,array[p_product_id]) pair
   join public.products product on product.id=pair.product_id
