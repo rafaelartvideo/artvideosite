@@ -1,0 +1,75 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
+
+const read = path => readFileSync(path, "utf8");
+
+test("cadastro separa variantes, similares e compatibilidade técnica em uma aba compacta", async () => {
+  const ui = read("src/features/products/presentation/TabProducts.tsx");
+  const similar = read("src/features/products/presentation/ProductSimilarProductsEditor.tsx");
+  const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
+  for (const [name, code] of [["TabProducts.tsx", ui], ["ProductSimilarProductsEditor.tsx", similar], ["ProductVariationMatrix.tsx", matrix]]) {
+    assert.ok((await transformWithEsbuild(code, name, { loader: "tsx" })).code);
+  }
+  for (const marker of ['value="relationships"', "Produtos similares", "Compatibilidade técnica",
+    "<ProductVariationMatrix", "<ProductSimilarProductsEditor", "<ProductAutoCompatibilityPreview"]) {
+    assert.ok(ui.includes(marker), marker);
+  }
+  assert.ok(ui.includes("createProductVariationCombinations(activeOrganizationId, savedProductId"));
+  assert.ok(ui.includes("setEditItem(current => current || { id: savedProductId"));
+  assert.ok(ui.includes("setRelationshipTab(\"variations\")"));
+  assert.ok(matrix.includes("buildVariantMatrix"));
+  assert.ok(matrix.includes("Gerar combinações"));
+  assert.ok(matrix.includes("Aplicar a todas"));
+  assert.ok(matrix.includes("sku: baseSku.trim()"));
+  assert.ok(similar.includes("replaceProductSimilarIds"));
+});
+
+test("similares têm tabela própria, permissão e isolamento entre empresas", () => {
+  const sql = read("supabase/migrations/20261106220000_product_similars_separate.sql");
+  const repo = read("src/features/products/infrastructure/products.repository.ts");
+  assert.ok(sql.includes("create table if not exists public.product_similar_links"));
+  assert.ok(sql.includes("enable row level security"));
+  assert.ok(sql.includes("product_id_a < product_id_b"));
+  assert.ok(sql.includes("p.organization_id=p_organization_id"));
+  assert.ok(sql.includes("private.has_tenant_module_permission"));
+  assert.ok(sql.includes("revoke all on public.product_similar_links from public,anon,authenticated"));
+  assert.ok(repo.includes('"list_product_similar_ids_v1"'));
+  assert.ok(repo.includes('"replace_product_similar_ids_v1"'));
+});
+
+test("criação em lote de variantes tem estoque próprio, é atômica e mantém vínculos existentes", () => {
+  const sql = read("supabase/migrations/20261106221000_product_variation_matrix_create.sql");
+  const repo = read("src/features/products/infrastructure/product-variations.repository.ts");
+  assert.ok(sql.includes("create_product_variation_combinations_v1"));
+  assert.ok(sql.includes("public.save_inventory_item_unified_v6"));
+  assert.ok(sql.includes("insert into public.product_variation_links"));
+  assert.ok(sql.includes("variation_attributes"));
+  assert.ok(sql.includes("v_count>30"));
+  assert.ok(sql.includes("perform pg_advisory_xact_lock"));
+  assert.ok(sql.includes("unique") || sql.includes("repetida"));
+  assert.ok(sql.includes("Sem permissão"));
+  assert.ok(sql.includes("select auth.uid()"));
+  assert.ok(repo.includes("createProductVariationCombinations"));
+});
+
+test("PDV, orçamento, OS e pedidos de peças consultam similares sem misturar compatíveis", async () => {
+  const sql = read("supabase/migrations/20261106222000_product_similars_pdv_service_orders.sql");
+  assert.ok(sql.includes("list_pdv_product_similars_v1"));
+  assert.ok(sql.includes("list_service_order_product_similars_v1"));
+  assert.ok(sql.includes("private.can_view_service_order"));
+  const files = [
+    "src/features/pdv/presentation/PdvSaleWorkspace.tsx",
+    "src/features/orders/presentation/OrderQuoteCommercialEditor.tsx",
+    "src/features/orders/presentation/OrderProductsServicesSection.tsx",
+    "src/features/orders/presentation/PartRequestModal.tsx",
+  ];
+  for (const name of files) {
+    const ui = read(name);
+    assert.ok((await transformWithEsbuild(ui, name, { loader: "tsx" })).code);
+    assert.ok(ui.includes("listOrderProductSimilars") || ui.includes("listPdvSimilarProducts"), name);
+    assert.ok(ui.includes('title="Produtos similares"'), name);
+    assert.ok(ui.includes("CompatibleProductCarousel"), name);
+  }
+});
