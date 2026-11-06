@@ -6,7 +6,8 @@ import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceReports } from "../application/useFinanceReports";
-import type { FinancialEntryType, FinancialReportFilters } from "../domain/finance.types";
+import type { FinancialEntryType, FinancialReportFilters, FinanceSection } from "../domain/finance.types";
+import { FinanceMetricDetailsDialog, type FinanceMetricKind } from "./FinanceMetricDetailsDialog";
 
 function dateValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -20,20 +21,24 @@ function defaultPeriod(): Pick<FinancialReportFilters, "from" | "to"> {
   };
 }
 
-function MetricCard({ title, value, detail, icon: Icon }: {
+function MetricCard({ title, value, detail, icon: Icon, onClick }: {
   title: string;
   value: number;
   detail: string;
   icon: typeof Banknote;
+  onClick: () => void;
 }) {
-  return <AdminCard className="min-w-0 p-4 sm:p-5">
+  return <button type="button" onClick={onClick} aria-label={`Ver detalhes de ${title}`}
+    className="min-w-0 rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+    <AdminCard className="h-full min-w-0 p-4 transition-colors hover:border-primary/40 hover:bg-muted/30 sm:p-5">
     <div className="flex items-center justify-between gap-3">
       <p className="text-xs font-semibold text-muted-foreground">{title}</p>
       <Icon size={18} className="shrink-0 text-primary" aria-hidden="true" />
     </div>
     <p className="mt-3 break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">{formatCurrency(value)}</p>
     <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-  </AdminCard>;
+    </AdminCard>
+  </button>;
 }
 
 function DueCard({ title, amount, detail, warning = false }: {
@@ -48,10 +53,12 @@ function DueCard({ title, amount, detail, warning = false }: {
   </div>;
 }
 
-export function FinanceOverviewFoundation({ onSelectEntry }: {
+export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
   onSelectEntry: (type: FinancialEntryType, id: string) => void;
+  onSelectSection: (section: FinanceSection) => void;
 }) {
   const [period, setPeriod] = useState(defaultPeriod);
+  const [metricKind, setMetricKind] = useState<FinanceMetricKind | null>(null);
   const filters = useMemo<FinancialReportFilters>(() => ({ ...period }), [period]);
   const reports = useFinanceReports(filters, { dre: false });
   const dashboard = reports.dashboardQuery.data;
@@ -62,6 +69,10 @@ export function FinanceOverviewFoundation({ onSelectEntry }: {
   })), [reports.cashFlowQuery.data?.rows]);
 
   return <div className="space-y-5">
+    {dashboard && metricKind && <FinanceMetricDetailsDialog
+      key={metricKind} kind={metricKind} dashboard={dashboard} period={period}
+      onClose={() => setMetricKind(null)} onNavigateTo={onSelectSection} onSelectEntry={onSelectEntry}
+    />}
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <h2 className="text-lg font-bold text-foreground">Resumo financeiro</h2>
@@ -77,10 +88,10 @@ export function FinanceOverviewFoundation({ onSelectEntry }: {
 
     {reports.dashboardQuery.isLoading ? <AdminCard className="p-8"><LoadingState text="Carregando resumo financeiro..." /></AdminCard> : dashboard && <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {visible?.balance && <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Dinheiro nas contas e caixas" icon={Banknote} />}
-        {visible?.receivables && <MetricCard title="A receber" value={dashboard.receivable_open} detail="Valores que ainda devem entrar" icon={TrendingUp} />}
-        {visible?.payables && <MetricCard title="A pagar" value={dashboard.payable_open} detail="Valores que ainda devem sair" icon={TrendingDown} />}
-        {visible?.result && <MetricCard title="Resultado do período" value={dashboard.period_result} detail="Receitas menos despesas" icon={WalletCards} />}
+        {visible?.balance && <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Dinheiro nas contas e caixas" icon={Banknote} onClick={() => setMetricKind("balance")} />}
+        {visible?.receivables && <MetricCard title="A receber" value={dashboard.receivable_open} detail="Valores que ainda devem entrar" icon={TrendingUp} onClick={() => setMetricKind("receivables")} />}
+        {visible?.payables && <MetricCard title="A pagar" value={dashboard.payable_open} detail="Valores que ainda devem sair" icon={TrendingDown} onClick={() => setMetricKind("payables")} />}
+        {visible?.result && <MetricCard title="Resultado do período" value={dashboard.period_result} detail="Receitas menos despesas" icon={WalletCards} onClick={() => setMetricKind("result")} />}
       </div>
       {(visible?.receivables || visible?.payables) && <AdminCard>
         <AdminCardHeader><div className="flex items-center gap-2"><CalendarClock size={17} className="text-primary" /><h3 className="text-sm font-bold text-foreground">Vencimentos e pendências</h3></div></AdminCardHeader>

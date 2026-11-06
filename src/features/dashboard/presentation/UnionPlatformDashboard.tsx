@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -17,9 +18,11 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { loadUnionPlatformDashboard } from "@/features/platform-billing/infrastructure/platform-billing.repository";
+import { AdminMetricDetailDialog, type AdminMetricDetailRow } from "@/shared/ui/admin/AdminMetricDetailDialog";
+import { loadUnionPlatformDashboard, loadUnionPlatformFinance } from "@/features/platform-billing/infrastructure/platform-billing.repository";
 
 type Props = { onNavigate?: (tab: AdminTab) => void };
+type UnionMetric = "companies" | "monitoredCompanies" | "orders" | "subscriptions" | "mrr" | "receivable" | "received" | "overdue";
 
 function MetricCard({
   label,
@@ -51,6 +54,14 @@ function MetricCard({
 }
 
 export function UnionPlatformDashboard({ onNavigate }: Props) {
+  const [selectedMetric, setSelectedMetric] = useState<UnionMetric | null>(null);
+  const requiresBilling = Boolean(selectedMetric && ["subscriptions", "mrr", "receivable", "received", "overdue"].includes(selectedMetric));
+  const financeQuery = useQuery({
+    queryKey: ["union-platform-finance"],
+    queryFn: loadUnionPlatformFinance,
+    enabled: requiresBilling,
+    staleTime: 30_000,
+  });
   const query = useQuery({
     queryKey: [...queryKeys.admin.dashboards(), "union-platform"],
     queryFn: loadUnionPlatformDashboard,
@@ -59,8 +70,68 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
   const data = query.data;
   const metrics = data?.metrics;
   const open = (tab: AdminTab) => onNavigate?.(tab);
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const monthKey = todayKey.slice(0, 7);
+  const selectionTitles: Record<UnionMetric, string> = {
+    companies: "Empresas cadastradas", monitoredCompanies: "Empresas monitoradas", orders: "OS monitoradas",
+    subscriptions: "Assinaturas ativas", mrr: "MRR", receivable: "A receber no mês",
+    received: "Recebido no mês", overdue: "Em atraso",
+  };
+  const selectionValues = metrics && {
+    companies: String(metrics.companies_total), monitoredCompanies: String(metrics.monitored_companies),
+    orders: String(metrics.monitored_orders_open), subscriptions: String(metrics.subscriptions_active),
+    mrr: formatCurrency(metrics.mrr), receivable: formatCurrency(metrics.receivable_month),
+    received: formatCurrency(metrics.received_month), overdue: formatCurrency(metrics.overdue_total),
+  };
+  const detailTarget: AdminTab = selectedMetric === "companies" ? "partnerCompanies" : selectedMetric === "monitoredCompanies" || selectedMetric === "orders" ? "orders" : "finance";
+  let detailRows: AdminMetricDetailRow[] = [];
+  let detailDescription = "Registros recentes relacionados ao indicador. Abra a seção completa para consultar todos os registros.";
+  if (selectedMetric === "companies" && data) {
+    detailRows = data.recent_companies.map(item => ({
+      id: item.id, title: item.name,
+      subtitle: `${item.status === "active" ? "Ativa" : "Suspensa"} · ${formatDateOnly(item.created_at, "—")}`,
+      onClick: () => open("partnerCompanies"),
+    }));
+  } else if ((selectedMetric === "orders" || selectedMetric === "monitoredCompanies") && data) {
+    detailRows = data.recent_orders.map(item => ({
+      id: item.id, title: selectedMetric === "orders" ? `OS ${item.os_number}` : item.organization_name,
+      subtitle: selectedMetric === "orders" ? `${item.organization_name} · ${item.situation_name || "Sem situação"}` : `OS ${item.os_number} · ${formatDateOnly(item.updated_at, "—")}`,
+      onClick: () => open("orders"),
+    }));
+  } else if (requiresBilling && financeQuery.data) {
+    const billing = financeQuery.data;
+    detailDescription = "Cobranças e assinaturas vinculadas ao indicador. Os totais continuam sendo calculados pelo resumo oficial da plataforma.";
+    if (selectedMetric === "subscriptions" || selectedMetric === "mrr") {
+      detailRows = billing.subscriptions.filter(item => item.status === "active").map(item => ({
+        id: item.id, title: item.organization_name,
+        subtitle: `${item.plan_name} · Assinatura ativa`,
+        amount: formatCurrency(item.net_amount),
+        onClick: () => open("finance"),
+      }));
+    } else {
+      const charges = billing.charges.filter(item => selectedMetric === "receivable"
+        ? (item.status === "pending" || item.status === "overdue") && item.due_date.startsWith(monthKey)
+        : selectedMetric === "received" ? item.status === "paid" && Boolean(item.paid_at?.startsWith(monthKey))
+        : item.status === "overdue" || (item.status === "pending" && item.due_date < todayKey));
+      detailRows = charges.map(item => ({
+        id: item.id, title: item.organization_name,
+        subtitle: `${item.plan_name} · Vencimento ${formatDateOnly(item.due_date, "—")}`,
+        amount: formatCurrency(item.amount),
+        onClick: () => open("finance"),
+      }));
+    }
+  }
 
   return <div className="min-w-0 space-y-4 pb-2">
+    {selectedMetric && selectionValues && <AdminMetricDetailDialog
+      open title={selectionTitles[selectedMetric]} value={selectionValues[selectedMetric]}
+      description={detailDescription} rows={detailRows}
+      loading={requiresBilling && financeQuery.isPending}
+      error={requiresBilling && financeQuery.isError ? systemErrorMessage(financeQuery.error) : null}
+      emptyText={requiresBilling ? "Nenhum registro localizado nessa seleção." : "Nenhum registro recente localizado."}
+      onClose={() => setSelectedMetric(null)} onViewAll={() => open(detailTarget)}
+    />}
     <PageHeader
       title="Dashboard"
       subtitle="Visão geral da operação da Union World, empresas parceiras, monitoramento e assinaturas."
@@ -77,17 +148,17 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
       </AdminCard>
     ) : <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Empresas cadastradas" value={metrics.companies_total} hint={`${metrics.companies_active} ativas`} icon={Building2} onClick={() => open("partnerCompanies")} />
-        <MetricCard label="Empresas monitoradas" value={metrics.monitored_companies} hint="com tipos de atendimento monitorados" icon={Radio} onClick={() => open("orders")} />
-        <MetricCard label="OS monitoradas" value={metrics.monitored_orders_open} hint={`${metrics.monitored_orders_total} no histórico monitorado`} icon={ClipboardList} onClick={() => open("orders")} />
-        <MetricCard label="Assinaturas ativas" value={metrics.subscriptions_active} hint={`${metrics.subscriptions_past_due} com pendência`} icon={CreditCard} onClick={() => open("finance")} />
+        <MetricCard label="Empresas cadastradas" value={metrics.companies_total} hint={`${metrics.companies_active} ativas`} icon={Building2} onClick={() => setSelectedMetric("companies")} />
+        <MetricCard label="Empresas monitoradas" value={metrics.monitored_companies} hint="com tipos de atendimento monitorados" icon={Radio} onClick={() => setSelectedMetric("monitoredCompanies")} />
+        <MetricCard label="OS monitoradas" value={metrics.monitored_orders_open} hint={`${metrics.monitored_orders_total} no histórico monitorado`} icon={ClipboardList} onClick={() => setSelectedMetric("orders")} />
+        <MetricCard label="Assinaturas ativas" value={metrics.subscriptions_active} hint={`${metrics.subscriptions_past_due} com pendência`} icon={CreditCard} onClick={() => setSelectedMetric("subscriptions")} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="MRR" value={formatCurrency(metrics.mrr)} hint="receita recorrente mensal ativa" icon={TrendingUp} onClick={() => open("finance")} />
-        <MetricCard label="A receber no mês" value={formatCurrency(metrics.receivable_month)} hint="cobranças pendentes do mês" icon={Landmark} onClick={() => open("finance")} />
-        <MetricCard label="Recebido no mês" value={formatCurrency(metrics.received_month)} hint="assinaturas recebidas no mês" icon={CheckCircle2} onClick={() => open("finance")} />
-        <MetricCard label="Em atraso" value={formatCurrency(metrics.overdue_total)} hint="saldo vencido em aberto" icon={Banknote} onClick={() => open("finance")} />
+        <MetricCard label="MRR" value={formatCurrency(metrics.mrr)} hint="receita recorrente mensal ativa" icon={TrendingUp} onClick={() => setSelectedMetric("mrr")} />
+        <MetricCard label="A receber no mês" value={formatCurrency(metrics.receivable_month)} hint="cobranças pendentes do mês" icon={Landmark} onClick={() => setSelectedMetric("receivable")} />
+        <MetricCard label="Recebido no mês" value={formatCurrency(metrics.received_month)} hint="assinaturas recebidas no mês" icon={CheckCircle2} onClick={() => setSelectedMetric("received")} />
+        <MetricCard label="Em atraso" value={formatCurrency(metrics.overdue_total)} hint="saldo vencido em aberto" icon={Banknote} onClick={() => setSelectedMetric("overdue")} />
       </div>
 
       <div className="grid min-h-0 gap-4 xl:grid-cols-2">
