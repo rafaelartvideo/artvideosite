@@ -59,7 +59,7 @@ export const filterServiceOrders = ({
       : !normalizedOsSearch || normalizedOrderNumber === normalizedOsSearch;
     const matchesExternalOs = matchOrderNumberOrExternal
       ? true
-      : !normalizedExternalSearch || normalizedExternalNumber === normalizedExternalSearch;
+      : !normalizedExternalSearch || normalizedExternalNumber.includes(normalizedExternalSearch);
     const matchesDocument =
       !normalizedDocumentSearch ||
       customerIdentifiers.some(value => value.includes(normalizedDocumentSearch));
