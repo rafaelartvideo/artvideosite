@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { buildMonthlyInstallments } from "../domain/finance-entry.mjs";
 import type {
@@ -41,6 +41,7 @@ export function FinanceEntryEditorDialog({
   saving,
   onClose,
   onSave,
+  embedded = false,
 }: {
   open: boolean;
   entryType: FinancialEntryType;
@@ -54,6 +55,8 @@ export function FinanceEntryEditorDialog({
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialEntryDraft) => Promise<void>;
+  /** Renderiza o editor dentro do extrato, sem abrir outro modal sobre ele. */
+  embedded?: boolean;
 }) {
   const { hasPermission } = useAuth();
   const recurring = useFinanceRecurring(false);
@@ -253,20 +256,7 @@ export function FinanceEntryEditorDialog({
       .map(item => ({ value: item.id, label: item.name })),
   ];
 
-  return <><AdminDialog
-    open
-    onClose={onClose}
-    title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
-    description="Preencha os dados principais da conta."
-    minimizedDescription={[description.trim(), counterpartName || selectedCounterpart?.name, numericAmount > 0 ? formatCurrency(numericAmount) : null].filter(Boolean).join(" · ") || "Lançamento em preenchimento"}
-    minimizable={!busy}
-    className="max-w-3xl"
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <AdminButton variant="secondary" onClick={onClose} disabled={busy}>Cancelar</AdminButton>
-      <AdminButton onClick={save} loading={busy} loadingText="Salvando...">Salvar</AdminButton>
-    </div>}
-  >
-    <div className="space-y-5">
+  const editorFields = <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value={accountType} options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => setAccountType(event.target.value)} /></div>}
         <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
@@ -345,8 +335,31 @@ export function FinanceEntryEditorDialog({
           <div className="sm:col-span-2"><FTextarea label="Observações" value={notes} onChange={(event: any) => setNotes(event.target.value)} /></div>
         </div>
       </details>
-    </div>
-  </AdminDialog>
+    </div>;
+  const editorActions = <div className="flex flex-wrap items-center justify-between gap-3">
+    <AdminButton variant="secondary" onClick={onClose} disabled={busy}>
+      {embedded ? <><ArrowLeft size={16} /> Voltar</> : "Cancelar"}
+    </AdminButton>
+    <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">Salvar</AdminButton>
+  </div>;
+  return <>
+    {embedded ? <section aria-label="Editar lançamento" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
+      <div className="border-b border-border pb-3">
+        <h3 className="text-base font-bold text-foreground">Editar lançamento</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Altere os dados e salve para voltar aos detalhes da conta.</p>
+      </div>
+      {editorFields}
+      <div className="border-t border-border pt-4">{editorActions}</div>
+    </section> : <AdminDialog
+      open
+      onClose={onClose}
+      title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
+      description="Preencha os dados principais da conta."
+      minimizedDescription={[description.trim(), counterpartName || selectedCounterpart?.name, numericAmount > 0 ? formatCurrency(numericAmount) : null].filter(Boolean).join(" · ") || "Lançamento em preenchimento"}
+      minimizable={!busy}
+      className="max-w-3xl"
+      footer={editorActions}
+    >{editorFields}</AdminDialog>}
   {quickSupplierOpen && <FinanceQuickSupplierDialog
     onClose={() => setQuickSupplierOpen(false)}
     onSaved={supplier => {
