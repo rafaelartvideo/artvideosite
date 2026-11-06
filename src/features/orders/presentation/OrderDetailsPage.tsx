@@ -677,6 +677,7 @@ export function OrderDetailsPage(props: Props) {
           canManagePhotos={!monitorView && hasPermission("orders.section.images")}
           canRemovePhotos={!monitorView && hasPermission("orders.documents.remove")}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
+          onOverviewChange={handleItemsOverviewChange}
           footerHostId={"os-quote-toolbar-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
