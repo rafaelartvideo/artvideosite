@@ -143,7 +143,7 @@ test("receivables can settle all installments as a single financial movement", (
   const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
   assert.match(dialog, /Quitar todo o saldo em aberto/);
   assert.match(dialog, /settle_all: settlementScope === "all"/);
-  assert.match(dialog, /Valor principal" required disabled=\{settlementScope === "all"\}/);
+  assert.match(dialog, /Valor principal" required disabled=\{settlementScope === "all" \|\| Boolean\(forecastEdit\)\}/);
   assert.match(repository, /register_financial_bulk_settlement/);
   assert.match(migration, /create table if not exists public\.financial_settlement_allocations/);
   assert.match(migration, /perform private\.finance_post_settlement_movements\(v_settlement_id/);
@@ -164,4 +164,34 @@ test("forecast adjustments change only payable installments with a recorded reas
   assert.match(migration, /v_i\.settled_amount >= v_i\.original_amount/);
   assert.match(migration, /'installment_amount_adjusted'/);
   assert.match(migration, /finance\.payables\.edit/);
+});
+
+test("settlement supports inline payable installment adjustment with back navigation", () => {
+  const dialog = source("FinanceSettlementDialog.tsx");
+  const entries = source("FinanceEntriesSection.tsx");
+  assert.match(dialog, /Ajustar parcela/);
+  assert.match(dialog, /Salvar ajuste/);
+  assert.match(dialog, /forecastEdit\.reason\.trim\(\)/);
+  assert.match(dialog, /<ArrowLeft size=\{16\} \/> Voltar/);
+  assert.match(dialog, /disabled=\{saving \|\| forecastPending \|\| Boolean\(forecastEdit\)\}/);
+  assert.match(entries, /finance\.adjustInstallmentMutation\.mutateAsync/);
+  assert.match(entries, /await finance\.detailQuery\.refetch\(\)/);
+});
+test("editing an existing finance entry happens in the current details modal", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  const editor = source("FinanceEntryEditorDialog.tsx");
+  assert.match(entries, /editingSelectedEntry/);
+  assert.match(entries, /<FinanceEntryEditorDialog\s+open embedded/);
+  assert.match(entries, /open=\{editorOpen && !editingSelectedEntry\}/);
+  assert.match(editor, /\{embedded \? <section aria-label="Editar lançamento"/);
+  assert.match(editor, /<ArrowLeft size=\{16\} \/> Voltar/);
+  assert.match(editor, /onClick=\{\(\) => void save\(\)\}/);
+});
+test("open amounts are orange, paid green and next due tag is inline with title", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  assert.match(detail, /Próximo vencimento: \{formatDate\(due\.due_date\)\}/);
+  assert.match(detail, /financialDueUrgency\(due\?\.due_date\)/);
+  assert.match(detail, /text-amber-600 dark:text-amber-400/);
+  assert.match(detail, /text-emerald-600 dark:text-emerald-400/);
+  assert.doesNotMatch(detail, /<p className="text-muted-foreground">Próximo vencimento<\/p>/);
 });
