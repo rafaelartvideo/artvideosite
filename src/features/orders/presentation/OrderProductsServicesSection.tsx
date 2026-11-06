@@ -1517,7 +1517,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
             onChange={(event: any) => setCustomPrice(event.target.value)}
           />
         </div>}
-        {editable && <div>
+        {editable && !editingCustomItem && <div>
           <TechnicianMultiPicker
             label="Técnicos responsáveis"
             people={technicians} selected={customTechnicianIds} onChange={setCustomTechnicianIds}
