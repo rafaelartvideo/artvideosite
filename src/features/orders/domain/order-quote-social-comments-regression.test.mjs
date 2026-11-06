@@ -47,3 +47,25 @@ test("migração de comentários preserva os registros e limita acesso entre emp
   assert.match(sql, /security invoker/);
   assert.match(sql, /cardinality\(coalesce\(p_media_ids/);
 });
+
+test("comentar não aciona loading dos botões de encaminhamento do orçamento", async () => {
+  const workspace = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const comments = read("src/features/orders/presentation/OrderQuoteComments.tsx");
+  assert.ok((await transformWithEsbuild(workspace, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
+  assert.match(workspace, /<OrderQuoteComments organizationId=\{org\} orderId=\{orderId\}/);
+  assert.match(comments, /\{submitting \? <LoadingSpinner size="sm" \/> : <Send size=\{18\} \/>\}/);
+  assert.doesNotMatch(workspace, /\{editable && <BtnPrimary disabled=\{busy\} loading=\{busy\}/);
+  assert.doesNotMatch(workspace, /<BtnPrimary disabled=\{busy\} loading=\{busy\} onClick=\{\(\)=>openAction\("approve"\)\}/);
+  assert.match(workspace, /loading=\{busy\}\s+loadingText="Processando\.\.\."/);
+});
+
+test("serviço avulso pode editar título e descrição no modal sem alterar preços", async () => {
+  const editor = read("src/features/orders/presentation/OrderQuoteCommercialEditor.tsx");
+  assert.ok((await transformWithEsbuild(editor, "OrderQuoteCommercialEditor.tsx", { loader: "tsx" })).code);
+  assert.match(editor, /item\.item_type==="custom_service" && <AdminIconButton/);
+  assert.match(editor, /<Pencil size=\{15\}/);
+  assert.match(editor, /onClick=\{\(\)=>editCustom\(index,item\)\}/);
+  assert.match(editor, /title=\{editingCustomIndex===null\?"Serviço Avulso":"Editar serviço avulso"\}/);
+  assert.match(editor, /updateItem\(editingCustomIndex,\{title_snapshot:name,description_snapshot:customDescription\.trim\(\)\}\)/);
+  assert.match(editor, /\{editingCustomIndex===null && <div className="grid gap-3 sm:grid-cols-2">/);
+});
