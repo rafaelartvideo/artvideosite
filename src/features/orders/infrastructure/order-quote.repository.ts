@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { createMediaRecord } from "@/shared/infrastructure/media.repository";
+import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type OrderQuoteItem = {
   item_type: "product" | "service" | "custom_service";
@@ -65,18 +67,187 @@ export async function changeOrderQuote(
   if (error) throw error;
   return data as OrderQuoteProposal;
 }
-export async function listOrderQuoteComments(organizationId: string, orderId: string) {
-  const { data,error } = await supabase.from("service_order_quote_comments")
-    .select("id,author_id,body,created_at,author:profiles!service_order_quote_comments_author_id_fkey(full_name)")
-    .eq("organization_id",organizationId).eq("service_order_id",orderId)
-    .order("created_at",{ascending:false}).limit(100);
+export type OrderQuoteCommentAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  storagePath: string;
+  url: string | null;
+};
+export type OrderQuoteComment = {
+  id: string;
+  parent_id: string | null;
+  author_id: string;
+  body: string;
+  created_at: string;
+  authorName: string;
+  avatarUrl: string | null;
+  likesCount: number;
+  likedByMe: boolean;
+  attachments: OrderQuoteCommentAttachment[];
+};
+
+export async function listOrderQuoteComments(
+  organizationId: string,
+  orderId: string,
+  currentUserId?: string | null,
+): Promise<OrderQuoteComment[]> {
+  const { data: comments, error } = await supabase.from("service_order_quote_comments")
+    .select("id,parent_id,author_id,body,created_at,author:profiles!service_order_quote_comments_author_id_fkey(full_name,avatar_media_id)")
+    .eq("organization_id", organizationId).eq("service_order_id", orderId)
+    .order("created_at", { ascending: false }).limit(200);
   if (error) throw error;
-  return data || [];
+  const rows = (comments || []) as unknown as Array<{
+    id: string; parent_id: string | null; author_id: string; body: string; created_at: string;
+    author: { full_name: string | null; avatar_media_id: string | null } | { full_name: string | null; avatar_media_id: string | null }[] | null;
+  }>;
+  if (!rows.length) return [];
+
+  // Consultas em lote: sem um request por comentário, curtida ou anexo.
+  const ids = rows.map(row => row.id);
+  const avatarIds = Array.from(new Set(rows.flatMap(row => {
+    const author = Array.isArray(row.author) ? row.author[0] : row.author;
+    return author?.avatar_media_id ? [author.avatar_media_id] : [];
+  })));
+  const [likesResult, filesResult, avatarsResult] = await Promise.all([
+    (supabase as any).from("service_order_quote_comment_likes")
+      .select("comment_id,user_id").eq("organization_id", organizationId)
+      .eq("service_order_id", orderId).in("comment_id", ids),
+    (supabase as any).from("service_order_quote_comment_attachments")
+      .select("id,comment_id,media:media(file_name,mime_type,bucket_id,storage_path)")
+      .eq("organization_id", organizationId).eq("service_order_id", orderId)
+      .in("comment_id", ids),
+    avatarIds.length
+      ? supabase.from("media").select("id,bucket_id,storage_path").in("id", avatarIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (likesResult.error) throw likesResult.error;
+  if (filesResult.error) throw filesResult.error;
+  // Imagens de perfil são opcionais; um perfil sem permissão de mídia não bloqueia os comentários.
+  if (avatarsResult.error) console.warn("[QUOTE COMMENTS] Avatares indisponíveis.", avatarsResult.error);
+
+  const attachments = ((filesResult.data || []) as any[]).flatMap(item => {
+    const media = Array.isArray(item.media) ? item.media[0] : item.media;
+    return media?.bucket_id === "service-images" && media.storage_path
+      ? [{ id: item.id as string, commentId: item.comment_id as string,
+        fileName: String(media.file_name || "Anexo"), mimeType: String(media.mime_type || ""),
+        bucket: "service-images", path: String(media.storage_path) }] : [];
+  });
+  const avatars = ((avatarsResult.data || []) as Array<{ id: string; bucket_id: string; storage_path: string }>)
+    .filter(item => item.bucket_id === "avatars" && Boolean(item.storage_path));
+  const paths = new Map<string, string[]>();
+  if (attachments.length) paths.set("service-images", Array.from(new Set(attachments.map(file => file.path))));
+  if (avatars.length) paths.set("avatars", Array.from(new Set(avatars.map(item => item.storage_path))));
+  const urls = new Map<string, string>();
+  await Promise.all(Array.from(paths.entries()).map(async ([bucket, filenames]) => {
+    const { data: signed, error: signError } = await supabase.storage.from(bucket).createSignedUrls(filenames, 3600);
+    if (signError) {
+      console.warn("[QUOTE COMMENTS] Não foi possível assinar prévias de arquivos.", signError);
+      return;
+    }
+    signed?.forEach((entry, index) => {
+      if (entry.signedUrl) urls.set(bucket + "/" + (entry.path || filenames[index]), entry.signedUrl);
+    });
+  }));
+  const likeRows = (likesResult.data || []) as Array<{ comment_id: string; user_id: string }>;
+  return rows.map(row => {
+    const author = Array.isArray(row.author) ? row.author[0] : row.author;
+    const avatar = avatars.find(item => item.id === author?.avatar_media_id);
+    const rowLikes = likeRows.filter(like => like.comment_id === row.id);
+    return {
+      id: row.id, parent_id: row.parent_id, author_id: row.author_id,
+      body: row.body, created_at: row.created_at, authorName: author?.full_name || "Usuário",
+      avatarUrl: avatar ? urls.get("avatars/" + avatar.storage_path) || null : null,
+      likesCount: rowLikes.length,
+      likedByMe: rowLikes.some(like => like.user_id === currentUserId),
+      attachments: attachments.filter(item => item.commentId === row.id)
+        .map(item => ({
+          id: item.id, fileName: item.fileName, mimeType: item.mimeType,
+          storagePath: item.path, url: urls.get("service-images/" + item.path) || null,
+        })),
+    };
+  });
 }
-export async function addOrderQuoteComment(organizationId: string, orderId: string, authorId: string, body: string) {
-  const {error} = await supabase.from("service_order_quote_comments")
-    .insert({ organization_id:organizationId,service_order_id:orderId,author_id:authorId,body:body.trim() });
-  if(error) throw error;
+
+const COMMENT_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const COMMENT_ALLOWED_MIME = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+  "application/pdf", "text/plain", "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export function validateOrderQuoteCommentFiles(files: File[]) {
+  if (files.length > 3) throw new Error("Selecione no máximo 3 anexos por comentário.");
+  for (const file of files) {
+    if (!COMMENT_ALLOWED_MIME.has(file.type.toLowerCase())) {
+      throw new Error("Envie imagens, PDF, TXT ou documentos Word.");
+    }
+    if (file.size <= 0 || file.size > COMMENT_MAX_ATTACHMENT_BYTES) {
+      throw new Error(`O arquivo "${file.name}" deve ter até 20 MB.`);
+    }
+  }
+}
+
+export async function addOrderQuoteComment(
+  organizationId: string, orderId: string, body: string,
+  files: File[] = [], parentId: string | null = null,
+) {
+  validateOrderQuoteCommentFiles(files);
+  if (!body.trim() && !files.length) throw new Error("Digite um comentário ou escolha um anexo.");
+  const uploaded: Array<{ mediaId: string; path: string }> = [];
+  try {
+    for (const file of files) {
+      const prepared = await prepareFileForUpload(file, file.type.startsWith("image/") ? "service-photo" : "document-image");
+      const path = `orders/${orderId}/attachments/quote-comments/${crypto.randomUUID()}.${extensionForUploadFile(prepared)}`;
+      const { error: storageError } = await supabase.storage.from("service-images")
+        .upload(path, prepared, { upsert: false, contentType: prepared.type || undefined });
+      if (storageError) throw storageError;
+      try {
+        const mediaId = await createMediaRecord({
+          bucket: "service-images", path, file: prepared, organizationId,
+        });
+        uploaded.push({ mediaId, path });
+      } catch (mediaError) {
+        await supabase.storage.from("service-images").remove([path]);
+        throw mediaError;
+      }
+    }
+    // O RPC insere a mensagem e vincula todos os anexos numa mesma transação.
+    const { data, error } = await (supabase as any).rpc("add_service_order_quote_comment_v2", {
+      p_organization_id: organizationId,
+      p_order_id: orderId,
+      p_body: body.trim(),
+      p_parent_id: parentId,
+      p_media_ids: uploaded.map(item => item.mediaId),
+    });
+    if (error) throw error;
+    return data as string;
+  } catch (error) {
+    // Falha antes da publicação: tenta limpar arquivos recém-enviados e sem vínculo.
+    await Promise.allSettled(uploaded.map(async item => {
+      await (supabase as any).from("media").delete().eq("id", item.mediaId);
+      await supabase.storage.from("service-images").remove([item.path]);
+    }));
+    throw error;
+  }
+}
+
+export async function setOrderQuoteCommentLike(
+  organizationId: string, orderId: string, commentId: string, userId: string, liked: boolean,
+) {
+  const query = (supabase as any).from("service_order_quote_comment_likes");
+  const result = liked
+    ? await query.insert({ organization_id: organizationId, service_order_id: orderId, comment_id: commentId, user_id: userId })
+    : await query.delete().eq("comment_id", commentId).eq("user_id", userId)
+      .eq("organization_id", organizationId).eq("service_order_id", orderId);
+  if (result.error) throw result.error;
+}
+
+export async function getOrderQuoteCommentAttachmentUrl(storagePath: string) {
+  const { data, error } = await supabase.storage.from("service-images")
+    .createSignedUrl(storagePath, 300);
+  if (error || !data?.signedUrl) throw error || new Error("Não foi possível abrir o anexo.");
+  return data.signedUrl;
 }
 
 export async function readOrderPricingAfterApproval(organizationId: string, orderId: string) {
