@@ -174,6 +174,8 @@ export function useOrderDetails({
     setDetail,
     // Usado pelo fluxo Concluir da lista: espera o workspace completo, não só o preview da linha.
     detailReady: selectedOrderBelongsToOrganization && hydratedOrderId === selectedOrder?.id && detailQuery.isSuccess && !detailQuery.isFetching && Boolean(detailQuery.data),
+    detailLoadError: selectedOrderBelongsToOrganization ? detailQuery.error : null,
+    retryDetailLoad: () => detailQuery.refetch(),
     detailHistory,
     detailUsedItems,
     setDetailUsedItems,
