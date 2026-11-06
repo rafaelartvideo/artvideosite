@@ -1,14 +1,14 @@
 export type RuleMode = "required" | "optional" | "hidden";
 export type RuleStage = "create" | "start" | "finish";
 export type RuleItem = { mode: RuleMode; stage: RuleStage; minCount?: number };
-export type CustomField = { key: string; label: string; type: "text"|"number"|"date"|"select"|"checkbox"; mode: RuleMode; stage: RuleStage; options?: string[] };
+export type CustomField = { key: string; label: string; type: "text"|"number"|"date"|"select"|"checkbox"|"file"; mode: RuleMode; stage: RuleStage; options?: string[] };
 export type RuleSet = { fields: Record<string,RuleItem>; photos: Record<string,RuleItem>; custom_fields: CustomField[] };
 export type Scope = "company"|"service_type"|"equipment_type"|"combination";
 export type RuleRow = { id?: string; organization_id: string; scope: Scope; service_type_id: string|null; equipment_type_id: string|null; rules: Partial<RuleSet> };
-export const fieldLabels: Record<string,string> = { customer_notes:"Descrição do problema",equipment_type_id:"Tipo de equipamento",equipment_brand_id:"Marca",equipment_model_id:"Modelo",serial_number:"Número de série",accessories:"Acessórios",internal_notes:"Observações internas",external_os_number:"OS externa" };
+export const fieldLabels: Record<string,string> = { customer_notes:"Descrição do problema",equipment_type_id:"Tipo de equipamento",equipment_brand_id:"Marca",equipment_model_id:"Modelo",serial_number:"Número de série",accessories:"Acessórios",internal_notes:"Observações internas",external_os_number:"OS externa",diagnosis:"Diagnóstico",solution:"Solução" };
 export const photoLabels: Record<string,string> = { label:"Foto da etiqueta",equipment:"Fotos do equipamento" };
 export const defaultRules: RuleSet = {
- fields: Object.fromEntries(Object.keys(fieldLabels).map(key=>[key,{mode:key==="customer_notes"?"required":"optional",stage:["diagnosis","solution"].includes(key)?"finish":"create"}])) as RuleSet["fields"],
+ fields: Object.fromEntries(Object.keys(fieldLabels).map(key=>[key,{mode:["customer_notes","diagnosis","solution"].includes(key)?"required":"optional",stage:["diagnosis","solution"].includes(key)?"finish":"create"}])) as RuleSet["fields"],
  photos:{label:{mode:"required",stage:"create",minCount:1},equipment:{mode:"optional",stage:"create",minCount:1}},
  custom_fields:[]
 };
@@ -46,7 +46,7 @@ export function validateRules(rules:RuleSet,form:Record<string,any>,images:Array
  for(const field of rules.custom_fields){
   if(!requiredAt(field,stage))continue;
   const value=form.custom_field_values?.[field.key];
-  if(value==null||String(value).trim()===""||(field.type==="checkbox"&&value!==true&&value!=="true"))
+  if(value==null||(field.type==="file"?!((value as any)?.media_id && typeof (value as any).media_id==="string"):String(value).trim()==="")||(field.type==="checkbox"&&value!==true&&value!=="true"))
    return "Preencha o campo personalizado: "+field.label+".";
  }
  return null;
