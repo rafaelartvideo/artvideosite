@@ -30,6 +30,7 @@ import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { AdminMetricDetailDialog, type AdminMetricDetailRow } from "@/shared/ui/admin/AdminMetricDetailDialog";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { listInventoryPurchaseAnalytics } from "@/features/inventory/infrastructure/inventory-analytics.repository";
@@ -68,6 +69,7 @@ type TabDashboardProps = {
   onOpenOrder?: (orderId: string) => void;
 };
 type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: DashboardMetricTone; hint?: string };
+type MetricSelection = { title: string; value: ReactNode; description: string; rows: AdminMetricDetailRow[]; tab: AdminTab | null };
 
 const DAY_MS = 86_400_000;
 const DASHBOARD_ORDER_PAGE_SIZE = 10;
@@ -228,10 +230,10 @@ function registrationRoleLabel(registration: DashboardRegistration) {
   return labels.length ? labels.join(" · ") : "Sem vínculo ativo";
 }
 
-function MetricGrid({ metrics }: { metrics: Metric[] }) {
+function MetricGrid({ metrics, onSelect }: { metrics: Metric[]; onSelect: (metric: Metric) => void }) {
   return (
     <div className={cn("grid gap-3", metrics.length >= 5 ? "grid-cols-2 xl:grid-cols-6" : "grid-cols-2 xl:grid-cols-4")}>
-      {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} />)}
+      {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} onClick={() => onSelect(metric)} />)}
     </div>
   );
 }
@@ -258,6 +260,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
+  const [metricSelection, setMetricSelection] = useState<MetricSelection | null>(null);
   const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(returnState?.orderDistributionSelection || null);
   const [orderDistributionPage, setOrderDistributionPage] = useState(Math.max(1, returnState?.orderDistributionPage || 1));
   const [orderDistributionChartMode, setOrderDistributionChartMode] = useState<OrderDistributionChartMode>(readOrderChartMode);
@@ -300,6 +303,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     organizationRef.current = activeOrganizationId;
     setOrderDistributionSelection(null);
     setOrderDistributionPage(1);
+    setMetricSelection(null);
   }, [activeOrganizationId]);
 
   const dashboardQuery = useQuery({
@@ -422,6 +426,97 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       orderDistributionPage: safeOrderDistributionPage,
     });
     open("orders");
+  };
+
+
+  const showMetric = (metric: Metric) => {
+    const label = metric.label;
+    let rows: AdminMetricDetailRow[] = [];
+    let tab: AdminTab | null = null;
+    let description = "Registros que compõem o indicador no período selecionado.";
+    const orderRows = (orders: DashboardOrder[]): AdminMetricDetailRow[] => orders.map(order => ({
+      id: order.id,
+      title: `OS ${order.os_number || order.id.slice(0, 8)}`,
+      subtitle: [relationLabel(order.customer, "Cliente não informado"), fmtDate(order.completed_at || order.created_at)].join(" · "),
+      amount: formatCurrency(Number(order.final_total || 0)),
+      onClick: () => openOrderFromDashboard(order.id),
+    }));
+    const registrationRows = (registrations: DashboardRegistration[]): AdminMetricDetailRow[] => registrations.map(person => ({
+      id: person.id, title: person.name,
+      subtitle: [registrationRoleLabel(person), fmtDate(person.created_at)].join(" · "),
+      onClick: () => open("customers"),
+    }));
+    const inventoryRows = (items: typeof activeInventory, valueInStock = false): AdminMetricDetailRow[] => items.map(item => ({
+      id: item.id, title: item.name,
+      subtitle: [item.sku ? `SKU ${item.sku}` : null, `Saldo: ${item.quantity || 0} ${item.unit || "un"}`].filter(Boolean).join(" · "),
+      amount: valueInStock ? formatCurrency(Number(item.quantity || 0) * Number(item.average_cost || 0)) : undefined,
+      onClick: () => open("inventory"),
+    }));
+    const appointmentRows = (appointments: DashboardAppointment[]): AdminMetricDetailRow[] => appointments.map(item => ({
+      id: item.id, title: relationLabel(item.customer, "Cliente não informado"),
+      subtitle: [fmtDate(item.appointment_date), appointmentTime(item), relationLabel(item.situation, "Sem situação")].join(" · "),
+      onClick: () => open("agenda"),
+    }));
+    const quoteRows = (quotes: DashboardQuote[]): AdminMetricDetailRow[] => quotes.map(item => ({
+      id: item.id, title: item.protocol || relationLabel(item.customer, "Solicitação"),
+      subtitle: [relationLabel(item.customer, "Cliente não informado"), relationLabel(item.request_status, "Sem status"), fmtDate(item.created_at)].join(" · "),
+      onClick: () => open("quotes"),
+    }));
+
+    if (activeModule === "orders") {
+      // This overview uses aggregated totals, not a fetched full list of OS.
+      // The modal shows the existing distribution; selecting a group uses the paginated order endpoint.
+      description = "Distribuição geral das ordens visíveis. Selecione um status para filtrar a lista paginada de OS no Dashboard.";
+      tab = "orders";
+      rows = (ordersSummaryQuery.data?.statuses || []).map(item => ({
+        id: item.id || item.name, title: item.name, amount: `${item.total} OS`,
+        onClick: () => {
+          setOrderDistributionSelection({ kind: "status", id: item.id, name: item.name, total: item.total, slaState: null });
+          setOrderDistributionPage(1);
+        },
+      }));
+    } else if (activeModule === "registrations" || (activeModule === "overview" && label === "Novos cadastros")) {
+      tab = "customers";
+      const collection = activeModule === "overview" ? registrationsInPeriod : activeRegistrations;
+      rows = registrationRows(label === "Clientes" ? collection.filter(item => registrationHasRole(item, "customer"))
+        : label === "Funcionários" ? collection.filter(item => registrationHasRole(item, "employee"))
+        : label === "Fornecedores" ? collection.filter(item => registrationHasRole(item, "supplier")) : collection);
+    } else if (activeModule === "inventory" || (activeModule === "overview" && label === "Alertas de estoque")) {
+      tab = "inventory";
+      const items = label === "Estoque baixo" ? lowInventory : label === "Sem estoque" ? outInventory
+        : label === "Alertas de estoque" ? [...lowInventory, ...outInventory] : activeInventory;
+      rows = inventoryRows(items, label === "Valor em estoque");
+    } else if (activeModule === "agenda" || (activeModule === "overview" && label === "Agenda hoje")) {
+      tab = "agenda";
+      const items = label === "Hoje" || label === "Agenda hoje" ? todayAppointments
+        : label === "Retornos" ? weekAppointments.filter(item => item.is_return)
+        : label === "A confirmar" ? weekAppointments.filter(item => isPending(relationLabel(item.situation, "")))
+        : weekAppointments;
+      rows = appointmentRows(items);
+    } else if (activeModule === "quotes") {
+      tab = "quotes";
+      const items = label.startsWith("Solicitações") ? quotesInPeriod
+        : label === "Pendentes" ? data.quotes.filter(item => isPending(relationLabel(item.request_status, "")))
+        : label === "Em análise" ? data.quotes.filter(item => isAnalysis(relationLabel(item.request_status, "")))
+        : quotesInPeriod.filter(item => convertedQuoteIds.has(item.id));
+      rows = quoteRows(items);
+    } else if (activeModule === "finance" || (activeModule === "overview" && label === "Faturamento")) {
+      tab = "orders";
+      rows = orderRows(completedInPeriod).map(row => {
+        if (label === "Descontos") {
+          const order = completedInPeriod.find(item => item.id === row.id);
+          return { ...row, amount: formatCurrency(Number(order?.discount_amount || 0)) };
+        }
+        return row;
+      });
+      if (label === "Ticket médio") description = "OS utilizadas para calcular a média do faturamento por conclusão.";
+      if (label === "Descontos") description = "Descontos registrados nas OS concluídas no período.";
+    } else if (activeModule === "overview") {
+      tab = "orders";
+      rows = orderRows(label === "OS em andamento" ? activeOrders : ordersInPeriod);
+    }
+
+    setMetricSelection({ title: label, value: metric.value, description, rows, tab });
   };
 
   const moduleContent = () => {
@@ -620,7 +715,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         </DashboardPanel>
       );
 
-      return <DashboardArea metrics={metrics} left={distributions} right={filteredOrders} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={distributions} right={filteredOrders} />;
     }
 
     if (activeModule === "registrations") {
@@ -633,7 +728,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Funcionários", value: employees.length, icon: Users, tone: "purple", hint: "vínculo ativo" },
         { label: "Fornecedores", value: suppliers.length, icon: Building2, tone: "amber", hint: "vínculo ativo" },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "inventory") {
@@ -659,7 +754,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             {inventoryPurchasesQuery.isPending ? <LoadingState text="Carregando compras..." /> : inventoryPurchasesQuery.isError ? <DashboardEmpty text="Não foi possível carregar as compras do período." /> : inventoryPurchaseSummary.bySupplier.length ? <CompactList>{inventoryPurchaseSummary.bySupplier.slice(0, 10).map((supplier, index) => <CompactRow key={`${supplier.name}-${index}`} title={supplier.name} subtitle={`${supplier.count} entrada${supplier.count === 1 ? "" : "s"}`} aside={<strong className="text-xs text-[#0d1b2e]">{formatCurrency(supplier.total)}</strong>} />)}</CompactList> : <DashboardEmpty text="Nenhuma compra registrada neste período." />}
           </DashboardPanel>
         : <DashboardPanel title="Maiores saldos" subtitle="Itens ativos com maior quantidade disponível" icon={Package} onOpen={() => open("inventory")}><CompactList>{topBalances.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className="text-xs font-black text-[#0057e7]">{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!topBalances.length && <DashboardEmpty text="Nenhum item ativo encontrado." />}</CompactList></DashboardPanel>;
-      return <DashboardArea metrics={metrics} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "agenda") {
@@ -671,7 +766,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Retornos", value: returns, icon: RefreshCw, tone: "amber", hint: "nos próximos 7 dias" },
         { label: "A confirmar", value: awaiting, icon: AlertTriangle, tone: awaiting ? "amber" : "green", hint: "situação pendente" },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Agenda por situação" subtitle={`Próximos ${periodDays} dias`} icon={Activity}><DashboardDonutChart data={groupByLabel(data.appointments, appointment => relationLabel(appointment.situation, "Sem situação"))} /></DashboardPanel>} right={<DashboardPanel title="Próximos atendimentos" subtitle="Agenda em ordem cronológica" icon={CalendarDays} onOpen={() => open("agenda")}><AppointmentsList appointments={data.appointments.slice(0, 10)} /></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Agenda por situação" subtitle={`Próximos ${periodDays} dias`} icon={Activity}><DashboardDonutChart data={groupByLabel(data.appointments, appointment => relationLabel(appointment.situation, "Sem situação"))} /></DashboardPanel>} right={<DashboardPanel title="Próximos atendimentos" subtitle="Agenda em ordem cronológica" icon={CalendarDays} onOpen={() => open("agenda")}><AppointmentsList appointments={data.appointments.slice(0, 10)} /></DashboardPanel>} />;
     }
 
     if (activeModule === "quotes") {
@@ -684,7 +779,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Em análise", value: analysis, icon: Activity, tone: "purple", hint: "sendo avaliadas" },
         { label: "Convertidos em OS", value: converted, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Orçamentos por status" subtitle="Distribuição das solicitações" icon={Activity}><DashboardDonutChart data={groupByLabel(data.quotes, quote => relationLabel(quote.request_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Solicitações recentes" subtitle="Últimos orçamentos recebidos" icon={FileText} onOpen={() => open("quotes")}><QuotesList quotes={data.quotes.slice(0, 8)} onOpen={() => open("quotes")} /></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Orçamentos por status" subtitle="Distribuição das solicitações" icon={Activity}><DashboardDonutChart data={groupByLabel(data.quotes, quote => relationLabel(quote.request_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Solicitações recentes" subtitle="Últimos orçamentos recebidos" icon={FileText} onOpen={() => open("quotes")}><QuotesList quotes={data.quotes.slice(0, 8)} onOpen={() => open("quotes")} /></DashboardPanel>} />;
     }
 
     if (activeModule === "finance") {
@@ -696,7 +791,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Descontos", value: formatCurrency(discounts), icon: Activity, tone: "amber", hint: "total concedido" },
       ];
       const financeTrend = buildTrend(completedInPeriod, periodDays, order => order.completed_at, order => Number(order.final_total || 0));
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={openOrderFromDashboard} showValue /></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={openOrderFromDashboard} showValue /></DashboardPanel>} />;
     }
 
     const overviewMetrics: Metric[] = [
@@ -716,7 +811,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       ...(lowInventory.length ? [{ title: `${lowInventory.length} itens com estoque baixo`, subtitle: "Próximos do mínimo", tone: STATUS_TONE_CLASSES.warning.badge, tab: "inventory" as AdminTab }] : []),
       ...(todayAppointments.length ? [{ title: `${todayAppointments.length} compromissos hoje`, subtitle: "Confira a agenda do dia", tone: "text-blue-700 bg-blue-50", tab: "agenda" as AdminTab }] : []),
     ];
-    return <DashboardArea metrics={overviewMetrics} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
+    return <DashboardArea metrics={overviewMetrics} onMetricSelect={showMetric} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
   };
 
   return (
@@ -725,7 +820,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         <div className="w-32">
           <AdminSelect
             value={periodDays}
-            onValueChange={value => setPeriodDays(Number(value))}
+            onValueChange={value => { setMetricSelection(null); setPeriodDays(Number(value)); }}
             options={periodOptions}
             ariaLabel="Período do dashboard"
             className="min-h-9 text-xs font-black"
@@ -733,7 +828,14 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         </div>
       } />
 
-      <DashboardModuleNav items={modules} value={activeModule} onChange={setActiveModule} />
+      <DashboardModuleNav items={modules} value={activeModule} onChange={next => { setMetricSelection(null); setActiveModule(next); }} />
+
+      {metricSelection && <AdminMetricDetailDialog
+        open onClose={() => setMetricSelection(null)} title={metricSelection.title}
+        value={metricSelection.value} description={metricSelection.description}
+        rows={metricSelection.rows}
+        onViewAll={metricSelection.tab && onNavigate ? () => open(metricSelection.tab!) : undefined}
+      />}
 
       <div className="min-w-0">
         {(activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending) ? <LoadingState text="Carregando indicadores..." /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
@@ -748,10 +850,10 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   );
 }
 
-function DashboardArea({ metrics, left, right }: { metrics: Metric[]; left: ReactNode; right: ReactNode }) {
+function DashboardArea({ metrics, left, right, onMetricSelect }: { metrics: Metric[]; left: ReactNode; right: ReactNode; onMetricSelect: (metric: Metric) => void }) {
   return (
     <div className="min-w-0 space-y-3">
-      <MetricGrid metrics={metrics} />
+      <MetricGrid metrics={metrics} onSelect={onMetricSelect} />
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)] [&>*]:min-h-[280px]">{left}{right}</div>
     </div>
   );
