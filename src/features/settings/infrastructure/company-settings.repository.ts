@@ -2,7 +2,7 @@ import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 import { getMediaById, getPublicStorageUrl } from "@/shared/infrastructure/media.repository";
 
-export type SaveCompanySettingsScope = "full" | "partner" | "branding";
+export type SaveCompanySettingsScope = "full" | "partner" | "branding" | "orders";
 
 export type CompanySettings = {
   company_name: string;
@@ -106,7 +106,9 @@ export async function saveCompanySettings(
     phone: settings.company_phone.trim() || null,
     email: settings.company_email.trim() || null,
   };
-  const payload = scope === "branding"
+  const payload = scope === "orders"
+    ? { ...commonPayload, ...completionPayload }
+    : scope === "branding"
     ? { ...commonPayload, ...brandingPayload }
     : scope === "partner"
       ? { ...commonPayload, ...contactPayload, ...brandingPayload, ...completionPayload }
@@ -169,6 +171,7 @@ export async function saveCompanySettings(
       && normalized(organizationSettings.email) === normalized(settings.company_email);
     const partnerStateMatches = brandingMatches && (scope === "branding" || contactsMatch);
 
+    if (scope === "orders") throw new Error("Não foi possível localizar as configurações de OS desta empresa para salvar.");
     if (partnerStateMatches) return { ...settings };
     throw new Error("Não foi possível localizar os dados da empresa parceira para salvar a identidade visual.");
   }
