@@ -11,7 +11,7 @@ import { saveOrderRules, removeOrderRules } from "../infrastructure/order-rules.
 const modes=[{value:"required",label:"Obrigatório"},{value:"optional",label:"Opcional"},{value:"hidden",label:"Oculto"}];
 const stages=[{value:"create",label:"Criar OS"},{value:"start",label:"Iniciar serviço"},{value:"finish",label:"Concluir OS"}];
 const scopes=[{value:"company",label:"Geral da empresa"},{value:"service_type",label:"Tipo de atendimento"},{value:"equipment_type",label:"Equipamento"},{value:"combination",label:"Atendimento + equipamento"}];
-const fieldTypes=[{value:"text",label:"Texto"},{value:"number",label:"Número"},{value:"date",label:"Data"},{value:"select",label:"Seleção"},{value:"checkbox",label:"Checkbox"}];
+const fieldTypes=[{value:"text",label:"Texto"},{value:"number",label:"Número"},{value:"date",label:"Data"},{value:"select",label:"Seleção"},{value:"checkbox",label:"Checkbox"},{value:"file",label:"Arquivo"}];
 const control="min-w-0 w-full rounded-lg border border-border bg-card px-2.5 py-2 text-sm text-foreground";
 function RuleSelect({value,options,onChange,disabled}:{value:string;options:{value:string;label:string}[];onChange:(v:string)=>void;disabled?:boolean}){
  return <select className={control} value={value} disabled={disabled} onChange={e=>onChange(e.target.value)}>
