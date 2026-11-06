@@ -31,6 +31,7 @@ begin
   if (select auth.uid()) is null
     or not (
       private.has_tenant_module_permission(p_organization_id,'products','products.view')
+      or private.has_tenant_module_permission(p_organization_id,'products','products.details.view')
       or private.has_tenant_module_permission(p_organization_id,'inventory','inventory.details.view')
     )
     or not exists (select 1 from public.products p
@@ -74,7 +75,10 @@ as $function$
 declare v_count integer;v_item jsonb;v_child uuid;v_label text;
 begin
   if (select auth.uid()) is null
-    or not private.has_tenant_module_permission(p_organization_id,'products','products.update')
+    or not (
+      private.has_tenant_module_permission(p_organization_id,'products','products.update')
+      or private.has_tenant_module_permission(p_organization_id,'inventory','inventory.update')
+    )
   then raise exception 'Sem permissão para editar variações.' using errcode='42501'; end if;
 
   -- Impede edição simultânea do mesmo agrupamento e mantém operação atômica.
