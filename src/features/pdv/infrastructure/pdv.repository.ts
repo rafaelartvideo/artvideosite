@@ -341,6 +341,21 @@ export async function listPdvCompatibleProducts(
   return (data || []) as PdvCompatibleProduct[];
 }
 
+/** Similares comerciais aprovados manualmente, sem presumir compatibilidade técnica. */
+export async function listPdvSimilarProducts(
+  organizationId: string,
+  sourceProductIds: string[],
+): Promise<PdvCompatibleProduct[]> {
+  if (!sourceProductIds.length) return [];
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("list_pdv_product_similars_v1", {
+    p_organization_id: org,
+    p_source_product_ids: [...new Set(sourceProductIds)].slice(0, 30),
+  });
+  if (error) throw error;
+  return (data || []) as PdvCompatibleProduct[];
+}
+
 export async function searchPdvCustomers(
   organizationId: string,
   search = "",
