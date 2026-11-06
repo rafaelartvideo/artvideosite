@@ -61,3 +61,13 @@ test("prestadores, serviços e anexos são isolados por permissão Union e RLS",
   assert.match(repository, /createSignedUrl/);
   assert.match(repository, /file.size > 10 \* 1024 \* 1024/);
 });
+
+test("salvar cliente não insere vínculo de prestador removido da base dos parceiros", () => {
+  const split = read("supabase/migrations/20261103152225_union_platform_service_provider_directory.sql");
+  const fix = read("supabase/migrations/20261105212500_fix_registration_save_after_union_provider_split.sql");
+  assert.match(split, /check \(role = any\(array\['customer','employee','supplier'\]/);
+  assert.match(fix, /v_old_insert/);
+  assert.match(fix, /v_definition := replace\(v_definition, v_old_insert, ''\)/);
+  assert.match(fix, /where role_input not in \('customer','employee','supplier'\)/);
+  assert.match(fix, /if not \(v_has_customer or v_has_employee or v_has_supplier\) then/);
+});
