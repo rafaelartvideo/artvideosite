@@ -117,3 +117,22 @@ test("accounts and cash share one table with vault balances and account statemen
   assert.match(cash, /closeMutation\.mutateAsync/);
   assert.doesNotMatch(cash, /Caixa físico<\/h3>/);
 });
+
+
+test("statement search filters by dates before pagination and exposes settlement origin", () => {
+  const movements = source("FinanceMovementsSection.tsx");
+  const hook = readFileSync(new URL("../application/useFinanceMovements.ts", import.meta.url), "utf8");
+  const repo = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../../supabase/migrations/20261106140000_finance_movement_period_search.sql", import.meta.url), "utf8");
+  assert.match(movements, /AdminSearchPanel title="Buscar movimentações"/);
+  assert.match(movements, /label="Data inicial"/);
+  assert.match(movements, /label="Data final"/);
+  assert.match(movements, /item\.origin_label/);
+  assert.match(movements, /text-emerald-600 dark:text-emerald-400/);
+  assert.match(hook, /movementStartAt/);
+  assert.match(repo, /search_financial_movement_page_ids_v2/);
+  assert.match(repo, /from\("financial_settlements"\)/);
+  assert.match(repo, /from\("financial_entries"\)/);
+  assert.match(migration, /movement\.occurred_at >= p_start_at/);
+  assert.match(migration, /movement\.occurred_at < p_end_at/);
+});
