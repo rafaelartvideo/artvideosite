@@ -181,10 +181,12 @@ export async function listFinancialTransfers(organizationId: string): Promise<Fi
 
 export async function registerFinancialSettlement(organizationId: string, draft: FinancialSettlementDraft) {
   const org = requiredOrganizationId(organizationId);
-  const { data, error } = await supabase.rpc("register_financial_settlement", {
+  const { data, error } = await supabase.rpc(draft.settle_all
+    ? "register_financial_bulk_settlement"
+    : "register_financial_settlement", {
     p_organization_id: org,
     p_entry_id: draft.entry_id,
-    p_installment_id: draft.installment_id,
+    ...(!draft.settle_all ? { p_installment_id: draft.installment_id } : {}),
     p_principal_amount: Number(draft.principal_amount),
     p_interest_amount: Number(draft.interest_amount || 0),
     p_penalty_amount: Number(draft.penalty_amount || 0),
