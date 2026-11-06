@@ -99,9 +99,12 @@ const normalizeSearch = (value: string) => value.toLocaleLowerCase("pt-BR")
 export function SacEmojiPicker({
   recentEmojis,
   onSelect,
+  embedded = false,
 }: {
   recentEmojis: string[];
   onSelect: (emoji: string) => void;
+  /** Permite posicionamento em portal fora de contêineres que cortam o dropdown. */
+  embedded?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("faces");
@@ -130,7 +133,7 @@ export function SacEmojiPicker({
 
   return (
     <div role="dialog" aria-label="Selecionar emoji"
-      className="absolute bottom-[calc(100%+12px)] left-[-48px] z-40 flex h-[340px] w-[min(86vw,352px)] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-2xl">
+      className={`${embedded ? "relative h-full w-full" : "absolute bottom-[calc(100%+12px)] left-[-48px] z-40 h-[340px] w-[min(86vw,352px)]"} flex flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-2xl`}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Search size={17} className="shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
