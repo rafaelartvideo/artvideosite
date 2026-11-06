@@ -435,7 +435,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
       }
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [editable, order?.id, productSearch, productSearchOpen, selectedProduct]);
+  }, [commercialEditable, order?.id, productSearch, productSearchOpen, selectedProduct]);
 
   // O catálogo depende do equipamento da OS; não manter uma sugestão
   // selecionada anteriormente quando o tipo de equipamento mudar.
@@ -464,7 +464,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
       }
     }, 300);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [editable, order?.id, serviceSearch, serviceSearchOpen, selectedService]);
+  }, [commercialEditable, order?.id, serviceSearch, serviceSearchOpen, selectedService]);
 
   const selectProduct = (option: OrderCatalogOption) => {
     if (option.stock != null && option.stock <= 0) {
