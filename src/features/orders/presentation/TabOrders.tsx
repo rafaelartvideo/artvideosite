@@ -778,7 +778,7 @@ export function TabOrders({
           </div>
         : <div className="flex min-h-[280px] items-center justify-center">
             <LoadingState text="Preparando conclusão..." />
-          </div>}</AdminDialog>
+          </div>}</AdminDialog>}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
