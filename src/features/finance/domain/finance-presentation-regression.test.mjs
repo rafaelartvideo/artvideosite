@@ -242,11 +242,11 @@ test("finance gear menu opens each registry directly in a permission-scoped moda
   assert.match(finance, /hasPermission\("finance\.categories\.manage"\)/);
   assert.match(finance, /hasPermission\("finance\.payment_methods\.manage"\)/);
   assert.match(finance, /hasPermission\("finance\.settings\.manage"\)/);
-  assert.match(finance, /registryModal && availableRegistrySections\.includes\(registryModal\) && <AdminDialog/);
-  assert.match(finance, /registryModal === "categories" && <FinanceCategoriesSection/);
-  assert.match(finance, /registryModal === "payment-methods" && <FinancePaymentMethodsSection/);
-  assert.match(finance, /registryModal === "settings" && <FinanceSettingsSection/);
-  assert.match(finance, /setRegistryCreateSignal\(current => current \+ 1\)/);
+  assert.doesNotMatch(finance, /registryModal && availableRegistrySections\.includes\(registryModal\) && <AdminDialog/);
+  assert.match(finance, /<FinanceCategoriesSection modalOpen onModalClose=\{closeRegistryModal\}/);
+  assert.match(finance, /<FinancePaymentMethodsSection modalOpen onModalClose=\{closeRegistryModal\}/);
+  assert.match(finance, /<FinanceSettingsSection modalOpen onModalClose=\{closeRegistryModal\}/);
+  assert.doesNotMatch(finance, /headerActions=\{registryModal/);
   assert.doesNotMatch(finance, /section === "registries" && <FinanceRegistriesSection/);
 });
 
@@ -255,4 +255,43 @@ test("legacy registry routes are redirected to the new modal workflow", () => {
   assert.match(finance, /if \(requested\.section !== "registries"\) return;/);
   assert.match(finance, /setRegistryModal\(registry\)/);
   assert.match(finance, /onRouteChange\?\.\(null, null\)/);
+});
+
+test("finance editing uses compact modal and returns on confirmed save with feedback", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  assert.match(entries, /settlementDialogOpen \|\| editingSelectedEntry/);
+  assert.match(entries, /setEditorOpen\(false\);[\s\S]*?setSettlementDialogOpen\(false\);[\s\S]*?onSelectEntry\(null\)/);
+  assert.match(entries, /notifyAdmin\(wasEditingCurrentEntry \?/);
+  assert.match(entries, /if \(wasEditingCurrentEntry\) void finance\.detailQuery\.refetch\(\)/);
+  assert.doesNotMatch(entries, /if \(editingSelectedEntry\) await finance\.detailQuery\.refetch\(\)/);
+});
+test("financial registries edit in the same modal with actions in its footer", () => {
+  for (const name of ["FinanceCategoriesSection.tsx", "FinancePaymentMethodsSection.tsx"]) {
+    const code = source(name);
+    assert.match(code, /if \(modalOpen\) return <AdminDialog/);
+    assert.match(code, /footer=\{open \? editorFooter : listingFooter\}/);
+    assert.match(code, /<ArrowLeft size=\{16\} \/> Voltar/);
+    assert.match(code, /<Plus size=\{16\} \/> Novo/);
+    assert.match(code, /onClose=\{closeModal\}/);
+    assert.match(code, />\{open \? editor : listing\}<\/AdminDialog>/);
+  }
+  const settings = source("FinanceSettingsSection.tsx");
+  assert.match(settings, /footer=\{<div/);
+  assert.match(settings, /Salvar configurações/);
+});
+test("clearing statement search is offered only with active filters", () => {
+  const movement = source("FinanceMovementsSection.tsx");
+  assert.match(movement, /accountFilter !== "all" \|\| dateFrom \|\| dateTo/);
+  assert.match(movement, /AdminSearchClearButton/);
+});
+test("OS labels use readable numbers throughout Financeiro", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  const movement = source("FinanceMovementsSection.tsx");
+  const settlement = source("FinanceSettlementPanel.tsx");
+  const sourceBlock = source("FinanceEntrySourceBlock.tsx");
+  assert.doesNotMatch(entries, /OS #\$\{osNumber\}/);
+  assert.match(entries, /formatFinanceOriginLabel/);
+  assert.match(movement, /formatFinanceOriginLabel/);
+  assert.match(settlement, /financeServiceOrderLabel/);
+  assert.match(sourceBlock, /financeServiceOrderLabel/);
 });
