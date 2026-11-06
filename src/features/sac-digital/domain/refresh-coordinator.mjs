@@ -17,6 +17,45 @@ export function freshSingleFlight(key,run) {
  requests.set(key,promise);
  return promise;
 }
+
+// Queue polling only reconciles the visible UI. Webhooks, worker ingestion and
+// the separate Realtime notification subscriptions continue while it is hidden.
+export function createVisiblePolling(run, {page = document, connection = window, interval = 30_000} = {}) {
+ let timer, running = false, resumePending = false, disposed = false;
+ let visible = page.visibilityState !== 'hidden';
+ const refresh = async (resume = false) => {
+  if (disposed || !visible) return;
+  if (running) { resumePending ||= resume; return; }
+  running = true;
+  try { await run(); } catch { /* The next visible tick can retry. */ }
+  finally {
+   running = false;
+   if (resumePending) {
+    resumePending = false;
+    if (!disposed && visible) void refresh();
+   }
+  }
+ };
+ const stop = () => { if (timer !== undefined) clearInterval(timer); timer = undefined; };
+ const start = () => { stop(); if (!disposed && visible) timer = setInterval(() => void refresh(), interval); };
+ const visibilityChanged = () => {
+  const next = page.visibilityState !== 'hidden';
+  if (next === visible) return;
+  visible = next;
+  if (visible) { void refresh(true); start(); }
+  else { resumePending = false; stop(); }
+ };
+ const reconnected = () => { if (visible) { void refresh(true); start(); } };
+ page.addEventListener('visibilitychange', visibilityChanged);
+ connection.addEventListener('online', reconnected);
+ // Initial screen loading already fetched the queue.
+ start();
+ return { dispose() {
+  disposed = true; resumePending = false; stop();
+  page.removeEventListener('visibilitychange', visibilityChanged);
+  connection.removeEventListener('online', reconnected);
+ } };
+}
 // Debounce notification bursts. Bulk imports may emit thousands of Realtime
 // events; wait for a quiet window instead of refreshing the full inbox every
 // few hundred milliseconds while the import is still running.

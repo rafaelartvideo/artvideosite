@@ -23,7 +23,8 @@ import { AdminSectionEmpty,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { downloadRemoteFile } from "@/shared/application/download-file";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
@@ -66,6 +67,7 @@ function AttachmentCard({
 }) {
   const { url, loading, error } = useMediaUrl(document.media_id);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const media = situationDocumentMedia(document);
   const type = situationDocumentType(document);
   const name = media?.file_name || "Arquivo anexado";
@@ -78,6 +80,14 @@ function AttachmentCard({
     if (isImage) onView({ key: document.id, mediaId: document.media_id, name });
     else if (isPdf) setPdfPreviewOpen(true);
     else window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadAttachment = async () => {
+    if (!url || downloading) return;
+    setDownloading(true);
+    try { await downloadRemoteFile(url, name); }
+    catch (downloadError) { notifyAdmin(systemErrorMessage(downloadError, "Não foi possível baixar o arquivo."), "error"); }
+    finally { setDownloading(false); }
   };
 
   return (<>
@@ -124,7 +134,7 @@ function AttachmentCard({
           <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{classification}</p>
         </div>
         <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
-          {url ? <a href={url} target="_blank" rel="noreferrer" download={name} aria-label={`Baixar ${name}`} title="Baixar" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7]"><Download size={12} className="shrink-0" /><span className="hidden sm:inline">Baixar</span></a> : <span />}
+          {url ? <button type="button" onClick={() => void downloadAttachment()} disabled={downloading} aria-label={`Baixar ${name}`} title="Baixar" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7] disabled:opacity-50">{downloading ? <LoadingSpinner size="sm" /> : <Download size={12} className="shrink-0" />}<span className="hidden sm:inline">Baixar</span></button> : <span />}
           {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} aria-label={`Remover ${name}`} title="Remover" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span className="hidden sm:inline">Remover</span></button>}
         </div>
       </div>

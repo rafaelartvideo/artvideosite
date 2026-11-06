@@ -1,6 +1,6 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
-import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
+import { createRefreshQueue, createVisiblePolling, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
 import { lazy, Suspense } from 'react';
 const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m => ({default: m.SacDigitalResources})));
 const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').then(m => ({default: m.SacDigitalContactsPage})));
@@ -892,8 +892,8 @@ export function SacDigitalToolPage({
     if (loading || !sacRouteActive || !activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) return;
     if (queueAuthRequired) return;
     // The waiting queue was fetched during initial screen loading.
-    const timer = window.setInterval(() => void loadOperatorQueue(), 30_000);
-    return () => window.clearInterval(timer);
+    const polling = createVisiblePolling(() => loadOperatorQueue());
+    return () => polling.dispose();
   }, [loading, sacRouteActive, activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
 
   useEffect(() => {

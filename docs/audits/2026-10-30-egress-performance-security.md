@@ -1,5 +1,7 @@
 # Auditoria de consumo, desempenho e segurança — 30/10/2026
 
+> Continuação e validações retomadas em 06/11: [segunda rodada](2026-11-06-round2-validation.md). As medições abaixo são históricas de 30/10.
+
 ## 1. Resultado e alcance
 
 Foram implementadas duas intervenções incrementais: reaproveitamento de metadados/assinaturas das fotos de OS e eliminação de leituras repetidas no bootstrap das notificações. A auditoria abrangeu código do CRM/site, configurações e estatísticas dos dois bancos, logs de 24 horas, Storage, Realtime, advisors e fluxo de deploy. Não representa certificação completa de todos os módulos, dispositivos e integrações.

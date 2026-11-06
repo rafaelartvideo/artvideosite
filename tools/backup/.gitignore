@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+config.env
+pg_service.conf
+.pgpass
+rclone.conf

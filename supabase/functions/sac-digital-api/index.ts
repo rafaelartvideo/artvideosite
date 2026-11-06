@@ -1474,6 +1474,9 @@ Deno.serve(async request => {
       const pending=await admin.from('sac_digital_delivery_attempts').select('id,notification_id,state,protocol').eq('organization_id',organizationId).in('state',['accepted','queued','unknown','sent','delivered']).order('checked_at',{nullsFirst:true}).limit(5);
       if(pending.error) throw pending.error;
       let reconciled=0;
+      // Several delivery attempts may belong to the same conversation. History
+      // reconciles the whole protocol; refresh it once per authorized request.
+      const syncedProtocols = new Set<string>();
       for(const attempt of pending.data || []) {
         await admin.from('sac_digital_delivery_attempts').update({checked_at:new Date().toISOString()}).eq('id',attempt.id);
         if(attempt.notification_id) {
@@ -1488,7 +1491,10 @@ Deno.serve(async request => {
             reconciled++;
           }
         }
-        if(attempt.protocol) await syncProtocolHistory(organizationId,attempt.protocol);
+        if(attempt.protocol && !syncedProtocols.has(attempt.protocol)) {
+          await syncProtocolHistory(organizationId,attempt.protocol);
+          syncedProtocols.add(attempt.protocol);
+        }
       }
       return json({success:true,data:{reconciled},outcome:'accepted',has_more:(pending.data || []).length === 5,next_page:null});
     }
