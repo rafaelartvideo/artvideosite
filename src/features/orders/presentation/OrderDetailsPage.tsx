@@ -736,9 +736,9 @@ export function OrderDetailsPage(props: Props) {
         onResolve={() => openSolveOrder(detail)}
         onComplete={openCompletion}
         onEdit={() => { void openEdit(detail); }}
-        quoteMode={quoteWorkflowEnabled && detailSection === "products-services"}
+        quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
-        quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-toolbar-" + detail.id : undefined}
+        quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed ? "os-quote-toolbar-" + detail.id : undefined}
       />}
     </AdminPage>}
   </>;
