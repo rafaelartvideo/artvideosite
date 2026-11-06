@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { ArrowLeft, History, Pencil } from "lucide-react";
 import { FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -57,6 +57,9 @@ function EntryDetailContent({
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
   const [forecastEdit, setForecastEdit] = useState<{ id: string; amount: string } | null>(null);
   const [forecastError, setForecastError] = useState("");
+  const [forecastSaving, setForecastSaving] = useState(false);
+  const forecastSavingRef = useRef(false);
+  const forecastBusy = forecastSaving || Boolean(forecastPending);
   const isReceivable = detail.entry_type === "receivable";
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
   const remaining = ["cancelled", "reversed"].includes(detail.approval_status)
@@ -81,19 +84,25 @@ function EntryDetailContent({
     && ["manual", "recurring"].includes(detail.origin_type)
     && ["pending", "approved"].includes(detail.approval_status);
   const saveForecast = async () => {
-    if (!forecastEdit || !onAdjustInstallment || forecastPending) return;
+    if (!forecastEdit || !onAdjustInstallment || forecastPending || forecastSavingRef.current) return;
     const amount = Number(forecastEdit.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setForecastError("Informe o valor atualizado da parcela.");
       return;
     }
+    forecastSavingRef.current = true;
+    setForecastSaving(true);
     try {
       setForecastError("");
+      // Só fecha a linha depois de o banco confirmar e o extrato ser atualizado.
       await onAdjustInstallment(forecastEdit.id, amount, "Valor previsto atualizado pelo operador.");
       setForecastEdit(null);
       notifyAdmin("Previsão atualizada e registrada no histórico.", "success");
     } catch (error) {
       setForecastError(systemErrorMessage(error, "Não foi possível atualizar a previsão."));
+    } finally {
+      forecastSavingRef.current = false;
+      setForecastSaving(false);
     }
   };
 
@@ -179,24 +188,32 @@ function EntryDetailContent({
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto">
           <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
-            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
-              {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
-                type="button" disabled={forecastPending} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
-                onClick={() => { setForecastEdit({ id: item.id, amount: String(item.original_amount) }); setForecastError(""); }}
-              ><Pencil size={13} /> Ajustar</button>}</td>}</tr>)}</tbody>
+            <tbody>{detail.installments.map(item => <Fragment key={item.id}>
+              <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+                {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
+                  type="button" disabled={forecastBusy} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                  onClick={() => { setForecastEdit({ id: item.id, amount: String(item.original_amount) }); setForecastError(""); }}
+                ><Pencil size={13} /> Ajustar</button>}</td>}
+              </tr>
+              {forecastEdit?.id === item.id && canAdjustForecast && <tr className="bg-muted/25">
+                <td colSpan={6} className="px-4 py-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-[160px] flex-1 sm:max-w-[280px]">
+                      <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastBusy}
+                        className="!h-[42px]" onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
+                    </div>
+                    <AdminButton variant="secondary" className="!h-[42px]" disabled={forecastBusy}
+                      onClick={() => { setForecastEdit(null); setForecastError(""); }}>Cancelar</AdminButton>
+                    <AdminButton className="!h-[42px]" loading={forecastBusy} loadingText="Aplicando..."
+                      disabled={forecastBusy} onClick={() => void saveForecast()}>Aplicar</AdminButton>
+                  </div>
+                  {forecastError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{forecastError}</p>}
+                </td>
+              </tr>}
+            </Fragment>)}</tbody>
           </table>
         </div>
-        {forecastEdit && canAdjustForecast && <div className="space-y-3 border-t border-border p-4">
-          <h4 className="text-sm font-semibold text-foreground">Ajustar previsão da parcela</h4>
-          <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending}
-            onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
-          {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
-          <div className="flex justify-end gap-2">
-            <AdminButton variant="secondary" disabled={forecastPending} onClick={() => setForecastEdit(null)}>Cancelar</AdminButton>
-            <AdminButton loading={Boolean(forecastPending)} loadingText="Salvando..." onClick={() => void saveForecast()}>Salvar ajuste</AdminButton>
-          </div>
-        </div>}
       </AdminCard>
 
     </div>}

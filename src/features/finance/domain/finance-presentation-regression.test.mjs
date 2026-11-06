@@ -157,7 +157,8 @@ test("forecast adjustments change only payable installments with a recorded reas
   const detail = source("FinanceEntryDetail.tsx");
   const repository = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
-  assert.match(detail, /Ajustar previsão da parcela/);
+  assert.match(detail, /forecastEdit\?\.id === item\.id/);
+  assert.doesNotMatch(detail, /<h4[^>]*>Ajustar previsão da parcela<\/h4>/);
   assert.doesNotMatch(detail, /Motivo da alteração/);
   assert.match(detail, /installment_amount_adjusted/);
   assert.match(repository, /adjust_financial_installment_forecast/);
@@ -172,11 +173,12 @@ test("settlement supports inline payable installment adjustment with back naviga
   const entries = source("FinanceEntriesSection.tsx");
   assert.match(dialog, /ariaLabel="Editar valor da parcela"/);
   assert.match(dialog, /<Pencil size=\{16\} \/>/);
-  assert.match(dialog, /Salvar ajuste/);
+  assert.match(dialog, /<AdminButton className="!h-\[42px\]" loading=\{forecastBusy\} loadingText="Aplicando\.\.\."/);
+  assert.doesNotMatch(dialog, /Salvar ajuste/);
   assert.doesNotMatch(dialog, /forecastEdit\.reason/);
   assert.match(dialog, /Valor atualizado durante a baixa financeira/);
   assert.match(dialog, /<ArrowLeft size=\{16\} \/> Voltar/);
-  assert.match(dialog, /disabled=\{saving \|\| forecastPending \|\| Boolean\(forecastEdit\)\}/);
+  assert.match(dialog, /disabled=\{saving \|\| forecastBusy \|\| Boolean\(forecastEdit\)\}/);
   assert.match(entries, /finance\.adjustInstallmentMutation\.mutateAsync/);
   assert.match(entries, /await finance\.detailQuery\.refetch\(\)/);
 });
@@ -323,4 +325,40 @@ test("account pins are scoped to organization and user and do not alter financia
   assert.match(accounts, /user\?\.id/);
   assert.match(accounts, /window\.localStorage\.setItem/);
   assert.match(accounts, /prioritizePinnedFinanceAccounts\(accounts, pinnedAccountIds\)/);
+});
+
+test("finance installment editor opens directly below its own row, not after the table", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  assert.match(detail, /detail\.installments\.map\(item => <Fragment key=\{item\.id\}>/);
+  assert.match(detail, /<\/tr>[\s\S]*?\{forecastEdit\?\.id === item\.id && canAdjustForecast && <tr/);
+  assert.match(detail, /<td colSpan=\{6\} className="px-4 py-3">/);
+  assert.match(detail, /<FCurrencyInput label="Novo valor previsto"/);
+  assert.match(detail, /<AdminButton variant="secondary" className="!h-\[42px\]"/);
+  assert.match(detail, /<AdminButton className="!h-\[42px\]" loading=\{forecastBusy\} loadingText="Aplicando\.\.\."/);
+  assert.match(detail, />Cancelar<\/AdminButton>/);
+  assert.match(detail, />Aplicar<\/AdminButton>/);
+  assert.doesNotMatch(detail, /Salvar ajuste/);
+});
+test("finance adjustment keeps loading until mutation AND detail refresh complete", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  const settlement = source("FinanceSettlementDialog.tsx");
+  const entries = source("FinanceEntriesSection.tsx");
+  for (const component of [detail, settlement]) {
+    assert.match(component, /const \[forecastSaving, setForecastSaving\] = useState\(false\)/);
+    assert.match(component, /const forecastSavingRef = useRef\(false\)/);
+    assert.match(component, /forecastSavingRef\.current = true/);
+    assert.match(component, /await onAdjustInstallment\(/);
+    assert.match(component, /finally \{[\s\S]*?forecastSavingRef\.current = false;[\s\S]*?setForecastSaving\(false\)/);
+    assert.match(component, /loading=\{forecastBusy\}/);
+  }
+  assert.match(entries, /await finance\.detailQuery\.refetch\(\)/);
+});
+test("finance settlement adjustment puts Apply and Back beside an equal-height input", () => {
+  const dialog = source("FinanceSettlementDialog.tsx");
+  assert.match(dialog, /<FCurrencyInput label="Novo valor da parcela"/);
+  assert.match(dialog, /className="!h-\[42px\]" disabled=\{forecastBusy\}/);
+  assert.match(dialog, /<AdminButton variant="secondary" className="!h-\[42px\]"/);
+  assert.match(dialog, /<ArrowLeft size=\{15\} \/> Voltar/);
+  assert.match(dialog, />Aplicar<\/AdminButton>/);
+  assert.doesNotMatch(dialog, /Salvar ajuste|<h4[^>]*>Ajustar previsão da parcela<\/h4>/);
 });
