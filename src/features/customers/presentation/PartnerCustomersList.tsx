@@ -127,37 +127,14 @@ export function PartnerCustomersList({
           inputMode="numeric"
         />}
       </AdminMobileSearchSwitch>
-      <div className="hidden md:block">
-<div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-2 md:gap-2">
-        <SearchField
-          label="Nome"
-          value={nameSearch}
+      <div className="hidden grid-cols-2 gap-3 md:grid">
+        <SearchField label="Nome" value={nameSearch}
           onChange={value => { onNameSearchChange(value); onPageChange(1); }}
-          placeholder="Digite o nome do cliente"
-        />
-        <div className="hidden md:block">
-          <SearchField
-            label="CPF / CNPJ"
-            value={documentSearch}
-            onChange={value => { onDocumentSearchChange(formatDocumentSearch(value)); onPageChange(1); }}
-            placeholder="Digite o CPF ou CNPJ"
-            inputMode="numeric"
-          />
-        </div>
-      </div>
-      <div className="mt-3 md:hidden">
-        <SearchField
-          label="CPF / CNPJ"
-          value={documentSearch}
+          placeholder="Digite o nome do cliente" />
+        <SearchField label="CPF / CNPJ" value={documentSearch}
           onChange={value => { onDocumentSearchChange(formatDocumentSearch(value)); onPageChange(1); }}
-          placeholder="Digite o CPF ou CNPJ"
-          inputMode="numeric"
-        />
+          placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
       </div>
-      
-      </div>
-
-    
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
