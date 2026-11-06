@@ -15,8 +15,6 @@ import {
   listServiceOrderMedia,
   listServiceOrderTechnicalValues,
   listServiceOrderUsedItems,
-  markServiceOrderSolvable,
-  markServiceOrderUnsolvable,
 } from "../infrastructure/orders.repository";
 import {
   getServiceOrderLooseParts,
@@ -39,8 +37,6 @@ type SolveDraft = {
   solution: string;
   looseParts: string;
   usedItems: any[];
-  cannotSolve: boolean;
-  cannotSolveReason: string;
 };
 
 const emptySolveDraft: SolveDraft = {
@@ -48,8 +44,6 @@ const emptySolveDraft: SolveDraft = {
   solution: "",
   looseParts: "",
   usedItems: [],
-  cannotSolve: false,
-  cannotSolveReason: "",
 };
 
 export function useOrderResolution({
@@ -295,12 +289,6 @@ export function useOrderResolution({
         approved_quantity: Number(item.approved_quantity),
         prewithdrawn_quantity: Number(item.prewithdrawn_quantity || 0),
       })),
-      cannotSolve:
-        currentOrder?.cannot_be_solved ?? order.cannot_be_solved ?? false,
-      cannotSolveReason:
-        currentOrder?.cannot_be_solved_reason ||
-        order.cannot_be_solved_reason ||
-        "",
     });
     setSolveOpen(true);
   };
@@ -320,88 +308,6 @@ export function useOrderResolution({
         msg: "A OS não pertence à empresa deste atendimento.",
         type: "error",
       });
-      return;
-    }
-
-    if (detail?.cannot_be_solved && !solveDraft.cannotSolve) {
-      setSaving(true);
-      try {
-        const { error } = await markServiceOrderSolvable(orderId);
-        if (error) throw error;
-        setDetail((current: any) => ({
-          ...current,
-          cannot_be_solved: false,
-          cannot_be_solved_reason: null,
-        }));
-        setOrders(current => current.map(order =>
-          order.id === orderId
-            ? {
-                ...order,
-                cannot_be_solved: false,
-                cannot_be_solved_reason: null,
-              }
-            : order,
-        ));
-        setSolveOpen(false);
-        showToast({
-          msg: "Estado não solucionável removido. A OS continua pendente de resolução.",
-          type: "success",
-        });
-      } catch (error) {
-        showToast({
-          msg: `Não foi possível remover o estado não solucionável: ${formatError(error)}`,
-          type: "error",
-        });
-      } finally {
-        setSaving(false);
-      }
-      return;
-    }
-
-    if (solveDraft.cannotSolve) {
-      const reason = solveDraft.cannotSolveReason.trim();
-      if (!reason) {
-        showToast({
-          msg: "Informe a justificativa para esta OS não solucionável.",
-          type: "error",
-        });
-        return;
-      }
-
-      setSaving(true);
-      try {
-        await saveServiceOrderLooseParts(targetOrganizationId, orderId, solveDraft.looseParts);
-        const { error } = await markServiceOrderUnsolvable(orderId, reason);
-        if (error) throw error;
-        setDetail((current: any) => ({
-          ...current,
-          loose_parts: solveDraft.looseParts.trim() || null,
-          cannot_be_solved: true,
-          cannot_be_solved_reason: reason,
-        }));
-        setOrders(current => current.map(order =>
-          order.id === orderId
-            ? {
-                ...order,
-                loose_parts: solveDraft.looseParts.trim() || null,
-                cannot_be_solved: true,
-                cannot_be_solved_reason: reason,
-              }
-            : order,
-        ));
-        setSolveOpen(false);
-        showToast({
-          msg: "OS marcada como não solucionável.",
-          type: "success",
-        });
-      } catch (error) {
-        showToast({
-          msg: `Não foi possível salvar a justificativa: ${formatError(error)}`,
-          type: "error",
-        });
-      } finally {
-        setSaving(false);
-      }
       return;
     }
 
