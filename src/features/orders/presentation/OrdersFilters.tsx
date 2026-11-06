@@ -54,6 +54,7 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
 
 export function OrdersFilters({
   osNumberSearch,
+  externalOsSearch,
   customerNameSearch,
   documentSearch,
   serialNumberSearch,
@@ -80,6 +81,7 @@ export function OrdersFilters({
   neighborhoodsLoading,
   invalidPeriod,
   onOsNumberSearchChange,
+  onExternalOsSearchChange,
   onCustomerNameSearchChange,
   onDocumentSearchChange,
   onSerialNumberSearchChange,
@@ -101,6 +103,7 @@ export function OrdersFilters({
   onClear,
 }: {
   osNumberSearch: string;
+  externalOsSearch: string;
   customerNameSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
@@ -127,6 +130,7 @@ export function OrdersFilters({
   neighborhoodsLoading: boolean;
   invalidPeriod: boolean;
   onOsNumberSearchChange: (value: string) => void;
+  onExternalOsSearchChange: (value: string) => void;
   onCustomerNameSearchChange: (value: string) => void;
   onDocumentSearchChange: (value: string) => void;
   onSerialNumberSearchChange: (value: string) => void;
@@ -204,13 +208,13 @@ export function OrdersFilters({
   const effectiveMobileFilter = !showServiceTypeFilter && mobileFilter === "serviceType" ? "osNumber" : mobileFilter;
   const mobileFilterLabel = visibleMobileFilters.find(option => option.value === effectiveMobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleIds.length > 0 || statusIds.length > 0 || situationIds.length > 0 || (showServiceTypeFilter && serviceTypeIds.length > 0) ||
+    osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleIds.length > 0 || statusIds.length > 0 || situationIds.length > 0 || (showServiceTypeFilter && serviceTypeIds.length > 0) ||
     selectedStates.length > 0 || selectedCities.length > 0 || selectedNeighborhoods.length > 0 || dateFrom || dateTo || orderSort
   );
 
   const renderMobileFilter = () => {
     switch (effectiveMobileFilter) {
-      case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" ariaLabel="Buscar por número da OS ou externa" />;
+      case "osNumber": return <OrderNumbersField osNumberSearch={osNumberSearch} externalOsSearch={externalOsSearch} onOsNumberSearchChange={onOsNumberSearchChange} onExternalOsSearchChange={onExternalOsSearchChange} mobile />;
       case "customerName": return <MobileSearchField value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
       case "serialNumber": return <>
@@ -257,7 +261,7 @@ export function OrdersFilters({
 
       <div className="hidden md:block">
         <div className="grid grid-cols-3 items-start gap-x-2 gap-y-3">
-          <SearchField label="Número da OS / Externa" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" />
+          <OrderNumbersField osNumberSearch={osNumberSearch} externalOsSearch={externalOsSearch} onOsNumberSearchChange={onOsNumberSearchChange} onExternalOsSearchChange={onExternalOsSearchChange} />
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
           <SearchField label="Número de série / Equipamento" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Série, tipo, marca ou modelo" />
@@ -275,6 +279,36 @@ export function OrdersFilters({
   </AdminCard>;
 }
 
+
+
+function OrderNumbersField({
+  osNumberSearch, externalOsSearch, onOsNumberSearchChange, onExternalOsSearchChange, mobile = false,
+}: {
+  osNumberSearch: string;
+  externalOsSearch: string;
+  onOsNumberSearchChange: (value: string) => void;
+  onExternalOsSearchChange: (value: string) => void;
+  mobile?: boolean;
+}) {
+  // Mesmo padrão do campo de datas: duas buscas independentes no espaço de um filtro.
+  // OS é exata; a externa permite encontrar parte do identificador, inclusive zeros iniciais.
+  const inputClass = "h-full w-1/2 min-w-0 flex-1 border-0 bg-transparent px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/70 focus:bg-primary/5";
+  return <div className="min-w-0">
+    <div className="mb-1 flex min-w-0 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
+      <label htmlFor="order-search-exact" className="min-w-0 flex-1 pr-2">Número da OS</label>
+      <label htmlFor="order-search-external" className="min-w-0 flex-1 pl-2">OS Externa</label>
+    </div>
+    <div className={cn("flex w-full min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background transition-colors hover:border-primary/30 focus-within:border-primary focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/20", mobile ? "h-[42px]" : "h-9")}>
+      <input id="order-search-exact" type="text" autoComplete="off" aria-label="Número da OS (exato)"
+        value={osNumberSearch} onChange={event => onOsNumberSearchChange(event.target.value)}
+        placeholder="Exato" className={inputClass} />
+      <span className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <input id="order-search-external" type="text" autoComplete="off" aria-label="OS Externa (parcial)"
+        value={externalOsSearch} onChange={event => onExternalOsSearchChange(event.target.value)}
+        placeholder="Qualquer parte" className={inputClass} />
+    </div>
+  </div>;
+}
 
 function OrderDateRangeField({
   dateFrom, dateTo, invalidPeriod, onDateFromChange, onDateToChange, mobile = false,
