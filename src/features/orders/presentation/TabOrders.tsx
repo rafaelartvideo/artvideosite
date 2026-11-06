@@ -136,6 +136,8 @@ export function TabOrders({
   });
   const [saving, setSaving] = useState(false);
   const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
+  // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
+  const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
   const editOriginRef = useRef<"details" | "list">("details");
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
@@ -294,6 +296,13 @@ export function TabOrders({
     setSaving,
   });
 
+  useEffect(() => {
+    if (!completionFromListId || completionController.open) return;
+    // Fechar a conclusão devolve diretamente à lista, preservando filtros e paginação.
+    setCompletionFromListId(null);
+    closeDetail();
+  }, [completionFromListId, completionController.open]);
+
   const orderEditor = useOrderEditorWorkflow({
     userId: user?.id,
     workspace,
@@ -371,7 +380,7 @@ export function TabOrders({
     }
 
     if (!initialOrderId) {
-      if (detail) closeDetail();
+      if (detail && !completionFromListId) closeDetail();
       if (formOpen) closeOrderForm();
       return () => { cancelled = true; };
     }
@@ -475,7 +484,7 @@ export function TabOrders({
       });
 
     return () => { cancelled = true; };
-  }, [initialOrderId, initialCustomerId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired, queryClient]);
+  }, [initialOrderId, initialCustomerId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, completionFromListId, queueSettingsLoading, queueCodeRequired, queryClient]);
 
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
@@ -490,7 +499,10 @@ export function TabOrders({
 
   const openCompletionFromList = (order: any) => {
     if (!effectiveHasPermission("orders.complete")) return;
-    openRoutedDetail(order);
+    if (completionController.open) return;
+    setCompletionFromListId(order.id);
+    // Carrega a versão completa, mas mantém a lista e a rota onde estavam.
+    openFreshDetail(order);
     completionController.openCompletion(order);
   };
 
@@ -752,7 +764,7 @@ export function TabOrders({
       <OrdersListWorkspace
         // A rota, não a limpeza assíncrona de detail, determina quando a lista volta.
         // Assim, lista e detalhe trocam juntos, sem um frame vazio/intermediário.
-        visible={!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && (!detail || Boolean(onOrderRouteChange))}
+        visible={!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && (!detail || Boolean(onOrderRouteChange) || Boolean(completionFromListId))}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
@@ -772,7 +784,7 @@ export function TabOrders({
 
       <OrderDetailsPage
         // Não mantenha a OS anterior renderizada enquanto a rota já aponta para a lista.
-        visible={Boolean(detail && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId))}
+        visible={Boolean(detail && !completionFromListId && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId))}
         initialSection={detailInitialSection}
         userId={user?.id}
         profileName={profile?.full_name}
@@ -828,6 +840,7 @@ export function TabOrders({
         images={imagesController}
         resolution={resolutionController}
         completion={completionController}
+        completionPreparing={Boolean(completionFromListId && !detailsController.detailReady)}
         partRequests={partRequests}
         onSelectCustomer={selectCustomer}
         setToast={setToast}
