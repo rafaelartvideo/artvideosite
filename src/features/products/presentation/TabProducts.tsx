@@ -27,7 +27,6 @@ import {
   updateProductFlags,
   listRelatedProductCodes,
   replaceRelatedProductCodes,
-  type RelatedProductCode,
 } from "../infrastructure/products.repository";
 import {
   AdminButton,
@@ -153,6 +152,7 @@ type ProductFieldErrors = Partial<Record<
   | "compare_at_price"
   | "barcode"
   | "conversion_factor"
+  | "sale_window_days"
   | "min_quantity"
   | "initial_quantity"
   | "initial_unit_cost"
@@ -1363,6 +1363,20 @@ export function TabProducts({
                     setForm(current => ({ ...current, conversion_factor: event.target.value || "1" }));
                   }}
                   hint={form.commercial_unit === "cx" ? "Quantidade de unidades existentes em cada caixa." : "Para unidade simples, o fator permanece 1."}
+                />
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <FIntegerInput
+                  label="Prazo para vender (dias)"
+                  value={form.sale_window_days}
+                  disabled={saving}
+                  error={fieldErrors.sale_window_days}
+                  onChange={(event: any) => {
+                    setFieldErrors(current => ({ ...current, sale_window_days: undefined }));
+                    setForm(current => ({ ...current, sale_window_days: event.target.value }));
+                  }}
+                  placeholder="Ex.: 30"
+                  hint="Opcional. Conta separadamente a partir de cada entrada no estoque, inclusive o saldo inicial. Não é a validade física."
                 />
               </div>
             </Section>
