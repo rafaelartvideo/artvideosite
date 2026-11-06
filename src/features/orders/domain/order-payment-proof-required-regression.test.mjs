@@ -5,14 +5,29 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("configuração por empresa aparece em Dados da Empresa e é persistida", async () => {
-  const settings = read("src/features/settings/presentation/TabSettings.tsx");
+test("configuração do comprovante fica no modal de OS e é persistida isoladamente", async () => {
+  const company = read("src/features/settings/presentation/TabSettings.tsx");
+  const dialog = read("src/features/orders/presentation/OrderSettingsDialog.tsx");
+  const header = read("src/features/orders/presentation/OrdersHeader.tsx");
+  const workspace = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
   const repository = read("src/features/settings/infrastructure/company-settings.repository.ts");
   const cache = read("src/features/settings/presentation/useCompanySettingsQuery.ts");
-  assert.ok((await transformWithEsbuild(settings, "TabSettings.tsx", { loader: "tsx" })).code);
-  assert.match(settings, /Exigir comprovante de pagamento para concluir a OS/);
-  assert.match(settings, /checked=\{form\.require_payment_proof_on_completion\}/);
+
+  assert.ok((await transformWithEsbuild(company, "TabSettings.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(dialog, "OrderSettingsDialog.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(header, "OrdersHeader.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(workspace, "OrdersListWorkspace.tsx", { loader: "tsx" })).code);
+  assert.doesNotMatch(company, /Exigir comprovante de pagamento para concluir a OS/);
+  assert.match(company, /Identidade visual/);
+  assert.match(company, /md:grid-cols-3/);
+  assert.match(header, /Configurações das Ordens de Serviço/);
+  assert.match(workspace, /OrderSettingsDialog/);
+  assert.match(dialog, /Exigir comprovante de pagamento para concluir a OS/);
+  assert.match(dialog, /checked=\{requireProof\}/);
+  assert.match(dialog, /scope: "orders"/);
+  assert.match(dialog, /OrderRulesSettings/);
   assert.match(repository, /require_payment_proof_on_completion: row\.require_payment_proof_on_completion === true/);
+  assert.match(repository, /scope === "orders"/);
   assert.match(repository, /completionPayload/);
   assert.match(cache, /"payment-proof-required"/);
 });
