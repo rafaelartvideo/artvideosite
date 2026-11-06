@@ -229,3 +229,30 @@ test("finance dialog loading is centered by the shared AdminDialog", () => {
   assert.match(admin, /\[data-admin-loading-state\]/);
   assert.match(loading, /data-admin-loading-state="true"/);
 });
+
+test("finance gear menu opens each registry directly in a permission-scoped modal", () => {
+  const tabs = source("FinanceSectionTabs.tsx");
+  const finance = source("TabFinance.tsx");
+  assert.match(tabs, /onOpenRegistry\("categories"\)/);
+  assert.match(tabs, /onOpenRegistry\("payment-methods"\)/);
+  assert.match(tabs, /onOpenRegistry\("settings"\)/);
+  assert.match(tabs, /availableRegistrySections\.includes\("categories"\)/);
+  assert.match(tabs, /availableRegistrySections\.includes\("payment-methods"\)/);
+  assert.match(tabs, /availableRegistrySections\.includes\("settings"\)/);
+  assert.match(finance, /hasPermission\("finance\.categories\.manage"\)/);
+  assert.match(finance, /hasPermission\("finance\.payment_methods\.manage"\)/);
+  assert.match(finance, /hasPermission\("finance\.settings\.manage"\)/);
+  assert.match(finance, /registryModal && availableRegistrySections\.includes\(registryModal\) && <AdminDialog/);
+  assert.match(finance, /registryModal === "categories" && <FinanceCategoriesSection/);
+  assert.match(finance, /registryModal === "payment-methods" && <FinancePaymentMethodsSection/);
+  assert.match(finance, /registryModal === "settings" && <FinanceSettingsSection/);
+  assert.match(finance, /setRegistryCreateSignal\(current => current \+ 1\)/);
+  assert.doesNotMatch(finance, /section === "registries" && <FinanceRegistriesSection/);
+});
+
+test("legacy registry routes are redirected to the new modal workflow", () => {
+  const finance = source("TabFinance.tsx");
+  assert.match(finance, /if \(requested\.section !== "registries"\) return;/);
+  assert.match(finance, /setRegistryModal\(registry\)/);
+  assert.match(finance, /onRouteChange\?\.\(null, null\)/);
+});

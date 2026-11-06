@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { History, Plus, ReceiptText } from "lucide-react";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
@@ -11,7 +11,9 @@ import { FinanceAccountsSection } from "./FinanceAccountsSection";
 import { FinanceEntriesSection } from "./FinanceEntriesSection";
 import { FinanceMovementsSection } from "./FinanceMovementsSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
-import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
+import { FinanceCategoriesSection } from "./FinanceCategoriesSection";
+import { FinancePaymentMethodsSection } from "./FinancePaymentMethodsSection";
+import { FinanceSettingsSection } from "./FinanceSettingsSection";
 import { FinanceReportsSection } from "./FinanceReportsSection";
 import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
 import { FinanceReceiptHistoryDialog } from "./FinanceReceiptHistoryDialog";
@@ -70,9 +72,18 @@ export function TabFinance({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptHistoryOpen, setReceiptHistoryOpen] = useState(false);
   const [newEntrySignal, setNewEntrySignal] = useState(0);
+  const [registryModal, setRegistryModal] = useState<FinanceRegistrySection | null>(null);
+  const [registryCreateSignal, setRegistryCreateSignal] = useState(0);
   const canIssueReceipt = hasPermission("finance.receivables.create") || hasPermission("finance.payables.create");
   const canViewReceiptHistory = hasPermission("finance.receivables.view") || hasPermission("finance.payables.view");
   const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
+  const availableRegistrySections = useMemo<FinanceRegistrySection[]>(() => {
+    const registries: FinanceRegistrySection[] = [];
+    if (hasPermission("finance.categories.manage")) registries.push("categories");
+    if (hasPermission("finance.payment_methods.manage")) registries.push("payment-methods");
+    if (hasPermission("finance.settings.manage")) registries.push("settings");
+    return registries;
+  }, [hasPermission]);
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
     const canViewAccounts = hasPermission("finance.accounts.view");
@@ -82,22 +93,47 @@ export function TabFinance({
     if (canViewAccounts) sections.push("movements");
     if (canViewAccounts) sections.push("accounts");
     if (hasPermission("finance.reports.view") && (hasPermission("finance.reports.dre") || hasPermission("finance.reports.cash_flow"))) sections.push("reports");
-    if (hasPermission("finance.view")) sections.push("registries");
+    if (hasPermission("finance.view") && availableRegistrySections.length) sections.push("registries");
     return sections;
-  }, [hasPermission]);
-  const section = allowedSections.includes(requested.section) ? requested.section : allowedSections[0] || "overview";
+  }, [hasPermission, availableRegistrySections]);
+  // Configurações são modais: a navegação financeira permanece na seção principal.
+  const primarySections = allowedSections.filter(item => item !== "registries");
+  const section = requested.section !== "registries" && primarySections.includes(requested.section)
+    ? requested.section : primarySections[0] || "overview";
 
   useEffect(() => {
-    if (section === requested.section || !onRouteChange) return;
+    // Links antigos /finance/registries/* seguem funcionando, agora por modal.
+    if (requested.section !== "registries") return;
+    const registry = availableRegistrySections.includes(requested.registry as FinanceRegistrySection)
+      ? requested.registry as FinanceRegistrySection
+      : availableRegistrySections[0] || null;
+    if (registry) {
+      setRegistryCreateSignal(0);
+      setRegistryModal(registry);
+    }
+    onRouteChange?.(null, null);
+  }, [requested.section, requested.registry, availableRegistrySections, onRouteChange]);
+
+  const openRegistryModal = (registry: FinanceRegistrySection) => {
+    if (!availableRegistrySections.includes(registry)) return;
+    setRegistryCreateSignal(0);
+    setRegistryModal(registry);
+  };
+  const closeRegistryModal = () => {
+    setRegistryModal(null);
+    setRegistryCreateSignal(0);
+  };
+
+  useEffect(() => {
+    if (section === requested.section || requested.section === "registries" || !onRouteChange) return;
     if (section === "overview") onRouteChange(null, null);
-    else if (section === "registries") onRouteChange("registries", "categories");
     else onRouteChange(section, null);
   }, [section, requested.section, onRouteChange]);
 
   const selectSection = (next: FinanceSection) => {
     setNewEntrySignal(0);
     if (next === "overview") onRouteChange?.(null, null);
-    else if (next === "registries") onRouteChange?.("registries", requested.registry || "categories");
+    else if (next === "registries") openRegistryModal(availableRegistrySections[0] || "categories");
     else onRouteChange?.(next, null);
   };
 
@@ -105,7 +141,6 @@ export function TabFinance({
     : section === "payables" ? hasPermission("finance.payables.create")
     : section === "accounts" ? hasPermission("finance.accounts.manage")
     : section === "movements" ? hasPermission("finance.transfers.create")
-    : section === "registries" ? (requested.registry === "payment-methods" ? hasPermission("finance.payment_methods.manage") : requested.registry === "settings" ? false : hasPermission("finance.categories.manage"))
     : false;
 
   return <div className="min-w-0 space-y-5">
@@ -128,7 +163,9 @@ export function TabFinance({
           <Plus size={17} /> Novo
         </button>}
       </div> : undefined} />
-    <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} counts={tabCounts} />
+    <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection}
+      counts={tabCounts} availableRegistrySections={availableRegistrySections}
+      activeRegistry={registryModal} onOpenRegistry={openRegistryModal} />
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
@@ -138,6 +175,20 @@ export function TabFinance({
     {section === "movements" && <FinanceMovementsSection createSignal={newEntrySignal} />}
     {section === "accounts" && <FinanceAccountsSection createSignal={newEntrySignal} />}
     {section === "reports" && <FinanceReportsSection />}
-    {section === "registries" && <FinanceRegistriesSection createSignal={newEntrySignal} registry={requested.registry} onSelect={registry => { setNewEntrySignal(0); onRouteChange?.("registries", registry); }} />}
+    {registryModal && availableRegistrySections.includes(registryModal) && <AdminDialog
+      open
+      onClose={closeRegistryModal}
+      title={registryModal === "categories" ? "Categorias" : registryModal === "payment-methods" ? "Formas de pagamento" : "Configurações financeiras"}
+      minimizedDescription="Financeiro · Configurações"
+      className={registryModal === "settings" ? "w-[calc(100vw-1.5rem)] max-w-3xl" : "h-[min(760px,calc(100dvh-2rem))] w-[calc(100vw-1.5rem)] max-w-5xl"}
+      bodyClassName="overscroll-contain"
+      headerActions={registryModal !== "settings" ? <AdminButton size="sm" onClick={() => setRegistryCreateSignal(current => current + 1)}>
+        <Plus size={15} /> Novo
+      </AdminButton> : null}
+    >
+      {registryModal === "categories" && <FinanceCategoriesSection createSignal={registryCreateSignal} />}
+      {registryModal === "payment-methods" && <FinancePaymentMethodsSection createSignal={registryCreateSignal} />}
+      {registryModal === "settings" && <FinanceSettingsSection />}
+    </AdminDialog>}
   </div>;
 }

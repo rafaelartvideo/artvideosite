@@ -1,5 +1,5 @@
 import type { ElementType } from "react";
-import { ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, Landmark, LayoutDashboard, List, Settings2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, CreditCard, FolderTree, Landmark, LayoutDashboard, List, Settings2 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
   DropdownMenu,
@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
-import type { FinanceSection } from "../domain/finance.types";
+import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 
 const LABELS: Record<FinanceSection, string> = {
   overview: "Resumo",
@@ -52,16 +52,19 @@ export function FinanceSubsectionTabs<T extends string>({
 }
 
 export function FinanceSectionTabs({
-  section, allowedSections, onSelect, counts,
+  section, allowedSections, onSelect, counts, availableRegistrySections, activeRegistry, onOpenRegistry,
 }: {
   section: FinanceSection;
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
   counts?: Partial<Record<FinanceSection, number>>;
+  availableRegistrySections: FinanceRegistrySection[];
+  activeRegistry: FinanceRegistrySection | null;
+  onOpenRegistry: (registry: FinanceRegistrySection) => void;
 }) {
   const primary = allowedSections.filter(id => id !== "registries");
-  const secondary = allowedSections.filter(id => id === "registries");
-  const isOptionsActive = secondary.includes(section);
+  const hasRegistryMenu = allowedSections.includes("registries") && availableRegistrySections.length > 0;
+  const isOptionsActive = Boolean(activeRegistry);
 
   return <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do financeiro">
     <div className="flex w-max items-center justify-center gap-1">
@@ -79,7 +82,7 @@ export function FinanceSectionTabs({
           </span>}
         </button>;
       })}
-      {secondary.length > 0 && <>
+      {hasRegistryMenu && <>
         {primary.length > 0 && <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -90,13 +93,15 @@ export function FinanceSectionTabs({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
-            {secondary.map(id => {
-              const Icon = ICONS[id];
-              return <DropdownMenuItem key={id} onSelect={() => onSelect(id)} className={cn("gap-2 text-sm font-semibold", section === id && "text-primary")}>
-                <Icon size={16} />
-                {LABELS[id]}
-              </DropdownMenuItem>;
-            })}
+            {availableRegistrySections.includes("categories") && <DropdownMenuItem onSelect={() => onOpenRegistry("categories")} className={cn("gap-2 text-sm font-semibold", activeRegistry === "categories" && "text-primary")}>
+              <FolderTree size={16} /> Categorias
+            </DropdownMenuItem>}
+            {availableRegistrySections.includes("payment-methods") && <DropdownMenuItem onSelect={() => onOpenRegistry("payment-methods")} className={cn("gap-2 text-sm font-semibold", activeRegistry === "payment-methods" && "text-primary")}>
+              <CreditCard size={16} /> Formas de pagamento
+            </DropdownMenuItem>}
+            {availableRegistrySections.includes("settings") && <DropdownMenuItem onSelect={() => onOpenRegistry("settings")} className={cn("gap-2 text-sm font-semibold", activeRegistry === "settings" && "text-primary")}>
+              <Settings2 size={16} /> Configurações
+            </DropdownMenuItem>}
           </DropdownMenuContent>
         </DropdownMenu>
       </>}
