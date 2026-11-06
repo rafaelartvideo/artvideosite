@@ -28,7 +28,7 @@ Na sessão de 30/10 foram verificados login, busca/abertura de OS, quatro fotos 
 
 Realtime foi verificado em duas abas da empresa Teste: a tarefa `AUDITORIA TEMPORÁRIA 30-10-2026 — Realtime` apareceu sem recarregar e depois foi cancelada; permanece no histórico. Um PNG sintético de 24.841 bytes, `AUDITORIA_TEMPORARIA_UPLOAD_20261030.png`, foi anexado à OS 64 da empresa Teste e permanece para conferência. Não é documento de cliente. O download desse anexo reproduziu o defeito de abrir em outra aba, motivando esta correção.
 
-Em 06/11 o navegador foi reaberto, o login seguro concluiu e o painel Artvideo carregou. Houve aviso de que a disponibilidade do operador SAC não pôde ser verificada. Após troca de empresa e navegação completa, a sessão retornou ao login; não se alterou política de autenticação para contornar esse comportamento. A conferência final do download na interface depende da publicação e de nova sessão autenticada.
+Em 06/11 o navegador foi reaberto, o login seguro concluiu e o painel Artvideo carregou. Houve aviso de que a disponibilidade do operador SAC não pôde ser verificada. Após troca de empresa e navegação completa, a sessão retornou ao login; não se alterou política de autenticação para contornar esse comportamento. Após a publicação e novo login seguro, a empresa Teste foi selecionada e o anexo aberto pela navegação normal. O novo botão iniciou um download real. O arquivo baixado possui 24.841 bytes e SHA-256 `77d34baca972c07448046c104150303432dff75602fad415a61ae4d4f80c4f94`, idênticos ao PNG original. O painel foi deixado aberto na Artvideo Jmg. O aviso de disponibilidade SAC voltou a aparecer no login; essa integração não foi declarada validada.
 
 ## Impressão: achado operacional pendente
 
@@ -41,3 +41,9 @@ Não houve trabalhos criados/concluídos nas 24 horas analisadas. O código atua
 Backup exige destino externo aprovado, chave pública verificada/custódia da privada, conexão PostgreSQL com senha/CA, credenciais S3 de leitura, máquina com utilitários e alvo isolado de restauração. A conexão dos plugins GitHub/Supabase não fornece esses segredos nem acesso ao PC da impressora.
 
 Não foram medidos GB faturados depois das correções. Pagamentos reais, envio WhatsApp/SIP, câmera/dispositivos físicos e restauração completa não foram testados. Os snapshots de 30/10 não descrevem automaticamente o estado atual.
+
+## Publicação e conferência recente
+
+Código publicado em `0cfeeef42c0901e1326161cba34f66d45aa9efe6`; [workflow 42276663459](https://github.com/rafaelartvideo/artvideosite/actions/runs/42276663459) concluiu testes, builds e ambos os envios FTPS (CRM/site) com sucesso. O teste de download acima ocorreu nessa versão publicada.
+
+Na consulta de logs de impressão de 06/11, na janela padrão móvel de 24 horas do conector, houve 39.667 chamadas de `claim_next_print_job`, todas HTTP 200 e nenhuma HTTP 400 nessa amostra. Portanto, a falha de credencial observada em 30/10 não foi novamente observada nessa janela. Os logs não confirmam o script/configuração instalada nem teste de impressão física.
