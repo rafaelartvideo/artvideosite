@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown, Eraser, Plus, Search, Trash2, Users } from "lucide-react";
+import { Plus, Search, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admin/AdminFilterMultiSelect";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { CustomerSort } from "../application/useCustomersList";
 
 type MobileFilterKey = "name" | "document" | "states" | "cities";
@@ -75,21 +75,6 @@ export function CustomersList(props: Props) {
     onNameSearchChange, onDocumentSearchChange, onStateToggle, onCityToggle, onOrderSortChange, onClearFilters,
     onPageChange, onPageSizeChange, onCreate, onOpenDetail, onDelete,
   } = props;
-  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome";
-  const sortLabel = orderSort === "asc" ? "Nome crescente" : orderSort === "desc" ? "Nome decrescente" : "Ordenação padrão";
-  const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-
-  const sortMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={sortLabel} className={cn("inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40", orderSort ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><SortIcon size={17} className="text-[#0057e7]" /></button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[200px]">
-        {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Icon size={15} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
   const renderMobileFilter = () => {
     if (mobileFilter === "name") return <MobileSearchField value={nameSearch} onChange={value => { onNameSearchChange(value); onPageChange(1); }} placeholder="Digite o nome do cliente" />;
     if (mobileFilter === "document") return <MobileSearchField value={documentSearch} onChange={value => { onDocumentSearchChange(formatDocumentSearch(value)); onPageChange(1); }} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />;
@@ -109,19 +94,9 @@ export function CustomersList(props: Props) {
       <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
         options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Nome crescente" }, { value: "desc", label: "Nome decrescente" }]} />
     </>}>
-      <div className="space-y-3 md:hidden">
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[220px]">
-              {mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Search size={14} className="text-muted-foreground" /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="min-w-0">{renderMobileFilter()}</div>
-      </div>
+      <AdminMobileSearchSwitch value={mobileFilter} options={mobileFilterOptions} onChange={setMobileFilter}>
+        {renderMobileFilter()}
+      </AdminMobileSearchSwitch>
 
       <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
         <SearchField label="Nome" value={nameSearch} onChange={value => { onNameSearchChange(value); onPageChange(1); }} placeholder="Digite o nome do cliente" />
@@ -146,7 +121,7 @@ export function CustomersList(props: Props) {
 }
 
 function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
-  return <div className="min-w-0"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div></div>;
+  return <AdminSearchTextField label={label} value={value} onChange={onChange} placeholder={placeholder} inputMode={inputMode} />;
 }
 
 function MobileSearchField({ value, onChange, placeholder, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {

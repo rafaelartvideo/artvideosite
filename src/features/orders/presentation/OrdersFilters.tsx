@@ -1,21 +1,13 @@
 import { useRef, useState } from "react";
 import {
-  Check,
-  ChevronDown,
-  Eraser,
   Search,
   ScanLine,
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
-import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/ui/primitives/dropdown-menu";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { OrderFilterMultiSelect } from "./OrderFormControls";
 
 type CityOption = { name: string; state: string };
@@ -206,7 +198,6 @@ export function OrdersFilters({
     : mobileFilterOptions.filter(option => option.value !== "serviceType");
   // Ao mudar da lista para o Kanban, não deixar um filtro móvel oculto ativo.
   const effectiveMobileFilter = !showServiceTypeFilter && mobileFilter === "serviceType" ? "osNumber" : mobileFilter;
-  const mobileFilterLabel = visibleMobileFilters.find(option => option.value === effectiveMobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
     osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleIds.length > 0 || statusIds.length > 0 || situationIds.length > 0 || (showServiceTypeFilter && serviceTypeIds.length > 0) ||
     selectedStates.length > 0 || selectedCities.length > 0 || selectedNeighborhoods.length > 0 || dateFrom || dateTo || orderSort
@@ -242,22 +233,16 @@ export function OrdersFilters({
     }
   };
 
-  return <AdminCard square className="overflow-hidden p-0">
-    <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 admin-primary-bar px-4 text-white">
-      <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span></div>
-      <div className="ml-auto flex min-w-0 flex-nowrap items-center justify-end gap-3 whitespace-nowrap">
-        {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar Estados</button>}
-        {selectedCities.length > 0 && <button type="button" onClick={onCitiesClear} aria-label="Limpar Cidades" title="Limpar Cidades" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar Cidades</button>}
-        {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar filtros</button>}
-        <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
-          options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
-      </div>
-    </div>
-    <div className="p-4 md:p-3">
-      <div className="space-y-3 md:hidden">
-        <div className="flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilters.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", effectiveMobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className="text-muted-foreground" /><span>{option.label}</span>{effectiveMobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>
-        <div className="min-w-0">{renderMobileFilter()}</div>
-      </div>
+  return <AdminSearchPanel title="Buscar OS" headerActions={<>
+    {selectedStates.length > 0 && <AdminSearchClearButton label="Limpar Estados" onClick={onStatesClear} />}
+    {selectedCities.length > 0 && <AdminSearchClearButton label="Limpar Cidades" onClick={onCitiesClear} />}
+    {hasActiveFilters && <AdminSearchClearButton onClick={onClear} />}
+    <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
+      options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
+  </>}>
+    <AdminMobileSearchSwitch value={effectiveMobileFilter} options={visibleMobileFilters} onChange={setMobileFilter}>
+      {renderMobileFilter()}
+    </AdminMobileSearchSwitch>
 
       <div className="hidden md:block">
         <div className="grid grid-cols-3 items-start gap-x-2 gap-y-3">
@@ -275,8 +260,7 @@ export function OrdersFilters({
           <OrderFilterMultiSelect label="Responsável pela OS" options={responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))} selectedValues={responsibleIds} onSelect={onResponsibleChange} onRemove={onResponsibleChange} placeholder="Selecionar responsáveis" />
         </div>
       </div>
-    </div>
-  </AdminCard>;
+  </AdminSearchPanel>;
 }
 
 
@@ -342,7 +326,7 @@ function OrderDateRangeField({
 }
 
 function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
-  return <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative overflow-hidden rounded-lg"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-9 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap py-1.5 pl-9 text-xs")} /></div></div>;
+  return <AdminSearchTextField label={label} value={value} onChange={onChange} placeholder={placeholder} inputMode={inputMode} />;
 }
 
 function MobileSearchField({ value, onChange, placeholder, ariaLabel, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; ariaLabel: string; inputMode?: "numeric" }) {
