@@ -74,6 +74,9 @@ import { InventorySuppliersEditor } from "@/features/inventory/presentation/Inve
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductAutoCompatibilityPreview } from "./ProductAutoCompatibilityPreview";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
+import { ProductSimilarProductsEditor } from "./ProductSimilarProductsEditor";
+import { ProductVariationMatrix, buildVariantMatrix, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
+import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
@@ -85,7 +88,7 @@ import {
   type ImportedProductImage,
 } from "../infrastructure/product-lookup.repository";
 
-type ProductEditorTab = "general" | "commercial" | "suppliers" | "store";
+type ProductEditorTab = "general" | "commercial" | "relationships" | "suppliers" | "store";
 
 type ProductForm = {
   name: string;
@@ -397,6 +400,9 @@ export function TabProducts({
   const closingEditorRouteRef = useRef(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
+  const [relationshipTab, setRelationshipTab] = useState<"variations" | "similar" | "compatible">("variations");
+  const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
+  const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   const [nameSearch, setNameSearch] = useState("");
   const [gtinSearch, setGtinSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -492,6 +498,9 @@ export function TabProducts({
     setLinkedSuppliers([]);
     setGalleryMedia([]);
     setEditorTab("general");
+    setRelationshipTab("variations");
+    setVariantOptions([]);
+    setVariantRows([]);
     setDrawerOpen(true);
   };
 
@@ -609,6 +618,9 @@ export function TabProducts({
         .catch(() => setGalleryMedia([]));
     }
     setEditorTab("general");
+    setRelationshipTab("variations");
+    setVariantOptions([]);
+    setVariantRows([]);
     setDrawerOpen(true);
   };
 
@@ -1230,6 +1242,7 @@ export function TabProducts({
           <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
+            <EditorTabTrigger value="relationships" icon={ArrowLeftRight}>Variações e relações</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
             {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
           </TabsList>
