@@ -32,7 +32,7 @@ const ACTION_TITLES: Record<QuoteAction,string> = {
 };
 const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
   submit: "Confirmar",
-  approve: "Confirmar aprovação",
+  approve: "Confirmar",
   reject: "Confirmar rejeição",
   renegotiate: "Confirmar renegociação",
 };
@@ -83,8 +83,10 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,footerHostId,onStatusChange}:{
-  order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,onStatusChange}:{
+  order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
+  onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
+  footerHostId:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   const [executionItemsLoading,setExecutionItemsLoading]=useState(false);
   const [executionItemsError,setExecutionItemsError]=useState("");
   const submissionLocked=useRef(false);
-  const [showExecution,setShowExecution]=useState(false);
+  const approvalLookupId=useRef(0);
   const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
 
   useEffect(()=>{
@@ -118,6 +120,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     setConfirmationAction(null);
     setModalFeedback(null);
+    approvalLookupId.current += 1;
     setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");
     submissionLocked.current=false;
   },[orderId]);
@@ -125,7 +128,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     if(!org||!orderId)return;
     let active=true;
-    setShowExecution(false);
     const cached = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey);
     const hasCached = Boolean(queryClient.getQueryState(quoteKey)?.dataUpdatedAt);
     if (hasCached) {
@@ -159,15 +161,26 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setModalFeedback(null);
     setConfirmationAction(action);
     if(action==="approve") {
+      // O conteúdo e as ações de aprovação ficam ocultos até terminar a consulta.
+      const requestId=++approvalLookupId.current;
       setExecutionItems([]);setExecutionItemsError("");setExecutionItemsLoading(true);
       void listOrderCommercialItems(orderId)
-        .then(items=>setExecutionItems(items.filter(item=>item.organization_id===org)))
-        .catch(error=>setExecutionItemsError(systemErrorMessage(error,"Não foi possível consultar os itens existentes.")))
-        .finally(()=>setExecutionItemsLoading(false));
+        .then(items=>{
+          if(approvalLookupId.current===requestId)
+            setExecutionItems(items.filter(item=>item.organization_id===org));
+        })
+        .catch(error=>{
+          if(approvalLookupId.current===requestId)
+            setExecutionItemsError(systemErrorMessage(error,"Não foi possível consultar os itens existentes."));
+        })
+        .finally(()=>{
+          if(approvalLookupId.current===requestId)setExecutionItemsLoading(false);
+        });
     }
   };
   const closeAction = () => {
     if(busy || submissionLocked.current)return;
+    approvalLookupId.current += 1;
     setConfirmationAction(null);
     setModalFeedback(null);
   };
@@ -231,10 +244,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     }
   };
   if(loading)return <LoadingState text="Carregando orçamento da OS..."/>;
-  if(showExecution&&proposal?.status==="approved")return <div className="space-y-4">
-    <BtnSecondary onClick={()=>setShowExecution(false)}>Voltar ao orçamento aprovado</BtnSecondary>
-    <OrderProductsServicesSection order={order} canEdit={canEdit} formatCurrency={formatCurrency} onPricingChange={onPricingChange}/>
-  </div>;
   return <>
     <div className="space-y-4">
     <Section title="Diagnóstico e solução proposta">
@@ -267,7 +276,18 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       </div>
     </Section>
     {editable && <UnionQuoteAiUsage organizationId={org}/>}
-    <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
+    {proposal?.status==="approved"
+      ? <section aria-label="Produtos e serviços da OS" className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-border pb-2">
+            <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Produtos e serviços da OS</h3>
+          </div>
+          <OrderProductsServicesSection
+            order={order} canEdit={canEdit} formatCurrency={formatCurrency}
+            onPricingChange={onPricingChange} onOverviewChange={onOverviewChange}
+          />
+        </section>
+      : <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>}
+
     <OrderQuotePhotosSection organizationId={org} orderId={orderId}
       canUpload={canManagePhotos && !order.completed_at && !order.cancelled_at}
       canRemove={canRemovePhotos && !order.completed_at && !order.cancelled_at}/>
@@ -321,8 +341,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       </>}
       {proposal?.status==="rejected" && <BtnPrimary disabled={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
         onClick={()=>openAction("renegotiate")}><RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</BtnPrimary>}
-      {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)} className="w-full min-w-0 whitespace-normal !px-2 text-xs md:w-auto md:!px-4 md:text-sm">
-        Abrir produtos e serviços para execução</BtnPrimary>}
+
     </>,footerHost)}
     <AdminDialog
       open={Boolean(selectedVersion)}
@@ -377,14 +396,14 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       open={Boolean(confirmationAction)}
       onClose={closeAction}
       title={confirmationAction ? ACTION_TITLES[confirmationAction] : "Confirmar ação"}
-      description={confirmationAction==="submit"
+      description={confirmationAction==="approve" && executionItemsLoading ? undefined : confirmationAction==="submit"
         ? "Confira a proposta antes de encaminhá-la para aprovação."
         : confirmationAction==="approve"
           ? "Confirme a aprovação. Se já houver serviços equivalentes, a execução técnica será preservada."
           : confirmationAction==="reject"
             ? "A proposta ficará rejeitada e poderá ser renegociada posteriormente."
             : "Será iniciada uma nova versão, preservando o histórico anterior."}
-      footer={<div className="flex w-full flex-wrap justify-end gap-2">
+      footer={confirmationAction==="approve" && executionItemsLoading ? undefined : <div className="flex w-full flex-wrap justify-end gap-2">
         {modalFeedback?.type==="success"
           ? <BtnPrimary onClick={closeAction}>Concluir</BtnPrimary>
           : <>
@@ -400,14 +419,14 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       </div>}>
       <div className="min-h-[126px] space-y-4">
         <AnimatePresence mode="wait">
-          {busy
+          {(busy || (confirmationAction==="approve" && executionItemsLoading))
             ? <motion.div key="processing"
                 initial={{opacity:0,y:7}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-7}}
                 className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
                 <div className="flex items-center justify-center text-primary" role="status" aria-label="Processando solicitação">
                   <LoadingSpinner size="md" />
                 </div>
-                <p className="text-sm font-medium text-muted-foreground">Processando orçamento...</p>
+                {busy && <p className="text-sm font-medium text-muted-foreground">Processando orçamento...</p>}
               </motion.div>
             : modalFeedback
               ? <motion.div
@@ -440,7 +459,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                       : "Deseja reabrir a negociação e elaborar uma nova versão?"}
                   </p>
                   {confirmationAction==="approve" && <div className="space-y-3">
-                    {executionItemsLoading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><LoadingSpinner size="sm"/> Consultando itens da execução...</div>}
+
                     {executionItemsError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{executionItemsError}</p>}
                     {!executionItemsLoading && !executionItemsError && executionItems.length>0 && <>
                       <div className="rounded-lg border border-border p-3">
