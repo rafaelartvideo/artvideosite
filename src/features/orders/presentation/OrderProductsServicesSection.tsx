@@ -56,6 +56,7 @@ type ItemDraft = {
 type Props = {
   order: any;
   canEdit: boolean;
+  commercialLocked?: boolean;
   formatCurrency: (value: number) => string;
   onPricingChange: (pricing: OrderCommercialPricing) => void;
   onOverviewChange?: (overview: { total: number; pending: number; inProgress: number; completed: number }) => void;
@@ -122,12 +123,14 @@ function TechnicianMultiPicker({
   />;
 }
 
-export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange, onOverviewChange }: Props) {
+export function OrderProductsServicesSection({ order, canEdit, commercialLocked = false, formatCurrency, onPricingChange, onOverviewChange }: Props) {
   const queryClient = useQueryClient();
   const signTaskPhoto = useCallback((path: string) => getStoragePreviewUrl(
     queryClient, "technician-task-photos", path, () => createOrderTaskPhotoUrl(path),
   ), [queryClient]);
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
+  // Aprovação congela os valores; agendamento e execução técnica permanecem disponíveis.
+  const commercialEditable = editable && !commercialLocked;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
   const itemsRef = useRef<OrderCommercialItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
@@ -418,7 +421,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   }, [loadItems, order?.id]);
 
   useEffect(() => {
-    if (!editable || !order?.id || !productSearchOpen || selectedProduct) return;
+    if (!commercialEditable || !order?.id || !productSearchOpen || selectedProduct) return;
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setProductSearching(true);
@@ -447,7 +450,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   }, [order?.id, order?.equipment_type_id]);
 
   useEffect(() => {
-    if (!editable || !order?.id || !serviceSearchOpen || selectedService) return;
+    if (!commercialEditable || !order?.id || !serviceSearchOpen || selectedService) return;
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setServiceSearching(true);
@@ -490,7 +493,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const addProduct = async () => {
-    if (!selectedProduct || !order?.id) return;
+    if (!commercialEditable || !selectedProduct || !order?.id) return;
     if (selectedProduct.stock != null && selectedProduct.stock <= 0) {
       showFeedback({ type: "error", text: `${selectedProduct.name} está sem estoque disponível e não pode ser adicionado à OS.` });
       return;
@@ -524,7 +527,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const addService = async () => {
-    if (!selectedService || !order?.id) return;
+    if (!commercialEditable || !selectedService || !order?.id) return;
     if (serviceNeedsSchedule && (!serviceScheduleDraft || !serviceScheduleDraft.technicianIds.length)) {
       showFeedback({ type: "error", text: "Selecione uma data, horário e técnicos disponíveis no calendário." });
       setServiceScheduleOpen(true);
@@ -561,7 +564,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const addCustomService = async () => {
-    if (!order?.id || !customName.trim() || customPrice.trim() === "") return;
+    if (!commercialEditable || !order?.id || !customName.trim() || customPrice.trim() === "") return;
     setMutating(true);
     try {
       const nextPricing = await addOrderCustomService({
@@ -612,7 +615,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       && Math.abs(additionalCost - nonNegativeNumber(item.additional_cost)) < 0.001
       && description.trim() === String(item.description_snapshot || "").trim();
 
-    if (unchanged || !editable) return;
+    if (unchanged || !commercialEditable) return;
 
     setSavingItemId(item.id);
     try {
@@ -634,7 +637,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const removeItem = async (item: OrderCommercialItem) => {
-    if (!editable) return;
+    if (!commercialEditable) return;
     setSavingItemId(item.id);
     try {
       const nextPricing = await deleteOrderCommercialItem(item.id);
@@ -825,7 +828,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   useEffect(() => {
-    if (!editable || !order?.id || discountSaveRevision === 0) return;
+    if (!commercialEditable || !order?.id || discountSaveRevision === 0) return;
     const orderId = order.id;
     const revision = discountSaveRevision;
     const type = discountType;
@@ -854,7 +857,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [order?.id, editable, discountSaveRevision, discountType, discountValue, applyPricing]);
+  }, [order?.id, commercialEditable, discountSaveRevision, discountType, discountValue, applyPricing]);
 
   const explicitProductTotal = useMemo(
     () => items.filter(item => item.item_type === "product").reduce((sum, item) => sum + nonNegativeNumber(item.subtotal), 0),
@@ -879,7 +882,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       min={1}
       step={1}
       integer
-      disabled={!editable || savingItemId === item.id}
+      disabled={!commercialEditable || savingItemId === item.id}
       onChange={value => updateDraft(item.id, { quantity: value })}
       onBlur={() => void saveItem(item)}
       onStep={value => void saveItem(item, { quantity: value })}
@@ -900,7 +903,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     return <FCurrencyInput
       aria-label="Preço unitário"
       placeholder="R$ 0,00"
-      disabled={!editable || savingItemId === item.id}
+      disabled={!commercialEditable || savingItemId === item.id}
       value={draft.unitPrice}
       onChange={(event: any) => updateDraft(item.id, { unitPrice: event.target.value })}
       onBlur={() => void saveItem(item)}
@@ -913,7 +916,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     return <FCurrencyInput
       aria-label="Custo adicional"
       placeholder="R$ 0,00"
-      disabled={!editable || savingItemId === item.id}
+      disabled={!commercialEditable || savingItemId === item.id}
       value={draft.additionalCost}
       onChange={(event: any) => updateDraft(item.id, { additionalCost: event.target.value })}
       onBlur={() => void saveItem(item)}
@@ -922,15 +925,17 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   return <div className="space-y-4">
-    {!editable && <div className="border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-      {order?.completed_at
+    {!commercialEditable && <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      {commercialLocked
+        ? "Orçamento aprovado: itens e valores só podem ser alterados após reabrir o orçamento com justificativa."
+        : order?.completed_at
         ? "Esta OS está concluída. Produtos, serviços e desconto estão bloqueados para edição."
         : order?.cancelled_at
           ? "Esta OS está cancelada. Produtos, serviços e desconto estão bloqueados para edição."
           : "Você pode visualizar os valores, mas não possui permissão para alterá-los."}
     </div>}
 
-    {editable && <div className="grid gap-4 lg:grid-cols-2">
+    {commercialEditable && <div className="grid gap-4 lg:grid-cols-2">
       <Section title="Incluir produto" className={cn("relative !overflow-visible", productSearchOpen && !selectedProduct ? "z-30" : "z-0")}>
         <div className="space-y-3">
           <div>
@@ -1157,7 +1162,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                         disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>
                         <CalendarDays size={14}/> Agendar
                       </AdminButton>}
-                    {editable && <AdminIconButton ariaLabel={"Remover " + item.title_snapshot} variant="danger"
+                    {commercialEditable && <AdminIconButton ariaLabel={"Remover " + item.title_snapshot} variant="danger"
                       disabled={savingItemId === item.id} onClick={() => void removeItem(item)}>
                       <Trash2 size={15} />
                     </AdminIconButton>}
@@ -1260,7 +1265,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo</label>
               <AdminSelect
                 value={discountType}
-                disabled={!editable}
+                disabled={!commercialEditable}
                 onValueChange={value => {
                   const next = value === "amount" ? "amount" : "percentage";
                   editDiscount(next, "0");
@@ -1276,7 +1281,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               ? <FCurrencyInput
                   label="Valor do desconto"
                   placeholder="R$ 0,00"
-                  disabled={!editable}
+                  disabled={!commercialEditable}
                   value={discountValue}
                   onChange={(event: any) => editDiscount(discountType, event.target.value)}
                 />
@@ -1286,12 +1291,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   min={0}
                   max={100}
                   step={1}
-                  disabled={!editable}
+                  disabled={!commercialEditable}
                   onChange={value => editDiscount(discountType, value)}
                 />}
           </div>
 
-          {editable && <p role="status" className={cn("mt-3 flex items-center gap-2 text-[11px]", discountError ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+          {commercialEditable && <p role="status" className={cn("mt-3 flex items-center gap-2 text-[11px]", discountError ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
             {!discountError && (discountSaving || discountSaveRevision > 0) && <LoadingSpinner size="sm" />}
             {discountError || (discountSaving || discountSaveRevision > 0 ? "Salvando desconto automaticamente" : "Desconto aplicado automaticamente")}
           </p>}
