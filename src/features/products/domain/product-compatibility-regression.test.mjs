@@ -112,3 +112,21 @@ test("Postgres infere compatibilidade exata por código e contém barreiras mult
   assert.ok(sql.includes("revoke all on function private.find_code_compatible_products_v1(uuid,uuid[]) from public,anon,authenticated"));
   assert.ok(!sql.includes("INSERT INTO public.product_compatibility_links"));
 });
+
+test("manual compatibility RPCs preserve tenant isolation and support inventory permissions", () => {
+  const sql = read("supabase/migrations/20261106202500_product_compatibility_inventory_permissions.sql");
+  for (const fn of [
+    "list_product_compatibility_ids_v1",
+    "replace_product_compatibilities_v1",
+    "list_product_code_compatibilities_v1",
+  ]) assert.ok(sql.includes("create or replace function public." + fn), fn);
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'inventory','inventory.details.view')"));
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'inventory','inventory.update')"));
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'products','products.update')"));
+  assert.ok(sql.includes("v_product.created_by"));
+  assert.ok(sql.includes("where p.id=x and p.organization_id=p_organization_id"));
+  assert.ok(sql.includes("product_id_a=p_product_id or link.product_id_b=p_product_id"));
+  assert.ok(sql.includes("least(p_product_id,x),greatest(p_product_id,x)"));
+  assert.ok(sql.includes("select auth.uid()"));
+  assert.ok(sql.includes("revoke all on function public.replace_product_compatibilities_v1(uuid,uuid,uuid[]) from public,anon"));
+});
