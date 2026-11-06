@@ -46,7 +46,7 @@ export function OrdersListWorkspace(props: Props) {
 
   const { statuses, situations, serviceTypes, serviceTypeSituations, profiles, isOrganizationOverride } = workspace;
   const {
-    osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
+    osNumberSearch, setOsNumberSearch, externalOsSearch, setExternalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
     serialNumberSearch, setSerialNumberSearch, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, selectedResponsibleIds, setSelectedResponsibleIds, selectedStatusIds, setSelectedStatusIds,
     selectedSituationIds, setSelectedSituationIds, selectedServiceTypeIds, setSelectedServiceTypeIds, orderSort, setOrderSort, selectedStates, setSelectedStates,
@@ -99,6 +99,7 @@ export function OrdersListWorkspace(props: Props) {
       onClear={() => { setOsNumberSearch(""); setDocumentSearch(""); setOrderSort(""); setPage(1); }}
     /> : <OrdersFilters
       osNumberSearch={osNumberSearch}
+      externalOsSearch={externalOsSearch}
       customerNameSearch={customerNameSearch}
       documentSearch={documentSearch}
       serialNumberSearch={serialNumberSearch}
@@ -128,6 +129,7 @@ export function OrdersListWorkspace(props: Props) {
       neighborhoodsLoading={neighborhoodsLoading}
       invalidPeriod={invalidPeriod}
       onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
+      onExternalOsSearchChange={(value) => { setExternalOsSearch(value); setPage(1); }}
       onCustomerNameSearchChange={(value) => { setCustomerNameSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
