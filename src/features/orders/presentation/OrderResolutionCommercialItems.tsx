@@ -4,6 +4,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { listOrderCommercialItems } from "../infrastructure/order-commercial-items.repository";
 import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.repository";
+import { OrderServiceStatusBadge } from "./OrderServiceStatusBadge";
 
 const money = (value: number | null | undefined) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
@@ -46,9 +47,10 @@ export function OrderResolutionCommercialItems({ organizationId, orderId }: { or
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     {item.item_type === "product" ? "Produto" : item.item_type === "custom_service" ? "Serviço Avulso" : "Serviço"}
                   </span>
-                  <span className="text-[11px] font-semibold text-muted-foreground">
-                    {item.item_type === "product" ? "Registrado na OS" : label}
-                  </span>
+                  {item.item_type === "product"
+                    ? <span className="text-[11px] font-semibold text-muted-foreground">Registrado na OS</span>
+                    : <OrderServiceStatusBadge status={task?.status}/>}
+
                 </header>
                 <div className="min-w-0 flex-1 space-y-3 p-3.5 sm:p-4">
                   <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
