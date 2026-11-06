@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import type { RuleSet } from "../domain/order-rules";
 import { Plus, Tag, ScanLine } from "lucide-react";
 import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
@@ -11,6 +12,7 @@ import type { OrderImageKind } from "../domain/order-image";
 
 export function OrderEquipmentSection({
   form,
+  rules,
   equipmentTypes,
   equipmentBrands,
   equipmentModels,
@@ -35,6 +37,7 @@ export function OrderEquipmentSection({
   orderId,
 }: {
   form: any;
+  rules: RuleSet;
   equipmentTypes: any[];
   equipmentBrands: any[];
   equipmentModels: any[];
@@ -127,10 +130,11 @@ export function OrderEquipmentSection({
     .filter(relation => relation.technical_field?.field_key !== "numero_serie")
     .sort((first, second) => first.sort_order - second.sort_order);
   // Mostrar a série apenas para equipamentos com campo extra; preservar dados históricos.
-  const showSerial = technicalFields.some(relation =>
+  const showSerial = (technicalFields.some(relation =>
     relation.technical_field?.field_key === "numero_serie"
       && relation.technical_field?.is_active !== false
-  ) || Boolean(editingOS && String(form.serial_number || "").trim());
+  ) || Boolean(editingOS && String(form.serial_number || "").trim()))
+    && (rules.fields.serial_number?.mode !== "hidden" || Boolean(editingOS && form.serial_number));
   const showDeviceUnlock = isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name)
     && (unlockCanManage || unlockCanView);
   const extraFieldCount = (showSerial ? 1 : 0) + displayedTechnicalFields.length;
@@ -184,6 +188,7 @@ export function OrderEquipmentSection({
         <div className="min-w-0">
           <FSelect
             label="Marca"
+            required={!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
             value={form.equipment_brand_id}
             disabled={!form.equipment_type_id}
             onChange={(e: any) => {
@@ -197,6 +202,7 @@ export function OrderEquipmentSection({
         <div className="min-w-0">
           <FSelect
             label="Modelo"
+            required={!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
             value={form.equipment_model_id}
             disabled={!form.equipment_brand_id}
             onChange={(e: any) => upF("equipment_model_id", e.target.value)}
@@ -209,6 +215,7 @@ export function OrderEquipmentSection({
           <div className="min-w-0 w-full flex-1">
             <FInput
               label="NÚMERO DE SÉRIE"
+              required={!editingOS&&rules.fields.serial_number?.mode==="required"&&rules.fields.serial_number?.stage==="create"}
               className="w-full"
               type="text"
               value={form.serial_number || ""}
@@ -321,13 +328,13 @@ export function OrderEquipmentSection({
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
 
             <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-2">
-              <div className="h-full min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-primary-soft/70 p-3 shadow-sm shadow-[#0057e7]/5">
+              <div className={(rules.photos.label?.mode==="hidden"&&!labelImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-primary-soft/70 p-3 shadow-sm shadow-[#0057e7]/5"}>
                 <div className="mb-3 flex items-start justify-between gap-2 md:min-h-[74px]">
                   <div className="flex min-w-0 items-start gap-2">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-[#0057e7]">Foto da etiqueta{!editingOS && <span className="ml-1 text-red-600">*</span>}</p>
-                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}</p>
+                      <p className="text-sm font-black text-[#0057e7]">Foto da etiqueta{!editingOS&&rules.photos.label?.mode==="required"&&rules.photos.label?.stage==="create"&&<span className="ml-1 text-red-600">*</span>}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS?"Priorize uma foto nítida da etiqueta de identificação do equipamento.":rules.photos.label?.mode==="required"?(rules.photos.label.stage==="create"?"Obrigatória para criar a OS.":"Obrigatória ao "+(rules.photos.label.stage==="start"?"iniciar":"concluir")+" a OS."):"Opcional para esta empresa."}</p>
                     </div>
                   </div>
                   <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
@@ -344,7 +351,7 @@ export function OrderEquipmentSection({
                 />
               </div>
 
-              <div className="h-full min-w-0 overflow-hidden rounded-xl border border-border bg-white p-3">
+              <div className={(rules.photos.equipment?.mode==="hidden"&&!otherImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-border bg-white p-3"}>
                 <div className="mb-3 flex items-start justify-between gap-2 md:min-h-[74px]">
                   <div className="min-w-0">
                     <p className="text-sm font-black text-[#0d1b2e]">Fotos do equipamento</p>

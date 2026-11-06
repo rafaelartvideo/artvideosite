@@ -1,4 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
+import type { RuleSet } from "../domain/order-rules";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
@@ -27,6 +28,7 @@ function isoToLocalOrderTime(value: string): string {
 export function OrderInformationSection({
   form,
   editingOrder,
+  rules,
   serviceTypes,
   serviceTypeSituations,
   employees,
@@ -47,6 +49,7 @@ export function OrderInformationSection({
 }: {
   form: any;
   editingOrder: any;
+  rules: RuleSet;
   serviceTypes: any[];
   serviceTypeSituations: any[];
   employees: any[];
@@ -171,7 +174,7 @@ export function OrderInformationSection({
                     onClose={closeSchedule}
                   />
                 </div>
-                <div className="space-y-4">
+                {(rules.fields.accessories?.mode!=="hidden"||Boolean(editingOS&&form.accessories))&&<div className="space-y-4">
                   <div>
                     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Possui acessórios?</label>
                     <AdminSegmentedControl
@@ -191,11 +194,11 @@ export function OrderInformationSection({
                       placeholder="Descreva os acessórios"
                     />
                   )}
-                </div>
+                </div>}
               </div>
               <div className="mt-4 space-y-4">
-                <FTextarea label="Descrição do problema" required={!editingOS} autoCapitalize="sentences" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", capitalizeSentenceStarts(e.target.value))} rows={4} />
-                <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
+                {(rules.fields.customer_notes?.mode!=="hidden"||Boolean(editingOS&&form.customer_notes))&&<FTextarea label="Descrição do problema" required={!editingOS&&rules.fields.customer_notes?.mode==="required"&&rules.fields.customer_notes?.stage==="create"} autoCapitalize="sentences" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", capitalizeSentenceStarts(e.target.value))} rows={4} />}
+                {(rules.fields.internal_notes?.mode!=="hidden"||Boolean(editingOS&&form.internal_notes))&&<FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />}
               </div>
             </Section>
   );
