@@ -13,6 +13,8 @@ test("Documentos abre Anexos por padrão, sem descrições em Anexos e Impressã
   assert.match(documents, /\["printing", "attachments", "labels", "printers"\]/);
   assert.doesNotMatch(documents, /Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS/);
   assert.doesNotMatch(documents, /Crie e configure os modelos disponíveis no menu Imprimir dos detalhes da OS/);
+  assert.doesNotMatch(documents, /<DocumentsAreaHeader\s+title="Anexos"/);
+  assert.doesNotMatch(documents, /<DocumentsAreaHeader\s+title="Impressão"/);
 });
 
 test("engrenagem das OS aparece junto do título, não no grupo de ações", async () => {
