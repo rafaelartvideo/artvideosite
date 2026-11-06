@@ -191,6 +191,7 @@ export interface FinancialMovement {
   occurred_at: string;
   source_type: FinancialMovementSourceType;
   source_id: string;
+  origin_label?: string;
   reversal_of_movement_id: string | null;
   cash_session_id?: string | null;
   description_snapshot: string;
