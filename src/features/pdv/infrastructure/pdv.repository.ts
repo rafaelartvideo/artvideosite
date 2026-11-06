@@ -352,6 +352,7 @@ export async function listPdvSimilarProducts(
     p_organization_id: org,
     p_source_product_ids: [...new Set(sourceProductIds)].slice(0, 30),
   });
+  if (error?.code === "PGRST202") return []; // migração de similares pendente
   if (error) throw error;
   return (data || []) as PdvCompatibleProduct[];
 }
