@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Pin, Plus, Search, Trash2 } from "lucide-react";
 import { AdminButton, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FCurrencyInput, FInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
@@ -104,7 +104,6 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
           {isService && searching && searchOpen && !selected && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
             <LoadingSpinner size="sm"/></span>}
           <CatalogResults
-            contained
             open={searchOpen && !selected}
             fourRows={isService}
             loading={searching}
@@ -191,64 +190,65 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
         ? <div className="flex min-h-24 items-center justify-center p-5 text-center text-sm text-muted-foreground">
           Nenhum produto ou serviço foi adicionado a este orçamento.
         </div>
-        : <div className="grid min-w-0 gap-3 p-3 sm:gap-4 sm:p-4">
-          {draft.items.map((item,index)=>{
+        : <div className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-2">
+          {draft.items.map((item,index)=>({item,index}))
+            .sort((a,b)=>Number(Boolean(b.item.pinned))-Number(Boolean(a.item.pinned))||a.index-b.index)
+            .map(({item,index})=>{
             const fixedPrice = item.item_type==="service" ||
               item.catalog_price_fixed === true || (item.item_type==="product" && Boolean(item.inventory_item_id) && item.catalog_price_fixed !== false);
             return <article key={index} aria-label={item.title_snapshot}
-              className="group min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 hover:bg-muted/15 focus-within:border-primary/50">
-              <div className="min-w-0 p-3.5 sm:p-4">
-                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                  <div className="min-w-0 flex-1 flex-wrap items-start gap-x-5 gap-y-2">
-                    <div className="min-w-[150px] flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {item.item_type==="product"?"Produto":item.item_type==="custom_service"?"Serviço Avulso":"Serviço"}
-                      </p>
-                      <strong className="block break-words text-sm">{item.title_snapshot}</strong>
-                    </div>
-                    <strong className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
-                      {formatCurrency(quoteItemTotal(item))}
-                    </strong>
-                  </div>
+              className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 focus-within:border-primary/50">
+              <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border bg-muted/30 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {item.item_type==="product"?"Produto":item.item_type==="custom_service"?"Serviço Avulso":"Serviço"}
+                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  {(!disabled || item.pinned) && <AdminIconButton
+                    ariaLabel={(item.pinned?"Desafixar ":"Fixar ")+item.title_snapshot}
+                    title={item.pinned?"Desafixar item":"Fixar item no início da lista"}
+                    disabled={disabled}
+                    variant={item.pinned?"tertiary":"ghost"}
+                    onClick={()=>updateItem(index,{pinned:!item.pinned})}>
+                    <Pin size={15} fill={item.pinned?"currentColor":"none"}/>
+                  </AdminIconButton>}
                   {!disabled&&<AdminIconButton ariaLabel={"Remover "+item.title_snapshot} variant="danger"
                     onClick={()=>{
                       patch({items:draft.items.filter((_,i)=>i!==index)});
                       notifyAdmin("Item removido do orçamento.","success");
-                    }}><Trash2 size={14}/></AdminIconButton>}
+                    }}><Trash2 size={15}/></AdminIconButton>}
                 </div>
-                <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-border/60 pt-3 lg:flex-row lg:items-center lg:gap-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Quantidade:</span>
-                      <div className="w-[94px]">
-                        <NumberStepper ariaLabel="Quantidade" value={String(item.quantity)} min={1} step={1}
-                          integer disabled={disabled}
-                          onChange={next=>updateItem(index,{quantity:positiveInteger(next)})}/>
-                      </div>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Preço unitário:</span>
-                      <div className="w-[132px]">
-                        {fixedPrice ? <div className={cn(INPUT,"flex min-h-[38px] items-center bg-muted text-sm font-semibold text-muted-foreground")}>
-                          {formatCurrency(nonNegativeNumber(item.unit_price))}
-                        </div> : <FCurrencyInput aria-label="Preço unitário" placeholder="R$ 0,00"
-                          disabled={disabled} value={String(item.unit_price)}
-                          onChange={(e:any)=>updateItem(index,{unit_price:nonNegativeNumber(e.target.value)})}/>}
-                      </div>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Custo adicional:</span>
-                      <div className="w-[132px]">
-                        <FCurrencyInput aria-label="Custo adicional" placeholder="R$ 0,00" disabled={disabled}
-                          value={String(item.additional_cost)}
-                          onChange={(e:any)=>updateItem(index,{additional_cost:nonNegativeNumber(e.target.value)})}/>
-                      </div>
-                    </div>
+              </header>
+              <div className="flex min-w-0 flex-1 flex-col justify-center p-3.5 sm:p-4">
+                <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+                  <strong className="min-w-0 break-words text-sm font-bold text-foreground">{item.title_snapshot}</strong>
+                  <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border"/>
+                  <strong className="shrink-0 whitespace-nowrap text-sm font-black text-emerald-700 dark:text-emerald-300">
+                    {formatCurrency(quoteItemTotal(item))}
+                  </strong>
+                </div>
+                <div className="mt-4 grid min-w-0 gap-3 border-t border-border/60 pt-3 sm:grid-cols-3">
+                  <NumberStepper label="Quantidade" ariaLabel="Quantidade"
+                    value={String(item.quantity)} min={1} step={1} integer
+                    className="min-w-0 w-full" inputClassName="text-center" disabled={disabled}
+                    onChange={next=>updateItem(index,{quantity:positiveInteger(next)})}/>
+                  <div className="min-w-0 space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</label>
+                    {fixedPrice ? <div className={cn(INPUT,"flex min-h-[42px] items-center justify-center bg-muted text-center text-sm font-semibold text-muted-foreground")}>
+                      {formatCurrency(nonNegativeNumber(item.unit_price))}
+                    </div> : <FCurrencyInput aria-label="Preço unitário" placeholder="R$ 0,00"
+                      disabled={disabled} value={String(item.unit_price)}
+                      onChange={(event:any)=>updateItem(index,{unit_price:nonNegativeNumber(event.target.value)})}/>}
+                  </div>
+                  <div className="min-w-0 space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</label>
+                    <FCurrencyInput aria-label="Custo adicional" placeholder="R$ 0,00" disabled={disabled}
+                      value={String(item.additional_cost)}
+                      onChange={(event:any)=>updateItem(index,{additional_cost:nonNegativeNumber(event.target.value)})}/>
                   </div>
                 </div>
                 {item.item_type==="custom_service"&&<div className="mt-3"><FInput label="Descrição"
-                  disabled={disabled} value={item.description_snapshot} onChange={(e:any)=>
-                    updateItem(index,{description_snapshot:e.target.value})}/></div>}
+                  disabled={disabled} value={item.description_snapshot} onChange={(event:any)=>
+                    updateItem(index,{description_snapshot:event.target.value})}/></div>}
               </div>
             </article>;
           })}
