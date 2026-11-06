@@ -52,8 +52,8 @@ export function OrderResolutionPage({
   const ruleFields = (detail.order_rules_snapshot as RuleSet | null)?.fields;
   const diagnosisVisible = ruleFields?.diagnosis?.mode !== "hidden";
   const solutionVisible = ruleFields?.solution?.mode !== "hidden";
-  const diagnosisRequired = ruleFields ? requiredAt(ruleFields.diagnosis,"finish") : true;
-  const solutionRequired = ruleFields ? requiredAt(ruleFields.solution,"finish") : true;
+  const diagnosisRequired = ruleFields?.diagnosis ? requiredAt(ruleFields.diagnosis,"finish") : true;
+  const solutionRequired = ruleFields?.solution ? requiredAt(ruleFields.solution,"finish") : true;
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
   const diagnosis = String(solveDraft.diagnosis || "");
   const solution = String(solveDraft.solution || "");
