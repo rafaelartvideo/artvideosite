@@ -343,11 +343,7 @@ export function FinanceEntryEditorDialog({
     <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">Salvar</AdminButton>
   </div>;
   return <>
-    {embedded ? <section aria-label="Editar lançamento" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
-      <div className="border-b border-border pb-3">
-        <h3 className="text-base font-bold text-foreground">Editar lançamento</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Altere os dados e salve para voltar aos detalhes da conta.</p>
-      </div>
+    {embedded ? <section aria-label="Editar lançamento" className="min-w-0 space-y-5">
       {editorFields}
       <div className="border-t border-border pt-4">{editorActions}</div>
     </section> : <AdminDialog

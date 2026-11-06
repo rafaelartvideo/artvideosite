@@ -2,8 +2,8 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { ArrowLeft, CheckCircle2, Pencil } from "lucide-react";
 import {
   paymentMethodFee,
@@ -65,7 +65,7 @@ export function FinanceSettlementDialog({
   const [accountId, setAccountId] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
-  const [forecastEdit, setForecastEdit] = useState<{ amount: string; reason: string } | null>(null);
+  const [forecastEdit, setForecastEdit] = useState<{ amount: string } | null>(null);
   const [forecastError, setForecastError] = useState("");
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
@@ -136,13 +136,14 @@ export function FinanceSettlementDialog({
     if (!forecastEdit || !selectedInstallment || !onAdjustInstallment || forecastPending || saving) return;
     const nextAmount = Number(forecastEdit.amount);
     const alreadyPaid = Number(selectedInstallment.settled_amount);
-    if (!Number.isFinite(nextAmount) || nextAmount <= alreadyPaid + 0.005 || !forecastEdit.reason.trim()) {
-      setForecastError("Informe um novo valor maior que o já pago e justifique o ajuste.");
+    if (!Number.isFinite(nextAmount) || nextAmount <= alreadyPaid + 0.005) {
+      setForecastError("Informe um valor maior que o já pago.");
       return;
     }
     try {
       setForecastError("");
-      await onAdjustInstallment(selectedInstallment.id, nextAmount, forecastEdit.reason.trim());
+      // O banco mantém trilha de auditoria com justificativa automática, sem exigir texto do operador.
+      await onAdjustInstallment(selectedInstallment.id, nextAmount, "Valor atualizado durante a baixa financeira.");
       setPrincipal(String(Math.round((nextAmount - alreadyPaid) * 100) / 100));
       setFieldErrors({});
       setForecastEdit(null);
@@ -160,7 +161,7 @@ export function FinanceSettlementDialog({
     if (settlementScope === "all" && Math.abs(principalValue - allRemaining) > 0.005) {
       nextErrors.principal = "Na quitação total, o valor deve ser exatamente o saldo em aberto.";
     }
-    if (!principalValidation.ok) nextErrors.principal = "O valor principal deve ser maior que zero e não pode exceder o saldo da parcela.";
+    if (!principalValidation.ok) nextErrors.principal = "O valor da baixa deve ser maior que zero e não pode exceder o saldo da parcela.";
     else if (gross <= 0) nextErrors.principal = "O valor final da baixa deve ser maior que zero.";
     else if (fee > gross) nextErrors.principal = "A taxa financeira não pode superar o valor da baixa.";
     if (!selectedMethod) nextErrors.method = "Selecione a forma de pagamento.";
@@ -190,16 +191,8 @@ export function FinanceSettlementDialog({
   };
 
   if (!open) return null;
-  const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
-
-  // Fluxo embutido no Extrato: nenhum segundo AdminDialog é montado.
-  return <section aria-label="Baixa financeira" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
-      <div className="animate-in fade-in-0 slide-in-from-right-3 duration-300">
-        <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
-          <div><h3 className="text-base font-bold text-foreground">{actionLabel} lançamento</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Informe os dados da baixa total ou parcial.</p></div>
-          <span className="shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-xs font-bold text-primary">{formatCurrency(gross > 0 ? gross : 0)}</span>
-        </div>
+  // Fluxo embutido no Extrato: o título já está no cabeçalho do modal principal.
+  return <section aria-label="Baixa financeira" className="min-w-0 space-y-5">
     <div className="space-y-5">
       {detail.entry_type === "receivable" && openInstallments.length > 1 && <FSelect
         label="Modo de recebimento"
@@ -219,25 +212,26 @@ export function FinanceSettlementDialog({
         Quita todas as parcelas abertas e registra um único recebimento de {formatCurrency(allRemaining)} no extrato.
       </p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        {settlementScope === "installment" && <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />}
-        <FCurrencyInput label="Valor principal" required disabled={settlementScope === "all" || Boolean(forecastEdit)} error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
+        {settlementScope === "installment" && <div className="flex min-w-0 items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId}
+              onChange={(event: any) => selectInstallment(event.target.value)}
+              options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
+          </div>
+          {canAdjustSelected && !forecastEdit && <AdminIconButton
+            ariaLabel="Editar valor da parcela" title="Editar valor da parcela"
+            className="!h-[42px] !w-[42px] shrink-0" disabled={saving || forecastPending}
+            onClick={() => { setForecastError(""); setForecastEdit({ amount: String(selectedInstallment!.original_amount) }); }}>
+            <Pencil size={16} />
+          </AdminIconButton>}
+        </div>}
+        <FCurrencyInput label={detail.entry_type === "payable" ? "Valor a pagar" : "Valor a receber"} required
+          disabled={settlementScope === "all" || Boolean(forecastEdit)} error={fieldErrors.principal}
+          value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
       </div>
-      {settlementScope === "installment" && selectedInstallment && <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-muted-foreground">Saldo em aberto da parcela: <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</span></p>
-        {canAdjustSelected && !forecastEdit && <AdminButton size="sm" variant="secondary" disabled={saving || forecastPending}
-          onClick={() => { setForecastError(""); setForecastEdit({ amount: String(selectedInstallment.original_amount), reason: "" }); }}>
-          <Pencil size={14} /> Ajustar parcela
-        </AdminButton>}
-      </div>}
       {forecastEdit && canAdjustSelected && <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-        <div>
-          <h4 className="text-sm font-bold text-foreground">Ajustar previsão da parcela {selectedInstallment?.installment_number}</h4>
-          <p className="mt-1 text-xs text-muted-foreground">Informe o valor total atualizado da parcela, não apenas a diferença. O ajuste e sua justificativa ficam no histórico.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending} onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
-          <FTextarea label="Motivo da alteração" value={forecastEdit.reason} disabled={forecastPending} onChange={(event: any) => setForecastEdit(current => current && ({ ...current, reason: event.target.value }))} />
-        </div>
+        <FCurrencyInput label="Novo valor da parcela" value={forecastEdit.amount} disabled={forecastPending}
+          onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
         {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           <AdminButton size="sm" variant="secondary" disabled={forecastPending} onClick={() => { setForecastEdit(null); setForecastError(""); }}><ArrowLeft size={14} /> Voltar</AdminButton>
@@ -255,14 +249,13 @@ export function FinanceSettlementDialog({
         <FSelect label="Conta financeira" required error={fieldErrors.account} value={accountId} onChange={(event: any) => setAccountId(event.target.value)} options={activeAccounts.map(item => ({ value: item.id, label: item.name }))} />
         <FInput label="Data e hora" required type="datetime-local" value={occurredAt} onChange={(event: any) => setOccurredAt(event.target.value)} />
       </div>
-      <div className="grid gap-3 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Principal</p><p className="mt-1 text-sm font-black">{formatCurrency(principalValue)}</p></div>
+      <div className="grid gap-3 rounded-xl border border-border bg-muted/30 p-4 sm:grid-cols-3">
+        
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Valor da baixa</p><p className="mt-1 text-sm font-black text-[#0057e7]">{formatCurrency(gross)}</p></div>
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Taxa</p><p className="mt-1 text-sm font-black">{formatCurrency(fee)}</p></div>
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Líquido</p><p className="mt-1 text-sm font-black text-emerald-700">{formatCurrency(net)}</p></div>
       </div>
     </div>
-      </div>
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
         <AdminButton variant="secondary" disabled={saving || forecastPending} onClick={onClose}><ArrowLeft size={16} /> Voltar</AdminButton>
         <AdminButton loading={saving} loadingText="Registrando..." disabled={saving || forecastPending || Boolean(forecastEdit)} onClick={() => void save()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>

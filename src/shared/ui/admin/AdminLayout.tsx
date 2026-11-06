@@ -384,13 +384,18 @@ export function AdminDialog({
         </div>
       </div>}
       {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
-      <div ref={bodyRef} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>
+      <div ref={bodyRef} className={cn(
+         "min-h-0 min-w-0 flex-1 overflow-y-auto p-5",
+         // Um LoadingState como conteúdo principal ocupa o centro real do modal.
+         "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
+         bodyClassName,
+       )}>{children}</div>
       {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false, disableAnimation = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -402,6 +407,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   fullPage?: boolean;
   closing?: boolean;
   smoothMotion?: boolean;
+  disableAnimation?: boolean;
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
   const onCloseRef = React.useRef(onClose);
@@ -489,11 +495,13 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   return <AdminPageCloseContext.Provider value={{ onClose, requestClose }}><div
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-background text-foreground motion-reduce:animate-none",
-      isClosing
-        ? "pointer-events-none animate-out fade-out duration-150 ease-out"
-        : smoothMotion
-          ? "animate-in fade-in duration-150 ease-out"
-          : "motion-reduce:animate-none",
+      disableAnimation
+        ? "!animate-none !transition-none"
+        : isClosing
+          ? "pointer-events-none animate-out fade-out duration-150 ease-out"
+          : smoothMotion
+            ? "animate-in fade-in duration-150 ease-out"
+            : "motion-reduce:animate-none",
     )}
     role="main"
     aria-label={title}

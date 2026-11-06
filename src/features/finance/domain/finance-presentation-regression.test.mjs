@@ -46,7 +46,7 @@ test("finance amounts, summaries and loading retain requested styles", () => {
   const detail = source("FinanceEntryDetail.tsx");
   assert.match(entries, /text-emerald-600 dark:text-emerald-400/);
   assert.match(entries, /text-foreground"\>\{formatCurrency\(entry\.original_amount\)\}/);
-  assert.match(entries, /min-h-52 w-full items-center justify-center text-center/);
+  assert.match(entries, /<LoadingState text="Carregando extrato" \/>/);
   assert.match(entries, /text-amber-600 dark:text-amber-400/);
   assert.match(detail, /px-5 py-4 text-center/);
 });
@@ -143,7 +143,8 @@ test("receivables can settle all installments as a single financial movement", (
   const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
   assert.match(dialog, /Quitar todo o saldo em aberto/);
   assert.match(dialog, /settle_all: settlementScope === "all"/);
-  assert.match(dialog, /Valor principal" required disabled=\{settlementScope === "all" \|\| Boolean\(forecastEdit\)\}/);
+  assert.match(dialog, /label=\{detail.entry_type === "payable" \? "Valor a pagar" : "Valor a receber"\} required/);
+  assert.doesNotMatch(dialog, /label="Valor principal"/);
   assert.match(repository, /register_financial_bulk_settlement/);
   assert.match(migration, /create table if not exists public\.financial_settlement_allocations/);
   assert.match(migration, /perform private\.finance_post_settlement_movements\(v_settlement_id/);
@@ -157,7 +158,7 @@ test("forecast adjustments change only payable installments with a recorded reas
   const repository = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
   assert.match(detail, /Ajustar previsão da parcela/);
-  assert.match(detail, /Motivo da alteração/);
+  assert.doesNotMatch(detail, /Motivo da alteração/);
   assert.match(detail, /installment_amount_adjusted/);
   assert.match(repository, /adjust_financial_installment_forecast/);
   assert.match(migration, /v_e\.origin_type not in \('manual','recurring'\)/);
@@ -169,9 +170,11 @@ test("forecast adjustments change only payable installments with a recorded reas
 test("settlement supports inline payable installment adjustment with back navigation", () => {
   const dialog = source("FinanceSettlementDialog.tsx");
   const entries = source("FinanceEntriesSection.tsx");
-  assert.match(dialog, /Ajustar parcela/);
+  assert.match(dialog, /ariaLabel="Editar valor da parcela"/);
+  assert.match(dialog, /<Pencil size=\{16\} \/>/);
   assert.match(dialog, /Salvar ajuste/);
-  assert.match(dialog, /forecastEdit\.reason\.trim\(\)/);
+  assert.doesNotMatch(dialog, /forecastEdit\.reason/);
+  assert.match(dialog, /Valor atualizado durante a baixa financeira/);
   assert.match(dialog, /<ArrowLeft size=\{16\} \/> Voltar/);
   assert.match(dialog, /disabled=\{saving \|\| forecastPending \|\| Boolean\(forecastEdit\)\}/);
   assert.match(entries, /finance\.adjustInstallmentMutation\.mutateAsync/);
@@ -194,4 +197,35 @@ test("open amounts are orange, paid green and next due tag is inline with title"
   assert.match(detail, /text-amber-600 dark:text-amber-400/);
   assert.match(detail, /text-emerald-600 dark:text-emerald-400/);
   assert.doesNotMatch(detail, /<p className="text-muted-foreground">Próximo vencimento<\/p>/);
+});
+
+test("details use icon actions and history stays inside the same modal", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  const tabs = source("FinanceSectionTabs.tsx");
+  assert.match(detail, /AdminIconButton ariaLabel="Editar lançamento"/);
+  assert.match(detail, /tab === "history"/);
+  assert.match(detail, /ariaLabel=\{tab === "history" \? "Voltar ao resumo" : "Ver histórico"\}/);
+  assert.match(detail, /\{tab === "history" && <div/);
+  assert.doesNotMatch(detail, /<AdminCard><AdminCardHeader><h3 className="text-sm font-bold text-foreground">Origem/);
+  assert.match(tabs, /className="mx-auto flex w-fit max-w-full justify-center overflow-x-auto"/);
+  assert.match(detail, /bg-emerald-500\/10/);
+  assert.match(detail, /bg-amber-500\/10/);
+});
+test("settlement editor removes duplicate headers, reason input and open balance summary", () => {
+  const settlement = source("FinanceSettlementDialog.tsx");
+  const editor = source("FinanceEntryEditorDialog.tsx");
+  assert.doesNotMatch(settlement, /Informe os dados da baixa total ou parcial\./);
+  assert.doesNotMatch(settlement, /Saldo em aberto da parcela:/);
+  assert.doesNotMatch(settlement, />Principal<\/p>/);
+  assert.doesNotMatch(settlement, /<FTextarea/);
+  assert.doesNotMatch(editor, /Altere os dados e salve para voltar aos detalhes da conta\./);
+  assert.match(settlement, /<AdminIconButton[\s\S]*?ariaLabel="Editar valor da parcela"/);
+});
+test("finance dialog loading is centered by the shared AdminDialog", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  const admin = readFileSync(new URL("../../../shared/ui/admin/AdminLayout.tsx", import.meta.url), "utf8");
+  const loading = readFileSync(new URL("../../../shared/ui/admin/AdminFeedback.tsx", import.meta.url), "utf8");
+  assert.match(entries, /\? <LoadingState text="Carregando extrato" \/>/);
+  assert.match(admin, /\[data-admin-loading-state\]/);
+  assert.match(loading, /data-admin-loading-state="true"/);
 });
