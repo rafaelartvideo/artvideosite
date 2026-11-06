@@ -200,6 +200,22 @@ export async function registerFinancialSettlement(organizationId: string, draft:
   return data as { id: string; status: string; remaining: number; gross: number; fee: number; net: number; expected_settlement_at: string };
 }
 
+export async function adjustFinancialInstallmentForecast(
+  organizationId: string, installmentId: string, newAmount: number, reason: string,
+): Promise<{ entry_id: string; installment_id: string; old_amount: number; new_amount: number }> {
+  const org = requiredOrganizationId(organizationId);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) throw new Error("Informe um novo valor válido.");
+  if (!String(reason || "").trim()) throw new Error("Informe o motivo da alteração.");
+  const { data, error } = await supabase.rpc("adjust_financial_installment_forecast", {
+    p_organization_id: org,
+    p_installment_id: installmentId,
+    p_new_amount: newAmount,
+    p_reason: reason.trim(),
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function confirmFinancialSettlement(organizationId: string, settlementId: string, postedAt = new Date().toISOString()) {
   const org = requiredOrganizationId(organizationId);
   const { data, error } = await supabase.rpc("confirm_financial_settlement", {
