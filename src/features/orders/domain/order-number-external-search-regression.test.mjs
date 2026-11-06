@@ -27,6 +27,21 @@ test("Buscar OS combina dois campos dentro de um controle, inclusive no celular"
   assert.match(workspace, /onExternalOsSearchChange=\{\(value\) => \{ setExternalOsSearch\(value\); setPage\(1\); \}\}/);
 });
 
+test("labels de Número da OS / OS externa seguem o mesmo tamanho de Data inicial / final", () => {
+  const ui = read("src/features/orders/presentation/OrdersFilters.tsx");
+  const numbers = ui.split("function OrderNumbersField(")[1].split("function OrderDateRangeField(")[0];
+  const dates = ui.split("function OrderDateRangeField(")[1].split("function SearchField(")[0];
+  const sharedLabelClass = /mb-1 flex min-w-0 text-\[11px\] font-bold uppercase tracking-wider/;
+  assert.match(numbers, sharedLabelClass);
+  assert.match(dates, sharedLabelClass);
+  assert.match(numbers, /<span className="min-w-0 flex-1 pr-2">Número da OS<\/span>/);
+  assert.match(numbers, /<span className="min-w-0 flex-1 pl-2">OS externa<\/span>/);
+  assert.doesNotMatch(numbers, /<label\b/, "labels não podem herdar um tamanho global maior");
+  assert.match(numbers, /<Search size=\{14\}/, "campo agrupado precisa de ícone de lupa à esquerda");
+  assert.match(numbers, /mobile \? "h-\[42px\]" : "h-9"/);
+  assert.match(numbers, /<span className="h-6 w-px shrink-0 bg-border"/);
+});
+
 test("número interno permanece exato; externo pesquisa qualquer trecho, preservando zeros", async () => {
   const source = read("src/features/orders/application/order-list.ts")
     .replace('import { normalizeSearchText } from "./order-search";',

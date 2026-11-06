@@ -290,24 +290,28 @@ function OrderNumbersField({
   onExternalOsSearchChange: (value: string) => void;
   mobile?: boolean;
 }) {
-  // Mesmo padrão do campo de datas: duas buscas independentes no espaço de um filtro.
-  // OS é exata; a externa permite encontrar parte do identificador, inclusive zeros iniciais.
-  const inputClass = "h-full w-1/2 min-w-0 flex-1 border-0 bg-transparent px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/70 focus:bg-primary/5";
+  // Mesmo padrão visual do campo Data inicial / Data final: label discreto,
+  // duas buscas independentes e uma divisória no centro.
+  // OS interna mantém busca exata; OS externa mantém busca parcial.
+  const inputClass = "h-full w-full min-w-0 border-0 bg-transparent pr-1.5 text-[11px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:bg-primary/5 lg:pr-2 xl:text-xs";
   const osInputId = mobile ? "order-search-exact-mobile" : "order-search-exact-desktop";
   const externalInputId = mobile ? "order-search-external-mobile" : "order-search-external-desktop";
   return <div className="min-w-0">
-    <div className="mb-1 grid min-w-0 grid-cols-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
-      <label htmlFor={osInputId} className="min-w-0 pr-2">Número da OS</label>
-      <label htmlFor={externalInputId} className="min-w-0 pl-2">OS Externa</label>
+    <div className="mb-1 flex min-w-0 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
+      <span className="min-w-0 flex-1 pr-2">Número da OS</span>
+      <span className="min-w-0 flex-1 pl-2">OS externa</span>
     </div>
     <div className={cn("flex w-full min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background transition-colors hover:border-primary/30 focus-within:border-primary focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/20", mobile ? "h-[42px]" : "h-9")}>
-      <input id={osInputId} type="text" autoComplete="off" aria-label="Número da OS (exato)"
-        value={osNumberSearch} onChange={event => onOsNumberSearchChange(event.target.value)}
-        placeholder="Número exato" className={inputClass} />
+      <div className="relative h-full min-w-0 flex-1">
+        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" aria-hidden="true" />
+        <input id={osInputId} type="text" autoComplete="off" aria-label="Número da OS (exato)"
+          value={osNumberSearch} onChange={event => onOsNumberSearchChange(event.target.value)}
+          placeholder="Número exato" className={cn(inputClass, "pl-9")} />
+      </div>
       <span className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
       <input id={externalInputId} type="text" autoComplete="off" aria-label="OS Externa (parcial)"
         value={externalOsSearch} onChange={event => onExternalOsSearchChange(event.target.value)}
-        placeholder="OS externa" className={inputClass} />
+        placeholder="OS externa" className={cn(inputClass, "w-0 flex-1 pl-1.5 lg:pl-2")} />
     </div>
   </div>;
 }
