@@ -1357,77 +1357,6 @@ export function TabProducts({
                   placeholder="Código original do fabricante"
                 />
 
-                <div className="space-y-3 rounded-xl border border-border p-3 sm:col-span-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Referências antigas, substitutas, compatíveis ou alternativas. Selecione a relação de cada código.
-                      </p>
-                    </div>
-                    <AdminButton variant="tertiary" size="sm"
-                      disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
-                      onClick={() => setForm(current => ({
-                        ...current,
-                        related_codes: [...current.related_codes, { code: "", relation_type: "previous" }],
-                      }))}>
-                      <Plus size={15} /> Adicionar código
-                    </AdminButton>
-                  </div>
-                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
-                  {relatedCodesLoaded && form.related_codes.length === 0 &&
-                    <p className="text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
-                  {form.related_codes.map((item, index) => <div key={index}
-                    className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
-                    <FInput label={`Código ${index + 1}`} value={item.code}
-                      disabled={saving || !relatedCodesLoaded} placeholder="Ex.: AKB76037602"
-                      onChange={(event: any) => setForm(current => ({
-                        ...current,
-                        related_codes: current.related_codes.map((related,i) =>
-                          i === index ? { ...related, code: event.target.value } : related),
-                      }))}/>
-                    <FSelect label="Tipo de relação" value={item.relation_type}
-                      disabled={saving || !relatedCodesLoaded}
-                      options={[
-                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
-                        { value: "successor", label: "Código novo (substitui o atual)" },
-                        { value: "compatible", label: "Peça compatível" },
-                        { value: "alternate", label: "Outra referência do mesmo produto" },
-                      ]}
-                      onChange={(event: any) => setForm(current => ({
-                        ...current,
-                        related_codes: current.related_codes.map((related,i) =>
-                          i === index
-                            ? { ...related, relation_type: event.target.value as RelatedProductCode["relation_type"] }
-                            : related),
-                      }))}/>
-                    <button type="button" disabled={saving || !relatedCodesLoaded}
-                      title="Excluir referência" aria-label={`Excluir código relacionado ${index + 1}`}
-                      className="flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-red-500/25 text-red-600 hover:bg-red-500/10 disabled:opacity-50"
-                      onClick={() => setForm(current => ({
-                        ...current, related_codes: current.related_codes.filter((_,i) => i !== index),
-                      }))}>
-                      <Trash2 size={16}/>
-                    </button>
-                  </div>)}
-                </div>
-
-                <div className="sm:col-span-2">
-                  <ProductAutoCompatibilityPreview organizationId={activeOrganizationId || ""} productId={editItem?.id} products={products} canEdit={canEdit}/>
-                </div>
-                <div className="sm:col-span-2">
-                  <ProductVariationsEditor
-                    organizationId={activeOrganizationId || ""}
-                    productId={editItem?.id}
-                    products={products}
-                    canEdit={canEdit}
-                    onEditProduct={id => {
-                      const parent = products.find((item: any) => String(item.id) === id);
-                      if (parent) openEditPage(parent);
-                    }}
-                  />
-                </div>
-
                 <div className="sm:col-span-2">
                   <FTextarea
                     label="Descrição"
@@ -1514,6 +1443,122 @@ export function TabProducts({
             </Section>
 
             </div></details>
+          </TabsContent>
+
+
+          <TabsContent value="relationships" className="mt-0 w-full min-w-0 space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-base font-bold text-foreground">Organização do catálogo</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Versões, alternativas comerciais e compatibilidades técnicas são relações independentes.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-x-6 border-b border-border" role="tablist" aria-label="Relações do produto">
+                {([
+                  ["variations", "Variações"],
+                  ["similar", "Produtos similares"],
+                  ["compatible", "Compatibilidade técnica"],
+                ] as const).map(([value, label]) =>
+                  <button type="button" key={value} role="tab" aria-selected={relationshipTab === value}
+                    onClick={() => setRelationshipTab(value)}
+                    className={cn("min-h-10 border-b-2 px-1 text-sm font-semibold transition-colors",
+                      relationshipTab === value ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                    {label}
+                  </button>)}
+              </div>
+            </div>
+            {relationshipTab === "variations" && <div className="min-w-0 space-y-5">
+              <ProductVariationMatrix
+                options={variantOptions} setOptions={setVariantOptions}
+                rows={variantRows} setRows={setVariantRows}
+                baseSku={form.sku} defaultPrice={form.price}
+                disabled={saving || !canCreate || !canEdit}
+              />
+              {editItem && <div className="border-t border-border pt-4">
+                <h4 className="mb-3 text-sm font-semibold text-foreground">Vincular versões já cadastradas</h4>
+                <ProductVariationsEditor
+                  organizationId={activeOrganizationId || ""}
+                  productId={editItem?.id}
+                  products={products}
+                  canEdit={canEdit}
+                  onEditProduct={id => {
+                    const parent = products.find((item: any) => String(item.id) === id);
+                    if (parent) openEditPage(parent);
+                  }}
+                />
+              </div>}
+            </div>}
+            {relationshipTab === "similar" && <ProductSimilarProductsEditor
+              organizationId={activeOrganizationId || ""}
+              productId={editItem?.id}
+              products={products}
+              canEdit={canEdit}
+            />}
+            {relationshipTab === "compatible" && <div className="min-w-0 space-y-5">
+              <div className="border-b border-border pb-4">
+                <div className="min-w-0 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Referências antigas, substitutas, compatíveis ou alternativas. Selecione a relação de cada código.
+                      </p>
+                    </div>
+                    <AdminButton variant="tertiary" size="sm"
+                      disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
+                      onClick={() => setForm(current => ({
+                        ...current,
+                        related_codes: [...current.related_codes, { code: "", relation_type: "previous" }],
+                      }))}>
+                      <Plus size={15} /> Adicionar código
+                    </AdminButton>
+                  </div>
+                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
+                  {relatedCodesLoaded && form.related_codes.length === 0 &&
+                    <p className="text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
+                  {form.related_codes.map((item, index) => <div key={index}
+                    className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
+                    <FInput label={`Código ${index + 1}`} value={item.code}
+                      disabled={saving || !relatedCodesLoaded} placeholder="Ex.: AKB76037602"
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        related_codes: current.related_codes.map((related,i) =>
+                          i === index ? { ...related, code: event.target.value } : related),
+                      }))}/>
+                    <FSelect label="Tipo de relação" value={item.relation_type}
+                      disabled={saving || !relatedCodesLoaded}
+                      options={[
+                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
+                        { value: "successor", label: "Código novo (substitui o atual)" },
+                        { value: "compatible", label: "Peça compatível" },
+                        { value: "alternate", label: "Outra referência do mesmo produto" },
+                      ]}
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        related_codes: current.related_codes.map((related,i) =>
+                          i === index
+                            ? { ...related, relation_type: event.target.value as RelatedProductCode["relation_type"] }
+                            : related),
+                      }))}/>
+                    <button type="button" disabled={saving || !relatedCodesLoaded}
+                      title="Excluir referência" aria-label={`Excluir código relacionado ${index + 1}`}
+                      className="flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-red-500/25 text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                      onClick={() => setForm(current => ({
+                        ...current, related_codes: current.related_codes.filter((_,i) => i !== index),
+                      }))}>
+                      <Trash2 size={16}/>
+                    </button>
+                  </div>)}
+                </div>
+
+
+              </div>
+              <ProductAutoCompatibilityPreview
+                organizationId={activeOrganizationId || ""}
+                productId={editItem?.id}
+                products={products}
+                canEdit={canEdit}
+              />
+            </div>}
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 w-full min-w-0 space-y-5">
