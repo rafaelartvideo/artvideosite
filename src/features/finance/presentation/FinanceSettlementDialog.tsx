@@ -250,7 +250,7 @@ export function FinanceSettlementDialog({
             disabled={saving || forecastBusy} onClick={() => void saveForecast()}>Aplicar</AdminButton>
         </div>
         {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
-      </div>
+      </div>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FCurrencyInput label="Juros" value={interest} onChange={(event: any) => setInterest(event.target.value)} />
         <FCurrencyInput label="Multa" value={penalty} onChange={(event: any) => setPenalty(event.target.value)} />
