@@ -136,7 +136,8 @@ export async function listOrderQuoteComments(
   const avatars = ((avatarsResult.data || []) as Array<{ id: string; bucket_id: string; storage_path: string }>)
     .filter(item => item.bucket_id === "avatars" && Boolean(item.storage_path));
   const paths = new Map<string, string[]>();
-  if (attachments.length) paths.set("service-images", Array.from(new Set(attachments.map(file => file.path))));
+  const previewImages = attachments.filter(file => file.mimeType.startsWith("image/"));
+  if (previewImages.length) paths.set("service-images", Array.from(new Set(previewImages.map(file => file.path))));
   if (avatars.length) paths.set("avatars", Array.from(new Set(avatars.map(item => item.storage_path))));
   const urls = new Map<string, string>();
   await Promise.all(Array.from(paths.entries()).map(async ([bucket, filenames]) => {
@@ -169,7 +170,8 @@ export async function listOrderQuoteComments(
   });
 }
 
-const COMMENT_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+// O bucket privado service-images tem limite de 10 MB por arquivo.
+const COMMENT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const COMMENT_ALLOWED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
   "application/pdf", "text/plain", "application/msword",
@@ -183,7 +185,7 @@ export function validateOrderQuoteCommentFiles(files: File[]) {
       throw new Error("Envie imagens, PDF, TXT ou documentos Word.");
     }
     if (file.size <= 0 || file.size > COMMENT_MAX_ATTACHMENT_BYTES) {
-      throw new Error(`O arquivo "${file.name}" deve ter até 20 MB.`);
+      throw new Error(`O arquivo "${file.name}" deve ter até 10 MB.`);
     }
   }
 }
