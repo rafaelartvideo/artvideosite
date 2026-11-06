@@ -39,6 +39,7 @@ test("Supabase impede alterações de itens e desconto após aprovação, preser
   const migration = read("supabase/migrations/20261106143238_approved_order_quote_reopen_with_reason_and_lock.sql");
   const discount = read("supabase/migrations/20261106143713_lock_approved_quote_discount.sql");
   const obsolete = read("supabase/migrations/20261106143911_disable_new_unsolvable_os.sql");
+  const history = read("supabase/migrations/20261106144519_approved_quote_history_audit_helper.sql");
   assert.match(migration, /reopen_approved_service_order_quote_v1/);
   assert.match(migration, /reopen_approved_service_order_quote_v1\(uuid,uuid,text\) to authenticated/);
   assert.match(migration, /service_order_items_protect_approved_quote/);
@@ -50,6 +51,9 @@ test("Supabase impede alterações de itens e desconto após aprovação, preser
   assert.match(migration, /app\.quote_commercial_mutation/);
   assert.match(discount, /Desconto aprovado bloqueado/);
   assert.match(obsolete, /service_orders_prevent_new_unsolvable/);
+  assert.match(history, /record_approved_quote_reopening_v1/);
+  assert.match(history, /service_order_history_notes/);
+  assert.match(history, /private\.can_view_service_order/);
 });
 
 test("Solucionar remove campos e não solucionável; mostra cards com itens da OS", async () => {
