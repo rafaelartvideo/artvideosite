@@ -1,7 +1,7 @@
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { useOrganizationOrderRules } from "../application/useOrganizationOrderRules";
-import { resolveRules, type RuleSet } from "../domain/order-rules";
+import { defaultRules, resolveRules, type RuleSet } from "../domain/order-rules";
 import { OrderCustomValues } from "./OrderCustomValues";
 import { OrderCustomerSection } from "@/features/orders/presentation/OrderCustomerSection";
 import { OrderEquipmentSection } from "@/features/orders/presentation/OrderEquipmentSection";
@@ -21,7 +21,7 @@ interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: R
 export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose }: OrderEditorPageProps) {
   const { activeOrganizationId } = useAuth();
   const orderRulesQuery = useOrganizationOrderRules(activeOrganizationId);
-  const rules:RuleSet=(formState.editingOS?.order_rules_snapshot as RuleSet|undefined)||resolveRules(orderRulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
+  const rules:RuleSet=formState.editingOS?((formState.editingOS.order_rules_snapshot as RuleSet|null)||defaultRules):resolveRules(orderRulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
   if (!visible) return null;
   const { equipmentTypes,equipmentBrands,equipmentModels,serviceTypes,serviceTypeSituations,employees,situations } = workspace;
   const { editingOS,selectedTechnicianIds,setSelectedTechnicianIds,selectedSellerIds,setSelectedSellerIds,setQuickEquipment,setQuickCustomer,form,setForm,needsScheduling,setNeedsScheduling,hasAccessories,setHasAccessories,updateField,closeOrderForm } = formState;
