@@ -8,6 +8,7 @@ import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { formatCnpj, formatCpf, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
+import { OrderRulesSettings } from "@/features/orders/presentation/OrderRulesSettings";
 import { CompanySegmentsSettings } from "@/features/segments/presentation/CompanySegments";
 
 type CompanyForm = {
@@ -192,6 +193,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
             </span>
           </label>
         </Section>
+        {activeOrganizationId&&<OrderRulesSettings organizationId={activeOrganizationId} canEdit={canUpdate} />}
         </>}
         <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
