@@ -51,3 +51,27 @@ export async function replaceProductVariations(
   });
   if (error) throw error;
 }
+
+export type NewProductVariation = {
+  label: string;
+  attributes: Record<string, string>;
+  sku: string;
+  barcode: string | null;
+  price: number | null;
+  quantity: number;
+};
+
+/** Creates every variation and its inventory atomically in the database. */
+export async function createProductVariationCombinations(
+  organizationId: string,
+  parentProductId: string,
+  combinations: NewProductVariation[],
+): Promise<Array<{ product_id: string; variation_label: string }>> {
+  const { data, error } = await supabase.rpc("create_product_variation_combinations_v1", {
+    p_organization_id: organizationId,
+    p_parent_product_id: parentProductId,
+    p_combinations: combinations,
+  });
+  if (error) throw error;
+  return (data || []) as Array<{ product_id: string; variation_label: string }>;
+}
