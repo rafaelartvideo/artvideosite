@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { useOrganizationOrderRules } from "../application/useOrganizationOrderRules";
 import { findRuleRow, resolveRules, fieldLabels, photoLabels, type RuleItem, type RuleSet, type Scope, type CustomField } from "../domain/order-rules";
 import { OrderCustomFieldsEditor } from "./OrderCustomFieldsEditor";
@@ -60,43 +60,56 @@ export function OrderRulesSettings({organizationId,canEdit}:{organizationId:stri
   }catch(error){setMessage(systemErrorMessage(error));}finally{setSaving(false);}
  };
 
- return <Section title="Configurações de Ordens de Serviço">
-  <div className="space-y-4">
-   <p className="text-xs text-muted-foreground">Regras independentes por empresa. As opções específicas substituem os padrões gerais; mudanças não devem invalidar OS antigas.</p>
-   <div className="grid gap-3 sm:grid-cols-3">
-    <label className="space-y-1"><span className="text-xs font-semibold">Aplicar a</span><RuleSelect value={scope} options={scopes} onChange={v=>setScope(v as Scope)}/></label>
-    {(scope==="service_type"||scope==="combination")&&<label className="space-y-1"><span className="text-xs font-semibold">Tipo de atendimento</span>
-     <RuleSelect value={serviceId} onChange={setServiceId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.types||[]).map(x=>({value:x.id,label:x.title}))]}/></label>}
-    {(scope==="equipment_type"||scope==="combination")&&<label className="space-y-1"><span className="text-xs font-semibold">Equipamento</span>
-     <RuleSelect value={equipmentId} onChange={setEquipmentId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.equipment||[]).map(x=>({value:x.id,label:x.name}))]}/></label>}
-   </div>
-   {(rulesQuery.isLoading||catalog.isLoading)&&<p className="text-sm text-muted-foreground">Carregando configurações...</p>}
-   {(rulesQuery.error||catalog.error)&&<p role="alert" className="text-sm text-red-600">Não foi possível carregar configurações: {systemErrorMessage(rulesQuery.error||catalog.error)}</p>}
-   {configured&&!rulesQuery.error&&<div className="space-y-5">
-    <div className="space-y-2">
-     <h3 className="font-semibold text-sm">Campos da OS</h3>
-     {Object.entries(fieldLabels).map(([key,label])=><div key={key} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_160px_160px] sm:items-center">
-       <span className="text-sm font-medium">{label}</span>
-       <RuleSelect value={preview.fields[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("fields",key,{mode:v as RuleItem["mode"]})}/>
-       {(key==="diagnosis"||key==="solution")?<RuleSelect value="finish" disabled options={[{value:"finish",label:"Concluir OS"}]} onChange={()=>{}}/>:<RuleSelect value={preview.fields[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("fields",key,{stage:v as RuleItem["stage"]})}/>}
-     </div>)}
-    </div>
-    <div className="space-y-2">
-     <h3 className="font-semibold text-sm">Fotos e evidências</h3>
-     {Object.entries(photoLabels).map(([key,label])=><div key={key} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_145px_145px_80px] sm:items-center">
-       <span className="text-sm font-medium">{label}</span>
-       <RuleSelect value={preview.photos[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("photos",key,{mode:v as RuleItem["mode"]})}/>
-       <RuleSelect value={preview.photos[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("photos",key,{stage:v as RuleItem["stage"]})}/>
-       <input className={control} type="number" aria-label={"Quantidade mínima: "+label} min={1} max={20} disabled={!canEdit} value={preview.photos[key]?.minCount||1} onChange={e=>editRule("photos",key,{minCount:Math.max(1,Math.min(20,Number(e.target.value)||1))})}/>
-     </div>)}
-    </div>
-   </div>}
-   {configured&&!rulesQuery.error&&<OrderCustomFieldsEditor fields={preview.custom_fields} onChange={setCustom} disabled={!canEdit}/>}
-   <div className="flex flex-wrap justify-end gap-2">
-    {rowId&&<BtnSecondary disabled={!canEdit||saving} onClick={reset}>Restaurar padrão</BtnSecondary>}
-    <BtnPrimary disabled={!canEdit||saving||!configured||rulesQuery.isLoading} loading={saving} onClick={save}>Salvar configurações de OS</BtnPrimary>
-   </div>
-   {message&&<p role="status" className="text-sm text-foreground">{message}</p>}
+ return <div className="space-y-5">
+  <div className="space-y-1">
+   <h3 className="text-sm font-bold text-foreground">Regras e campos da OS</h3>
+   <p className="text-xs text-muted-foreground">As regras variam por empresa, tipo de atendimento e equipamento. Configurações específicas substituem os padrões gerais sem alterar OS antigas.</p>
   </div>
- </Section>;
+  <div className="grid gap-3 md:grid-cols-3">
+   <label className="min-w-0 space-y-1"><span className="text-xs font-semibold text-foreground">Aplicar a</span><RuleSelect value={scope} options={scopes} onChange={v=>setScope(v as Scope)}/></label>
+   {(scope==="service_type"||scope==="combination")&&<label className="min-w-0 space-y-1"><span className="text-xs font-semibold text-foreground">Tipo de atendimento</span>
+    <RuleSelect value={serviceId} onChange={setServiceId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.types||[]).map(x=>({value:x.id,label:x.title}))]}/></label>}
+   {(scope==="equipment_type"||scope==="combination")&&<label className="min-w-0 space-y-1"><span className="text-xs font-semibold text-foreground">Equipamento</span>
+    <RuleSelect value={equipmentId} onChange={setEquipmentId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.equipment||[]).map(x=>({value:x.id,label:x.name}))]}/></label>}
+  </div>
+  {(rulesQuery.isLoading||catalog.isLoading)&&<p className="text-sm text-muted-foreground">Carregando configurações...</p>}
+  {(rulesQuery.error||catalog.error)&&<p role="alert" className="text-sm text-destructive">Não foi possível carregar configurações: {systemErrorMessage(rulesQuery.error||catalog.error)}</p>}
+  {configured&&!rulesQuery.error&&<div className="space-y-6">
+   <section className="space-y-2">
+    <h4 className="text-sm font-semibold text-foreground">Campos da OS</h4>
+    <div className="divide-y divide-border border-y border-border">
+     {Object.entries(fieldLabels).map(([key,label])=><div key={key} className="grid min-w-0 grid-cols-1 gap-2 py-3 md:grid-cols-3 md:items-center md:gap-4">
+      <span className="min-w-0 text-sm font-medium text-foreground">{label}</span>
+      <label className="min-w-0 space-y-1"><span className="block text-[11px] font-semibold text-muted-foreground">Exigência</span>
+       <RuleSelect value={preview.fields[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("fields",key,{mode:v as RuleItem["mode"]})}/></label>
+      <label className="min-w-0 space-y-1"><span className="block text-[11px] font-semibold text-muted-foreground">Etapa</span>
+       {(key==="diagnosis"||key==="solution")?<RuleSelect value="finish" disabled options={[{value:"finish",label:"Concluir OS"}]} onChange={()=>{}}/>:<RuleSelect value={preview.fields[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("fields",key,{stage:v as RuleItem["stage"]})}/>}</label>
+     </div>)}
+    </div>
+   </section>
+   <section className="space-y-2">
+    <h4 className="text-sm font-semibold text-foreground">Fotos e evidências</h4>
+    <div className="divide-y divide-border border-y border-border">
+     {Object.entries(photoLabels).map(([key,label])=><div key={key} className="grid min-w-0 grid-cols-1 gap-2 py-3 md:grid-cols-3 md:items-center md:gap-4">
+      <div className="min-w-0 space-y-2">
+       <span className="block text-sm font-medium text-foreground">{label}</span>
+       <label className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">Mínimo
+        <input className={control+" !w-20"} type="number" aria-label={"Quantidade mínima: "+label} min={1} max={20} disabled={!canEdit} value={preview.photos[key]?.minCount||1} onChange={e=>editRule("photos",key,{minCount:Math.max(1,Math.min(20,Number(e.target.value)||1))})}/>
+       </label>
+      </div>
+      <label className="min-w-0 space-y-1"><span className="block text-[11px] font-semibold text-muted-foreground">Exigência</span>
+       <RuleSelect value={preview.photos[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("photos",key,{mode:v as RuleItem["mode"]})}/></label>
+      <label className="min-w-0 space-y-1"><span className="block text-[11px] font-semibold text-muted-foreground">Etapa</span>
+       <RuleSelect value={preview.photos[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("photos",key,{stage:v as RuleItem["stage"]})}/></label>
+     </div>)}
+    </div>
+   </section>
+  </div>}
+  {configured&&!rulesQuery.error&&<OrderCustomFieldsEditor fields={preview.custom_fields} onChange={setCustom} disabled={!canEdit}/>}
+  <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+   {rowId&&<BtnSecondary disabled={!canEdit||saving} onClick={reset}>Restaurar padrão</BtnSecondary>}
+   {canEdit&&<BtnPrimary disabled={saving||!configured||rulesQuery.isLoading} loading={saving} onClick={save}>Salvar regras</BtnPrimary>}
+  </div>
+  {message&&<p role="status" className="text-sm text-foreground">{message}</p>}
+ </div>;
 }
