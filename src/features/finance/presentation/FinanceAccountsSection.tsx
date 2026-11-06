@@ -1,6 +1,6 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Banknote, Landmark, LockKeyhole, Minus, MoreVertical, Pencil, Pin, Plus, Vault, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Archive, Banknote, Landmark, LockKeyhole, Minus, MoreVertical, Pencil, Pin, Plus, Vault, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -49,8 +49,11 @@ function PixBrandIcon({ size = 24 }: { size?: number }) {
 
 function AccountTypeIcon({ type }: { type: FinancialAccountType }) {
   if (type === "pix") return <PixBrandIcon size={26} />;
-  if (type === "bank") return <Landmark size={27} strokeWidth={1.7} />;
-  if (type === "cash") return <Banknote size={27} strokeWidth={1.7} />;
+  if (type === "bank") return <Vault size={28} strokeWidth={1.65} />;
+  if (type === "cash") return <span className="relative inline-flex items-center justify-center">
+    <Archive size={28} strokeWidth={1.7} />
+    <Banknote size={13} strokeWidth={2.1} className="absolute -top-1 right-[-2px] rounded-sm bg-amber-100 dark:bg-amber-950" />
+  </span>;
   return <Wallet size={27} strokeWidth={1.7} />;
 }
 
@@ -262,6 +265,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
           const isPinned = pinnedAccountIds.includes(account.id);
           const cashSession = openSessions.get(account.id) || null;
           const detail = accountDetails(account);
+          const cashActionControl = cashOperations(account);
           return <article key={account.id}
             className={`flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-[box-shadow,border-color] hover:border-primary/30 hover:shadow-md ${isPinned ? "border-primary/35 ring-1 ring-primary/10" : "border-border"} ${!account.is_active ? "opacity-75" : ""}`}>
             <div className={`flex min-w-0 items-start gap-2.5 bg-gradient-to-br p-4 pb-3 ${theme.top}`}>
@@ -305,14 +309,14 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
             </button>
 
             <footer className="mt-auto flex min-h-[62px] flex-wrap items-center justify-end gap-1.5 border-t border-border bg-muted/30 px-3 py-2.5">
-              {cashOperations(account)}
+              {cashActionControl}
               {canManage && <>
                 {!account.opening_balance_configured_at && <AdminIconButton ariaLabel={`Configurar saldo inicial de ${account.name}`} title="Configurar saldo inicial" onClick={() => setOpeningAccount(account)}><Banknote size={15} /></AdminIconButton>}
                 <AdminIconButton ariaLabel={`Editar ${account.name}`} title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton>
                 <AdminActiveStateButton active={account.is_active} entityLabel={`conta ${account.name}`}
                   loading={finance.toggleAccount.isPending} onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} />
               </>}
-              {!canManage && !cashOperations(account) && <span className="mr-auto text-xs font-medium text-muted-foreground">Somente visualização</span>}
+              {!canManage && !cashActionControl && <span className="mr-auto text-xs font-medium text-muted-foreground">Somente visualização</span>}
             </footer>
           </article>;
         })}
