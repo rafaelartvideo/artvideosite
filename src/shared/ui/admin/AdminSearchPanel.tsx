@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type HTMLInputTypeAttribute, type ReactNode } from "react";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, Eraser, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -8,7 +8,7 @@ import { AdminCard } from "./AdminLayout";
 import { AdminFieldLabel, INPUT } from "./AdminFormControls";
 
 export function AdminSearchPanel({ title, children, headerActions, allowOverflow = false }: { title: string; children: ReactNode; headerActions?: ReactNode; allowOverflow?: boolean }) {
-  return <AdminCard square className={allowOverflow ? "overflow-visible p-0" : "overflow-hidden p-0"}>
+  return <AdminCard square className={cn("admin-search-panel p-0", allowOverflow ? "overflow-visible" : "overflow-hidden")}>
     <div className="flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 admin-primary-bar px-4 text-white md:h-11">
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} className="shrink-0 text-white/90" /></span>
@@ -16,25 +16,33 @@ export function AdminSearchPanel({ title, children, headerActions, allowOverflow
       </div>
       {headerActions && <div className="ml-auto flex min-w-0 items-center justify-end gap-2">{headerActions}</div>}
     </div>
-    <div className="min-w-0 p-4 md:p-3">{children}</div>
+    <div className="admin-search-panel-content min-w-0 p-4 md:p-3">{children}</div>
   </AdminCard>;
 }
 
 /** Campo de busca compacto padronizado para painéis administrativos. */
-export function AdminSearchTextField({ label, value, onChange, placeholder }: {
+export function AdminSearchTextField({ label, value, onChange, placeholder, inputMode, id, className, inputClassName, type = "search", ariaLabel }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  inputMode?: "numeric" | "text" | "tel" | "email" | "search";
+  id?: string;
+  className?: string;
+  inputClassName?: string;
+  type?: HTMLInputTypeAttribute;
+  ariaLabel?: string;
 }) {
-  return <div className="min-w-0">
-    <AdminFieldLabel label={label} />
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  return <div className={cn("min-w-0", className)}>
+    {label && <AdminFieldLabel label={label} htmlFor={inputId} />}
     <div className="relative min-w-0">
       <Search size={15} aria-hidden="true"
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input type="search" value={value} onChange={event => onChange(event.target.value)}
-        placeholder={placeholder} aria-label={`Buscar por ${label.toLowerCase()}`}
-        className={cn(INPUT, "h-[42px] min-h-[42px] pl-9 pr-2")} />
+      <input id={inputId} type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)}
+        placeholder={placeholder} aria-label={ariaLabel || (label ? `Buscar por ${label.toLowerCase()}` : "Pesquisar")}
+        className={cn(INPUT, "h-[42px] min-h-[42px] w-full min-w-0 pl-9 pr-2 text-sm md:h-9 md:min-h-9 md:py-1.5 md:text-xs", inputClassName)} />
     </div>
   </div>;
 }
