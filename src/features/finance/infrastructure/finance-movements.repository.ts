@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { financeServiceOrderLabel } from "../domain/finance-origin-label.mjs";
 import type {
   FinancialMovement,
   FinancialSettlementDraft,
@@ -98,7 +99,7 @@ export async function listFinancialMovementsPage(
             const entry = entryById.get(settlement.financial_entry_id);
             if (!entry) continue;
             const osNumber = String((entry.source_details as Record<string, unknown> | null)?.os_number || "").trim();
-            const origin = entry.origin_type === "service_order" ? (osNumber ? `OS #${osNumber}` : "Ordem de Serviço")
+            const origin = entry.origin_type === "service_order" ? financeServiceOrderLabel(osNumber)
               : entry.origin_type === "inventory_purchase" ? "Compra de estoque"
               : entry.origin_type === "recurring" ? "Recorrência"
               : entry.origin_type === "manual" ? "Lançamento manual"
