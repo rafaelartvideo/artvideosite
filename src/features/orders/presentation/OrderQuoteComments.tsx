@@ -49,6 +49,13 @@ function CommentAttachments({ files }: { files: OrderQuoteCommentAttachment[] })
   return <div className="mt-2 flex min-w-0 flex-wrap gap-2">
     {files.map(file => {
       const image = file.mimeType.startsWith("image/");
+      const audio = file.mimeType.startsWith("audio/");
+      if (audio && file.url) {
+        return <div key={file.id} className="flex min-w-0 max-w-full flex-col gap-1 rounded-lg border border-border bg-muted/20 p-2">
+          <span className="max-w-60 truncate text-xs font-semibold text-foreground" title={file.fileName}>{file.fileName}</span>
+          <audio controls preload="none" src={file.url} className="h-10 w-60 max-w-full" aria-label={"Áudio: " + file.fileName} />
+        </div>;
+      }
       return <button key={file.id} type="button" onClick={() => void openFile(file)}
         title={"Abrir " + file.fileName} aria-label={"Abrir anexo: " + file.fileName}
         className="flex max-w-full items-center gap-2 overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-primary/35 hover:bg-primary/5">
