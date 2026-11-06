@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const root = new URL("../../../../../", import.meta.url);
+const root = new URL("../../../../", import.meta.url);
 const stock = readFileSync(new URL("src/features/products/presentation/TabProducts.tsx", root), "utf8");
 const adminPage = readFileSync(new URL("src/shared/ui/admin/AdminLayout.tsx", root), "utf8");
 
