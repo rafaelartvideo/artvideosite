@@ -20,6 +20,7 @@ type Props = {
   loading?: boolean;
   error?: string | null;
   emptyText?: string;
+  toolbar?: ReactNode;
   onViewAll?: () => void;
   viewAllLabel?: string;
   /** When provided, pagination is server-managed. Otherwise rows are paginated locally. */
@@ -32,7 +33,7 @@ type Props = {
 /** Shared drilldown for financial and operational KPIs; never starts a request by itself. */
 export function AdminMetricDetailDialog({
   open, onClose, title, value, description, rows = [], loading = false, error,
-  emptyText = "Nenhum registro encontrado.", onViewAll, viewAllLabel = "Abrir seção completa",
+  emptyText = "Nenhum registro encontrado.", toolbar, onViewAll, viewAllLabel = "Abrir seção completa",
   page, pageSize = 10, totalRows, onPageChange,
 }: Props) {
   const [localPage, setLocalPage] = useState(1);
@@ -58,6 +59,7 @@ export function AdminMetricDetailDialog({
         <p className="text-xs font-semibold text-muted-foreground">Total do indicador</p>
         <p className="mt-1 break-words text-2xl font-black tabular-nums text-foreground">{value}</p>
       </div>
+      {toolbar}
       {loading ? <div role="status" aria-label="Carregando detalhes" className="space-y-3">
         {Array.from({ length: 4 }, (_, i) => <div key={i} className="animate-pulse space-y-2 rounded-lg border border-border p-3">
           <div className="h-3 w-2/3 rounded bg-muted" /><div className="h-3 w-1/2 rounded bg-muted" />
