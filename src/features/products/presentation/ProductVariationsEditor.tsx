@@ -93,7 +93,7 @@ export function ProductVariationsEditor({
     }
   };
 
-  return <section className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4" aria-label="Variações do produto">
+  return <section className="min-w-0 space-y-3" aria-label="Variações do produto">
     <div className="flex items-start gap-2">
       <Layers3 size={18} className="mt-0.5 shrink-0 text-primary"/>
       <div>
@@ -126,7 +126,7 @@ export function ProductVariationsEditor({
             const qty = Number(product?.inventory?.quantity || 0);
             const factor = Math.max(1, Number(product?.inventory?.conversion_factor || 1));
             const unit = product?.inventory?.unit === "cx" ? "cx" : "un";
-            return <div key={item.product_id} className="space-y-2 rounded-lg border border-border p-2.5">
+            return <div key={item.product_id} className="space-y-2 border-b border-border py-2.5">
               <div className="flex min-w-0 items-center gap-2">
                 <ProductAdminThumb mediaId={product?.cover_media_id || null} name={product?.name || "Produto"}/>
                 <div className="min-w-0 flex-1">
