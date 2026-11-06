@@ -37,6 +37,7 @@ import {
   listOrderCommercialItems,
   searchOrderProducts,
   listOrderProductCompatibilities,
+  listOrderProductSimilars,
   searchOrderServices,
   setOrderCommercialDiscount,
   setOrderCommercialItemPinned,
@@ -170,6 +171,12 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   const compatibleProductsQuery = useQuery({
     queryKey: ["orders", "auto-compatible", "execution", order?.id, selectedProduct?.id],
     queryFn: () => listOrderProductCompatibilities(order!.id, [selectedProduct!.id]),
+    enabled: Boolean(commercialEditable && order?.id && selectedProduct?.id),
+    staleTime: 15_000,
+  });
+  const similarProductsQuery = useQuery({
+    queryKey: ["orders", "similar-products", "execution", order?.id, selectedProduct?.id],
+    queryFn: () => listOrderProductSimilars(order!.id, [selectedProduct!.id]),
     enabled: Boolean(commercialEditable && order?.id && selectedProduct?.id),
     staleTime: 15_000,
   });
@@ -1070,6 +1077,20 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
           {selectedProduct && Boolean(compatibleProductsQuery.data?.length) && <CompatibleProductCarousel
             sourceName={selectedProduct.name}
             products={(compatibleProductsQuery.data || []).map(item => ({
+              id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
+              coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
+            }))}
+            actionLabel="Selecionar"
+            disabled={!commercialEditable}
+            onPick={item => selectProduct({
+              id:item.id,name:item.name,description:null,unit:item.unit || "un",
+              price:item.price ?? null,stock:item.stock ?? 0,price_at_completion:false,
+            })}
+          />}
+          {selectedProduct && Boolean(similarProductsQuery.data?.length) && <CompatibleProductCarousel
+            title="Produtos similares"
+            sourceName={selectedProduct.name}
+            products={(similarProductsQuery.data || []).map(item => ({
               id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
               coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
             }))}
