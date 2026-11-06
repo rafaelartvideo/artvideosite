@@ -12,6 +12,7 @@ import {
 } from "../infrastructure/finance-entries.repository";
 import {
   registerFinancialSettlement,
+  adjustFinancialInstallmentForecast,
   reverseFinancialSettlement,
 } from "../infrastructure/finance-movements.repository";
 
@@ -140,6 +141,13 @@ export function useFinanceEntries(
     onSuccess: (_result, draft) => invalidateEntry(draft.entry_id),
   });
 
+  const adjustInstallmentMutation = useMutation({
+    mutationFn: ({ entryId: _entryId, installmentId, newAmount, reason }: {
+      entryId: string; installmentId: string; newAmount: number; reason: string;
+    }) => adjustFinancialInstallmentForecast(organizationId, installmentId, newAmount, reason),
+    onSuccess: (_result, variables) => invalidateEntry(variables.entryId),
+  });
+
   const reverseSettlementMutation = useMutation({
     mutationFn: ({ settlementId, reason }: { settlementId: string; reason: string }) => reverseFinancialSettlement(organizationId, settlementId, reason),
     onSuccess: () => {
@@ -155,6 +163,7 @@ export function useFinanceEntries(
     saveMutation,
     decisionMutation,
     settlementMutation,
+    adjustInstallmentMutation,
     reverseSettlementMutation,
   };
 }
