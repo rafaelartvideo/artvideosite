@@ -146,12 +146,15 @@ export function OrderQuoteComments({
   const streamRef = useRef<MediaStream | null>(null);
   const cancelRecordingRef = useRef(false);
   const mountedRef = useRef(true);
-  useEffect(() => () => {
-    mountedRef.current = false;
-    cancelRecordingRef.current = true;
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") recorder.stop();
-    streamRef.current?.getTracks().forEach(track => track.stop());
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      cancelRecordingRef.current = true;
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      streamRef.current?.getTracks().forEach(track => track.stop());
+    };
   }, []);
 
   // Portal fixo: nunca fica atrás/cortado pelo overflow dos cards, abas ou modais.
@@ -251,11 +254,21 @@ export function OrderQuoteComments({
       };
       recorder.onerror = () => {
         cancelRecordingRef.current = true;
+        stream.getTracks().forEach(track => track.stop());
+        if (recorderRef.current === recorder) recorderRef.current = null;
+        if (streamRef.current === stream) streamRef.current = null;
+        setRecording(false);
         notifyAdmin("Não foi possível gravar o áudio.", "error");
-        stopRecording();
       };
-      recorder.start(500);
-      setRecording(true);
+      try {
+        recorder.start(500);
+        setRecording(true);
+      } catch (error) {
+        stream.getTracks().forEach(track => track.stop());
+        recorderRef.current = null;
+        streamRef.current = null;
+        throw error;
+      }
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível acessar o microfone."), "error");
     }
