@@ -105,7 +105,8 @@ export function OrderSettingsDialog({
     <OrderRulesSettings
       ref={rulesRef}
       organizationId={organizationId}
-      canEdit={canEdit && !busy}
+      canEdit={canEdit}
+      disabled={busy}
       onDirtyChange={setRulesDirty}
       onLoadingChange={setRulesLoading}
     />
