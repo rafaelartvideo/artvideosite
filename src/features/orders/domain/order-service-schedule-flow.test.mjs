@@ -50,8 +50,9 @@ test("a inclusão agendada grava equipe e horário juntos em uma transação", (
   assert.match(migration, /Já está nesta OS|já está nesta OS/i);
 });
 
-test("Agendar acompanha o preço total; Reagendar acompanha a data, sem seção separada", () => {
-  assert.match(section, /setSchedulingItem\(item\)}>Agendar<\/BtnSecondary>/);
+test("Agendar fica no cabeçalho do card; Reagendar acompanha a data, sem seção separada", () => {
+  assert.match(section, /<header className="flex min-w-0 items-center justify-between/);
+  assert.match(section, /<CalendarDays size=\{14\}\/> Agendar/);
   assert.match(section, /setSchedulingItem\(item\)}>Reagendar<\/BtnSecondary>/);
   assert.doesNotMatch(section, /Agendamento do serviço<\/p>/);
   assert.match(section, /teamLocked = Boolean\(task\?\.scheduled_start_at\)/);
