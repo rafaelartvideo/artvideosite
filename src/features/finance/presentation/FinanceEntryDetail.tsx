@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
-import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { ArrowLeft, History, Pencil } from "lucide-react";
+import { FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceDocumentsPanel } from "./FinanceDocumentsPanel";
 import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
@@ -45,7 +45,7 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 
-type EntryTab = "overview" | "settlements" | "documents";
+type EntryTab = "overview" | "settlements" | "documents" | "history";
 
 function EntryDetailContent({
   detail, accounts, paymentMethods, canEdit, canSettle, canReverseSettlement,
@@ -55,7 +55,7 @@ function EntryDetailContent({
   forecastPending, onAdjustInstallment,
 }: Parameters<typeof FinanceEntryDetail>[0]) {
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
-  const [forecastEdit, setForecastEdit] = useState<{ id: string; amount: string; reason: string } | null>(null);
+  const [forecastEdit, setForecastEdit] = useState<{ id: string; amount: string } | null>(null);
   const [forecastError, setForecastError] = useState("");
   const isReceivable = detail.entry_type === "receivable";
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
@@ -83,13 +83,13 @@ function EntryDetailContent({
   const saveForecast = async () => {
     if (!forecastEdit || !onAdjustInstallment || forecastPending) return;
     const amount = Number(forecastEdit.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || !forecastEdit.reason.trim()) {
-      setForecastError("Informe o valor atualizado e o motivo do ajuste.");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setForecastError("Informe o valor atualizado da parcela.");
       return;
     }
     try {
       setForecastError("");
-      await onAdjustInstallment(forecastEdit.id, amount, forecastEdit.reason.trim());
+      await onAdjustInstallment(forecastEdit.id, amount, "Valor previsto atualizado pelo operador.");
       setForecastEdit(null);
       notifyAdmin("Previsão atualizada e registrada no histórico.", "success");
     } catch (error) {
@@ -111,7 +111,17 @@ function EntryDetailContent({
             <p className="mt-1 text-sm text-muted-foreground">{detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
             {detail.counterpart_document_snapshot && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatFinancialDocument(detail.counterpart_document_snapshot)}</p>}
           </div>
-          {editable && <AdminButton size="sm" variant="secondary" onClick={onEdit}>Editar lançamento</AdminButton>}
+          <div className="flex shrink-0 items-center gap-2">
+            {editable && <AdminIconButton ariaLabel="Editar lançamento" title="Editar lançamento" onClick={onEdit}>
+              <Pencil size={16} />
+            </AdminIconButton>}
+            <AdminIconButton ariaLabel={tab === "history" ? "Voltar ao resumo" : "Ver histórico"}
+              title={tab === "history" ? "Voltar ao resumo" : "Histórico"}
+              variant={tab === "history" ? "tertiary" : "secondary"}
+              onClick={() => { setTab(current => current === "history" ? "overview" : "history"); if (scrollContainerRef?.current) scrollContainerRef.current.scrollTop = 0; }}>
+              <History size={16} />
+            </AdminIconButton>
+          </div>
         </div>
         <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
           <div><p className="text-muted-foreground">Emissão</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(detail.issue_date)}</p></div>
@@ -121,12 +131,12 @@ function EntryDetailContent({
       </div>
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(detail.original_amount)}</p></div>
-        <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
-        <div className="bg-amber-500/5 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</p></div>
+        <div className="bg-emerald-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
+        <div className="bg-amber-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</p></div>
       </div>
     </section>
 
-    <FinanceSubsectionTabs<EntryTab>
+    {tab !== "history" && <FinanceSubsectionTabs<EntryTab>
       value={tab}
       onSelect={nextTab => {
         setTab(nextTab);
@@ -140,7 +150,7 @@ function EntryDetailContent({
         { id: "settlements", label: "Baixas" },
         { id: "documents", label: "Documentos" },
       ]}
-    />
+    />}
 
     {tab === "overview" && <div className="space-y-4">
       <AdminCard>
@@ -153,7 +163,6 @@ function EntryDetailContent({
             <Info label="Emissão" value={formatDate(detail.issue_date)} />
             <Info label="Competência" value={formatDate(detail.competence_date)} />
             <Info label="Categoria" value={Array.from(new Set(detail.allocations.map(item => item.category_name_snapshot))).join(", ") || "—"} />
-            <Info label="Origem" value={originLabel} />
             <Info label="Cadastrado por" value={detail.created_by_name || "Não identificado"} />
             <Info label="Cadastrado em" value={new Date(detail.created_at).toLocaleString("pt-BR")} />
             {detail.updated_by_name && <Info label="Última alteração por" value={detail.updated_by_name} />}
@@ -164,10 +173,7 @@ function EntryDetailContent({
       </AdminCard>
 
       {["service_order", "inventory_purchase"].includes(detail.origin_type)
-        ? <FinanceEntrySourceBlock detail={detail} showIcon={false} />
-        : <AdminCard><AdminCardHeader><h3 className="text-sm font-bold text-foreground">Origem</h3></AdminCardHeader>
-          <AdminCardContent><div className="grid gap-4 sm:grid-cols-2"><Info label="Tipo" value={originLabel} />
-            <Info label="Referência" value={detail.origin_reference || "—"} /></div></AdminCardContent></AdminCard>}
+        && <FinanceEntrySourceBlock detail={detail} showIcon={false} />}
 
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
@@ -177,19 +183,14 @@ function EntryDetailContent({
               {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                 type="button" disabled={forecastPending} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
-                onClick={() => { setForecastEdit({ id: item.id, amount: String(item.original_amount), reason: "" }); setForecastError(""); }}
+                onClick={() => { setForecastEdit({ id: item.id, amount: String(item.original_amount) }); setForecastError(""); }}
               ><Pencil size={13} /> Ajustar</button>}</td>}</tr>)}</tbody>
           </table>
         </div>
         {forecastEdit && canAdjustForecast && <div className="space-y-3 border-t border-border p-4">
           <h4 className="text-sm font-semibold text-foreground">Ajustar previsão da parcela</h4>
-          <p className="text-xs text-muted-foreground">Ajuste somente esta parcela. O valor anterior e a justificativa serão registrados no histórico.</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending}
-              onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
-            <FTextarea label="Motivo da alteração" value={forecastEdit.reason} disabled={forecastPending}
-              onChange={(event: any) => setForecastEdit(current => current && ({ ...current, reason: event.target.value }))} />
-          </div>
+          <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending}
+            onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
           {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
           <div className="flex justify-end gap-2">
             <AdminButton variant="secondary" disabled={forecastPending} onClick={() => setForecastEdit(null)}>Cancelar</AdminButton>
@@ -198,6 +199,10 @@ function EntryDetailContent({
         </div>}
       </AdminCard>
 
+    </div>}
+
+    {tab === "history" && <div className="space-y-4">
+      <div><AdminButton variant="secondary" size="sm" onClick={() => setTab("overview")}><ArrowLeft size={15} /> Voltar ao resumo</AdminButton></div>
       <AdminCard><AdminCardHeader><h3 className="text-sm font-bold text-foreground">Histórico</h3></AdminCardHeader>
         <AdminCardContent>
           {detail.events.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma movimentação registrada.</p> : <div className="divide-y divide-border">
