@@ -166,8 +166,7 @@ begin
     product.name
   limit v_limit;
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.search_service_order_products_v1(p_service_order_id uuid, p_search text DEFAULT ''::text, p_limit integer DEFAULT 20)
  RETURNS TABLE(id uuid, name text, description text, unit text, price numeric, stock numeric, price_at_completion boolean)
