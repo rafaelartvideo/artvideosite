@@ -104,7 +104,7 @@ function EntryDetailContent({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h3 className="min-w-0 break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
-              {due && <span role="status" className={`inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-bold tabular-nums ${dueTone}`}>
+              {due && <span role="status" className={`inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-sm font-bold tabular-nums ${dueTone}`}>
                 Próximo vencimento: {formatDate(due.due_date)}{dueMessage}
               </span>}
             </div>
