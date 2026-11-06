@@ -78,7 +78,7 @@ export function OrderRulesSettings({organizationId,canEdit}:{organizationId:stri
      {Object.entries(fieldLabels).map(([key,label])=><div key={key} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_160px_160px] sm:items-center">
        <span className="text-sm font-medium">{label}</span>
        <RuleSelect value={preview.fields[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("fields",key,{mode:v as RuleItem["mode"]})}/>
-       <RuleSelect value={preview.fields[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("fields",key,{stage:v as RuleItem["stage"]})}/>
+       {(key==="diagnosis"||key==="solution")?<RuleSelect value="finish" disabled options={[{value:"finish",label:"Concluir OS"}]} onChange={()=>{}}/>:<RuleSelect value={preview.fields[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("fields",key,{stage:v as RuleItem["stage"]})}/>}
      </div>)}
     </div>
     <div className="space-y-2">
