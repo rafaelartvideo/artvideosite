@@ -4,7 +4,7 @@ import { ArrowLeftRight, Edit2, Layers3, List, Package } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { listRelatedProductCodes } from "../infrastructure/products.repository";
+import { listRelatedProductCodes, listProductSimilarIds, listProductCodeCompatibilities } from "../infrastructure/products.repository";
 import { listProductVariations } from "../infrastructure/product-variations.repository";
 import { loadProductGallery } from "../infrastructure/product-lookup.repository";
 import { listInventoryItemSuppliers } from "@/features/inventory/infrastructure/inventory.repository";
@@ -14,6 +14,7 @@ import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 
 type Props = {
   product: any | null;
+  allProducts: any[];
   organizationId: string;
   canEdit: boolean;
   canMove: boolean;
@@ -36,7 +37,7 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 }
 
 export function InventoryProductDetailsDialog({
-  product, organizationId, canEdit, canMove, canHistory, canViewCosts,
+  product, allProducts, organizationId, canEdit, canMove, canHistory, canViewCosts,
   canViewSuppliers, saleSummary, onClose, onEdit, onMove, onHistory, onOpenProduct,
 }: Props) {
   const id = product?.id as string | undefined;
@@ -58,6 +59,18 @@ export function InventoryProductDetailsDialog({
     queryFn: () => listRelatedProductCodes(organizationId, id!),
     enabled: Boolean(product && organizationId && id),
     staleTime: 30_000,
+  });
+  const similars = useQuery({
+    queryKey: ["products", "similar-products", organizationId, id],
+    queryFn: () => listProductSimilarIds(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 20_000,
+  });
+  const compatible = useQuery({
+    queryKey: ["products", "automatic-compatibilities", organizationId, id],
+    queryFn: () => listProductCodeCompatibilities(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 20_000,
   });
   const gallery = useQuery({
     queryKey: ["products", "gallery-detail", organizationId, id],
@@ -206,6 +219,48 @@ export function InventoryProductDetailsDialog({
               </span>
             </button>;
           })}
+        </div>}
+    </section>
+
+
+    <section className="space-y-2 border-t border-border pt-4" aria-label="Produtos similares">
+      <h4 className="text-sm font-bold text-foreground">Produtos similares</h4>
+      <p className="text-xs text-muted-foreground">Alternativas comerciais, como versões originais ou genéricas. Não representam automaticamente compatibilidade técnica.</p>
+      {similars.isPending ? <p className="text-xs text-muted-foreground">Carregando similares...</p>
+        : similars.isError ? <p className="text-xs text-destructive">Não foi possível consultar similares.</p>
+        : !similars.data?.length ? <p className="text-xs text-muted-foreground">Nenhum similar vinculado.</p>
+        : <div className="divide-y divide-border rounded-lg border border-border">
+          {similars.data.map(otherId => {
+            const other = allProducts.find(entry => String(entry.id) === otherId);
+            if (!other) return null;
+            return <button key={otherId} type="button" onClick={() => onOpenProduct(otherId)}
+              className="flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-muted/30">
+              <ProductAdminThumb mediaId={other.cover_media_id} name={other.name}/>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-foreground">{other.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{other.sku || "Sem SKU"}</span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+            </button>;
+          })}
+        </div>}
+    </section>
+    <section className="space-y-2 border-t border-border pt-4" aria-label="Produtos compatíveis">
+      <h4 className="text-sm font-bold text-foreground">Produtos compatíveis</h4>
+      <p className="text-xs text-muted-foreground">Referências técnicas verificadas e relacionamentos confirmados manualmente.</p>
+      {compatible.isPending ? <p className="text-xs text-muted-foreground">Carregando compatibilidades...</p>
+        : compatible.isError ? <p className="text-xs text-destructive">Não foi possível consultar compatibilidades.</p>
+        : !compatible.data?.length ? <p className="text-xs text-muted-foreground">Nenhum compatível identificado.</p>
+        : <div className="divide-y divide-border rounded-lg border border-border">
+          {compatible.data.map(other => <button key={other.product_id} type="button" onClick={() => onOpenProduct(other.product_id)}
+            className="flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-muted/30">
+            <ProductAdminThumb mediaId={other.cover_media_id} name={other.name}/>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-foreground">{other.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">{other.sku || "Sem SKU"}</span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+          </button>)}
         </div>}
     </section>
 
