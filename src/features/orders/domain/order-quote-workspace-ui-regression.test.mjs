@@ -33,3 +33,19 @@ test("itens do orçamento têm grade dupla, valor sem card e fixação persistí
   assert.match(file, /h-5 w-px shrink-0 bg-border/);
   assert.match(repository, /pinned\?: boolean/);
 });
+
+test("Estilo 4 mantém contorno do Estilo 3 com cores vermelhas em ambos os temas", async () => {
+  const shared = source("src/shared/ui/admin/AdminLayout.tsx");
+  const css = source("src/styles/index.css");
+  const quote = source("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+
+  assert.ok((await transformWithEsbuild(shared, "AdminLayout.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(quote, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
+  assert.match(shared, /tertiary: "admin-action-blue-outline border"/);
+  assert.match(shared, /quaternary: "admin-action-red-outline border"/);
+  assert.match(css, /\.admin-crm \.admin-action-red-outline \{/);
+  assert.match(css, /\.admin-crm\.dark \.admin-action-red-outline/);
+  assert.match(css, /\.admin-crm \.admin-action-red-outline:hover/);
+  assert.match(quote, /<AdminButton variant="quaternary" disabled=\{busy\} onClick=\{\(\)=>openAction\("reject"\)\}/);
+  assert.doesNotMatch(quote, /<AdminButton variant="secondary" disabled=\{busy\} onClick=\{\(\)=>openAction\("reject"\)\}/);
+});
