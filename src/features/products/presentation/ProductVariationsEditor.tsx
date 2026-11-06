@@ -47,6 +47,14 @@ export function ProductVariationsEditor({
   const original = useMemo(() => rows.filter(item => !item.is_parent)
     .map(item => ({ product_id: item.product_id, label: item.variation_label })), [rows]);
   const [originalKey, setOriginalKey] = useState("");
+  // Trocar entre dois itens sem variações não pode reaproveitar um rascunho anterior.
+  useEffect(() => {
+    setDraft([]);
+    setOriginalKey("");
+    setSearch("");
+    setError("");
+    setMessage("");
+  }, [productId]);
   const key = JSON.stringify(original);
   useEffect(() => {
     if (originalKey === key) return;
