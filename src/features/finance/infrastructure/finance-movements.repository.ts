@@ -39,16 +39,20 @@ export async function listFinancialMovementsPage(
   pageSize: number,
   search = "",
   accountId = "",
+  startAt = "",
+  endAt = "",
 ): Promise<FinancialMovementListPage> {
   const org = requiredOrganizationId(organizationId);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_financial_movement_page_ids_v1",
+    "search_financial_movement_page_ids_v2",
     {
       p_organization_id: org,
       p_page: Math.max(1, page),
       p_page_size: Math.max(1, pageSize),
       p_search: search,
       p_account_id: accountId || null,
+      p_start_at: startAt || null,
+      p_end_at: endAt || null,
     },
   );
   if (pageIndexError) throw pageIndexError;
@@ -66,8 +70,58 @@ export async function listFinancialMovementsPage(
   if (error) throw error;
 
   const byId = new Map(((data || []) as FinancialMovement[]).map(item => [item.id, item]));
+  const items = ids.map(id => byId.get(id)).filter(Boolean) as FinancialMovement[];
+  const settlementIds = Array.from(new Set(items
+    .filter(item => item.source_type === "settlement" || item.source_type === "settlement_reversal")
+    .map(item => item.source_id)));
+  const originBySettlement = new Map<string, string>();
+
+  // A origem real fica no título vinculado à baixa, não no tipo do lançamento bancário.
+  // Uma falha na consulta complementar não deve impedir a visualização do extrato.
+  if (settlementIds.length) {
+    const { data: settlements, error: settlementsError } = await supabase
+      .from("financial_settlements")
+      .select("id,financial_entry_id")
+      .eq("organization_id", org)
+      .in("id", settlementIds);
+    if (!settlementsError && settlements?.length) {
+      const entryIds = Array.from(new Set(settlements.map(item => item.financial_entry_id).filter(Boolean)));
+      if (entryIds.length) {
+        const { data: entries, error: entriesError } = await supabase
+          .from("financial_entries")
+          .select("id,origin_type,source_details")
+          .eq("organization_id", org)
+          .in("id", entryIds);
+        if (!entriesError) {
+          const entryById = new Map((entries || []).map(item => [item.id, item]));
+          for (const settlement of settlements) {
+            const entry = entryById.get(settlement.financial_entry_id);
+            if (!entry) continue;
+            const osNumber = String((entry.source_details as Record<string, unknown> | null)?.os_number || "").trim();
+            const origin = entry.origin_type === "service_order" ? (osNumber ? `OS #${osNumber}` : "Ordem de Serviço")
+              : entry.origin_type === "inventory_purchase" ? "Compra de estoque"
+              : entry.origin_type === "recurring" ? "Recorrência"
+              : entry.origin_type === "manual" ? "Lançamento manual"
+              : entry.origin_type === "pdv_sale" ? "PDV"
+              : "Lançamento financeiro";
+            originBySettlement.set(settlement.id, origin);
+          }
+        }
+      }
+    }
+  }
+
   return {
-    items: ids.map(id => byId.get(id)).filter(Boolean) as FinancialMovement[],
+    items: items.map(item => ({
+      ...item,
+      origin_label: originBySettlement.get(item.source_id) || (
+        item.source_type === "transfer" || item.source_type === "transfer_reversal" ? "Transferência entre contas"
+        : item.source_type === "cash_session" ? "Caixa físico"
+        : item.source_type === "opening_balance" ? "Saldo inicial"
+        : item.source_type === "settlement_reversal" ? "Estorno de baixa"
+        : "Baixa financeira"
+      ),
+    })),
     total,
   };
 }
@@ -127,10 +181,12 @@ export async function listFinancialTransfers(organizationId: string): Promise<Fi
 
 export async function registerFinancialSettlement(organizationId: string, draft: FinancialSettlementDraft) {
   const org = requiredOrganizationId(organizationId);
-  const { data, error } = await supabase.rpc("register_financial_settlement", {
+  const { data, error } = await supabase.rpc(draft.settle_all
+    ? "register_financial_bulk_settlement"
+    : "register_financial_settlement", {
     p_organization_id: org,
     p_entry_id: draft.entry_id,
-    p_installment_id: draft.installment_id,
+    ...(!draft.settle_all ? { p_installment_id: draft.installment_id } : {}),
     p_principal_amount: Number(draft.principal_amount),
     p_interest_amount: Number(draft.interest_amount || 0),
     p_penalty_amount: Number(draft.penalty_amount || 0),
@@ -142,6 +198,22 @@ export async function registerFinancialSettlement(organizationId: string, draft:
   });
   if (error) throw error;
   return data as { id: string; status: string; remaining: number; gross: number; fee: number; net: number; expected_settlement_at: string };
+}
+
+export async function adjustFinancialInstallmentForecast(
+  organizationId: string, installmentId: string, newAmount: number, reason: string,
+): Promise<{ entry_id: string; installment_id: string; old_amount: number; new_amount: number }> {
+  const org = requiredOrganizationId(organizationId);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) throw new Error("Informe um novo valor válido.");
+  if (!String(reason || "").trim()) throw new Error("Informe o motivo da alteração.");
+  const { data, error } = await supabase.rpc("adjust_financial_installment_forecast", {
+    p_organization_id: org,
+    p_installment_id: installmentId,
+    p_new_amount: newAmount,
+    p_reason: reason.trim(),
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function confirmFinancialSettlement(organizationId: string, settlementId: string, postedAt = new Date().toISOString()) {
