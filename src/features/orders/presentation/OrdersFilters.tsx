@@ -295,10 +295,11 @@ function OrderNumbersField({
   const inputClass = "h-full w-1/2 min-w-0 flex-1 border-0 bg-transparent px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/70 focus:bg-primary/5";
   const osInputId = mobile ? "order-search-exact-mobile" : "order-search-exact-desktop";
   const externalInputId = mobile ? "order-search-external-mobile" : "order-search-external-desktop";
-  return <div className="min-w-0 space-y-1 md:space-y-1">
-    <label htmlFor={osInputId} className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
-      Número da OS / OS externa
-    </label>
+  return <div className="min-w-0">
+    <div className="mb-1 grid min-w-0 grid-cols-2 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
+      <label htmlFor={osInputId} className="min-w-0 pr-2">Número da OS</label>
+      <label htmlFor={externalInputId} className="min-w-0 pl-2">OS Externa</label>
+    </div>
     <div className={cn("flex w-full min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background transition-colors hover:border-primary/30 focus-within:border-primary focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/20", mobile ? "h-[42px]" : "h-9")}>
       <input id={osInputId} type="text" autoComplete="off" aria-label="Número da OS (exato)"
         value={osNumberSearch} onChange={event => onOsNumberSearchChange(event.target.value)}
