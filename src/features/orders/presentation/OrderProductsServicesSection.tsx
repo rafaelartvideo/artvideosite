@@ -3,7 +3,7 @@ import { NumberStepper, CatalogResults } from "./OrderCommercialControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
-import { CalendarDays, Camera, CheckCircle2, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
+import { CalendarDays, Camera, MapPin, Pencil, Pin, Plus, Search, Trash2, Wrench } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { InlineLoading, LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -28,6 +28,7 @@ import { cn } from "@/shared/domain/formatters";
 import { OrderServiceScheduleDialog } from "./OrderServiceScheduleDialog";
 import { EmployeeMultiSelect } from "./OrderFormControls";
 import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
+import { OrderServiceStatusBadge } from "./OrderServiceStatusBadge";
 import {
   addOrderCatalogItem,
   addOrderCustomService,
@@ -36,6 +37,8 @@ import {
   searchOrderProducts,
   searchOrderServices,
   setOrderCommercialDiscount,
+  setOrderCommercialItemPinned,
+  updateOrderCustomServiceDetails,
   updateOrderCommercialItem,
   type OrderCatalogOption,
   type OrderCommercialItem,
@@ -132,6 +135,9 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   // Aprovação congela os valores; agendamento e execução técnica permanecem disponíveis.
   const commercialEditable = editable && !commercialLocked;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
+  const orderedItems = useMemo(() => [...items].sort((a,b) =>
+    Number(Boolean(b.is_pinned)) - Number(Boolean(a.is_pinned)) ||
+    a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)), [items]);
   const itemsRef = useRef<OrderCommercialItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [tasks, setTasks] = useState<Record<string, OrderServiceTask>>({});
@@ -175,6 +181,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   const [serviceScheduleOpen, setServiceScheduleOpen] = useState(false);
 
   const [customOpen, setCustomOpen] = useState(false);
+  const [editingCustomItem, setEditingCustomItem] = useState<OrderCommercialItem | null>(null);
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [customPrice, setCustomPrice] = useState("");
@@ -188,6 +195,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
   const [mutating, setMutating] = useState(false);
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [pinningItems, setPinningItems] = useState<Record<string, boolean>>({});
 
   const [discountType, setDiscountType] = useState<"percentage" | "amount">(
     order?.discount_type === "amount" ? "amount" : "percentage",
@@ -697,29 +705,8 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
         day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
       }) : "";
 
-  const renderStatusTag = (item: OrderCommercialItem) => {
-    if (item.item_type === "product") return null;
-    const status = tasks[item.id]?.status || "pending";
-    const labels: Record<OrderServiceTaskStatus, string> = {
-      pending: "Pendente", in_progress: "Em andamento",
-      completed: "Concluído", cancelled: "Cancelado",
-    };
-    const tones: Record<OrderServiceTaskStatus, string> = {
-      pending: STATUS_TONE_CLASSES.pending.badge,
-      in_progress: STATUS_TONE_CLASSES.progress.badge,
-      completed: STATUS_TONE_CLASSES.success.badge,
-      cancelled: STATUS_TONE_CLASSES.danger.badge,
-    };
-    const icon = status === "in_progress" ? <Wrench size={12} className="shrink-0 animate-spin motion-reduce:animate-none [animation-duration:3s]" />
-      : status === "completed" ? <CheckCircle2 size={12} className="shrink-0" />
-      : status === "cancelled" ? <XCircle size={12} className="shrink-0" />
-      : <Circle size={11} className="shrink-0" />;
-
-    return <span role="status" className={cn(
-      "inline-flex items-center gap-1.5 border px-2 py-0.5 text-[10px] font-bold",
-      tones[status],
-    )}>{icon}{labels[status]}</span>;
-  };
+  const renderStatusTag = (item: OrderCommercialItem) =>
+    item.item_type === "product" ? null : <OrderServiceStatusBadge status={tasks[item.id]?.status}/>;
 
   const renderTechnicianColumn = (item: OrderCommercialItem) => {
     if (item.item_type === "product") return <span className="text-xs text-muted-foreground">—</span>;
