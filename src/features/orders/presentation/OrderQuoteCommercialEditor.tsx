@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pin, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Pin, Plus, Search, Trash2 } from "lucide-react";
 import { AdminButton, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FCurrencyInput, FInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
@@ -157,11 +157,44 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
   disabled: boolean;
 }) {
   const [customOpen,setCustomOpen]=useState(false);
+  const [editingCustomIndex,setEditingCustomIndex]=useState<number|null>(null);
   const [customName,setCustomName]=useState("");
   const [customDescription,setCustomDescription]=useState("");
   const [customQuantity,setCustomQuantity]=useState("1");
   const [customPrice,setCustomPrice]=useState("");
   const patch=(value:Partial<OrderQuoteDraft>)=>onChange({...draft,...value});
+  const closeCustomModal=()=>{
+    setCustomOpen(false);setEditingCustomIndex(null);
+    setCustomName("");setCustomDescription("");setCustomPrice("");setCustomQuantity("1");
+  };
+  const openNewCustom=()=>{closeCustomModal();setCustomOpen(true);};
+  const editCustom=(index:number,item:OrderQuoteItem)=>{
+    if(disabled||item.item_type!=="custom_service")return;
+    setEditingCustomIndex(index);
+    setCustomName(item.title_snapshot);
+    setCustomDescription(item.description_snapshot);
+    setCustomOpen(true);
+  };
+  const saveCustom=()=>{
+    const name=customName.trim();
+    if(!name)return;
+    if(editingCustomIndex!==null){
+      const current=draft.items[editingCustomIndex];
+      if(!current || current.item_type!=="custom_service")return;
+      updateItem(editingCustomIndex,{title_snapshot:name,description_snapshot:customDescription.trim()});
+      notifyAdmin("Serviço avulso atualizado.","success");
+    }else{
+      if(customPrice.trim()==="")return;
+      patch({items:[...draft.items,{
+        item_type:"custom_service",inventory_item_id:null,general_service_id:null,
+        title_snapshot:name,description_snapshot:customDescription.trim(),
+        quantity:positiveInteger(customQuantity),unit_price:nonNegativeNumber(customPrice),
+        additional_cost:0,catalog_price_fixed:false,
+      }]});
+      notifyAdmin("Serviço avulso adicionado ao orçamento.","success");
+    }
+    closeCustomModal();
+  };
   const add=(category:"product"|"service",option:OrderCatalogOption,quantity:number,price:number)=>{
     patch({items:[...draft.items,{
       item_type:category,title_snapshot:option.name,description_snapshot:option.description||"",
@@ -181,7 +214,7 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
   return <div className="space-y-4">
     {!disabled && <div className="grid gap-4 lg:grid-cols-2">
       <QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/>
-      <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled} onCustomClick={()=>setCustomOpen(true)}/>
+      <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled} onCustomClick={openNewCustom}/>
     </div>}
     <Section title={<span className="inline-flex items-center gap-2">Itens do orçamento
       <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{draft.items.length}</span>
@@ -211,6 +244,9 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
                     onClick={()=>updateItem(index,{pinned:!item.pinned})}>
                     <Pin size={15} fill={item.pinned?"currentColor":"none"}/>
                   </AdminIconButton>}
+                  {!disabled && item.item_type==="custom_service" && <AdminIconButton
+                    ariaLabel={"Editar serviço avulso "+item.title_snapshot} title="Editar serviço avulso"
+                    onClick={()=>editCustom(index,item)}><Pencil size={15}/></AdminIconButton>}
                   {!disabled&&<AdminIconButton ariaLabel={"Remover "+item.title_snapshot} variant="danger"
                     onClick={()=>{
                       patch({items:draft.items.filter((_,i)=>i!==index)});
@@ -246,9 +282,11 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
                       onChange={(event:any)=>updateItem(index,{additional_cost:nonNegativeNumber(event.target.value)})}/>
                   </div>
                 </div>
-                {item.item_type==="custom_service"&&<div className="mt-3"><FInput label="Descrição"
-                  disabled={disabled} value={item.description_snapshot} onChange={(event:any)=>
-                    updateItem(index,{description_snapshot:event.target.value})}/></div>}
+                {item.item_type==="custom_service" && Boolean(item.description_snapshot) &&
+                  <div className="mt-3 border-t border-border/60 pt-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Descrição</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{item.description_snapshot}</p>
+                  </div>}
               </div>
             </article>;
           })}
@@ -290,23 +328,16 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
     </Section>
 
     <AdminDialog open={customOpen}
-      onClose={()=>setCustomOpen(false)}
-      title="Serviço Avulso"
-      description="Este serviço ficará vinculado somente a este orçamento e não será salvo no catálogo de serviços."
+      onClose={closeCustomModal}
+      title={editingCustomIndex===null?"Serviço Avulso":"Editar serviço avulso"}
+      description={editingCustomIndex===null
+        ?"Este serviço ficará vinculado somente a este orçamento e não será salvo no catálogo de serviços."
+        :"Altere o título e a descrição do serviço neste orçamento."}
       className="max-w-xl"
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <BtnSecondary onClick={()=>setCustomOpen(false)}>Cancelar</BtnSecondary>
-        <BtnPrimary disabled={!customName.trim()||customPrice.trim()===""}
-          onClick={()=>{
-            patch({items:[...draft.items,{
-              item_type:"custom_service",inventory_item_id:null,general_service_id:null,
-              title_snapshot:customName.trim(),description_snapshot:customDescription.trim(),
-              quantity:positiveInteger(customQuantity),unit_price:nonNegativeNumber(customPrice),
-              additional_cost:0,catalog_price_fixed:false,
-            }]});
-            setCustomOpen(false);setCustomName("");setCustomDescription("");setCustomPrice("");setCustomQuantity("1");
-            notifyAdmin("Serviço Avulso adicionado ao orçamento.","success");
-          }}>Adicionar serviço</BtnPrimary>
+        <BtnSecondary onClick={closeCustomModal}>Cancelar</BtnSecondary>
+        <BtnPrimary disabled={!customName.trim()||(editingCustomIndex===null&&customPrice.trim()==="")}
+          onClick={saveCustom}>{editingCustomIndex===null?"Adicionar serviço":"Salvar"}</BtnPrimary>
       </div>}>
       <div className="space-y-4">
         <FInput label="Nome do serviço" required value={customName}
@@ -314,12 +345,12 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
         <FTextarea label="Descrição" rows={4} value={customDescription}
           onChange={(e:any)=>setCustomDescription(e.target.value)}
           placeholder="Descreva o que será executado nesta OS"/>
-        <div className="grid gap-3 sm:grid-cols-2">
+        {editingCustomIndex===null && <div className="grid gap-3 sm:grid-cols-2">
           <NumberStepper label="Quantidade" value={customQuantity} min={1} step={1} integer
             onChange={setCustomQuantity}/>
           <FCurrencyInput label="Preço unitário" placeholder="R$ 0,00" required
             value={customPrice} onChange={(e:any)=>setCustomPrice(e.target.value)}/>
-        </div>
+        </div>}
       </div>
     </AdminDialog>
   </div>;
