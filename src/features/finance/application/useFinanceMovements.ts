@@ -18,6 +18,8 @@ export type UseFinanceMovementsOptions = {
   movementPageSize?: number;
   movementSearch?: string;
   movementAccountId?: string;
+  movementStartAt?: string;
+  movementEndAt?: string;
 };
 
 export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
@@ -32,6 +34,8 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
   const movementPageSize = Math.max(1, options.movementPageSize || 20);
   const movementSearch = options.movementSearch || "";
   const movementAccountId = options.movementAccountId || "";
+  const movementStartAt = options.movementStartAt || "";
+  const movementEndAt = options.movementEndAt || "";
 
   const balancesQuery = useQuery({
     queryKey: queryKeys.finance.balances(organizationKey),
@@ -47,6 +51,8 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
         pageSize: movementPageSize,
         search: movementSearch,
         accountId: movementAccountId,
+        startAt: movementStartAt,
+        endAt: movementEndAt,
       },
     ] as const,
     enabled: enabled && loadMovements,
@@ -56,6 +62,8 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
       movementPageSize,
       movementSearch,
       movementAccountId,
+      movementStartAt,
+      movementEndAt,
     ),
     placeholderData: previous => previous,
   });
