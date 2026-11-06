@@ -68,6 +68,8 @@ import {
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { parseRelatedCodesInput, validateRelatedCodesInput } from "../domain/related-code-input";
+import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
+import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
   findOrCreateInventoryBrand,
   findOrCreateInventoryCategory,
@@ -340,6 +342,13 @@ export function TabProducts({
     gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 
+  const saleSummaryQuery = useQuery({
+    queryKey: [...queryKeys.inventory.all, "sale-summary", activeOrganizationId],
+    queryFn: () => listInventorySaleSummaries(activeOrganizationId!),
+    enabled: Boolean(activeOrganizationId && (canViewTable || canViewDetails)),
+    staleTime: 30_000,
+  });
+  const saleSummaryByItemId = new Map((saleSummaryQuery.data || []).map(entry => [entry.inventory_item_id, entry]));
   const products = catalogQuery.data?.products ?? [];
   const categories = catalogQuery.data?.categories ?? [];
   const brands = catalogQuery.data?.brands ?? [];
@@ -1033,6 +1042,13 @@ export function TabProducts({
                         {formatNumber(stock)} {unit}
                       </div>
                       <div className="text-[10px] text-[#7a8aa0]">mín. {formatNumber(minStock)} {unit}</div>
+                      <div className="mt-1">
+                        <InventorySaleWindowBadge
+                          summary={saleSummaryByItemId.get(String(item?.inventory_item_id || ""))}
+                          factor={unit === "cx" ? factor : 1}
+                          unit={unit}
+                        />
+                      </div>
                     </td>
                     <td className="text-xs text-[#5a6a82]">
                       {[item?.storage_shelf, item?.storage_level, item?.storage_compartment].filter(Boolean).join(" · ") || "—"}
@@ -1472,6 +1488,13 @@ export function TabProducts({
                   <FInput label="Compartimento" value={form.storage_compartment} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_compartment: event.target.value }))} placeholder="Ex.: C3" />
                 </div>
 
+                {editItem?.inventory?.inventory_item_id && activeOrganizationId && <InventorySaleBatchesPanel
+                  organizationId={activeOrganizationId}
+                  itemId={String(editItem.inventory.inventory_item_id)}
+                  configuredDays={form.sale_window_days ? Number(form.sale_window_days) : null}
+                  factor={form.commercial_unit === "cx" ? Math.max(1, Number(form.conversion_factor || 1)) : 1}
+                  unit={form.commercial_unit}
+                />}
                 {editItem && <p className="text-xs leading-5 text-[#5a6a82]">
                   O saldo atual não é alterado pela edição do cadastro. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
                 </p>}
