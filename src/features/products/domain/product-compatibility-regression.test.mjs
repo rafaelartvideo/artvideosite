@@ -5,21 +5,37 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("códigos relacionados passam a gerar compatibilidades sem vínculo manual", async () => {
+test("códigos relacionados e vínculos manuais geram compatibilidades no mesmo catálogo", async () => {
   const editor = read("src/features/products/presentation/TabProducts.tsx");
   const preview = read("src/features/products/presentation/ProductAutoCompatibilityPreview.tsx");
+  const manual = read("src/features/products/presentation/ProductManualCompatibilityEditor.tsx");
   const repository = read("src/features/products/infrastructure/products.repository.ts");
-  for (const [name,source] of [["TabProducts.tsx",editor],["ProductAutoCompatibilityPreview.tsx",preview]]) {
-    assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
-  }
-  assert.ok(editor.includes('label="Códigos relacionados"'));
-  assert.ok(editor.includes("parseRelatedCodesInput(relatedCodesInput, form.related_codes)"));
+  for (const [name,source] of [
+    ["TabProducts.tsx",editor],
+    ["ProductAutoCompatibilityPreview.tsx",preview],
+    ["ProductManualCompatibilityEditor.tsx",manual],
+  ]) assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
+  assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
   assert.ok(editor.includes("<ProductAutoCompatibilityPreview"));
-  assert.ok(!editor.includes("<ProductCompatibilityPicker"));
-  assert.ok(!editor.includes("replaceProductCompatibilities(activeOrganizationId"));
-  assert.ok(preview.includes("Não é necessário vincular manualmente."));
-  assert.ok(preview.includes("listProductCodeCompatibilities(organizationId,productId!)"));
+  assert.ok(editor.includes("products={products} canEdit={canEdit}"));
+  assert.ok(preview.includes("Produtos compatíveis"));
+  assert.ok(preview.includes("<PopoverTrigger asChild>"));
+  assert.ok(preview.includes("Como funcionam os produtos compatíveis?"));
+  assert.ok(preview.includes("Quando um item com código correspondente for cadastrado"));
+  assert.ok(preview.includes("adicionar manualmente produtos compatíveis"));
+  assert.ok(preview.includes("listProductCodeCompatibilities(organizationId, productId!)"));
+  assert.ok(preview.includes("<ProductManualCompatibilityEditor"));
+  assert.ok(preview.includes("<CompatibleProductCarousel hideTitle"));
+  assert.ok(manual.includes("listProductCompatibilityIds(organizationId, productId!)"));
+  assert.ok(manual.includes("replaceProductCompatibilities(organizationId, productId, draft)"));
+  assert.ok(manual.includes("Adicionar manualmente"));
+  assert.ok(manual.includes("Salvar vínculos manuais"));
+  assert.ok(manual.includes("productId && manualLinks.isSuccess"));
+  assert.ok(manual.includes('queryKey: ["pdv", "compatible-products"]'));
+  assert.ok(manual.includes('queryKey: ["orders", "auto-compatible"]'));
   assert.ok(repository.includes('"list_product_code_compatibilities_v1"'));
+  assert.ok(repository.includes('"list_product_compatibility_ids_v1"'));
+  assert.ok(repository.includes('"replace_product_compatibilities_v1"'));
   assert.ok(repository.includes('"replace_product_related_codes"'));
 });
 
@@ -35,6 +51,10 @@ test("carrossel horizontal mostra foto lateral, preço, saldo e navegação", as
   assert.ok(src.includes("formatCurrency(product.price)"));
   assert.ok(src.includes("formatNumber(stock)"));
   assert.ok(src.includes("aria-label=\"Ver próximos produtos compatíveis\""));
+  assert.ok(src.includes("aria-label={`${products.length} produtos compatíveis`}"));
+  assert.ok(src.includes('{products.length} {products.length === 1 ? "item" : "itens"}'));
+  assert.ok(src.includes("hideTitle?: boolean"));
+
   assert.ok(src.includes("if (canPick) onPick(product)"));
 });
 
@@ -91,4 +111,22 @@ test("Postgres infere compatibilidade exata por código e contém barreiras mult
   assert.ok(sql.includes("public.list_pdv_product_compatibilities_v1"));
   assert.ok(sql.includes("revoke all on function private.find_code_compatible_products_v1(uuid,uuid[]) from public,anon,authenticated"));
   assert.ok(!sql.includes("INSERT INTO public.product_compatibility_links"));
+});
+
+test("manual compatibility RPCs preserve tenant isolation and support inventory permissions", () => {
+  const sql = read("supabase/migrations/20261106202309_product_compatibility_inventory_permissions_20261106.sql");
+  for (const fn of [
+    "list_product_compatibility_ids_v1",
+    "replace_product_compatibilities_v1",
+    "list_product_code_compatibilities_v1",
+  ]) assert.ok(sql.includes("create or replace function public." + fn), fn);
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'inventory','inventory.details.view')"));
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'inventory','inventory.update')"));
+  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'products','products.update')"));
+  assert.ok(sql.includes("v_product.created_by"));
+  assert.ok(sql.includes("where p.id=x and p.organization_id=p_organization_id"));
+  assert.ok(sql.includes("product_id_a=p_product_id or link.product_id_b=p_product_id"));
+  assert.ok(sql.includes("least(p_product_id,x),greatest(p_product_id,x)"));
+  assert.ok(sql.includes("select auth.uid()"));
+  assert.ok(sql.includes("revoke all on function public.replace_product_compatibilities_v1(uuid,uuid,uuid[]) from public,anon"));
 });

@@ -71,7 +71,7 @@ import {
   type InventorySupplier,
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
-import { parseRelatedCodesInput, validateRelatedCodesInput } from "../domain/related-code-input";
+import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductAutoCompatibilityPreview } from "./ProductAutoCompatibilityPreview";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
@@ -409,7 +409,7 @@ export function TabProducts({
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
-  const [relatedCodesInput, setRelatedCodesInput] = useState("");
+  const relatedCodesRequestRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -487,7 +487,7 @@ export function TabProducts({
     setFieldErrors({});
     setForm(emptyForm());
     setRelatedCodesLoaded(true);
-    setRelatedCodesInput("");
+    relatedCodesRequestRef.current += 1;
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -579,16 +579,17 @@ export function TabProducts({
         : [],
     });
     setEditItem(product);
-    setRelatedCodesInput("");
+    const codesRequest = ++relatedCodesRequestRef.current;
     setRelatedCodesLoaded(false);
     if (activeOrganizationId) {
       void listRelatedProductCodes(activeOrganizationId, product.id)
         .then(codes => {
+          if (codesRequest !== relatedCodesRequestRef.current) return;
           setForm(current => ({ ...current, related_codes: codes }));
-          setRelatedCodesInput(codes.map(item => item.code).join(", "));
           setRelatedCodesLoaded(true);
         })
         .catch(error => {
+          if (codesRequest !== relatedCodesRequestRef.current) return;
           setToast({ msg: "Não foi possível carregar os códigos relacionados: " + systemErrorMessage(error), type: "error" });
         });
     }
@@ -701,7 +702,7 @@ export function TabProducts({
       errors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
     }
 
-    const codesValidation = validateRelatedCodesInput(relatedCodesInput, form.manufacturer_code, form.related_codes);
+    const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
     if (!relatedCodesLoaded) {
       setEditorTab("general");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
@@ -848,7 +849,7 @@ export function TabProducts({
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
       try {
-        await replaceRelatedProductCodes(activeOrganizationId, savedProductId, parseRelatedCodesInput(relatedCodesInput, form.related_codes));
+        await replaceRelatedProductCodes(activeOrganizationId, savedProductId, validateTypedRelatedCodes(form.related_codes, form.manufacturer_code).codes);
       } catch (codeError) {
         // O produto já foi gravado. Manter o ID e abrir para edição evita cadastro
         // duplicado caso o usuário tente salvar novamente os códigos relacionados.
@@ -1343,24 +1344,63 @@ export function TabProducts({
                   placeholder="Código original do fabricante"
                 />
 
-                <div className="space-y-2 rounded-xl border border-border p-3 sm:col-span-2">
-                  <FTextarea
-                    label="Códigos relacionados"
-                    rows={3}
-                    value={relatedCodesInput}
-                    disabled={saving || !relatedCodesLoaded}
-                    onChange={(event: any) => setRelatedCodesInput(event.target.value)}
-                    placeholder="Ex.: AKB76037602, AKB75675304, EBR123456"
-                    hint="Separe os códigos por vírgula. Eles serão usados para identificar automaticamente produtos compatíveis, mesmo cadastrados futuramente."
-                  />
-                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando códigos cadastrados...</p>}
-                  {relatedCodesLoaded && <p className="text-xs text-muted-foreground">
-                    {parseRelatedCodesInput(relatedCodesInput).length} código(s) identificado(s). Códigos anteriores mantêm suas relações já cadastradas.
-                  </p>}
+                <div className="space-y-3 rounded-xl border border-border p-3 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Referências antigas, substitutas, compatíveis ou alternativas. Selecione a relação de cada código.
+                      </p>
+                    </div>
+                    <AdminButton variant="tertiary" size="sm"
+                      disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
+                      onClick={() => setForm(current => ({
+                        ...current,
+                        related_codes: [...current.related_codes, { code: "", relation_type: "previous" }],
+                      }))}>
+                      <Plus size={15} /> Adicionar código
+                    </AdminButton>
+                  </div>
+                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
+                  {relatedCodesLoaded && form.related_codes.length === 0 &&
+                    <p className="text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
+                  {form.related_codes.map((item, index) => <div key={index}
+                    className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
+                    <FInput label={`Código ${index + 1}`} value={item.code}
+                      disabled={saving || !relatedCodesLoaded} placeholder="Ex.: AKB76037602"
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        related_codes: current.related_codes.map((related,i) =>
+                          i === index ? { ...related, code: event.target.value } : related),
+                      }))}/>
+                    <FSelect label="Tipo de relação" value={item.relation_type}
+                      disabled={saving || !relatedCodesLoaded}
+                      options={[
+                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
+                        { value: "successor", label: "Código novo (substitui o atual)" },
+                        { value: "compatible", label: "Peça compatível" },
+                        { value: "alternate", label: "Outra referência do mesmo produto" },
+                      ]}
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        related_codes: current.related_codes.map((related,i) =>
+                          i === index
+                            ? { ...related, relation_type: event.target.value as RelatedProductCode["relation_type"] }
+                            : related),
+                      }))}/>
+                    <button type="button" disabled={saving || !relatedCodesLoaded}
+                      title="Excluir referência" aria-label={`Excluir código relacionado ${index + 1}`}
+                      className="flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-red-500/25 text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                      onClick={() => setForm(current => ({
+                        ...current, related_codes: current.related_codes.filter((_,i) => i !== index),
+                      }))}>
+                      <Trash2 size={16}/>
+                    </button>
+                  </div>)}
                 </div>
 
                 <div className="sm:col-span-2">
-                  <ProductAutoCompatibilityPreview organizationId={activeOrganizationId || ""} productId={editItem?.id}/>
+                  <ProductAutoCompatibilityPreview organizationId={activeOrganizationId || ""} productId={editItem?.id} products={products} canEdit={canEdit}/>
                 </div>
                 <div className="sm:col-span-2">
                   <ProductVariationsEditor

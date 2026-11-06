@@ -47,8 +47,10 @@ test("cadastro de produtos tem prazo comercial opcional e remove consulta autom�
   assert.ok(ui.includes("O que significa"));
   assert.match(ui, /sale_window_days: form\.sale_window_days\.trim\(\) \? Number\(form\.sale_window_days\) : null/);
   assert.match(ui, /sale_window_days: product\.sale_window_days == null \? "" : String\(product\.sale_window_days\)/);
-  assert.match(ui, /parseRelatedCodesInput\(relatedCodesInput, form\.related_codes\)/);
-  assert.match(ui, /placeholder="Ex.: AKB76037602, AKB75675304, EBR123456"/);
+  assert.ok(ui.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
+  assert.ok(ui.includes("Código antigo (substituído pelo atual)"));
+  assert.ok(ui.includes("Peça compatível"));
+  assert.ok(ui.includes("Adicionar código"));
   assert.doesNotMatch(ui, /Consultar catálogo|searchCodeSuggestions|searchExternalProducts\(/);
 });
 
