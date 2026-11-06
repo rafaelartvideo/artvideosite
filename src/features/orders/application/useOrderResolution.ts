@@ -164,6 +164,10 @@ export function useOrderResolution({
       });
       return;
     }
+    // Sempre usar a cópia persistida das regras, não os dados parciais da tabela.
+    setDetail((current: any) => current?.id === order.id
+      ? { ...current, order_rules_snapshot: currentOrder?.order_rules_snapshot ?? null }
+      : current);
     if (currentOrder?.is_solved || order.is_solved) {
       showToast({
         msg: "Esta OS já foi solucionada e não pode ser solucionada novamente.",
