@@ -1,5 +1,7 @@
 import { OrdersFilters } from "./OrdersFilters";
 import { OrdersHeader } from "./OrdersHeader";
+import { OrderSettingsDialog } from "./OrderSettingsDialog";
+import { useState } from "react";
 import { OrdersKanban } from "./OrdersKanban";
 import { OrdersTable } from "./OrdersTable";
 import { PartnerOrdersFilters } from "./PartnerOrdersFilters";
@@ -35,6 +37,7 @@ type Props = {
 };
 
 export function OrdersListWorkspace(props: Props) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const {
     visible, displayMode, workspace, filters, mutations, serviceAddress, canCreate, hasPermission,
     onDisplayModeChange: setViewMode, onCreate: openNew, onOpenDetail: openDetail, onOpenEdit: openEdit, onComplete: completeOrder,
@@ -74,9 +77,17 @@ export function OrdersListWorkspace(props: Props) {
     : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || (resolvedDisplayMode === "list" ? selectedServiceTypeIds.length : selectedServiceTypeId) || selectedStates.length || selectedCities.length || selectedNeighborhoods.length || dateFrom || dateTo);
 
   if (!visible) return null;
+  const canConfigure = !sharedView && Boolean(workspace.organizationId) &&
+    (hasPermission("settings.update") || (hasPermission("settings.view") && hasPermission("settings.details.view")));
 
   return <>
-    <OrdersHeader total={generalTotalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={generalTotalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    {settingsOpen && workspace.organizationId && <OrderSettingsDialog
+      open={settingsOpen}
+      onClose={() => setSettingsOpen(false)}
+      organizationId={workspace.organizationId}
+      canEdit={hasPermission("settings.update")}
+    />}
 
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
