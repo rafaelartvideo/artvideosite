@@ -27,6 +27,7 @@ import {
   updateProductFlags,
   listRelatedProductCodes,
   replaceRelatedProductCodes,
+  type RelatedProductCode,
 } from "../infrastructure/products.repository";
 import {
   AdminButton,
