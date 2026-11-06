@@ -110,7 +110,7 @@ export function ProductLookupDialog({
       const response = await searchExternalProducts(organizationId, normalized);
       setResults(response.results);
       setWarning(response.warning || null);
-      if (response.results.length === 1 && /^\d{8,14}$/.test(normalized.replace(/\D/g, ""))) {
+      if (response.results.length === 1 && normalized === String(response.results[0].gtin || "")) {
         selectResult(response.results[0]);
       }
     } catch (lookupError) {
