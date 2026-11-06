@@ -10,7 +10,7 @@ import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/Adm
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
-  readOrderQuote,
+  readOrderQuote, reopenApprovedOrderQuote,
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
@@ -21,7 +21,7 @@ import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastru
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 
-type QuoteAction = "submit" | "approve" | "reject" | "renegotiate";
+type QuoteAction = "submit" | "approve" | "reject" | "renegotiate" | "reopen";
 type ModalFeedback = { type: "success" | "error"; message: string };
 const MAX_TECHNICAL_CHARS = 400;
 const ACTION_TITLES: Record<QuoteAction,string> = {
@@ -29,18 +29,21 @@ const ACTION_TITLES: Record<QuoteAction,string> = {
   approve: "Aprovar orçamento",
   reject: "Rejeitar orçamento",
   renegotiate: "Renegociar",
+  reopen: "Reabrir orçamento",
 };
 const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
   submit: "Confirmar",
   approve: "Confirmar",
   reject: "Confirmar rejeição",
   renegotiate: "Confirmar renegociação",
+  reopen: "Confirmar",
 };
 const ACTION_SUCCESS: Record<QuoteAction,string> = {
   submit: "Orçamento enviado para aprovação. A proposta permanece aguardando uma decisão.",
   approve: "Orçamento aprovado. Os serviços existentes foram preservados e vinculados à proposta, sem duplicação.",
   reject: "Orçamento rejeitado. O motivo ficou registrado e a negociação poderá ser reaberta.",
   renegotiate: "Negociação reaberta. Uma nova versão da proposta está pronta para edição.",
+  reopen: "Orçamento reaberto com justificativa no histórico. Atualize os itens e envie novamente para aprovação.",
 };
 
 function snapshot(d:OrderQuoteProposal):OrderQuoteDraft {
@@ -155,6 +158,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     .filter(version=>Number(version.version)<Number(proposal?.version||1))
     .sort((a,b)=>Number(b.version)-Number(a.version));
   const canReuseExecution = canReuseQuoteExecution(executionItems, proposal?.items || []);
+  const revisingApprovedQuote = Boolean(proposal?.applied_at);
   const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const openAction = (action: QuoteAction) => {
@@ -204,8 +208,12 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       setModalFeedback({type:"error",message:"Diagnóstico e solução proposta devem ter no máximo 400 caracteres cada."});
       return;
     }
-    if(action==="approve" && (executionItemsLoading || executionItemsError || (executionItems.length>0 && !canReuseExecution))){
+    if(action==="approve" && (executionItemsLoading || executionItemsError || (executionItems.length>0 && !revisingApprovedQuote && !canReuseExecution))){
       setModalFeedback({type:"error",message:executionItemsError||"Os itens do orçamento devem corresponder exatamente aos serviços existentes antes da aprovação."});return;
+    }
+    if(action==="reopen" && reason.trim().length<5){
+      setModalFeedback({type:"error",message:"Informe uma justificativa com pelo menos 5 caracteres para reabrir o orçamento."});
+      return;
     }
     if(action==="reject" && !reason.trim()){
       setModalFeedback({type:"error",message:"Informe o motivo da rejeição antes de confirmar."});
