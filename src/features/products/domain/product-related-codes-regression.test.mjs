@@ -5,35 +5,52 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("catalog editor preserves the MPN and accepts manually entered comma-separated references", async () => {
+test("catalog editor restores individual related codes and their original relationship types", async () => {
   const editor = read("../presentation/TabProducts.tsx");
   const repository = read("../infrastructure/products.repository.ts");
   const parserSource = read("./related-code-input.ts");
   const { code } = await transformWithEsbuild(parserSource, "related-code-input.ts", { loader: "ts" });
-  const { parseRelatedCodesInput, validateRelatedCodesInput } = await import(
+  const { validateTypedRelatedCodes, parseRelatedCodesInput } = await import(
     "data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
-  assert.match(editor, /Código do fabricante \/ MPN/);
-  assert.match(editor, /label="Códigos relacionados"/);
-  assert.match(editor, /value=\{relatedCodesInput\}/);
-  assert.match(editor, /setRelatedCodesInput\(codes\.map\(item => item\.code\)\.join\(", "\)\)/);
-  assert.match(editor, /validateRelatedCodesInput\(relatedCodesInput, form\.manufacturer_code, form\.related_codes\)/);
-  assert.match(editor, /replaceRelatedProductCodes\(activeOrganizationId, savedProductId, parseRelatedCodesInput\(relatedCodesInput, form\.related_codes\)\)/);
-  assert.match(editor, /listRelatedProductCodes/);
-  assert.match(repository, /replace_product_related_codes/);
-  assert.doesNotMatch(editor, /Consultar catálogo|searchCodeSuggestions|searchExternalProducts\(/);
+  assert.ok(editor.includes("Código do fabricante / MPN"));
+  assert.ok(editor.includes("Códigos relacionados"));
+  assert.ok(editor.includes("Adicionar código"));
+  assert.ok(editor.includes('<FSelect label="Tipo de relação"'));
+  assert.ok(editor.includes("Código antigo (substituído pelo atual)"));
+  assert.ok(editor.includes("Código novo (substitui o atual)"));
+  assert.ok(editor.includes("Peça compatível"));
+  assert.ok(editor.includes("Outra referência do mesmo produto"));
+  assert.ok(editor.includes("Excluir código relacionado"));
+  assert.ok(editor.includes("form.related_codes.map((item, index)"));
+  assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
+  assert.ok(editor.includes("replaceRelatedProductCodes(activeOrganizationId, savedProductId, validateTypedRelatedCodes("));
+  assert.ok(editor.includes("listRelatedProductCodes"));
+  assert.ok(repository.includes("replace_product_related_codes"));
+  assert.ok(!editor.includes("relatedCodesInput"));
+  assert.ok(!editor.includes("Consultar catálogo"));
 
-  const previous = [
-    { code: "AKB100", relation_type: "previous" },
-    { code: "AKB200", relation_type: "successor" },
+  const rows = [
+    { code: " akb100 ", relation_type: "previous" },
+    { code: " akb200", relation_type: "successor" },
     { code: "AKB300", relation_type: "compatible" },
+    { code: "akb400", relation_type: "alternate" },
   ];
-  assert.deepEqual(parseRelatedCodesInput(" akb100, akb200, AKB300, NOVO400, novo400", previous), [
-    ...previous,
-    { code: "NOVO400", relation_type: "alternate" },
-  ]);
-  assert.equal(validateRelatedCodesInput("COD001, COD001", "PRINCIPAL").codes.length, 1);
-  assert.ok(validateRelatedCodesInput("PRINCIPAL", "PRINCIPAL").error);
+  assert.deepEqual(validateTypedRelatedCodes(rows, "MPN001"), {
+    codes: [
+      { code: "AKB100", relation_type: "previous" },
+      { code: "AKB200", relation_type: "successor" },
+      { code: "AKB300", relation_type: "compatible" },
+      { code: "AKB400", relation_type: "alternate" },
+    ],
+    error: null,
+  });
+  assert.ok(validateTypedRelatedCodes([...rows, rows[0]], "MPN001").error, "Códigos duplicados não devem salvar.");
+  assert.ok(validateTypedRelatedCodes([{code: "MPN001", relation_type:"alternate"}], "MPN001").error);
+  assert.ok(validateTypedRelatedCodes([{code: "", relation_type:"alternate"}], "MPN001").error);
+  assert.ok(validateTypedRelatedCodes([{code: "ABC123", relation_type:"invalid"}], "MPN001").error);
+  // O parser do formato de importação antiga continua disponível sem alterar os registros existentes.
+  assert.equal(parseRelatedCodesInput("AKB100, AKB100", rows).length, 1);
 });
 
 test("related codes are private to the tenant and searchable in OS and PDV only when verified", () => {
