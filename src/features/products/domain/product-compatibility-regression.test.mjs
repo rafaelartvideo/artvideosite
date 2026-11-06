@@ -114,7 +114,7 @@ test("Postgres infere compatibilidade exata por código e contém barreiras mult
 });
 
 test("manual compatibility RPCs preserve tenant isolation and support inventory permissions", () => {
-  const sql = read("supabase/migrations/20261106202500_product_compatibility_inventory_permissions.sql");
+  const sql = read("supabase/migrations/20261106202309_product_compatibility_inventory_permissions_20261106.sql");
   for (const fn of [
     "list_product_compatibility_ids_v1",
     "replace_product_compatibilities_v1",
