@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
+import { cn, formatCnpj, formatCpf, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   AdminButton,
@@ -48,6 +48,18 @@ import { printPdvReceipt } from "../domain/pdv-receipt-print";
 import { printPdvA4Receipt } from "../domain/pdv-a4-receipt";
 
 type ProductCondition = "new" | "used" | "refurbished";
+
+/** Apresentação legível; o valor enviado continua sendo o documento informado. */
+function formatPdvDocument(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 11) return formatCpf(digits);
+  if (digits.length === 14) return formatCnpj(digits);
+  if (digits.length > 0 && digits.length <= 11) return formatCpf(digits);
+  if (digits.length > 11 && digits.length <= 14) return formatCnpj(digits);
+  return value;
+}
+
 
 type CartItem = {
   product: PdvProduct;
@@ -152,6 +164,7 @@ export function PdvSaleWorkspace({
   const [surcharge, setSurcharge] = useState("");
   const [note, setNote] = useState("");
   const [payments, setPayments] = useState<CheckoutPayment[]>([]);
+  const [checkoutAttempted, setCheckoutAttempted] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [saleResult, setSaleResult] = useState<PdvSaleResult | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
@@ -437,18 +450,15 @@ export function PdvSaleWorkspace({
       setToast({ msg: "Nenhuma forma de pagamento está pronta para uso no PDV.", type: "error" });
       return;
     }
-
-    const preferred = usablePaymentMethods[0];
-    setPayments([{
-      paymentMethodId: preferred.id,
-      amount: total.toFixed(2),
-      tenderedAmount: preferred.method_type === "cash" ? total.toFixed(2) : "",
-    }]);
+    // Operador escolhe explicitamente como o cliente pagará.
+    setPayments([]);
+    setCheckoutAttempted(false);
     setCheckoutOpen(true);
   };
 
   const closeCheckout = () => {
     setCheckoutOpen(false);
+    setCheckoutAttempted(false);
     focusProductSearch();
   };
 
@@ -491,22 +501,25 @@ export function PdvSaleWorkspace({
     if (total <= 0) return "O total da venda deve ser maior que zero.";
     if (!settings?.allow_sale_without_customer && !selectedCustomer) return "Selecione um cliente.";
     if (!selectedCustomer && buyerDocument.trim() && !buyerName.trim()) return "Informe o nome do comprador para constar no recibo.";
-    if (payments.length === 0) return "Adicione uma forma de pagamento.";
-    if (Math.abs(remaining) >= 0.01) return remaining > 0
-      ? `Faltam ${formatCurrency(remaining)} nos pagamentos.`
-      : `Os pagamentos excedem o total em ${formatCurrency(Math.abs(remaining))}.`;
-
+    if (payments.length === 0) return "Selecione uma forma de pagamento.";
     for (const entry of selectedPayments) {
       if (!entry.method) return "Há uma forma de pagamento inválida.";
       const amount = currencyNumber(entry.payment.amount);
-      if (amount <= 0) return "Todos os pagamentos precisam ter valor maior que zero.";
+      if (amount <= 0) return "payment_amount";
       if (entry.method.method_type === "cash" && currencyNumber(entry.payment.tenderedAmount) < amount) {
-        return "O valor recebido em dinheiro não pode ser menor que o valor usado na venda.";
+        return "cash_amount";
       }
     }
-
+    if (Math.abs(remaining) >= 0.01) return remaining > 0
+      ? `Faltam ${formatCurrency(remaining)} nos pagamentos.`
+      : `Os pagamentos excedem o total em ${formatCurrency(Math.abs(remaining))}.`;
     return null;
   })();
+  const tryFinalizeSale = () => {
+    setCheckoutAttempted(true);
+    if (checkoutInvalidReason || finalizeMutation.isPending) return;
+    finalizeMutation.mutate();
+  };
 
   const finalizeMutation = useMutation({
     mutationFn: () => finalizePdvSale(organizationId, {
@@ -580,8 +593,8 @@ export function PdvSaleWorkspace({
         event.preventDefault();
         if (!checkoutOpen) {
           openCheckout();
-        } else if (!checkoutInvalidReason) {
-          finalizeMutation.mutate();
+        } else {
+          tryFinalizeSale();
         }
         return;
       }
@@ -598,9 +611,9 @@ export function PdvSaleWorkspace({
       }
 
       if (checkoutOpen) {
-        if (!editable && event.ctrlKey && event.key === "Enter" && !checkoutInvalidReason) {
+        if (!editable && event.ctrlKey && event.key === "Enter") {
           event.preventDefault();
-          finalizeMutation.mutate();
+          tryFinalizeSale();
           return;
         }
         if (!editable && /^[1-9]$/.test(event.key)) {
@@ -664,7 +677,7 @@ export function PdvSaleWorkspace({
     finalizeMutation.isPending,
   ]);
 
-  return <div className="min-w-0 space-y-4">
+  return <div className="pdv-ui min-w-0 space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
@@ -759,7 +772,7 @@ export function PdvSaleWorkspace({
       </div>
 
       <Section
-        title="Carrinho"
+        title={<span className="inline-flex items-center gap-2"><ShoppingCart size={17} /> Carrinho</span>}
         description={totalQuantity + " unidade" + (totalQuantity === 1 ? "" : "s")}
         actions={cart.length > 0 ? <AdminIconButton ariaLabel="Limpar carrinho" title="Limpar carrinho" variant="danger" onClick={() => {
           setCart([]);
@@ -767,13 +780,13 @@ export function PdvSaleWorkspace({
           focusProductSearch();
         }}><Trash2 size={15} /></AdminIconButton> : undefined}
         flush
-        className="h-fit xl:sticky xl:top-0"
+        className="h-fit overflow-visible"
       >
         {cart.length === 0 ? <div className="p-8 text-center">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-primary"><Package size={20} /></div>
           <p className="mt-3 text-sm font-black text-foreground">Carrinho vazio</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Leia um código de barras ou escolha um produto na busca.</p>
-        </div> : <div className="max-h-[56vh] divide-y divide-[#0d1b2e]/7 overflow-y-auto">
+        </div> : <div className="divide-y divide-[#0d1b2e]/7 overflow-visible">
           {cart.map((item, index) => {
             const productId = item.product.product_id;
             const lineSubtotal = Number(item.product.price || 0) * item.quantity;
@@ -856,7 +869,7 @@ export function PdvSaleWorkspace({
                 <div className="mt-2 flex flex-wrap gap-2 sm:col-span-3" onClick={event => event.stopPropagation()}>
                   <label className="min-w-[135px] flex-1">
                     <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Condição</span>
-                    <select value={item.condition} onChange={event => updateCondition(productId, { condition: event.target.value as ProductCondition })} className={cn(INPUT, "h-8 w-full text-xs")}>
+                    <select value={item.condition} onChange={event => updateCondition(productId, { condition: event.target.value as ProductCondition })} className={cn(INPUT, "min-h-[42px] w-full text-sm")}>
                       <option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option>
                     </select>
                   </label>
@@ -909,23 +922,21 @@ export function PdvSaleWorkspace({
         closeCheckout();
       }}
       title="Pagamento"
-      minimizedDescription={`${selectedCustomer?.name || buyerName.trim() || "Sem cliente"} · ${formatCurrency(total)} · ${remaining > 0.009 ? `Restante ${formatCurrency(remaining)}` : changeTotal > 0 ? `Troco ${formatCurrency(changeTotal)}` : "Pagamento fechado"}`}
+      minimizedDescription={`${selectedCustomer?.name || buyerName.trim() || "Sem cliente"} · ${formatCurrency(total)}`}
       className="!max-w-6xl"
-      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-xs text-muted-foreground">
-          {checkoutInvalidReason
-            ? <span className="font-semibold text-amber-700">{checkoutInvalidReason}</span>
-            : <span className="font-semibold text-emerald-700">Venda pronta. Pressione F4 para finalizar.</span>}
+      footer={<div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="alert" className="min-w-0 text-xs font-semibold text-amber-700">
+          {checkoutAttempted && checkoutInvalidReason
+            && checkoutInvalidReason !== "payment_amount" && checkoutInvalidReason !== "cash_amount"
+            ? checkoutInvalidReason : ""}
         </div>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <AdminButton variant="secondary" onClick={closeCheckout} disabled={finalizeMutation.isPending}>Voltar</AdminButton>
-          <AdminButton
-            onClick={() => finalizeMutation.mutate()}
+        <div className="flex flex-wrap gap-2">
+          <AdminButton variant="secondary" onClick={closeCheckout} disabled={finalizeMutation.isPending}><ArrowLeft size={16} /> Voltar</AdminButton>
+          <AdminButton onClick={tryFinalizeSale}
             loading={finalizeMutation.isPending}
             loadingText="Finalizando..."
-            disabled={Boolean(checkoutInvalidReason)}
-          >
-            <CheckCircle2 size={15} /> Finalizar venda <span className="ml-1 rounded bg-white/15 px-1.5 py-0.5 text-[9px]">F4</span>
+            disabled={finalizeMutation.isPending}>
+            Finalizar venda <span className="ml-1 rounded bg-white/15 px-1.5 py-0.5 text-[10px]">F4</span>
           </AdminButton>
         </div>
       </div>}
@@ -934,7 +945,7 @@ export function PdvSaleWorkspace({
         <div className="min-w-0 space-y-4 lg:w-[40%] lg:flex-none">
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-sm font-black text-foreground"><UserRound size={15} /> Cliente</h3>
+              <h3 className="text-sm font-black text-foreground">Cliente</h3>
               <span className="text-[10px] font-bold uppercase tracking-wide text-[#7a8aa0]">{settings?.allow_sale_without_customer ? "Opcional" : "Obrigatório"}</span>
             </div>
 
@@ -942,7 +953,7 @@ export function PdvSaleWorkspace({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-foreground">{selectedCustomer.name}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{selectedCustomer.document || selectedCustomer.whatsapp || selectedCustomer.phone || "Sem documento ou telefone"}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{formatPdvDocument(selectedCustomer.document) || selectedCustomer.whatsapp || selectedCustomer.phone || "Sem documento ou telefone"}</p>
                 </div>
                 <AdminButton variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)}>Trocar</AdminButton>
               </div>
@@ -970,7 +981,7 @@ export function PdvSaleWorkspace({
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-bold text-foreground">{customer.name}</span>
-                    <span className="mt-0.5 block truncate text-[10px] text-[#7a8aa0]">{customer.document || customer.whatsapp || customer.phone || "Sem documento ou telefone"}</span>
+                    <span className="mt-0.5 block truncate text-[10px] text-[#7a8aa0]">{formatPdvDocument(customer.document) || customer.whatsapp || customer.phone || "Sem documento ou telefone"}</span>
                   </span>
                   <Plus size={13} className="shrink-0 text-primary" />
                 </button>)}
@@ -983,7 +994,7 @@ export function PdvSaleWorkspace({
                     <input className={cn(INPUT, "w-full")} maxLength={180} value={buyerName} onChange={event => setBuyerName(event.target.value)} placeholder="Nome para o recibo" />
                   </label>
                   <label><span className="mb-1 block text-[10px] font-bold">CPF/CNPJ (opcional)</span>
-                    <input className={cn(INPUT, "w-full")} maxLength={30} value={buyerDocument} onChange={event => setBuyerDocument(event.target.value)} placeholder="Documento" />
+                    <input className={cn(INPUT, "w-full")} inputMode="numeric" maxLength={18} value={formatPdvDocument(buyerDocument)} onChange={event => setBuyerDocument(event.target.value.replace(/\D/g, "").slice(0, 14))} placeholder="000.000.000-00" />
                   </label>
                 </div>
               </div>}
@@ -1061,10 +1072,12 @@ export function PdvSaleWorkspace({
               <div className={cn("mt-3 flex min-w-0 flex-col gap-3", method.method_type === "cash" && "sm:flex-row sm:[&>div]:min-w-0 sm:[&>div]:flex-1")}>
                 <div>
                   <FCurrencyInput label="Valor usado na venda" value={payment.amount} onChange={(event: any) => updatePayment(method.id, { amount: event.target.value })} />
+                  {checkoutAttempted && currencyNumber(payment.amount) <= 0 && <p role="alert" className="mt-1 text-xs font-semibold text-red-600">Informe um valor maior que zero.</p>}
                   <button type="button" onClick={() => fillRemaining(method.id)} className="mt-1 text-[9px] font-bold text-primary hover:underline">Usar valor restante</button>
                 </div>
                 {method.method_type === "cash" && <div>
                   <FCurrencyInput label="Valor recebido do cliente" value={payment.tenderedAmount} onChange={(event: any) => updatePayment(method.id, { tenderedAmount: event.target.value })} />
+                  {checkoutAttempted && currencyNumber(payment.tenderedAmount) < currencyNumber(payment.amount) && <p role="alert" className="mt-1 text-xs font-semibold text-red-600">O valor recebido deve ser igual ou maior que o valor da venda.</p>}
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     <button type="button" onClick={() => updatePayment(method.id, { tenderedAmount: payment.amount })} className="rounded-md border border-[#0d1b2e]/10 px-2 py-1 text-[9px] font-bold text-muted-foreground hover:border-primary/30 hover:text-primary">Exato</button>
                     {quickCashValues(currencyNumber(payment.amount)).map(value => <button
@@ -1084,16 +1097,7 @@ export function PdvSaleWorkspace({
             </div>)}
           </div>
 
-          <div className="sticky bottom-0 rounded-xl border border-border bg-card p-4">
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-3 text-muted-foreground"><span>Pagamentos</span><strong className="text-base text-foreground">{formatCurrency(paymentTotal)}</strong></div>
-              <div className={cn("flex items-center justify-between gap-3 border-t border-border pt-2", Math.abs(remaining) < 0.01 ? "text-emerald-700" : "text-amber-700")}>
-                <span className="font-black">{remaining > 0 ? "Restante" : remaining < 0 ? "Excedente" : "Pagamento fechado"}</span>
-                <strong className="text-base">{formatCurrency(Math.abs(remaining))}</strong>
-              </div>
-              {changeTotal > 0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800"><span className="font-black">Troco</span><strong className="text-xl font-black">{formatCurrency(changeTotal)}</strong></div>}
-            </div>
-          </div>
+
         </div>
       </div>
     </AdminDialog>
