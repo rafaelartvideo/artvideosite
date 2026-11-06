@@ -81,17 +81,7 @@ export function StoreCartPage({ onReady }: { onReady: () => void }) {
     </section>
     <div className="mx-auto grid max-w-7xl items-start gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
       <div className="min-w-0 overflow-hidden rounded-xl border border-[#e3ebf5] bg-white shadow-sm">
-        {loading ? <div role="status" aria-label="Carregando itens do carrinho" aria-busy="true">
-          {[0, 1].map(index => <div key={index} className="flex gap-4 border-b border-[#e6edf6] p-5 last:border-0" aria-hidden="true">
-            <div className="h-24 w-24 shrink-0 rounded-lg bg-[#e5edf7] motion-safe:animate-pulse" />
-            <div className="flex-1 space-y-3 pt-2">
-              <div className="h-4 w-4/5 rounded bg-[#e1e9f4] motion-safe:animate-pulse" />
-              <div className="h-4 w-2/5 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
-              <div className="h-8 w-24 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
-            </div>
-          </div>)}
-          <span className="sr-only">Preparando itens do carrinho.</span>
-        </div>
+        {loading ? <div className="min-h-36" aria-hidden="true"/>
           : error ? <p className="p-8 text-sm text-red-600">Não foi possível carregar a loja. Tente novamente.</p>
           : !items.length ? <div className="flex flex-col items-center gap-4 px-6 py-16 text-center">
               <ShoppingBag size={45} className="text-[#9bb6d5]"/>
