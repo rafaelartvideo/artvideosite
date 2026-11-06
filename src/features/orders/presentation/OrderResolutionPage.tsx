@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { requiredAt, type RuleSet } from "../domain/order-rules";
 import { Camera, Upload } from "lucide-react";
 import { AdminSectionEmpty,
   AdminButton,
@@ -48,6 +49,11 @@ export function OrderResolutionPage({
   onViewImage: (image: OrderImage) => void;
 }) {
   if (!open || !detail) return null;
+  const ruleFields = (detail.order_rules_snapshot as RuleSet | null)?.fields;
+  const diagnosisVisible = ruleFields?.diagnosis?.mode !== "hidden";
+  const solutionVisible = ruleFields?.solution?.mode !== "hidden";
+  const diagnosisRequired = ruleFields ? requiredAt(ruleFields.diagnosis,"finish") : true;
+  const solutionRequired = ruleFields ? requiredAt(ruleFields.solution,"finish") : true;
   const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
   const diagnosis = String(solveDraft.diagnosis || "");
   const solution = String(solveDraft.solution || "");
@@ -73,9 +79,9 @@ export function OrderResolutionPage({
             {detail.customer_notes ? <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p> : <AdminSectionEmpty>Nenhuma descrição do problema registrada.</AdminSectionEmpty>}
           </Section>
 
-          <Section title="Diagnóstico">
+          {diagnosisVisible && <Section title="Diagnóstico">
             <div className="space-y-1">
-              <FTextarea label="Diagnóstico" aria-label="Diagnóstico" required autoCapitalize="sentences"
+              <FTextarea label="Diagnóstico" aria-label="Diagnóstico" required={diagnosisRequired} autoCapitalize="sentences"
                 value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{diagnosis.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
@@ -87,7 +93,7 @@ export function OrderResolutionPage({
 
           <Section title="Solução">
             <div className="space-y-1">
-              <FTextarea label="Solução" aria-label="Solução" required autoCapitalize="sentences"
+              <FTextarea label="Solução" aria-label="Solução" required={solutionRequired} autoCapitalize="sentences"
                 value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{solution.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
@@ -95,7 +101,7 @@ export function OrderResolutionPage({
                 currentText={solution} diagnosisText={diagnosis}
                 onApply={text => setSolveDraft(current => ({ ...current, solution: text }))} />}
             </div>
-          </Section>
+          </Section>}
           {detail.organization_id && <UnionQuoteAiUsage organizationId={detail.organization_id} />}
 
           <Section title="Peças avulsas">
