@@ -19,6 +19,7 @@ export type OrderCommercialItem = {
   created_at: string;
   updated_at: string;
   quote_proposal_id?: string | null;
+  is_pinned: boolean;
 };
 
 export type OrderCatalogOption = {
@@ -68,13 +69,15 @@ function normalizePricing(value: any): OrderCommercialPricing {
 export async function listOrderCommercialItems(serviceOrderId: string): Promise<OrderCommercialItem[]> {
   const { data, error } = await supabase
     .from("service_order_items")
-    .select("id,service_order_id,organization_id,item_type,general_service_id,inventory_item_id,title_snapshot,description_snapshot,quantity,unit_price,unit_snapshot,additional_cost,subtotal,created_at,updated_at,quote_proposal_id")
+    .select("id,service_order_id,organization_id,item_type,general_service_id,inventory_item_id,title_snapshot,description_snapshot,quantity,unit_price,unit_snapshot,additional_cost,subtotal,created_at,updated_at,quote_proposal_id,is_pinned")
     .eq("service_order_id", serviceOrderId)
+    .order("is_pinned", { ascending: false })
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data || []).map((item: any) => ({
     ...item,
     quantity: numberValue(item.quantity),
+    is_pinned: Boolean(item.is_pinned),
     unit_price: item.unit_price == null ? null : numberValue(item.unit_price),
     additional_cost: numberValue(item.additional_cost),
     subtotal: item.subtotal == null ? null : numberValue(item.subtotal),
@@ -193,6 +196,48 @@ export async function deleteOrderCommercialItem(itemId: string) {
   });
   if (error) throw error;
   return normalizePricing(data);
+}
+
+/** Reordenação visual: pode ser feita após aprovação sem modificar o contrato comercial. */
+export async function setOrderCommercialItemPinned(input: {
+  itemId: string;
+  serviceOrderId: string;
+  pinned: boolean;
+}): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("service_order_items")
+    .update({ is_pinned: input.pinned })
+    .eq("id", input.itemId)
+    .eq("service_order_id", input.serviceOrderId)
+    .select("id,is_pinned")
+    .single();
+  if (error) throw error;
+  return Boolean(data.is_pinned);
+}
+
+/** Edição limitada ao título e à descrição de um serviço avulso ainda não aprovado. */
+export async function updateOrderCustomServiceDetails(input: {
+  itemId: string;
+  serviceOrderId: string;
+  title: string;
+  description: string;
+}): Promise<void> {
+  const title = input.title.trim();
+  if (!title || title.length > 120) throw new Error("Informe um nome com até 120 caracteres.");
+  if (input.description.trim().length > 2000) throw new Error("A descrição deve ter até 2000 caracteres.");
+  const { data, error } = await supabase
+    .from("service_order_items")
+    .update({
+      title_snapshot: title,
+      description_snapshot: input.description.trim(),
+    })
+    .eq("id", input.itemId)
+    .eq("service_order_id", input.serviceOrderId)
+    .eq("item_type", "custom_service")
+    .select("id")
+    .single();
+  if (error) throw error;
+  if (!data?.id) throw new Error("O serviço avulso não está disponível para edição.");
 }
 
 export async function setOrderCommercialDiscount(
