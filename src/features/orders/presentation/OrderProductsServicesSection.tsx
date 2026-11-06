@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { NumberStepper, CatalogResults } from "./OrderCommercialControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
 import { CalendarDays, Camera, MapPin, Pencil, Pin, Plus, Search, Trash2, Wrench } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -29,12 +29,14 @@ import { OrderServiceScheduleDialog } from "./OrderServiceScheduleDialog";
 import { EmployeeMultiSelect } from "./OrderFormControls";
 import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
 import { OrderServiceStatusBadge } from "./OrderServiceStatusBadge";
+import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 import {
   addOrderCatalogItem,
   addOrderCustomService,
   deleteOrderCommercialItem,
   listOrderCommercialItems,
   searchOrderProducts,
+  listOrderProductCompatibilities,
   searchOrderServices,
   setOrderCommercialDiscount,
   setOrderCommercialItemPinned,
@@ -165,6 +167,12 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [productSearching, setProductSearching] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<OrderCatalogOption | null>(null);
+  const compatibleProductsQuery = useQuery({
+    queryKey: ["orders", "auto-compatible", "execution", order?.id, selectedProduct?.id],
+    queryFn: () => listOrderProductCompatibilities(order!.id, [selectedProduct!.id]),
+    enabled: Boolean(commercialEditable && order?.id && selectedProduct?.id),
+    staleTime: 15_000,
+  });
   const [productPrice, setProductPrice] = useState("");
   const [productQuantity, setProductQuantity] = useState("1");
 
@@ -1059,6 +1067,19 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
 
+          {selectedProduct && Boolean(compatibleProductsQuery.data?.length) && <CompatibleProductCarousel
+            sourceName={selectedProduct.name}
+            products={(compatibleProductsQuery.data || []).map(item => ({
+              id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
+              coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
+            }))}
+            actionLabel="Selecionar"
+            disabled={!commercialEditable}
+            onPick={item => selectProduct({
+              id:item.id,name:item.name,description:null,unit:item.unit || "un",
+              price:item.price ?? null,stock:item.stock ?? 0,price_at_completion:false,
+            })}
+          />}
           {selectedProduct && <p className="pb-1 text-[10px] text-muted-foreground">
             Estoque atual: {selectedProduct.stock ?? 0} {selectedProduct.unit}. A inclusão na OS registra a cobrança; a movimentação física continua pelo fluxo de estoque/peças.
           </p>}
