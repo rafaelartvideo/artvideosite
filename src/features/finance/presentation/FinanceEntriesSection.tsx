@@ -544,6 +544,12 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               onReject={async note => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "reject", note }); }}
               onRegisterSettlement={async (draft: FinancialSettlementDraft) => { await finance.settlementMutation.mutateAsync(draft); }}
               onReverseSettlement={async (settlementId, reason) => { await finance.reverseSettlementMutation.mutateAsync({ settlementId, reason }); }}
+              forecastPending={finance.adjustInstallmentMutation.isPending}
+              onAdjustInstallment={async (installmentId, newAmount, reason) => {
+                await finance.adjustInstallmentMutation.mutateAsync({
+                  entryId: finance.detailQuery.data!.id, installmentId, newAmount, reason,
+                });
+              }}
             />
             : <p className="text-sm text-muted-foreground">Conta não encontrada.</p>}
     </AdminDialog>}
