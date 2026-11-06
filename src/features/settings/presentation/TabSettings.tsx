@@ -1,5 +1,6 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
+import { CircleHelp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
 import { AdminSegmentedControl, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
@@ -8,7 +9,6 @@ import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { formatCnpj, formatCpf, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
-import { OrderRulesSettings } from "@/features/orders/presentation/OrderRulesSettings";
 import { CompanySegmentsSettings } from "@/features/segments/presentation/CompanySegments";
 
 type CompanyForm = {
@@ -54,6 +54,8 @@ export function TabSettings({ onBack, identityOnly = false }: {
   const saveSettings = useSaveCompanySettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
   const [documentType, setDocumentType] = useState<"CPF" | "CNPJ">("CNPJ");
+  const [section, setSection] = useState<"data" | "branding">("data");
+  const [informationOpen, setInformationOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CompanyForm, string>>>({});
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const busy = saveSettings.isPending;
@@ -144,11 +146,30 @@ export function TabSettings({ onBack, identityOnly = false }: {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Dados da empresa" subtitle={identityOnly ? "Identidade visual utilizada no menu e nos documentos da Union World." : "Informações oficiais utilizadas nos documentos e na identificação da empresa ativa."} />
+    <PageHeader
+      title={<span className="inline-flex items-center gap-2">
+        Dados da empresa
+        {isPartnerOrganization && !identityOnly && <span className="relative inline-flex">
+          <button type="button" aria-label="Orientações sobre os dados da empresa"
+            aria-expanded={informationOpen} title="Informações sobre os dados da empresa"
+            onClick={() => setInformationOpen(current => !current)}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          ><CircleHelp size={19} /></button>
+          {informationOpen && <span role="tooltip" className="absolute right-0 top-8 z-30 w-64 rounded-lg border border-border bg-card p-3 text-left text-xs font-normal leading-relaxed text-foreground shadow-lg sm:left-0 sm:right-auto sm:w-72">
+            Estas informações são administradas pelo administrador da empresa. Para solicitar alterações, entre em contato com o suporte da Union World.
+          </span>}
+        </span>}
+      </span>}
+      subtitle={identityOnly ? "Identidade visual utilizada no menu e nos documentos da Union World." : "Informações oficiais utilizadas nos documentos e na identificação da empresa ativa."}
+    />
+    {!identityOnly && <div className="px-4 sm:px-5">
+      <AdminSegmentedControl value={section}
+        options={[{ value: "data", label: "Dados" }, { value: "branding", label: "Identidade visual" }]}
+        onChange={setSection} className="max-w-md grid-cols-2" />
+    </div>}
       <div className="min-w-0 space-y-5 p-4 sm:p-5">
-        {!identityOnly && <>
-        {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
-        <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+        {!identityOnly && section === "data" && <>
+        <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div className="min-w-0 w-full space-y-2">
             <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de documento</label>
             <AdminSegmentedControl value={documentType} disabled={!canEditOfficialData || busy}
@@ -164,43 +185,25 @@ export function TabSettings({ onBack, identityOnly = false }: {
           {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição estadual" value={form.company_state_registration} disabled /></div>}
           {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição municipal" value={form.company_municipal_registration} disabled /></div>}
           <div className="min-w-0 w-full"><FPhoneInput label="Telefone" error={fieldErrors.company_phone} value={form.company_phone} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_phone", event.target.value)} /></div>
-          <div className="min-w-0 w-full md:col-span-2"><FInput label="E-mail" type="email" autoComplete="email" error={fieldErrors.company_email} value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
+          <div className="min-w-0 w-full"><FInput label="E-mail" type="email" autoComplete="email" error={fieldErrors.company_email} value={form.company_email} disabled={!canEditContacts || busy} onChange={(event: any) => update("company_email", event.target.value.trimStart())} /></div>
         </div></Section>
-        <Section title="Endereço"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+        <Section title="Endereço"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
           <div className="min-w-0 w-full"><FInput label="CEP" inputMode="numeric" maxLength={9} placeholder="00000-000" error={fieldErrors.company_zip_code} value={form.company_zip_code} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_zip_code", formatZipCode(event.target.value))} /></div>
           <div className="min-w-0 w-full"><FInput label="Rua / Logradouro" value={form.company_street} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_street", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Número" inputMode="numeric" value={form.company_number} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_number", event.target.value.replace(/[^0-9A-Za-z/-]/g, ""))} /></div>
           <div className="min-w-0 w-full"><FInput label="Complemento" value={form.company_complement} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_complement", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Bairro" value={form.company_neighborhood} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_neighborhood", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div>
-          <div className="min-w-0 w-full md:col-span-2"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
+          <div className="min-w-0 w-full"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
         </div></Section>
-        <Section title="Ordens de Serviço">
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-4">
-            <input
-              type="checkbox"
-              checked={form.require_payment_proof_on_completion}
-              onChange={event => setForm(current => ({ ...current, require_payment_proof_on_completion: event.target.checked }))}
-              disabled={!canUpdate || busy}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:opacity-50"
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-foreground">Exigir comprovante de pagamento para concluir a OS</span>
-              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                Quando ativado, a conclusão da OS só será permitida após anexar uma foto ou PDF
-                classificado como Comprovante de pagamento. O controle é independente para cada empresa.
-              </span>
-            </span>
-          </label>
-        </Section>
-        {activeOrganizationId&&<OrderRulesSettings organizationId={activeOrganizationId} canEdit={canUpdate} />}
+
         </>}
-        <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+        {(identityOnly || section === "branding") && <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} onRemove={() => update("company_menu_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo do menu" />
-        </div></Section>
+        </div></Section>}
       </div>
-      {!identityOnly && activeOrganization?.is_owner && !activeOrganization.is_platform_operator && activeOrganizationId && <CompanySegmentsSettings organizationId={activeOrganizationId} />}
+      {!identityOnly && section === "data" && activeOrganization?.is_owner && !activeOrganization.is_platform_operator && activeOrganizationId && <CompanySegmentsSettings organizationId={activeOrganizationId} />}
       <AdminStickyToolbar><BtnSecondary onClick={onBack} disabled={busy}>Voltar</BtnSecondary>{canUpdate && <BtnPrimary onClick={save} loading={saveSettings.isPending} loadingText="Salvando...">Salvar</BtnPrimary>}</AdminStickyToolbar>
   </div>;
 }
