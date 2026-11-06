@@ -46,7 +46,7 @@ test("finance amounts, summaries and loading retain requested styles", () => {
   const detail = source("FinanceEntryDetail.tsx");
   assert.match(entries, /text-emerald-600 dark:text-emerald-400/);
   assert.match(entries, /text-foreground"\>\{formatCurrency\(entry\.original_amount\)\}/);
-  assert.match(entries, /min-h-52 w-full items-center justify-center text-center/);
+  assert.match(entries, /<LoadingState text="Carregando extrato" \/>/);
   assert.match(entries, /text-amber-600 dark:text-amber-400/);
   assert.match(detail, /px-5 py-4 text-center/);
 });
