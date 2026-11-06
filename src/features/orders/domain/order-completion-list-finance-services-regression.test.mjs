@@ -54,3 +54,14 @@ test("lançamentos financeiros usam snapshots dos nomes reais dos serviços da O
   assert.match(migration, /update public\.financial_entries e/);
   assert.match(migration, /source_details = coalesce\(e\.source_details/);
 });
+
+test("falha ao preparar a conclusão mostra erro e permite tentar novamente sem trocar de rota", () => {
+  const tab = read("src/features/orders/presentation/TabOrders.tsx");
+  const details = read("src/features/orders/application/useOrderDetails.ts");
+  assert.match(tab, /detailsController\.detailLoadError/);
+  assert.match(tab, /Não foi possível preparar a conclusão/);
+  assert.match(tab, /detailsController\.retryDetailLoad\(\)/);
+  assert.match(tab, />Tentar novamente<\/AdminButton>/);
+  assert.match(details, /detailLoadError: selectedOrderBelongsToOrganization \? detailQuery\.error : null/);
+  assert.match(details, /retryDetailLoad: \(\) => detailQuery\.refetch\(\)/);
+});

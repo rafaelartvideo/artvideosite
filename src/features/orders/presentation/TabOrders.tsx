@@ -43,7 +43,7 @@ import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage"
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { AdminDialog, AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
@@ -766,9 +766,19 @@ export function TabOrders({
         title="Concluir OS"
         description="Carregando informações necessárias para a conclusão."
         className="max-w-xl"
-      ><div className="flex min-h-[280px] items-center justify-center">
-        <LoadingState text="Preparando conclusão..." />
-      </div></AdminDialog>}
+      >{detailsController.detailLoadError
+        ? <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 text-center">
+            <p role="alert" className="text-sm font-semibold text-red-600">
+              Não foi possível preparar a conclusão: {systemErrorMessage(detailsController.detailLoadError)}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <AdminButton variant="secondary" onClick={() => { setCompletionFromListId(null); closeDetail(); }}>Fechar</AdminButton>
+              <AdminButton onClick={() => void detailsController.retryDetailLoad()}>Tentar novamente</AdminButton>
+            </div>
+          </div>
+        : <div className="flex min-h-[280px] items-center justify-center">
+            <LoadingState text="Preparando conclusão..." />
+          </div>}</AdminDialog>}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
