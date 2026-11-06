@@ -415,17 +415,21 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       description={confirmationAction==="approve" && executionItemsLoading ? undefined : confirmationAction==="submit"
         ? "Confira a proposta antes de encaminhá-la para aprovação."
         : confirmationAction==="approve"
-          ? "Confirme a aprovação. Se já houver serviços equivalentes, a execução técnica será preservada."
+          ? revisingApprovedQuote
+            ? "Esta versão substituirá os itens da aprovação anterior. A execução precisa estar intacta e sem agendamentos."
+            : "Confirme a aprovação. Se já houver serviços equivalentes, a execução técnica será preservada."
           : confirmationAction==="reject"
             ? "A proposta ficará rejeitada e poderá ser renegociada posteriormente."
-            : "Será iniciada uma nova versão, preservando o histórico anterior."}
+            : confirmationAction==="reopen"
+              ? "Informe o motivo da reabertura. A proposta volta à edição e precisará de nova aprovação."
+              : "Será iniciada uma nova versão, preservando o histórico anterior."}
       footer={confirmationAction==="approve" && executionItemsLoading ? undefined : <div className="flex w-full flex-wrap justify-end gap-2">
         {modalFeedback?.type==="success"
           ? <BtnPrimary onClick={closeAction}>Concluir</BtnPrimary>
           : <>
             <BtnSecondary disabled={busy} onClick={closeAction}>Voltar</BtnSecondary>
             {!modalFeedback && <BtnPrimary
-              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !canReuseExecution)))}
+              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="reopen" && reason.trim().length<5) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !revisingApprovedQuote && !canReuseExecution)))}
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
@@ -472,6 +476,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                     {confirmationAction==="submit" ? "Deseja enviar este orçamento para aprovação?"
                       : confirmationAction==="approve" ? "Deseja realmente aprovar esta proposta?"
                       : confirmationAction==="reject" ? "Deseja rejeitar este orçamento?"
+                      : confirmationAction==="reopen" ? "Deseja reabrir o orçamento aprovado e enviá-lo novamente para aprovação?"
                       : "Deseja reabrir a negociação e elaborar uma nova versão?"}
                   </p>
                   {confirmationAction==="approve" && <div className="space-y-3">
@@ -487,7 +492,9 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                           </div>)}
                         </div>
                       </div>
-                      {canReuseExecution ? <div className="flex items-start gap-3 rounded-lg border border-primary bg-primary/10 p-3">
+                      {revisingApprovedQuote ? <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs leading-5 text-foreground">
+                        Os itens aprovados anteriormente serão substituídos ao confirmar. Caso haja execução técnica ou faturamento, a operação será bloqueada para preservar os registros.
+                      </div> : canReuseExecution ? <div className="flex items-start gap-3 rounded-lg border border-primary bg-primary/10 p-3">
                         <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-primary" aria-hidden="true"/>
                         <span className="min-w-0">
                           <strong className="block text-sm text-foreground">Reutilizar serviços existentes</strong>
@@ -498,6 +505,8 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                       </p>}
                     </>}
                   </div>}
+                  {confirmationAction==="reopen" && <FTextarea label="Justificativa para reabrir o orçamento" required rows={4} maxLength={2000} value={reason} disabled={busy}
+                    onChange={(e:any)=>setReason(e.target.value)} placeholder="Descreva por que os itens ou valores precisam de nova aprovação."/>}
                   {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
                     required maxLength={2000} value={reason} disabled={busy}
                     onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>}
@@ -515,7 +524,9 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                         ? "Após a confirmação, os itens serão aplicados à mesma OS."
                         : confirmationAction==="reject"
                           ? "O motivo da rejeição ficará registrado."
-                          : "A proposta anterior será preservada no histórico de renegociações."}
+                          : confirmationAction==="reopen"
+                            ? "A justificativa ficará no histórico e a nova versão deverá ser encaminhada para aprovação."
+                            : "A proposta anterior será preservada no histórico de renegociações."}
                   </p>
                 </motion.div>}
         </AnimatePresence>
