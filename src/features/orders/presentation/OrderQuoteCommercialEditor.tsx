@@ -7,7 +7,7 @@ import { cn, formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { CatalogResults, NumberStepper } from "./OrderCommercialControls";
-import { searchOrderProducts, searchOrderServices, listOrderProductCompatibilities, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
+import { searchOrderProducts, searchOrderServices, listOrderProductCompatibilities, listOrderProductSimilars, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 import type { OrderQuoteDraft, OrderQuoteItem } from "../infrastructure/order-quote.repository";
 
@@ -39,6 +39,13 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
   const compatibleQuery = useQuery({
     queryKey: ["orders", "auto-compatible", "quote", orderId, category, selected?.id],
     queryFn: () => listOrderProductCompatibilities(orderId, [selected!.id]),
+    enabled: Boolean(category === "product" && !disabled && orderId && selected?.id),
+    staleTime: 15_000,
+  });
+
+  const similarQuery = useQuery({
+    queryKey: ["orders", "similar-products", "quote", orderId, category, selected?.id],
+    queryFn: () => listOrderProductSimilars(orderId, [selected!.id]),
     enabled: Boolean(category === "product" && !disabled && orderId && selected?.id),
     staleTime: 15_000,
   });
@@ -142,6 +149,20 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
         products={(compatibleQuery.data || []).map(item => ({
           id: item.inventory_item_id,name: item.name,sku: item.sku,barcode: item.barcode,
           coverMediaId: item.cover_media_id,price: item.price,stock: item.stock,unit: item.unit,
+        }))}
+        actionLabel="Selecionar"
+        disabled={disabled}
+        onPick={item => select({
+          id:item.id,name:item.name,description:null,unit:item.unit || "un",
+          price:item.price ?? null,stock:item.stock ?? 0,price_at_completion:false,
+        })}
+      />}
+      {!isService && selected && Boolean(similarQuery.data?.length) && <CompatibleProductCarousel
+        title="Produtos similares"
+        sourceName={selected.name}
+        products={(similarQuery.data || []).map(item => ({
+          id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
+          coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
         }))}
         actionLabel="Selecionar"
         disabled={disabled}
