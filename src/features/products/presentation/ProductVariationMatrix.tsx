@@ -33,11 +33,13 @@ export function buildVariantMatrix(
     combinations = next;
   }
   const existing = new Map(previous.map(row => [row.label, row]));
-  return combinations.map((attributes, index) => {
+  // O item principal já cadastrado representa a primeira combinação.
+  // Nunca criar uma segunda linha de estoque para essa mesma versão.
+  return combinations.slice(1).map((attributes, index) => {
     const label = Object.entries(attributes).map(([key,value]) => key + ": " + value).join(" · ");
     const prior = existing.get(label);
     return prior || {
-      label, attributes, sku: baseSku.trim() ? baseSku.trim() + "-" + String(index+1).padStart(2,"0") : "",
+      label, attributes, sku: baseSku.trim() ? baseSku.trim() + "-" + String(index+2).padStart(2,"0") : "",
       barcode: "", price: defaultPrice, quantity: "0",
     };
   });
@@ -57,6 +59,8 @@ export function ProductVariationMatrix({
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkStock, setBulkStock] = useState("");
   const total = useMemo(() => options.reduce((acc,option) => acc * Math.max(1,parseValues(option.values).length),1), [options]);
+  const firstLabel = options.length > 0 && options.every(option => option.name.trim() && parseValues(option.values).length > 0)
+    ? options.map(option => option.name.trim() + ": " + parseValues(option.values)[0]).join(" · ") : "";
   const updateOption = (index:number, key: keyof VariantOption, value:string) =>
     setOptions(options.map((option,i) => i === index ? {...option,[key]:value}:option));
   const updateRow = (index:number, key: "sku"|"barcode"|"price"|"quantity", value:string) =>
@@ -65,7 +69,7 @@ export function ProductVariationMatrix({
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Layers3 size={16} className="text-primary"/>Criar variações</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Defina características como cor, tamanho ou voltagem. Cada combinação recebe SKU, preço e estoque próprios, como na Shopify e Shopee.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Defina características como cor, tamanho ou voltagem. A primeira combinação é o produto principal, configurado em Geral e Comercial. As outras versões têm SKU, preço e estoque independentes.</p>
       </div>
       <span className="text-xs text-muted-foreground">{options.length}/3 atributos</span>
     </div>
@@ -96,10 +100,13 @@ export function ProductVariationMatrix({
       </div>
       {total>30 && <p className="text-xs text-destructive">O limite atual é de 30 variações por produto. Reduza as opções.</p>}
     </div>
+    {firstLabel && <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+      <strong className="text-foreground">Produto principal:</strong> {firstLabel}. O SKU, preço e saldo dessa versão são os dados das abas Geral e Comercial.
+    </p>}
     {rows.length>0 && <>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{rows.length} combinações preparadas</p>
+          <p className="text-sm font-semibold text-foreground">{rows.length} versões adicionais preparadas</p>
           <p className="text-xs text-muted-foreground">O saldo inicial é registrado na criação. A imagem poderá ser personalizada abrindo cada variante.</p>
         </div>
         <AdminButton variant="tertiary" size="sm" disabled={disabled} onClick={()=>setRows([])}>Limpar combinações</AdminButton>
@@ -137,7 +144,7 @@ export function ProductVariationMatrix({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Ao salvar o item, as versões serão cadastradas em uma operação única. Nenhuma variante compartilha saldo com outra.</p>
+      <p className="text-xs text-muted-foreground">Ao salvar, cada versão adicional terá movimentações e saldo próprios. A combinação principal usa o item que você está cadastrando.</p>
     </>}
   </section>;
 }
