@@ -294,15 +294,40 @@ export function TabPdv({
   }
 
   if (routeResourceId === "sales") {
-    return <PdvSalesHistory
-      onBack={() => onRouteChange?.(null, null)}
-      onNewSale={() => onRouteChange?.("sale", null)}
-      canStartSale={canStartSale}
-    />;
+    return <AdminDialog
+      open
+      onClose={() => onRouteChange?.(null, null)}
+      title="Vendas do PDV"
+      description="Vendas realizadas, comprovantes e estornos."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex flex-wrap justify-between gap-2">
+        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
+        {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)}><ShoppingCart size={16} /> Nova venda</AdminButton>}
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvSalesHistory embedded
+        onBack={() => onRouteChange?.(null, null)}
+        onNewSale={() => onRouteChange?.("sale", null)}
+        canStartSale={canStartSale}
+      />
+    </div></AdminDialog>;
   }
 
   if (routeResourceId === "cash" && canViewCashReports) {
-    return <PdvCashReports onBack={() => onRouteChange?.(null, null)} />;
+    return <AdminDialog
+      open
+      onClose={() => onRouteChange?.(null, null)}
+      title="Caixas do PDV"
+      description="Turnos, movimentações e fechamento de caixa."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex justify-end">
+        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvCashReports embedded onBack={() => onRouteChange?.(null, null)} />
+    </div></AdminDialog>;
   }
 
   return <div className="min-w-0 space-y-5">
