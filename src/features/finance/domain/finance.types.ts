@@ -364,6 +364,7 @@ export interface FinancialDecisionResult {
 
 export interface FinancialSettlementDraft {
   entry_id: string;
+  settle_all?: boolean;
   installment_id: string;
   principal_amount: number;
   interest_amount: number;
