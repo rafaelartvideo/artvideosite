@@ -17,7 +17,8 @@ test("códigos relacionados e vínculos manuais geram compatibilidades no mesmo 
   ]) assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
   assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
   assert.ok(editor.includes("<ProductAutoCompatibilityPreview"));
-  assert.ok(editor.includes("products={products} canEdit={canEdit}"));
+  assert.ok(editor.includes("products={products}"));
+  assert.ok(editor.includes("canEdit={canEdit}"));
   assert.ok(preview.includes("Produtos compatíveis"));
   assert.ok(preview.includes("<PopoverTrigger asChild>"));
   assert.ok(preview.includes("Como funcionam os produtos compatíveis?"));
@@ -51,7 +52,7 @@ test("carrossel horizontal mostra foto lateral, preço, saldo e navegação", as
   assert.ok(src.includes("formatCurrency(product.price)"));
   assert.ok(src.includes("formatNumber(stock)"));
   assert.ok(src.includes("aria-label=\"Ver próximos produtos compatíveis\""));
-  assert.ok(src.includes("aria-label={`${products.length} produtos compatíveis`}"));
+  assert.ok(src.includes("aria-label={`${products.length} ${title.toLocaleLowerCase(\"pt-BR\")}`}"));
   assert.ok(src.includes('{products.length} {products.length === 1 ? "item" : "itens"}'));
   assert.ok(src.includes("hideTitle?: boolean"));
 
