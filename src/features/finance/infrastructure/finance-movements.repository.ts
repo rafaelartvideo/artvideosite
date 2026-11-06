@@ -39,16 +39,20 @@ export async function listFinancialMovementsPage(
   pageSize: number,
   search = "",
   accountId = "",
+  startAt = "",
+  endAt = "",
 ): Promise<FinancialMovementListPage> {
   const org = requiredOrganizationId(organizationId);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_financial_movement_page_ids_v1",
+    "search_financial_movement_page_ids_v2",
     {
       p_organization_id: org,
       p_page: Math.max(1, page),
       p_page_size: Math.max(1, pageSize),
       p_search: search,
       p_account_id: accountId || null,
+      p_start_at: startAt || null,
+      p_end_at: endAt || null,
     },
   );
   if (pageIndexError) throw pageIndexError;
@@ -66,8 +70,58 @@ export async function listFinancialMovementsPage(
   if (error) throw error;
 
   const byId = new Map(((data || []) as FinancialMovement[]).map(item => [item.id, item]));
+  const items = ids.map(id => byId.get(id)).filter(Boolean) as FinancialMovement[];
+  const settlementIds = Array.from(new Set(items
+    .filter(item => item.source_type === "settlement" || item.source_type === "settlement_reversal")
+    .map(item => item.source_id)));
+  const originBySettlement = new Map<string, string>();
+
+  // A origem real fica no título vinculado à baixa, não no tipo do lançamento bancário.
+  // Uma falha na consulta complementar não deve impedir a visualização do extrato.
+  if (settlementIds.length) {
+    const { data: settlements, error: settlementsError } = await supabase
+      .from("financial_settlements")
+      .select("id,financial_entry_id")
+      .eq("organization_id", org)
+      .in("id", settlementIds);
+    if (!settlementsError && settlements?.length) {
+      const entryIds = Array.from(new Set(settlements.map(item => item.financial_entry_id).filter(Boolean)));
+      if (entryIds.length) {
+        const { data: entries, error: entriesError } = await supabase
+          .from("financial_entries")
+          .select("id,origin_type,source_details")
+          .eq("organization_id", org)
+          .in("id", entryIds);
+        if (!entriesError) {
+          const entryById = new Map((entries || []).map(item => [item.id, item]));
+          for (const settlement of settlements) {
+            const entry = entryById.get(settlement.financial_entry_id);
+            if (!entry) continue;
+            const osNumber = String((entry.source_details as Record<string, unknown> | null)?.os_number || "").trim();
+            const origin = entry.origin_type === "service_order" ? (osNumber ? `OS #${osNumber}` : "Ordem de Serviço")
+              : entry.origin_type === "inventory_purchase" ? "Compra de estoque"
+              : entry.origin_type === "recurring" ? "Recorrência"
+              : entry.origin_type === "manual" ? "Lançamento manual"
+              : entry.origin_type === "pdv_sale" ? "PDV"
+              : "Lançamento financeiro";
+            originBySettlement.set(settlement.id, origin);
+          }
+        }
+      }
+    }
+  }
+
   return {
-    items: ids.map(id => byId.get(id)).filter(Boolean) as FinancialMovement[],
+    items: items.map(item => ({
+      ...item,
+      origin_label: originBySettlement.get(item.source_id) || (
+        item.source_type === "transfer" || item.source_type === "transfer_reversal" ? "Transferência entre contas"
+        : item.source_type === "cash_session" ? "Caixa físico"
+        : item.source_type === "opening_balance" ? "Saldo inicial"
+        : item.source_type === "settlement_reversal" ? "Estorno de baixa"
+        : "Baixa financeira"
+      ),
+    })),
     total,
   };
 }
