@@ -113,13 +113,13 @@ function NotificationRow({
   const unread = !notification.read_at;
 
   return <div className={cn(
-    "group relative flex w-full gap-2 border-b border-[#0d1b2e]/7 px-3.5 py-3.5 transition-colors last:border-b-0 hover:bg-[#f7f9fc]",
-    unread && "bg-[#f4f8ff]",
+    "group relative flex w-full gap-2 border-b border-[#0d1b2e]/7 px-3.5 py-3.5 transition-colors last:border-b-0 hover:bg-[#f7f9fc] dark:border-border dark:hover:bg-muted/40",
+    unread && "bg-[#f4f8ff] dark:bg-primary/10",
   )}>
     {unread && <span className="absolute bottom-0 left-0 top-0 w-0.5 bg-primary" />}
     <button type="button" onClick={() => onOpen(notification)} className="flex min-w-0 flex-1 gap-3 text-left">
       <div className="relative shrink-0">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#0d1b2e]/8 bg-white text-[#53657b]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#0d1b2e]/8 bg-white text-[#53657b] dark:border-border dark:bg-card dark:text-muted-foreground">
           <ModuleIcon size={18} strokeWidth={1.9} />
         </div>
         <span className={cn(
@@ -133,17 +133,17 @@ function NotificationRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <p className={cn(
-            "min-w-0 flex-1 text-[13px] leading-5 text-[#17283d]",
+            "min-w-0 flex-1 text-[13px] leading-5 text-foreground",
             unread ? "font-black" : "font-bold",
           )}>
             {notification.title}
           </p>
           {unread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
         </div>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#718096]">
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#718096] dark:text-slate-300">
           {notification.message}
         </p>
-        <div className="mt-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[#96a2b2]">
+        <div className="mt-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.08em] text-[#96a2b2] dark:text-slate-400">
           <span className="truncate">{visual.label}</span>
           <span aria-hidden="true">•</span>
           <span className="shrink-0 normal-case tracking-normal">{notificationTime(notification.created_at)}</span>
@@ -156,7 +156,7 @@ function NotificationRow({
       onClick={() => onDismiss(notification)}
       aria-label="Remover notificação"
       title="Remover notificação"
-      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#9aa6b5] transition-colors hover:bg-red-50 hover:text-red-600"
+      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#9aa6b5] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
     >
       <Trash2 size={14} />
     </button>
@@ -181,10 +181,10 @@ export function AdminNotificationPanel({
   onDismissAll: () => void;
 }) {
   return <div className="flex max-h-[430px] flex-col">
-    <div className="flex items-center justify-between border-b border-[#0d1b2e]/8 px-3.5 py-2.5">
+    <div className="flex items-center justify-between border-b border-[#0d1b2e]/8 px-3.5 py-2.5 dark:border-border">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#0d1b2e]">Notificações</p>
-        <p className="mt-0.5 text-[10px] text-[#8a98aa]">
+        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-foreground">Notificações</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
           {unreadCount > 0 ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}
         </p>
       </div>
@@ -213,11 +213,11 @@ export function AdminNotificationPanel({
         <div className="flex min-h-32 items-center justify-center px-3 py-5"><InlineLoading text="Carregando notificações..." /></div>
       ) : notifications.length === 0 ? (
         <div className="flex flex-col items-center px-5 py-9 text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3f6fa] text-[#8b99aa]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3f6fa] text-[#8b99aa] dark:bg-muted dark:text-muted-foreground">
             <Bell size={19} />
           </div>
-          <p className="mt-3 text-sm font-bold text-[#0d1b2e]">Nenhuma notificação</p>
-          <p className="mt-1 max-w-[240px] text-xs leading-5 text-[#7b899d]">
+          <p className="mt-3 text-sm font-bold text-foreground">Nenhuma notificação</p>
+          <p className="mt-1 max-w-[240px] text-xs leading-5 text-muted-foreground">
             Criações e alterações dos módulos aparecerão aqui.
           </p>
         </div>
