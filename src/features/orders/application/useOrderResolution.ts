@@ -11,6 +11,7 @@ import type { PartRequestForReview } from "../domain/part-request.types";
 import {
   getFullServiceOrder,
   getServiceOrderResolutionState,
+  markServiceOrderSolvable,
   insertServiceOrderMedia,
   listServiceOrderMedia,
   listServiceOrderTechnicalValues,
@@ -165,13 +166,6 @@ export function useOrderResolution({
     if (currentOrder?.is_solved || order.is_solved) {
       showToast({
         msg: "Esta OS já foi solucionada e não pode ser solucionada novamente.",
-        type: "error",
-      });
-      return;
-    }
-    if (currentOrder?.cannot_be_solved || order.cannot_be_solved) {
-      showToast({
-        msg: "Esta OS está marcada como não solucionável e não pode ser resolvida novamente.",
         type: "error",
       });
       return;
@@ -338,6 +332,14 @@ export function useOrderResolution({
 
     setSaving(true);
     try {
+      // Compatibilidade: libera registros legados que estavam marcados com a opção removida.
+      // A limpeza ocorre somente quando o operador realmente tenta salvar uma solução.
+      if (detail?.cannot_be_solved) {
+        const { error: legacyError } = await markServiceOrderSolvable(orderId);
+        if (legacyError) throw legacyError;
+        setDetail((current: any) => current?.id === orderId
+          ? { ...current, cannot_be_solved: false, cannot_be_solved_reason: null } : current);
+      }
       const { error: resolveError } = await resolveServiceOrderWithLooseParts({
         organizationId: targetOrganizationId,
         serviceOrderId: orderId,
