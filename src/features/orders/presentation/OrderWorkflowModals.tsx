@@ -30,6 +30,7 @@ type Props = {
   images: ReturnType<typeof useOrderImages>;
   resolution: ReturnType<typeof useOrderResolution>;
   completion: ReturnType<typeof useOrderCompletion>;
+  completionPreparing?: boolean;
   partRequests: ReturnType<typeof useOrderPartRequests>;
   onSelectCustomer: (customer: any) => void;
   setToast: Dispatch<SetStateAction<Toast | null>>;
@@ -42,7 +43,7 @@ function appendUniqueById(current: any[], item?: any | null) {
 }
 
 export function OrderWorkflowModals({
-  detail, saving, workspace, formState, customers, images, resolution, completion,
+  detail, saving, workspace, formState, customers, images, resolution, completion, completionPreparing = false,
   partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
 }: Props) {
   const {
@@ -143,7 +144,7 @@ export function OrderWorkflowModals({
           void saveOrderSolution(detail.id);
         }}
       />
-      <OrderCompletionModal detail={detail} usedItems={completion.usedItems} completion={completion} saving={saving} formatCurrency={formatCurrency} />
+      <OrderCompletionModal detail={detail} usedItems={completion.usedItems} completion={completion} saving={saving} preparing={completionPreparing} formatCurrency={formatCurrency} />
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
         <PartRequestModal orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest(detail.id)} />
