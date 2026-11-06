@@ -103,6 +103,22 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [cancellationReason, setCancellationReason] = useState("");
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
+  const previousSelectedEntryIdRef = useRef(selectedEntryId);
+
+  useEffect(() => {
+    const previousEntryId = previousSelectedEntryIdRef.current;
+    previousSelectedEntryIdRef.current = selectedEntryId;
+    if (!previousEntryId || selectedEntryId) return;
+    // A rota já desmontou o modal; só agora limpamos os estados internos.
+    // Não renderizar o Resumo antes do X concluir o fechamento evita o flash
+    // de expansão entre Dar baixa/Editar e o modo de detalhes.
+    setEditorOpen(false);
+    setEditing(null);
+    setCounterpartySearch("");
+    setSettlementDialogOpen(false);
+    setLastSettledEntryId(null);
+  }, [selectedEntryId]);
+
   useEffect(() => {
     if (newEntrySignal <= 0) return;
     setEditing(null);
@@ -238,6 +254,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     const planned = Array.isArray(entry.source_details?.payment_plan) ? entry.source_details.payment_plan as Array<{payment_method_id:string}> : [];
     const names = planned.map(part => paymentMethods.find(method=>method.id===part.payment_method_id)?.name).filter(Boolean);
     return names.length ? `${names.join(", ")} (previsto)` : "A definir";
+  };
+
+  const closeSelectedEntry = () => {
+    if (finance.settlementMutation.isPending
+      || finance.adjustInstallmentMutation.isPending
+      || finance.saveMutation.isPending) return;
+    // O X fecha diretamente a rota: não alternamos antes para o Resumo.
+    onSelectEntry(null);
   };
 
   const closeEditor = () => {
@@ -489,15 +513,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
     {selectedEntryId && <AdminDialog
       open
-      onClose={() => {
-        if (finance.settlementMutation.isPending || finance.adjustInstallmentMutation.isPending || finance.saveMutation.isPending) return;
-        // O X fecha a conta inteira. Somente o botão Voltar navega entre etapas.
-        setEditorOpen(false);
-        setEditing(null);
-        setSettlementDialogOpen(false);
-        setLastSettledEntryId(null);
-        onSelectEntry(null);
-      }}
+      onClose={closeSelectedEntry}
       title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
@@ -507,7 +523,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       bodyClassName={settlementDialogOpen || editingSelectedEntry ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
-        <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
+        <AdminButton variant="secondary" onClick={closeSelectedEntry}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canCancelRecurring(finance.detailQuery.data)
           && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
         {finance.detailQuery.data?.id === selectedEntryId && canSettle

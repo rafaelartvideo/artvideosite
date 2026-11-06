@@ -262,7 +262,9 @@ test("legacy registry routes are redirected to the new modal workflow", () => {
 test("finance editing uses compact modal and returns on confirmed save with feedback", () => {
   const entries = source("FinanceEntriesSection.tsx");
   assert.match(entries, /settlementDialogOpen \|\| editingSelectedEntry/);
-  assert.match(entries, /setEditorOpen\(false\);[\s\S]*?setSettlementDialogOpen\(false\);[\s\S]*?onSelectEntry\(null\)/);
+  assert.match(entries, /const closeSelectedEntry = \(\) => \{[\s\S]*?onSelectEntry\(null\);\s*\}/);
+  assert.match(entries, /onClose=\{closeSelectedEntry\}/);
+  assert.match(entries, /onClick=\{closeSelectedEntry\}>Fechar<\/AdminButton>/);
   assert.match(entries, /notifyAdmin\(wasEditingCurrentEntry \?/);
   assert.match(entries, /if \(wasEditingCurrentEntry\) void finance\.detailQuery\.refetch\(\)/);
   assert.doesNotMatch(entries, /if \(editingSelectedEntry\) await finance\.detailQuery\.refetch\(\)/);
@@ -369,4 +371,25 @@ test("accounts summary omits duplicate physical cash card and shows total balanc
   assert.match(accounts, /item\.emphasis \? "text-emerald-600 dark:text-emerald-400"/);
   assert.doesNotMatch(accounts, /title: "Caixa físico", amount: cashBalance/);
   assert.match(accounts, /grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4/);
+});
+
+test("finance X does not expand the modal to Resumo before closing in A pagar or A receber", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  const closeHandler = entries.match(/const closeSelectedEntry = \(\) => \{([\s\S]*?)\n  \};/);
+  assert.ok(closeHandler, "dedicated close handler must exist");
+  assert.match(closeHandler[1], /onSelectEntry\(null\)/);
+  for (const update of [
+    "setEditorOpen(false)", "setEditing(null)", "setSettlementDialogOpen(false)",
+    "setLastSettledEntryId(null)",
+  ]) {
+    assert.ok(!closeHandler[1].includes(update), update + " must not run before dismiss");
+  }
+  assert.match(entries, /const previousSelectedEntryIdRef = useRef\(selectedEntryId\)/);
+  assert.match(entries, /if \(!previousEntryId \|\| selectedEntryId\) return;/);
+  assert.match(entries, /setSettlementDialogOpen\(false\);\s*setLastSettledEntryId\(null\);\s*\}, \[selectedEntryId\]\)/);
+  assert.match(entries, /onClose=\{closeSelectedEntry\}/);
+  assert.match(entries, /onClick=\{closeSelectedEntry\}>Fechar<\/AdminButton>/);
+  assert.match(entries, /onClose=\{closeEditor\}/);
+  assert.match(entries, /onClose=\{\(\) => \{ if \(!finance\.settlementMutation\.isPending/);
+  assert.match(entries, /settlementDialogOpen \|\| editingSelectedEntry/);
 });
