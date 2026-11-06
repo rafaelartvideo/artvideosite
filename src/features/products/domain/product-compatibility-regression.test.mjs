@@ -76,7 +76,7 @@ test("Postgres infere compatibilidade exata por código e contém barreiras mult
   const sql = read("supabase/migrations/20261106201000_automatic_compatibility_from_related_codes.sql");
   assert.ok(sql.includes("private.find_code_compatible_products_v1"));
   assert.ok(sql.includes("related.is_verified=true"));
-  assert.ok(sql.includes("and (src.is_related or dst.is_related)"));
+  assert.match(sql, /\bwhere\s+\(src\.is_related\s+or\s+dst\.is_related\)/);
   assert.ok(sql.includes("dst.code=src.code"));
   assert.ok(sql.includes("dst.product_id<>src.product_id"));
   assert.ok(sql.includes("p.organization_id=p_organization_id"));
