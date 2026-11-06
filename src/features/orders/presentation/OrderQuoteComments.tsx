@@ -219,12 +219,14 @@ export function OrderQuoteComments({
               className="flex h-10 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary">
               <Smile size={20} />
             </button>
-            {emojiOpen && <SacEmojiPicker recentEmojis={recentEmojis} onSelect={emoji => {
-              setDraft(value => value + emoji);
-              setRecentEmojis(previous => [emoji, ...previous.filter(item => item !== emoji)].slice(0, 20));
-              setEmojiOpen(false);
-              textRef.current?.focus();
-            }} />}
+            {emojiOpen && <div className="absolute inset-y-0 left-12 z-50">
+              <SacEmojiPicker recentEmojis={recentEmojis} onSelect={emoji => {
+                setDraft(value => value + emoji);
+                setRecentEmojis(previous => [emoji, ...previous.filter(item => item !== emoji)].slice(0, 20));
+                setEmojiOpen(false);
+                textRef.current?.focus();
+              }} />
+            </div>}
           </div>
           <textarea ref={textRef} rows={1} value={draft} maxLength={4000}
             disabled={submitting} aria-label={replyTo ? "Escrever resposta" : "Escrever comentário"}
