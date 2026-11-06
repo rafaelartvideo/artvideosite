@@ -13,7 +13,7 @@ import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 import { InfoRow } from "./OrderDetailsContent";
-import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { OrderResolutionCommercialItems } from "./OrderResolutionCommercialItems";
 import {
   OrderImageThumb,
   type OrderImage,
@@ -69,9 +69,8 @@ export function OrderResolutionPage({
               <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
               <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
               <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || "—"} />
-              {technicalValues.length > 0 ? technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? "—" : String(value.value_number))} />) : <><InfoRow label="Versão" value={detail.model || "—"} /><InfoRow label="Nº de série" value={detail.serial_number || "—"} /></>}
-              <InfoRow label="Lacre" value={detail.accessories || "—"} />
-              <InfoRow label="Garantia" value={detail.equipment_condition || "—"} />
+              {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? "—" : String(value.value_number))} />)}
+              <InfoRow label="Nº de série" value={detail.serial_number || "—"} />
             </div>
           </Section>
 
@@ -104,6 +103,8 @@ export function OrderResolutionPage({
           </Section>}
           {detail.organization_id && <UnionQuoteAiUsage organizationId={detail.organization_id} />}
 
+          <OrderResolutionCommercialItems organizationId={String(detail.organization_id || "")} orderId={String(detail.id || "")}/>
+
           <Section title="Peças avulsas">
             <FTextarea
               aria-label="Peças avulsas"
@@ -115,13 +116,6 @@ export function OrderResolutionPage({
             <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{looseParts.length} caracteres</p>
           </Section>
 
-          <Section title="Resultado do atendimento">
-            <label className="flex items-start gap-2 text-sm font-bold text-[#0d1b2e]">
-              <Checkbox checked={solveDraft.cannotSolve} onCheckedChange={checked => setSolveDraft(current => ({ ...current, cannotSolve: checked === true }))} />
-              OS não pode ser solucionada
-            </label>
-            {solveDraft.cannotSolve && <div className="mt-3"><FTextarea label="Justificativa" value={solveDraft.cannotSolveReason} onChange={(e: any) => setSolveDraft(current => ({ ...current, cannotSolveReason: e.target.value }))} rows={4} hint="Informe por que esta OS não pode ser solucionada." /></div>}
-          </Section>
 
           <Section title="Produtos utilizados">
             <div className="space-y-3">
