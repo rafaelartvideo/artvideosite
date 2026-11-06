@@ -28,8 +28,6 @@ import {
   updateProductFlags,
   listRelatedProductCodes,
   replaceRelatedProductCodes,
-  listProductCompatibilityIds,
-  replaceProductCompatibilities,
   type RelatedProductCode,
 } from "../infrastructure/products.repository";
 import {
@@ -73,7 +71,7 @@ import {
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { parseRelatedCodesInput, validateRelatedCodesInput } from "../domain/related-code-input";
-import { ProductCompatibilityPicker } from "./ProductCompatibilityPicker";
+import { ProductAutoCompatibilityPreview } from "./ProductAutoCompatibilityPreview";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
@@ -408,9 +406,6 @@ export function TabProducts({
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
   const [relatedCodesInput, setRelatedCodesInput] = useState("");
-  const [compatibilityIds, setCompatibilityIds] = useState<string[]>([]);
-  const [compatibilitiesLoaded, setCompatibilitiesLoaded] = useState(true);
-  const compatibilityRequestVersion = useRef(0);
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -465,6 +460,9 @@ export function TabProducts({
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
+    queryClient.invalidateQueries({ queryKey: ["products", "automatic-compatibilities"] }),
+    queryClient.invalidateQueries({ queryKey: ["pdv", "compatible-products"] }),
+    queryClient.invalidateQueries({ queryKey: ["orders", "auto-compatible"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
@@ -486,9 +484,6 @@ export function TabProducts({
     setForm(emptyForm());
     setRelatedCodesLoaded(true);
     setRelatedCodesInput("");
-    compatibilityRequestVersion.current += 1;
-    setCompatibilityIds([]);
-    setCompatibilitiesLoaded(true);
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -580,9 +575,6 @@ export function TabProducts({
         : [],
     });
     setEditItem(product);
-    const compatibilityRequest = ++compatibilityRequestVersion.current;
-    setCompatibilityIds([]);
-    setCompatibilitiesLoaded(false);
     setRelatedCodesInput("");
     setRelatedCodesLoaded(false);
     if (activeOrganizationId) {
@@ -594,18 +586,6 @@ export function TabProducts({
         })
         .catch(error => {
           setToast({ msg: "Não foi possível carregar os códigos relacionados: " + systemErrorMessage(error), type: "error" });
-        });
-    }
-    if (activeOrganizationId) {
-      void listProductCompatibilityIds(activeOrganizationId, product.id)
-        .then(ids => {
-          if (compatibilityRequest !== compatibilityRequestVersion.current) return;
-          setCompatibilityIds(ids);
-          setCompatibilitiesLoaded(true);
-        })
-        .catch(error => {
-          if (compatibilityRequest !== compatibilityRequestVersion.current) return;
-          setToast({ msg: "Não foi possível carregar produtos compatíveis: " + systemErrorMessage(error), type: "error" });
         });
     }
     setLinkedSuppliers([]);
@@ -718,16 +698,6 @@ export function TabProducts({
     }
 
     const codesValidation = validateRelatedCodesInput(relatedCodesInput, form.manufacturer_code, form.related_codes);
-    if (!compatibilitiesLoaded) {
-      setEditorTab("general");
-      setToast({ msg: "Carregue as compatibilidades antes de salvar, para evitar remover vínculos existentes.", type: "error" });
-      return false;
-    }
-    if (compatibilityIds.length > 60 || compatibilityIds.includes(editItem?.id || "")) {
-      setEditorTab("general");
-      setToast({ msg: "Revise os produtos compatíveis: limite de 60 e nenhum item pode referenciar a si mesmo.", type: "error" });
-      return false;
-    }
     if (!relatedCodesLoaded) {
       setEditorTab("general");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
@@ -883,20 +853,6 @@ export function TabProducts({
         setToast({
           msg: "Item salvo, mas não foi possível registrar os códigos relacionados: "
             + systemErrorMessage(codeError) + ". Revise e salve novamente.",
-          type: "error",
-        });
-        void refresh();
-        return;
-      }
-
-      try {
-        await replaceProductCompatibilities(activeOrganizationId, savedProductId, compatibilityIds);
-      } catch (compatibilityError) {
-        setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
-        onRouteChange?.(savedProductId, "edit");
-        setToast({
-          msg: "Item salvo, mas não foi possível registrar os produtos compatíveis: "
-            + systemErrorMessage(compatibilityError) + ". Revise e salve novamente.",
           type: "error",
         });
         void refresh();
@@ -1346,7 +1302,7 @@ export function TabProducts({
                     disabled={saving || !relatedCodesLoaded}
                     onChange={(event: any) => setRelatedCodesInput(event.target.value)}
                     placeholder="Ex.: AKB76037602, AKB75675304, EBR123456"
-                    hint="Informe códigos separados por vírgula. O sistema separa, remove repetições e salva as referências individualmente."
+                    hint="Separe os códigos por vírgula. Eles serão usados para identificar automaticamente produtos compatíveis, mesmo cadastrados futuramente."
                   />
                   {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando códigos cadastrados...</p>}
                   {relatedCodesLoaded && <p className="text-xs text-muted-foreground">
@@ -1355,14 +1311,7 @@ export function TabProducts({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <ProductCompatibilityPicker
-                    products={products}
-                    currentProductId={editItem?.id}
-                    selectedIds={compatibilityIds}
-                    onChange={setCompatibilityIds}
-                    loading={!compatibilitiesLoaded}
-                    disabled={saving}
-                  />
+                  <ProductAutoCompatibilityPreview organizationId={activeOrganizationId || ""} productId={editItem?.id}/>
                 </div>
 
                 <div className="sm:col-span-2">

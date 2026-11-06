@@ -5,64 +5,90 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("cadastro separa códigos alternativos de vínculos com outros produtos", async () => {
+test("códigos relacionados passam a gerar compatibilidades sem vínculo manual", async () => {
   const editor = read("src/features/products/presentation/TabProducts.tsx");
-  const picker = read("src/features/products/presentation/ProductCompatibilityPicker.tsx");
-  const repo = read("src/features/products/infrastructure/products.repository.ts");
-  for (const [file,content] of [
-    ["TabProducts.tsx",editor],["ProductCompatibilityPicker.tsx",picker],
-  ]) assert.ok((await transformWithEsbuild(content,file,{loader:"tsx"})).code);
+  const preview = read("src/features/products/presentation/ProductAutoCompatibilityPreview.tsx");
+  const repository = read("src/features/products/infrastructure/products.repository.ts");
+  for (const [name,source] of [["TabProducts.tsx",editor],["ProductAutoCompatibilityPreview.tsx",preview]]) {
+    assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
+  }
   assert.ok(editor.includes('label="Códigos relacionados"'));
-  assert.ok(editor.includes("<ProductCompatibilityPicker"));
-  assert.ok(picker.includes("Produtos compatíveis"));
-  assert.ok(picker.includes("Não altera os códigos relacionados."));
-  assert.ok(picker.includes("product.id !== currentProductId"));
-  assert.ok(picker.includes("selectedIds.filter(value => value !== id)"));
-  assert.ok(picker.includes("onChange([...selectedIds, product.id])"));
-  assert.ok(picker.includes("selectedIds.length >= 60"));
-  assert.ok(editor.includes("listProductCompatibilityIds(activeOrganizationId, product.id)"));
-  assert.ok(editor.includes("replaceProductCompatibilities(activeOrganizationId, savedProductId, compatibilityIds)"));
-  assert.ok(editor.includes("Carregue as compatibilidades antes de salvar"));
-  assert.ok(repo.includes('supabase.rpc("list_product_compatibility_ids_v1"'));
-  assert.ok(repo.includes('supabase.rpc("replace_product_compatibilities_v1"'));
-  assert.ok(repo.includes('supabase.rpc("replace_product_related_codes"'), "códigos antigos continuam separados");
+  assert.ok(editor.includes("parseRelatedCodesInput(relatedCodesInput, form.related_codes)"));
+  assert.ok(editor.includes("<ProductAutoCompatibilityPreview"));
+  assert.ok(!editor.includes("<ProductCompatibilityPicker"));
+  assert.ok(!editor.includes("replaceProductCompatibilities(activeOrganizationId"));
+  assert.ok(preview.includes("Não é necessário vincular manualmente."));
+  assert.ok(preview.includes("listProductCodeCompatibilities(organizationId,productId!)"));
+  assert.ok(repository.includes('"list_product_code_compatibilities_v1"'));
+  assert.ok(repository.includes('"replace_product_related_codes"'));
 });
 
-test("PDV oferece alternativas reais, preço e estoque, sem substituir resultado principal", async () => {
+test("carrossel horizontal mostra foto lateral, preço, saldo e navegação", async () => {
+  const src = read("src/features/products/presentation/CompatibleProductCarousel.tsx");
+  assert.ok((await transformWithEsbuild(src,"CompatibleProductCarousel.tsx",{loader:"tsx"})).code);
+  assert.ok(src.includes("snap-x snap-mandatory"));
+  assert.ok(src.includes("overflow-x-auto"));
+  assert.ok(src.includes("snap-start"));
+  assert.ok(src.includes("w-[min(84vw,298px)]"));
+  assert.ok(src.includes("object-contain"));
+  assert.ok(src.includes("useMediaUrl(mediaId"));
+  assert.ok(src.includes("formatCurrency(product.price)"));
+  assert.ok(src.includes("formatNumber(stock)"));
+  assert.ok(src.includes("aria-label=\"Ver próximos produtos compatíveis\""));
+  assert.ok(src.includes("if (canPick) onPick(product)"));
+});
+
+test("PDV oferece carrossel de compatíveis gerados pelos códigos e preserva venda original", async () => {
   const ui = read("src/features/pdv/presentation/PdvSaleWorkspace.tsx");
-  const repo = read("src/features/pdv/infrastructure/pdv.repository.ts");
+  const repository = read("src/features/pdv/infrastructure/pdv.repository.ts");
   assert.ok((await transformWithEsbuild(ui,"PdvSaleWorkspace.tsx",{loader:"tsx"})).code);
-  assert.ok((await transformWithEsbuild(repo,"pdv.repository.ts",{loader:"ts"})).code);
   assert.ok(ui.includes("listPdvCompatibleProducts(organizationId, foundProductIds)"));
-  assert.ok(ui.includes("Alternativas compatíveis"));
   assert.ok(ui.includes("compatibleByProduct.get(product.product_id)"));
+  assert.ok(ui.includes("CompatibleProductCarousel"));
   assert.ok(ui.includes("availableQuantity(alternative)"));
-  assert.ok(ui.includes("formatCurrency(alternative.price)"));
   assert.ok(ui.includes("addProduct(alternative)"));
   assert.ok(ui.includes("addProduct(product)"));
-  assert.ok(ui.includes("compatibleProducts.map(alternative =>"));
-  assert.ok(repo.includes('"list_pdv_product_compatibilities_v1"'));
-  assert.ok(repo.includes('source_product_id: string'));
-  assert.ok(repo.includes('p_source_product_ids: [...new Set(sourceProductIds)].slice(0, 30)'));
-  assert.ok(ui.includes("debouncedSearch.trim().length >= 2"),"compatibilidade não é buscada em massa sem pesquisa");
+  assert.ok(repository.includes('"list_pdv_product_compatibilities_v1"'));
+  assert.ok(ui.includes("debouncedSearch.trim().length >= 2"));
 });
 
-test("SQL relaciona produtos de mesma empresa bidirecionalmente e bloqueia escrita direta", () => {
-  const sql = read("supabase/migrations/20261106192000_product_compatibility_links_and_pdv.sql");
-  assert.ok(sql.includes("create table if not exists public.product_compatibility_links"));
-  assert.ok(sql.includes("product_id_a < product_id_b"),"pares normalizados sem duplicidade A-B e B-A");
-  assert.ok(sql.includes("primary key (organization_id,product_id_a,product_id_b)"));
-  assert.ok(sql.includes("alter table public.product_compatibility_links enable row level security"));
-  assert.ok(sql.includes("revoke all on public.product_compatibility_links from public,anon,authenticated"));
-  assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'products','products.update')"));
+test("orçamento, OS e solicitação de peças reutilizam o carrossel", async () => {
+  const quote = read("src/features/orders/presentation/OrderQuoteCommercialEditor.tsx");
+  const execution = read("src/features/orders/presentation/OrderProductsServicesSection.tsx");
+  const parts = read("src/features/orders/presentation/PartRequestModal.tsx");
+  const modals = read("src/features/orders/presentation/OrderWorkflowModals.tsx");
+  const repository = read("src/features/orders/infrastructure/order-commercial-items.repository.ts");
+  for (const [filename,src] of [
+    ["OrderQuoteCommercialEditor.tsx",quote],["OrderProductsServicesSection.tsx",execution],
+    ["PartRequestModal.tsx",parts],["OrderWorkflowModals.tsx",modals],
+  ]) assert.ok((await transformWithEsbuild(src,filename,{loader:"tsx"})).code);
+  for (const src of [quote,execution,parts]) {
+    assert.ok(src.includes("<CompatibleProductCarousel"));
+    assert.ok(src.includes("listOrderProductCompatibilities("));
+  }
+  assert.ok(parts.includes("if (matched) onSelect(matched)"));
+  assert.ok(modals.includes("<PartRequestModal orderId={detail.id}"));
+  assert.ok(execution.includes("enabled: Boolean(commercialEditable"));
+  assert.ok(repository.includes('"list_service_order_product_compatibilities_v1"'));
+});
+
+test("Postgres infere compatibilidade exata por código e contém barreiras multiempresa", () => {
+  const sql = read("supabase/migrations/20261106193737_automatic_compatibility_from_related_codes.sql");
+  assert.ok(sql.includes("private.find_code_compatible_products_v1"));
+  assert.ok(sql.includes("related.is_verified=true"));
+  assert.match(sql, /\bwhere\s+\(src\.is_related\s+or\s+dst\.is_related\)/);
+  assert.ok(sql.includes("dst.code=src.code"));
+  assert.ok(sql.includes("dst.product_id<>src.product_id"));
+  assert.ok(sql.includes("p.organization_id=p_organization_id"));
+  assert.ok(sql.includes("where related.organization_id=p_organization_id"));
+  assert.ok(sql.includes("join public.products target on target.id=combined.product_id and target.organization_id=p_organization_id"));
   assert.ok(sql.includes("private.has_tenant_module_permission(p_organization_id,'pdv','pdv.sales.create')"));
-  assert.ok(sql.includes("and p.organization_id=p_organization_id"));
-  assert.ok(sql.includes("if exists("));
-  assert.ok(sql.includes("product_id_a=p_product_id or product_id_b=p_product_id"));
-  assert.ok(sql.includes("least(p_product_id,x),greatest(p_product_id,x)"));
+  assert.ok(sql.includes("private.can_view_service_order(p_service_order_id)"));
+  assert.ok(sql.includes("product.is_active=true"));
+  assert.ok(sql.includes("target.is_active=true"));
+  assert.ok(sql.includes("public.list_product_code_compatibilities_v1"));
+  assert.ok(sql.includes("public.list_service_order_product_compatibilities_v1"));
   assert.ok(sql.includes("public.list_pdv_product_compatibilities_v1"));
-  assert.ok(sql.includes("p.is_active=true"));
-  assert.ok(sql.includes("coalesce(stock.quantity,0)"));
-  assert.ok(sql.includes("limit 5"));
-  assert.ok(!sql.includes("product_related_codes"),"compatibilidades não devem substituir aliases");
+  assert.ok(sql.includes("revoke all on function private.find_code_compatible_products_v1(uuid,uuid[]) from public,anon,authenticated"));
+  assert.ok(!sql.includes("INSERT INTO public.product_compatibility_links"));
 });

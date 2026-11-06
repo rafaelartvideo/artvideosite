@@ -33,6 +33,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
+import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 import {
   finalizePdvSale,
   loadPdvSaleDetail,
@@ -790,32 +791,24 @@ export function PdvSaleWorkspace({
                 </div>
                 <Plus size={15} className="shrink-0 text-primary" />
               </button>
-              {compatibleProducts.length > 0 && <div className="space-y-1 border-t border-border/50 bg-muted/30 px-3 py-2.5 sm:pl-10">
-                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                  Alternativas compatíveis · {compatibleProducts.length}
-                </p>
-                {compatibleProducts.map(alternative => {
-                  const alternativeStock = availableQuantity(alternative);
-                  return <button type="button" key={alternative.product_id}
-                    onClick={() => addProduct(alternative)}
-                    aria-label={"Adicionar produto compatível " + alternative.name}
-                    className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5">
-                    <ProductAdminThumb mediaId={alternative.cover_media_id} name={alternative.name}/>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-foreground">{alternative.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{alternative.sku || alternative.barcode || "Sem código"} · Compatível</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-black text-foreground">
-                        {alternative.price == null ? "Sem preço" : formatCurrency(alternative.price)}
-                      </p>
-                      <p className={cn("text-[11px] font-semibold", alternativeStock <= 0 ? "text-red-600" : "text-emerald-700 dark:text-emerald-300")}>
-                        {formatNumber(alternativeStock)} {alternative.unit || "un"} em estoque
-                      </p>
-                    </div>
-                    <Plus size={14} className="shrink-0 text-primary" aria-hidden="true"/>
-                  </button>;
-                })}
+              {compatibleProducts.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/20 p-3">
+                <CompatibleProductCarousel
+                  sourceName={product.name}
+                  products={compatibleProducts.map(alternative => ({
+                    id: alternative.product_id,
+                    name: alternative.name,
+                    sku: alternative.sku,
+                    barcode: alternative.barcode,
+                    coverMediaId: alternative.cover_media_id,
+                    price: alternative.price,
+                    stock: availableQuantity(alternative),
+                    unit: alternative.unit,
+                  }))}
+                  onPick={picked => {
+                    const alternative = compatibleProducts.find(item => item.product_id === picked.id);
+                    if (alternative) addProduct(alternative);
+                  }}
+                />
               </div>}
               </div>;
             })}

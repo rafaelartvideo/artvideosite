@@ -1,4 +1,5 @@
 import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle, PackagePlus, X } from "lucide-react";
 import { AdminCard, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
@@ -8,6 +9,8 @@ import { cn } from "@/shared/domain/formatters";
 import { normalizeSearchText } from "../application/order-search";
 import type { PartRequestInventoryItem, SelectedPartRequestItem } from "../domain/part-request.types";
 import { CenteredModal } from "./PartRequestModals";
+import { listOrderProductCompatibilities } from "../infrastructure/order-commercial-items.repository";
+import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 
 const INVENTORY_PAGE_SIZE = 4;
 
@@ -18,6 +21,7 @@ const packageHint = (item: { package_unit?: string | null; conversion_factor?: n
 
 export function PartRequestModal({
   orderNumber,
+  orderId,
   inventoryItems,
   inventoryLoading,
   inventoryError,
@@ -36,6 +40,7 @@ export function PartRequestModal({
   onSubmit,
 }: {
   orderNumber?: string | null;
+  orderId: string;
   inventoryItems: PartRequestInventoryItem[];
   inventoryLoading: boolean;
   inventoryError: string;
@@ -66,6 +71,21 @@ export function PartRequestModal({
     (inventoryPage - 1) * INVENTORY_PAGE_SIZE,
     inventoryPage * INVENTORY_PAGE_SIZE,
   );
+
+  const selectedSourceIds = selectedItems.map(item => item.inventory_item_id);
+  const sourceIds = selectedSourceIds.length
+    ? selectedSourceIds.slice(0,4)
+    : query.length >= 2 ? visibleItems.slice(0,2).map(item => item.id) : [];
+  const sourceKey = sourceIds.join(",");
+  const compatibleQuery = useQuery({
+    queryKey: ["orders", "auto-compatible", "part-requests", orderId, sourceKey],
+    queryFn: () => listOrderProductCompatibilities(orderId, sourceIds),
+    enabled: Boolean(orderId && sourceIds.length && !inventoryLoading),
+    staleTime: 15_000,
+  });
+  const compatibleChoices = Array.from(new Map((compatibleQuery.data || [])
+    .filter(item => !selectedIds.has(item.inventory_item_id))
+    .map(item => [item.inventory_item_id,item])).values());
 
   React.useEffect(() => {
     setInventoryPage(1);
@@ -167,6 +187,24 @@ export function PartRequestModal({
             </AdminListSectionRow>;
           })}
         </AdminListSection>
+
+        {compatibleChoices.length > 0 && <div className="min-w-0 rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
+          <CompatibleProductCarousel
+            sourceName={selectedItems[0]?.name || visibleItems[0]?.name}
+            products={compatibleChoices.map(item => ({
+              id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
+              coverMediaId:item.cover_media_id,price:item.price,
+              stock:inventoryItems.find(part => part.id===item.inventory_item_id)?.quantity ?? item.stock,
+              unit:"un",
+            }))}
+            disabled={submitting}
+            selectedIds={selectedItems.map(item => item.inventory_item_id)}
+            onPick={picked => {
+              const matched = inventoryItems.find(item => item.id===picked.id);
+              if (matched) onSelect(matched);
+            }}
+          />
+        </div>}
 
         <section className="overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-[#0d1b2e]/8 px-4 py-3.5">

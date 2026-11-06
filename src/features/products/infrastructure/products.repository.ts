@@ -152,3 +152,31 @@ export async function replaceProductCompatibilities(
   if (error) throw error;
   return Number(data || 0);
 }
+
+export type ProductCodeCompatibility = {
+  product_id: string;
+  name: string;
+  sku: string | null;
+  price: number | null;
+  cover_media_id: string | null;
+  stock: number;
+  unit: string;
+  matched_code: string;
+};
+
+/** Compatibilidade inferida no banco em tempo real a partir dos códigos cadastrados. */
+export async function listProductCodeCompatibilities(
+  organizationId: string,
+  productId: string,
+): Promise<ProductCodeCompatibility[]> {
+  const { data, error } = await supabase.rpc("list_product_code_compatibilities_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+  });
+  if (error) throw error;
+  return ((data || []) as ProductCodeCompatibility[]).map(row => ({
+    ...row,
+    stock: Number(row.stock || 0),
+    price: row.price == null ? null : Number(row.price),
+  }));
+}
