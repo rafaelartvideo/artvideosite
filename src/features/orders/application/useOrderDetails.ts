@@ -26,6 +26,7 @@ export function useOrderDetails({
   const [detailUsedItems, setDetailUsedItems] = useState<any[]>([]);
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [hydratedOrderId, setHydratedOrderId] = useState<string | null>(null);
   const selectedOrderBelongsToOrganization = Boolean(
     selectedOrder?.id &&
     organizationId &&
@@ -138,11 +139,13 @@ export function useOrderDetails({
     setDetailSolutionImages(solutionImages);
     replaceOrderImages(orderImages);
     setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
+    setHydratedOrderId(selectedOrder.id);
     if (loadPartRequestsEnabled) void loadPartRequests(selectedOrder.id);
   }, [detailQuery.data, selectedOrderBelongsToOrganization, loadPartRequestsEnabled, loadPartRequests]);
 
   const openDetail = (order: any) => {
     if (!organizationId || order?.organization_id !== organizationId) return;
+    setHydratedOrderId(null);
     setSelectedOrder(order);
     setDetail(order);
   };
@@ -153,6 +156,7 @@ export function useOrderDetails({
       queryKey: [...queryKeys.orders.detail(order.id), organizationId],
       exact: true,
     });
+    setHydratedOrderId(null);
     setSelectedOrder(order);
     setDetail(order);
   };
@@ -160,6 +164,7 @@ export function useOrderDetails({
   const closeDetail = () => {
     setDetail(null);
     setSelectedOrder(null);
+    setHydratedOrderId(null);
     clearPartRequests?.();
   };
 
@@ -167,6 +172,8 @@ export function useOrderDetails({
     organizationId,
     detail,
     setDetail,
+    // Usado pelo fluxo Concluir da lista: espera o workspace completo, não só o preview da linha.
+    detailReady: selectedOrderBelongsToOrganization && hydratedOrderId === selectedOrder?.id && detailQuery.isSuccess && !detailQuery.isFetching && Boolean(detailQuery.data),
     detailHistory,
     detailUsedItems,
     setDetailUsedItems,
