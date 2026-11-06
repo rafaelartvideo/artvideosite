@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/primitives/dialog";
 
-export type AdminButtonVariant = "primary" | "secondary" | "tertiary" | "success" | "warning" | "danger" | "ghost" | "icon";
+export type AdminButtonVariant = "primary" | "secondary" | "tertiary" | "quaternary" | "success" | "warning" | "danger" | "ghost" | "icon";
 export type AdminButtonSize = "sm" | "md" | "lg";
 
 const AdminPageCloseContext = React.createContext<{ onClose: () => void; requestClose: () => void } | null>(null);
@@ -68,6 +68,7 @@ export function AdminButton({
     primary: "admin-primary-gradient border border-primary/30 text-white",
     secondary: "border border-border bg-card text-card-foreground hover:bg-muted",
     tertiary: "admin-action-blue-outline border",
+    quaternary: "admin-action-red-outline border",
     success: "admin-action-success border",
     warning: "admin-action-warning border",
     danger: "admin-action-danger border",
@@ -132,7 +133,7 @@ export const AdminRowActionsTrigger = React.forwardRef<HTMLButtonElement,
 
 type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  variant?: "secondary" | "tertiary" | "success" | "warning" | "danger" | "ghost";
+  variant?: "secondary" | "tertiary" | "quaternary" | "success" | "warning" | "danger" | "ghost";
   ariaLabel?: string;
   loading?: boolean;
 };
@@ -158,6 +159,7 @@ export function AdminIconButton({
   const variants = {
     secondary: "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary",
     tertiary: "admin-action-blue-outline border hover:bg-primary/5",
+    quaternary: "admin-action-red-outline border",
     success: "admin-action-success border",
     warning: "admin-action-warning border",
     danger: "admin-semantic-error border hover:brightness-95",
