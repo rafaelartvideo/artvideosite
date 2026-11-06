@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { Pencil } from "lucide-react";
+import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
@@ -30,6 +34,7 @@ function eventLabel(type: string) {
     document_attached: "Documento anexado",
     document_archived: "Documento arquivado",
     recurring_generated: "Ocorrência recorrente gerada",
+    installment_amount_adjusted: "Previsão mensal ajustada",
     recurring_cancelled: "Ocorrência cancelada após encerramento da assinatura",
   } as Record<string, string>)[type] || type;
 }
@@ -46,8 +51,11 @@ function EntryDetailContent({
   settlementPending,
   reverseSettlementPending, settlementError, onEdit,
   onRegisterSettlement, onReverseSettlement, scrollContainerRef, initialSettlementOpen,
+  forecastPending, onAdjustInstallment,
 }: Parameters<typeof FinanceEntryDetail>[0]) {
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
+  const [forecastEdit, setForecastEdit] = useState<{ id: string; amount: string; reason: string } | null>(null);
+  const [forecastError, setForecastError] = useState("");
   const isReceivable = detail.entry_type === "receivable";
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
   const remaining = ["cancelled", "reversed"].includes(detail.approval_status)
@@ -59,6 +67,25 @@ function EntryDetailContent({
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   const originLabel = detail.origin_type === "manual" ? "Cadastro manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type === "recurring" ? "Recorrência" : "Outros";
   const editable = canEdit && ["draft", "pending", "rejected", "approved"].includes(detail.approval_status) && detail.origin_type === "manual" && detail.settlements.length === 0;
+  const canAdjustForecast = !isReceivable && canEdit && Boolean(onAdjustInstallment)
+    && ["manual", "recurring"].includes(detail.origin_type)
+    && ["pending", "approved"].includes(detail.approval_status);
+  const saveForecast = async () => {
+    if (!forecastEdit || !onAdjustInstallment || forecastPending) return;
+    const amount = Number(forecastEdit.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || !forecastEdit.reason.trim()) {
+      setForecastError("Informe o valor atualizado e o motivo do ajuste.");
+      return;
+    }
+    try {
+      setForecastError("");
+      await onAdjustInstallment(forecastEdit.id, amount, forecastEdit.reason.trim());
+      setForecastEdit(null);
+      notifyAdmin("Previsão atualizada e registrada no histórico.", "success");
+    } catch (error) {
+      setForecastError(systemErrorMessage(error, "Não foi possível atualizar a previsão."));
+    }
+  };
 
   return <div className="space-y-4">
     <section aria-label="Identificação e saldos do extrato" className="overflow-hidden rounded-xl border border-border bg-card">
@@ -132,10 +159,30 @@ function EntryDetailContent({
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto">
-          <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor</th><th className="text-right">Recebido</th><th className="text-right">Em aberto</th></tr></thead>
-            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums">{formatCurrency(item.settled_amount)}</td><td className="text-right font-bold tabular-nums text-primary">{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td></tr>)}</tbody>
+          <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
+            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums">{formatCurrency(item.settled_amount)}</td><td className="text-right font-bold tabular-nums text-primary">{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+              {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
+                type="button" disabled={forecastPending} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                onClick={() => { setForecastEdit({ id: item.id, amount: String(item.original_amount), reason: "" }); setForecastError(""); }}
+              ><Pencil size={13} /> Ajustar</button>}</td>}</tr>)}</tbody>
           </table>
         </div>
+        {forecastEdit && canAdjustForecast && <div className="space-y-3 border-t border-border p-4">
+          <h4 className="text-sm font-semibold text-foreground">Ajustar previsão da parcela</h4>
+          <p className="text-xs text-muted-foreground">Ajuste somente esta parcela. O valor anterior e a justificativa serão registrados no histórico.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending}
+              onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
+            <FTextarea label="Motivo da alteração" value={forecastEdit.reason} disabled={forecastPending}
+              onChange={(event: any) => setForecastEdit(current => current && ({ ...current, reason: event.target.value }))} />
+          </div>
+          {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
+          <div className="flex justify-end gap-2">
+            <AdminButton variant="secondary" disabled={forecastPending} onClick={() => setForecastEdit(null)}>Cancelar</AdminButton>
+            <AdminButton loading={Boolean(forecastPending)} loadingText="Salvando..." onClick={() => void saveForecast()}>Salvar ajuste</AdminButton>
+          </div>
+        </div>}
       </AdminCard>
 
       <AdminCard><AdminCardHeader><h3 className="text-sm font-bold text-foreground">Histórico</h3></AdminCardHeader>
@@ -143,7 +190,11 @@ function EntryDetailContent({
           {detail.events.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma movimentação registrada.</p> : <div className="divide-y divide-border">
             {detail.events.filter(event => !["submitted","resubmitted","approval_recorded","rejected","collection_recorded"].includes(event.event_type)).map(event => <div key={event.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0"><p className="text-sm font-semibold text-foreground">{eventLabel(event.event_type)}</p>
-                <p className="text-xs text-muted-foreground">{event.created_by ? detail.actor_names?.[event.created_by] || "Responsável não identificado" : "Sistema"}</p></div>
+                <p className="text-xs text-muted-foreground">{event.created_by ? detail.actor_names?.[event.created_by] || "Responsável não identificado" : "Sistema"}</p>
+                {event.event_type === "installment_amount_adjusted" && <p className="text-xs text-muted-foreground">
+                  Parcela {String(event.event_data?.installment_number || "")}: {formatCurrency(Number(event.event_data?.old_amount || 0))}
+                  {" → "}{formatCurrency(Number(event.event_data?.new_amount || 0))} · {String(event.event_data?.reason || "")}
+                </p>}</div>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{new Date(event.created_at).toLocaleString("pt-BR")}</span>
             </div>)}
           </div>}
@@ -181,6 +232,8 @@ export function FinanceEntryDetail({
   onReject,
   onRegisterSettlement,
   onReverseSettlement,
+  onAdjustInstallment,
+  forecastPending = false,
   initialSettlementOpen = false,
 }: {
   detail: FinancialEntryDetail;
@@ -203,6 +256,8 @@ export function FinanceEntryDetail({
   onReject: (note: string) => Promise<void>;
   onRegisterSettlement: (draft: FinancialSettlementDraft) => Promise<void>;
   onReverseSettlement: (settlementId: string, reason: string) => Promise<void>;
+  onAdjustInstallment?: (installmentId: string, newAmount: number, reason: string) => Promise<void>;
+  forecastPending?: boolean;
   initialSettlementOpen?: boolean;
 }) {
   return <EntryDetailContent
@@ -214,6 +269,8 @@ export function FinanceEntryDetail({
     reverseSettlementPending={reverseSettlementPending} settlementError={settlementError}
     onBack={onBack} onEdit={onEdit} onApprove={onApprove} onReject={onReject}
     onRegisterSettlement={onRegisterSettlement}
-    onReverseSettlement={onReverseSettlement} initialSettlementOpen={initialSettlementOpen}
+    onReverseSettlement={onReverseSettlement}
+    onAdjustInstallment={onAdjustInstallment} forecastPending={forecastPending}
+    initialSettlementOpen={initialSettlementOpen}
   />;
 }
