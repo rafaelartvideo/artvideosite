@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Heart, Image as ImageIcon, MessageCircle, Mic, Paperclip, Send, Smile, Square, X } from "lucide-react";
+import { FileText, Heart, Image as ImageIcon, MessageCircle, Paperclip, Send, Smile, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -141,22 +141,6 @@ export function OrderQuoteComments({
   const emojiOverlayRef = useRef<HTMLDivElement>(null);
   const [emojiPosition, setEmojiPosition] = useState({ left: 8, top: 8, width: 352, height: 340 });
   const [emojiDark, setEmojiDark] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const cancelRecordingRef = useRef(false);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      cancelRecordingRef.current = true;
-      const recorder = recorderRef.current;
-      if (recorder && recorder.state !== "inactive") recorder.stop();
-      streamRef.current?.getTracks().forEach(track => track.stop());
-    };
-  }, []);
-
   // Portal fixo: nunca fica atrás/cortado pelo overflow dos cards, abas ou modais.
   useEffect(() => {
     if (!emojiOpen) return;
@@ -195,84 +179,6 @@ export function OrderQuoteComments({
       document.removeEventListener("keydown", escape);
     };
   }, [emojiOpen]);
-
-  const stopRecording = () => {
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") recorder.stop();
-  };
-  const startRecording = async () => {
-    if (recording || submitting || files.length >= 3) return;
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      notifyAdmin("Este navegador não permite gravar áudio.", "error");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mountedRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
-      const format = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/webm"]
-        .find(type => MediaRecorder.isTypeSupported(type));
-      let recorder: MediaRecorder;
-      try {
-        recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
-      } catch (error) {
-        stream.getTracks().forEach(track => track.stop());
-        throw error;
-      }
-      const chunks: Blob[] = [];
-      cancelRecordingRef.current = false;
-      streamRef.current = stream;
-      recorderRef.current = recorder;
-      recorder.ondataavailable = event => {
-        if (event.data.size > 0) chunks.push(event.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-        if (streamRef.current === stream) streamRef.current = null;
-        if (recorderRef.current === recorder) recorderRef.current = null;
-        if (!mountedRef.current) return;
-        setRecording(false);
-        if (cancelRecordingRef.current || !chunks.length) return;
-        const mimeType = recorder.mimeType.split(";")[0];
-        const extension = mimeType === "audio/mp4" ? "m4a"
-          : mimeType === "audio/ogg" ? "ogg" : "webm";
-        const file = new File(chunks, `Áudio do comentário.${extension}`, {
-          type: mimeType === "audio/mp4" || mimeType === "audio/ogg" ? mimeType : "audio/webm",
-        });
-        try {
-          validateOrderQuoteCommentFiles([...files, file]);
-          setFiles(previous => {
-            try {
-              validateOrderQuoteCommentFiles([...previous, file]);
-              return [...previous, file];
-            } catch {
-              return previous;
-            }
-          });
-        } catch (error) {
-          notifyAdmin(systemErrorMessage(error, "Não foi possível anexar a gravação."), "error");
-        }
-      };
-      recorder.onerror = () => {
-        cancelRecordingRef.current = true;
-        stream.getTracks().forEach(track => track.stop());
-        if (recorderRef.current === recorder) recorderRef.current = null;
-        if (streamRef.current === stream) streamRef.current = null;
-        setRecording(false);
-        notifyAdmin("Não foi possível gravar o áudio.", "error");
-      };
-      try {
-        recorder.start(500);
-        setRecording(true);
-      } catch (error) {
-        stream.getTracks().forEach(track => track.stop());
-        recorderRef.current = null;
-        streamRef.current = null;
-        throw error;
-      }
-    } catch (error) {
-      notifyAdmin(systemErrorMessage(error, "Não foi possível acessar o microfone."), "error");
-    }
-  };
 
   const byParent = useMemo(() => {
     const map = new Map<string, OrderQuoteComment[]>();
@@ -342,7 +248,7 @@ export function OrderQuoteComments({
   };
 
   return <Section title={<span className="inline-flex items-center gap-2">Comentários do orçamento
-    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{notes.length}</span>
+    <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{notes.length}</span>
   </span>}>
     <div className="space-y-5">
       {commentsQuery.isLoading && <div className="flex justify-center py-6"><LoadingSpinner size="md" /></div>}
@@ -389,7 +295,7 @@ export function OrderQuoteComments({
           </div>)}
         </div>}
         <input ref={fileRef} type="file" className="sr-only" multiple
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/webm,audio/ogg,audio/mp4,audio/mpeg,application/pdf,text/plain,.doc,.docx"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,text/plain,.doc,.docx"
           aria-label="Selecionar anexos"
           onChange={event => {
             selectFiles(Array.from(event.currentTarget.files || []));
@@ -398,7 +304,7 @@ export function OrderQuoteComments({
         <form onSubmit={event => { event.preventDefault(); void send(); }}
           className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
           <button type="button" title="Anexar arquivo" aria-label="Anexar arquivo"
-            disabled={submitting || recording || files.length >= 3} onClick={() => fileRef.current?.click()}
+            disabled={submitting || files.length >= 3} onClick={() => fileRef.current?.click()}
             className="flex h-12 w-10 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground transition-colors hover:bg-muted disabled:opacity-40 sm:w-12">
             <Paperclip size={21} />
           </button>
@@ -409,8 +315,8 @@ export function OrderQuoteComments({
             <Smile size={21} />
           </button>
           <textarea ref={textRef} rows={1} value={draft} maxLength={4000}
-            disabled={submitting || recording} aria-label={replyTo ? "Escrever resposta" : "Escrever comentário"}
-            placeholder={recording ? "Gravando áudio..." : replyTo ? "Escreva uma resposta..." : "Escreva um comentário..."}
+            disabled={submitting} aria-label={replyTo ? "Escrever resposta" : "Escrever comentário"}
+            placeholder={replyTo ? "Escreva uma resposta..." : "Escreva um comentário..."}
             onChange={event => {
               setDraft(event.target.value);
               event.currentTarget.style.height = "auto";
@@ -423,15 +329,8 @@ export function OrderQuoteComments({
               }
             }}
             className="min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 disabled:opacity-50" />
-          {(recording || (!draft.trim() && !files.length)) && <button type="button"
-            aria-label={recording ? "Parar gravação" : "Gravar áudio"} title={recording ? "Parar gravação" : "Gravar áudio"}
-            disabled={submitting || (!recording && files.length >= 3)}
-            onClick={() => { if (recording) stopRecording(); else void startRecording(); }}
-            className={`flex h-12 w-10 shrink-0 items-center justify-center border-l border-border transition-colors hover:bg-muted disabled:opacity-40 sm:w-12 ${recording ? "text-red-600" : "text-foreground"}`}>
-            {recording ? <Square size={20}/> : <Mic size={21}/>}
-          </button>}
           <button type="submit" title="Enviar comentário" aria-label="Enviar comentário"
-            disabled={submitting || recording || (!draft.trim() && !files.length)}
+            disabled={submitting || (!draft.trim() && !files.length)}
             className="flex h-12 w-11 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 sm:w-12">
             {submitting ? <LoadingSpinner size="sm" /> : <Send size={22} />}
           </button>
