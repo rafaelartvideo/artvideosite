@@ -151,8 +151,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   }, [rows, orderSort]);
   const total = listQuery.data?.total ?? 0;
   const hasActiveFilters = Boolean(search || organizationId || serviceTypeId || situationId || orderSort);
-  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
-  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const monitoredOrganizationId = contextQuery.data?.order?.organization_id
     || contextQuery.data?.organization?.id
     || null;
