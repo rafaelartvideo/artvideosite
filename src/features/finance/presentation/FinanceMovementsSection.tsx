@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, RotateCcw, Search } from "lucide-react";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -40,20 +40,10 @@ function localDateBoundary(value: string, nextDay = false) {
   return new Date(year, month - 1, day + (nextDay ? 1 : 0)).toISOString();
 }
 
-function useDebouncedValue<T>(value: T, delay = 350) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebounced(value), delay);
-    return () => window.clearTimeout(timeout);
-  }, [value, delay]);
-  return debounced;
-}
-
 export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
   const { hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
   const canTransfer = hasPermission("finance.transfers.create");
-  const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -65,11 +55,9 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
-  const debouncedSearch = useDebouncedValue(search);
   const finance = useFinanceMovements({
     movementPage: page,
     movementPageSize: pageSize,
-    movementSearch: debouncedSearch,
     movementAccountId: accountFilter === "all" ? "" : accountFilter,
     movementStartAt: localDateBoundary(dateFrom),
     movementEndAt: localDateBoundary(dateTo, true),
@@ -77,7 +65,7 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
 
   useEffect(() => {
     setPage(1);
-  }, [search, accountFilter, dateFrom, dateTo, pageSize]);
+  }, [accountFilter, dateFrom, dateTo, pageSize]);
 
   const balances = finance.balancesQuery.data || {};
   const accounts = (foundation.accountsQuery.data || []).map(item => ({ ...item, balance: Number(balances[item.id] || 0) }));
@@ -124,10 +112,9 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
     
 
     <AdminSearchPanel title="Buscar movimentações" headerActions={<AdminSearchClearButton onClick={() => {
-      setSearch(""); setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
+      setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
     }} />}>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="relative min-w-0 self-end"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} />
         <FInput label="Data inicial" type="date" value={dateFrom} onChange={(event: any) => {
           const next = event.target.value;
