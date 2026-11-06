@@ -50,9 +50,6 @@ export function prepareOrderForm({
   if (editingOrder?.is_solved) {
     return { error: "Esta OS está solucionada e é somente leitura." };
   }
-  if (!editingOrder && !String(form.customer_notes || "").trim()) {
-    return { error: "Informe a descrição do problema para abrir a OS." };
-  }
 
   if (!editingOrder && !form.service_type_id) {
     return { error: "Selecione o tipo de atendimento da OS." };
@@ -216,6 +213,7 @@ export function buildOrderPayload({
     completed_at: form.completed_at || null,
     internal_notes: form.internal_notes || null,
     customer_notes: form.customer_notes || null,
+    custom_field_values: form.custom_field_values || {},
     order_type: form.order_type,
     service_zip_code: external ? prepared.serviceAddress.zipCode : null,
     service_state: external ? prepared.serviceAddress.state : null,
