@@ -84,6 +84,35 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
 	max-height: calc(100dvh - var(--admin-shell-header-height, 4rem) - 1rem) !important;
 }
 
+/* Sistema único de filtros da Union e da Artvideo, baseado em Pedidos Avulsos.
+   Apenas dentro de painéis de busca: não altera cadastros, editores ou modais. */
+.admin-crm .admin-search-panel-content label:not([data-admin-search-keep-style]) {
+  font-size: 11px !important;
+  line-height: 1rem;
+  font-weight: 700;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.admin-crm .admin-search-panel-content :is(input.admin-input, button.admin-input, [data-slot="select-trigger"]) {
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 400;
+}
+@media (max-width: 767px) {
+  .admin-crm .admin-search-panel-content :is(input.admin-input, button.admin-input, [data-slot="select-trigger"]) {
+    min-height: 42px;
+    font-size: 14px;
+  }
+}
+@media (min-width: 768px) {
+  .admin-crm .admin-search-panel-content :is(input.admin-input, button.admin-input, [data-slot="select-trigger"]) {
+    height: 36px;
+    min-height: 36px;
+    font-size: 12px;
+  }
+}
+
 .admin-primary-bar {
 	background-image: linear-gradient(105deg, var(--primary) 0%, var(--primary-hover) 100%);
 }

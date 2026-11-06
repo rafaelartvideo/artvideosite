@@ -1,10 +1,7 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
-import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { cn } from "@/shared/domain/formatters";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admin/AdminFilterMultiSelect";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { PlatformService, ProviderFilters } from "../infrastructure/platform-providers.repository";
 
 type MobileKey = "name" | "equipment" | "services" | "states" | "cities" | "statuses";
@@ -75,18 +72,7 @@ export function ProviderFiltersPanel({
   const field = (key:MobileKey) => {
     switch(key){
       case "name":
-        return <div className="min-w-0">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:mb-1">
-            Nome
-          </label>
-          <div className="relative min-w-0">
-            <Search size={15} aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input type="search" value={searchText} onChange={event => onSearchTextChange(event.target.value)}
-              aria-label="Buscar por nome" placeholder="Nome"
-              className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 pr-2 text-xs md:h-9 md:py-1.5")}/>
-          </div>
-        </div>;
+        return <AdminSearchTextField label="Nome" value={searchText} onChange={onSearchTextChange} placeholder="Nome" ariaLabel="Buscar por nome" />;
       case "equipment":
         return <AdminFilterMultiSelect label="Equipamento" options={equipmentOptions}
           selectedValues={filters.equipmentNames} onToggle={v=>toggle("equipmentNames",v)}
@@ -111,29 +97,9 @@ export function ProviderFiltersPanel({
   };
   return <AdminSearchPanel title="Buscar prestadores"
     headerActions={hasFilters?<AdminSearchClearButton onClick={onClear}/>:undefined}>
-    <div className="space-y-3 md:hidden">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" aria-label="Selecionar campo de busca"
-            className="flex h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-left text-xs font-bold text-foreground focus-visible:ring-2 focus-visible:ring-primary/30">
-            <span className="min-w-0 truncate">
-              <span className="font-medium text-muted-foreground">Buscar por: </span>
-              {mobileFields.find(x=>x.value===mobileField)?.label}
-            </span>
-            <ChevronDown size={15} className="shrink-0 text-muted-foreground"/>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-[220px]">
-          {mobileFields.map(item=><DropdownMenuItem key={item.value}
-            onSelect={()=>setMobileField(item.value)}
-            className={mobileField===item.value?"bg-primary/10 font-bold text-primary":""}>
-            <Search size={14}/><span>{item.label}</span>
-            {mobileField===item.value&&<Check size={14} className="ml-auto text-primary"/>}
-          </DropdownMenuItem>)}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <div className="min-w-0">{field(mobileField)}</div>
-    </div>
+    <AdminMobileSearchSwitch value={mobileField} options={mobileFields} onChange={setMobileField}>
+      {field(mobileField)}
+    </AdminMobileSearchSwitch>
     <div className="hidden grid-cols-2 gap-3 md:grid xl:grid-cols-3">
       {field("name")}
       {field("equipment")}

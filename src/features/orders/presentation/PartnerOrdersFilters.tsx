@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 
 type OrderSort = "" | "asc" | "desc";
@@ -56,21 +56,6 @@ export function PartnerOrdersFilters({
   </AdminSearchPanel>;
 }
 
-function SearchField({
-  label, value, onChange, placeholder, inputMode,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  inputMode?: "numeric";
-}) {
-  return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:mb-1">{label}</label>
-    <div className="relative">
-      <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)}
-        placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} />
-    </div>
-  </div>;
+function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
+  return <AdminSearchTextField label={label} value={value} onChange={onChange} placeholder={placeholder} inputMode={inputMode} />;
 }

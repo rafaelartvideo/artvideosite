@@ -17,7 +17,7 @@ import {
 } from "../infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -683,7 +683,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 }
 
 function SearchField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <div className="min-w-0"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div></div>;
+  return <AdminSearchTextField label={label} value={value} onChange={onChange} placeholder={placeholder} />;
 }
 
 function Info({ label, value }: { label: string; value: string }) {

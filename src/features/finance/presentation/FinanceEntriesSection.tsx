@@ -6,7 +6,7 @@ import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, CircleX, FileCheck2, 
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminFieldLabel, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -101,7 +101,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [cancelRecurringEntry, setCancelRecurringEntry] = useState<{ ruleId: string; title: string } | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
-  const editingSelectedEntry = Boolean(selectedEntryId && editorOpen && editing?.id === selectedEntryId);
   const [counterpartySearch, setCounterpartySearch] = useState("");
   useEffect(() => {
     if (newEntrySignal <= 0) return;
@@ -337,11 +336,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 </div>}
       </AdminMobileSearchSwitch>
       <div className={`hidden min-w-0 grid-cols-1 items-end gap-3 md:grid ${isReceivable ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-        {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
-        <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
-        <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={documentSearch}
-          onChange={(event: any) => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" /></div>
-        <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
+        {isReceivable && <AdminSearchTextField label="Número da OS" value={os} onChange={setOs} placeholder="Número da OS" />}
+        <AdminSearchTextField label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={setName} placeholder="Nome" />
+        <AdminSearchTextField label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric"
+          value={documentSearch} onChange={setDocumentSearch} placeholder="CPF ou CNPJ" />
+        <AdminSearchTextField label="Origem" value={originSearch} onChange={setOriginSearch} placeholder="Descrição ou origem do lançamento" />
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
@@ -402,7 +401,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
                 <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
-                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
+                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}
@@ -477,20 +476,19 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     {selectedEntryId && <AdminDialog
       open
       onClose={() => {
-        if (finance.settlementMutation.isPending || finance.saveMutation.isPending || finance.adjustInstallmentMutation.isPending) return;
-        if (editingSelectedEntry) closeEditor();
-        else if (settlementDialogOpen) setSettlementDialogOpen(false);
+        if (finance.settlementMutation.isPending) return;
+        if (settlementDialogOpen) setSettlementDialogOpen(false);
         else { setLastSettledEntryId(null); onSelectEntry(null); }
       }}
-      title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
-      description={editingSelectedEntry ? (finance.detailQuery.data?.description || "Editar dados da conta") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
+      title={settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      className={settlementDialogOpen || editingSelectedEntry
+      className={settlementDialogOpen
         ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,height] duration-300 ease-out"
         : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
-      bodyClassName={settlementDialogOpen || editingSelectedEntry ? "overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
+      bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
-      footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
+      footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canCancelRecurring(finance.detailQuery.data)
           && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
@@ -500,39 +498,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           && <AdminButton onClick={() => openSettlement()}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
-      {editingSelectedEntry && editing && finance.detailQuery.data?.id === selectedEntryId
-        ? <FinanceEntryEditorDialog
-          open embedded
-          entryType={entryType}
-          initial={editing}
-          counterparties={counterparties}
-          counterpartySearch={counterpartySearch}
-          counterpartyLoading={finance.counterpartiesQuery.isFetching}
-          onCounterpartySearchChange={setCounterpartySearch}
-          categories={categories}
-          paymentMethods={paymentMethods}
-          saving={finance.saveMutation.isPending}
-          onClose={closeEditor}
-          onSave={save}
-        />
-        : settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
+      {settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
         ? <FinanceSettlementDialog
           open={settlementDialogOpen}
           detail={finance.detailQuery.data}
           accounts={accounts}
           paymentMethods={paymentMethods}
           saving={finance.settlementMutation.isPending}
-          forecastPending={finance.adjustInstallmentMutation.isPending}
-          canAdjustInstallment={!isReceivable && canEdit
-            && ["manual", "recurring"].includes(finance.detailQuery.data.origin_type)
-            && ["pending", "approved"].includes(finance.detailQuery.data.approval_status)}
-          onAdjustInstallment={async (installmentId, newAmount, reason) => {
-            await finance.adjustInstallmentMutation.mutateAsync({
-              entryId: finance.detailQuery.data!.id, installmentId, newAmount, reason,
-            });
-            await finance.detailQuery.refetch();
-          }}
-          onClose={() => { if (!finance.settlementMutation.isPending && !finance.adjustInstallmentMutation.isPending) setSettlementDialogOpen(false); }}
+          onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
           onSave={async (draft: FinancialSettlementDraft) => {
             await finance.settlementMutation.mutateAsync(draft);
             setLastSettledEntryId(selectedEntryId);
@@ -563,7 +536,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               settlementError={finance.settlementMutation.error || finance.reverseSettlementMutation.error}
               onBack={() => onSelectEntry(null)}
               onEdit={() => {
-                setSettlementDialogOpen(false);
                 setCounterpartySearch("");
                 setEditing(finance.detailQuery.data || null);
                 setEditorOpen(true);
@@ -584,7 +556,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
 
     <FinanceEntryEditorDialog
-      open={editorOpen && !editingSelectedEntry}
+      open={editorOpen}
       entryType={entryType}
       initial={editing}
       counterparties={counterparties}
