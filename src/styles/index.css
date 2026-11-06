@@ -941,6 +941,31 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 	color: #c6d0ff;
 }
 
+/* Estilo 4 do CRM: mesmo contorno suave do Estilo 3, em vermelho.
+   Diferente de danger, que continua sendo o botão vermelho preenchido. */
+.admin-crm .admin-action-red-outline {
+	border-color: rgba(220, 38, 38, 0.28);
+	background-color: #fff1f2;
+	color: #b91c1c;
+}
+.admin-crm .admin-action-red-outline:hover {
+	border-color: rgba(220, 38, 38, 0.46);
+	background-color: #ffe4e6;
+	color: #991b1b;
+}
+.admin-crm.dark .admin-action-red-outline,
+.dark .admin-crm .admin-action-red-outline {
+	border-color: rgba(251, 113, 133, 0.42);
+	background-color: rgba(244, 63, 94, 0.13);
+	color: #fda4af;
+}
+.admin-crm.dark .admin-action-red-outline:hover,
+.dark .admin-crm .admin-action-red-outline:hover {
+	border-color: rgba(251, 113, 133, 0.64);
+	background-color: rgba(244, 63, 94, 0.23);
+	color: #fecdd3;
+}
+
 /* Feedback contextual e botões semânticos: cores consistentes em ambos os temas. */
 .admin-crm .admin-semantic-success,
 .admin-crm .admin-action-success {
