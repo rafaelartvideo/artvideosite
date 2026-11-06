@@ -107,6 +107,14 @@ export function FinanceMetricDetailsDialog({
       description={kind === "result" ? "Receitas menos despesas, conforme o período selecionado." :
         isBalance ? "Composição do saldo por conta e caixa." : "Lançamentos organizados por situação. Valores pendentes aparecem na coluna à direita."}
       rows={canRead ? rows : []}
+      toolbar={isEntries && canRead ? <label className="block space-y-1.5 text-xs font-semibold text-muted-foreground">
+        Situação dos lançamentos
+        <select aria-label="Filtrar situação dos lançamentos"
+          value={status} onChange={event => { setStatus(event.target.value as typeof status); setPage(1); }}
+          className="block min-h-10 w-full rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          {ENTRY_FILTERS.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
+        </select>
+      </label> : undefined}
       loading={canRead && loading}
       error={!canRead ? "Você não possui permissão para consultar esses detalhes." : error}
       page={isEntries ? page : undefined} pageSize={PAGE_SIZE} totalRows={isEntries ? totalRows : undefined}
