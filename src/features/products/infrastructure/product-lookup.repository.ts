@@ -32,6 +32,18 @@ export type ImportedProductImage = {
   public_url: string;
 };
 
+async function throwCatalogInvocationError(error: unknown): Promise<never> {
+  const context = (error as { context?: unknown })?.context;
+  if (context instanceof Response) {
+    const details = await context.clone().json().catch(() => null) as { error?: string } | null;
+    if (details?.error) throw new Error(details.error);
+    if (context.status === 503) {
+      throw new Error("A consulta está temporariamente indisponível. Tente novamente em instantes.");
+    }
+  }
+  throw error instanceof Error ? error : new Error("Não foi possível consultar o catálogo externo.");
+}
+
 export async function searchExternalProducts(
   organizationId: string,
   query: string,
@@ -43,7 +55,7 @@ export async function searchExternalProducts(
       query,
     },
   });
-  if (error) throw error;
+  if (error) await throwCatalogInvocationError(error);
   if (!data?.success) throw new Error(data?.error || "Não foi possível consultar o catálogo externo.");
   return {
     provider: String(data.provider || ""),
@@ -65,7 +77,7 @@ export async function importExternalProductImage(
       alt_text: altText,
     },
   });
-  if (error) throw error;
+  if (error) await throwCatalogInvocationError(error);
   if (!data?.success || !data?.media_id) {
     throw new Error(data?.error || "Não foi possível importar a imagem.");
   }
