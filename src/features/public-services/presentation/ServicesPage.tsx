@@ -3,6 +3,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Grid3X3, Headset, Search, Star }
 import { PublicCategoryChip } from "@/features/public-catalog/presentation/PublicCategoryChip";
 import { useServiceCategories, useServices, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
+import { PublicCatalogSkeleton } from "@/features/public-catalog/presentation/PublicCatalogSkeleton";
 import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
 import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
 import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
@@ -79,12 +80,7 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
         <p className="text-[13px] text-[#24374a]"><strong>{loading ? "—" : filtered.length}</strong> {filtered.length === 1 ? "serviço disponível" : "serviços disponíveis"}</p>
         {category !== "all" && <button type="button" onClick={() => choose("all")} className="text-[12px] text-[#687789] underline-offset-4 hover:underline">Limpar categoria</button>}
       </div>
-      {loading ? <div role="status" aria-label="Carregando serviços" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({length:8},(_,i)=><div key={i} className="overflow-hidden rounded-lg border border-[#e3e8ee] bg-white">
-          <div className="aspect-[4/3] animate-pulse bg-[#ededed]"/>
-          <div className="space-y-3 p-4"><div className="h-5 w-4/5 animate-pulse rounded bg-[#e8edf2]"/><div className="h-4 w-3/5 animate-pulse rounded bg-[#e8edf2]"/><div className="mt-6 h-10 animate-pulse rounded bg-[#e8edf2]"/></div>
-        </div>)}
-      </div> : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-red-700">{error}</div>
+      {loading ? <PublicCatalogSkeleton kind="service" /> : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-red-700">{error}</div>
         : visible.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {visible.map(service => <ServiceCard key={service.id} service={service} onSelectService={onSelectService}
             variant="catalog" categoryName={categoryNames.get(service.category_id) || undefined}/>)}

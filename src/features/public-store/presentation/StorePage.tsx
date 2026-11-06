@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
+import { PublicCatalogSkeleton } from "@/features/public-catalog/presentation/PublicCatalogSkeleton";
 import { loadCatalogAvailability } from "@/features/public-store/infrastructure/storefront.repository";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
@@ -223,12 +224,7 @@ export function StorePage({ setPage, onSelectProduct, onSelectService }: {
         {onlyOffers&&<button type="button" onClick={()=>{setOnlyOffers(false);resetPage();}} className="rounded-md bg-[#f2f5f8] px-3 py-1.5 text-[11px] text-[#526477]">Ofertas ×</button>}
         <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 text-[11px] text-[#69798b] hover:underline"><X size={14}/> Limpar filtros</button>
       </div>}
-      {loading ? <div role="status" aria-label="Carregando produtos" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({length:8},(_,i)=><div key={i} className="overflow-hidden rounded-lg border border-[#e3e8ee] bg-white">
-          <div className="aspect-[4/3] animate-pulse bg-[#ededed]"/>
-          <div className="space-y-3 p-4"><div className="h-5 w-4/5 animate-pulse rounded bg-[#e8edf2]"/><div className="h-4 w-3/5 animate-pulse rounded bg-[#e8edf2]"/><div className="mt-6 h-10 animate-pulse rounded bg-[#e8edf2]"/></div>
-        </div>)}
-      </div> : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-red-700">{error}</div>
+      {loading ? <PublicCatalogSkeleton kind="product" /> : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-red-700">{error}</div>
         : items.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {items.map(product=><ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct}
             availableQuantity={availability ? Number(availability[product.id] ?? 0) : undefined}/>)}

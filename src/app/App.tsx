@@ -64,9 +64,36 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
 
 // Este indicador permanece montado entre o carregamento do chunk, catálogo e imagens.
 function CartPageLoading() {
-  return <div role="status" aria-live="polite" aria-busy="true" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]">
-    <LoaderCircle size={34} className="animate-spin text-[#1032dc]" />
-    <span>Carregando seu carrinho...</span>
+  return <div role="status" aria-label="Carregando seu carrinho" aria-busy="true"
+    className="fixed inset-0 z-[90] overflow-y-auto bg-[#f7faff] text-[#10243d]">
+    <div className="h-[76px] bg-gradient-to-r from-[#102c60] to-[#193e78] sm:h-[84px] xl:h-[96px]" />
+    <div className="bg-gradient-to-r from-[#081a32] to-[#16416d] py-9">
+      <div className="mx-auto max-w-7xl space-y-3 px-4 sm:px-6 lg:px-8">
+        <div className="h-9 w-44 rounded-md bg-white/20 motion-safe:animate-pulse" />
+        <div className="h-3 w-32 rounded bg-white/15 motion-safe:animate-pulse" />
+      </div>
+    </div>
+    <div className="mx-auto grid max-w-7xl items-start gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
+      <div className="overflow-hidden rounded-xl border border-[#e3ebf5] bg-white shadow-sm">
+        <div className="border-b border-[#e6edf6] px-5 py-4"><div className="h-5 w-44 rounded bg-[#e4eaf4] motion-safe:animate-pulse" /></div>
+        {[0, 1].map(index => <div key={index} className="flex gap-4 border-b border-[#e6edf6] p-5 last:border-0">
+          <div className="h-24 w-24 shrink-0 rounded-lg bg-[#e5edf7] motion-safe:animate-pulse" />
+          <div className="min-w-0 flex-1 space-y-3 pt-2">
+            <div className="h-4 w-4/5 rounded bg-[#e1e9f4] motion-safe:animate-pulse" />
+            <div className="h-4 w-2/5 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
+            <div className="h-8 w-24 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
+          </div>
+        </div>)}
+      </div>
+      <div className="space-y-5 rounded-xl border border-[#e3ebf5] bg-white p-5 shadow-sm">
+        <div className="h-5 w-24 rounded bg-[#dfe8f4] motion-safe:animate-pulse" />
+        <div className="h-4 w-11/12 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
+        <div className="h-4 w-3/4 rounded bg-[#e9eef5] motion-safe:animate-pulse" />
+        <div className="h-6 w-full rounded bg-[#e2eaf4] motion-safe:animate-pulse" />
+        <div className="h-12 w-full rounded-lg bg-[#dce7f6] motion-safe:animate-pulse" />
+      </div>
+    </div>
+    <span className="sr-only">Preparando os itens e o resumo do carrinho.</span>
   </div>;
 }
 
