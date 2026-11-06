@@ -8,6 +8,7 @@ const read = path => readFileSync(path, "utf8");
 test("Buscar OS combina dois campos dentro de um controle, inclusive no celular", async () => {
   const ui = read("src/features/orders/presentation/OrdersFilters.tsx");
   const workspace = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
+  const screen = read("src/features/orders/presentation/TabOrders.tsx");
   for (const [path, source] of [
     ["OrdersFilters.tsx", ui],
     ["OrdersListWorkspace.tsx", workspace],
@@ -21,6 +22,7 @@ test("Buscar OS combina dois campos dentro de um controle, inclusive no celular"
   assert.match(ui, /h-6 w-px shrink-0 bg-border/);
   assert.match(ui, /mobile \? "order-search-exact-mobile" : "order-search-exact-desktop"/);
   assert.match(ui, /mobile \? "order-search-external-mobile" : "order-search-external-desktop"/);
+  assert.match(screen, /matchOrderNumberOrExternal: Boolean\(scopedReadOnly \|\| workspaceBase\.isOrganizationOverride\)/);
   assert.match(workspace, /externalOsSearch=\{externalOsSearch\}/);
   assert.match(workspace, /onExternalOsSearchChange=\{\(value\) => \{ setExternalOsSearch\(value\); setPage\(1\); \}\}/);
 });
