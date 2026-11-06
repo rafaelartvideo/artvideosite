@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
-import { AlertCircle, CheckCircle2, History, RotateCcw, Send, XCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, History, RotateCcw, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -345,7 +345,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </div>
     {footerHost && createPortal(<>
       {editable && <BtnPrimary disabled={busy} loading={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
-        onClick={() => openAction("submit")}><Send size={15} className="hidden shrink-0 sm:block"/> Enviar para aprovação</BtnPrimary>}
+        onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
         <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</AdminButton>
