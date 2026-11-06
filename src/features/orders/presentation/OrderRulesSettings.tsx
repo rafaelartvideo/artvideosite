@@ -58,3 +58,38 @@ export function OrderRulesSettings({organizationId,canEdit}:{organizationId:stri
    setMessage("Regras específicas removidas. Padrões herdados restaurados.");
   }catch(error){setMessage(systemErrorMessage(error));}finally{setSaving(false);}
  };
+
+ return <Section title="Configurações de Ordens de Serviço">
+  <div className="space-y-4">
+   <p className="text-xs text-muted-foreground">Regras independentes por empresa. As opções específicas substituem os padrões gerais; mudanças não devem invalidar OS antigas.</p>
+   <div className="grid gap-3 sm:grid-cols-3">
+    <label className="space-y-1"><span className="text-xs font-semibold">Aplicar a</span><RuleSelect value={scope} options={scopes} onChange={v=>setScope(v as Scope)}/></label>
+    {(scope==="service_type"||scope==="combination")&&<label className="space-y-1"><span className="text-xs font-semibold">Tipo de atendimento</span>
+     <RuleSelect value={serviceId} onChange={setServiceId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.types||[]).map(x=>({value:x.id,label:x.title}))]}/></label>}
+    {(scope==="equipment_type"||scope==="combination")&&<label className="space-y-1"><span className="text-xs font-semibold">Equipamento</span>
+     <RuleSelect value={equipmentId} onChange={setEquipmentId} options={[{value:"",label:"Selecionar..."},...(catalog.data?.equipment||[]).map(x=>({value:x.id,label:x.name}))]}/></label>}
+   </div>
+   {(rulesQuery.isLoading||catalog.isLoading)&&<p className="text-sm text-muted-foreground">Carregando configurações...</p>}
+   {(rulesQuery.error||catalog.error)&&<p role="alert" className="text-sm text-red-600">Não foi possível carregar configurações: {systemErrorMessage(rulesQuery.error||catalog.error)}</p>}
+   {configured&&!rulesQuery.error&&<div className="space-y-5">
+    <div className="space-y-2">
+     <h3 className="font-semibold text-sm">Campos da OS</h3>
+     {Object.entries(fieldLabels).map(([key,label])=><div key={key} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_160px_160px] sm:items-center">
+       <span className="text-sm font-medium">{label}</span>
+       <RuleSelect value={preview.fields[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("fields",key,{mode:v as RuleItem["mode"]})}/>
+       <RuleSelect value={preview.fields[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("fields",key,{stage:v as RuleItem["stage"]})}/>
+     </div>)}
+    </div>
+    <div className="space-y-2">
+     <h3 className="font-semibold text-sm">Fotos e evidências</h3>
+     {Object.entries(photoLabels).map(([key,label])=><div key={key} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_145px_145px_80px] sm:items-center">
+       <span className="text-sm font-medium">{label}</span>
+       <RuleSelect value={preview.photos[key]?.mode||"optional"} disabled={!canEdit} options={modes} onChange={v=>editRule("photos",key,{mode:v as RuleItem["mode"]})}/>
+       <RuleSelect value={preview.photos[key]?.stage||"create"} disabled={!canEdit} options={stages} onChange={v=>editRule("photos",key,{stage:v as RuleItem["stage"]})}/>
+       <input className={control} type="number" aria-label={"Quantidade mínima: "+label} min={1} max={20} disabled={!canEdit} value={preview.photos[key]?.minCount||1} onChange={e=>editRule("photos",key,{minCount:Math.max(1,Math.min(20,Number(e.target.value)||1))})}/>
+     </div>)}
+    </div>
+   </div>}
+  </div>
+ </Section>;
+}
