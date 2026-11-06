@@ -34,7 +34,7 @@ test("tela de conclusão espera dados essenciais e mostra certificação na segu
   assert.match(modal, /completion\.paymentProofRequirementLoading/);
   assert.match(modal, /LoadingState text="Preparando conclusão\.\.\."/);
   assert.match(modal, /grid min-w-0 items-stretch gap-4 lg:grid-cols-2/);
-  assert.match(modal, /<Section title="Produtos e serviços">/);
+  assert.match(modal, /<Section title="Produtos e serviços"/);
   assert.match(modal, /<Section title="Certificado de garantia">/);
   assert.match(modal, /Nenhum produto ou serviço utilizado\./);
   assert.match(modal, /!hasServices && !hasProducts/);
@@ -60,9 +60,10 @@ test("falha ao preparar a conclusão mostra erro e permite tentar novamente sem 
   const tab = read("src/features/orders/presentation/TabOrders.tsx");
   const details = read("src/features/orders/application/useOrderDetails.ts");
   assert.match(tab, /detailsController\.detailLoadError/);
-  assert.match(tab, /Não foi possível preparar a conclusão/);
-  assert.match(tab, /detailsController\.retryDetailLoad\(\)/);
-  assert.match(tab, />Tentar novamente<\/AdminButton>/);
+  const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
+  assert.match(modal, /Não foi possível preparar a conclusão/);
+  assert.match(tab, /onRetryCompletionPreparation=\{\(\) => void detailsController\.retryDetailLoad\(\)\}/);
+  assert.match(modal, />Tentar novamente<\/AdminButton>/);
   assert.match(details, /detailLoadError: selectedOrderBelongsToOrganization \? detailQuery\.error : null/);
   assert.match(details, /retryDetailLoad: \(\) => detailQuery\.refetch\(\)/);
 });
