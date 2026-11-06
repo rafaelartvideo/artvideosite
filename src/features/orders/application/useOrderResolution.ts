@@ -404,14 +404,14 @@ export function useOrderResolution({
     const diagnosis = solveDraft.diagnosis.trim();
     const solution = solveDraft.solution.trim();
     const resolutionFields = (detail?.order_rules_snapshot as RuleSet | null)?.fields;
-    if (!diagnosis && (!resolutionFields || requiredAt(resolutionFields.diagnosis,"finish"))) {
+    if (!diagnosis && (!resolutionFields?.diagnosis || requiredAt(resolutionFields.diagnosis,"finish"))) {
       showToast({
         msg: "Informe o diagnóstico antes de concluir a solução.",
         type: "error",
       });
       return;
     }
-    if (!solution && (!resolutionFields || requiredAt(resolutionFields.solution,"finish"))) {
+    if (!solution && (!resolutionFields?.solution || requiredAt(resolutionFields.solution,"finish"))) {
       showToast({
         msg: "Informe a solução antes de concluir a OS.",
         type: "error",
