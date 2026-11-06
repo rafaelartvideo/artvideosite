@@ -73,12 +73,14 @@ export function DashboardMetricCard({
   icon: Icon,
   tone = "blue",
   hint,
+  onClick,
 }: {
   label: string;
   value: ReactNode;
   icon: ElementType;
   tone?: DashboardMetricTone;
   hint?: string;
+  onClick?: () => void;
 }) {
   const tones = {
     blue: "border-blue-100 bg-blue-50 text-blue-700",
@@ -88,8 +90,8 @@ export function DashboardMetricCard({
     purple: "border-violet-100 bg-violet-50 text-violet-700",
     slate: "border-slate-200 bg-slate-50 text-slate-700",
   };
-  return (
-    <AdminCard className="flex min-h-[92px] items-center justify-between gap-3 p-4">
+  const card = (
+    <AdminCard className="flex h-full min-h-[92px] items-center justify-between gap-3 p-4 transition-colors">
       <div className="min-w-0">
         <p className="truncate text-[10px] font-black uppercase tracking-[0.1em] text-[#5a6a82]">{label}</p>
         <p className="mt-1 truncate text-2xl font-black leading-none text-[#0d1b2e]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</p>
@@ -98,6 +100,8 @@ export function DashboardMetricCard({
       <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border", tones[tone])}><Icon size={19} /></div>
     </AdminCard>
   );
+  return onClick ? <button type="button" onClick={onClick} aria-label={`Ver detalhes de ${label}`}
+    className="min-w-0 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&>*]:hover:border-primary/40 [&>*]:hover:bg-muted/30">{card}</button> : card;
 }
 
 export function DashboardPanel({
