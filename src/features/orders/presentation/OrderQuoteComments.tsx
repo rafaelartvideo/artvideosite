@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Heart, Image as ImageIcon, MessageCircle, Paperclip, Send, Smile, X } from "lucide-react";
+import { FileText, Heart, Image as ImageIcon, MessageCircle, Mic, Paperclip, Send, Smile, Square, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -129,6 +130,127 @@ export function OrderQuoteComments({
   const [submitting, setSubmitting] = useState(false);
   const [pendingLikes, setPendingLikes] = useState<string[]>([]);
   const [expandedReplies, setExpandedReplies] = useState<string[]>([]);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
+  const emojiOverlayRef = useRef<HTMLDivElement>(null);
+  const [emojiPosition, setEmojiPosition] = useState({ left: 8, top: 8, width: 352, height: 340 });
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cancelRecordingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    cancelRecordingRef.current = true;
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    streamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
+
+  // Portal fixo: nunca fica atrás/cortado pelo overflow dos cards, abas ou modais.
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const reposition = () => {
+      const trigger = emojiTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(352, window.innerWidth - 16);
+      const height = Math.min(340, window.innerHeight - 16);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const above = rect.top - height - 10;
+      const below = rect.bottom + 10;
+      const top = above >= 8 ? above
+        : below + height <= window.innerHeight - 8 ? below
+        : Math.max(8, window.innerHeight - height - 8);
+      setEmojiPosition({ left, top, width, height });
+    };
+    const dismiss = (event: PointerEvent) => {
+      if (emojiTriggerRef.current?.contains(event.target as Node) ||
+          emojiOverlayRef.current?.contains(event.target as Node)) return;
+      setEmojiOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEmojiOpen(false);
+    };
+    reposition();
+    window.addEventListener("resize", reposition);
+    document.addEventListener("scroll", reposition, true);
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [emojiOpen]);
+
+  const stopRecording = () => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  };
+  const startRecording = async () => {
+    if (recording || submitting || files.length >= 3) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      notifyAdmin("Este navegador não permite gravar áudio.", "error");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      const format = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/webm"]
+        .find(type => MediaRecorder.isTypeSupported(type));
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, format ? { mimeType: format } : undefined);
+      } catch (error) {
+        stream.getTracks().forEach(track => track.stop());
+        throw error;
+      }
+      const chunks: Blob[] = [];
+      cancelRecordingRef.current = false;
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.ondataavailable = event => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        if (streamRef.current === stream) streamRef.current = null;
+        if (recorderRef.current === recorder) recorderRef.current = null;
+        if (!mountedRef.current) return;
+        setRecording(false);
+        if (cancelRecordingRef.current || !chunks.length) return;
+        const mimeType = recorder.mimeType.split(";")[0];
+        const extension = mimeType === "audio/mp4" ? "m4a"
+          : mimeType === "audio/ogg" ? "ogg" : "webm";
+        const file = new File(chunks, `Áudio do comentário.${extension}`, {
+          type: mimeType === "audio/mp4" || mimeType === "audio/ogg" ? mimeType : "audio/webm",
+        });
+        try {
+          validateOrderQuoteCommentFiles([...files, file]);
+          setFiles(previous => {
+            try {
+              validateOrderQuoteCommentFiles([...previous, file]);
+              return [...previous, file];
+            } catch {
+              return previous;
+            }
+          });
+        } catch (error) {
+          notifyAdmin(systemErrorMessage(error, "Não foi possível anexar a gravação."), "error");
+        }
+      };
+      recorder.onerror = () => {
+        cancelRecordingRef.current = true;
+        notifyAdmin("Não foi possível gravar o áudio.", "error");
+        stopRecording();
+      };
+      recorder.start(500);
+      setRecording(true);
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível acessar o microfone."), "error");
+    }
+  };
 
   const byParent = useMemo(() => {
     const map = new Map<string, OrderQuoteComment[]>();
