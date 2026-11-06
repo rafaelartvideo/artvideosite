@@ -28,7 +28,7 @@ test("comentários incluem respostas, curtidas, emojis, anexos e envio seguro", 
   assert.match(ui, /<Heart size=\{15\}/);
   assert.match(ui, /<Paperclip size=\{21\}/);
   assert.match(ui, /<Send size=\{22\}/);
-  assert.match(ui, /disabled=\{submitting \|\| recording \|\| \(!draft\.trim\(\) && !files\.length\)\}/);
+  assert.match(ui, /disabled=\{submitting \|\| \(!draft\.trim\(\) && !files\.length\)\}/);
   assert.match(repo, /add_service_order_quote_comment_v2/);
   assert.match(repo, /validateOrderQuoteCommentFiles/);
   assert.match(repo, /createSignedUrls/);
@@ -79,7 +79,7 @@ test("compositor de comentários fica ao final e segue a barra do WhatsApp", asy
   assert.match(component, /<form onSubmit=\{event =>/);
   assert.match(component, /<Paperclip size=\{21\}/);
   assert.match(component, /<Smile size=\{21\}/);
-  assert.match(component, /<Mic size=\{21\}/);
+  assert.doesNotMatch(component, /<Mic size=\{21\}/);
   assert.match(component, /<Send size=\{22\}/);
   assert.match(component, /<SacEmojiPicker embedded recentEmojis=/);
   assert.match(component, /createPortal\(/);
@@ -88,15 +88,27 @@ test("compositor de comentários fica ao final e segue a barra do WhatsApp", asy
   assert.match(emojiPicker, /embedded = false/);
 });
 
-test("notas de voz são anexos privados com prévia para reprodução", () => {
+test("envio de áudio permanece desativado, mas arquivos históricos podem ser reproduzidos", () => {
   const component = read("src/features/orders/presentation/OrderQuoteComments.tsx");
   const repository = read("src/features/orders/infrastructure/order-quote.repository.ts");
-  const sql = read("supabase/migrations/20261106130241_order_quote_comment_audio.sql");
-  assert.match(component, /navigator\.mediaDevices\.getUserMedia/);
-  assert.match(component, /new MediaRecorder/);
+  const sql = read("supabase/migrations/20261106132057_disable_quote_comment_audio_uploads.sql");
+  assert.doesNotMatch(component, /MediaRecorder|navigator\.mediaDevices\.getUserMedia|startRecording|stopRecording/);
+  assert.doesNotMatch(component, /<Mic size=/);
+  assert.doesNotMatch(component, /accept="[^"]*audio\//);
   assert.match(component, /<audio controls preload="none"/);
-  assert.match(repository, /"audio\/webm", "audio\/ogg", "audio\/mp4", "audio\/mpeg"/);
-  assert.match(repository, /file\.mimeType\.startsWith\("audio\/"\)/);
-  assert.match(sql, /media\.mime_type in \('audio\/webm'/);
+  const acceptedFiles = repository.slice(repository.indexOf("const COMMENT_ALLOWED_MIME"),
+    repository.indexOf("export async function addOrderQuoteComment"));
+  assert.doesNotMatch(acceptedFiles, /"audio\/(webm|ogg|mp4|mpeg)"/);
+  assert.match(repository, /validateOrderQuoteCommentFiles/);
+  assert.doesNotMatch(sql, /'audio\/(webm|ogg|mp4|mpeg)'/);
   assert.match(sql, /private\.can_view_service_order\(service_order_id\)/);
+  assert.match(sql, /'application\/pdf'/);
+});
+
+test("contador de comentários segue exatamente o badge azul dos itens do orçamento", () => {
+  const comments = read("src/features/orders/presentation/OrderQuoteComments.tsx");
+  const items = read("src/features/orders/presentation/OrderQuoteCommercialEditor.tsx");
+  const badge = "inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary";
+  assert.ok(comments.includes('className="' + badge + '">{notes.length}'));
+  assert.ok(items.includes('className="' + badge + '">{draft.items.length}'));
 });
