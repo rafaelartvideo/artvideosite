@@ -102,17 +102,31 @@ export function LifecycleStatusBadge({ status }: { status: string }) {
   </span>;
 }
 export function StatusBadge({ status, color }: { status: string; color?: string | null }) {
-  const lifecycleTone = lifecycleStatusTone(status);
-  if (lifecycleTone) return <LifecycleStatusBadge status={status} />;
+  // Uma cor cadastrada para a situação tem prioridade absoluta sobre as
+  // cores semânticas calculadas a partir do nome (ex.: "Aguardando" ou "Pronto").
+  const savedColor = color?.trim();
+  const customColor = Boolean(savedColor && isHexColor(savedColor));
+  if (!customColor) {
+    const lifecycleTone = lifecycleStatusTone(status);
+    if (lifecycleTone) return <LifecycleStatusBadge status={status} />;
+  }
 
   const tone = getStatusTone(status);
-  const classes = STATUS_TONE_CLASSES[tone].badge;
-  // Cores personalizadas só prevalecem para estados sem significado reconhecido.
-  const customColor = tone === "neutral" && Boolean(color && isHexColor(color));
   return (
     <span
-      className={cn("inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide", customColor ? "border" : classes)}
-      style={customColor ? { color: color!, backgroundColor: `${color}20`, borderColor: `${color}55` } : undefined}
+      data-custom-status-color={customColor ? "true" : undefined}
+      className={cn(
+        "inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+        customColor ? "border-solid" : STATUS_TONE_CLASSES[tone].badge,
+      )}
+      style={customColor ? {
+        color: savedColor,
+        backgroundColor: `${savedColor}18`,
+        borderColor: `${savedColor}66`,
+        backgroundImage: "none",
+        boxShadow: "none",
+        animation: "none",
+      } : undefined}
     >
       {status || "—"}
     </span>
