@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Layers3, WandSparkles } from "lucide-react";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
-import { formatCurrency } from "@/shared/domain/formatters";
 
 export type VariantOption = { name: string; values: string };
 export type VariantMatrixRow = {
