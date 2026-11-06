@@ -6,7 +6,7 @@ import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, CircleX, FileCheck2, 
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminFieldLabel, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -336,11 +336,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 </div>}
       </AdminMobileSearchSwitch>
       <div className={`hidden min-w-0 grid-cols-1 items-end gap-3 md:grid ${isReceivable ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-        {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
-        <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
-        <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={documentSearch}
-          onChange={(event: any) => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" /></div>
-        <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
+        {isReceivable && <AdminSearchTextField label="Número da OS" value={os} onChange={setOs} placeholder="Número da OS" />}
+        <AdminSearchTextField label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={setName} placeholder="Nome" />
+        <AdminSearchTextField label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric"
+          value={documentSearch} onChange={setDocumentSearch} placeholder="CPF ou CNPJ" />
+        <AdminSearchTextField label="Origem" value={originSearch} onChange={setOriginSearch} placeholder="Descrição ou origem do lançamento" />
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
