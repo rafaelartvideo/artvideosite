@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, Edit2, Image as ImageIcon, Layers3, List, Package, Warehouse } from "lucide-react";
-import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import type { ReactNode } from "react";
+import { ArrowLeftRight, Edit2, Layers3, List, Package } from "lucide-react";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { listRelatedProductCodes } from "../infrastructure/products.repository";
@@ -28,7 +28,7 @@ type Props = {
   onOpenProduct: (productId: string) => void;
 };
 
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
+function Detail({ label, value }: { label: string; value: ReactNode }) {
   return <div className="min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
     <div className="mt-1 break-words text-xs font-semibold text-foreground">{value ?? "—"}</div>
@@ -151,8 +151,8 @@ export function InventoryProductDetailsDialog({
         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground">{product.description}</p>
       </div>}
       {canViewCosts && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Detail label="Última compra" value={inventory?.purchase_price == null ? "—" : formatCurrency(inventory.purchase_price)}/>
-        <Detail label="Custo médio" value={inventory?.average_cost == null ? "—" : formatCurrency(inventory.average_cost)}/>
+        <Detail label="Última compra" value={inventory?.purchase_price == null ? "—" : formatCurrency(Number(inventory.purchase_price) * (unit === "cx" ? factor : 1))}/>
+        <Detail label="Custo médio" value={inventory?.average_cost == null ? "—" : formatCurrency(Number(inventory.average_cost) * (unit === "cx" ? factor : 1))}/>
         <Detail label="Valor em estoque" value={inventory?.stock_value == null ? "—" : formatCurrency(inventory.stock_value)}/>
       </div>}
     </section>
