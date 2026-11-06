@@ -2,6 +2,7 @@ import { Package, Wrench } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialEntryDetail } from "../domain/finance.types";
+import { financeServiceOrderLabel } from "../domain/finance-origin-label.mjs";
 
 function Value({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</p><div className="mt-1 break-words text-sm font-semibold text-[#0d1b2e]">{value}</div></div>;
@@ -15,9 +16,9 @@ export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: F
 
   if (detail.origin_type === "service_order") {
     return <AdminCard>
-      <AdminCardHeader><div className="flex items-center gap-2">{showIcon && <Wrench size={17} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">{showIcon ? "Origem: Ordem de Serviço" : "Origem"}</h3><p className="text-xs text-[#5a6a82]">{source.os_number ? `OS #${source.os_number}` : "Receita gerada automaticamente na conclusão da OS."}</p></div></div></AdminCardHeader>
+      <AdminCardHeader><div className="flex items-center gap-2">{showIcon && <Wrench size={17} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">{showIcon ? "Origem: Ordem de Serviço" : "Origem"}</h3><p className="text-xs text-[#5a6a82]">{source.os_number ? financeServiceOrderLabel(source.os_number) : "Receita gerada automaticamente na conclusão da OS."}</p></div></div></AdminCardHeader>
       <AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Value label="OS" value={source.os_number ? `#${source.os_number}` : "—"} />
+        <Value label="OS" value={source.os_number ? financeServiceOrderLabel(source.os_number) : "—"} />
         <Value label="Serviço" value={source.general_service_name || "—"} />
         <Value label="Valor do serviço" value={formatCurrency(Number(source.service_price || 0))} />
         <Value label="Peças" value={formatCurrency(Number(source.parts_total || 0))} />
