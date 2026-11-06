@@ -31,7 +31,7 @@ const ACTION_TITLES: Record<QuoteAction,string> = {
   renegotiate: "Renegociar",
 };
 const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
-  submit: "Confirmar envio",
+  submit: "Confirmar",
   approve: "Confirmar aprovação",
   reject: "Confirmar rejeição",
   renegotiate: "Confirmar renegociação",
@@ -188,6 +188,17 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   const act=async(action:QuoteAction)=>{
     if(busy || submissionLocked.current || !canEdit || confirmationAction!==action ||
       modalFeedback?.type==="success")return;
+    if(action==="submit"){
+      const missing: string[] = [];
+      if(!draft.diagnosis.trim()) missing.push("preencha o diagnóstico");
+      if(!draft.proposed_solution.trim()) missing.push("preencha a solução");
+      if(!draft.items.length) missing.push("adicione pelo menos um item");
+      if(missing.length){
+        const instructions=missing.join(", ").replace(/, ([^,]*)$/, " e $1");
+        setModalFeedback({type:"error",message:"Para encaminhar o orçamento, "+instructions+"."});
+        return;
+      }
+    }
     if(action==="submit" && (draft.diagnosis.length>MAX_TECHNICAL_CHARS ||
       draft.proposed_solution.length>MAX_TECHNICAL_CHARS)){
       setModalFeedback({type:"error",message:"Diagnóstico e solução proposta devem ter no máximo 400 caracteres cada."});
@@ -424,14 +435,14 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           ? <BtnPrimary onClick={closeAction}>Concluir</BtnPrimary>
           : <>
             <BtnSecondary disabled={busy} onClick={closeAction}>Voltar</BtnSecondary>
-            <BtnPrimary
+            {!modalFeedback && <BtnPrimary
               disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !canReuseExecution)))}
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
               {confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
-            </BtnPrimary>
-          </>}
+            </BtnPrimary>}
+          </>
       </div>}>
       <div className="min-h-[126px] space-y-4">
         <AnimatePresence mode="wait">
