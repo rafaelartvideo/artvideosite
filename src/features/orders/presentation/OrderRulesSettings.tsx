@@ -139,21 +139,28 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
       if (!changedEntries.length) return;
       if (!canEdit || loading || rulesQuery.error || catalog.error) throw new Error("As regras da OS ainda não estão disponíveis para salvar.");
       // Envia exclusivamente os escopos modificados; os outros permanecem intocados.
-      for (const [key, entry] of changedEntries) {
-        const savedRow = findRuleRow(rows, entry.scope, entry.serviceId, entry.equipmentId);
-        if (!Object.keys(entry.rules).length) {
-          if (savedRow?.id) await removeOrderRules(organizationId, savedRow.id);
-        } else {
-          await saveOrderRules(organizationId, entry.scope, entry.serviceId, entry.equipmentId, entry.rules);
+      let savedAny = false;
+      try {
+        for (const [key, entry] of changedEntries) {
+          const savedRow = findRuleRow(rows, entry.scope, entry.serviceId, entry.equipmentId);
+          if (!Object.keys(entry.rules).length) {
+            if (savedRow?.id) await removeOrderRules(organizationId, savedRow.id);
+          } else {
+            await saveOrderRules(organizationId, entry.scope, entry.serviceId, entry.equipmentId, entry.rules);
+          }
+          savedAny = true;
+          setDrafts(previous => {
+            const next = { ...previous };
+            // Não descarta alterações feitas durante a gravação.
+            if (next[key] === entry) delete next[key];
+            return next;
+          });
         }
-        setDrafts(previous => {
-          const next = { ...previous };
-          // Não descarta alterações feitas durante a gravação.
-          if (next[key] === entry) delete next[key];
-          return next;
-        });
+      } finally {
+        // Se algum escopo foi gravado antes de uma falha, refaz a leitura para
+        // mostrar os dados atualizados sem perder os rascunhos restantes.
+        if (savedAny) await client.invalidateQueries({ queryKey: ["organization-order-rules", organizationId] });
       }
-      await client.invalidateQueries({ queryKey: ["organization-order-rules", organizationId] });
     },
   }), [changedEntries, canEdit, loading, rulesQuery.error, catalog.error, rows, organizationId, client]);
 
