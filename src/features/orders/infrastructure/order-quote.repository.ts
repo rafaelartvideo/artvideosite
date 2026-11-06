@@ -177,14 +177,13 @@ const COMMENT_ALLOWED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
   "application/pdf", "text/plain", "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg",
 ]);
 
 export function validateOrderQuoteCommentFiles(files: File[]) {
   if (files.length > 3) throw new Error("Selecione no máximo 3 anexos por comentário.");
   for (const file of files) {
     if (!COMMENT_ALLOWED_MIME.has(file.type.toLowerCase())) {
-      throw new Error("Envie imagens, áudios, PDF, TXT ou documentos Word.");
+      throw new Error("Envie imagens, PDF, TXT ou documentos Word.");
     }
     if (file.size <= 0 || file.size > COMMENT_MAX_ATTACHMENT_BYTES) {
       throw new Error(`O arquivo "${file.name}" deve ter até 10 MB.`);
