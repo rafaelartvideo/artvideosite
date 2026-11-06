@@ -5,7 +5,7 @@ export type CustomField = { key: string; label: string; type: "text"|"number"|"d
 export type RuleSet = { fields: Record<string,RuleItem>; photos: Record<string,RuleItem>; custom_fields: CustomField[] };
 export type Scope = "company"|"service_type"|"equipment_type"|"combination";
 export type RuleRow = { id?: string; organization_id: string; scope: Scope; service_type_id: string|null; equipment_type_id: string|null; rules: Partial<RuleSet> };
-export const fieldLabels: Record<string,string> = { customer_notes:"Descrição do problema",equipment_type_id:"Tipo de equipamento",equipment_brand_id:"Marca",equipment_model_id:"Modelo",serial_number:"Número de série",accessories:"Acessórios",internal_notes:"Observações internas",external_os_number:"OS externa",diagnosis:"Diagnóstico",solution:"Solução" };
+export const fieldLabels: Record<string,string> = { customer_notes:"Descrição do problema",equipment_type_id:"Tipo de equipamento",equipment_brand_id:"Marca",equipment_model_id:"Modelo",serial_number:"Número de série",accessories:"Acessórios",internal_notes:"Observações internas",external_os_number:"OS externa" };
 export const photoLabels: Record<string,string> = { label:"Foto da etiqueta",equipment:"Fotos do equipamento" };
 export const defaultRules: RuleSet = {
  fields: Object.fromEntries(Object.keys(fieldLabels).map(key=>[key,{mode:key==="customer_notes"?"required":"optional",stage:["diagnosis","solution"].includes(key)?"finish":"create"}])) as RuleSet["fields"],
