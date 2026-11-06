@@ -11,6 +11,7 @@ import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
+import { financialDueUrgency } from "../domain/finance-due-urgency.mjs";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -65,6 +66,15 @@ function EntryDetailContent({
   const plannedMethods = (Array.isArray(detail.source_details?.payment_plan) ? detail.source_details.payment_plan : []) as Array<{payment_method_id:string;amount:number}>;
   const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+  const dueUrgency = financialDueUrgency(due?.due_date);
+  const dueTone = dueUrgency === "today" || dueUrgency === "overdue"
+    ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
+    : dueUrgency === "urgent"
+      ? "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+      : dueUrgency === "soon"
+        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+        : "border-border bg-background text-foreground";
+  const dueMessage = dueUrgency === "today" ? " · Vence hoje" : dueUrgency === "overdue" ? " · Vencido" : "";
   const originLabel = detail.origin_type === "manual" ? "Cadastro manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type === "recurring" ? "Recorrência" : "Outros";
   const editable = canEdit && ["draft", "pending", "rejected", "approved"].includes(detail.approval_status) && detail.origin_type === "manual" && detail.settlements.length === 0;
   const canAdjustForecast = !isReceivable && canEdit && Boolean(onAdjustInstallment)
@@ -92,15 +102,19 @@ function EntryDetailContent({
       <div className="border-b border-border bg-muted/30 px-5 py-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0">
-            <h3 className="break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h3 className="min-w-0 break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
+              {due && <span role="status" className={`inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-xs font-bold tabular-nums ${dueTone}`}>
+                Próximo vencimento: {formatDate(due.due_date)}{dueMessage}
+              </span>}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">{detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
             {detail.counterpart_document_snapshot && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatFinancialDocument(detail.counterpart_document_snapshot)}</p>}
           </div>
           {editable && <AdminButton size="sm" variant="secondary" onClick={onEdit}>Editar lançamento</AdminButton>}
         </div>
-        <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
           <div><p className="text-muted-foreground">Emissão</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(detail.issue_date)}</p></div>
-          <div><p className="text-muted-foreground">Próximo vencimento</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(due?.due_date)}</p></div>
           <div><p className="text-muted-foreground">Origem</p><p className="mt-0.5 font-semibold text-foreground">{originLabel}</p></div>
           <div><p className="text-muted-foreground">Parcelas</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{detail.installments.length}</p></div>
         </div>
@@ -108,7 +122,7 @@ function EntryDetailContent({
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(detail.original_amount)}</p></div>
         <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
-        <div className="bg-primary/5 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(remaining)}</p></div>
+        <div className="bg-amber-500/5 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</p></div>
       </div>
     </section>
 
@@ -138,7 +152,6 @@ function EntryDetailContent({
             <Info label="Forma de pagamento" value={methods.length ? methods.join(", ") : plannedText ? `${plannedText} (previsto)` : "A definir (sem baixa)"} />
             <Info label="Emissão" value={formatDate(detail.issue_date)} />
             <Info label="Competência" value={formatDate(detail.competence_date)} />
-            <Info label="Próximo vencimento" value={formatDate(due?.due_date)} />
             <Info label="Categoria" value={Array.from(new Set(detail.allocations.map(item => item.category_name_snapshot))).join(", ") || "—"} />
             <Info label="Origem" value={originLabel} />
             <Info label="Cadastrado por" value={detail.created_by_name || "Não identificado"} />
@@ -160,7 +173,7 @@ function EntryDetailContent({
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto">
           <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
-            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums">{formatCurrency(item.settled_amount)}</td><td className="text-right font-bold tabular-nums text-primary">{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
               {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                 type="button" disabled={forecastPending} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
