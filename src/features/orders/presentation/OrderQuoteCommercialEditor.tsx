@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Pencil, Pin, Plus, Search, Trash2 } from "lucide-react";
 import { AdminButton, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FCurrencyInput, FInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -6,7 +7,8 @@ import { cn, formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { CatalogResults, NumberStepper } from "./OrderCommercialControls";
-import { searchOrderProducts, searchOrderServices, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
+import { searchOrderProducts, searchOrderServices, listOrderProductCompatibilities, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
+import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 import type { OrderQuoteDraft, OrderQuoteItem } from "../infrastructure/order-quote.repository";
 
 function positiveInteger(value: unknown) {
@@ -34,6 +36,12 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
   const [price, setPrice] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const compatibleQuery = useQuery({
+    queryKey: ["orders", "auto-compatible", "quote", orderId, category, selected?.id],
+    queryFn: () => listOrderProductCompatibilities(orderId, [selected!.id]),
+    enabled: Boolean(category === "product" && !disabled && orderId && selected?.id),
+    staleTime: 15_000,
+  });
 
   useEffect(() => {
     if (disabled || !searchOpen || selected || !orderId) return;
@@ -129,6 +137,19 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
           disabled={!selected || disabled || price.trim() === ""}
           onClick={add}><Plus size={15}/> Adicionar</BtnPrimary>
       </div>
+      {!isService && selected && Boolean(compatibleQuery.data?.length) && <CompatibleProductCarousel
+        sourceName={selected.name}
+        products={(compatibleQuery.data || []).map(item => ({
+          id: item.inventory_item_id,name: item.name,sku: item.sku,barcode: item.barcode,
+          coverMediaId: item.cover_media_id,price: item.price,stock: item.stock,unit: item.unit,
+        }))}
+        actionLabel="Selecionar"
+        disabled={disabled}
+        onPick={item => select({
+          id:item.id,name:item.name,description:null,unit:item.unit || "un",
+          price:item.price ?? null,stock:item.stock ?? 0,price_at_completion:false,
+        })}
+      />}
       {selected && (isService ? <p className="text-[10px] leading-relaxed text-muted-foreground">
         {selected.price_at_completion
           ? "Valor a definir na conclusão da OS."
