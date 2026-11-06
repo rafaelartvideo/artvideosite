@@ -9,6 +9,7 @@ import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
+import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
@@ -32,6 +33,13 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR");
 }
 
+// O limite final é exclusivo. Converter no fuso local evita perder o último dia pesquisado.
+function localDateBoundary(value: string, nextDay = false) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day + (nextDay ? 1 : 0)).toISOString();
+}
+
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -47,6 +55,8 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
   const canTransfer = hasPermission("finance.transfers.create");
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -61,11 +71,13 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
     movementPageSize: pageSize,
     movementSearch: debouncedSearch,
     movementAccountId: accountFilter === "all" ? "" : accountFilter,
+    movementStartAt: localDateBoundary(dateFrom),
+    movementEndAt: localDateBoundary(dateTo, true),
   });
 
   useEffect(() => {
     setPage(1);
-  }, [search, accountFilter, pageSize]);
+  }, [search, accountFilter, dateFrom, dateTo, pageSize]);
 
   const balances = finance.balancesQuery.data || {};
   const accounts = (foundation.accountsQuery.data || []).map(item => ({ ...item, balance: Number(balances[item.id] || 0) }));
@@ -111,13 +123,27 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
 
     
 
-    <div className="grid gap-3 border-b border-border pb-4 sm:grid-cols-[minmax(0,1fr)_260px] sm:items-end">
-      <div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div>
-      <FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} />
-    </div>
+    <AdminSearchPanel title="Buscar movimentações" headerActions={<AdminSearchClearButton onClick={() => {
+      setSearch(""); setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
+    }} />}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="relative min-w-0 self-end"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><FInput aria-label="Pesquisar movimentações" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, tipo ou conta" /></div>
+        <FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} />
+        <FInput label="Data inicial" type="date" value={dateFrom} onChange={(event: any) => {
+          const next = event.target.value;
+          setDateFrom(next);
+          if (dateTo && next && next > dateTo) setDateTo(next);
+        }} />
+        <FInput label="Data final" type="date" value={dateTo} onChange={(event: any) => {
+          const next = event.target.value;
+          setDateTo(next);
+          if (dateFrom && next && next < dateFrom) setDateFrom(next);
+        }} />
+      </div>
+    </AdminSearchPanel>
       {loading ? <div className="p-10"><LoadingState text="Carregando movimentações..." /></div> : movements.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
-        <div className="grid gap-2 p-3 md:hidden">{movements.map(item => <button type="button" key={item.id} onClick={() => setSelectedMovement(item)} className="w-full rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/60"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{accountById.get(item.financial_account_id)?.name || "Conta"} · {MOVEMENT_LABELS[item.movement_type]}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></button>)}</div>
-        <FinanceTableSurface className="hidden md:block"><table className="min-w-[900px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-left">Descrição</th><th className="text-right">Valor</th></tr></thead><tbody>{movements.map(item => <FinanceTableRow key={item.id} label={`Abrir movimentação ${item.description_snapshot}`} onOpen={() => setSelectedMovement(item)}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-[#5a6a82]">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-xs text-[#5a6a82]">{item.description_snapshot}</td><td className={`text-right font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>
+        <div className="grid gap-2 p-3 md:hidden">{movements.map(item => <button type="button" key={item.id} onClick={() => setSelectedMovement(item)} className="w-full rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/60"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{item.origin_label || "Movimentação financeira"} · {accountById.get(item.financial_account_id)?.name || "Conta"}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></button>)}</div>
+        <FinanceTableSurface className="hidden md:block"><table className="min-w-[1100px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Origem</th><th className="text-left">Descrição</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-right">Entrada</th><th className="text-right">Saída</th></tr></thead><tbody>{movements.map(item => <FinanceTableRow key={item.id} label={`Abrir movimentação ${item.description_snapshot}`} onOpen={() => setSelectedMovement(item)}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{item.origin_label || "Movimentação financeira"}</td><td className="text-xs text-muted-foreground">{item.description_snapshot}</td><td className="text-xs">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-muted-foreground">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-right font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{item.direction === "credit" ? formatCurrency(item.amount) : "—"}</td><td className="text-right font-bold tabular-nums text-red-600 dark:text-red-400">{item.direction === "debit" ? formatCurrency(item.amount) : "—"}</td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>
         <PaginationBar
           page={page}
           pageSize={pageSize}
@@ -137,7 +163,8 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
         <div><dt className="text-xs text-muted-foreground">Data</dt><dd className="text-sm font-semibold text-foreground">{formatDateTime(selectedMovement.occurred_at)}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Conta</dt><dd className="text-sm font-semibold text-foreground">{accountById.get(selectedMovement.financial_account_id)?.name || "—"}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Tipo</dt><dd className="text-sm font-semibold text-foreground">{MOVEMENT_LABELS[selectedMovement.movement_type]}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className="text-sm font-semibold text-foreground">{selectedMovement.direction === "credit" ? "+" : "-"}{formatCurrency(selectedMovement.amount)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Origem</dt><dd className="text-sm font-semibold text-foreground">{selectedMovement.origin_label || "Movimentação financeira"}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className={`text-sm font-semibold ${selectedMovement.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{selectedMovement.direction === "credit" ? "+" : "-"}{formatCurrency(selectedMovement.amount)}</dd></div>
         <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Descrição</dt><dd className="break-words text-sm font-semibold text-foreground">{selectedMovement.description_snapshot}</dd></div>
       </dl>}
     </AdminDialog>
