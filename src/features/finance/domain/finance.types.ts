@@ -191,6 +191,7 @@ export interface FinancialMovement {
   occurred_at: string;
   source_type: FinancialMovementSourceType;
   source_id: string;
+  origin_label?: string;
   reversal_of_movement_id: string | null;
   cash_session_id?: string | null;
   description_snapshot: string;
@@ -363,6 +364,7 @@ export interface FinancialDecisionResult {
 
 export interface FinancialSettlementDraft {
   entry_id: string;
+  settle_all?: boolean;
   installment_id: string;
   principal_amount: number;
   interest_amount: number;
