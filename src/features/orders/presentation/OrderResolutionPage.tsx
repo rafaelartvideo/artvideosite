@@ -60,12 +60,11 @@ export function OrderResolutionPage({
   const looseParts = String(solveDraft.looseParts || "");
 
   return (
-<AdminPage open={true} onClose={onClose} breadcrumb="Ordens de Serviço" title="Solucionar OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-2xl">
+<AdminPage open={true} onClose={onClose} breadcrumb="Ordens de Serviço" title="Solucionar OS" subtitle="Diagnóstico, solução e produtos utilizados" maxW="max-w-5xl">
         <div className="p-5 space-y-5">
           <Section title="Informações da OS">
             <div className="grid sm:grid-cols-2 gap-3">
               <InfoRow label="Nº da OS" value={detail.os_number} />
-              <InfoRow label="Serviço" value={(detail.service as any)?.title || (detail.general_service as any)?.name || "—"} />
               <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
               <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
               <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || "—"} />
