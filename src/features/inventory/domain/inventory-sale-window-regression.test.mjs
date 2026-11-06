@@ -27,7 +27,23 @@ test("códigos manuais separados por vírgula são normalizados sem perder as re
 test("cadastro de produtos tem prazo comercial opcional e remove consulta automática de códigos", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(ui, "TabProducts.tsx", { loader: "tsx" })).code);
-  assert.match(ui, /label="Prazo para vender \(dias\)"/);
+  assert.match(ui, /label="Prazo para vender \\(dias\\)"/);
+  const commercial = ui.slice(ui.indexOf('<Section title="Comercial">'), ui.indexOf('<Section title="Estoque">'));
+  assert.match(commercial, /grid grid-cols-1 gap-4 sm:grid-cols-2/);
+  assert.doesNotMatch(commercial, /lg:grid-cols-3/);
+  assert.ok(commercial.indexOf('label="Preço de venda"') < commercial.indexOf('label="Prazo para vender (dias)"'));
+  assert.ok(commercial.indexOf('label="Prazo para vender (dias)"') < commercial.indexOf('Unidade comercial'));
+  assert.match(commercial, /<CommercialHelpLabel[\\s\\S]*?label="Prazo para vender \\(dias\\)"/);
+  assert.match(commercial, /<CommercialHelpLabel[\\s\\S]*?label="Unidades por caixa"/);
+  assert.match(commercial, /id="product-sale-window-days"/);
+  assert.match(commercial, /id="product-conversion-factor"/);
+  assert.match(commercial, /Para unidade simples, o fator permanece 1\\./);
+  assert.match(commercial, /Cada entrada no estoque inicia seu próprio prazo/);
+  assert.doesNotMatch(commercial, /hint="Opcional\\. Conta separadamente/);
+  assert.doesNotMatch(commercial, /hint=\\{form\\.commercial_unit/);
+  assert.match(ui, /<PopoverTrigger asChild>/);
+  assert.match(ui, /<CircleHelp size=\\{15\\} aria-hidden="true" \\/>/);
+  assert.match(ui, /aria-label=\\{\\`O que significa/);
   assert.match(ui, /sale_window_days: form\.sale_window_days\.trim\(\) \? Number\(form\.sale_window_days\) : null/);
   assert.match(ui, /sale_window_days: product\.sale_window_days == null \? "" : String\(product\.sale_window_days\)/);
   assert.match(ui, /parseRelatedCodesInput\(relatedCodesInput, form\.related_codes\)/);
