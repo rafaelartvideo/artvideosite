@@ -48,6 +48,8 @@ export function FinanceSettlementDialog({
   const activeMethods = paymentMethods.filter(item => item.is_active);
   const activeAccounts = accounts.filter(item => item.is_active);
   const [installmentId, setInstallmentId] = useState("");
+  const [settlementScope, setSettlementScope] = useState<"installment" | "all">("installment");
+  const allRemaining = openInstallments.reduce((sum, item) => sum + Number(item.original_amount) - Number(item.settled_amount), 0);
   const [principal, setPrincipal] = useState("");
   const [interest, setInterest] = useState("0");
   const [penalty, setPenalty] = useState("0");
@@ -59,7 +61,9 @@ export function FinanceSettlementDialog({
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
-  const remaining = selectedInstallment ? Number(selectedInstallment.original_amount) - Number(selectedInstallment.settled_amount) : 0;
+  const remaining = settlementScope === "all"
+    ? allRemaining
+    : selectedInstallment ? Number(selectedInstallment.original_amount) - Number(selectedInstallment.settled_amount) : 0;
   const principalValue = Number(principal || 0);
   const gross = settlementCashAmount({
     principal: principalValue,
@@ -87,6 +91,7 @@ export function FinanceSettlementDialog({
       .reduce((sum,item)=>sum+Number(item.principal_amount||0),0) : 0;
     const plannedRemainder = nextPlanned ? Math.max(0,Number(nextPlanned.amount)-alreadyUsed) : 0;
     const firstMethod = activeMethods.find(item => item.id === nextPlanned?.payment_method_id) || activeMethods[0] || null;
+    setSettlementScope("installment");
     setInstallmentId(firstInstallment?.id || "");
     setPrincipal(firstInstallment ? String(Math.round(Math.min(Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount), plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount))*100)/100) : "");
     setInterest("0");
@@ -116,6 +121,9 @@ export function FinanceSettlementDialog({
     const principalValidation = validatePrincipalAgainstRemaining(principalValue, remaining);
     const nextErrors: typeof fieldErrors = {};
     if (!selectedInstallment) nextErrors.installment = "Selecione uma parcela em aberto.";
+    if (settlementScope === "all" && Math.abs(principalValue - allRemaining) > 0.005) {
+      nextErrors.principal = "Na quitação total, o valor deve ser exatamente o saldo em aberto.";
+    }
     if (!principalValidation.ok) nextErrors.principal = "O valor principal deve ser maior que zero e não pode exceder o saldo da parcela.";
     else if (gross <= 0) nextErrors.principal = "O valor final da baixa deve ser maior que zero.";
     else if (fee > gross) nextErrors.principal = "A taxa financeira não pode superar o valor da baixa.";
@@ -127,6 +135,7 @@ export function FinanceSettlementDialog({
     const draft: FinancialSettlementDraft = {
       entry_id: detail.id,
       installment_id: selectedInstallment.id,
+      settle_all: settlementScope === "all",
       principal_amount: principalValue,
       interest_amount: Number(interest || 0),
       penalty_amount: Number(penalty || 0),
@@ -156,9 +165,24 @@ export function FinanceSettlementDialog({
           <span className="shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-xs font-bold text-primary">{formatCurrency(gross > 0 ? gross : 0)}</span>
         </div>
     <div className="space-y-5">
+      {detail.entry_type === "receivable" && openInstallments.length > 1 && <FSelect
+        label="Modo de recebimento"
+        value={settlementScope}
+        options={[{ value: "installment", label: "Receber uma parcela" }, { value: "all", label: "Quitar todo o saldo em aberto" }]}
+        onChange={(event: any) => {
+          const scope = event.target.value === "all" ? "all" : "installment";
+          setSettlementScope(scope);
+          setPrincipal(String(Math.round((scope === "all" ? allRemaining
+            : Number(selectedInstallment?.original_amount || 0) - Number(selectedInstallment?.settled_amount || 0)) * 100) / 100));
+          setFieldErrors({});
+        }}
+      />}
+      {settlementScope === "all" && <p className="text-xs text-muted-foreground">
+        Quita todas as parcelas abertas e registra um único recebimento de {formatCurrency(allRemaining)} no extrato.
+      </p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
-        <FCurrencyInput label="Valor principal" required error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
+        {settlementScope === "installment" && <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />}
+        <FCurrencyInput label="Valor principal" required disabled={settlementScope === "all"} error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FCurrencyInput label="Juros" value={interest} onChange={(event: any) => setInterest(event.target.value)} />

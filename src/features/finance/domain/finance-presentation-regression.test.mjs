@@ -117,3 +117,51 @@ test("accounts and cash share one table with vault balances and account statemen
   assert.match(cash, /closeMutation\.mutateAsync/);
   assert.doesNotMatch(cash, /Caixa físico<\/h3>/);
 });
+
+
+test("statement search filters by dates before pagination and exposes settlement origin", () => {
+  const movements = source("FinanceMovementsSection.tsx");
+  const hook = readFileSync(new URL("../application/useFinanceMovements.ts", import.meta.url), "utf8");
+  const repo = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../../supabase/migrations/20261106140000_finance_movement_period_search.sql", import.meta.url), "utf8");
+  assert.match(movements, /AdminSearchPanel title="Buscar movimentações"/);
+  assert.match(movements, /label="Data inicial"/);
+  assert.match(movements, /label="Data final"/);
+  assert.match(movements, /item\.origin_label/);
+  assert.match(movements, /text-emerald-600 dark:text-emerald-400/);
+  assert.match(hook, /movementStartAt/);
+  assert.match(repo, /search_financial_movement_page_ids_v2/);
+  assert.match(repo, /from\("financial_settlements"\)/);
+  assert.match(repo, /from\("financial_entries"\)/);
+  assert.match(migration, /movement\.occurred_at >= p_start_at/);
+  assert.match(migration, /movement\.occurred_at < p_end_at/);
+});
+
+test("receivables can settle all installments as a single financial movement", () => {
+  const dialog = source("FinanceSettlementDialog.tsx");
+  const repository = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
+  assert.match(dialog, /Quitar todo o saldo em aberto/);
+  assert.match(dialog, /settle_all: settlementScope === "all"/);
+  assert.match(dialog, /Valor principal" required disabled=\{settlementScope === "all"\}/);
+  assert.match(repository, /register_financial_bulk_settlement/);
+  assert.match(migration, /create table if not exists public\.financial_settlement_allocations/);
+  assert.match(migration, /perform private\.finance_post_settlement_movements\(v_settlement_id/);
+  assert.match(migration, /financial_settlement_allocations a/);
+  assert.match(migration, /finance\.settlements\.create/);
+  assert.match(migration, /finance\.settlements\.reverse/);
+});
+
+test("forecast adjustments change only payable installments with a recorded reason", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  const repository = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
+  assert.match(detail, /Ajustar previsão da parcela/);
+  assert.match(detail, /Motivo da alteração/);
+  assert.match(detail, /installment_amount_adjusted/);
+  assert.match(repository, /adjust_financial_installment_forecast/);
+  assert.match(migration, /v_e\.origin_type not in \('manual','recurring'\)/);
+  assert.match(migration, /v_i\.settled_amount >= v_i\.original_amount/);
+  assert.match(migration, /'installment_amount_adjusted'/);
+  assert.match(migration, /finance\.payables\.edit/);
+});
