@@ -15,11 +15,18 @@ export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: F
   const source = (detail.source_details || {}) as Record<string, any>;
 
   if (detail.origin_type === "service_order") {
+    const serviceNames = Array.isArray(source.service_names)
+      ? source.service_names.filter((name: unknown): name is string => typeof name === "string" && Boolean(name.trim()))
+      : [];
+    const legacyName = typeof source.general_service_name === "string" ? source.general_service_name.trim() : "";
+    const serviceLabel = serviceNames.length
+      ? serviceNames.join(", ")
+      : legacyName && legacyName !== "Produtos e Serviços da OS" ? legacyName : "Nenhum serviço cadastrado";
     return <AdminCard>
       <AdminCardHeader><div className="flex items-center gap-2">{showIcon && <Wrench size={17} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">{showIcon ? "Origem: Ordem de Serviço" : "Origem"}</h3><p className="text-xs text-[#5a6a82]">{source.os_number ? financeServiceOrderLabel(source.os_number) : "Receita gerada automaticamente na conclusão da OS."}</p></div></div></AdminCardHeader>
       <AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Value label="OS" value={source.os_number ? financeServiceOrderLabel(source.os_number) : "—"} />
-        <Value label="Serviço" value={source.general_service_name || "—"} />
+        <Value label={serviceNames.length > 1 ? "Serviços" : "Serviço"} value={serviceLabel} />
         <Value label="Valor do serviço" value={formatCurrency(Number(source.service_price || 0))} />
         <Value label="Peças" value={formatCurrency(Number(source.parts_total || 0))} />
         <Value label="Subtotal" value={formatCurrency(Number(source.subtotal || 0))} />
