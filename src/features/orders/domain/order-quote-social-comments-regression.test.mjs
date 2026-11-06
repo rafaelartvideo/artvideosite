@@ -26,9 +26,9 @@ test("comentários incluem respostas, curtidas, emojis, anexos e envio seguro", 
   assert.match(ui, /setReplyTo\(/);
   assert.match(ui, /setOrderQuoteCommentLike/);
   assert.match(ui, /<Heart size=\{15\}/);
-  assert.match(ui, /<Paperclip size=\{19\}/);
-  assert.match(ui, /<Send size=\{18\}/);
-  assert.match(ui, /disabled=\{submitting \|\| \(!draft\.trim\(\) && !files\.length\)\}/);
+  assert.match(ui, /<Paperclip size=\{21\}/);
+  assert.match(ui, /<Send size=\{22\}/);
+  assert.match(ui, /disabled=\{submitting \|\| recording \|\| \(!draft\.trim\(\) && !files\.length\)\}/);
   assert.match(repo, /add_service_order_quote_comment_v2/);
   assert.match(repo, /validateOrderQuoteCommentFiles/);
   assert.match(repo, /createSignedUrls/);
@@ -53,7 +53,7 @@ test("comentar não aciona loading dos botões de encaminhamento do orçamento",
   const comments = read("src/features/orders/presentation/OrderQuoteComments.tsx");
   assert.ok((await transformWithEsbuild(workspace, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
   assert.match(workspace, /<OrderQuoteComments organizationId=\{org\} orderId=\{orderId\}/);
-  assert.match(comments, /\{submitting \? <LoadingSpinner size="sm" \/> : <Send size=\{18\} \/>\}/);
+  assert.match(comments, /\{submitting \? <LoadingSpinner size="sm" \/> : <Send size=\{22\} \/>\}/);
   assert.doesNotMatch(workspace, /\{editable && <BtnPrimary disabled=\{busy\} loading=\{busy\}/);
   assert.doesNotMatch(workspace, /<BtnPrimary disabled=\{busy\} loading=\{busy\} onClick=\{\(\)=>openAction\("approve"\)\}/);
   assert.match(workspace, /loading=\{busy\}\s+loadingText="Processando\.\.\."/);
@@ -68,4 +68,35 @@ test("serviço avulso pode editar título e descrição no modal sem alterar pre
   assert.match(editor, /title=\{editingCustomIndex===null\?"Serviço Avulso":"Editar serviço avulso"\}/);
   assert.match(editor, /updateItem\(editingCustomIndex,\{title_snapshot:name,description_snapshot:customDescription\.trim\(\)\}\)/);
   assert.match(editor, /\{editingCustomIndex===null && <div className="grid gap-3 sm:grid-cols-2">/);
+});
+
+test("compositor de comentários fica ao final e segue a barra do WhatsApp", async () => {
+  const component = read("src/features/orders/presentation/OrderQuoteComments.tsx");
+  const emojiPicker = read("src/features/sac-digital/presentation/SacEmojiPicker.tsx");
+  assert.ok((await transformWithEsbuild(component, "OrderQuoteComments.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(emojiPicker, "SacEmojiPicker.tsx", { loader: "tsx" })).code);
+  assert.ok(component.indexOf("{canComment && <div className=") > component.indexOf("{roots.length > 0"));
+  assert.match(component, /<form onSubmit=\{event =>/);
+  assert.match(component, /<Paperclip size=\{21\}/);
+  assert.match(component, /<Smile size=\{21\}/);
+  assert.match(component, /<Mic size=\{21\}/);
+  assert.match(component, /<Send size=\{22\}/);
+  assert.match(component, /<SacEmojiPicker embedded recentEmojis=/);
+  assert.match(component, /createPortal\(/);
+  assert.match(component, /data-quote-emoji-portal/);
+  assert.match(component, /fixed z-\[10000\]/);
+  assert.match(emojiPicker, /embedded = false/);
+});
+
+test("notas de voz são anexos privados com prévia para reprodução", () => {
+  const component = read("src/features/orders/presentation/OrderQuoteComments.tsx");
+  const repository = read("src/features/orders/infrastructure/order-quote.repository.ts");
+  const sql = read("supabase/migrations/20261106130241_order_quote_comment_audio.sql");
+  assert.match(component, /navigator\.mediaDevices\.getUserMedia/);
+  assert.match(component, /new MediaRecorder/);
+  assert.match(component, /<audio controls preload="none"/);
+  assert.match(repository, /"audio\/webm", "audio\/ogg", "audio\/mp4", "audio\/mpeg"/);
+  assert.match(repository, /file\.mimeType\.startsWith\("audio\/"\)/);
+  assert.match(sql, /media\.mime_type in \('audio\/webm'/);
+  assert.match(sql, /private\.can_view_service_order\(service_order_id\)/);
 });
