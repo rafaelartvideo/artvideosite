@@ -138,6 +138,8 @@ export function TabPdv({
   const [allowSaleWithoutCustomer, setAllowSaleWithoutCustomer] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [cashDialog, setCashDialog] = useState<CashAction | null>(null);
+  // Vendas e Caixas são painéis locais: abrem sobre o PDV sem criar subrotas.
+  const [workspaceModal, setWorkspaceModal] = useState<"sales" | "cash" | null>(null);
   const [cashAmount, setCashAmount] = useState("");
   const [cashNote, setCashNote] = useState("");
   const [cashErrors, setCashErrors] = useState<{ amount?: string; note?: string }>({});
@@ -146,6 +148,15 @@ export function TabPdv({
     if (!organizationId) return;
     void registerCurrentPdvTerminal(organizationId).catch(() => undefined);
   }, [organizationId]);
+
+  // Links antigos para /pdv/sales e /pdv/cash voltam à rota base.
+  // Novos cliques em Vendas/Caixas NÃO acionam onRouteChange.
+  useEffect(() => {
+    if (routeResourceId === "sales" || routeResourceId === "cash") {
+      if (routeResourceId === "sales" || canViewCashReports) setWorkspaceModal(routeResourceId);
+      onRouteChange?.(null, null);
+    }
+  }, [routeResourceId, onRouteChange, canViewCashReports]);
 
   const bootstrap = bootstrapQuery.data;
   const settings = bootstrap?.settings ?? null;
@@ -223,6 +234,11 @@ export function TabPdv({
     && (!settings?.require_open_cash || openSession),
   );
 
+  const openNewSale = () => {
+    setWorkspaceModal(null);
+    onRouteChange?.("sale", null);
+  };
+
   const openCashDialog = (action: CashAction) => {
     setCashDialog(action);
     setCashAmount("");
@@ -293,43 +309,6 @@ export function TabPdv({
     return <PdvSaleWorkspace bootstrap={bootstrap} onBack={() => onRouteChange?.(null, null)} />;
   }
 
-  if (routeResourceId === "sales") {
-    return <AdminDialog
-      open
-      onClose={() => onRouteChange?.(null, null)}
-      title="Vendas do PDV"
-      description="Vendas realizadas, comprovantes e estornos."
-      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
-      bodyClassName="overscroll-contain"
-      footer={<div className="flex flex-wrap justify-between gap-2">
-        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
-        {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)}><ShoppingCart size={16} /> Nova venda</AdminButton>}
-      </div>}
-    ><div className="pdv-ui min-w-0">
-      <PdvSalesHistory embedded
-        onBack={() => onRouteChange?.(null, null)}
-        onNewSale={() => onRouteChange?.("sale", null)}
-        canStartSale={canStartSale}
-      />
-    </div></AdminDialog>;
-  }
-
-  if (routeResourceId === "cash" && canViewCashReports) {
-    return <AdminDialog
-      open
-      onClose={() => onRouteChange?.(null, null)}
-      title="Caixas do PDV"
-      description="Turnos, movimentações e fechamento de caixa."
-      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
-      bodyClassName="overscroll-contain"
-      footer={<div className="flex justify-end">
-        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
-      </div>}
-    ><div className="pdv-ui min-w-0">
-      <PdvCashReports embedded onBack={() => onRouteChange?.(null, null)} />
-    </div></AdminDialog>;
-  }
-
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -337,9 +316,9 @@ export function TabPdv({
       title="PDV"
       subtitle="Venda rápida com produtos, caixa físico e integração automática com o Financeiro."
       actions={<div className="flex flex-wrap justify-end gap-2">
-        {canViewCashReports && <AdminButton variant="secondary" onClick={() => onRouteChange?.("cash", null)}><Banknote size={15} /> Caixas</AdminButton>}
-        <AdminButton variant="secondary" onClick={() => onRouteChange?.("sales", null)}><ReceiptText size={15} /> Vendas</AdminButton>
-        {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>}
+        {canViewCashReports && <AdminButton variant="secondary" onClick={() => setWorkspaceModal("cash")}><Banknote size={15} /> Caixas</AdminButton>}
+        <AdminButton variant="secondary" onClick={() => setWorkspaceModal("sales")}><ReceiptText size={15} /> Vendas</AdminButton>
+        {canSell && <AdminButton disabled={!canStartSale} onClick={openNewSale} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>}
       </div>}
     />
 
@@ -403,9 +382,9 @@ export function TabPdv({
               onClick={() => openCashDialog(openSession ? "close" : "open")}
             />}
 
-            {openSession && (canSupplyCash || canWithdrawCash) && <div className="flex flex-wrap gap-2">
-              {canSupplyCash && <AdminButton variant="secondary" onClick={() => openCashDialog("supply")}><Plus size={14} /> Suprimento</AdminButton>}
-              {canWithdrawCash && <AdminButton variant="secondary" onClick={() => openCashDialog("withdraw")}><Minus size={14} /> Sangria</AdminButton>}
+            {openSession && (canSupplyCash || canWithdrawCash) && <div className="flex flex-wrap items-center justify-center gap-3">
+              {canSupplyCash && <AdminButton variant="tertiary" className="min-w-36 justify-center" onClick={() => openCashDialog("supply")}><Plus size={14} /> Suprimento</AdminButton>}
+              {canWithdrawCash && <AdminButton variant="quaternary" className="min-w-36 justify-center" onClick={() => openCashDialog("withdraw")}><Minus size={14} /> Sangria</AdminButton>}
             </div>}
 
             {!canOpenCash && !canCloseCash && <p className="text-sm text-[#5a6a82]">Seu perfil pode acessar o PDV, mas não possui permissão para operar abertura e fechamento de caixa.</p>}
@@ -474,6 +453,39 @@ export function TabPdv({
       </Section>
     </>}
 
+    {workspaceModal === "sales" && <AdminDialog
+      open
+      onClose={() => setWorkspaceModal(null)}
+      title="Vendas do PDV"
+      description="Vendas realizadas, comprovantes e estornos."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex flex-wrap justify-between gap-2">
+        <AdminButton variant="secondary" onClick={() => setWorkspaceModal(null)}>Fechar</AdminButton>
+        {canSell && <AdminButton disabled={!canStartSale} onClick={openNewSale}><ShoppingCart size={16} /> Nova venda</AdminButton>}
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvSalesHistory embedded
+        onBack={() => setWorkspaceModal(null)}
+        onNewSale={openNewSale}
+        canStartSale={canStartSale}
+      />
+    </div></AdminDialog>}
+
+    {workspaceModal === "cash" && canViewCashReports && <AdminDialog
+      open
+      onClose={() => setWorkspaceModal(null)}
+      title="Caixas do PDV"
+      description="Turnos, movimentações e fechamento de caixa."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex justify-end">
+        <AdminButton variant="secondary" onClick={() => setWorkspaceModal(null)}>Fechar</AdminButton>
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvCashReports embedded onBack={() => setWorkspaceModal(null)} />
+    </div></AdminDialog>}
+
     {cashDialog && cashAccount && <AdminDialog
       open
       onClose={closeCashDialog}
@@ -482,7 +494,10 @@ export function TabPdv({
       className="max-w-lg"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <AdminButton variant="secondary" onClick={closeCashDialog}>Cancelar</AdminButton>
-        <AdminButton onClick={() => void submitCashAction()}>Confirmar</AdminButton>
+        <AdminButton
+          variant={cashDialog === "supply" ? "tertiary" : cashDialog === "withdraw" ? "quaternary" : "primary"}
+          onClick={() => void submitCashAction()}
+        >Confirmar</AdminButton>
       </div>}
     >
       <div className="space-y-4">
