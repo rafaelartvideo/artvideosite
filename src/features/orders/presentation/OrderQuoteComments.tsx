@@ -156,10 +156,14 @@ export function OrderQuoteComments({
     setSubmitting(true);
     setEmojiOpen(false);
     try {
-      await addOrderQuoteComment(organizationId, orderId, draft, files, replyTo?.id || null);
+      const replyingToId = replyTo?.id || null;
+      await addOrderQuoteComment(organizationId, orderId, draft, files, replyingToId);
       setDraft("");
       setFiles([]);
       setReplyTo(null);
+      if (replyingToId) {
+        setExpandedReplies(previous => previous.includes(replyingToId) ? previous : [...previous, replyingToId]);
+      }
       if (textRef.current) textRef.current.style.height = "";
       await queryClient.invalidateQueries({ queryKey: ["orders", "quote-comments", organizationId, orderId] });
     } catch (error) {
