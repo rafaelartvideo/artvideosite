@@ -96,7 +96,7 @@ test("finance submenus show permission-scoped totals without duplicated table co
   assert.doesNotMatch(accounts, /contas cadastradas/);
 });
 
-test("accounts and cash share one table with vault balances and account statements", () => {
+test("accounts and cash share card list with vault balances and account statements", () => {
   const accounts = source("FinanceAccountsSection.tsx");
   const cash = source("FinanceCashSection.tsx");
   assert.match(accounts, /Saldo total/);
@@ -294,4 +294,33 @@ test("OS labels use readable numbers throughout Financeiro", () => {
   assert.match(movement, /formatFinanceOriginLabel/);
   assert.match(settlement, /financeServiceOrderLabel/);
   assert.match(sourceBlock, /financeServiceOrderLabel/);
+});
+
+test("finance accounts display personalized, accessible four-column cards with real Pix mark", () => {
+  const accounts = source("FinanceAccountsSection.tsx");
+  assert.match(accounts, /grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4/);
+  assert.match(accounts, /orderedAccounts\.map\(account =>/);
+  assert.match(accounts, /<article key=\{account\.id\}/);
+  assert.match(accounts, /<PixBrandIcon size=\{26\} \/>/);
+  assert.match(accounts, /<Vault size=\{28\}/);
+  assert.match(accounts, /<Archive size=\{28\}/);
+  assert.match(accounts, /<Banknote size=\{13\}/);
+  assert.match(accounts, /<Wallet size=\{27\}/);
+  assert.match(accounts, /<Pin size=\{17\}/);
+  assert.match(accounts, /aria-pressed=\{isPinned\}/);
+  assert.match(accounts, /onClick=\{\(\) => togglePin\(account\.id\)\}/);
+  assert.match(accounts, /account\.balance > 0 \? "text-emerald-600 dark:text-emerald-400"/);
+  assert.match(accounts, /<footer className=/);
+  assert.match(accounts, /\{cashActionControl\}/);
+  assert.match(accounts, /onClick=\{\(\) => openEdit\(account\)\}/);
+  assert.match(accounts, /<AdminActiveStateButton active=\{account\.is_active\}/);
+  assert.doesNotMatch(accounts, /<FinanceTableSurface>\s*<table className="w-full min-w-\[920px\]"/);
+});
+test("account pins are scoped to organization and user and do not alter financial ledger", () => {
+  const accounts = source("FinanceAccountsSection.tsx");
+  assert.match(accounts, /union:finance:pinned-accounts:v1:/);
+  assert.match(accounts, /activeOrganizationId/);
+  assert.match(accounts, /user\?\.id/);
+  assert.match(accounts, /window\.localStorage\.setItem/);
+  assert.match(accounts, /prioritizePinnedFinanceAccounts\(accounts, pinnedAccountIds\)/);
 });
