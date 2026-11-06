@@ -309,17 +309,17 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     <OrderQuoteComments organizationId={org} orderId={orderId} canComment={canEdit && !busy} />
     </div>
     {footerHost && createPortal(<>
-      {editable && <BtnPrimary disabled={busy} loading={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
+      {editable && <BtnPrimary disabled={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
         onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
         <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</AdminButton>
         <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("reject")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <XCircle size={15} className="hidden shrink-0 sm:block"/> Rejeitar</AdminButton>
-        <BtnPrimary disabled={busy} loading={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
+        <BtnPrimary disabled={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <CheckCircle2 size={15} className="hidden shrink-0 sm:block"/> Aprovar</BtnPrimary>
       </>}
-      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
+      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
         onClick={()=>openAction("renegotiate")}><RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</BtnPrimary>}
       {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)} className="w-full min-w-0 whitespace-normal !px-2 text-xs md:w-auto md:!px-4 md:text-sm">
         Abrir produtos e serviços para execução</BtnPrimary>}
