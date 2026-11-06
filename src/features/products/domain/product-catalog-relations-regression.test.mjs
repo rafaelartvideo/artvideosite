@@ -21,6 +21,7 @@ test("cadastro separa variantes, similares e compatibilidade técnica em uma aba
   assert.ok(ui.includes("setRelationshipTab(\"variations\")"));
   assert.ok(matrix.includes("buildVariantMatrix"));
   assert.ok(matrix.includes("Gerar combinações"));
+  assert.ok(matrix.includes("combinations.slice(1)"), "A primeira opção deve usar o cadastro principal e não criar estoque duplicado");
   assert.ok(matrix.includes("Aplicar a todas"));
   assert.ok(matrix.includes("sku: baseSku.trim()"));
   assert.ok(similar.includes("replaceProductSimilarIds"));
