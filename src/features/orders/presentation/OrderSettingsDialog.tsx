@@ -21,6 +21,7 @@ export function OrderSettingsDialog({
   const companySettings = useCompanySettingsQuery(open ? organizationId : null);
   const saveSettings = useSaveCompanySettingsMutation();
   const rulesRef = useRef<OrderRulesSettingsHandle>(null);
+  const loadedOrganizationRef = useRef<string | null>(null);
   const [requireProof, setRequireProof] = useState(false);
   const [rulesDirty, setRulesDirty] = useState(false);
   const [rulesLoading, setRulesLoading] = useState(true);
@@ -28,9 +29,10 @@ export function OrderSettingsDialog({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
-    if (!open || !companySettings.data) return;
+    if (!open || !companySettings.data || loadedOrganizationRef.current === organizationId) return;
+    loadedOrganizationRef.current = organizationId;
     setRequireProof(companySettings.data.require_payment_proof_on_completion === true);
-  }, [open, companySettings.data]);
+  }, [open, companySettings.data, organizationId]);
 
   const proofDirty = Boolean(companySettings.data &&
     requireProof !== (companySettings.data.require_payment_proof_on_completion === true));
