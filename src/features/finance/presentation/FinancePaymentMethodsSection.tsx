@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
-import { CreditCard, Pencil } from "lucide-react";
+import { ArrowLeft, CreditCard, Pencil, Plus } from "lucide-react";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
@@ -19,7 +19,7 @@ const METHOD_TYPES: { value: FinancialPaymentMethodType; label: string }[] = [
 const emptyForm = () => ({ id: undefined as string | undefined, name: "", method_type: "pix" as FinancialPaymentMethodType, percentage_fee: "0", fixed_fee: "0", requires_financial_account: true, default_financial_account_id: "", is_active: true });
 const typeLabel = (type: FinancialPaymentMethodType) => METHOD_TYPES.find(item => item.value === type)?.label || type;
 
-export function FinancePaymentMethodsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
+export function FinancePaymentMethodsSection({ createSignal = 0, modalOpen = false, onModalClose }: { createSignal?: number; modalOpen?: boolean; onModalClose?: () => void } = {}) {
   const finance = useFinanceFoundation();
   const [open, setOpen] = useState(false);
   useEffect(() => { if (createSignal > 0) { setForm(emptyForm()); setFieldErrors({}); setOpen(true); } }, [createSignal]);
@@ -43,12 +43,23 @@ export function FinancePaymentMethodsSection({ createSignal = 0 }: { createSigna
     try {
       setFieldErrors({});
       await finance.savePaymentMethod.mutateAsync({ id: form.id, name: form.name, method_type: form.method_type, percentage_fee: percentageFee, fixed_fee: fixedFee, settlement_days: 0, requires_financial_account: form.requires_financial_account, creates_future_settlement: false, default_financial_account_id: form.requires_financial_account ? form.default_financial_account_id || null : null, is_active: form.is_active });
+      notifyAdmin(form.id ? "Forma de pagamento atualizada com sucesso." : "Forma de pagamento cadastrada com sucesso.", "success");
       close();
     } catch (error) { notifyAdmin(systemErrorMessage(error, "Não foi possível salvar a forma de pagamento."), "error"); }
   };
   const preview = paymentMethodNetAmount(100, Number(form.percentage_fee || 0), Number(form.fixed_fee || 0));
 
-  return <div className="space-y-4">
+  const openNew = () => {
+    setForm(emptyForm());
+    setFieldErrors({});
+    setOpen(true);
+  };
+  const closeModal = () => {
+    if (finance.savePaymentMethod.isPending) return;
+    close();
+    onModalClose?.();
+  };
+  const listing = <div className="space-y-4">
     <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-semibold text-muted-foreground">{methods.length} {methods.length === 1 ? "forma cadastrada" : "formas cadastradas"}</p>
 
@@ -56,6 +67,31 @@ export function FinancePaymentMethodsSection({ createSignal = 0 }: { createSigna
       {queryError && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{systemErrorMessage(queryError, "Não foi possível carregar as formas de pagamento.")}</div>}
       {finance.paymentMethodsQuery.isLoading ? <div className="p-8"><LoadingState /></div> : methods.length === 0 ? <div className="p-8"><EmptyState icon={CreditCard} title="Nenhuma forma de pagamento" /></div> : <FinanceTableSurface><table className="min-w-[700px]"><thead><tr><th className="text-left">Forma</th><th className="text-left">Tipo</th><th className="text-left">Taxas</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{methods.map(item => <FinanceTableRow key={item.id} label={`Editar forma de pagamento ${item.name}`} onOpen={() => edit(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{typeLabel(item.method_type)}</td><td className="text-xs text-[#5a6a82]">{Number(item.percentage_fee).toLocaleString("pt-BR")} % + {Number(item.fixed_fee).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1"><AdminIconButton ariaLabel="Editar forma de pagamento" onClick={() => edit(item)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={item.is_active} entityLabel="forma de pagamento" onClick={() => void finance.togglePaymentMethod.mutateAsync({ id: item.id, isActive: !item.is_active })} /></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>}
 
-    {open && <AdminDialog open onClose={close} title={form.id ? "Editar forma de pagamento" : "Nova forma de pagamento"} className="max-w-2xl" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={close}>Cancelar</AdminButton><AdminButton onClick={save} loading={finance.savePaymentMethod.isPending} loadingText="Salvando...">Salvar forma</AdminButton></div>}><div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /><FSelect label="Tipo" required value={form.method_type} options={METHOD_TYPES} onChange={(event: any) => setForm(current => ({ ...current, method_type: event.target.value as FinancialPaymentMethodType }))} /></div><div className="grid gap-4 sm:grid-cols-2"><FDecimalInput label="Taxa percentual (%)" decimalPlaces={4} error={fieldErrors.percentage_fee} value={form.percentage_fee} onChange={(event: any) => { setFieldErrors(current => ({ ...current, percentage_fee: undefined })); setForm(current => ({ ...current, percentage_fee: event.target.value })); }} /><FCurrencyInput label="Taxa fixa" error={fieldErrors.fixed_fee} value={form.fixed_fee} onChange={(event: any) => { setFieldErrors(current => ({ ...current, fixed_fee: undefined })); setForm(current => ({ ...current, fixed_fee: event.target.value })); }} /></div><div className="grid gap-3 sm:grid-cols-1"><FToggle label="Exige conta financeira" description="A baixa deverá informar uma conta de origem ou destino." checked={form.requires_financial_account} onChange={value => setForm(current => ({ ...current, requires_financial_account: value, default_financial_account_id: value ? current.default_financial_account_id : "" }))} /></div>{form.requires_financial_account && <FSelect label="Conta padrão" value={form.default_financial_account_id} options={[{ value: "", label: "Sem conta padrão" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} onChange={(event: any) => setForm(current => ({ ...current, default_financial_account_id: event.target.value }))} />}<div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Prévia sobre R$ 100,00</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">Líquido: {Number(preview).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p></div></div></AdminDialog>}
+
+  </div>;
+  const editor = <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /><FSelect label="Tipo" required value={form.method_type} options={METHOD_TYPES} onChange={(event: any) => setForm(current => ({ ...current, method_type: event.target.value as FinancialPaymentMethodType }))} /></div><div className="grid gap-4 sm:grid-cols-2"><FDecimalInput label="Taxa percentual (%)" decimalPlaces={4} error={fieldErrors.percentage_fee} value={form.percentage_fee} onChange={(event: any) => { setFieldErrors(current => ({ ...current, percentage_fee: undefined })); setForm(current => ({ ...current, percentage_fee: event.target.value })); }} /><FCurrencyInput label="Taxa fixa" error={fieldErrors.fixed_fee} value={form.fixed_fee} onChange={(event: any) => { setFieldErrors(current => ({ ...current, fixed_fee: undefined })); setForm(current => ({ ...current, fixed_fee: event.target.value })); }} /></div><div className="grid gap-3 sm:grid-cols-1"><FToggle label="Exige conta financeira" description="A baixa deverá informar uma conta de origem ou destino." checked={form.requires_financial_account} onChange={value => setForm(current => ({ ...current, requires_financial_account: value, default_financial_account_id: value ? current.default_financial_account_id : "" }))} /></div>{form.requires_financial_account && <FSelect label="Conta padrão" value={form.default_financial_account_id} options={[{ value: "", label: "Sem conta padrão" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} onChange={(event: any) => setForm(current => ({ ...current, default_financial_account_id: event.target.value }))} />}<div className="rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Prévia sobre R$ 100,00</p><p className="mt-1 text-lg font-black text-[#0d1b2e]">Líquido: {Number(preview).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p></div></div>;
+  const editorFooter = <div className="flex flex-wrap items-center justify-between gap-2">
+    <AdminButton variant="secondary" onClick={close} disabled={finance.savePaymentMethod.isPending}><ArrowLeft size={16} /> Voltar</AdminButton>
+    <AdminButton onClick={() => void save()} loading={finance.savePaymentMethod.isPending} loadingText="Salvando...">Salvar forma</AdminButton>
+  </div>;
+  const listingFooter = <div className="flex flex-wrap items-center justify-between gap-2">
+    <AdminButton variant="secondary" onClick={closeModal}>Fechar</AdminButton>
+    <AdminButton onClick={openNew}><Plus size={16} /> Novo</AdminButton>
+  </div>;
+
+  if (modalOpen) return <AdminDialog
+    open
+    onClose={closeModal}
+    title={open ? form.id ? "Editar forma de pagamento" : "Nova forma de pagamento" : "Formas de pagamento"}
+    className={open
+      ? "h-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-2xl transition-[max-width,height] duration-300 ease-out"
+      : "h-[min(760px,calc(100dvh-2rem))] w-[calc(100vw-1.5rem)] max-w-5xl transition-[max-width,height] duration-300 ease-out"}
+    bodyClassName={open ? "flex-none overscroll-contain" : "overscroll-contain"}
+    footer={open ? editorFooter : listingFooter}
+  >{open ? editor : listing}</AdminDialog>;
+
+  return <div className="space-y-4">
+    {listing}
+    {open && <AdminDialog open onClose={close} title={form.id ? "Editar forma de pagamento" : "Nova forma de pagamento"} className="max-w-2xl" footer={editorFooter}>{editor}</AdminDialog>}
   </div>;
 }

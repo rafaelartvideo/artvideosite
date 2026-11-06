@@ -7,6 +7,7 @@ import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FinanceTableSurface } from "./FinanceTableSurface";
+import { financeServiceOrderLabel, formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import type { FinancialEntryDetail } from "../domain/finance.types";
 
 function formatDateTime(value?: string | null) {
@@ -28,8 +29,8 @@ export function FinanceSettlementPanel({
 }) {
   const [reverseId, setReverseId] = useState<string | null>(null);
   const originReference = detail.origin_type === "service_order"
-    ? (detail.source_details?.os_number ? "OS #" + detail.source_details.os_number : detail.origin_reference || "Ordem de Serviço")
-    : detail.origin_reference || (detail.origin_type === "manual" ? "Lançamento manual" : "Financeiro");
+    ? financeServiceOrderLabel(detail.source_details?.os_number || detail.origin_reference)
+    : formatFinanceOriginLabel(detail.origin_reference || (detail.origin_type === "manual" ? "Lançamento manual" : "Financeiro"));
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
   useEffect(() => {

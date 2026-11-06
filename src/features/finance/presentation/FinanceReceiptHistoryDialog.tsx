@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { financeServiceOrderLabel } from "../domain/finance-origin-label.mjs";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
@@ -139,7 +140,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
       <div className="grid grid-cols-2 gap-4 border-b border-border pb-4 sm:grid-cols-4">
         <DetailField label="Tipo" value={selected.direction === "received" ? "Recebido" : "Pago"} />
         <DetailField label="Emissão" value={dateTime(selected.issued_at)} />
-        <DetailField label="Ordem de serviço" value={selected.service_order_number ? "OS " + selected.service_order_number : "—"} />
+        <DetailField label="Ordem de serviço" value={selected.service_order_number ? financeServiceOrderLabel(selected.service_order_number) : "—"} />
         <DetailField label="Total" value={formatCurrency(Number(selected.total_amount))} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -220,7 +221,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
               <td className="whitespace-nowrap font-bold">{receiptLabel(receipt.receipt_number)}</td>
               <td className="whitespace-nowrap text-xs">{dateTime(receipt.issued_at)}</td>
               <td><div className="max-w-[230px] truncate font-semibold" title={receipt.counterpart_name}>{receipt.counterpart_name}</div>
-                {receipt.service_order_number && <span className="text-xs text-muted-foreground">OS {receipt.service_order_number}</span>}
+                {receipt.service_order_number && <span className="text-xs text-muted-foreground">{financeServiceOrderLabel(receipt.service_order_number)}</span>}
               </td>
               <td><span className={receipt.direction === "received" ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-blue-600 dark:text-blue-400"}>
                 {receipt.direction === "received" ? "Recebido" : "Pago"}</span></td>

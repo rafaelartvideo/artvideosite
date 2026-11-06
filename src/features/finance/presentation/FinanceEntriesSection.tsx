@@ -23,6 +23,7 @@ import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
 import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
+import { formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
 function formatDate(value?: string | null) {
@@ -56,7 +57,7 @@ function originText(entry: FinancialEntry) {
   if (entry.origin_type === "manual") return "Manual";
   if (entry.origin_type === "service_order") {
     const osNumber = sourceValue(entry, "os_number");
-    return osNumber ? `OS #${osNumber}` : "Ordem de Serviço";
+    return osNumber ? formatFinanceOriginLabel(`OS ${osNumber}`) : "Ordem de Serviço";
   }
   if (entry.origin_type === "inventory_purchase") return "Compra de estoque";
   if (entry.origin_type === "recurring") return "Recorrência";
@@ -247,12 +248,16 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   };
 
   const save = async (draft: any) => {
+    const wasEditingCurrentEntry = editingSelectedEntry;
+    // Retorna assim que o banco confirma o salvamento. A atualização do extrato é
+    // revalidada sem prender o operador na tela de edição.
     const id = await finance.saveMutation.mutateAsync(draft);
-    if (editingSelectedEntry) await finance.detailQuery.refetch();
     setEditorOpen(false);
     setEditing(null);
     setCounterpartySearch("");
     onSelectEntry(id);
+    notifyAdmin(wasEditingCurrentEntry ? "Lançamento atualizado com sucesso." : "Lançamento salvo com sucesso.", "success");
+    if (wasEditingCurrentEntry) void finance.detailQuery.refetch();
   };
 
   const adjustSelectedInstallment = async (installmentId: string, newAmount: number, reason: string) => {
@@ -486,17 +491,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       open
       onClose={() => {
         if (finance.settlementMutation.isPending || finance.adjustInstallmentMutation.isPending || finance.saveMutation.isPending) return;
-        if (editingSelectedEntry) { closeEditor(); return; }
-        if (settlementDialogOpen) setSettlementDialogOpen(false);
-        else { setLastSettledEntryId(null); onSelectEntry(null); }
+        // O X fecha a conta inteira. Somente o botão Voltar navega entre etapas.
+        setEditorOpen(false);
+        setEditing(null);
+        setSettlementDialogOpen(false);
+        setLastSettledEntryId(null);
+        onSelectEntry(null);
       }}
       title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      className={settlementDialogOpen
-        ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,height] duration-300 ease-out"
-        : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
-      bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
+      className={settlementDialogOpen || editingSelectedEntry
+        ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,max-height,height] duration-300 ease-out"
+        : "h-[calc(100dvh-1.5rem)] max-w-5xl transition-[max-width,max-height,height] duration-300 ease-out sm:h-[min(820px,calc(100dvh-2rem))]"}
+      bodyClassName={settlementDialogOpen || editingSelectedEntry ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
