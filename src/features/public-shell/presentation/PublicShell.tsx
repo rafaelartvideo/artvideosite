@@ -104,7 +104,10 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const accountLabel = activeUserId && firstAccountName ? "Olá, " + firstAccountName.charAt(0).toUpperCase() + firstAccountName.slice(1) : "Minha Conta";
   const { pathname } = useLocation();
   const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname);
-  const isCurrent = (destination: PublicPage) => !isLegalPage && pathname !== "/minha-conta" &&
+  // Carrinho e checkout são etapas próprias, não o catálogo de Produtos.
+  // A rota continua classificada como "loja" para navegação, mas sem item ativo no menu.
+  const isCartOrCheckout = pathname === "/carrinho" || pathname.startsWith("/checkout/");
+  const isCurrent = (destination: PublicPage) => !isLegalPage && !isCartOrCheckout && pathname !== "/minha-conta" &&
     (destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja"));
   const instagramUrl = validExternalUrl(settings.instagram, "https://instagram.com/") || "https://www.instagram.com/eletronica_artvideo/";
   const address = getSettingText(settings.address) ||
