@@ -11,6 +11,8 @@ export type OrderQuoteItem = {
   additional_cost: number;
   /** Price fixed by the current service or product catalog when added. */
   catalog_price_fixed?: boolean;
+  /** Mantém o item fixado no início da lista do orçamento. */
+  pinned?: boolean;
 };
 export type OrderQuoteProposal = {
   id: string;
