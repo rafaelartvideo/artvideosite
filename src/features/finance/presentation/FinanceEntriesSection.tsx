@@ -101,6 +101,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [cancelRecurringEntry, setCancelRecurringEntry] = useState<{ ruleId: string; title: string } | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
+  const editingSelectedEntry = Boolean(selectedEntryId && editorOpen && editing?.id === selectedEntryId);
   const [counterpartySearch, setCounterpartySearch] = useState("");
   useEffect(() => {
     if (newEntrySignal <= 0) return;
@@ -401,7 +402,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
                 <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
-                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
+                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}
@@ -476,19 +477,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     {selectedEntryId && <AdminDialog
       open
       onClose={() => {
-        if (finance.settlementMutation.isPending) return;
-        if (settlementDialogOpen) setSettlementDialogOpen(false);
+        if (finance.settlementMutation.isPending || finance.saveMutation.isPending || finance.adjustInstallmentMutation.isPending) return;
+        if (editingSelectedEntry) closeEditor();
+        else if (settlementDialogOpen) setSettlementDialogOpen(false);
         else { setLastSettledEntryId(null); onSelectEntry(null); }
       }}
-      title={settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
-      description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
+      title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      description={editingSelectedEntry ? (finance.detailQuery.data?.description || "Editar dados da conta") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      className={settlementDialogOpen
+      className={settlementDialogOpen || editingSelectedEntry
         ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,height] duration-300 ease-out"
         : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
-      bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
+      bodyClassName={settlementDialogOpen || editingSelectedEntry ? "overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
-      footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
+      footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canCancelRecurring(finance.detailQuery.data)
           && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
@@ -498,14 +500,39 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           && <AdminButton onClick={() => openSettlement()}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
-      {settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
+      {editingSelectedEntry && editing && finance.detailQuery.data?.id === selectedEntryId
+        ? <FinanceEntryEditorDialog
+          open embedded
+          entryType={entryType}
+          initial={editing}
+          counterparties={counterparties}
+          counterpartySearch={counterpartySearch}
+          counterpartyLoading={finance.counterpartiesQuery.isFetching}
+          onCounterpartySearchChange={setCounterpartySearch}
+          categories={categories}
+          paymentMethods={paymentMethods}
+          saving={finance.saveMutation.isPending}
+          onClose={closeEditor}
+          onSave={save}
+        />
+        : settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
         ? <FinanceSettlementDialog
           open={settlementDialogOpen}
           detail={finance.detailQuery.data}
           accounts={accounts}
           paymentMethods={paymentMethods}
           saving={finance.settlementMutation.isPending}
-          onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
+          forecastPending={finance.adjustInstallmentMutation.isPending}
+          canAdjustInstallment={!isReceivable && canEdit
+            && ["manual", "recurring"].includes(finance.detailQuery.data.origin_type)
+            && ["pending", "approved"].includes(finance.detailQuery.data.approval_status)}
+          onAdjustInstallment={async (installmentId, newAmount, reason) => {
+            await finance.adjustInstallmentMutation.mutateAsync({
+              entryId: finance.detailQuery.data!.id, installmentId, newAmount, reason,
+            });
+            await finance.detailQuery.refetch();
+          }}
+          onClose={() => { if (!finance.settlementMutation.isPending && !finance.adjustInstallmentMutation.isPending) setSettlementDialogOpen(false); }}
           onSave={async (draft: FinancialSettlementDraft) => {
             await finance.settlementMutation.mutateAsync(draft);
             setLastSettledEntryId(selectedEntryId);
@@ -536,6 +563,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               settlementError={finance.settlementMutation.error || finance.reverseSettlementMutation.error}
               onBack={() => onSelectEntry(null)}
               onEdit={() => {
+                setSettlementDialogOpen(false);
                 setCounterpartySearch("");
                 setEditing(finance.detailQuery.data || null);
                 setEditorOpen(true);
@@ -556,7 +584,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
 
     <FinanceEntryEditorDialog
-      open={editorOpen}
+      open={editorOpen && !editingSelectedEntry}
       entryType={entryType}
       initial={editing}
       counterparties={counterparties}
