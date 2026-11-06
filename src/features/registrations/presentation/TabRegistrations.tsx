@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { hasCustomerAddressData, normalizeSharedMapUrl, validateCustomerAddress } from "@/lib/address";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -765,16 +765,11 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : `${String(registrationsTotal)} cadastros realizados`}
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
-    <AdminCard square className="overflow-hidden p-0">
-      <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 admin-primary-bar px-4 text-white">
-        <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">{platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"}</span></div>
-        <div className="ml-auto flex items-center gap-2">
-          {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
-          <AdminSearchSortMenu value={sortOrder} onChange={setSortOrder}
-            options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
-        </div>
-      </div>
-      <div className="p-3 sm:p-4">
+    <AdminSearchPanel title={platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"} headerActions={<>
+      {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
+      <AdminSearchSortMenu value={sortOrder} onChange={setSortOrder}
+        options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
+    </>}>
 
         <AdminMobileSearchSwitch
           value={mobileSearchField}
@@ -830,20 +825,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
                     </div>}
         </AdminMobileSearchSwitch>
         <div className="hidden grid-cols-3 gap-3 md:grid">
-          <div className="hidden min-w-0 md:block">
-            <label htmlFor="registrations-name" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
-            <div className="relative">
-              <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input id="registrations-name" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
-            </div>
-          </div>
-          <div className="hidden min-w-0 md:block">
-            <label htmlFor="registrations-document" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF/CNPJ</label>
-            <div className="relative">
-              <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input id="registrations-document" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
-            </div>
-          </div>
+          <AdminSearchTextField label="Nome" id="registrations-name" value={nameSearch} onChange={setNameSearch} placeholder="Nome / Razão social" />
+          <AdminSearchTextField label="CPF/CNPJ" id="registrations-document" value={documentSearch} onChange={setDocumentSearch} placeholder="CPF ou CNPJ" inputMode="numeric" />
           {!platformUsersOnly && <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vínculo</label>
             <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
@@ -861,8 +844,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             <input id="registrations-created-date" aria-label="Data de cadastro" type="date" value={createdDate} onChange={event => setCreatedDate(event.target.value)} className={cn(INPUT, "h-9 w-full min-w-0 px-2 py-1 text-xs")} />
           </div>
         </div>
-      </div>
-    </AdminCard>
+    </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState
       icon={Users}
