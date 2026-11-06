@@ -37,7 +37,7 @@ begin
       then v_order.order_rules_snapshot->'custom_fields' else '[]'::jsonb end)
   loop
     if v_field->>'mode'<>'required' or
-      v_level<case v_field->>'stage' when 'start' then 1 when 'finish' then 2 else 0 end then
+      v_level<(case v_field->>'stage' when 'start' then 1 when 'finish' then 2 else 0 end) then
       continue;
     end if;
     v_value:=coalesce(v_payload->'custom_field_values'->(v_field->>'key'),'null'::jsonb);
@@ -69,14 +69,14 @@ begin
     from public.service_order_media
     where service_order_id=p_order_id and organization_id=p_org;
   if v_order.order_rules_snapshot->'photos'->'label'->>'mode'='required'
-    and v_level>=case v_order.order_rules_snapshot->'photos'->'label'->>'stage'
-      when 'start' then 1 when 'finish' then 2 else 0 end
+    and v_level>=(case v_order.order_rules_snapshot->'photos'->'label'->>'stage'
+      when 'start' then 1 when 'finish' then 2 else 0 end)
     and v_label<greatest(1,least(20,coalesce((v_order.order_rules_snapshot->'photos'->'label'->>'minCount')::int,1)))
     then raise exception 'Foto da etiqueta obrigatória nesta etapa.' using errcode='22023';
   end if;
   if v_order.order_rules_snapshot->'photos'->'equipment'->>'mode'='required'
-    and v_level>=case v_order.order_rules_snapshot->'photos'->'equipment'->>'stage'
-      when 'start' then 1 when 'finish' then 2 else 0 end
+    and v_level>=(case v_order.order_rules_snapshot->'photos'->'equipment'->>'stage'
+      when 'start' then 1 when 'finish' then 2 else 0 end)
     and v_equipment<greatest(1,least(20,coalesce((v_order.order_rules_snapshot->'photos'->'equipment'->>'minCount')::int,1)))
     then raise exception 'Fotos do equipamento obrigatórias nesta etapa.' using errcode='22023';
   end if;
