@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { useQueryClient } from "@tanstack/react-query";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
+import { assertOrderRulesForStage } from "../infrastructure/order-rules-validation.repository";
 import {
   attachOrderSituationDocument,
   getOrderPaymentProofRequirement,
@@ -599,6 +600,7 @@ export function useOrderCompletion({
     setSaving(true);
     let attachingPaymentProof = Boolean(paymentProofFile && !paymentProofAttached);
     try {
+      await assertOrderRulesForStage(String(detail.organization_id),String(detail.id),"finish");
       if (attachingPaymentProof && paymentProofFile) {
         if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
         await attachOrderSituationDocument({
