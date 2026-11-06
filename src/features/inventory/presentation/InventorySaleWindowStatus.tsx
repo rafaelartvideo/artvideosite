@@ -83,14 +83,15 @@ export function InventorySaleBatchesPanel({
     {query.isPending ? <p className="text-xs text-muted-foreground">Carregando entradas...</p>
       : query.error ? <p role="alert" className="text-xs text-destructive">Não foi possível consultar os prazos.</p>
       : query.data?.length ? <div className="min-w-0 overflow-x-auto rounded-lg border border-border">
-        <table className="min-w-[530px] w-full text-left text-xs">
+        <table className="min-w-[630px] w-full text-left text-xs">
           <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
-            <tr><th className="px-3 py-2">Entrada</th><th className="px-3 py-2">Saldo do lote</th>
+            <tr><th className="px-3 py-2">Entrada</th><th className="px-3 py-2">Quantidade recebida</th><th className="px-3 py-2">Saldo restante</th>
               <th className="px-3 py-2">Prazo final</th><th className="px-3 py-2">Situação</th></tr>
           </thead>
           <tbody className="divide-y divide-border">
             {query.data.map(batch => <tr key={batch.id}>
               <td className="px-3 py-2">{new Date(batch.received_at).toLocaleDateString("pt-BR")}</td>
+              <td className="px-3 py-2 tabular-nums">{formatQty(batch.initial_quantity, factor)} {unit}</td>
               <td className="px-3 py-2 font-semibold tabular-nums">{formatQty(batch.remaining_quantity, factor)} {unit}</td>
               <td className="px-3 py-2">{batch.sell_by_at ? new Date(batch.sell_by_at).toLocaleDateString("pt-BR") : "Sem prazo"}</td>
               <td className="px-3 py-2"><BatchStatus batch={batch}/></td>
