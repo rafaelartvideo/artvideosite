@@ -54,9 +54,10 @@ export type OrderRulesSettingsHandle = {
 export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
   organizationId: string;
   canEdit: boolean;
+  disabled?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onLoadingChange?: (loading: boolean) => void;
-}>(function OrderRulesSettings({ organizationId, canEdit, onDirtyChange, onLoadingChange }, ref) {
+}>(function OrderRulesSettings({ organizationId, canEdit, disabled = false, onDirtyChange, onLoadingChange }, ref) {
   const client = useQueryClient();
   const rulesQuery = useOrganizationOrderRules(organizationId);
   const catalog = useQuery({
@@ -108,7 +109,7 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
     }), [drafts, rows]);
 
   const loading = rulesQuery.isLoading || catalog.isLoading;
-  const canModify = canEdit && !loading && !rulesQuery.error && !catalog.error;
+  const canModify = canEdit && !disabled && !loading && !rulesQuery.error && !catalog.error;
   useEffect(() => { onDirtyChange?.(changedEntries.length > 0); }, [changedEntries.length, onDirtyChange]);
   useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
   useEffect(() => { setDrafts({}); setScope("company"); setServiceId(""); setEquipmentId(""); }, [organizationId]);
@@ -136,7 +137,7 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
   useImperativeHandle(ref, () => ({
     saveChanges: async () => {
       if (!changedEntries.length) return;
-      if (!canModify) throw new Error("As regras da OS ainda não estão disponíveis para salvar.");
+      if (!canEdit || loading || rulesQuery.error || catalog.error) throw new Error("As regras da OS ainda não estão disponíveis para salvar.");
       // Envia exclusivamente os escopos modificados; os outros permanecem intocados.
       for (const [key, entry] of changedEntries) {
         const savedRow = findRuleRow(rows, entry.scope, entry.serviceId, entry.equipmentId);
@@ -154,7 +155,7 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
       }
       await client.invalidateQueries({ queryKey: ["organization-order-rules", organizationId] });
     },
-  }), [changedEntries, canModify, rows, organizationId, client]);
+  }), [changedEntries, canEdit, loading, rulesQuery.error, catalog.error, rows, organizationId, client]);
 
   return <div className="space-y-6">
     <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
