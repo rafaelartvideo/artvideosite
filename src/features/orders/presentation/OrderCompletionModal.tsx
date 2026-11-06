@@ -1,6 +1,6 @@
 import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
-import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileCheck2, MapPin, Package, Phone, Printer, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
@@ -175,12 +175,14 @@ export function OrderCompletionModal({
   usedItems,
   completion,
   saving,
+  preparing = false,
   formatCurrency,
 }: {
   detail: any;
   usedItems: any[];
   completion: ReturnType<typeof useOrderCompletion>;
   saving: boolean;
+  preparing?: boolean;
   formatCurrency: (value: number) => string;
 }) {
   const [addressExpanded, setAddressExpanded] = useState(false);
@@ -205,6 +207,7 @@ export function OrderCompletionModal({
     () => usedItems.filter(item => !item.inventory_item_id || !commercialProductIds.has(item.inventory_item_id)),
     [usedItems, commercialProductIds],
   );
+  const hasProducts = commercialProducts.length > 0 || resolutionOnlyItems.length > 0;
 
   if (!completion.open || !detail) return null;
 
@@ -251,6 +254,22 @@ export function OrderCompletionModal({
         </div>}
         {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
+      </div>
+    </AdminDialog>;
+  }
+
+  const preparingConclusion = preparing
+    || completion.commercialItemsLoading
+    || completion.financeOptionsLoading
+    || completion.warrantyLoading
+    || completion.paymentProofRequirementLoading;
+
+  if (preparingConclusion) {
+    return <AdminDialog open onClose={close} title={`Concluir OS ${detail.os_number || ""}`}
+      description="Carregando os dados necessários para concluir esta OS."
+      className="max-w-xl">
+      <div className="flex min-h-[300px] items-center justify-center">
+        <LoadingState text="Preparando conclusão..." />
       </div>
     </AdminDialog>;
   }
@@ -335,10 +354,10 @@ export function OrderCompletionModal({
               <span className="text-muted-foreground">Serviços</span>
               <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
             </div>
-            <div className="flex items-center justify-between gap-4 text-sm">
+            {hasProducts && <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">Produtos</span>
               <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
-            </div>
+            </div>}
             <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm">
               <span className="font-bold text-foreground">Subtotal</span>
               <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.subtotal)}</strong>
@@ -359,7 +378,8 @@ export function OrderCompletionModal({
         </div>
       </Section>
 
-      <Section title="Produtos e serviços">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
+        <Section title="Produtos e serviços">
         <div className="min-w-0 space-y-4">
           {completion.commercialItemsLoading && (
             <div className="rounded-xl border border-border bg-muted/45 px-4 py-3 text-sm text-muted-foreground">
@@ -389,42 +409,44 @@ export function OrderCompletionModal({
                   <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
                 </div>
                 {commercialServices.length ? (
-                  <div className="divide-y divide-border border-y border-border">
+                  <div className="divide-y divide-border">
                     {commercialServices.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-                    Nenhum serviço foi adicionado à composição desta OS.
+                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
+                    Nenhum serviço cadastrado.
                   </div>
                 )}
               </div>
 
-              <div className="border-t border-border pt-4">
+              <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">Produtos da composição e peças utilizadas na solução sem duplicidade.</p>
                   </div>
-                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
+                  {hasProducts && <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>}
                 </div>
-                {commercialProducts.length || resolutionOnlyItems.length ? (
-                  <div className="divide-y divide-border border-y border-border">
+                {hasProducts ? (
+                  <div className="divide-y divide-border">
                     {commercialProducts.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
                     {resolutionOnlyItems.map(item => <ResolutionProductRow key={`used-${item.id}`} item={item} formatCurrency={formatCurrency} />)}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-                    Nenhum produto foi adicionado ou utilizado nesta OS.
+                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
+                    Nenhum produto utilizado.
                   </div>
                 )}
               </div>
             </>
           ) : !completion.commercialItemsLoading && !completion.commercialItemsError ? (
             <>
-              <div className="border-y border-border py-4">
+              <div>
                 <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                  <InfoItem label="Serviço" value={detail.general_service?.name || "—"} />
-                  {completion.priceAtCompletion ? (
+                  {detail.general_service?.name
+                    ? <InfoItem label="Serviço" value={detail.general_service.name} />
+                    : <div className="py-5 text-center text-sm text-muted-foreground sm:col-span-2">Nenhum serviço cadastrado.</div>}
+                  {detail.general_service?.name && (completion.priceAtCompletion ? (
                     <FCurrencyInput
                       label="Valor do serviço"
                       value={completion.servicePriceInput}
@@ -435,7 +457,7 @@ export function OrderCompletionModal({
                     />
                   ) : (
                     <InfoItem label="Valor do serviço" value={formatCurrency(completion.servicePrice)} />
-                  )}
+                  ))}
                 </div>
               </div>
 
@@ -445,14 +467,14 @@ export function OrderCompletionModal({
                     <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos utilizados</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">Peças aprovadas e registradas na solução.</p>
                   </div>
-                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
+                  {usedItems.length > 0 && <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>}
                 </div>
                 {usedItems.length ? (
-                  <div className="divide-y divide-border border-y border-border">
+                  <div className="divide-y divide-border">
                     {usedItems.map(item => <ResolutionProductRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
+                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
                     Nenhum produto utilizado.
                   </div>
                 )}
@@ -474,6 +496,7 @@ export function OrderCompletionModal({
           {completion.warrantyError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.warrantyError}</p>}
         </div>
       </Section>
+      </div>
       <Section title="Pagamento">
         <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
       </Section>
