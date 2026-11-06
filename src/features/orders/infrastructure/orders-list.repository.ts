@@ -120,8 +120,8 @@ async function findMatchingOrderIds({
       const osNumber = normalizeIdentifier(order.os_number);
       const externalNumber = normalizeIdentifier(order.external_os_number);
       if (field === "external") return externalNumber.includes(normalizedSearch);
-      const matchesInternal = osNumber.includes(normalizedSearch);
-      return includeExternal ? matchesInternal || externalNumber.includes(normalizedSearch) : matchesInternal;
+      const matchesInternal = normalizeOrderSearch(order.os_number) === normalizedSearch;
+      return includeExternal ? osNumber.includes(normalizedSearch) || externalNumber.includes(normalizedSearch) : matchesInternal;
     })
     .map(order => order.id);
 }
