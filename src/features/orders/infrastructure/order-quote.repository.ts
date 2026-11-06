@@ -30,6 +30,7 @@ export type OrderQuoteProposal = {
   versions: Array<Record<string, any>>;
   rejection_reason: string | null;
   approved_at: string | null;
+  applied_at: string | null;
   updated_at: string;
 };
 
@@ -46,7 +47,7 @@ export async function readOrderQuote(organizationId: string, serviceOrderId: str
   const started = Date.now();
   try {
     const { data, error } = await supabase.from("service_order_quote_proposals")
-      .select("id,status,version,diagnosis,proposed_solution,commercial_conditions,valid_until,items,discount_type,discount_value,versions,rejection_reason,approved_at,updated_at")
+      .select("id,status,version,diagnosis,proposed_solution,commercial_conditions,valid_until,items,discount_type,discount_value,versions,rejection_reason,approved_at,applied_at,updated_at")
       .eq("organization_id",organizationId).eq("service_order_id",serviceOrderId).maybeSingle();
     if (error) throw error;
     return data ? data as OrderQuoteProposal : null;
@@ -67,6 +68,15 @@ export async function changeOrderQuote(
   if (error) throw error;
   return data as OrderQuoteProposal;
 }
+/** Reabre orçamento aprovado com justificativa e cria nova versão pendente de revisão. */
+export async function reopenApprovedOrderQuote(organizationId: string, serviceOrderId: string, reason: string): Promise<OrderQuoteProposal> {
+  const { data, error } = await supabase.rpc("reopen_approved_service_order_quote_v1", {
+    p_organization_id: organizationId, p_order_id: serviceOrderId, p_reason: reason.trim(),
+  });
+  if (error) throw error;
+  return data as OrderQuoteProposal;
+}
+
 export type OrderQuoteCommentAttachment = {
   id: string;
   fileName: string;
