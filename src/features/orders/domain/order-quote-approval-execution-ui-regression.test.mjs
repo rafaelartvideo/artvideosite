@@ -26,6 +26,9 @@ test("aprovação mostra produtos e serviços diretamente na subseção da OS", 
   assert.match(quote, /<OrderProductsServicesSection\s+order=\{order\} canEdit=\{canEdit\}/);
   assert.match(quote, /onOverviewChange=\{onOverviewChange\}/);
   assert.match(details, /onOverviewChange=\{handleItemsOverviewChange\}/);
+  // Depois da aprovação, a OS sai do modo de ações exclusivas do orçamento.
+  assert.match(details, /quoteMode=\{quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed\}/);
+  assert.match(details, /quoteFooterHostId=\{quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed/);
   assert.doesNotMatch(quote, /showExecution|setShowExecution|Abrir produtos e serviços para execução/);
 });
 
