@@ -803,7 +803,21 @@ export function TabProducts({
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
-      await replaceRelatedProductCodes(activeOrganizationId, savedProductId, form.related_codes);
+      try {
+        await replaceRelatedProductCodes(activeOrganizationId, savedProductId, form.related_codes);
+      } catch (codeError) {
+        // O produto já foi gravado. Manter o ID e abrir para edição evita cadastro
+        // duplicado caso o usuário tente salvar novamente os códigos relacionados.
+        setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+        onRouteChange?.(savedProductId, "edit");
+        setToast({
+          msg: "Item salvo, mas não foi possível registrar os códigos relacionados: "
+            + systemErrorMessage(codeError) + ". Revise e salve novamente.",
+          type: "error",
+        });
+        void refresh();
+        return;
+      }
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
