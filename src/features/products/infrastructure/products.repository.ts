@@ -188,6 +188,7 @@ export async function listProductSimilarIds(
   const { data, error } = await supabase.rpc("list_product_similar_ids_v1", {
     p_organization_id: organizationId, p_product_id: productId,
   });
+  if (error?.code === "PGRST202") return []; // migração ainda não aplicada
   if (error) throw error;
   return ((data || []) as Array<{ product_id: string }>).map(row => row.product_id);
 }
