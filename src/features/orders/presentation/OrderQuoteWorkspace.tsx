@@ -227,9 +227,12 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       if(action==="submit"){
         await changeOrderQuote(org,orderId,"save",draft as unknown as Record<string,unknown>);
         result=await changeOrderQuote(org,orderId,"submit");
+      }else if(action==="reopen"){
+        result=await reopenApprovedOrderQuote(org,orderId,reason);
       }else result=await changeOrderQuote(org,orderId,action,
         action==="reject"?{reason}:
-        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,...(executionItems.length?{reconcile_mode:"reuse"}:{})}: {});
+        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,
+          ...(executionItems.length?{reconcile_mode:revisingApprovedQuote?"replace":"reuse"}:{})}: {});
       queryClient.setQueryData(quoteKey, result);
       setProposal(result);
       setDraft(snapshot(result));
@@ -243,8 +246,8 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           console.warn("[ORDERS] Orçamento aprovado; o resumo financeiro será atualizado na próxima leitura.",pricingError);
         }
       }
-      if(action==="reject")setReason("");
-      setModalFeedback({type:"success",message:action==="approve" && executionItems.length===0 ? "Orçamento aprovado. Os itens foram adicionados à execução da OS." : ACTION_SUCCESS[action]});
+      if(action==="reject" || action==="reopen")setReason("");
+      setModalFeedback({type:"success",message:action==="approve" && executionItems.length===0 ? "Orçamento aprovado. Os itens foram adicionados à execução da OS." : action==="approve" && revisingApprovedQuote ? "Nova versão aprovada. Os itens anteriores foram substituídos e o histórico preservado." : ACTION_SUCCESS[action]});
     }catch(err){
       setModalFeedback({type:"error",message:systemErrorMessage(err)});
     }finally{
@@ -287,11 +290,15 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     {editable && <UnionQuoteAiUsage organizationId={org}/>}
     {proposal?.status==="approved"
       ? <section aria-label="Produtos e serviços da OS" className="space-y-3">
-          <div className="flex items-center gap-2 border-b border-border pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
             <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Produtos e serviços da OS</h3>
+            {canEdit && !order.completed_at && !order.cancelled_at && !order.is_solved &&
+              <AdminButton variant="tertiary" onClick={()=>openAction("reopen")} disabled={busy}>
+                <RotateCcw size={15}/> Reabrir orçamento
+              </AdminButton>}
           </div>
           <OrderProductsServicesSection
-            order={order} canEdit={canEdit} formatCurrency={formatCurrency}
+            order={order} canEdit={canEdit} commercialLocked formatCurrency={formatCurrency}
             onPricingChange={onPricingChange} onOverviewChange={onOverviewChange}
           />
         </section>
