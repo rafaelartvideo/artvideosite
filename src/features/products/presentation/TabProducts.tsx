@@ -387,6 +387,9 @@ export function TabProducts({
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
+  // Cancelar pode desmontar o formulário antes de a URL abandonar /inventory/new.
+  // Não reabrir o editor nem exibir o loading no intervalo dessa navegação.
+  const closingEditorRouteRef = useRef(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
   const [nameSearch, setNameSearch] = useState("");
@@ -600,11 +603,16 @@ export function TabProducts({
     setDrawerOpen(true);
   };
 
-  const closeEditor = () => {
-    if (saving || galleryUploading) return;
+  const closeEditorRoute = () => {
+    closingEditorRouteRef.current = Boolean(onRouteChange);
     pendingEditorRouteRef.current = false;
     setDrawerOpen(false);
     onRouteChange?.(null, null);
+  };
+
+  const closeEditor = () => {
+    if (saving || galleryUploading) return;
+    closeEditorRoute();
   };
 
   // Os registros já estão disponíveis na listagem/cache: abra o editor antes
@@ -612,12 +620,14 @@ export function TabProducts({
   // até um refresh, sem necessidade de consultar o banco novamente.
   const openNewPage = () => {
     if (!canCreate) return;
+    closingEditorRouteRef.current = false;
     pendingEditorRouteRef.current = Boolean(onRouteChange);
     openNew();
     onRouteChange?.("new", null);
   };
   const openEditPage = (item: any) => {
     if (!canViewDetails || !canEdit) return;
+    closingEditorRouteRef.current = false;
     pendingEditorRouteRef.current = Boolean(onRouteChange);
     openEdit(item);
     onRouteChange?.(item.id, "edit");
@@ -625,11 +635,15 @@ export function TabProducts({
 
   useEffect(() => {
     if (!routeResourceId) {
+      // URL de listagem confirmada: libera a próxima abertura do editor.
+      closingEditorRouteRef.current = false;
       // A rota ainda não refletiu o clique? Mantenha o formulário aberto sem flash.
       if (pendingEditorRouteRef.current) return;
       if (drawerOpen) setDrawerOpen(false);
       return;
     }
+    // Evita o ciclo fechar -> /inventory/new ainda ativo -> reabrir -> fechar.
+    if (closingEditorRouteRef.current) return;
     pendingEditorRouteRef.current = false;
     if (routeResourceId === "new") {
       if (canCreate && (!drawerOpen || editItem)) openNew();
@@ -841,8 +855,7 @@ export function TabProducts({
         return;
       }
 
-      setDrawerOpen(false);
-      onRouteChange?.(null, null);
+      closeEditorRoute();
       setToast({ msg: editItem ? "Item atualizado!" : "Item criado!", type: "success" });
       void refresh();
     } catch (error) {
@@ -1129,7 +1142,7 @@ export function TabProducts({
       </AdminCard>}
     </>}
 
-    {routeResourceId && !drawerOpen && (
+    {routeResourceId && !drawerOpen && !closingEditorRouteRef.current && (
       catalogQuery.isError || (routeResourceId !== "new" && !catalogQuery.isPending && !products.some((item: any) => item.id === routeResourceId))
         ? <AdminCard className="p-8">
             <EmptyState
