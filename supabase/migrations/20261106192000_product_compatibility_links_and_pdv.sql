@@ -7,7 +7,7 @@ create table if not exists public.product_compatibility_links (
   product_id_a uuid not null references public.products(id) on delete cascade,
   product_id_b uuid not null references public.products(id) on delete cascade,
   created_at timestamptz not null default now(),
-  created_by uuid default (select auth.uid()),
+  created_by uuid default auth.uid(),
   primary key (organization_id,product_id_a,product_id_b),
   constraint product_compatibility_ordered_pair check (product_id_a < product_id_b)
 );
@@ -109,7 +109,7 @@ begin
     alternatives.name,alternatives.sku,alternatives.barcode,alternatives.price,
     alternatives.cover_media_id,alternatives.quantity,alternatives.min_quantity,
     alternatives.unit,alternatives.conversion_factor
-  from (select distinct x.id from unnest(coalesce(p_source_product_ids,'{}'::uuid[])[1:30]) x(id)) source
+  from (select distinct x.id from unnest((coalesce(p_source_product_ids,'{}'::uuid[]))[1:30]) x(id)) source
   join public.products original on original.id=source.id and original.organization_id=p_organization_id
   cross join lateral (
     select p.id as product_id,stock.id as inventory_item_id,p.name,p.sku,p.barcode,
