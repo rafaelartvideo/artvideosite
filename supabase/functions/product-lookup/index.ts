@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { isValidGtin, isInvalidUpcResponse } from "./lookup-helpers.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,8 +118,8 @@ function normalizeUpc(item: any) {
 }
 
 async function openFactsSearch(query: string) {
-  const digits = query.replace(/\D/g, "");
-  if (!/^\d{8,14}$/.test(digits)) return [] as any[];
+  const digits = query.trim();
+  if (!isValidGtin(digits)) return [] as any[];
 
   const fields = [
     "code",
@@ -140,6 +141,7 @@ async function openFactsSearch(query: string) {
       Accept: "application/json",
       "User-Agent": "UnionWorldCRM/1.0 (product lookup; https://unionworld.com.br)",
     },
+    signal: AbortSignal.timeout(8000),
   });
 
   if (response.status === 404) return [];
@@ -161,11 +163,13 @@ async function upcSearch(query: string) {
   const base = paidKey
     ? "https://api.upcitemdb.com/prod/v1"
     : "https://api.upcitemdb.com/prod/trial";
-  const digits = query.replace(/\D/g, "");
-  const exact = /^\d{8,14}$/.test(digits);
+  const normalizedQuery = query.trim();
+  const exact = isValidGtin(normalizedQuery);
+  // MPNs como AKB75675304 devem ser pesquisados por texto/modelo,
+  // nunca pelos dígitos internos como se fossem EAN/UPC.
   const url = exact
-    ? `${base}/lookup?upc=${encodeURIComponent(digits)}`
-    : `${base}/search?s=${encodeURIComponent(query)}&type=product`;
+    ? `${base}/lookup?upc=${encodeURIComponent(normalizedQuery)}`
+    : `${base}/search?s=${encodeURIComponent(normalizedQuery)}&type=product`;
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -176,9 +180,10 @@ async function upcSearch(query: string) {
     headers.key_type = keyType;
   }
 
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
   const payload = await response.json().catch(() => null) as any;
-  if (response.status === 404) return [];
+  // Código rejeitado pelo provedor não é falha interna da Union.
+  if (response.status === 404 || isInvalidUpcResponse(response.status, payload)) return [];
   if (!response.ok) {
     if (response.status === 429) throw new Error("O limite de consultas do catálogo alternativo foi atingido.");
     throw new Error(textValue(payload?.message) || `Catálogo alternativo indisponível (HTTP ${response.status}).`);
@@ -188,13 +193,13 @@ async function upcSearch(query: string) {
 }
 
 async function searchProducts(query: string) {
-  const digits = query.replace(/\D/g, "");
-  const exactBarcode = /^\d{8,14}$/.test(digits);
+  const normalizedQuery = query.trim();
+  const exactBarcode = isValidGtin(normalizedQuery);
   let openFactsError: string | null = null;
 
   if (exactBarcode) {
     try {
-      const openFacts = await openFactsSearch(digits);
+      const openFacts = await openFactsSearch(normalizedQuery);
       if (openFacts.length) return { provider: "openfacts", results: openFacts };
     } catch (error) {
       openFactsError = error instanceof Error ? error.message : "Falha no Open Facts.";
@@ -203,7 +208,7 @@ async function searchProducts(query: string) {
   }
 
   try {
-    const upc = await upcSearch(query);
+    const upc = await upcSearch(normalizedQuery);
     return {
       provider: "upcitemdb",
       results: upc,
@@ -211,8 +216,14 @@ async function searchProducts(query: string) {
     };
   } catch (error) {
     const fallbackError = error instanceof Error ? error.message : "Falha no catálogo UPCitemdb.";
-    if (openFactsError) throw new Error(`${openFactsError} ${fallbackError}`);
-    throw error;
+    console.warn("[PRODUCT LOOKUP] UPCitemdb:", fallbackError);
+    // Ausência/limite temporário do catálogo externo deve aparecer como aviso ao
+    // operador, sem transformar a consulta em falha 500 da Edge Function.
+    return {
+      provider: "upcitemdb",
+      results: [] as any[],
+      warning: [openFactsError, fallbackError].filter(Boolean).join(" "),
+    };
   }
 }
 
