@@ -442,7 +442,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
               {confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
             </BtnPrimary>}
-          </>
+          </>}
       </div>}>
       <div className="min-h-[126px] space-y-4">
         <AnimatePresence mode="wait">
