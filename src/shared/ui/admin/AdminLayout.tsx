@@ -395,7 +395,7 @@ export function AdminDialog({
   </Dialog>;
 }
 
-export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false }: {
+export function AdminPage({ open, onClose, title, subtitle, titleVariant = "default", breadcrumb, children, maxW = "max-w-6xl", fullPage = false, closing = false, smoothMotion = false, disableAnimation = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -407,6 +407,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   fullPage?: boolean;
   closing?: boolean;
   smoothMotion?: boolean;
+  disableAnimation?: boolean;
 }) {
   const setPage = React.useContext(AdminPageContext)?.setPage;
   const onCloseRef = React.useRef(onClose);
@@ -494,11 +495,13 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   return <AdminPageCloseContext.Provider value={{ onClose, requestClose }}><div
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-background text-foreground motion-reduce:animate-none",
-      isClosing
-        ? "pointer-events-none animate-out fade-out duration-150 ease-out"
-        : smoothMotion
-          ? "animate-in fade-in duration-150 ease-out"
-          : "motion-reduce:animate-none",
+      disableAnimation
+        ? "!animate-none !transition-none"
+        : isClosing
+          ? "pointer-events-none animate-out fade-out duration-150 ease-out"
+          : smoothMotion
+            ? "animate-in fade-in duration-150 ease-out"
+            : "motion-reduce:animate-none",
     )}
     role="main"
     aria-label={title}
