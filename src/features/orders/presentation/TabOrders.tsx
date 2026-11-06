@@ -178,7 +178,8 @@ export function TabOrders({
   const filters = useOrderFilters({
     organizationId: workspaceBase.organizationId,
     stateOptions: ibgeStates,
-    matchOrderNumberOrExternal: true,
+    // Busca combinada apenas no acesso compartilhado legado. No CRM, campos separados.
+    matchOrderNumberOrExternal: Boolean(scopedReadOnly || workspaceBase.isOrganizationOverride),
     kanbanMode: displayMode === "kanban" && !scopedReadOnly,
     // Não buscar páginas/contadores da lista em detalhes, documentos ou editor.
     // Os dados já vistos continuam no cache para o retorno.
