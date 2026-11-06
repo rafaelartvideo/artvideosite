@@ -209,8 +209,7 @@ begin
   values(p_organization_id,v_s.financial_entry_id,'settlement_reversed',jsonb_build_object('settlement_id',v_s.id,'reason',v_reason),v_user_id);
   return jsonb_build_object('id',v_s.id,'status','reversed');
 end;
-$function$
-
+$function$;
 
 -- Revisão pontual de uma parcela PREVISTA sem alterar contas já quitadas.
 create or replace function public.adjust_financial_installment_forecast(
