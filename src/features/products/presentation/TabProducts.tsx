@@ -25,6 +25,9 @@ import {
   loadProductCatalog,
   saveCompleteProduct,
   updateProductFlags,
+  listRelatedProductCodes,
+  replaceRelatedProductCodes,
+  type RelatedProductCode,
 } from "../infrastructure/products.repository";
 import {
   AdminButton,
@@ -83,6 +86,7 @@ type ProductForm = {
   internal_notes: string;
   model: string;
   manufacturer_code: string;
+  related_codes: RelatedProductCode[];
   gpc_code: string;
   gross_weight_grams: string;
   net_weight_grams: string;
@@ -188,6 +192,7 @@ function emptyForm(): ProductForm {
     internal_notes: "",
     model: "",
     manufacturer_code: "",
+    related_codes: [],
     gpc_code: "",
     gross_weight_grams: "",
     net_weight_grams: "",
@@ -351,6 +356,7 @@ export function TabProducts({
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
+  const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -424,6 +430,7 @@ export function TabProducts({
     if (!canCreate) return;
     setFieldErrors({});
     setForm(emptyForm());
+    setRelatedCodesLoaded(true);
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -447,6 +454,7 @@ export function TabProducts({
       internal_notes: product.internal_notes || "",
       model: product.model || "",
       manufacturer_code: product.manufacturer_code || "",
+      related_codes: [],
       gpc_code: product.gpc_code || "",
       gross_weight_grams: product.gross_weight_grams == null ? "" : String(product.gross_weight_grams),
       net_weight_grams: product.net_weight_grams == null ? "" : String(product.net_weight_grams),
@@ -513,6 +521,17 @@ export function TabProducts({
         : [],
     });
     setEditItem(product);
+    setRelatedCodesLoaded(false);
+    if (activeOrganizationId) {
+      void listRelatedProductCodes(activeOrganizationId, product.id)
+        .then(codes => {
+          setForm(current => ({ ...current, related_codes: codes }));
+          setRelatedCodesLoaded(true);
+        })
+        .catch(error => {
+          setToast({ msg: "Não foi possível carregar os códigos relacionados: " + systemErrorMessage(error), type: "error" });
+        });
+    }
     setLinkedSuppliers([]);
     setGalleryMedia([]);
     if (canViewSuppliers && inventory?.inventory_item_id && activeOrganizationId) {
@@ -600,6 +619,20 @@ export function TabProducts({
       && !linkedSuppliers.some(supplier => supplier.id === form.initial_supplier_entity_id)
     ) {
       errors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
+    }
+
+    const normalizedCodes = form.related_codes.map(item => item.code.trim().toUpperCase());
+    if (!relatedCodesLoaded) {
+      setEditorTab("general");
+      setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
+      return false;
+    }
+    if (normalizedCodes.some(code => !/^[A-Z0-9][A-Z0-9 ./_-]{1,63}$/.test(code))
+      || new Set(normalizedCodes).size !== normalizedCodes.length
+      || normalizedCodes.includes(form.manufacturer_code.trim().toUpperCase())) {
+      setEditorTab("general");
+      setToast({ msg: "Revise os códigos relacionados: devem ser válidos, únicos e diferentes do MPN principal.", type: "error" });
+      return false;
     }
 
     if (isArtvideoTenant && form.show_in_catalog) {
@@ -705,7 +738,7 @@ export function TabProducts({
         updated_by: user?.id || null,
       };
 
-      await saveCompleteProduct(
+      const savedProductId = await saveCompleteProduct(
         activeOrganizationId,
         editItem?.id,
         payload,
@@ -735,6 +768,7 @@ export function TabProducts({
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
+      await replaceRelatedProductCodes(activeOrganizationId, savedProductId, form.related_codes);
 
       setDrawerOpen(false);
       onRouteChange?.(null, null);
@@ -1163,6 +1197,43 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, manufacturer_code: event.target.value }))}
                   placeholder="Código original do fabricante"
                 />
+
+                <div className="space-y-3 rounded-xl border border-border p-3 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
+                      <p className="text-xs text-muted-foreground">Referências substituídas, substitutas ou compatíveis. Só cadastre relações confirmadas.</p>
+                    </div>
+                    <AdminButton variant="tertiary" size="sm" disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
+                      onClick={() => setForm(current => ({ ...current, related_codes: [...current.related_codes, { code: "", relation_type: "previous" }] }))}>
+                      <Plus size={15} /> Adicionar código
+                    </AdminButton>
+                  </div>
+                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências do produto...</p>}
+                  {relatedCodesLoaded && form.related_codes.length === 0 && <p className="text-xs text-muted-foreground">Nenhum código adicional cadastrado.</p>}
+                  {form.related_codes.map((item, index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
+                    <FInput label={`Código ${index + 1}`} value={item.code} disabled={saving}
+                      placeholder="Ex.: AKB76037602" onChange={(event: any) => setForm(current => ({ ...current,
+                        related_codes: current.related_codes.map((related, i) => i === index ? { ...related, code: event.target.value } : related),
+                      }))} />
+                    <FSelect label="Tipo de relação" value={item.relation_type} disabled={saving}
+                      options={[
+                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
+                        { value: "successor", label: "Código novo (substitui o atual)" },
+                        { value: "compatible", label: "Peça compatível" },
+                        { value: "alternate", label: "Outra referência do mesmo produto" },
+                      ]}
+                      onChange={(event: any) => setForm(current => ({ ...current,
+                        related_codes: current.related_codes.map((related, i) => i === index
+                          ? { ...related, relation_type: event.target.value as RelatedProductCode["relation_type"] } : related),
+                      }))} />
+                    <button type="button" disabled={saving} title="Excluir referência" aria-label={`Excluir código relacionado ${index + 1}`}
+                      className="flex h-[42px] w-[42px] items-center justify-center rounded-lg border border-red-500/25 text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                      onClick={() => setForm(current => ({ ...current, related_codes: current.related_codes.filter((_, i) => i !== index) }))}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>)}
+                </div>
 
                 <div className="sm:col-span-2">
                   <FTextarea
