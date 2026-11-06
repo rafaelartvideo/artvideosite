@@ -43,7 +43,7 @@ import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage"
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminDialog, AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
@@ -139,6 +139,7 @@ export function TabOrders({
   // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
   const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
   const [completionFromListStarted, setCompletionFromListStarted] = useState(false);
+  const [completionFromListReady, setCompletionFromListReady] = useState(false);
   const editOriginRef = useRef<"details" | "list">("details");
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
@@ -305,11 +306,25 @@ export function TabOrders({
     completionController.openCompletion(detail);
   }, [completionFromListId, completionFromListStarted, detailsController.detailReady, detail]);
 
+  // Um único estado de preparação cobre a carga do detalhe E das dependências
+  // financeiras/comerciais. Só revela o conteúdo depois que todas concluíram.
+  useEffect(() => {
+    if (!completionFromListId || !completionFromListStarted || completionFromListReady || !completionController.open) return;
+    if (completionController.commercialItemsLoading || completionController.financeOptionsLoading
+      || completionController.warrantyLoading || completionController.paymentProofRequirementLoading) return;
+    setCompletionFromListReady(true);
+  }, [
+    completionFromListId, completionFromListStarted, completionFromListReady, completionController.open,
+    completionController.commercialItemsLoading, completionController.financeOptionsLoading,
+    completionController.warrantyLoading, completionController.paymentProofRequirementLoading,
+  ]);
+
   useEffect(() => {
     if (!completionFromListId || !completionFromListStarted || completionController.open) return;
     // Fechar a conclusão devolve diretamente à lista, preservando filtros e paginação.
     setCompletionFromListId(null);
     setCompletionFromListStarted(false);
+    setCompletionFromListReady(false);
     closeDetail();
   }, [completionFromListId, completionFromListStarted, completionController.open]);
 
@@ -511,6 +526,7 @@ export function TabOrders({
     if (!effectiveHasPermission("orders.complete")) return;
     if (completionController.open) return;
     setCompletionFromListStarted(false);
+    setCompletionFromListReady(false);
     setCompletionFromListId(order.id);
     // Carrega a versão completa, mas mantém a lista e a rota onde estavam.
     openFreshDetail(order);
@@ -760,25 +776,6 @@ export function TabOrders({
       />}
 
       {routedDetailLoading && <LoadingState text="Carregando OS..." />}
-      {completionFromListId && !completionFromListStarted && <AdminDialog
-        open
-        onClose={() => { setCompletionFromListId(null); closeDetail(); }}
-        title="Concluir OS"
-        description="Carregando informações necessárias para a conclusão."
-        className="max-w-xl"
-      >{detailsController.detailLoadError
-        ? <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 text-center">
-            <p role="alert" className="text-sm font-semibold text-red-600">
-              Não foi possível preparar a conclusão: {systemErrorMessage(detailsController.detailLoadError)}
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <AdminButton variant="secondary" onClick={() => { setCompletionFromListId(null); closeDetail(); }}>Fechar</AdminButton>
-              <AdminButton onClick={() => void detailsController.retryDetailLoad()}>Tentar novamente</AdminButton>
-            </div>
-          </div>
-        : <div className="flex min-h-[280px] items-center justify-center">
-            <LoadingState text="Preparando conclusão..." />
-          </div>}</AdminDialog>}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
@@ -869,7 +866,17 @@ export function TabOrders({
         images={imagesController}
         resolution={resolutionController}
         completion={completionController}
-        completionPreparing={Boolean(completionFromListId && !detailsController.detailReady)}
+        completionPreparing={Boolean(completionFromListId && !completionFromListReady)}
+        completionPrepareError={completionFromListId && !completionFromListStarted && detailsController.detailLoadError
+          ? systemErrorMessage(detailsController.detailLoadError) : ""}
+        onRetryCompletionPreparation={() => void detailsController.retryDetailLoad()}
+        onCancelCompletionPreparation={() => {
+          completionController.setOpen(false);
+          setCompletionFromListId(null);
+          setCompletionFromListStarted(false);
+          setCompletionFromListReady(false);
+          closeDetail();
+        }}
         partRequests={partRequests}
         onSelectCustomer={selectCustomer}
         setToast={setToast}

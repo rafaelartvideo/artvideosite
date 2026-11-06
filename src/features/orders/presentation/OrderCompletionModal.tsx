@@ -1,6 +1,6 @@
 import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
-import { InlineLoading, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileCheck2, MapPin, Package, Phone, Printer, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
@@ -123,23 +123,25 @@ function CommercialItemRow({
   const service = item.item_type !== "product";
 
   return <div className="flex min-w-0 flex-col gap-2 py-3 sm:flex-row sm:items-center">
-    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${service ? "bg-primary-soft text-primary" : "bg-muted text-foreground"}`}>
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${service ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-violet-500/10 text-violet-600 dark:text-violet-400"}`}>
       {service ? <Wrench size={15} /> : <Package size={15} />}
     </span>
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <p className="min-w-0 break-words text-sm font-bold text-foreground">{item.title_snapshot || (service ? "Serviço" : "Produto")}</p>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+        <p className="min-w-0 break-words text-base font-bold text-foreground">{item.title_snapshot || (service ? "Serviço" : "Produto")}</p>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${service
+          ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+          : "bg-violet-500/10 text-violet-700 dark:text-violet-300"}`}>
           {service ? "Serviço" : "Produto"}
         </span>
       </div>
-      {item.description_snapshot && <p className="mt-0.5 break-words text-[11px] text-muted-foreground">{item.description_snapshot}</p>}
-      <p className="mt-1 text-[10px] text-muted-foreground">
+      {item.description_snapshot && <p className="mt-0.5 break-words text-sm text-muted-foreground">{item.description_snapshot}</p>}
+      <p className="mt-1 text-sm text-muted-foreground">
         {formatNumber(quantity)} {item.unit_snapshot || (service ? "serviço" : "un")} × {formatCurrency(unitPrice)}
         {additionalCost > 0 ? ` + ${formatCurrency(additionalCost)} adicional` : ""}
       </p>
     </div>
-    <strong className="shrink-0 text-sm text-foreground">{formatCurrency(total)}</strong>
+    <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>
   </div>;
 }
 
@@ -155,18 +157,18 @@ function ResolutionProductRow({
   const total = Number(item.total_sale_price ?? quantity * unitPrice);
 
   return <div className="flex min-w-0 flex-col gap-2 py-3 sm:flex-row sm:items-center">
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground"><Package size={15} /></span>
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400"><Package size={17} /></span>
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <p className="min-w-0 break-words text-sm font-bold text-foreground">{item.inventory_item?.name || "Produto utilizado"}</p>
-        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-700">Utilizado</span>
+        <p className="min-w-0 break-words text-base font-bold text-foreground">{item.inventory_item?.name || "Produto utilizado"}</p>
+        <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-bold text-violet-700 dark:text-violet-300">Produto</span>
       </div>
-      <p className="mt-1 text-[10px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {formatNumber(quantity)} {item.inventory_item?.unit || "un"} × {formatCurrency(unitPrice)}
         {item.inventory_item?.sku ? ` · SKU ${item.inventory_item.sku}` : ""}
       </p>
     </div>
-    <strong className="shrink-0 text-sm text-foreground">{formatCurrency(total)}</strong>
+    <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>
   </div>;
 }
 
@@ -176,6 +178,9 @@ export function OrderCompletionModal({
   completion,
   saving,
   preparing = false,
+  preparingError = "",
+  onRetryPreparing,
+  onCancelPreparing,
   formatCurrency,
 }: {
   detail: any;
@@ -183,6 +188,9 @@ export function OrderCompletionModal({
   completion: ReturnType<typeof useOrderCompletion>;
   saving: boolean;
   preparing?: boolean;
+  preparingError?: string;
+  onRetryPreparing?: () => void;
+  onCancelPreparing?: () => void;
   formatCurrency: (value: number) => string;
 }) {
   const [addressExpanded, setAddressExpanded] = useState(false);
@@ -208,15 +216,51 @@ export function OrderCompletionModal({
     [usedItems, commercialProductIds],
   );
   const hasProducts = commercialProducts.length > 0 || resolutionOnlyItems.length > 0;
+  const hasServices = detail && (completion.commercialPricing
+    ? commercialServices.length > 0
+    : Boolean(detail.general_service?.name));
 
-  if (!completion.open || !detail) return null;
+  if ((!completion.open && !preparing) || (!detail && !preparing)) return null;
 
+  const close = () => {
+    if (saving) return;
+    if (preparing && onCancelPreparing) onCancelPreparing();
+    else completion.setOpen(false);
+  };
+
+  const preparingConclusion = preparing || (
+    completion.open && !completion.completedSuccessfully && (
+      completion.commercialItemsLoading
+      || completion.financeOptionsLoading
+      || completion.warrantyLoading
+      || completion.paymentProofRequirementLoading
+    )
+  );
+
+  // Modal único desde o primeiro clique; mantém a mesma instância durante
+  // a hidratação da OS e as consultas da conclusão, sem flash intermediário.
+  if (preparingConclusion) {
+    return <AdminDialog open onClose={close} title={`Concluir OS ${detail?.os_number || ""}`}
+      description="Carregando os dados necessários para concluir esta OS."
+      className="max-w-xl">
+      {preparingError ? <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 text-center">
+        <p role="alert" className="text-sm font-semibold text-red-600">
+          Não foi possível preparar a conclusão: {preparingError}
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <AdminButton variant="secondary" onClick={close}>Fechar</AdminButton>
+          {onRetryPreparing && <AdminButton onClick={onRetryPreparing}>Tentar novamente</AdminButton>}
+        </div>
+      </div> : <div className="flex min-h-[300px] items-center justify-center">
+        <LoadingState text="Preparando conclusão..." />
+      </div>}
+    </AdminDialog>;
+  }
+
+  if (!detail) return null;
   const customer = detail.customer as any;
   const address = customerAddress(customer);
   const isCompany = customer?.customer_type === "PJ";
-  const close = () => {
-    if (!saving) completion.setOpen(false);
-  };
 
   if (completion.completedSuccessfully) {
     return <AdminDialog
@@ -254,22 +298,6 @@ export function OrderCompletionModal({
         </div>}
         {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
-      </div>
-    </AdminDialog>;
-  }
-
-  const preparingConclusion = preparing
-    || completion.commercialItemsLoading
-    || completion.financeOptionsLoading
-    || completion.warrantyLoading
-    || completion.paymentProofRequirementLoading;
-
-  if (preparingConclusion) {
-    return <AdminDialog open onClose={close} title={`Concluir OS ${detail.os_number || ""}`}
-      description="Carregando os dados necessários para concluir esta OS."
-      className="max-w-xl">
-      <div className="flex min-h-[300px] items-center justify-center">
-        <LoadingState text="Preparando conclusão..." />
       </div>
     </AdminDialog>;
   }
@@ -378,124 +406,72 @@ export function OrderCompletionModal({
         </div>
       </Section>
 
-      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
-        <Section title="Produtos e serviços">
-        <div className="min-w-0 space-y-4">
-          {completion.commercialItemsLoading && (
-            <div className="rounded-xl border border-border bg-muted/45 px-4 py-3 text-sm text-muted-foreground">
-              <InlineLoading text="Carregando a composição da OS..." />
-            </div>
-          )}
-
-          {completion.commercialItemsError && (
-            <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
+        <Section title="Produtos e serviços"
+          className="flex h-[360px] min-h-0 flex-col"
+          contentClassName="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-w-0">
+            {completion.commercialItemsError && <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="min-w-0 text-sm font-semibold text-red-700">
                 Não foi possível carregar Produtos e Serviços: {completion.commercialItemsError}
               </p>
               <AdminButton variant="secondary" size="sm" onClick={() => void completion.reloadCommercialItems()} disabled={completion.commercialItemsLoading}>
                 Tentar novamente
               </AdminButton>
-            </div>
-          )}
+            </div>}
 
-          {!completion.commercialItemsLoading && !completion.commercialItemsError && completion.commercialPricing ? (
-            <>
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Serviços</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Serviços registrados na composição da OS.</p>
-                  </div>
-                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
-                </div>
-                {commercialServices.length ? (
-                  <div className="divide-y divide-border">
-                    {commercialServices.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
-                  </div>
-                ) : (
-                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
-                    Nenhum serviço cadastrado.
-                  </div>
-                )}
-              </div>
+            {!completion.commercialItemsError && !completion.commercialItemsLoading && !hasServices && !hasProducts &&
+              <AdminSectionEmpty className="min-h-[240px] text-sm">Nenhum produto ou serviço utilizado.</AdminSectionEmpty>}
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Produtos da composição e peças utilizadas na solução sem duplicidade.</p>
-                  </div>
-                  {hasProducts && <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>}
-                </div>
-                {hasProducts ? (
-                  <div className="divide-y divide-border">
-                    {commercialProducts.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
-                    {resolutionOnlyItems.map(item => <ResolutionProductRow key={`used-${item.id}`} item={item} formatCurrency={formatCurrency} />)}
-                  </div>
-                ) : (
-                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
-                    Nenhum produto utilizado.
-                  </div>
-                )}
-              </div>
-            </>
-          ) : !completion.commercialItemsLoading && !completion.commercialItemsError ? (
-            <>
-              <div>
-                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                  {detail.general_service?.name
-                    ? <InfoItem label="Serviço" value={detail.general_service.name} />
-                    : <div className="py-5 text-center text-sm text-muted-foreground sm:col-span-2">Nenhum serviço cadastrado.</div>}
-                  {detail.general_service?.name && (completion.priceAtCompletion ? (
-                    <FCurrencyInput
-                      label="Valor do serviço"
-                      value={completion.servicePriceInput}
-                      onChange={(event: any) => completion.setServicePriceInput(event.target.value)}
-                      error={completion.servicePriceValidationMessage || undefined}
-                      hint="Informe o valor definido para esta conclusão."
-                      disabled={saving}
-                    />
-                  ) : (
-                    <InfoItem label="Valor do serviço" value={formatCurrency(completion.servicePrice)} />
-                  ))}
-                </div>
-              </div>
+            {!completion.commercialItemsError && !completion.commercialItemsLoading && (hasServices || hasProducts) && <>
+              {hasServices && <div>
+                {completion.commercialPricing
+                  ? commercialServices.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)
+                  : <div className="flex min-w-0 flex-col gap-3 py-3 sm:flex-row sm:items-center">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400"><Wrench size={17} /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="break-words text-base font-bold text-foreground">{detail.general_service.name}</p>
+                          <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-bold text-blue-700 dark:text-blue-300">Serviço</span>
+                        </div>
+                      </div>
+                      {completion.priceAtCompletion
+                        ? <div className="w-full shrink-0 sm:w-[190px]">
+                            <FCurrencyInput label="Valor do serviço" value={completion.servicePriceInput}
+                              onChange={(event: any) => completion.setServicePriceInput(event.target.value)}
+                              error={completion.servicePriceValidationMessage || undefined}
+                              disabled={saving} />
+                          </div>
+                        : <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(completion.servicePrice)}</strong>}
+                    </div>}
+              </div>}
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos utilizados</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Peças aprovadas e registradas na solução.</p>
-                  </div>
-                  {usedItems.length > 0 && <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>}
-                </div>
-                {usedItems.length ? (
-                  <div className="divide-y divide-border">
-                    {usedItems.map(item => <ResolutionProductRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
-                  </div>
-                ) : (
-                  <div className="px-4 py-5 text-center text-sm text-muted-foreground">
-                    Nenhum produto utilizado.
-                  </div>
-                )}
-              </div>
-            </>
-          ) : null}
-        </div>
-      </Section>
+              {hasProducts && <div className={hasServices ? "border-t border-border pt-2" : ""}>
+                {completion.commercialPricing && commercialProducts.map(item =>
+                  <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
+                {(completion.commercialPricing ? resolutionOnlyItems : usedItems).map(item =>
+                  <ResolutionProductRow key={`used-${item.id}`} item={item} formatCurrency={formatCurrency} />)}
+              </div>}
+            </>}
+          </div>
+        </Section>
 
-      <Section title="Certificado de garantia">
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão.</p>
-          <FSelect label="Prazo da garantia" value={completion.warrantyOptionId}
-            disabled={saving || completion.warrantyLoading}
-            options={completion.warrantyOptions.length ? completion.warrantyOptions.map(option => ({
-              value: option.id, label: option.label + " · " + option.warranty_days + " dias" + (option.is_default ? " (padrão)" : ""),
-            })) : [{ value: "", label: completion.warrantyLoading ? "Carregando..." : "Garantia padrão · 90 dias" }]}
-            onChange={(event:any) => completion.setWarrantyOptionId(event.target.value)} />
-          {completion.warrantyError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.warrantyError}</p>}
-        </div>
-      </Section>
+        <Section title="Certificado de garantia"
+          className="flex h-[360px] min-h-0 flex-col"
+          contentClassName="min-h-0 flex-1 overflow-y-auto">
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão.
+            </p>
+            <FSelect label="Prazo da garantia" value={completion.warrantyOptionId}
+              disabled={saving || completion.warrantyLoading}
+              options={completion.warrantyOptions.length ? completion.warrantyOptions.map(option => ({
+                value: option.id, label: option.label + " · " + option.warranty_days + " dias" + (option.is_default ? " (padrão)" : ""),
+              })) : [{ value: "", label: completion.warrantyLoading ? "Carregando..." : "Garantia padrão · 90 dias" }]}
+              onChange={(event: any) => completion.setWarrantyOptionId(event.target.value)} />
+            {completion.warrantyError && <p role="alert" className="text-sm font-semibold text-red-600">{completion.warrantyError}</p>}
+          </div>
+        </Section>
       </div>
       <Section title="Pagamento">
         <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
