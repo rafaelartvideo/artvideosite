@@ -156,7 +156,7 @@ export function OrderEquipmentSection({
       ) : undefined}
     >
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
+        <div className={(rules.fields.equipment_type_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"flex min-w-0 items-end gap-2 sm:col-span-2"}>
           <div className="min-w-0 flex-1">
             <FSelect
               label="Tipo de equipamento"
@@ -185,7 +185,7 @@ export function OrderEquipmentSection({
           )}
         </div>
 
-        <div className="min-w-0">
+        <div className={(rules.fields.equipment_brand_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
           <FSelect
             label="Marca"
             required={!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
@@ -199,7 +199,7 @@ export function OrderEquipmentSection({
           />
         </div>
 
-        <div className="min-w-0">
+        <div className={(rules.fields.equipment_model_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
           <FSelect
             label="Modelo"
             required={!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
