@@ -5,6 +5,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { useOrganizationOrderRules } from "../application/useOrganizationOrderRules";
 import { findRuleRow, resolveRules, fieldLabels, photoLabels, type RuleItem, type RuleSet, type Scope, type CustomField } from "../domain/order-rules";
+import { OrderCustomFieldsEditor } from "./OrderCustomFieldsEditor";
 import { saveOrderRules, removeOrderRules } from "../infrastructure/order-rules.repository";
 
 const modes=[{value:"required",label:"Obrigatório"},{value:"optional",label:"Opcional"},{value:"hidden",label:"Oculto"}];
@@ -90,6 +91,12 @@ export function OrderRulesSettings({organizationId,canEdit}:{organizationId:stri
      </div>)}
     </div>
    </div>}
+   {configured&&!rulesQuery.error&&<OrderCustomFieldsEditor fields={preview.custom_fields} onChange={setCustom} disabled={!canEdit}/>}
+   <div className="flex flex-wrap justify-end gap-2">
+    {rowId&&<BtnSecondary disabled={!canEdit||saving} onClick={reset}>Restaurar padrão</BtnSecondary>}
+    <BtnPrimary disabled={!canEdit||saving||!configured||rulesQuery.isLoading} loading={saving} onClick={save}>Salvar configurações de OS</BtnPrimary>
+   </div>
+   {message&&<p role="status" className="text-sm text-foreground">{message}</p>}
   </div>
  </Section>;
 }
