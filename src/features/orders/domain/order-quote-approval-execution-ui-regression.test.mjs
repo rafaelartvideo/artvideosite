@@ -45,6 +45,8 @@ test("cards de execução reproduzem grade e preço do orçamento com progresso 
   assert.match(execution, /h-5 w-px shrink-0 bg-border/);
   assert.match(execution, /Quantidade<\/span>/);
   assert.match(execution, /Preço unitário<\/span>/);
+  assert.match(execution, /inputClassName=\{compact \? "py-2 text-center"/);
+  assert.match(execution, /className=\{compact \? "text-center"/);
   assert.match(execution, /Custo adicional<\/span>/);
   assert.match(execution, /<footer className="border-t border-border bg-muted\/20/);
   assert.match(execution, /: renderTaskProgress\(item\)/);
