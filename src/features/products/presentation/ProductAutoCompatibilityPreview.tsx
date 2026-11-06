@@ -21,7 +21,7 @@ export function ProductAutoCompatibilityPreview({
     staleTime: 15_000,
   });
 
-  return <section className="min-w-0 space-y-3 rounded-xl border border-border bg-muted/10 p-3 sm:p-4"
+  return <section className="min-w-0 space-y-3"
     aria-label="Produtos compatíveis">
     <div className="flex min-w-0 items-center gap-2">
       <Link2 size={17} className="shrink-0 text-primary" aria-hidden="true"/>
