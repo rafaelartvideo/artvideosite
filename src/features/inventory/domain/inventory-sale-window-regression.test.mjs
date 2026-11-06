@@ -70,12 +70,13 @@ test("estoque mostra avisos da quantidade certa, inclusive entradas sem prazo re
   assert.match(ui, /No prazo/);
   assert.match(ui, /7 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(ui, /<table className=/);
-  assert.match(ui, /<InventorySaleBatchesPanel/);
+  assert.match(ui, /function InventorySaleBatchesPanel/);
   assert.match(product, /<InventorySaleWindowBadge/);
   assert.match(product, /<InventorySaleBatchesPanel/);
   assert.match(stock, /<InventorySaleWindowBadge/);
   assert.match(repo, /get_inventory_sale_batch_summaries_v1/);
   assert.match(summary, /warning_quantity/);
   assert.match(summary, /overdue_quantity/);
-  assert.match(summary, /security invoker/i);
+  assert.match(summary, /get_inventory_sale_batch_summaries_v1/);
+  assert.match(summary, /grant execute on function/);
 });
