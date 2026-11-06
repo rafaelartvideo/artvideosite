@@ -50,8 +50,8 @@ test("fechar uma OS troca lista e detalhe na mesma rota sem flash ou reset do sc
   assert.match(admin, /useLayoutEffect\(\(\) => \{ if \(!route\.resourceId\) setPage\(null\)/);
   assert.doesNotMatch(admin, /if \(!resourceId\) setPage\(null\)/);
 
-  assert.match(tab, /visible=\{!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && \(!detail \|\| Boolean\(onOrderRouteChange\)\)\}/);
-  assert.match(tab, /visible=\{Boolean\(detail && !solveOpen && !editingRouteActive && \(!onOrderRouteChange \|\| initialOrderId\)\)\}/);
+  assert.match(tab, /visible=\{!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && \(!detail \|\| Boolean\(onOrderRouteChange\) \|\| Boolean\(completionFromListId\)\)\}/);
+  assert.match(tab, /visible=\{Boolean\(detail && !completionFromListId && !solveOpen && !editingRouteActive && \(!onOrderRouteChange \|\| initialOrderId\)\)\}/);
   assert.match(detail, /if \(onClose\) onClose\(\);\s*else closeDetail\(\);/);
   assert.match(detail, /onClose=\{closePage\} smoothMotion=\{false\}/);
 });
