@@ -133,6 +133,7 @@ export function OrderQuoteComments({
   const emojiTriggerRef = useRef<HTMLButtonElement>(null);
   const emojiOverlayRef = useRef<HTMLDivElement>(null);
   const [emojiPosition, setEmojiPosition] = useState({ left: 8, top: 8, width: 352, height: 340 });
+  const [emojiDark, setEmojiDark] = useState(false);
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -153,6 +154,7 @@ export function OrderQuoteComments({
       const trigger = emojiTriggerRef.current;
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
+      setEmojiDark(Boolean(trigger.closest(".dark")));
       const width = Math.min(352, window.innerWidth - 16);
       const height = Math.min(340, window.innerHeight - 16);
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
@@ -323,72 +325,6 @@ export function OrderQuoteComments({
     <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{notes.length}</span>
   </span>}>
     <div className="space-y-5">
-      {canComment && <div className="space-y-2">
-        {replyTo && <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/5 px-3 py-2 text-xs text-foreground">
-          <span className="min-w-0 truncate">Respondendo a <strong>{replyTo.author}</strong></span>
-          <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancelar resposta"
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14}/></button>
-        </div>}
-        {files.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Arquivos selecionados">
-          {files.map((file, index) => <div key={index} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
-            <Paperclip size={13} className="shrink-0 text-muted-foreground"/>
-            <span className="max-w-40 truncate text-xs text-foreground" title={file.name}>{file.name}</span>
-            <button type="button" onClick={() => setFiles(previous => previous.filter((_, i) => i !== index))}
-              aria-label={"Remover " + file.name} className="text-muted-foreground hover:text-red-600"><X size={14}/></button>
-          </div>)}
-        </div>}
-        <div className="flex min-w-0 items-end gap-1 rounded-2xl border border-border bg-card px-2 py-1.5 shadow-sm transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10">
-          <div className="relative shrink-0">
-            <button type="button" aria-label="Inserir emoji" title="Emojis"
-              disabled={submitting} aria-expanded={emojiOpen}
-              onClick={() => setEmojiOpen(value => !value)}
-              className="flex h-10 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary">
-              <Smile size={20} />
-            </button>
-            {emojiOpen && <div className="absolute inset-y-0 left-12 z-50">
-              <SacEmojiPicker recentEmojis={recentEmojis} onSelect={emoji => {
-                setDraft(value => value + emoji);
-                setRecentEmojis(previous => [emoji, ...previous.filter(item => item !== emoji)].slice(0, 20));
-                setEmojiOpen(false);
-                textRef.current?.focus();
-              }} />
-            </div>}
-          </div>
-          <textarea ref={textRef} rows={1} value={draft} maxLength={4000}
-            disabled={submitting} aria-label={replyTo ? "Escrever resposta" : "Escrever comentário"}
-            placeholder={replyTo ? "Escreva uma resposta..." : "Escreva um comentário..."}
-            onChange={event => {
-              setDraft(event.target.value);
-              event.currentTarget.style.height = "auto";
-              event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 120) + "px";
-            }}
-            onKeyDown={event => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            className="min-h-10 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1.5 py-2.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground" />
-          <input ref={fileRef} type="file" className="sr-only" multiple
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf,text/plain,.doc,.docx"
-            onChange={event => {
-              selectFiles(Array.from(event.currentTarget.files || []));
-              event.currentTarget.value = "";
-            }} />
-          <button type="button" title="Anexar arquivo" aria-label="Anexar arquivo"
-            disabled={submitting || files.length >= 3} onClick={() => fileRef.current?.click()}
-            className="flex h-10 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40">
-            <Paperclip size={19} />
-          </button>
-          <button type="button" title="Enviar comentário" aria-label="Enviar comentário"
-            disabled={submitting || (!draft.trim() && !files.length)}
-            onClick={() => void send()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40">
-            {submitting ? <LoadingSpinner size="sm" /> : <Send size={18} />}
-          </button>
-        </div>
-        <p className="text-right text-[11px] text-muted-foreground">Até 3 anexos de 10 MB · Enter envia, Shift+Enter quebra linha</p>
-      </div>}
       {commentsQuery.isLoading && <div className="flex justify-center py-6"><LoadingSpinner size="md" /></div>}
       {commentsQuery.error && <div role="alert" className="space-y-2 text-sm text-destructive">
         Não foi possível carregar os comentários: {systemErrorMessage(commentsQuery.error)}
@@ -417,6 +353,80 @@ export function OrderQuoteComments({
             </div>}
           </article>;
         })}
+      </div>}
+      {canComment && <div className="space-y-2 border-t border-border/70 pt-4">
+        {replyTo && <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/5 px-3 py-2 text-xs text-foreground">
+          <span className="min-w-0 truncate">Respondendo a <strong>{replyTo.author}</strong></span>
+          <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancelar resposta"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14}/></button>
+        </div>}
+        {files.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Arquivos selecionados">
+          {files.map((file, index) => <div key={index} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+            <Paperclip size={13} className="shrink-0 text-muted-foreground"/>
+            <span className="max-w-40 truncate text-xs text-foreground" title={file.name}>{file.name}</span>
+            <button type="button" onClick={() => setFiles(previous => previous.filter((_, i) => i !== index))}
+              aria-label={"Remover " + file.name} className="text-muted-foreground hover:text-red-600"><X size={14}/></button>
+          </div>)}
+        </div>}
+        <input ref={fileRef} type="file" className="sr-only" multiple
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/webm,audio/ogg,audio/mp4,audio/mpeg,application/pdf,text/plain,.doc,.docx"
+          aria-label="Selecionar anexos"
+          onChange={event => {
+            selectFiles(Array.from(event.currentTarget.files || []));
+            event.currentTarget.value = "";
+          }} />
+        <form onSubmit={event => { event.preventDefault(); void send(); }}
+          className="flex min-w-0 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+          <button type="button" title="Anexar arquivo" aria-label="Anexar arquivo"
+            disabled={submitting || recording || files.length >= 3} onClick={() => fileRef.current?.click()}
+            className="flex h-12 w-10 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground transition-colors hover:bg-muted disabled:opacity-40 sm:w-12">
+            <Paperclip size={21} />
+          </button>
+          <button ref={emojiTriggerRef} type="button" aria-label="Selecionar emoji" title="Emojis"
+            disabled={submitting} aria-expanded={emojiOpen} aria-haspopup="dialog"
+            onClick={() => setEmojiOpen(value => !value)}
+            className={`flex h-12 w-10 shrink-0 items-center justify-center border-r border-border text-foreground transition-colors hover:bg-muted disabled:opacity-40 sm:w-12 ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
+            <Smile size={21} />
+          </button>
+          <textarea ref={textRef} rows={1} value={draft} maxLength={4000}
+            disabled={submitting || recording} aria-label={replyTo ? "Escrever resposta" : "Escrever comentário"}
+            placeholder={recording ? "Gravando áudio..." : replyTo ? "Escreva uma resposta..." : "Escreva um comentário..."}
+            onChange={event => {
+              setDraft(event.target.value);
+              event.currentTarget.style.height = "auto";
+              event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 120) + "px";
+            }}
+            onKeyDown={event => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void send();
+              }
+            }}
+            className="min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 disabled:opacity-50" />
+          {(recording || (!draft.trim() && !files.length)) && <button type="button"
+            aria-label={recording ? "Parar gravação" : "Gravar áudio"} title={recording ? "Parar gravação" : "Gravar áudio"}
+            disabled={submitting || (!recording && files.length >= 3)}
+            onClick={() => { if (recording) stopRecording(); else void startRecording(); }}
+            className={`flex h-12 w-10 shrink-0 items-center justify-center border-l border-border transition-colors hover:bg-muted disabled:opacity-40 sm:w-12 ${recording ? "text-red-600" : "text-foreground"}`}>
+            {recording ? <Square size={20}/> : <Mic size={21}/>}
+          </button>}
+          <button type="submit" title="Enviar comentário" aria-label="Enviar comentário"
+            disabled={submitting || recording || (!draft.trim() && !files.length)}
+            className="flex h-12 w-11 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 sm:w-12">
+            {submitting ? <LoadingSpinner size="sm" /> : <Send size={22} />}
+          </button>
+        </form>
+        {emojiOpen && typeof document !== "undefined" && createPortal(
+          <div ref={emojiOverlayRef} data-quote-emoji-portal
+            className={`fixed z-[10000] ${emojiDark ? "dark" : ""}`}
+            style={{ left: emojiPosition.left, top: emojiPosition.top, width: emojiPosition.width, height: emojiPosition.height }}>
+            <SacEmojiPicker embedded recentEmojis={recentEmojis} onSelect={emoji => {
+              setDraft(value => value + emoji);
+              setRecentEmojis(previous => [emoji, ...previous.filter(item => item !== emoji)].slice(0, 20));
+              setEmojiOpen(false);
+              textRef.current?.focus();
+            }} />
+          </div>, document.body)}
       </div>}
     </div>
   </Section>;
