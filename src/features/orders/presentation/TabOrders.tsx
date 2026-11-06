@@ -138,6 +138,7 @@ export function TabOrders({
   const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
   // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
   const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
+  const [completionFromListStarted, setCompletionFromListStarted] = useState(false);
   const editOriginRef = useRef<"details" | "list">("details");
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
@@ -297,11 +298,20 @@ export function TabOrders({
   });
 
   useEffect(() => {
-    if (!completionFromListId || completionController.open) return;
+    if (!completionFromListId || completionFromListStarted || !detailsController.detailReady
+      || detail?.id !== completionFromListId) return;
+    // A primeira abertura usa os dados realmente hidratados, não um preview da linha.
+    setCompletionFromListStarted(true);
+    completionController.openCompletion(detail);
+  }, [completionFromListId, completionFromListStarted, detailsController.detailReady, detail]);
+
+  useEffect(() => {
+    if (!completionFromListId || !completionFromListStarted || completionController.open) return;
     // Fechar a conclusão devolve diretamente à lista, preservando filtros e paginação.
     setCompletionFromListId(null);
+    setCompletionFromListStarted(false);
     closeDetail();
-  }, [completionFromListId, completionController.open]);
+  }, [completionFromListId, completionFromListStarted, completionController.open]);
 
   const orderEditor = useOrderEditorWorkflow({
     userId: user?.id,
@@ -500,10 +510,10 @@ export function TabOrders({
   const openCompletionFromList = (order: any) => {
     if (!effectiveHasPermission("orders.complete")) return;
     if (completionController.open) return;
+    setCompletionFromListStarted(false);
     setCompletionFromListId(order.id);
     // Carrega a versão completa, mas mantém a lista e a rota onde estavam.
     openFreshDetail(order);
-    completionController.openCompletion(order);
   };
 
   const openRoutedNew = () => {
@@ -750,6 +760,15 @@ export function TabOrders({
       />}
 
       {routedDetailLoading && <LoadingState text="Carregando OS..." />}
+      {completionFromListId && !completionFromListStarted && <AdminDialog
+        open
+        onClose={() => { setCompletionFromListId(null); closeDetail(); }}
+        title="Concluir OS"
+        description="Carregando informações necessárias para a conclusão."
+        className="max-w-xl"
+      ><div className="flex min-h-[280px] items-center justify-center">
+        <LoadingState text="Preparando conclusão..." />
+      </div></AdminDialog>}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
