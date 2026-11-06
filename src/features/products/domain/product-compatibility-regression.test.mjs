@@ -73,7 +73,7 @@ test("orçamento, OS e solicitação de peças reutilizam o carrossel", async ()
 });
 
 test("Postgres infere compatibilidade exata por código e contém barreiras multiempresa", () => {
-  const sql = read("supabase/migrations/20261106201000_automatic_compatibility_from_related_codes.sql");
+  const sql = read("supabase/migrations/20261106193737_automatic_compatibility_from_related_codes.sql");
   assert.ok(sql.includes("private.find_code_compatible_products_v1"));
   assert.ok(sql.includes("related.is_verified=true"));
   assert.match(sql, /\bwhere\s+\(src\.is_related\s+or\s+dst\.is_related\)/);
