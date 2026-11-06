@@ -3,18 +3,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { AlertCircle, ArrowRight, CheckCircle2, History, RotateCcw, XCircle } from "lucide-react";
-import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  addOrderQuoteComment, changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
-  listOrderQuoteComments, readOrderQuote,
+  changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
+  readOrderQuote,
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
+import { OrderQuoteComments } from "./OrderQuoteComments";
 import { OrderQuotePhotosSection } from "./OrderQuotePhotosSection";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
@@ -87,21 +87,16 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
-  const {user}=useAuth();
   const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
   const orderId=String(order?.id||"");
   const quoteKey = ["orders", "quote", org, orderId] as const;
-  const commentsKey = ["orders", "quote-comments", org, orderId] as const;
   const [proposal,setProposal]=useState<OrderQuoteProposal|null>(() =>
     queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey) || null);
   const [draft,setDraft]=useState<OrderQuoteDraft>(() => {
     const cached = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey);
     return cached ? snapshot(cached) : emptyOrderQuoteDraft();
   });
-  const [comments,setComments]=useState<any[]>(() =>
-    queryClient.getQueryData<any[]>(commentsKey) || []);
-  const [comment,setComment]=useState("");
   const [reason,setReason]=useState("");
   const [loading,setLoading]=useState(() =>
     !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
@@ -133,12 +128,10 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setShowExecution(false);
     const cached = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey);
     const hasCached = Boolean(queryClient.getQueryState(quoteKey)?.dataUpdatedAt);
-    const cachedComments = queryClient.getQueryData<any[]>(commentsKey);
     if (hasCached) {
       setProposal(cached || null);
       setDraft(cached ? snapshot(cached) : emptyOrderQuoteDraft());
     }
-    if (cachedComments) setComments(cachedComments);
     setLoading(!hasCached);
     // A situação do orçamento e a aba compartilham exatamente a mesma
     // requisição: não há segundo GET ao navegar para Produtos e Serviços.
@@ -152,13 +145,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       setDraft(next?snapshot(next):emptyOrderQuoteDraft());
     }).catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");})
       .finally(()=>{if(active)setLoading(false);});
-    // Comentários carregam em paralelo e não bloqueiam a proposta.
-    void queryClient.fetchQuery({
-      queryKey: commentsKey,
-      staleTime: 60_000,
-      queryFn: () => listOrderQuoteComments(org, orderId),
-    }).then(notes=>{if(active)setComments(notes);})
-      .catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");});
     return()=>{active=false;};
   },[org,orderId,queryClient]);
 
@@ -244,19 +230,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       setBusy(false);
     }
   };
-  const sendComment=async()=>{
-    if(!comment.trim()||!user?.id||busy)return;
-    setBusy(true);
-    try{
-      await addOrderQuoteComment(org,orderId,user.id,comment);
-      setComment("");
-      const notes=await listOrderQuoteComments(org,orderId);
-      queryClient.setQueryData(commentsKey, notes);
-      setComments(notes);
-      notifyAdmin("Comentário registrado.","success");
-    }catch(err){notifyAdmin(systemErrorMessage(err),"error");}
-    finally{setBusy(false);}
-  };
   if(loading)return <LoadingState text="Carregando orçamento da OS..."/>;
   if(showExecution&&proposal?.status==="approved")return <div className="space-y-4">
     <BtnSecondary onClick={()=>setShowExecution(false)}>Voltar ao orçamento aprovado</BtnSecondary>
@@ -333,26 +306,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           </span>
         </button>)}</div>
     </Section>}
-    <Section title="Comentários do orçamento">
-      <div className="space-y-3">
-        {canEdit&&<div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <FInput value={comment} disabled={busy} className="h-[42px] w-full"
-              onChange={(e:any)=>setComment(e.target.value)}
-              onKeyDown={(event:any)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendComment();}}}
-              placeholder="Registrar comentário da análise ou negociação..."/>
-          </div>
-          <BtnPrimary className="h-[42px] shrink-0 px-3 sm:px-4"
-            disabled={busy||!comment.trim()} loading={busy} onClick={()=>void sendComment()}>
-            Comentar</BtnPrimary>
-        </div>}
-        {!comments.length?<p className="py-3 text-center text-xs text-muted-foreground">Nenhum comentário registrado.</p>:
-          comments.map(note=><article key={note.id} className="rounded-lg border border-border p-3">
-            <div className="flex justify-between gap-2 text-xs"><strong>{(note.author as any)?.full_name||"Usuário"}</strong>
-              <span className="text-muted-foreground">{new Date(note.created_at).toLocaleString("pt-BR")}</span></div>
-            <p className="mt-2 whitespace-pre-wrap text-sm">{note.body}</p></article>)}
-      </div>
-    </Section>
+    <OrderQuoteComments organizationId={org} orderId={orderId} canComment={canEdit && !busy} />
     </div>
     {footerHost && createPortal(<>
       {editable && <BtnPrimary disabled={busy} loading={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
