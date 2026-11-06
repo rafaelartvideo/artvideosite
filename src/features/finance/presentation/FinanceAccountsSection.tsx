@@ -142,7 +142,6 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   const orderedAccounts = prioritizePinnedFinanceAccounts(accounts, pinnedAccountIds);
   const totalBalance = accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
   const bankBalance = accounts.filter(account => account.account_type === "bank" || account.account_type === "pix").reduce((sum, account) => sum + account.balance, 0);
-  const cashBalance = accounts.filter(account => account.account_type === "cash").reduce((sum, account) => sum + account.balance, 0);
   const otherBalance = accounts.filter(account => account.account_type === "other").reduce((sum, account) => sum + account.balance, 0);
   const selectedAccount = accounts.find(account => account.id === selectedAccountId) || null;
   const cashAccount = cashAction ? accounts.find(account => account.id === cashAction.accountId) || null : null;
@@ -239,14 +238,13 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
       {[
         { title: "Saldo total", amount: totalBalance, detail: "Todas as contas e caixas", emphasis: true },
         { title: "Bancos e PIX", amount: bankBalance, detail: "Saldos bancários e digitais", emphasis: false },
-        { title: "Caixa físico", amount: cashBalance, detail: "Dinheiro em caixa", emphasis: false },
         ...(accounts.some(account => account.account_type === "other") ? [{ title: "Outras contas", amount: otherBalance, detail: "Outras fontes de saldo", emphasis: false }] : []),
       ].map(item => <AdminCard key={item.title} className={`relative overflow-hidden border p-4 sm:p-5 ${item.emphasis ? "border-primary/25 bg-primary/[0.04]" : "border-border"}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{item.title}</p>
             {loading ? <div className="mt-3 h-8 w-36 animate-pulse rounded bg-muted" /> :
-              <p className={`mt-3 break-words text-2xl font-black tabular-nums tracking-tight ${item.amount < 0 ? "text-red-600 dark:text-red-400" : item.emphasis ? "text-primary" : "text-foreground"}`}>{formatCurrency(item.amount)}</p>}
+              <p className={`mt-3 break-words text-2xl font-black tabular-nums tracking-tight ${item.amount < 0 ? "text-red-600 dark:text-red-400" : item.emphasis ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>{formatCurrency(item.amount)}</p>}
           </div>
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary" aria-hidden="true">
             <Vault size={27} strokeWidth={1.7} />

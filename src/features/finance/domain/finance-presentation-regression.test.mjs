@@ -362,3 +362,11 @@ test("finance settlement adjustment puts Apply and Back beside an equal-height i
   assert.match(dialog, />Aplicar<\/AdminButton>/);
   assert.doesNotMatch(dialog, /Salvar ajuste|<h4[^>]*>Ajustar previsão da parcela<\/h4>/);
 });
+
+test("accounts summary omits duplicate physical cash card and shows total balance green", () => {
+  const accounts = source("FinanceAccountsSection.tsx");
+  assert.match(accounts, /title: "Saldo total", amount: totalBalance/);
+  assert.match(accounts, /item\.emphasis \? "text-emerald-600 dark:text-emerald-400"/);
+  assert.doesNotMatch(accounts, /title: "Caixa físico", amount: cashBalance/);
+  assert.match(accounts, /grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4/);
+});
