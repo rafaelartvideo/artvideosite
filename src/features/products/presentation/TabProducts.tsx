@@ -74,6 +74,8 @@ import {
   loadProductGallery,
   resolveProductMediaImage,
   type ImportedProductImage,
+  searchExternalProducts,
+  type ExternalProductLookup,
 } from "../infrastructure/product-lookup.repository";
 
 type ProductEditorTab = "general" | "commercial" | "suppliers" | "store";
@@ -357,6 +359,9 @@ export function TabProducts({
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
+  const [codeSuggestions, setCodeSuggestions] = useState<ExternalProductLookup[]>([]);
+  const [codeSuggestionsLoading, setCodeSuggestionsLoading] = useState(false);
+  const [codeSuggestionsError, setCodeSuggestionsError] = useState("");
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -431,6 +436,8 @@ export function TabProducts({
     setFieldErrors({});
     setForm(emptyForm());
     setRelatedCodesLoaded(true);
+    setCodeSuggestions([]);
+    setCodeSuggestionsError("");
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -521,6 +528,8 @@ export function TabProducts({
         : [],
     });
     setEditItem(product);
+    setCodeSuggestions([]);
+    setCodeSuggestionsError("");
     setRelatedCodesLoaded(false);
     if (activeOrganizationId) {
       void listRelatedProductCodes(activeOrganizationId, product.id)
@@ -585,6 +594,32 @@ export function TabProducts({
     const item = products.find((entry: any) => entry.id === routeResourceId);
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
+
+  const searchCodeSuggestions = async () => {
+    if (!activeOrganizationId || codeSuggestionsLoading) return;
+    const query = form.manufacturer_code.trim() || form.model.trim();
+    if (!query) {
+      setCodeSuggestionsError("Informe o código do fabricante ou o modelo para consultar.");
+      return;
+    }
+    setCodeSuggestionsLoading(true);
+    setCodeSuggestionsError("");
+    setCodeSuggestions([]);
+    try {
+      const response = await searchExternalProducts(activeOrganizationId, query);
+      const existing = new Set([form.manufacturer_code.trim().toUpperCase(), ...form.related_codes.map(item => item.code.trim().toUpperCase())]);
+      const candidates = response.results.filter(item => {
+        const code = String(item.manufacturer_code || "").trim().toUpperCase();
+        return code.length > 1 && !existing.has(code);
+      }).slice(0, 5);
+      setCodeSuggestions(candidates);
+      if (!candidates.length) setCodeSuggestionsError("Não foram encontrados outros códigos verificáveis neste catálogo.");
+    } catch (error) {
+      setCodeSuggestionsError(systemErrorMessage(error, "Não foi possível consultar o catálogo externo."));
+    } finally {
+      setCodeSuggestionsLoading(false);
+    }
+  };
 
   const validate = () => {
     const errors: ProductFieldErrors = {};
@@ -1204,12 +1239,37 @@ export function TabProducts({
                       <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
                       <p className="text-xs text-muted-foreground">Referências substituídas, substitutas ou compatíveis. Só cadastre relações confirmadas.</p>
                     </div>
-                    <AdminButton variant="tertiary" size="sm" disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
-                      onClick={() => setForm(current => ({ ...current, related_codes: [...current.related_codes, { code: "", relation_type: "previous" }] }))}>
-                      <Plus size={15} /> Adicionar código
-                    </AdminButton>
+                    <div className="flex flex-wrap gap-2">
+                      <AdminButton variant="secondary" size="sm" disabled={saving || codeSuggestionsLoading}
+                        loading={codeSuggestionsLoading} loadingText="Consultando..." onClick={() => void searchCodeSuggestions()}>
+                        <Search size={15} /> Consultar catálogo
+                      </AdminButton>
+                      <AdminButton variant="tertiary" size="sm" disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
+                        onClick={() => setForm(current => ({ ...current, related_codes: [...current.related_codes, { code: "", relation_type: "previous" }] }))}>
+                        <Plus size={15} /> Adicionar código
+                      </AdminButton>
+                    </div>
                   </div>
                   {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências do produto...</p>}
+                  {codeSuggestionsError && <p className="text-xs text-muted-foreground">{codeSuggestionsError}</p>}
+                  {codeSuggestions.length > 0 && <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold text-foreground">Possíveis referências do catálogo externo — não são substituições confirmadas</p>
+                    {codeSuggestions.map(item => <div key={item.external_id || item.manufacturer_code || item.name}
+                      className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 first:border-t-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-foreground">{item.manufacturer_code}</p>
+                        <p className="text-xs text-muted-foreground">{item.name}{item.brand ? " · " + item.brand : ""} · {item.provider}</p>
+                      </div>
+                      <AdminButton variant="secondary" size="sm" disabled={saving || !relatedCodesLoaded}
+                        onClick={() => {
+                          const code = String(item.manufacturer_code || "").trim().toUpperCase();
+                          if (form.related_codes.some(related => related.code.trim().toUpperCase() === code)) return;
+                          setForm(current => ({ ...current, related_codes: [...current.related_codes, { code, relation_type: "alternate" }] }));
+                          setCodeSuggestions(current => current.filter(candidate => candidate !== item));
+                          setToast({ msg: "Referência adicionada como alternativa. Confirme a relação antes de salvar.", type: "success" });
+                        }}>Selecionar</AdminButton>
+                    </div>)}
+                  </div>}
                   {relatedCodesLoaded && form.related_codes.length === 0 && <p className="text-xs text-muted-foreground">Nenhum código adicional cadastrado.</p>}
                   {form.related_codes.map((item, index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
                     <FInput label={`Código ${index + 1}`} value={item.code} disabled={saving}
