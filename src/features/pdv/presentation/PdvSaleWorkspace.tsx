@@ -38,6 +38,8 @@ import {
   loadPdvSaleDetail,
   searchPdvCustomers,
   searchPdvProducts,
+  listPdvCompatibleProducts,
+  type PdvCompatibleProduct,
   type PdvBootstrap,
   type PdvCustomer,
   type PdvPaymentMethod,
@@ -192,6 +194,27 @@ export function PdvSaleWorkspace({
       && (debouncedSearch.trim().length === 0 || debouncedSearch.trim().length >= 2)
     ),
   });
+
+  const foundProductIds = useMemo(
+    () => (productsQuery.data || []).map(product => product.product_id),
+    [productsQuery.data],
+  );
+  const compatibleQuery = useQuery({
+    queryKey: ["pdv", "compatible-products", organizationId, debouncedSearch, foundProductIds.join(",")],
+    queryFn: () => listPdvCompatibleProducts(organizationId, foundProductIds),
+    enabled: Boolean(organizationId && canSell && debouncedSearch.trim().length >= 2
+      && !productsQuery.isPending && foundProductIds.length),
+    staleTime: 30_000,
+  });
+  const compatibleByProduct = useMemo(() => {
+    const grouped = new Map<string, PdvCompatibleProduct[]>();
+    for (const item of compatibleQuery.data || []) {
+      const linked = grouped.get(item.source_product_id) || [];
+      if (!linked.some(candidate => candidate.product_id === item.product_id)) linked.push(item);
+      grouped.set(item.source_product_id, linked);
+    }
+    return grouped;
+  }, [compatibleQuery.data]);
 
   const customersQuery = useQuery({
     queryKey: queryKeys.pdv.customers(organizationId || "none", debouncedCustomerSearch),
@@ -747,8 +770,9 @@ export function PdvSaleWorkspace({
             {products.map(product => {
               const available = availableQuantity(product);
               const noStock = available <= 0;
-              return <button
-                key={product.product_id}
+              const compatibleProducts = compatibleByProduct.get(product.product_id) || [];
+              return <div key={product.product_id} className="min-w-0">
+                <button
                 type="button"
                 onClick={() => addProduct(product)}
                 className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-primary-soft/45"
@@ -765,7 +789,35 @@ export function PdvSaleWorkspace({
                   </p>
                 </div>
                 <Plus size={15} className="shrink-0 text-primary" />
-              </button>;
+              </button>
+              {compatibleProducts.length > 0 && <div className="space-y-1 border-t border-border/50 bg-muted/30 px-3 py-2.5 sm:pl-10">
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Alternativas compatíveis · {compatibleProducts.length}
+                </p>
+                {compatibleProducts.map(alternative => {
+                  const alternativeStock = availableQuantity(alternative);
+                  return <button type="button" key={alternative.product_id}
+                    onClick={() => addProduct(alternative)}
+                    aria-label={"Adicionar produto compatível " + alternative.name}
+                    className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5">
+                    <ProductAdminThumb mediaId={alternative.cover_media_id} name={alternative.name}/>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-foreground">{alternative.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{alternative.sku || alternative.barcode || "Sem código"} · Compatível</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-black text-foreground">
+                        {alternative.price == null ? "Sem preço" : formatCurrency(alternative.price)}
+                      </p>
+                      <p className={cn("text-[11px] font-semibold", alternativeStock <= 0 ? "text-red-600" : "text-emerald-700 dark:text-emerald-300")}>
+                        {formatNumber(alternativeStock)} {alternative.unit || "un"} em estoque
+                      </p>
+                    </div>
+                    <Plus size={14} className="shrink-0 text-primary" aria-hidden="true"/>
+                  </button>;
+                })}
+              </div>}
+              </div>;
             })}
           </div>}
         </Section>

@@ -127,3 +127,28 @@ export async function replaceRelatedProductCodes(
   return Number(data || 0);
 }
 
+
+/** IDs de outros produtos da mesma empresa vinculados como alternativas compatíveis. */
+export async function listProductCompatibilityIds(
+  organizationId: string, productId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc("list_product_compatibility_ids_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+  });
+  if (error) throw error;
+  return ((data || []) as Array<{ product_id: string }>).map(entry => entry.product_id);
+}
+
+/** A relação é recíproca: vincular A-B também disponibiliza B-A nas buscas. */
+export async function replaceProductCompatibilities(
+  organizationId: string, productId: string, compatibleIds: string[],
+): Promise<number> {
+  const { data, error } = await supabase.rpc("replace_product_compatibilities_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+    p_compatible_ids: compatibleIds,
+  });
+  if (error) throw error;
+  return Number(data || 0);
+}
