@@ -356,6 +356,8 @@ export function TabProducts({
   const loading = catalogQuery.isPending;
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
+  const pendingEditorRouteRef = useRef(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
   const [nameSearch, setNameSearch] = useState("");
@@ -571,6 +573,7 @@ export function TabProducts({
 
   const closeEditor = () => {
     if (saving || galleryUploading) return;
+    pendingEditorRouteRef.current = false;
     setDrawerOpen(false);
     onRouteChange?.(null, null);
   };
@@ -580,20 +583,25 @@ export function TabProducts({
   // até um refresh, sem necessidade de consultar o banco novamente.
   const openNewPage = () => {
     if (!canCreate) return;
+    pendingEditorRouteRef.current = Boolean(onRouteChange);
     openNew();
     onRouteChange?.("new", null);
   };
   const openEditPage = (item: any) => {
     if (!canViewDetails || !canEdit) return;
+    pendingEditorRouteRef.current = Boolean(onRouteChange);
     openEdit(item);
     onRouteChange?.(item.id, "edit");
   };
 
   useEffect(() => {
     if (!routeResourceId) {
+      // A rota ainda não refletiu o clique? Mantenha o formulário aberto sem flash.
+      if (pendingEditorRouteRef.current) return;
       if (drawerOpen) setDrawerOpen(false);
       return;
     }
+    pendingEditorRouteRef.current = false;
     if (routeResourceId === "new") {
       if (canCreate && (!drawerOpen || editItem)) openNew();
       return;
@@ -1118,6 +1126,7 @@ export function TabProducts({
       subtitle="Cadastre uma vez para estoque e vendas. Na Artvideo, você também pode publicar na loja."
       maxW="max-w-6xl"
       fullPage
+      disableAnimation
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0 w-full min-w-0 max-w-full">
         <div className="w-full min-w-0 px-4 pt-4 sm:px-5 sm:pt-5">
