@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   Edit2,
   Camera,
+  CircleHelp,
   Image as ImageIcon,
   LoaderCircle,
   List,
@@ -63,6 +64,7 @@ import { uploadMediaFile } from "@/shared/infrastructure/media.repository";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
+import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/primitives/popover";
 import {
   listInventoryItemSuppliers,
   type InventorySupplier,
@@ -273,6 +275,33 @@ function displayUnitCost(value: unknown, unit: string, factor: number) {
   if (value == null) return null;
   const base = Number(value);
   return unit === "cx" ? base * Math.max(1, factor) : base;
+}
+
+/** A ajuda abre ao clicar, inclusive no celular, sem ocupar uma linha sob os inputs. */
+function CommercialHelpLabel({
+  label, htmlFor, description,
+}: {
+  label: string;
+  htmlFor: string;
+  description: string;
+}) {
+  return <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
+    <label htmlFor={htmlFor} className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      {label}
+    </label>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={`O que significa ${label}?`}
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <CircleHelp size={15} aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" sideOffset={6}
+        className="z-[350] w-72 max-w-[calc(100vw-2rem)] text-xs leading-relaxed text-popover-foreground">
+        {description}
+      </PopoverContent>
+    </Popover>
+  </div>;
 }
 
 function EditorTabTrigger({
@@ -1354,7 +1383,7 @@ export function TabProducts({
 
           <TabsContent value="commercial" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Comercial">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FCurrencyInput
                   label="Preço de venda"
                   value={form.price}
@@ -1366,8 +1395,27 @@ export function TabProducts({
                   }}
                   placeholder="0,00"
                 />
-                <div>
-                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade comercial</label>
+                <div className="min-w-0">
+                  <CommercialHelpLabel
+                    label="Prazo para vender (dias)"
+                    htmlFor="product-sale-window-days"
+                    description="Cada entrada no estoque inicia seu próprio prazo para venda, inclusive o saldo inicial. Exemplo: 10 unidades recebidas hoje têm 30 dias; outra entrada na semana seguinte terá seus próprios 30 dias. É um prazo comercial, não a validade física do produto, e não bloqueia a venda."
+                  />
+                  <FIntegerInput
+                    id="product-sale-window-days"
+                    aria-label="Prazo para vender (dias)"
+                    value={form.sale_window_days}
+                    disabled={saving}
+                    error={fieldErrors.sale_window_days}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, sale_window_days: undefined }));
+                      setForm(current => ({ ...current, sale_window_days: event.target.value }));
+                    }}
+                    placeholder="Ex.: 30"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unidade comercial</label>
                   <AdminSelect
                     value={form.commercial_unit}
                     onValueChange={value => setForm(current => ({ ...current, commercial_unit: value === "cx" ? "cx" : "un" }))}
@@ -1379,31 +1427,24 @@ export function TabProducts({
                     ariaLabel="Unidade comercial"
                   />
                 </div>
-                <FIntegerInput
-                  label="Unidades por caixa"
-                  value={form.conversion_factor}
-                  disabled={saving || form.commercial_unit !== "cx"}
-                  error={fieldErrors.conversion_factor}
-                  onChange={(event: any) => {
-                    setFieldErrors(current => ({ ...current, conversion_factor: undefined }));
-                    setForm(current => ({ ...current, conversion_factor: event.target.value || "1" }));
-                  }}
-                  hint={form.commercial_unit === "cx" ? "Quantidade de unidades existentes em cada caixa." : "Para unidade simples, o fator permanece 1."}
-                />
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <FIntegerInput
-                  label="Prazo para vender (dias)"
-                  value={form.sale_window_days}
-                  disabled={saving}
-                  error={fieldErrors.sale_window_days}
-                  onChange={(event: any) => {
-                    setFieldErrors(current => ({ ...current, sale_window_days: undefined }));
-                    setForm(current => ({ ...current, sale_window_days: event.target.value }));
-                  }}
-                  placeholder="Ex.: 30"
-                  hint="Opcional. Conta separadamente a partir de cada entrada no estoque, inclusive o saldo inicial. Não é a validade física."
-                />
+                <div className="min-w-0">
+                  <CommercialHelpLabel
+                    label="Unidades por caixa"
+                    htmlFor="product-conversion-factor"
+                    description="Para unidade simples, o fator permanece 1. Para caixas, informe a quantidade de unidades existentes em cada caixa."
+                  />
+                  <FIntegerInput
+                    id="product-conversion-factor"
+                    aria-label="Unidades por caixa"
+                    value={form.conversion_factor}
+                    disabled={saving || form.commercial_unit !== "cx"}
+                    error={fieldErrors.conversion_factor}
+                    onChange={(event: any) => {
+                      setFieldErrors(current => ({ ...current, conversion_factor: undefined }));
+                      setForm(current => ({ ...current, conversion_factor: event.target.value || "1" }));
+                    }}
+                  />
+                </div>
               </div>
             </Section>
 
