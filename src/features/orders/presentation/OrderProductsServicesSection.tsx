@@ -1192,7 +1192,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
 
           <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
             <p className="text-[10px] leading-relaxed text-muted-foreground">Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.</p>
-            <AdminButton variant="secondary" disabled={mutating} onClick={() => setCustomOpen(true)} className="h-10 shrink-0 px-4"><Plus size={15} /> Avulso</AdminButton>
+            <AdminButton variant="secondary" disabled={mutating} onClick={openNewCustomService} className="h-10 shrink-0 px-4"><Plus size={15} /> Avulso</AdminButton>
           </div>
         </div>
       </Section>
@@ -1206,7 +1206,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
         : items.length === 0
           ? <AdminSectionEmpty>Nenhum produto ou serviço foi adicionado a esta OS.</AdminSectionEmpty>
           : <div className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-2">
-            {items.map(item => (
+            {orderedItems.map(item => (
               <article key={item.id}
                 aria-label={item.title_snapshot}
                 className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 focus-within:border-primary/50">
@@ -1225,6 +1225,23 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
                         disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>
                         <CalendarDays size={14}/> Agendar
                       </AdminButton>}
+                    {(editable || item.is_pinned) && <AdminIconButton
+                      ariaLabel={(item.is_pinned ? "Desafixar " : "Fixar ") + item.title_snapshot}
+                      title={item.is_pinned ? "Desafixar item" : "Fixar item no início da lista"}
+                      variant={item.is_pinned ? "tertiary" : "ghost"}
+                      disabled={!editable || Boolean(pinningItems[item.id])}
+                      onClick={() => void togglePinnedItem(item)}>
+                      {pinningItems[item.id]
+                        ? <LoadingSpinner size="sm"/>
+                        : <Pin size={15} fill={item.is_pinned ? "currentColor" : "none"}/>}
+                    </AdminIconButton>}
+                    {commercialEditable && item.item_type === "custom_service" &&
+                      <AdminIconButton
+                        ariaLabel={"Editar serviço avulso " + item.title_snapshot}
+                        title="Editar serviço avulso" disabled={mutating || savingItemId === item.id}
+                        onClick={() => openEditCustomService(item)}>
+                        <Pencil size={15}/>
+                      </AdminIconButton>}
                     {commercialEditable && <AdminIconButton ariaLabel={"Remover " + item.title_snapshot} variant="danger"
                       disabled={savingItemId === item.id} onClick={() => void removeItem(item)}>
                       <Trash2 size={15} />
@@ -1449,23 +1466,27 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
 
     <AdminDialog
       open={customOpen}
-      onClose={() => { if (!mutating) setCustomOpen(false); }}
-      title="Serviço Avulso"
-      description="Este serviço ficará vinculado somente a esta OS e não será salvo no catálogo de serviços."
+      onClose={closeCustomService}
+      title={editingCustomItem ? "Editar serviço avulso" : "Serviço Avulso"}
+      description={editingCustomItem
+        ? "Altere o nome e a descrição deste serviço, sem modificar seus valores."
+        : "Este serviço ficará vinculado somente a esta OS e não será salvo no catálogo de serviços."}
       className="max-w-xl"
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(false)}>Cancelar</BtnSecondary>
+        <BtnSecondary disabled={mutating} onClick={closeCustomService}>Cancelar</BtnSecondary>
         <BtnPrimary
-          disabled={mutating || techniciansLoading || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianIds.length)}
+          disabled={mutating || !customName.trim() || customName.trim().length > 120 || (editingCustomItem === null && (techniciansLoading || customPrice.trim() === "" || (workflowReady && !customTechnicianIds.length)))}
           loading={mutating}
-          onClick={() => void addCustomService()}
-        >Adicionar serviço</BtnPrimary>
+          onClick={() => void saveCustomService()}
+        >{editingCustomItem ? "Salvar" : "Adicionar serviço"}</BtnPrimary>
       </div>}
     >
       <div className="space-y-4">
         <FInput
           label="Nome do serviço"
           required
+          maxLength={120}
+          disabled={mutating}
           value={customName}
           onChange={(event: any) => setCustomName(event.target.value)}
           placeholder="Ex.: Ajuste de conector"
@@ -1473,11 +1494,13 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
         <FTextarea
           label="Descrição"
           rows={4}
+          maxLength={2000}
+          disabled={mutating}
           value={customDescription}
           onChange={(event: any) => setCustomDescription(event.target.value)}
           placeholder="Descreva o que será executado nesta OS"
         />
-        <div className="grid gap-3 sm:grid-cols-2">
+        {!editingCustomItem && <div className="grid gap-3 sm:grid-cols-2">
           <NumberStepper
             label="Quantidade"
             value={customQuantity}
@@ -1493,7 +1516,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
             value={customPrice}
             onChange={(event: any) => setCustomPrice(event.target.value)}
           />
-        </div>
+        </div>}
         {editable && <div>
           <TechnicianMultiPicker
             label="Técnicos responsáveis"
@@ -1502,6 +1525,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
             disabled={!workflowReady}
           />
         </div>}
+
       </div>
     </AdminDialog>
   </div>;
