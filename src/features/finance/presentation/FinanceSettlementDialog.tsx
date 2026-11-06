@@ -2,9 +2,9 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Pencil } from "lucide-react";
 import {
   paymentMethodFee,
   settlementCashAmount,
@@ -30,6 +30,9 @@ export function FinanceSettlementDialog({
   accounts,
   paymentMethods,
   saving,
+  forecastPending = false,
+  canAdjustInstallment = false,
+  onAdjustInstallment,
   onClose,
   onSave,
 }: {
@@ -38,6 +41,9 @@ export function FinanceSettlementDialog({
   accounts: FinancialAccount[];
   paymentMethods: FinancialPaymentMethod[];
   saving: boolean;
+  forecastPending?: boolean;
+  canAdjustInstallment?: boolean;
+  onAdjustInstallment?: (installmentId: string, newAmount: number, reason: string) => Promise<void>;
   onClose: () => void;
   onSave: (draft: FinancialSettlementDraft) => Promise<void>;
 }) {
@@ -59,6 +65,8 @@ export function FinanceSettlementDialog({
   const [accountId, setAccountId] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
+  const [forecastEdit, setForecastEdit] = useState<{ amount: string; reason: string } | null>(null);
+  const [forecastError, setForecastError] = useState("");
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
   const remaining = settlementScope === "all"
@@ -102,6 +110,8 @@ export function FinanceSettlementDialog({
     setAccountId(firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
     setOccurredAt(localDateTimeInput());
     setFieldErrors({});
+    setForecastEdit(null);
+    setForecastError("");
   }, [open]);
 
   useEffect(() => {
@@ -113,13 +123,39 @@ export function FinanceSettlementDialog({
 
   const selectInstallment = (id: string) => {
     setInstallmentId(id);
+    setForecastEdit(null);
+    setForecastError("");
     const installment = openInstallments.find(item => item.id === id);
     if (installment) setPrincipal(String(Number(installment.original_amount) - Number(installment.settled_amount)));
+  };
+
+  const canAdjustSelected = detail.entry_type === "payable" && canAdjustInstallment
+    && Boolean(onAdjustInstallment) && settlementScope === "installment" && Boolean(selectedInstallment);
+
+  const saveForecast = async () => {
+    if (!forecastEdit || !selectedInstallment || !onAdjustInstallment || forecastPending || saving) return;
+    const nextAmount = Number(forecastEdit.amount);
+    const alreadyPaid = Number(selectedInstallment.settled_amount);
+    if (!Number.isFinite(nextAmount) || nextAmount <= alreadyPaid + 0.005 || !forecastEdit.reason.trim()) {
+      setForecastError("Informe um novo valor maior que o já pago e justifique o ajuste.");
+      return;
+    }
+    try {
+      setForecastError("");
+      await onAdjustInstallment(selectedInstallment.id, nextAmount, forecastEdit.reason.trim());
+      setPrincipal(String(Math.round((nextAmount - alreadyPaid) * 100) / 100));
+      setFieldErrors({});
+      setForecastEdit(null);
+      notifyAdmin("Valor previsto da parcela atualizado. Confira a baixa antes de confirmar.", "success");
+    } catch (error) {
+      setForecastError(systemErrorMessage(error, "Não foi possível atualizar a previsão da parcela."));
+    }
   };
 
   const save = async () => {
     const principalValidation = validatePrincipalAgainstRemaining(principalValue, remaining);
     const nextErrors: typeof fieldErrors = {};
+    if (forecastEdit || forecastPending) return;
     if (!selectedInstallment) nextErrors.installment = "Selecione uma parcela em aberto.";
     if (settlementScope === "all" && Math.abs(principalValue - allRemaining) > 0.005) {
       nextErrors.principal = "Na quitação total, o valor deve ser exatamente o saldo em aberto.";
@@ -172,6 +208,8 @@ export function FinanceSettlementDialog({
         onChange={(event: any) => {
           const scope = event.target.value === "all" ? "all" : "installment";
           setSettlementScope(scope);
+          setForecastEdit(null);
+          setForecastError("");
           setPrincipal(String(Math.round((scope === "all" ? allRemaining
             : Number(selectedInstallment?.original_amount || 0) - Number(selectedInstallment?.settled_amount || 0)) * 100) / 100));
           setFieldErrors({});
@@ -182,8 +220,30 @@ export function FinanceSettlementDialog({
       </p>}
       <div className="grid gap-4 sm:grid-cols-2">
         {settlementScope === "installment" && <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />}
-        <FCurrencyInput label="Valor principal" required disabled={settlementScope === "all"} error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
+        <FCurrencyInput label="Valor principal" required disabled={settlementScope === "all" || Boolean(forecastEdit)} error={fieldErrors.principal} value={principal} onChange={(event: any) => { setFieldErrors(current => ({ ...current, principal: undefined })); setPrincipal(event.target.value); }} />
       </div>
+      {settlementScope === "installment" && selectedInstallment && <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Saldo em aberto da parcela: <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</span></p>
+        {canAdjustSelected && !forecastEdit && <AdminButton size="sm" variant="secondary" disabled={saving || forecastPending}
+          onClick={() => { setForecastError(""); setForecastEdit({ amount: String(selectedInstallment.original_amount), reason: "" }); }}>
+          <Pencil size={14} /> Ajustar parcela
+        </AdminButton>}
+      </div>}
+      {forecastEdit && canAdjustSelected && <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+        <div>
+          <h4 className="text-sm font-bold text-foreground">Ajustar previsão da parcela {selectedInstallment?.installment_number}</h4>
+          <p className="mt-1 text-xs text-muted-foreground">Informe o valor total atualizado da parcela, não apenas a diferença. O ajuste e sua justificativa ficam no histórico.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastPending} onChange={(event: any) => setForecastEdit(current => current && ({ ...current, amount: event.target.value }))} />
+          <FTextarea label="Motivo da alteração" value={forecastEdit.reason} disabled={forecastPending} onChange={(event: any) => setForecastEdit(current => current && ({ ...current, reason: event.target.value }))} />
+        </div>
+        {forecastError && <p role="alert" className="text-xs font-semibold text-red-600">{forecastError}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <AdminButton size="sm" variant="secondary" disabled={forecastPending} onClick={() => { setForecastEdit(null); setForecastError(""); }}><ArrowLeft size={14} /> Voltar</AdminButton>
+          <AdminButton size="sm" loading={forecastPending} loadingText="Salvando..." disabled={saving} onClick={() => void saveForecast()}>Salvar ajuste</AdminButton>
+        </div>
+      </div>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <FCurrencyInput label="Juros" value={interest} onChange={(event: any) => setInterest(event.target.value)} />
         <FCurrencyInput label="Multa" value={penalty} onChange={(event: any) => setPenalty(event.target.value)} />
@@ -204,8 +264,8 @@ export function FinanceSettlementDialog({
     </div>
       </div>
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-        <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Cancelar</AdminButton>
-        <AdminButton loading={saving} loadingText="Registrando..." disabled={saving} onClick={() => void save()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
+        <AdminButton variant="secondary" disabled={saving || forecastPending} onClick={onClose}><ArrowLeft size={16} /> Voltar</AdminButton>
+        <AdminButton loading={saving} loadingText="Registrando..." disabled={saving || forecastPending || Boolean(forecastEdit)} onClick={() => void save()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
       </div>
   </section>;
 
