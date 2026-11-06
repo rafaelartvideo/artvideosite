@@ -165,7 +165,7 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
       </div>
       <label className="w-full min-w-0 space-y-1 sm:w-[250px]">
         <span className="block text-xs font-semibold text-foreground">Aplicar a</span>
-        <AdminSelect ariaLabel="Aplicar a" value={scope} options={scopes}
+        <AdminSelect ariaLabel="Aplicar a" value={scope} options={scopes} disabled={disabled}
           onValueChange={value => { setScope(value as Scope); setMessage(""); }} />
       </label>
     </div>
@@ -173,13 +173,13 @@ export const OrderRulesSettings = forwardRef<OrderRulesSettingsHandle, {
     {(scope !== "company") && <div className="grid gap-3 sm:grid-cols-2">
       {(scope === "service_type" || scope === "combination") && <label className="min-w-0 space-y-1">
         <span className="block text-xs font-semibold text-foreground">Tipo de atendimento</span>
-        <AdminSelect ariaLabel="Tipo de atendimento" value={serviceId}
+        <AdminSelect ariaLabel="Tipo de atendimento" value={serviceId} disabled={disabled}
           options={[{ value: "", label: "Selecionar..." }, ...(catalog.data?.types || []).map(item => ({ value: item.id, label: item.title }))]}
           onValueChange={setServiceId} />
       </label>}
       {(scope === "equipment_type" || scope === "combination") && <label className="min-w-0 space-y-1">
         <span className="block text-xs font-semibold text-foreground">Equipamento</span>
-        <AdminSelect ariaLabel="Equipamento" value={equipmentId}
+        <AdminSelect ariaLabel="Equipamento" value={equipmentId} disabled={disabled}
           options={[{ value: "", label: "Selecionar..." }, ...(catalog.data?.equipment || []).map(item => ({ value: item.id, label: item.name }))]}
           onValueChange={setEquipmentId} />
       </label>}
