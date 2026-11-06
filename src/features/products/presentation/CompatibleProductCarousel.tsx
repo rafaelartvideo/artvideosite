@@ -26,7 +26,7 @@ function ProductPhoto({ mediaId, name }: { mediaId?: string | null; name: string
 
 /** Mesmo carrossel reutilizado no PDV, no orçamento, na OS e em pedidos de peças. */
 export function CompatibleProductCarousel({
-  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar",
+  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false,
 }: {
   products: CompatibleProductSuggestion[];
   onPick?: (product: CompatibleProductSuggestion) => void;
@@ -34,6 +34,7 @@ export function CompatibleProductCarousel({
   disabled?: boolean;
   selectedIds?: string[];
   actionLabel?: string;
+  hideTitle?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   if (!products.length) return null;
@@ -42,11 +43,15 @@ export function CompatibleProductCarousel({
 
   return <section aria-label="Produtos compatíveis" className="min-w-0 space-y-2.5">
     <div className="flex min-w-0 items-center justify-between gap-2">
-      <div className="min-w-0">
+      {!hideTitle && <div className="min-w-0">
         <h4 className="text-xs font-bold text-foreground">Produtos compatíveis</h4>
         {sourceName && <p className="truncate text-[11px] text-muted-foreground">Alternativas para {sourceName}</p>}
-      </div>
-      {products.length > 1 && <div className="flex shrink-0 items-center gap-1">
+      </div>}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <span className="mr-1 text-[11px] font-bold tabular-nums text-muted-foreground" aria-label={`${products.length} produtos compatíveis`}>
+          {products.length} {products.length === 1 ? "item" : "itens"}
+        </span>
+        {products.length > 1 && <>
         <button type="button" onClick={() => move(-1)}
           aria-label="Ver produtos compatíveis anteriores"
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted">
@@ -57,7 +62,8 @@ export function CompatibleProductCarousel({
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted">
           <ChevronRight size={16} aria-hidden="true"/>
         </button>
-      </div>}
+        </>}
+      </div>
     </div>
     <div ref={scrollerRef} className="flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
       role="region" aria-label="Carrossel horizontal de produtos compatíveis">
