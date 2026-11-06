@@ -43,7 +43,7 @@ import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage"
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminDialog, AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
