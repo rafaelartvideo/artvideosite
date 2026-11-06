@@ -85,7 +85,7 @@ begin
   if exists(select 1 from public.product_variation_links
       where organization_id=p_organization_id and variation_product_id=p_parent_product_id)
   then raise exception 'Uma variação não pode ser produto principal de outro grupo.' using errcode='22023'; end if;
-  if jsonb_typeof(p_variations) <> 'array' then
+  if jsonb_typeof(p_variations) is distinct from 'array' then
     raise exception 'Informe uma lista de variações.' using errcode='22023'; end if;
   v_count:=jsonb_array_length(p_variations);
   if v_count>30 then raise exception 'Máximo de 30 variações por produto.' using errcode='22023'; end if;
