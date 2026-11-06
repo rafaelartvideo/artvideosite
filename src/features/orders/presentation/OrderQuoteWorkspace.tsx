@@ -116,6 +116,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     setFooterHost(document.getElementById(footerHostId));
   },[footerHostId,orderId]);
+  useEffect(()=>()=>{approvalLookupId.current += 1;},[]);
 
   useEffect(()=>{
     setConfirmationAction(null);
@@ -328,7 +329,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </Section>}
     <OrderQuoteComments organizationId={org} orderId={orderId} canComment={canEdit && !busy} />
     </div>
-    {footerHost && createPortal(<>
+    {footerHost && proposal?.status!=="approved" && createPortal(<>
       {editable && <BtnPrimary disabled={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
         onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
