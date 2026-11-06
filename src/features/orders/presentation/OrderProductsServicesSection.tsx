@@ -883,7 +883,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       onChange={value => updateDraft(item.id, { quantity: value })}
       onBlur={() => void saveItem(item)}
       onStep={value => void saveItem(item, { quantity: value })}
-      inputClassName={compact ? "py-2" : "py-1.5 text-xs"}
+      inputClassName={compact ? "py-2 text-center" : "py-1.5 text-xs"}
     />;
   };
 
@@ -892,7 +892,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     if (item.item_type === "service") {
       return <div className={cn(
         INPUT,
-        "flex min-h-[38px] items-center bg-muted text-sm font-semibold text-muted-foreground",
+        "flex min-h-[38px] items-center justify-center bg-muted text-center text-sm font-semibold text-muted-foreground",
         !compact && "py-1.5 text-xs",
       )}>{formatCurrency(nonNegativeNumber(item.unit_price))}</div>;
     }
@@ -904,7 +904,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       value={draft.unitPrice}
       onChange={(event: any) => updateDraft(item.id, { unitPrice: event.target.value })}
       onBlur={() => void saveItem(item)}
-      className={compact ? "" : "h-9 py-1.5 text-xs"}
+      className={compact ? "text-center" : "h-9 py-1.5 text-xs"}
     />;
   };
 
@@ -917,7 +917,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       value={draft.additionalCost}
       onChange={(event: any) => updateDraft(item.id, { additionalCost: event.target.value })}
       onBlur={() => void saveItem(item)}
-      className={compact ? "" : "h-9 py-1.5 text-xs"}
+      className={compact ? "text-center" : "h-9 py-1.5 text-xs"}
     />;
   };
 
