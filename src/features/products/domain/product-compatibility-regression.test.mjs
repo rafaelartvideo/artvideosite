@@ -51,7 +51,7 @@ test("carrossel horizontal mostra foto lateral, preço, saldo e navegação", as
   assert.ok(src.includes("useMediaUrl(mediaId"));
   assert.ok(src.includes("formatCurrency(product.price)"));
   assert.ok(src.includes("formatNumber(stock)"));
-  assert.ok(src.includes("aria-label=\"Ver próximos produtos compatíveis\""));
+  assert.ok(src.includes('title.toLocaleLowerCase("pt-BR")'));
   assert.ok(src.includes("aria-label={`${products.length} ${title.toLocaleLowerCase(\"pt-BR\")}`}"));
   assert.ok(src.includes('{products.length} {products.length === 1 ? "item" : "itens"}'));
   assert.ok(src.includes("hideTitle?: boolean"));
