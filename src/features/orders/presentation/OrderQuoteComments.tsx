@@ -265,7 +265,7 @@ export function OrderQuoteComments({
             {submitting ? <LoadingSpinner size="sm" /> : <Send size={18} />}
           </button>
         </div>
-        <p className="text-right text-[11px] text-muted-foreground">Até 3 anexos de 20 MB · Enter envia, Shift+Enter quebra linha</p>
+        <p className="text-right text-[11px] text-muted-foreground">Até 3 anexos de 10 MB · Enter envia, Shift+Enter quebra linha</p>
       </div>}
       {commentsQuery.isLoading && <div className="flex justify-center py-6"><LoadingSpinner size="md" /></div>}
       {commentsQuery.error && <div role="alert" className="space-y-2 text-sm text-destructive">
