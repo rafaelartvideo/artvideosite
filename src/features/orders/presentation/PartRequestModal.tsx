@@ -193,7 +193,9 @@ export function PartRequestModal({
             sourceName={selectedItems[0]?.name || visibleItems[0]?.name}
             products={compatibleChoices.map(item => ({
               id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
-              coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
+              coverMediaId:item.cover_media_id,price:item.price,
+              stock:inventoryItems.find(part => part.id===item.inventory_item_id)?.quantity ?? item.stock,
+              unit:"un",
             }))}
             disabled={submitting}
             selectedIds={selectedItems.map(item => item.inventory_item_id)}
