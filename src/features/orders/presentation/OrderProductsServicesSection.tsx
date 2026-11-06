@@ -46,7 +46,7 @@ import {
 } from "../infrastructure/order-commercial-items.repository";
 import {
   listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians, setOrderServiceTaskSchedule, listOrderTaskPhotos, createOrderTaskPhotoUrl,
-  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician, type OrderTaskPhoto,
+  type OrderServiceTask, type OrderServiceTechnician, type OrderTaskPhoto,
 } from "../infrastructure/order-service-tasks.repository";
 
 type ItemDraft = {
@@ -423,6 +423,9 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
     setSelectedService(null);
     setServiceTechnicianIds([]);
     setCustomTechnicianIds([]);
+    setEditingCustomItem(null);
+    setCustomOpen(false);
+    setPinningItems({});
     setWorkflowReady(false);
     setTechniciansLoading(true);
     void loadItems();
@@ -596,6 +599,79 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
       showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o Serviço Avulso.") });
     } finally {
       setMutating(false);
+    }
+  };
+
+  const openNewCustomService = () => {
+    if (!commercialEditable) return;
+    setEditingCustomItem(null);
+    setCustomName("");
+    setCustomDescription("");
+    setCustomPrice("");
+    setCustomQuantity("1");
+    setCustomTechnicianIds([]);
+    setCustomOpen(true);
+  };
+
+  const openEditCustomService = (item: OrderCommercialItem) => {
+    if (!commercialEditable || item.item_type !== "custom_service") return;
+    setEditingCustomItem(item);
+    setCustomName(item.title_snapshot);
+    setCustomDescription(item.description_snapshot || "");
+    setCustomOpen(true);
+  };
+
+  const closeCustomService = () => {
+    if (mutating) return;
+    setCustomOpen(false);
+    setEditingCustomItem(null);
+    setCustomName("");
+    setCustomDescription("");
+  };
+
+  const saveCustomService = async () => {
+    if (!editingCustomItem) {
+      await addCustomService();
+      return;
+    }
+    if (!commercialEditable || !order?.id || !customName.trim() || mutating) return;
+    setMutating(true);
+    try {
+      await updateOrderCustomServiceDetails({
+        itemId: editingCustomItem.id,
+        serviceOrderId: order.id,
+        title: customName,
+        description: customDescription,
+      });
+      await loadItems(true);
+      setEditingCustomItem(null);
+      setCustomOpen(false);
+      showFeedback({ type: "success", text: "Serviço avulso atualizado." });
+    } catch (error) {
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível editar o serviço avulso.") });
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const togglePinnedItem = async (item: OrderCommercialItem) => {
+    // Fixar só muda a ordem visual e continua permitido após a aprovação.
+    if (!editable || !order?.id || pinningItems[item.id]) return;
+    setPinningItems(current => ({ ...current, [item.id]: true }));
+    try {
+      const nextPinned = await setOrderCommercialItemPinned({
+        itemId: item.id, serviceOrderId: order.id, pinned: !item.is_pinned,
+      });
+      setItems(current => current.map(currentItem =>
+        currentItem.id === item.id ? { ...currentItem, is_pinned: nextPinned } : currentItem));
+    } catch (error) {
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível alterar a fixação do item.") });
+    } finally {
+      setPinningItems(current => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
     }
   };
 
