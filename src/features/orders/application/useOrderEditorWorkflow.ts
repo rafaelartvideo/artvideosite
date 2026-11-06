@@ -14,7 +14,7 @@ import type { useOrdersWorkspace } from "./useOrdersWorkspace";
 import type { useOrderServiceAddress } from "./useOrderServiceAddress";
 import { useAuth } from "@/lib/auth";
 import { useOrganizationOrderRules } from "./useOrganizationOrderRules";
-import { resolveRules, validateRules } from "../domain/order-rules";
+import { defaultRules, resolveRules, validateRules } from "../domain/order-rules";
 import { assertEmployeeScheduleAvailable } from "@/features/appointments/infrastructure/employee-agenda.repository";
 type PermissionCheck=(permission:string)=>boolean; type Toast={msg:string;type:"success"|"error"};
 type Options={userId?:string;workspace:ReturnType<typeof useOrdersWorkspace>;formState:ReturnType<typeof useOrderFormState>;images:ReturnType<typeof useOrderImages>;customers:ReturnType<typeof useOrderCustomerSelection>;address:ReturnType<typeof useOrderServiceAddress>;customerPersistence:ReturnType<typeof useOrderCustomerPersistence>;hasPermission:PermissionCheck;showToast:Dispatch<SetStateAction<Toast|null>>;setSaving:Dispatch<SetStateAction<boolean>>;formatError:(error:unknown)=>string;organizationIdOverride?:string|null;};
@@ -35,7 +35,7 @@ export function useOrderEditorWorkflow({userId,workspace,formState,images,custom
       if(!valid){showToast({msg:"Informe um código válido: PIN (4 a 12 dígitos), senha ou desenho com pelo menos 4 pontos.",type:"error"});return false;}
     }
   }
-  const effectiveRules=editingOrder?.order_rules_snapshot||resolveRules(rulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
+  const effectiveRules=editingOrder?(editingOrder.order_rules_snapshot||defaultRules):resolveRules(rulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
   if(!editingOrder){if(rulesQuery.isPending){showToast({msg:"Carregando regras da empresa. Tente salvar novamente.",type:"error"});return false;}if(rulesQuery.error){showToast({msg:"Não foi possível carregar as regras da OS.",type:"error"});return false;}const ruleError=validateRules(effectiveRules,formState.form,images.orderImages,"create");if(ruleError){showToast({msg:ruleError,type:"error"});return false;}const checklistError=validateNewOrderEntryChecklist();if(checklistError){showToast({msg:checklistError,type:"error"});return false;}}
   const technicalFields=workspace.technicalFieldLinks.filter((link:any)=>link.equipment_type_id===formState.form.equipment_type_id).map((link:any)=>({...link,technical_field:link.technical_field||workspace.technicalFields.find((field:any)=>field.id===link.technical_field_id)}));
   const preparation=prepareOrderForm({form:formState.form,editingOrder,userId,selectedCustomerId:customers.selectedCustomer?.id,serviceUseCustomerAddress:address.serviceUseCustomerAddress,serviceCustomerAddressOverride:address.serviceCustomerAddressOverride,selectedServiceAddress:address.selectedServiceAddress,needsScheduling:formState.needsScheduling,equipmentBrands:workspace.equipmentBrands,equipmentModels:workspace.equipmentModels,technicalFields,technicalValues:formState.form.technicalValues});if("error" in preparation){showToast({msg:preparation.error,type:"error"});return false;}
