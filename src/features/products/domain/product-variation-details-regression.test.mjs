@@ -58,7 +58,7 @@ test("Editor agrupa cadastros existentes em variações mas mantém preços e es
 });
 
 test("Migração garante que cada variação pertence a um só principal e a mesma empresa", () => {
-  const sql = read("supabase/migrations/20261106212000_product_variation_groups.sql");
+  const sql = read("supabase/migrations/20261106195317_product_variation_groups_and_inventory_details.sql");
   assert.ok(sql.includes("create table if not exists public.product_variation_links"));
   assert.ok(sql.includes("unique(organization_id,variation_product_id)"));
   assert.ok(sql.includes("parent_product_id<>variation_product_id"));
