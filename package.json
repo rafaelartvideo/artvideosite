@@ -15,7 +15,10 @@
     "test:providers": "node --test src/features/platform-providers/domain/*.test.mjs src/features/registrations/domain/registration-provider-services.test.mjs",
     "test:sac": "node --test supabase/functions/_shared/*.test.mjs src/features/sac-digital/domain/*.test.mjs",
     "test:performance": "node --test src/infrastructure/query/*.test.mjs src/features/notifications/domain/notification-polling-regression.test.mjs src/shared/application/upload-file-optimizer.test.mjs src/shared/application/upload-flows.test.mjs src/features/admin-shell/domain/admin-routes.test.mjs src/features/documents/domain/order-print-pdf-lifecycle.test.mjs src/features/whatsapp-channels/domain/media-preview-urls.test.mjs",
-    "test:products": "node --test src/features/products/domain/*.test.mjs"
+    "test:products": "node --test src/features/products/domain/*.test.mjs",
+    "test:quality": "node --test scripts/quality/*.test.mjs",
+    "test:ci": "npm run test:quality && npm run test:finance && npm run test:regressions && npm run test:sac",
+    "verify:release": "npm run test:ci && npm run build"
   },
   "dependencies": {
     "@popperjs/core": "2.11.8",

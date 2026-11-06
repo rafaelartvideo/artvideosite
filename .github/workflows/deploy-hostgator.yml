@@ -66,19 +66,17 @@ jobs:
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --prefer-offline --no-audit --no-fund
-          else
-            npm install --prefer-offline --no-audit --no-fund
-          fi
-      - name: Finance domain tests
-        run: npm run test:finance
-      - name: Regression tests
-        run: npm run test:regressions
-      - name: SAC Digital tests
-        run: npm run test:sac
+      - name: Install dependencies from lockfile
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Mesma suite obrigatoria dos PRs. Se qualquer etapa falhar,
+      # os jobs de publicacao nao sao executados.
+      - name: Quality, finance, regressions and SAC tests
+        run: npm run test:ci
+
+      - name: PBX provisioning agent tests
+        run: python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'
+
       - name: Build public site
         run: npm run build:site
       - name: Build CRM

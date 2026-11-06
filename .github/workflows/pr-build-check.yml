@@ -2,16 +2,21 @@ name: PR Build Check
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: pr-build-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build
+  validate:
+    # Nome estavel: configurar como check obrigatorio nas regras da branch main.
+    name: Validate release
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,17 +27,14 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install dependencies
+      - name: Install dependencies from lockfile
         run: npm ci --no-audit --no-fund
 
-      - name: Regression tests
-        run: npm run test:regressions
-
-      - name: SAC Digital tests
-        run: npm run test:sac
+      - name: Quality, finance, regressions and SAC tests
+        run: npm run test:ci
 
       - name: PBX provisioning agent tests
         run: python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'
 
-      - name: Build
+      - name: Build CRM and public site
         run: npm run build
