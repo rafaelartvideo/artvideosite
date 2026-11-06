@@ -136,8 +136,9 @@ export async function listOrderQuoteComments(
   const avatars = ((avatarsResult.data || []) as Array<{ id: string; bucket_id: string; storage_path: string }>)
     .filter(item => item.bucket_id === "avatars" && Boolean(item.storage_path));
   const paths = new Map<string, string[]>();
-  const previewImages = attachments.filter(file => file.mimeType.startsWith("image/"));
-  if (previewImages.length) paths.set("service-images", Array.from(new Set(previewImages.map(file => file.path))));
+  const previewMedia = attachments.filter(file =>
+    file.mimeType.startsWith("image/") || file.mimeType.startsWith("audio/"));
+  if (previewMedia.length) paths.set("service-images", Array.from(new Set(previewMedia.map(file => file.path))));
   if (avatars.length) paths.set("avatars", Array.from(new Set(avatars.map(item => item.storage_path))));
   const urls = new Map<string, string>();
   await Promise.all(Array.from(paths.entries()).map(async ([bucket, filenames]) => {
@@ -176,13 +177,14 @@ const COMMENT_ALLOWED_MIME = new Set([
   "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
   "application/pdf", "text/plain", "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg",
 ]);
 
 export function validateOrderQuoteCommentFiles(files: File[]) {
   if (files.length > 3) throw new Error("Selecione no máximo 3 anexos por comentário.");
   for (const file of files) {
     if (!COMMENT_ALLOWED_MIME.has(file.type.toLowerCase())) {
-      throw new Error("Envie imagens, PDF, TXT ou documentos Word.");
+      throw new Error("Envie imagens, áudios, PDF, TXT ou documentos Word.");
     }
     if (file.size <= 0 || file.size > COMMENT_MAX_ATTACHMENT_BYTES) {
       throw new Error(`O arquivo "${file.name}" deve ter até 10 MB.`);
