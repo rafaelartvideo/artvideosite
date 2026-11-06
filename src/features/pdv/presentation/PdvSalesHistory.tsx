@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Ban, Eye, Printer, ReceiptText, Search, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { cn, formatCurrency } from "@/shared/domain/formatters";
+import { cn, formatCurrency, formatCpf, formatCnpj } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   AdminButton,
@@ -36,13 +36,21 @@ function useDebouncedValue(value: string, delay = 250) {
   return debounced;
 }
 
+function formatPdvDocument(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 11) return formatCpf(digits);
+  if (digits.length === 14) return formatCnpj(digits);
+  return value;
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString("pt-BR");
 }
 
 function statusBadge(status: "completed" | "cancelled") {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${STATUS_TONE_CLASSES[status === "completed" ? "success" : "danger"].badge}`}>
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase tracking-wide ${STATUS_TONE_CLASSES[status === "completed" ? "success" : "danger"].badge}`}>
     {status === "completed" ? "Concluída" : "Cancelada"}
   </span>;
 }
@@ -51,10 +59,12 @@ export function PdvSalesHistory({
   onBack,
   onNewSale,
   canStartSale,
+  embedded = false,
 }: {
   onBack: () => void;
   onNewSale: () => void;
   canStartSale: boolean;
+  embedded?: boolean;
 }) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
@@ -147,14 +157,14 @@ export function PdvSalesHistory({
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    <PageHeader
+    {!embedded && <PageHeader
       title="Vendas do PDV"
       subtitle="Consulte vendas concluídas e canceladas, abra o comprovante e faça estornos quando necessário."
       actions={<div className="flex flex-wrap justify-end gap-2">
         <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={15} /> Voltar ao PDV</AdminButton>
         <AdminButton disabled={!canStartSale} onClick={onNewSale} title={!canStartSale ? "Abra e configure o caixa antes de iniciar a venda." : "Nova venda"}><ShoppingCart size={15} /> Nova venda</AdminButton>
       </div>}
-    />
+    />}
 
     <AdminSearchPanel title="Buscar vendas" headerActions={<>
       {(search || status || sort !== "newest") && <AdminSearchClearButton onClick={() => {
@@ -235,13 +245,13 @@ export function PdvSalesHistory({
             <tbody>
               {sales.map(sale => <tr key={sale.id}>
                 <td className="font-black text-[#0d1b2e]">#{sale.sale_number}</td>
-                <td className="text-xs text-[#5a6a82]">{formatDateTime(sale.sold_at)}</td>
+                <td className="text-sm text-[#5a6a82]">{formatDateTime(sale.sold_at)}</td>
                 <td>
-                  <p className="max-w-[220px] truncate text-xs font-bold text-[#0d1b2e]">{sale.customer_name || "Consumidor não identificado"}</p>
-                  {sale.customer_document && <p className="mt-0.5 text-[10px] text-[#7a8aa0]">{sale.customer_document}</p>}
+                  <p className="max-w-[220px] truncate text-sm font-bold text-[#0d1b2e]">{sale.customer_name || "Consumidor não identificado"}</p>
+                  {sale.customer_document && <p className="mt-0.5 text-xs text-[#7a8aa0]">{formatPdvDocument(sale.customer_document)}</p>}
                 </td>
-                <td className="text-xs text-[#5a6a82]">{sale.payment_methods.length ? sale.payment_methods.join(" + ") : "—"}</td>
-                <td className="text-xs text-[#5a6a82]">{sale.sold_by_name || "—"}</td>
+                <td className="text-sm text-[#5a6a82]">{sale.payment_methods.length ? sale.payment_methods.join(" + ") : "—"}</td>
+                <td className="text-sm text-[#5a6a82]">{sale.sold_by_name || "—"}</td>
                 <td>{statusBadge(sale.status)}</td>
                 <td className="text-right text-sm font-black text-[#0d1b2e]">{formatCurrency(sale.total_amount)}</td>
                 <td>
@@ -277,7 +287,7 @@ export function PdvSalesHistory({
       className="max-w-4xl"
       footer={detail ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {detail.status === "cancelled" && <span className="text-xs font-bold text-red-700">Venda cancelada em {formatDateTime(detail.cancelled_at)}</span>}
+          {detail.status === "cancelled" && <span className="text-sm font-bold text-red-700">Venda cancelada em {formatDateTime(detail.cancelled_at)}</span>}
         </div>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           {canCancel && detail.status === "completed" && <AdminButton variant="danger" onClick={openCancel}><Ban size={14} /> Cancelar venda</AdminButton>}
@@ -318,7 +328,7 @@ export function PdvSalesHistory({
         onChange={(event: any) => setCancelReason(event.target.value)}
         placeholder="Descreva o motivo do cancelamento"
       />
-      {detail?.payments.some(payment => payment.method_type === "cash") && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-4 text-amber-800">Como esta venda recebeu dinheiro, o caixa precisa estar aberto para registrar corretamente a saída do estorno.</p>}
+      {detail?.payments.some(payment => payment.method_type === "cash") && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-4 text-amber-800">Como esta venda recebeu dinheiro, o caixa precisa estar aberto para registrar corretamente a saída do estorno.</p>}
     </AdminDialog>
   </div>;
 }
@@ -329,13 +339,14 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
       <Info label="Situação" value={detail.status === "completed" ? "Concluída" : "Cancelada"} />
       <Info label="Operador" value={detail.sold_by_name || "—"} />
       <Info label="Cliente" value={detail.customer_name || "Consumidor não identificado"} />
+      {detail.customer_document && <Info label="CPF / CNPJ" value={formatPdvDocument(detail.customer_document)} />}
       <Info label="Total" value={formatCurrency(detail.total_amount)} strong />
     </div>
 
     {detail.status === "cancelled" && <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-      <p className="text-xs font-black text-red-800">Venda cancelada</p>
-      <p className="mt-1 text-xs text-red-700">{detail.cancellation_reason || "Sem motivo informado."}</p>
-      <p className="mt-2 text-[10px] text-red-600">{formatDateTime(detail.cancelled_at)} · {detail.cancelled_by_name || "Usuário"}</p>
+      <p className="text-sm font-black text-red-800">Venda cancelada</p>
+      <p className="mt-1 text-sm text-red-700">{detail.cancellation_reason || "Sem motivo informado."}</p>
+      <p className="mt-2 text-xs text-red-600">{formatDateTime(detail.cancelled_at)} · {detail.cancelled_by_name || "Usuário"}</p>
     </div>}
 
     <section>
@@ -344,19 +355,19 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
         <div className="divide-y divide-[#0d1b2e]/6">
           {detail.items.map(item => <div key={item.id} className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_90px_120px_120px] sm:items-center">
             <div className="min-w-0">
-              <p className="truncate text-xs font-black text-[#0d1b2e]">{item.product_name}</p>
-              <p className="mt-0.5 text-[10px] text-[#7a8aa0]">
+              <p className="truncate text-sm font-black text-[#0d1b2e]">{item.product_name}</p>
+              <p className="mt-0.5 text-xs text-[#7a8aa0]">
                 {item.is_manual ? "Venda avulsa" : (item.sku || item.barcode || "Sem SKU")}
                 {" · "}{item.condition === "used" ? "Usado" : item.condition === "refurbished" ? "Recondicionado" : "Novo"}
                 {item.serial_number ? " · Série: " + item.serial_number : ""}
               </p>
-              {item.condition_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] text-muted-foreground">{item.condition_notes}</p>}
+              {item.condition_notes && <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{item.condition_notes}</p>}
             </div>
-            <p className="text-xs text-[#5a6a82]">{item.quantity} {item.unit}</p>
-            <p className="text-xs text-[#5a6a82]">{formatCurrency(item.unit_price)}</p>
+            <p className="text-sm text-[#5a6a82]">{item.quantity} {item.unit}</p>
+            <p className="text-sm text-[#5a6a82]">{formatCurrency(item.unit_price)}</p>
             <div className="sm:text-right">
               <p className="text-sm font-black text-[#0d1b2e]">{formatCurrency(item.line_total)}</p>
-              {Number(item.discount_amount || 0) > 0 && <p className="mt-0.5 text-[10px] font-bold text-emerald-700">- {formatCurrency(item.discount_amount)}</p>}
+              {Number(item.discount_amount || 0) > 0 && <p className="mt-0.5 text-xs font-bold text-emerald-700">- {formatCurrency(item.discount_amount)}</p>}
             </div>
           </div>)}
         </div>
@@ -369,13 +380,13 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
         <div className="divide-y divide-[#0d1b2e]/6">
           {detail.payments.map(payment => <div key={payment.id} className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_150px_120px] sm:items-center">
             <div>
-              <p className="text-xs font-black text-[#0d1b2e]">{payment.payment_method_name}</p>
-              <p className="mt-0.5 text-[10px] text-[#7a8aa0]">{payment.financial_account_name}</p>
+              <p className="text-sm font-black text-[#0d1b2e]">{payment.payment_method_name}</p>
+              <p className="mt-0.5 text-xs text-[#7a8aa0]">{payment.financial_account_name}</p>
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[#5a6a82]">{payment.settlement_status === "reversed" ? "Estornado" : payment.settlement_status === "scheduled" ? "Agendado" : "Recebido"}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#5a6a82]">{payment.settlement_status === "reversed" ? "Estornado" : payment.settlement_status === "scheduled" ? "Agendado" : "Recebido"}</p>
             <div className="sm:text-right">
               <p className="text-sm font-black text-[#0d1b2e]">{formatCurrency(payment.amount)}</p>
-              {Number(payment.change_amount || 0) > 0 && <p className="mt-0.5 text-[10px] text-[#5a6a82]">Troco {formatCurrency(payment.change_amount)}</p>}
+              {Number(payment.change_amount || 0) > 0 && <p className="mt-0.5 text-xs text-[#5a6a82]">Troco {formatCurrency(payment.change_amount)}</p>}
             </div>
           </div>)}
         </div>
@@ -383,7 +394,7 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
     </section>
 
     <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2 text-sm">
         <div className="flex justify-between gap-3"><span className="text-[#5a6a82]">Subtotal</span><strong>{formatCurrency(detail.subtotal)}</strong></div>
         {Number(detail.discount_amount || 0) > 0 && <div className="flex justify-between gap-3 text-emerald-700"><span>Desconto</span><strong>- {formatCurrency(detail.discount_amount)}</strong></div>}
         {Number(detail.surcharge_amount || 0) > 0 && <div className="flex justify-between gap-3 text-amber-700"><span>Acréscimo</span><strong>+ {formatCurrency(detail.surcharge_amount)}</strong></div>}
@@ -393,15 +404,15 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
     </div>
 
     {detail.notes && <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-[#7a8aa0]">Observação</p>
-      <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[#34445b]">{detail.notes}</p>
+      <p className="text-xs font-bold uppercase tracking-wider text-[#7a8aa0]">Observação</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#34445b]">{detail.notes}</p>
     </div>}
   </div>;
 }
 
 function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
-    <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">{label}</p>
-    <p className={cn("mt-1 break-words text-xs text-[#0d1b2e]", strong ? "text-base font-black" : "font-bold")}>{value}</p>
+    <p className="text-xs font-bold uppercase tracking-wider text-[#8a98aa]">{label}</p>
+    <p className={cn("mt-1 break-words text-sm text-[#0d1b2e]", strong ? "text-base font-black" : "font-bold")}>{value}</p>
   </div>;
 }

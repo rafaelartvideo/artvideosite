@@ -80,11 +80,11 @@ function CashDrawerControl({
             <span className={`h-2.5 w-2.5 rounded-full transition-colors duration-300 ${open ? "bg-emerald-500" : "bg-slate-400"}`} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-black uppercase tracking-[0.12em] text-foreground">Caixa PDV</p>
-            <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">{open ? "Gaveta aberta" : "Gaveta fechada"}</p>
+            <p className="truncate text-sm font-black uppercase tracking-[0.12em] text-foreground">Caixa PDV</p>
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{open ? "Gaveta aberta" : "Gaveta fechada"}</p>
           </div>
         </div>
-        <span className="rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-black text-foreground">
+        <span className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-black text-foreground">
           {open ? "Fechar" : "Abrir"}
         </span>
       </div>
@@ -100,7 +100,7 @@ function CashDrawerControl({
       </div>
     </div>
 
-    <div className="absolute inset-x-0 bottom-0 z-30 flex h-[31px] items-center justify-center border-t border-border bg-card/95 text-[11px] font-black text-primary backdrop-blur">
+    <div className="absolute inset-x-0 bottom-0 z-30 flex h-[31px] items-center justify-center border-t border-border bg-card/95 text-sm font-black text-primary backdrop-blur">
       {open ? "Clique para fechar a gaveta" : "Clique para puxar a gaveta"}
     </div>
   </button>;
@@ -294,15 +294,40 @@ export function TabPdv({
   }
 
   if (routeResourceId === "sales") {
-    return <PdvSalesHistory
-      onBack={() => onRouteChange?.(null, null)}
-      onNewSale={() => onRouteChange?.("sale", null)}
-      canStartSale={canStartSale}
-    />;
+    return <AdminDialog
+      open
+      onClose={() => onRouteChange?.(null, null)}
+      title="Vendas do PDV"
+      description="Vendas realizadas, comprovantes e estornos."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex flex-wrap justify-between gap-2">
+        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
+        {canSell && <AdminButton disabled={!canStartSale} onClick={() => onRouteChange?.("sale", null)}><ShoppingCart size={16} /> Nova venda</AdminButton>}
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvSalesHistory embedded
+        onBack={() => onRouteChange?.(null, null)}
+        onNewSale={() => onRouteChange?.("sale", null)}
+        canStartSale={canStartSale}
+      />
+    </div></AdminDialog>;
   }
 
   if (routeResourceId === "cash" && canViewCashReports) {
-    return <PdvCashReports onBack={() => onRouteChange?.(null, null)} />;
+    return <AdminDialog
+      open
+      onClose={() => onRouteChange?.(null, null)}
+      title="Caixas do PDV"
+      description="Turnos, movimentações e fechamento de caixa."
+      className="h-[min(850px,calc(100dvh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-6xl"
+      bodyClassName="overscroll-contain"
+      footer={<div className="flex justify-end">
+        <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Fechar</AdminButton>
+      </div>}
+    ><div className="pdv-ui min-w-0">
+      <PdvCashReports embedded onBack={() => onRouteChange?.(null, null)} />
+    </div></AdminDialog>;
   }
 
   return <div className="min-w-0 space-y-5">
@@ -349,10 +374,10 @@ export function TabPdv({
 
         <div className="rounded-xl border border-primary/15 bg-primary-soft p-4">
           <p className="text-sm font-black text-[#0d1b2e]">Configuração rápida</p>
-          <p className="mt-1 text-xs leading-5 text-[#5a6a82]">Ativa o controle de caixa físico, cria ou reutiliza um <strong>Caixa PDV</strong> e deixa a venda rápida preparada. O Financeiro continua sendo a fonte do saldo real.</p>
+          <p className="mt-1 text-sm leading-5 text-[#5a6a82]">Ativa o controle de caixa físico, cria ou reutiliza um <strong>Caixa PDV</strong> e deixa a venda rápida preparada. O Financeiro continua sendo a fonte do saldo real.</p>
           {canConfigure
             ? <AdminButton className="mt-4" onClick={() => quickSetupMutation.mutate()} loading={quickSetupMutation.isPending} loadingText="Configurando..."><Settings2 size={15} /> Configurar PDV</AdminButton>
-            : <p className="mt-3 text-xs font-semibold text-amber-700">Um gestor com permissão de configuração precisa preparar o PDV antes da primeira venda.</p>}
+            : <p className="mt-3 text-sm font-semibold text-amber-700">Um gestor com permissão de configuração precisa preparar o PDV antes da primeira venda.</p>}
         </div>
     </Section> : <>
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
@@ -368,8 +393,8 @@ export function TabPdv({
             </div>
 
             {openSession && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-xs font-bold text-emerald-800">Contado na abertura: {formatCurrency(openSession.opening_counted_amount)}</p>
-              {Number(openSession.opening_difference || 0) !== 0 && <p className="mt-1 text-xs text-emerald-700">Diferença registrada: {formatCurrency(openSession.opening_difference)}</p>}
+              <p className="text-sm font-bold text-emerald-800">Contado na abertura: {formatCurrency(openSession.opening_counted_amount)}</p>
+              {Number(openSession.opening_difference || 0) !== 0 && <p className="mt-1 text-sm text-emerald-700">Diferença registrada: {formatCurrency(openSession.opening_difference)}</p>}
             </div>}
 
             {(canOpenCash || canCloseCash) && <CashDrawerControl
@@ -383,7 +408,7 @@ export function TabPdv({
               {canWithdrawCash && <AdminButton variant="secondary" onClick={() => openCashDialog("withdraw")}><Minus size={14} /> Sangria</AdminButton>}
             </div>}
 
-            {!canOpenCash && !canCloseCash && <p className="text-xs text-[#5a6a82]">Seu perfil pode acessar o PDV, mas não possui permissão para operar abertura e fechamento de caixa.</p>}
+            {!canOpenCash && !canCloseCash && <p className="text-sm text-[#5a6a82]">Seu perfil pode acessar o PDV, mas não possui permissão para operar abertura e fechamento de caixa.</p>}
         </Section>
 
         <Section
@@ -395,7 +420,7 @@ export function TabPdv({
             <CompactReadyRow ready={readiness.ready_payment_methods > 0} label="Formas de pagamento prontas" value={String(readiness.ready_payment_methods)} />
             <CompactReadyRow ready={!settings?.require_open_cash || Boolean(openSession)} label="Caixa exigido" value={settings?.require_open_cash ? (openSession ? "Aberto" : "Fechado") : "Não obrigatório"} />
             <div className="border-t border-[#0d1b2e]/8 pt-3">
-              <p className="text-xs leading-5 text-[#5a6a82]">{canStartSale ? "A estrutura está pronta para iniciar uma venda." : "Conclua os itens pendentes antes de iniciar uma venda."}</p>
+              <p className="text-sm leading-5 text-[#5a6a82]">{canStartSale ? "A estrutura está pronta para iniciar uma venda." : "Conclua os itens pendentes antes de iniciar uma venda."}</p>
             </div>
         </Section>
       </div>
@@ -407,7 +432,7 @@ export function TabPdv({
       >
           <div className="grid gap-5 lg:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Caixa padrão</label>
+              <label className="mb-1.5 block text-sm font-bold uppercase tracking-wider text-[#5a6a82]">Caixa padrão</label>
               <AdminSelect
                 value={defaultCashAccountId}
                 onValueChange={setDefaultCashAccountId}
@@ -415,7 +440,7 @@ export function TabPdv({
                 disabled={!canConfigure || settingsMutation.isPending}
                 ariaLabel="Caixa padrão do PDV"
               />
-              <p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">A venda em dinheiro e a sessão de caixa usarão esta conta física.</p>
+              <p className="mt-1 text-xs leading-4 text-[#5a6a82]">A venda em dinheiro e a sessão de caixa usarão esta conta física.</p>
             </div>
 
             <div className="space-y-4">
@@ -480,7 +505,7 @@ export function TabPdv({
           const expected = Number(closeReportQuery.data.session.expected_amount || 0);
           const counted = Number(cashAmount || 0);
           const difference = Math.round((counted - expected) * 100) / 100;
-          return "rounded-xl border px-3 py-2 text-xs font-bold " + (difference === 0
+          return "rounded-xl border px-3 py-2 text-sm font-bold " + (difference === 0
             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
             : "border-amber-200 bg-amber-50 text-amber-800");
         })()}>
@@ -530,17 +555,17 @@ function ReadinessCard({
   return <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
     <div className="flex items-start justify-between gap-3">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-primary shadow-sm"><Icon size={17} /></span>
-      <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES[ready ? "success" : "pending"].badge}`}>{ready ? "Pronto" : "Pendente"}</span>
+      <span className={`rounded-full border px-2 py-1 text-xs font-black uppercase ${STATUS_TONE_CLASSES[ready ? "success" : "pending"].badge}`}>{ready ? "Pronto" : "Pendente"}</span>
     </div>
-    <p className="mt-3 text-xs font-bold uppercase tracking-wide text-[#7a8aa0]">{title}</p>
+    <p className="mt-3 text-sm font-bold uppercase tracking-wide text-[#7a8aa0]">{title}</p>
     <p className="mt-1 text-lg font-black text-[#0d1b2e]">{value}</p>
-    <p className="mt-1 text-xs leading-5 text-[#5a6a82]">{detail}</p>
+    <p className="mt-1 text-sm leading-5 text-[#5a6a82]">{detail}</p>
   </div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3">
-    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a98aa]">{label}</p>
+    <p className="text-xs font-bold uppercase tracking-wider text-[#8a98aa]">{label}</p>
     <p className="mt-1 break-words text-sm font-black text-[#0d1b2e]">{value}</p>
   </div>;
 }
@@ -549,8 +574,8 @@ function CompactReadyRow({ ready, label, value }: { ready: boolean; label: strin
   return <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/8 px-3 py-3">
     <div className="flex min-w-0 items-center gap-2">
       <CheckCircle2 size={16} className={ready ? "text-emerald-600" : "text-amber-500"} />
-      <span className="truncate text-xs font-bold text-[#34445b]">{label}</span>
+      <span className="truncate text-sm font-bold text-[#34445b]">{label}</span>
     </div>
-    <span className="shrink-0 text-xs font-black text-[#0d1b2e]">{value}</span>
+    <span className="shrink-0 text-sm font-black text-[#0d1b2e]">{value}</span>
   </div>;
 }
