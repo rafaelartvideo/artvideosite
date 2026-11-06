@@ -14,3 +14,40 @@ export const defaultRules: RuleSet = {
 };
 export const visible=(item?:RuleItem)=>item?.mode!=="hidden";
 export const requiredAt=(item:RuleItem|undefined,stage:RuleStage)=>Boolean(item?.mode==="required" && ({create:0,start:1,finish:2})[stage]>=({create:0,start:1,finish:2})[item.stage||"create"]);
+
+export function findRuleRow(rows:RuleRow[],scope:Scope,serviceId:string|null,equipmentId:string|null){
+ return rows.find(row=>row.scope===scope&&(row.service_type_id||null)===serviceId&&(row.equipment_type_id||null)===equipmentId);
+}
+export function resolveRules(rows:RuleRow[],serviceId?:string|null,equipmentId?:string|null):RuleSet {
+ const chain=[
+  findRuleRow(rows,"company",null,null),
+  serviceId?findRuleRow(rows,"service_type",serviceId,null):undefined,
+  equipmentId?findRuleRow(rows,"equipment_type",null,equipmentId):undefined,
+  serviceId&&equipmentId?findRuleRow(rows,"combination",serviceId,equipmentId):undefined
+ ];
+ const result:RuleSet={fields:{...defaultRules.fields},photos:{...defaultRules.photos},custom_fields:[]};
+ for(const row of chain){if(!row)continue;
+  result.fields={...result.fields,...row.rules.fields};
+  result.photos={...result.photos,...row.rules.photos};
+  if(Array.isArray(row.rules.custom_fields))result.custom_fields=[...row.rules.custom_fields];
+ }
+ return result;
+}
+export function validateRules(rules:RuleSet,form:Record<string,any>,images:Array<{kind?:string}>,stage:RuleStage):string|null {
+ for(const [key,label] of Object.entries(fieldLabels)){
+  if(requiredAt(rules.fields[key],stage)&&!String(form[key]??"").trim())return "Preencha o campo obrigatório: "+label+".";
+ }
+ for(const [key,label] of Object.entries(photoLabels)){
+  const item=rules.photos[key];if(!requiredAt(item,stage))continue;
+  const count=images.filter(image=>(image.kind==="label"?"label":"equipment")===key).length;
+  const min=Math.min(20,Math.max(1,Number(item.minCount)||1));
+  if(count<min)return "Adicione pelo menos "+min+" foto(s) em "+label+".";
+ }
+ for(const field of rules.custom_fields){
+  if(!requiredAt(field,stage))continue;
+  const value=form.custom_field_values?.[field.key];
+  if(value==null||String(value).trim()===""||(field.type==="checkbox"&&value!==true&&value!=="true"))
+   return "Preencha o campo personalizado: "+field.label+".";
+ }
+ return null;
+}
