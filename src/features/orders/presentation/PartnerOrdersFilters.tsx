@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { Search } from "lucide-react";
+import { cn } from "@/shared/domain/formatters";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 
