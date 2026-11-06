@@ -27,7 +27,7 @@ test("códigos manuais separados por vírgula são normalizados sem perder as re
 test("cadastro de produtos tem prazo comercial opcional e remove consulta automática de códigos", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(ui, "TabProducts.tsx", { loader: "tsx" })).code);
-  assert.match(ui, /label="Prazo para vender \\(dias\\)"/);
+  assert.ok(ui.includes('label="Prazo para vender (dias)"'), "O campo de prazo precisa existir no cadastro comercial.");
   const commercial = ui.slice(ui.indexOf('<Section title="Comercial">'), ui.indexOf('<Section title="Estoque">'));
   assert.ok(commercial.includes('className="grid grid-cols-1 gap-4 sm:grid-cols-2"'));
   assert.ok(!commercial.includes("lg:grid-cols-3"));
