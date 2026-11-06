@@ -31,6 +31,9 @@ type Props = {
   resolution: ReturnType<typeof useOrderResolution>;
   completion: ReturnType<typeof useOrderCompletion>;
   completionPreparing?: boolean;
+  completionPrepareError?: string;
+  onRetryCompletionPreparation?: () => void;
+  onCancelCompletionPreparation?: () => void;
   partRequests: ReturnType<typeof useOrderPartRequests>;
   onSelectCustomer: (customer: any) => void;
   setToast: Dispatch<SetStateAction<Toast | null>>;
@@ -44,6 +47,7 @@ function appendUniqueById(current: any[], item?: any | null) {
 
 export function OrderWorkflowModals({
   detail, saving, workspace, formState, customers, images, resolution, completion, completionPreparing = false,
+  completionPrepareError = "", onRetryCompletionPreparation, onCancelCompletionPreparation,
   partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
 }: Props) {
   const {
@@ -144,7 +148,10 @@ export function OrderWorkflowModals({
           void saveOrderSolution(detail.id);
         }}
       />
-      <OrderCompletionModal detail={detail} usedItems={completion.usedItems} completion={completion} saving={saving} preparing={completionPreparing} formatCurrency={formatCurrency} />
+      <OrderCompletionModal detail={detail} usedItems={completion.usedItems} completion={completion} saving={saving}
+        preparing={completionPreparing} preparingError={completionPrepareError}
+        onRetryPreparing={onRetryCompletionPreparation} onCancelPreparing={onCancelCompletionPreparation}
+        formatCurrency={formatCurrency} />
       {viewImage && <OrderImageLightbox image={viewImage} onClose={() => setViewImage(null)} />}
       {partRequestOpen && detail && (
         <PartRequestModal orderId={detail.id} orderNumber={detail.os_number} inventoryItems={partRequestInventory} inventoryLoading={partRequestInventoryLoading} inventoryError={partRequestInventoryError} selectedItems={selectedPartRequestItems} search={partRequestSearch} notes={partRequestNotes} purpose={partRequestPurpose} submitting={partRequestSubmitting} onPurposeChange={setPartRequestPurpose} onSearchChange={setPartRequestSearch} onNotesChange={setPartRequestNotes} onSelect={selectPartRequestItem} onQuantityChange={updatePartRequestQuantity} onRemove={removePartRequestItem} onClose={closePartRequestModal} onSubmit={() => void submitPartRequest(detail.id)} />
