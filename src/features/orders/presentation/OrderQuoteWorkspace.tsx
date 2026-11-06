@@ -324,16 +324,16 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </Section>}
     <Section title="Comentários do orçamento">
       <div className="space-y-3">
-        {canEdit&&<div className="flex min-w-0 flex-col gap-2">
-          <div className="w-full min-w-0">
+        {canEdit&&<div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1">
             <FInput value={comment} disabled={busy} className="h-[42px] w-full"
               onChange={(e:any)=>setComment(e.target.value)}
               onKeyDown={(event:any)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendComment();}}}
               placeholder="Registrar comentário da análise ou negociação..."/>
           </div>
-          <BtnPrimary className="h-[42px] w-full min-w-0 px-3 sm:w-auto sm:self-end sm:px-4"
+          <BtnPrimary className="h-[42px] shrink-0 px-3 sm:px-4"
             disabled={busy||!comment.trim()} loading={busy} onClick={()=>void sendComment()}>
-            Adicionar comentário</BtnPrimary>
+            Comentar</BtnPrimary>
         </div>}
         {!comments.length?<p className="py-3 text-center text-xs text-muted-foreground">Nenhum comentário registrado.</p>:
           comments.map(note=><article key={note.id} className="rounded-lg border border-border p-3">
