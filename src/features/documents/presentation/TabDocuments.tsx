@@ -17,11 +17,11 @@ import { PrinterSetupPanel } from "./PrinterSetupPanel";
 
 type DocumentsSection = "printing" | "attachments" | "labels" | "printers";
 
-function DocumentsAreaHeader({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+function DocumentsAreaHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div className="min-w-0">
-      <h2 className="break-words text-lg font-black text-[#0d1b2e]">{title}</h2>
-      <p className="mt-1 max-w-3xl break-words text-xs leading-relaxed text-[#5a6a82]">{description}</p>
+      <h2 className="break-words text-lg font-black text-foreground">{title}</h2>
+      {description && <p className="mt-1 max-w-3xl break-words text-xs leading-relaxed text-muted-foreground">{description}</p>}
     </div>
     {action && <div className="shrink-0">{action}</div>}
   </div>;
@@ -99,7 +99,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const showActions = hasPermission("documents.table.actions");
   const documents = useDocuments();
   const { templates, attachmentTypes, filteredTemplates, loading, attachmentTypesLoading, templatesLoadError, attachmentLoadError, editorOpen, editorValue, editingTemplateId, openingEditor, saving, savingAttachmentType, openNew, openEditor, closeEditor, save, toggleActive, saveAttachmentType, toggleAttachmentType, removeAttachmentType } = documents;
-  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : routeResourceId === "printers" ? "printers" : "printing");
+  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : routeResourceId === "printers" ? "printers" : "attachments");
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
@@ -120,13 +120,13 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const attachmentTotalPages = Math.max(1, Math.ceil(sortedAttachmentTypes.length / attachmentPageSize));
   const safeAttachmentPage = Math.min(attachmentPage, attachmentTotalPages);
   const pagedAttachmentTypes = sortedAttachmentTypes.slice((safeAttachmentPage - 1) * attachmentPageSize, safeAttachmentPage * attachmentPageSize);
-  const editorRouteActive = Boolean(routeResourceId && !["attachments", "labels", "printers"].includes(routeResourceId));
+  const editorRouteActive = Boolean(routeResourceId && !["printing", "attachments", "labels", "printers"].includes(routeResourceId));
 
   useEffect(() => { if (templatePage > templateTotalPages) setTemplatePage(templateTotalPages); }, [templatePage, templateTotalPages]);
   useEffect(() => { if (attachmentPage > attachmentTotalPages) setAttachmentPage(attachmentTotalPages); }, [attachmentPage, attachmentTotalPages]);
   useEffect(() => {
-    if (routeResourceId === "attachments" || routeResourceId === "labels" || routeResourceId === "printers") { setSection(routeResourceId); if (editorOpen) closeEditor(); return; }
-    setSection("printing");
+    if (routeResourceId === "printing" || routeResourceId === "attachments" || routeResourceId === "labels" || routeResourceId === "printers") { setSection(routeResourceId); if (editorOpen) closeEditor(); return; }
+    setSection(routeResourceId ? "printing" : "attachments");
     if (!routeResourceId) { if (editorOpen) closeEditor(); return; }
     if (routeResourceId === "new") { if (canCreate && !editorOpen) openNew(); return; }
     if (!canViewDetails || !canEdit || routeSubpage !== "edit" || editorOpen || openingEditor || editingTemplateId === routeResourceId) return;
@@ -138,7 +138,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const selectSection = (next: DocumentsSection) => {
     setSection(next);
     closeEditor();
-    onRouteChange?.(next === "printing" ? null : next, null);
+    onRouteChange?.(next, null);
   };
   const openNewDocument = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openTemplateEditor = (template: (typeof templates)[number]) => {
@@ -213,7 +213,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       {canViewTable && (section === "printing" ? <>
         <DocumentsAreaHeader
           title="Impressão"
-          description="Crie e configure os modelos disponíveis no menu Imprimir dos detalhes da OS."
         />
         <AdminCard>
           {loading ? <div className="p-8"><LoadingState /></div> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title="Nenhum modelo configurado" /></div> : <>
@@ -224,7 +223,6 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       </> : section === "labels" ? <OrderLabelPrintSettings canEdit={canEdit} /> : section === "printers" ? <PrinterSetupPanel /> : <>
         <DocumentsAreaHeader
           title="Anexos"
-          description="Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS."
         />
         <AdminCard>
           {attachmentTypesLoading ? <div className="p-8"><LoadingState /></div> : attachmentTypes.length === 0 ? <div className="p-8"><EmptyState icon={Tag} title="Nenhum tipo de anexo" /></div> : <>
