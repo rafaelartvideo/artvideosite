@@ -150,7 +150,7 @@ export function ProductVariationMatrix({
     </div>
 
     <div className="space-y-3">
-      {options.map((option, index) => <div key={index} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 rounded-lg border border-border/70 p-3 sm:grid-cols-[minmax(0,170px)_minmax(0,1fr)_42px]">
+      {options.map((option, index) => <div key={index} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 border-b border-border/70 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,170px)_minmax(0,1fr)_42px]">
         <label className="min-w-0 text-xs font-medium text-muted-foreground">
           Atributo {index + 1}
           <input aria-label={"Nome do atributo " + (index + 1)} value={option.name}
