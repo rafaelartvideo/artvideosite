@@ -38,13 +38,13 @@ test("toolbar deixa Usar celular à direita sem dropdown de GTIN/MPN", () => {
   assert.ok(page.includes('setMobileScanTarget(kind)'));
 });
 
-test("combinações explicam por que gerador está desabilitado e podem ser geradas como prévia", async () => {
+test("combinações permitem uma opção como principal e explicam bloqueios", async () => {
   const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
   const page = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(matrix,"ProductVariationMatrix.tsx",{loader:"tsx"})).code);
-  assert.ok(matrix.includes('count > 1 && count <= MAX_VARIATION_CANDIDATES'));
+  assert.ok(matrix.includes('count >= 1 && count <= MAX_VARIATION_CANDIDATES'));
   assert.ok(matrix.includes('generateDisabledReason'));
-  assert.ok(matrix.includes('Informe pelo menos dois valores'));
+  assert.ok(matrix.includes('Confirmar versão principal'));
   assert.ok(page.includes('defaultCondition={form.product_condition}'));
   assert.ok(page.includes('disabled={saving}'),"Gerador não deve exigir permissão de editar para prévia");
 });
