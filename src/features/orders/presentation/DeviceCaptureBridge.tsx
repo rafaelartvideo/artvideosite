@@ -151,6 +151,7 @@ export function DeviceCaptureBridge({
     }).catch(syncError => {
       if (sessionRef.current?.id === sessionId) {
         setError(syncError instanceof Error ? syncError.message : "Falha ao sincronizar fotos com o celular.");
+        setOpen(true);
       }
     });
   }, [context, session?.id, expired, productPhotoCount, productHasCover]);
@@ -236,6 +237,7 @@ export function DeviceCaptureBridge({
               lastEventIdRef.current = event.id;
             } catch (photoError) {
               setError(photoError instanceof Error ? photoError.message : "Não foi possível receber uma foto do celular.");
+              setOpen(true);
               break;
             }
           }
@@ -256,12 +258,16 @@ export function DeviceCaptureBridge({
               lastChecklistEventIdRef.current = event.id;
             } catch (photoError) {
               setError(photoError instanceof Error ? photoError.message : "Não foi possível receber a foto do checklist.");
+              setOpen(true);
               break;
             }
           }
         } while (refreshQueuedRef.current && !cancelled);
       } catch (pollError) {
-        if (!cancelled) setError(pollError instanceof Error ? pollError.message : "Falha na conexão com o celular.");
+        if (!cancelled) {
+          setError(pollError instanceof Error ? pollError.message : "Falha na conexão com o celular.");
+          setOpen(true);
+        }
       } finally {
         pollingRef.current = false;
       }
