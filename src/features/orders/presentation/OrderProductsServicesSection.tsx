@@ -36,8 +36,7 @@ import {
   deleteOrderCommercialItem,
   listOrderCommercialItems,
   searchOrderProducts,
-  listOrderProductCompatibilities,
-  listOrderProductSimilars,
+  listOrderRelatedProducts,
   searchOrderServices,
   setOrderCommercialDiscount,
   setOrderCommercialItemPinned,
@@ -168,15 +167,9 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [productSearching, setProductSearching] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<OrderCatalogOption | null>(null);
-  const compatibleProductsQuery = useQuery({
-    queryKey: ["orders", "auto-compatible", "execution", order?.id, selectedProduct?.id],
-    queryFn: () => listOrderProductCompatibilities(order!.id, [selectedProduct!.id]),
-    enabled: Boolean(commercialEditable && order?.id && selectedProduct?.id),
-    staleTime: 15_000,
-  });
-  const similarProductsQuery = useQuery({
-    queryKey: ["orders", "similar-products", "execution", order?.id, selectedProduct?.id],
-    queryFn: () => listOrderProductSimilars(order!.id, [selectedProduct!.id]),
+  const relatedProductsQuery = useQuery({
+    queryKey: ["orders", "related-products", "execution", order?.id, selectedProduct?.id],
+    queryFn: () => listOrderRelatedProducts(order!.id, [selectedProduct!.id]),
     enabled: Boolean(commercialEditable && order?.id && selectedProduct?.id),
     staleTime: 15_000,
   });
@@ -1074,25 +1067,13 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
 
-          {selectedProduct && Boolean(compatibleProductsQuery.data?.length) && <CompatibleProductCarousel
+          {selectedProduct && Boolean(relatedProductsQuery.data?.length) && <CompatibleProductCarousel
+            title="Produtos relacionados"
             sourceName={selectedProduct.name}
-            products={(compatibleProductsQuery.data || []).map(item => ({
+            products={(relatedProductsQuery.data || []).map(item => ({
               id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
               coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
-            }))}
-            actionLabel="Selecionar"
-            disabled={!commercialEditable}
-            onPick={item => selectProduct({
-              id:item.id,name:item.name,description:null,unit:item.unit || "un",
-              price:item.price ?? null,stock:item.stock ?? 0,price_at_completion:false,
-            })}
-          />}
-          {selectedProduct && Boolean(similarProductsQuery.data?.length) && <CompatibleProductCarousel
-            title="Produtos similares"
-            sourceName={selectedProduct.name}
-            products={(similarProductsQuery.data || []).map(item => ({
-              id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
-              coverMediaId:item.cover_media_id,price:item.price,stock:item.stock,unit:item.unit,
+              relationType:item.relation_type,matchedCode:item.matched_code,
             }))}
             actionLabel="Selecionar"
             disabled={!commercialEditable}
