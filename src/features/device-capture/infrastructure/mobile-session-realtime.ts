@@ -7,6 +7,8 @@ export type MobileSessionRealtimeRow = {
   connected_at?: string | null;
   last_seen_at?: string | null;
   order_updated_at?: string | null;
+  product_photo_count?: number | null;
+  product_has_cover?: boolean | null;
   equipment_type_id?: string | null;
 };
 
