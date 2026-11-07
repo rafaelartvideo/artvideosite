@@ -1400,7 +1400,7 @@ export function TabProducts({
           <TabsContent value="general" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Identificação do item">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
+                <div className="min-w-0">
                   <FInput
                     label="Nome do item"
                     value={form.name}
@@ -1422,37 +1422,8 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, sku: event.target.value }))}
                   placeholder="Código interno"
                 />
-                <ProductIdentifiersEditor
-                  kinds={identifierKinds}
-                  values={{
-                    barcode: form.barcode,
-                    manufacturer_code: form.manufacturer_code,
-                    internal_barcode: form.internal_barcode,
-                  }}
-                  disabled={saving}
-                  onChange={(kind, value) => setForm(current => ({ ...current, [kind]: value }))}
-                  onSwitch={(from, to) => {
-                    if (from === to || identifierKinds.includes(to)) return;
-                    setForm(current => ({
-                      ...current,
-                      [to]: current[from],
-                      [from]: "",
-                    }));
-                    setIdentifierKinds(current => current.map(kind => kind === from ? to : kind));
-                  }}
-                  onAdd={() => setIdentifierKinds(current => {
-                    const next = PRODUCT_IDENTIFIER_OPTIONS.find(option => !current.includes(option.value));
-                    return next ? [...current, next.value] : current;
-                  })}
-                  onRemove={kind => {
-                    setForm(current => ({ ...current, [kind]: "" }));
-                    setIdentifierKinds(current => {
-                      const remaining = current.filter(item => item !== kind);
-                      return remaining.length ? remaining : ["barcode"];
-                    });
-                  }}
-                />
 
+                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-3">
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
                     <FSelect
@@ -1499,6 +1470,16 @@ export function TabProducts({
                   ><Plus size={17} /></AdminButton>}
                 </div>
 
+                <FInput
+                  label="Modelo"
+                  value={form.model}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
+                  placeholder="Modelo comercial"
+                />
+
+                </div>
+                <div className="min-w-0 sm:col-start-2">
                 <FSelect
                   label="Condição do produto"
                   value={form.product_condition}
@@ -1506,12 +1487,38 @@ export function TabProducts({
                   disabled={saving}
                   onChange={(event: any) => setForm(current => ({ ...current, product_condition: event.target.value as ProductCondition }))}
                 />
-                <FInput
-                  label="Modelo"
-                  value={form.model}
+                </div>
+                <ProductIdentifiersEditor
+                  kinds={identifierKinds}
+                  values={{
+                    barcode: form.barcode,
+                    manufacturer_code: form.manufacturer_code,
+                    internal_barcode: form.internal_barcode,
+                  }}
                   disabled={saving}
-                  onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
-                  placeholder="Modelo comercial"
+                  onChange={(kind, value) => { setMobileScanTarget(kind); setForm(current => ({ ...current, [kind]: value })); }}
+                  onSwitch={(from, to) => {
+                    if (from === to || identifierKinds.includes(to)) return;
+                    setForm(current => ({
+                      ...current,
+                      [to]: current[from],
+                      [from]: "",
+                    }));
+                    setIdentifierKinds(current => current.map(kind => kind === from ? to : kind));
+                    setMobileScanTarget(to);
+                  }}
+                  onAdd={() => {
+                    const next = PRODUCT_IDENTIFIER_OPTIONS.find(option => !identifierKinds.includes(option.value));
+                    if (next) { setIdentifierKinds(current => [...current, next.value]); setMobileScanTarget(next.value); }
+                  }}
+                  onRemove={kind => {
+                    setForm(current => ({ ...current, [kind]: "" }));
+                    setIdentifierKinds(current => {
+                      const remaining = current.filter(item => item !== kind);
+                      setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
+                      return remaining.length ? remaining : ["barcode"];
+                    });
+                  }}
                 />
 
                 <div className="sm:col-span-2">
@@ -2157,19 +2164,9 @@ export function TabProducts({
       </Tabs>
 
       <AdminStickyToolbar className="z-10 justify-end">
-        {(editItem ? canEdit : canCreate) && <div className="hidden min-w-0 items-center gap-2 md:flex">
-          <select
-            aria-label="Tipo do código lido no celular"
-            title="Para qual campo enviar o código escaneado"
-            value={mobileScanTarget}
-            disabled={saving || galleryUploading}
-            onChange={event => setMobileScanTarget(event.target.value as ProductIdentifierKind)}
-            className="h-9 min-w-0 max-w-40 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
-          >
-            <option value="barcode">GTIN / barras</option>
-            <option value="manufacturer_code">Fabricante / MPN</option>
-            <option value="internal_barcode">Barras interno</option>
-          </select>
+        <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
+        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        {(editItem ? canEdit : canCreate) && <div className="hidden shrink-0 md:flex">
           <DeviceCaptureBridge
             context="product"
             disabled={saving || galleryUploading}
@@ -2177,8 +2174,6 @@ export function TabProducts({
             onPhoto={(file, kind) => { void handleProductMobilePhoto(file, kind); }}
           />
         </div>}
-        <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
-        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>
 
