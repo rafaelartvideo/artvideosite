@@ -82,6 +82,7 @@ import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIde
 import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_VARIATION_ATTRIBUTES, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
+import { InventoryProductImageLightbox } from "./InventoryProductImageLightbox";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
@@ -400,6 +401,8 @@ export function TabProducts({
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
+  const [previewProductPhoto, setPreviewProductPhoto] = useState<{ mediaId: string; name: string } | null>(null);
+  const { url: previewProductPhotoUrl } = useMediaUrl(previewProductPhoto?.mediaId || null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
   // Cancelar pode desmontar o formulário antes de a URL abandonar /inventory/new.
@@ -1311,7 +1314,18 @@ export function TabProducts({
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
                     {showProduct && <td>
                       <div className="flex items-center gap-3">
-                        <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
+                        {product.cover_media_id
+                          ? <button type="button"
+                              title={`Ampliar foto de ${product.name}`}
+                              aria-label={`Ampliar foto de ${product.name}`}
+                              className="shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+                              onClick={event => {
+                                event.stopPropagation();
+                                setPreviewProductPhoto({ mediaId: String(product.cover_media_id), name: product.name });
+                              }}>
+                              <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
+                            </button>
+                          : <ProductAdminThumb mediaId={null} name={product.name} />}
                         <div className="min-w-0">
                           {canViewDetails
                             ? <button type="button" onClick={() => openDetails(product)}
@@ -2263,7 +2277,14 @@ export function TabProducts({
       </AdminStickyToolbar>
     </AdminPage>
 
+    {previewProductPhoto && previewProductPhotoUrl && <InventoryProductImageLightbox
+      photos={[{ mediaId: previewProductPhoto.mediaId, url: previewProductPhotoUrl, alt: previewProductPhoto.name }]}
+      index={0} onIndexChange={() => undefined}
+      onClose={() => setPreviewProductPhoto(null)}
+    />}
+
     {activeDetailsProduct && activeOrganizationId && <InventoryProductDetailsDialog
+      key={String(activeDetailsProduct.id)}
       product={activeDetailsProduct}
       organizationId={activeOrganizationId}
       canEdit={canEdit && canViewDetails}
