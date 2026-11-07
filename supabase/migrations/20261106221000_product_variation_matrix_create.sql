@@ -59,7 +59,7 @@ begin
    v_barcode:=nullif(btrim(coalesce(v_row->>'barcode','')),'');
    v_attributes:=coalesce(v_row->'attributes','{}'::jsonb);
    if length(v_label) not between 1 and 100 or jsonb_typeof(v_attributes)<>'object'
-      or (select count(*) from jsonb_object_keys(v_attributes))>3
+      or (select count(*) from jsonb_object_keys(v_attributes))>5
    then raise exception 'Identificação ou atributos de variação inválidos.' using errcode='22023'; end if;
    if upper(v_label)=any(v_seen_labels) or exists(select 1 from public.product_variation_links l
        where l.organization_id=p_organization_id and l.parent_product_id=p_parent_product_id
