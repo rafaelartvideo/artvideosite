@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -338,7 +339,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
 
     {canViewTable && <AdminCard>
       {loading ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." /> : <>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[720px]">
             <thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Vinculados</th><th className="text-left">Status</th></tr></thead>
             <tbody>{pagedRoles.map(role => <tr key={role.id} onClick={() => openRole(role)} className={canViewDetails ? "cursor-pointer" : undefined}>
