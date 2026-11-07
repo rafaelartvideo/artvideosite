@@ -21,6 +21,8 @@ test("catalog editor restores individual related codes and their original relati
   assert.ok(editor.includes("Código novo (substitui o atual)"));
   assert.ok(editor.includes("Peça compatível"));
   assert.ok(editor.includes("Outra referência do mesmo produto"));
+  assert.ok(editor.includes("Produto similar"));
+  assert.ok(editor.includes("Produto genérico"));
   assert.ok(editor.includes("Excluir código relacionado"));
   assert.ok(editor.includes("form.related_codes.map((item, index)"));
   assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
@@ -35,6 +37,8 @@ test("catalog editor restores individual related codes and their original relati
     { code: " akb200", relation_type: "successor" },
     { code: "AKB300", relation_type: "compatible" },
     { code: "akb400", relation_type: "alternate" },
+    { code: "AKB500", relation_type: "similar" },
+    { code: "AKB600", relation_type: "generic" },
   ];
   assert.deepEqual(validateTypedRelatedCodes(rows, "MPN001"), {
     codes: [
@@ -42,6 +46,8 @@ test("catalog editor restores individual related codes and their original relati
       { code: "AKB200", relation_type: "successor" },
       { code: "AKB300", relation_type: "compatible" },
       { code: "AKB400", relation_type: "alternate" },
+      { code: "AKB500", relation_type: "similar" },
+      { code: "AKB600", relation_type: "generic" },
     ],
     error: null,
   });
