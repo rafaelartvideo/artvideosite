@@ -17,12 +17,15 @@ test("catalog editor restores individual related codes and their original relati
   assert.ok(editor.includes("Códigos relacionados"));
   assert.ok(editor.includes("Adicionar código"));
   assert.ok(editor.includes('<FSelect label="Tipo de relação"'));
-  assert.ok(editor.includes("Código antigo (substituído pelo atual)"));
-  assert.ok(editor.includes("Código novo (substitui o atual)"));
-  assert.ok(editor.includes("Peça compatível"));
-  assert.ok(editor.includes("Outra referência do mesmo produto"));
-  assert.ok(editor.includes("Produto similar"));
-  assert.ok(editor.includes("Produto genérico"));
+  const labels = read("./product-relation-labels.ts");
+  assert.ok(labels.includes("Código antigo (substituído pelo atual)"));
+  assert.ok(labels.includes('DEFAULT_RELATED_CODE_TYPE = RELATED_CODE_TYPE_OPTIONS[0].value'));
+  assert.ok(labels.includes("Código novo (substitui o atual)"));
+  assert.ok(!editor.includes("Peça compatível"));
+  assert.ok(!labels.includes("Peça compatível"));
+  assert.ok(labels.includes("Outra referência do mesmo produto"));
+  assert.ok(labels.includes("Produto similar"));
+  assert.ok(labels.includes("Produto genérico"));
   assert.ok(editor.includes("Excluir código relacionado"));
   assert.ok(editor.includes("form.related_codes.map((item, index)"));
   assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
@@ -35,7 +38,7 @@ test("catalog editor restores individual related codes and their original relati
   const rows = [
     { code: " akb100 ", relation_type: "previous" },
     { code: " akb200", relation_type: "successor" },
-    { code: "AKB300", relation_type: "compatible" },
+    { code: "AKB300", relation_type: "alternate" },
     { code: "akb400", relation_type: "alternate" },
     { code: "AKB500", relation_type: "similar" },
     { code: "AKB600", relation_type: "generic" },
@@ -44,7 +47,7 @@ test("catalog editor restores individual related codes and their original relati
     codes: [
       { code: "AKB100", relation_type: "previous" },
       { code: "AKB200", relation_type: "successor" },
-      { code: "AKB300", relation_type: "compatible" },
+      { code: "AKB300", relation_type: "alternate" },
       { code: "AKB400", relation_type: "alternate" },
       { code: "AKB500", relation_type: "similar" },
       { code: "AKB600", relation_type: "generic" },
@@ -55,6 +58,7 @@ test("catalog editor restores individual related codes and their original relati
   assert.ok(validateTypedRelatedCodes([{code: "MPN001", relation_type:"alternate"}], "MPN001").error);
   assert.ok(validateTypedRelatedCodes([{code: "", relation_type:"alternate"}], "MPN001").error);
   assert.ok(validateTypedRelatedCodes([{code: "ABC123", relation_type:"invalid"}], "MPN001").error);
+  assert.ok(validateTypedRelatedCodes([{code: "ABC123", relation_type:"compatible"}], "MPN001").error);
   // O parser do formato de importação antiga continua disponível sem alterar os registros existentes.
   assert.equal(parseRelatedCodesInput("AKB100, AKB100", rows).length, 1);
 });
