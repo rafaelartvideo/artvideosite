@@ -97,7 +97,7 @@ export function registrationFormFromRecord(registration: Registration): Registra
       ? registration.trade_name || registration.name || ""
       : registration.name || "",
     legal_name: registration.legal_name || "",
-    trade_name: registration.trade_name || registration.name || "",
+    trade_name: registration.person_type === "PJ" ? registration.trade_name || "" : registration.trade_name || registration.name || "",
     document: registration.document || "",
     state_registration: registration.state_registration || "",
     municipal_registration: registration.municipal_registration || "",
@@ -184,7 +184,7 @@ export function registrationAddressPayload(address: RegistrationAddressForm) {
 }
 
 export type RegistrationFieldErrors = Partial<Record<
-  "roles" | "name" | "trade_name" | "document" | "birth_date" | "foundation_date" | "phone" | "whatsapp" | "email",
+  "roles" | "name" | "trade_name" | "legal_name" | "document" | "birth_date" | "foundation_date" | "phone" | "whatsapp" | "email",
   string
 >>;
 
@@ -204,7 +204,13 @@ export function validateRegistrationFormFields(form: RegistrationFormState, { re
     if (!form.birth_date) errors.birth_date = "Data de nascimento é obrigatória.";
     else if (!isPastOrTodayBrazilianDate(form.birth_date)) errors.birth_date = "Data de nascimento inválida ou futura.";
   } else {
-    if (!form.trade_name.trim()) errors.trade_name = "Nome fantasia é obrigatório.";
+    if (form.roles.includes("supplier")) {
+      if (!form.trade_name.trim() && !form.legal_name.trim()) {
+        errors.legal_name = "Informe a razão social quando não houver nome fantasia.";
+      }
+    } else if (!form.trade_name.trim()) {
+      errors.trade_name = "Nome fantasia é obrigatório.";
+    }
     if (!isValidCnpj(form.document)) errors.document = "CNPJ inválido. Verifique os números informados.";
     if (form.foundation_date && !isPastOrTodayBrazilianDate(form.foundation_date)) errors.foundation_date = "Data de fundação inválida ou futura.";
   }
