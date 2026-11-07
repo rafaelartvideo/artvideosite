@@ -33,6 +33,8 @@ test("modal reutiliza formulário completo dos cadastros sem exibir seleção Fo
   assert.ok((await transformWithEsbuild(quickCreate, "SupplierQuickCreateDialog.tsx", { loader: "tsx" })).code);
   assert.ok(editor.includes('if (supplierQuickCreate) return <AdminDialog'));
   assert.ok(editor.includes("!supplierQuickCreate && <div"), "Os botões de vínculo só são ocultados no fluxo rápido");
+  assert.ok(editor.includes('!supplierQuickCreate && form.roles.includes("supplier") && <SupplierItemsEditor'),
+    "Itens do fornecedor só aparecem no cadastro normal, nunca no modal rápido");
   assert.ok(editor.includes("!employeeOnly"), "O seletor PF/PJ continua disponível");
   assert.ok(editor.includes("lookups.lookupCpfName()"));
   assert.ok(editor.includes("lookups.lookupCnpj()"));
@@ -45,4 +47,16 @@ test("modal reutiliza formulário completo dos cadastros sem exibir seleção Fo
   assert.ok(quickCreate.includes("syncRegistrationSupplierItems"));
   assert.ok(quickCreate.includes("getRegistration"));
   assert.ok(quickCreate.includes("onCreated({"));
+});
+
+test("aba Fornecedores mantém conteúdo durante atualizações para evitar piscada e loading duplo", async () => {
+  const code = read("src/features/inventory/presentation/InventorySuppliersEditor.tsx");
+  assert.ok((await transformWithEsbuild(code, "InventorySuppliersEditor.tsx", { loader: "tsx" })).code);
+  assert.ok(code.includes('loadedOrganizationRef.current !== organizationId'),
+    "Só troca a lista por loading ao carregar uma empresa diferente");
+  assert.ok(code.includes('loadedOrganizationRef.current = organizationId'));
+  assert.ok(!code.includes('      setLoading(true);\n      setError(null);'),
+    "Atualizações da busca e dos fornecedores selecionados não devem reiniciar o skeleton");
+  assert.ok(code.includes('setAvailable(result.items)'));
+  assert.ok(code.includes('if (!cancelled) setLoading(false)'));
 });
