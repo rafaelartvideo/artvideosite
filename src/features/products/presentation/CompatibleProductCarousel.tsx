@@ -84,7 +84,7 @@ export function CompatibleProductCarousel({
               <p className="line-clamp-2 text-xs font-bold leading-snug text-foreground">{product.name}</p>
               {product.relationType && <span className="mt-1 inline-flex max-w-full truncate rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{productRelationLabel(product.relationType)}</span>}
               <p className="mt-1 truncate text-[11px] text-muted-foreground">SKU {product.sku || "—"}{product.barcode ? " · GTIN " + product.barcode : ""}</p>
-              {product.matchedCode && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Referência: {product.matchedCode}</p>
+              {product.matchedCode && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Referência: {product.matchedCode}</p>}
               <p className="mt-1.5 text-sm font-black text-foreground">
                 {product.price == null ? "Sem preço" : formatCurrency(product.price)}
               </p>
