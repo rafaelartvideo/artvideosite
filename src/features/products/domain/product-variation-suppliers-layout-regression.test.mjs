@@ -21,7 +21,7 @@ test("Geral alinha nome e SKU, categoria/marca e modelo/condição em duas linha
   const codes = layout.indexOf('<ProductIdentifiersEditor');
   assert.ok(name >= 0 && sku > name && category > sku && brand > category && model > brand);
   assert.ok(condition > model && codes > condition);
-  assert.ok(layout.includes('grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4'));
+  assert.ok(layout.includes('grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4'));
   assert.ok(!layout.includes('sm:col-span-2 sm:grid-cols-3'));
   assert.ok(!identifiers.includes('<h3 className="text-sm font-semibold text-foreground">Códigos de identificação</h3>'));
   assert.ok(!identifiers.includes("Opcional. Escolha o tipo"));
