@@ -24,6 +24,7 @@ type CaptureSession = {
   id: string;
   organization_id: string;
   created_by: string;
+  capture_context: "order" | "product";
   token_hash: string;
   pairing_code_hash: string | null;
   status: "active" | "closed" | "expired";
@@ -32,7 +33,7 @@ type CaptureSession = {
   last_seen_at: string | null;
 };
 
-const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at";
+const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,capture_context";
 
 function randomToken() {
   const bytes = new Uint8Array(32);
@@ -133,8 +134,25 @@ async function canCreateOrders(admin: AdminClient, organizationId: string, userI
   return memberHasPermission(admin, organizationId, userId, "orders.create");
 }
 
+async function canEditProducts(admin: AdminClient, organizationId: string, userId: string) {
+  const { data, error } = await admin.from("organization_modules")
+    .select("module_key,is_enabled").eq("organization_id", organizationId)
+    .in("module_key", ["products","inventory"]);
+  if (error) throw error;
+  if (!data?.some(row => row.is_enabled === true)) return false;
+  const keys = ["products.create","products.update","inventory.create","inventory.update"];
+  for (const permission of keys) {
+    if (await memberHasPermission(admin, organizationId, userId, permission)) return true;
+  }
+  return false;
+}
+async function canUseCapture(admin: AdminClient, session: CaptureSession, userId: string) {
+  return session.capture_context === "product"
+    ? canEditProducts(admin, session.organization_id, userId)
+    : canCreateOrders(admin, session.organization_id, userId);
+}
 async function requireCaptureAccess(admin: AdminClient, session: CaptureSession) {
-  if (!(await canCreateOrders(admin, session.organization_id, session.created_by))) {
+  if (!(await canUseCapture(admin, session, session.created_by))) {
     throw Object.assign(new Error("O acesso que originou esta captura não está mais disponível."), { status: 403 });
   }
 }
@@ -215,8 +233,12 @@ Deno.serve(async (request) => {
       if (!user) return json({ success: false, error: "Usuário não autenticado." });
       const organizationId = String(input.organization_id || "").trim();
       if (!organizationId) return json({ success: false, error: "Empresa ativa não informada." });
-      if (!(await canCreateOrders(admin, organizationId, user.id))) {
-        return json({ success: false, error: "Você não possui permissão para iniciar a captura desta OS." });
+      const captureContext = input.context === "product" ? "product" : "order";
+      const allowed = captureContext === "product"
+        ? await canEditProducts(admin, organizationId, user.id)
+        : await canCreateOrders(admin, organizationId, user.id);
+      if (!allowed) {
+        return json({ success: false, error: "Você não possui permissão para iniciar esta captura." }, 403);
       }
 
       const now = new Date();
@@ -244,6 +266,7 @@ Deno.serve(async (request) => {
             token_hash: tokenHash,
             pairing_code_hash: await pairingCodeHash(pairingCode),
             purpose: "capture",
+            capture_context: captureContext,
             expires_at: expiresAt,
           })
           .select("id,expires_at")
@@ -309,7 +332,7 @@ Deno.serve(async (request) => {
       const sessionId = String(input.session_id || "").trim();
       const session = await ownedSession(admin, sessionId, user.id);
       if (!session) return json({ success: false, error: "Sessão de captura não encontrada." });
-      if (!(await canCreateOrders(admin, session.organization_id, user.id))) {
+      if (!(await canUseCapture(admin, session, user.id))) {
         return json({ success: false, error: "Acesso à empresa não permitido." }, 403);
       }
 
@@ -396,7 +419,7 @@ Deno.serve(async (request) => {
         .select("id", { count: "exact", head: true })
         .eq("session_id", session.id)
         .eq("event_type", "photo");
-      return json({ success: true, expires_at: session.expires_at, photo_count: count || 0 });
+      return json({ success: true, expires_at: session.expires_at, photo_count: count || 0, capture_context: session.capture_context });
     }
 
     if (action === "send_serial") {
