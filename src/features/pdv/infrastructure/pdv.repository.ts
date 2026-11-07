@@ -531,3 +531,24 @@ export async function registerCurrentPdvTerminal(organizationId: string): Promis
     window.localStorage.setItem(PDV_TERMINAL_SYNC_KEY, String(Date.now()));
   } catch {}
 }
+
+
+export type PdvRelatedProduct = PdvProduct & {
+  source_product_id: string;
+  relation_type: string;
+  matched_code: string | null;
+};
+
+/** Alternativas e variações em um único retorno, identificadas em ambos os sentidos. */
+export async function listPdvRelatedProducts(organizationId: string, sourceProductIds: string[]): Promise<PdvRelatedProduct[]> {
+  if (!sourceProductIds.length) return [];
+  const { data, error } = await supabase.rpc("list_pdv_product_relations_v2", {
+    p_organization_id: requiredOrganizationId(organizationId),
+    p_source_product_ids: [...new Set(sourceProductIds)].slice(0, 30),
+  });
+  if (error) throw error;
+  return ((data || []) as PdvRelatedProduct[]).map(row => ({
+    ...row, quantity: Number(row.quantity || 0), conversion_factor: Math.max(1, Number(row.conversion_factor || 1)),
+    min_quantity: Number(row.min_quantity || 0), price: row.price == null ? null : Number(row.price),
+  }));
+}
