@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
@@ -308,7 +309,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       canUpload={canManagePhotos && !order.completed_at && !order.cancelled_at}
       canRemove={canRemovePhotos && !order.completed_at && !order.cancelled_at}/>
     {!!renegotiations.length&&<Section title={<span className="inline-flex items-center gap-2"><History size={15}/> Histórico de renegociações</span>} flush>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
         <table className="w-full border-collapse text-left text-xs">
           <thead><tr className="border-b border-border bg-muted/45 text-muted-foreground">
             <th className="px-4 py-3">Proposta anterior</th>
@@ -380,7 +381,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           <p><strong>Diagnóstico:</strong> {selectedVersion.diagnosis||"—"}</p>
           <p><strong>Solução proposta:</strong> {selectedVersion.proposed_solution||"—"}</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border"><TopTableScrollbar />
           <table className="w-full min-w-[480px] text-left text-xs">
             <thead className="bg-muted/50"><tr>
               <th className="px-3 py-3">Produto / Serviço</th>
