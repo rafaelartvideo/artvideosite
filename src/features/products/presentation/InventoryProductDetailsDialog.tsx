@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeftRight, Edit2, List, Package } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
@@ -12,6 +12,8 @@ import { listInventoryItemSuppliers } from "@/features/inventory/infrastructure/
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import type { InventorySaleSummary } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
+import { listProductVariationOptions, listProductVariations } from "../infrastructure/product-variations.repository";
+import { InventoryProductImageLightbox, type InventoryProductPhoto } from "./InventoryProductImageLightbox";
 
 type Props = {
   product: any | null;
@@ -40,6 +42,7 @@ export function InventoryProductDetailsDialog({
   product, organizationId, canEdit, canMove, canHistory, canViewCosts,
   canViewSuppliers, saleSummary, onClose, onEdit, onMove, onHistory, onOpenProduct,
 }: Props) {
+  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const id = product?.id as string | undefined;
   const inventory = product?.inventory;
   const unit = inventory?.unit === "cx" ? "cx" : "un";
@@ -66,6 +69,18 @@ export function InventoryProductDetailsDialog({
     enabled: Boolean(product && organizationId && id),
     staleTime: 30_000,
   });
+  const variantOptions = useQuery({
+    queryKey: ["products", "variation-options-detail", organizationId, id],
+    queryFn: () => listProductVariationOptions(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 30_000,
+  });
+  const variationFamily = useQuery({
+    queryKey: ["products", "variation-family", organizationId, id],
+    queryFn: () => listProductVariations(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 20_000,
+  });
   const suppliers = useQuery({
     queryKey: ["products", "suppliers-detail", organizationId, inventory?.inventory_item_id],
     queryFn: () => listInventoryItemSuppliers(String(inventory.inventory_item_id), organizationId),
@@ -74,6 +89,31 @@ export function InventoryProductDetailsDialog({
   });
   if (!product) return null;
 
+  const photos: InventoryProductPhoto[] = [];
+  const seenPhotoIds = new Set<string>();
+  const addPhoto = (mediaId: string, url: string | null, alt: string) => {
+    if (!mediaId || !url || seenPhotoIds.has(mediaId)) return;
+    seenPhotoIds.add(mediaId);
+    photos.push({ mediaId, url, alt });
+  };
+  addPhoto(String(product.cover_media_id || ""), coverUrl, `Foto principal de ${product.name}`);
+  for (const image of gallery.data || []) {
+    addPhoto(image.media_id, image.public_url, image.alt_text || product.name);
+  }
+
+  const childVariation = variationFamily.data?.find(item => item.product_id === id && !item.is_parent);
+  const childAttributes = childVariation?.variation_label?.split(/\\s*·\\s*/).map(part => {
+    const separator = part.indexOf(":");
+    return separator > 0
+      ? { name: part.slice(0, separator).trim(), value: part.slice(separator + 1).trim(), otherValues: [] as string[] }
+      : { name: "Variação", value: part.trim(), otherValues: [] as string[] };
+  }).filter(attribute => attribute.name && attribute.value) || [];
+  const mainAttributes = (variantOptions.data || []).map(option => {
+    const values = option.values.split(/[;,\\n]/).map(value => value.trim()).filter(Boolean);
+    return { name: option.name.trim(), value: values[0] || "", otherValues: values.slice(1) };
+  }).filter(attribute => attribute.name && attribute.value);
+  const attributes = childVariation ? childAttributes : mainAttributes;
+
   const stockTone = stock <= 0 ? "text-red-600 dark:text-red-400"
     : stock <= minimum ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300";
   const location = [inventory?.storage_shelf ? `Estante ${inventory.storage_shelf}` : "",
@@ -81,7 +121,7 @@ export function InventoryProductDetailsDialog({
     inventory?.storage_compartment ? `Compartimento ${inventory.storage_compartment}` : ""]
     .filter(Boolean).join(" · ") || "Não informado";
 
-  return <AdminDialog
+  return <><AdminDialog
     open
     onClose={onClose}
     title="Detalhes do item"
@@ -100,10 +140,13 @@ export function InventoryProductDetailsDialog({
     </div>}
   >
     <section className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start" aria-label="Resumo do item">
-      <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30">
-        {coverUrl ? <img src={coverUrl} alt={product.name} className="h-full w-full object-contain"/>
-          : <Package size={36} className="text-muted-foreground"/>}
-      </div>
+      {coverUrl ? <button type="button" onClick={() => setActivePhotoIndex(0)}
+        aria-label={`Ampliar foto principal de ${product.name}`}
+        className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary">
+        <img src={coverUrl} alt={product.name} className="h-full w-full object-contain"/>
+      </button> : <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30">
+        <Package size={36} className="text-muted-foreground"/>
+      </div>}
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold",
@@ -160,12 +203,35 @@ export function InventoryProductDetailsDialog({
       </div>}
     </section>
 
+    {(variantOptions.isPending || variationFamily.isPending || variantOptions.isError || variationFamily.isError || attributes.length > 0) && <section className="space-y-2.5 border-t border-border pt-4" aria-label="Atributos do produto">
+      <h4 className="text-sm font-bold text-foreground">Atributos do produto</h4>
+      {variantOptions.isPending || variationFamily.isPending
+        ? <p className="text-xs text-muted-foreground">Carregando atributos...</p>
+        : attributes.length > 0
+          ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {attributes.map((attribute, index) => <Detail key={`${attribute.name}-${index}`} label={attribute.name}
+              value={<>
+                <span>{attribute.value}</span>
+                {attribute.otherValues.length > 0 && <p className="mt-1 text-[11px] font-normal text-muted-foreground">
+                  Outras opções: {attribute.otherValues.join(", ")}
+                </p>}
+              </>}/>)}
+          </div>
+          : <p role="alert" className="text-xs text-destructive">
+            Não foi possível consultar os atributos deste produto.
+          </p>}
+    </section>}
+
     {gallery.data && gallery.data.length > 0 && <section className="space-y-2">
       <h4 className="text-sm font-bold text-foreground">Fotos do produto</h4>
       <div className="flex flex-wrap gap-2">
-        {gallery.data.map(image => <img key={image.media_id} src={image.public_url}
-          alt={image.alt_text || product.name} loading="lazy"
-          className="h-20 w-20 rounded-lg border border-border bg-muted/20 object-contain"/>)}
+        {gallery.data.map(image => <button key={image.media_id} type="button"
+          onClick={() => setActivePhotoIndex(photos.findIndex(photo => photo.mediaId === image.media_id))}
+          aria-label={`Ampliar foto de ${product.name}`}
+          className="h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted/20 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary">
+          <img src={image.public_url} alt={image.alt_text || product.name} loading="lazy"
+            className="h-full w-full object-contain"/>
+        </button>)}
       </div>
     </section>}
 
@@ -229,5 +295,9 @@ export function InventoryProductDetailsDialog({
       <h4 className="text-xs font-bold text-foreground">Observações internas</h4>
       <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{product.internal_notes}</p>
     </section>}
-  </AdminDialog>;
+  </AdminDialog>
+    {activePhotoIndex !== null && photos[activePhotoIndex] && <InventoryProductImageLightbox
+      photos={photos} index={activePhotoIndex} onIndexChange={setActivePhotoIndex}
+      onClose={() => setActivePhotoIndex(null)}/>}
+  </>;
 }
