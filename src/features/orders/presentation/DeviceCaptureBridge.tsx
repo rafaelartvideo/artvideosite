@@ -40,11 +40,13 @@ async function signedUrlToFile(signedUrl: string, fileName: string, mimeType: st
 
 export function DeviceCaptureBridge({
   disabled = false,
+  context = "order",
   equipmentTypeId,
   onSerial,
   onPhoto,
 }: {
   disabled?: boolean;
+  context?: "order" | "product";
   equipmentTypeId?: string | null;
   onSerial: (serial: string) => void;
   onPhoto: (file: File, kind: DeviceCapturePhotoKind) => void;
@@ -75,7 +77,7 @@ export function DeviceCaptureBridge({
     lastChecklistEventIdRef.current = 0;
   };
 
-  const currentEquipmentTypeId = () => equipmentTypeId || getNewOrderEntryChecklistDraft()?.equipmentTypeId || null;
+  const currentEquipmentTypeId = () => context === "product" ? null : equipmentTypeId || getNewOrderEntryChecklistDraft()?.equipmentTypeId || null;
 
   const startSession = useCallback(async () => {
     if (!activeOrganizationId || disabled || creating) return;
@@ -88,7 +90,7 @@ export function DeviceCaptureBridge({
       if (sessionRef.current) {
         await closeDeviceCaptureSession(sessionRef.current.id, sessionRef.current.token).catch(() => undefined);
       }
-      const nextSession = await createDeviceCaptureSession(activeOrganizationId, currentEquipmentTypeId());
+      const nextSession = await createDeviceCaptureSession(activeOrganizationId, currentEquipmentTypeId(), context);
       sessionRef.current = nextSession;
       setSession(nextSession);
     } catch (nextError) {
@@ -97,7 +99,7 @@ export function DeviceCaptureBridge({
     } finally {
       setCreating(false);
     }
-  }, [activeOrganizationId, disabled, creating, equipmentTypeId]);
+  }, [activeOrganizationId, disabled, creating, equipmentTypeId, context]);
 
   const openBridge = () => {
     setOpen(true);
@@ -128,10 +130,10 @@ export function DeviceCaptureBridge({
         setError(bindError instanceof Error ? bindError.message : "Não foi possível vincular o checklist ao celular.");
       });
     };
-    const unsubscribe = subscribeNewOrderEntryChecklistDraft(bindCurrentDraft);
-    bindCurrentDraft();
+    const unsubscribe = context === "order" ? subscribeNewOrderEntryChecklistDraft(bindCurrentDraft) : () => undefined;
+    if (context === "order") bindCurrentDraft();
     return unsubscribe;
-  }, [session?.id, equipmentTypeId]);
+  }, [session?.id, equipmentTypeId, context]);
 
   useEffect(() => {
     if (!session || expired) return;
@@ -159,7 +161,7 @@ export function DeviceCaptureBridge({
       try {
         do {
           refreshQueuedRef.current = false;
-          const checklistEnabled = Boolean(currentEquipmentTypeId());
+          const checklistEnabled = context === "order" && Boolean(currentEquipmentTypeId());
           const [captureResult, checklistEvents] = await Promise.all([
             pollDeviceCaptureSession(session.id, lastEventIdRef.current),
             checklistEnabled
@@ -256,10 +258,10 @@ export function DeviceCaptureBridge({
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
-  }, [session?.id, session?.token, expired, equipmentTypeId, onPhoto, onSerial]);
+  }, [session?.id, session?.token, expired, equipmentTypeId, context, onPhoto, onSerial]);
 
   const captureUrl = session
-    ? `${window.location.origin}/captura?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`
+    ? `${window.location.origin}/captura?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}&context=${context}`
     : "";
   const fixedCaptureUrl = `${window.location.origin}/captura`;
   const expiryLabel = session?.expiresAt
@@ -274,7 +276,7 @@ export function DeviceCaptureBridge({
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
         className={connected ? "hidden md:inline-flex bg-emerald-600 hover:bg-emerald-700" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
-        title="Usar a câmera do celular nesta OS"
+        title={context === "product" ? "Fotografar o produto e escanear seus códigos pelo celular" : "Usar a câmera do celular nesta OS"}
       >
         <Smartphone size={14} />
         <span>{connected ? "Celular conectado" : "Usar celular"}</span>
@@ -284,7 +286,7 @@ export function DeviceCaptureBridge({
       <AdminDialog
         open={open}
         onClose={() => setOpen(false)}
-        title="Conectar celular à Nova OS"
+        title={context === "product" ? "Conectar celular ao produto" : "Conectar celular à Nova OS"}
         description="No celular, abra a página fixa de captura. Conecte escaneando o QR ou digitando o código exibido abaixo."
         className="max-w-md"
       >
@@ -305,7 +307,7 @@ export function DeviceCaptureBridge({
 
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>{connected ? <Wifi size={17} /> : <Smartphone size={17} />}</span>
-              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? "Série, fotos e checklist aparecem automaticamente nesta OS." : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e use o QR ou o código.</>}</p></div>
+              <div className="min-w-0 flex-1"><p className={`text-sm font-black ${connected ? "text-emerald-700" : "text-[#0d1b2e]"}`}>{connected ? "Celular conectado" : "Aguardando o celular"}</p><p className="mt-0.5 text-xs text-[#5a6a82]">{connected ? (context === "product" ? "Fotos e códigos aparecem automaticamente no cadastro do produto." : "Série, fotos e checklist aparecem automaticamente nesta OS.") : <>Abra <strong>{fixedCaptureUrl}</strong> no celular e use o QR ou o código.</>}</p></div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -314,7 +316,7 @@ export function DeviceCaptureBridge({
               <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] px-3 py-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Checklist</p><p className="mt-1 text-sm font-black text-[#0d1b2e]">{receivedChecklistChanges}</p></div>
             </div>
 
-            {lastSerial && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> Série recebida: <span className="min-w-0 truncate font-black">{lastSerial}</span></div>}
+            {lastSerial && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> {context === "product" ? "Código recebido:" : "Série recebida:"} <span className="min-w-0 truncate font-black">{lastSerial}</span></div>}
             <p className="text-center text-[11px] leading-5 text-[#5a6a82]">QR e código são temporários e pertencem somente a esta sessão. Eles não dão acesso ao painel administrativo.</p>
             <div className="flex flex-wrap justify-end gap-2">
               <AdminButton variant="secondary" onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
