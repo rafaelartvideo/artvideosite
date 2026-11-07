@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -623,7 +624,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                 <DeliveryBadge status={deliveryOf(order)}/>
               </div>}
             </article>)}</div>
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
           <table className="min-w-[830px]">
             <thead>
               <tr><th scope="col" className="p-3 text-left">Pedido</th><th scope="col" className="p-3 text-left">Cliente</th>
