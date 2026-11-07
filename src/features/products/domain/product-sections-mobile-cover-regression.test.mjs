@@ -15,12 +15,18 @@ test("atributos e códigos relacionados seguem Section do CRM", async () => {
     page.indexOf('<TabsContent value="relationships"'),
     page.indexOf('<TabsContent value="commercial"'),
   );
-  assert.ok(relations.includes('<Section title="Criar atributos e variações"'));
+  assert.ok(relations.includes('Criar atributos e variações'));
+  assert.ok(relations.includes('aria-label="Ajuda sobre criar atributos e variações"'));
+  assert.ok(relations.includes('{variantOptions.length}/{MAX_VARIATION_ATTRIBUTES} atributos'));
+  assert.ok(relations.includes('actions={<span className="whitespace-nowrap text-sm font-extrabold text-foreground">'));
   assert.ok(relations.includes('<ProductVariationMatrix'));
   assert.ok(relations.includes('<Section title="Códigos relacionados"'));
   assert.ok(relations.includes('actions={<AdminButton'));
   assert.ok(relations.includes('Adicionar código'));
   assert.ok(relations.includes('form.related_codes.map((item, index)'));
+  assert.ok(relations.includes('justify-center text-center text-xs text-muted-foreground">Nenhum código relacionado cadastrado.'));
+  assert.ok(!relations.includes('description="Defina atributos, gere as combinações disponíveis'));
+
   assert.ok(!matrix.includes('>Criar variações</h3>'), "O cabeçalho da Section substitui o título duplicado");
 });
 
