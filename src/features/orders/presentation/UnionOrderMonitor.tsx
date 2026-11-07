@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Search } from "lucide-react";
@@ -350,7 +351,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
       />
     ) : (
       <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-        <div className="hidden overflow-x-auto md:block">
+        <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
           <table className="min-w-[980px]">
             <thead><tr>
               <th className="text-left">OS</th>
