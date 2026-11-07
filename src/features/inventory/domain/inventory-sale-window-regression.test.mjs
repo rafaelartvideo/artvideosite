@@ -49,7 +49,8 @@ test("cadastro de produtos tem prazo comercial opcional e remove consulta autom�
   assert.match(ui, /sale_window_days: product\.sale_window_days == null \? "" : String\(product\.sale_window_days\)/);
   assert.ok(ui.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
   assert.ok(ui.includes("Código antigo (substituído pelo atual)"));
-  assert.ok(ui.includes("Peça compatível"));
+  assert.ok(!ui.includes("Peça compatível"));
+  assert.ok(ui.includes("RELATED_CODE_TYPE_OPTIONS"));
   assert.ok(ui.includes("Adicionar código"));
   assert.doesNotMatch(ui, /Consultar catálogo|searchCodeSuggestions|searchExternalProducts\(/);
 });
