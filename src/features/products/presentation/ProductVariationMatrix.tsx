@@ -110,6 +110,7 @@ export function ProductVariationMatrix({
   const [search, setSearch] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [singleReady, setSingleReady] = useState(false);
+  const [allAlreadyRegistered, setAllAlreadyRegistered] = useState(false);
   const linkedQuery = useQuery({
     queryKey: ["products", "variation-family", organizationId, parentProductId],
     queryFn: () => listProductVariations(organizationId, parentProductId!),
@@ -141,6 +142,7 @@ export function ProductVariationMatrix({
     setSearch("");
     setSelectedOnly(false);
     setSingleReady(false);
+    setAllAlreadyRegistered(false);
   };
   const updateOption = (index: number, key: keyof VariantOption, value: string) => {
     setOptions(options.map((option, i) => i === index ? { ...option, [key]: value } : option));
@@ -152,6 +154,7 @@ export function ProductVariationMatrix({
       .filter(row => !linkedLabels.has(row.label.toLocaleLowerCase("pt-BR")));
     setCandidates(prepared);
     setSingleReady(count === 1);
+    setAllAlreadyRegistered(count > 1 && prepared.length === 0);
     setRows(prepared.length <= availableSlots ? prepared : []);
     setExpandedLabel(prepared.length <= availableSlots ? prepared[0]?.label || null : null);
     setSearch("");
@@ -247,6 +250,9 @@ export function ProductVariationMatrix({
       </p>}
       {singleReady && count === 1 && <p role="status" className="text-xs text-foreground">
         A única combinação pertence ao produto principal. Clique em Salvar para guardar o atributo, sem gerar estoque duplicado.
+      </p>}
+      {allAlreadyRegistered && <p role="status" className="text-xs text-muted-foreground">
+        Todas as combinações já estão cadastradas. Acrescente um novo valor ao atributo para criar outra versão.
       </p>}
       {options.length > 0 && (!validNames || !uniqueNames) &&
         <p className="text-xs text-destructive">Preencha todos os nomes e valores e não repita nomes de atributos.</p>}
