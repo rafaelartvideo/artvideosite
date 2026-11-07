@@ -54,7 +54,7 @@ export function AdminListSection({
   const countLabel = count === 1 ? countSingular : countPlural;
 
   return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
-    <div className={cn(headerless ? "px-4 py-3" : "bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4")}>
+    {(!headerless || hasSearch) && <div className={cn(headerless ? "px-4 py-3" : "bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4")}>
       {!headerless && <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-foreground">{title}</p>
@@ -77,7 +77,7 @@ export function AdminListSection({
         </div>
         {searchAction}
       </div>}
-    </div>
+    </div>}
 
     {loading
       ? <div className="min-h-40"><LoadingState text={loadingText} /></div>
