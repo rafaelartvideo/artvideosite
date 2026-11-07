@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
@@ -196,7 +197,7 @@ export function TechnicianAvailabilityCalendar({
         ? weeklyHours.length === 0
           ? <p role="status" className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum horário livre nesta semana. Avance para a próxima semana ou desmarque “Ocultar horários sem vagas”.</p>
           : <div className="max-h-[min(40dvh,340px)] w-full min-w-0 overflow-auto overscroll-contain" role="region"
-              aria-label="Tabela semanal de disponibilidade" tabIndex={0}>
+              aria-label="Tabela semanal de disponibilidade" tabIndex={0}><TopTableScrollbar />
               <table className="w-full min-w-[910px] table-fixed border-collapse text-xs">
                 <thead className="sticky top-0 z-10 bg-muted">
                   <tr>
@@ -379,7 +380,7 @@ export function TechnicianAvailabilityCalendar({
       : !ids.length ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível para consulta.</p>
       : query.error ? <p role="alert" className="p-5 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum expediente cadastrado para estes técnicos. Configure a agenda semanal no cadastro dos funcionários.</p>
-      : <div className="max-h-[620px] w-full overflow-auto" role="region" aria-label="Tabela semanal de disponibilidade" tabIndex={0}>
+      : <div className="max-h-[620px] w-full overflow-auto" role="region" aria-label="Tabela semanal de disponibilidade" tabIndex={0}><TopTableScrollbar />
         <table className="w-full min-w-[1540px] table-fixed border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
