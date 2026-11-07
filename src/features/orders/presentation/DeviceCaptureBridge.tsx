@@ -17,6 +17,7 @@ import {
   bindDeviceCaptureChecklist,
   closeDeviceCaptureSession,
   createDeviceCaptureSession,
+  syncProductCapturePhotos,
   pollDeviceCaptureSession,
   pollDeviceChecklistEvents,
   type DeviceCapturePhotoKind,
@@ -44,17 +45,22 @@ export function DeviceCaptureBridge({
   equipmentTypeId,
   onSerial,
   onPhoto,
+  productPhotoCount,
+  productHasCover,
 }: {
   disabled?: boolean;
   context?: "order" | "product";
   equipmentTypeId?: string | null;
   onSerial: (serial: string) => void;
-  onPhoto: (file: File, kind: DeviceCapturePhotoKind) => void;
+  onPhoto: (file: File, kind: DeviceCapturePhotoKind) => void | Promise<void>;
+  productPhotoCount?: number;
+  productHasCover?: boolean;
 }) {
   const { activeOrganizationId } = useAuth();
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<DeviceCaptureSession | null>(null);
   const [creating, setCreating] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [connected, setConnected] = useState(false);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
@@ -66,8 +72,11 @@ export function DeviceCaptureBridge({
   const pollingRef = useRef(false);
   const refreshQueuedRef = useRef(false);
   const sessionRef = useRef<DeviceCaptureSession | null>(null);
+  const errorRef = useRef("");
+  const photoSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   sessionRef.current = session;
+  errorRef.current = error;
 
   const resetCounters = () => {
     setReceivedPhotos(0);
@@ -108,13 +117,39 @@ export function DeviceCaptureBridge({
 
   const endSession = async () => {
     const current = sessionRef.current;
-    if (current) await closeDeviceCaptureSession(current.id, current.token).catch(() => undefined);
-    sessionRef.current = null;
-    setSession(null);
-    setConnected(false);
-    setExpired(false);
-    resetCounters();
+    if (!current || ending) return;
+    setEnding(true);
+    setError("");
+    try {
+      await closeDeviceCaptureSession(current.id, current.token);
+      sessionRef.current = null;
+      setSession(null);
+      setConnected(false);
+      setExpired(false);
+      resetCounters();
+    } catch (closeError) {
+      setOpen(true);
+      setError(closeError instanceof Error ? closeError.message : "Não foi possível encerrar a conexão. Tente novamente.");
+    } finally {
+      setEnding(false);
+    }
   };
+
+  useEffect(() => {
+    if (context !== "product" || !session?.id || expired || typeof productPhotoCount !== "number") return;
+    const sessionId = session.id;
+    const count = Math.min(4, Math.max(0, productPhotoCount));
+    const hasCover = Boolean(productHasCover);
+    // Serializar mudanças rápidas (remover, trocar, definir capa) evita aplicar contagem antiga.
+    photoSyncQueueRef.current = photoSyncQueueRef.current.catch(() => undefined).then(async () => {
+      if (sessionRef.current?.id !== sessionId) return;
+      await syncProductCapturePhotos(sessionId, count, hasCover);
+    }).catch(syncError => {
+      if (sessionRef.current?.id === sessionId) {
+        setError(syncError instanceof Error ? syncError.message : "Falha ao sincronizar fotos com o celular.");
+      }
+    });
+  }, [context, session?.id, expired, productPhotoCount, productHasCover]);
 
   useEffect(() => () => {
     const current = sessionRef.current;
@@ -173,6 +208,9 @@ export function DeviceCaptureBridge({
           if (captureResult.status !== "active") {
             setExpired(true);
             setConnected(false);
+          } else if (captureResult.connected && !errorRef.current) {
+            setConnected(true);
+            setOpen(false);
           }
 
           for (const event of captureResult.events) {
@@ -189,7 +227,7 @@ export function DeviceCaptureBridge({
 
             try {
               const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
-              onPhoto(file, event.kind);
+              await onPhoto(file, event.kind);
               setReceivedPhotos(current => current + 1);
               lastEventIdRef.current = event.id;
             } catch (photoError) {
@@ -229,7 +267,10 @@ export function DeviceCaptureBridge({
       sessionId: session.id,
       presenceRole: "desktop",
       onMobilePresenceChange: value => {
-        if (!cancelled) setConnected(value);
+        if (!cancelled) {
+          setConnected(value);
+          if (value && !errorRef.current) setOpen(false);
+        }
       },
       onSessionChange: applySessionRow,
       onEventInsert: () => void refresh(),
@@ -275,12 +316,12 @@ export function DeviceCaptureBridge({
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "hidden md:inline-flex bg-emerald-600 hover:bg-emerald-700" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
+        className={connected ? "hidden md:inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
         title={context === "product" ? "Fotografar o produto e escanear seus códigos pelo celular" : "Usar a câmera do celular nesta OS"}
       >
         <Smartphone size={14} />
         <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="h-2 w-2 rounded-full bg-white" />}
+        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
       </AdminButton>
 
       <AdminDialog
@@ -300,9 +341,13 @@ export function DeviceCaptureBridge({
               <QRCodeSVG value={captureUrl} size={220} level="M" marginSize={2} />
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
               <p className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#0057e7]"><Hash size={12} /> Código</p>
               <p className="font-mono text-xl font-black tracking-[0.14em] text-[#0d1b2e] sm:text-2xl">{formatPairingCode(session.pairingCode)}</p>
+              <AdminButton variant="secondary" size="sm" disabled={ending}
+                loading={ending} loadingText="Encerrando..." onClick={() => void endSession()}>
+                <WifiOff size={14} /> Encerrar conexão
+              </AdminButton>
             </div>
 
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
@@ -318,9 +363,6 @@ export function DeviceCaptureBridge({
 
             {lastSerial && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> {context === "product" ? "Código recebido:" : "Série recebida:"} <span className="min-w-0 truncate font-black">{lastSerial}</span></div>}
             <p className="text-center text-[11px] leading-5 text-[#5a6a82]">QR e código são temporários e pertencem somente a esta sessão. Eles não dão acesso ao painel administrativo.</p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <AdminButton variant="secondary" onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
-            </div>
           </>}
 
           {!creating && expired && <div className="space-y-4 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={22} /></div><div><p className="text-base font-black text-[#0d1b2e]">A conexão expirou</p><p className="mt-1 text-sm text-[#5a6a82]">Gere uma nova conexão para receber um novo QR e um novo código.</p></div><AdminButton onClick={() => void startSession()}><RefreshCw size={14} /> Gerar nova conexão</AdminButton></div>}
