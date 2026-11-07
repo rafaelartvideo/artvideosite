@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Archive, Banknote, Landmark, LockKeyhole, Minus, MoreVertical, Pencil, Pin, Plus, Vault, Wallet } from "lucide-react";
@@ -348,7 +349,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
           {statementLoading ? <div className="p-8"><LoadingState text="Carregando extrato" /></div>
             : money.movementsQuery.error ? <p className="p-4 text-sm text-red-600">{systemErrorMessage(money.movementsQuery.error)}</p>
             : !statement?.items.length ? <div className="p-6"><EmptyState icon={Landmark} title="Nenhuma movimentação nesta conta" /></div>
-            : <div className="overflow-x-auto">
+            : <div className="overflow-x-auto"><TopTableScrollbar />
                 <div className="max-h-[264px] min-w-[620px] overflow-y-auto overscroll-contain">
                   <table className="w-full">
                     <thead className="sticky top-0 z-10 bg-card"><tr>
