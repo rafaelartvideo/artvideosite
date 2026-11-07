@@ -9,7 +9,8 @@ import { cn } from "@/shared/domain/formatters";
 import { normalizeSearchText } from "../application/order-search";
 import type { PartRequestInventoryItem, SelectedPartRequestItem } from "../domain/part-request.types";
 import { CenteredModal } from "./PartRequestModals";
-import { listOrderRelatedProducts } from "../infrastructure/order-commercial-items.repository";
+import { listOrderRelatedProducts, searchOrderProducts } from "../infrastructure/order-commercial-items.repository";
+import { productRelationLabel } from "@/features/products/domain/product-relation-labels";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 
 const INVENTORY_PAGE_SIZE = 4;
@@ -60,10 +61,24 @@ export function PartRequestModal({
 }) {
   const [inventoryPage, setInventoryPage] = React.useState(1);
   const query = normalizeSearchText(search);
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
+  React.useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return () => window.clearTimeout(handle);
+  }, [query]);
+  const relatedSearchQuery = useQuery({
+    queryKey: ["orders", "related-search", "part-requests", orderId, debouncedQuery],
+    queryFn: () => searchOrderProducts(orderId, debouncedQuery),
+    enabled: Boolean(orderId && !inventoryLoading && debouncedQuery.length >= 2),
+    staleTime: 15_000,
+  });
+  const searchRelatedIds = new Set(
+    debouncedQuery === query ? (relatedSearchQuery.data || []).map(item => item.id) : [],
+  );
+  const directlyMatchesSearch = (item: PartRequestInventoryItem) =>
+    normalizeSearchText(item.name).includes(query) || normalizeSearchText(item.sku).includes(query);
   const visibleItems = inventoryItems.filter(item =>
-    !query
-    || normalizeSearchText(item.name).includes(query)
-    || normalizeSearchText(item.sku).includes(query),
+    !query || directlyMatchesSearch(item) || searchRelatedIds.has(item.id),
   );
   const selectedIds = new Set(selectedItems.map(item => item.inventory_item_id));
   const totalInventoryPages = Math.max(1, Math.ceil(visibleItems.length / INVENTORY_PAGE_SIZE));
@@ -163,11 +178,16 @@ export function PartRequestModal({
           {pagedInventoryItems.map(item => {
             const selected = selectedIds.has(item.id);
             const hint = packageHint(item);
+            const indirectlyMatched = Boolean(query && !directlyMatchesSearch(item) && searchRelatedIds.has(item.id));
+            const relationType = (relatedQuery.data || []).find(related => related.inventory_item_id === item.id)?.relation_type;
             return <AdminListSectionRow key={item.id} className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-[#0d1b2e]">{item.name}</p>
                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#7c899c]">
                   {item.sku && <span className="truncate">SKU {item.sku}</span>}
+                  {(indirectlyMatched || relationType) && <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
+                    {relationType ? productRelationLabel(relationType) : "Relacionado"}
+                  </span>}
                   <span className="font-semibold text-[#425168]">Disponível: {Number(item.quantity)} un</span>
                   {hint && <span>{hint}</span>}
                 </div>
