@@ -2251,7 +2251,7 @@ export function TabProducts({
             productHasCover={Boolean(form.cover_media_id)}
             disabled={saving || galleryUploading}
             onSerial={handleProductMobileCode}
-            onPhoto={(file, kind) => { void handleProductMobilePhoto(file, kind); }}
+            onPhoto={(file, kind) => handleProductMobilePhoto(file, kind)}
           />
         </div>}
       </AdminStickyToolbar>
