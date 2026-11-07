@@ -73,10 +73,14 @@ export function DeviceCaptureBridge({
   const refreshQueuedRef = useRef(false);
   const sessionRef = useRef<DeviceCaptureSession | null>(null);
   const errorRef = useRef("");
+  const onSerialRef = useRef(onSerial);
+  const onPhotoRef = useRef(onPhoto);
   const photoSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   sessionRef.current = session;
   errorRef.current = error;
+  onSerialRef.current = onSerial;
+  onPhotoRef.current = onPhoto;
 
   const resetCounters = () => {
     setReceivedPhotos(0);
@@ -218,7 +222,7 @@ export function DeviceCaptureBridge({
             if (event.type === "serial") {
               const value = event.value.trim();
               if (value) {
-                onSerial(value);
+                onSerialRef.current(value);
                 setLastSerial(value);
               }
               lastEventIdRef.current = event.id;
@@ -227,7 +231,7 @@ export function DeviceCaptureBridge({
 
             try {
               const file = await signedUrlToFile(event.signedUrl, event.fileName, event.mimeType, event.id);
-              await onPhoto(file, event.kind);
+              await onPhotoRef.current(file, event.kind);
               setReceivedPhotos(current => current + 1);
               lastEventIdRef.current = event.id;
             } catch (photoError) {
@@ -299,7 +303,7 @@ export function DeviceCaptureBridge({
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       unsubscribe();
     };
-  }, [session?.id, session?.token, expired, equipmentTypeId, context, onPhoto, onSerial]);
+  }, [session?.id, session?.token, expired, equipmentTypeId, context]);
 
   const captureUrl = session
     ? `${window.location.origin}/captura?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}&context=${context}`
