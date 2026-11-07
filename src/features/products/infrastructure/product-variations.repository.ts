@@ -57,6 +57,7 @@ export type NewProductVariation = {
   attributes: Record<string, string>;
   sku: string;
   barcode: string | null;
+  product_condition?: "new" | "used" | "refurbished";
   price: number | null;
   quantity: number;
 };
