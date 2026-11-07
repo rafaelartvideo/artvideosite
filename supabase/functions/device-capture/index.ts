@@ -25,6 +25,8 @@ type CaptureSession = {
   organization_id: string;
   created_by: string;
   capture_context: "order" | "product";
+  product_photo_count: number;
+  product_has_cover: boolean;
   token_hash: string;
   pairing_code_hash: string | null;
   status: "active" | "closed" | "expired";
@@ -33,7 +35,7 @@ type CaptureSession = {
   last_seen_at: string | null;
 };
 
-const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,capture_context";
+const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,capture_context,product_photo_count,product_has_cover";
 
 function randomToken() {
   const bytes = new Uint8Array(32);
@@ -403,6 +405,28 @@ Deno.serve(async (request) => {
       return json({ success: true });
     }
 
+    if (action === "sync_product_photos") {
+      const user = await authenticatedUser(request, supabaseUrl, anonKey);
+      if (!user) return json({ success: false, error: "Usuário não autenticado." }, 401);
+      const session = await ownedSession(admin, String(input.session_id || "").trim(), user.id);
+      if (!session || session.status !== "active" || new Date(session.expires_at).getTime() <= Date.now()) {
+        return json({ success: false, error: "A sessão de captura não está ativa." });
+      }
+      if (session.capture_context !== "product" || !(await canUseCapture(admin, session, user.id))) {
+        return json({ success: false, error: "Sem permissão para sincronizar fotos deste produto." }, 403);
+      }
+      const count = Number(input.photo_count);
+      const hasCover = input.has_cover === true;
+      if (!Number.isInteger(count) || count < 0 || count > 4 || (hasCover && count < 1)) {
+        return json({ success: false, error: "Quantidade de fotos do produto inválida." });
+      }
+      const { error } = await admin.from("device_capture_sessions")
+        .update({ product_photo_count: count, product_has_cover: hasCover, updated_at: new Date().toISOString() })
+        .eq("id", session.id).eq("status", "active");
+      if (error) throw error;
+      return json({ success: true, photo_count: count, has_cover: hasCover });
+    }
+
     if (action === "status") {
       const sessionId = String(input.session_id || "").trim();
       const token = String(input.token || "").trim();
@@ -414,12 +438,16 @@ Deno.serve(async (request) => {
         .from("device_capture_sessions")
         .update({ connected_at: session.connected_at || now, last_seen_at: now, updated_at: now })
         .eq("id", session.id);
-      const { count } = await admin
-        .from("device_capture_events")
-        .select("id", { count: "exact", head: true })
-        .eq("session_id", session.id)
-        .eq("event_type", "photo");
-      return json({ success: true, expires_at: session.expires_at, photo_count: count || 0, capture_context: session.capture_context });
+      let photoCount = Number(session.product_photo_count || 0);
+      if (session.capture_context !== "product") {
+        const { count, error } = await admin.from("device_capture_events")
+          .select("id", { count: "exact", head: true })
+          .eq("session_id", session.id).eq("event_type", "photo");
+        if (error) throw error;
+        photoCount = count || 0;
+      }
+      return json({ success: true, expires_at: session.expires_at, photo_count: photoCount,
+        has_cover: Boolean(session.product_has_cover), capture_context: session.capture_context });
     }
 
     if (action === "send_serial") {
@@ -459,13 +487,24 @@ Deno.serve(async (request) => {
         return json({ success: false, error: "A foto deve ter no máximo 10 MB." });
       }
 
-      const { count } = await admin
-        .from("device_capture_events")
-        .select("id", { count: "exact", head: true })
-        .eq("session_id", session.id)
-        .eq("event_type", "photo");
-      if ((count || 0) >= MAX_PHOTOS) {
-        return json({ success: false, error: "Limite de 5 fotos atingido nesta captura." });
+      if (session.capture_context === "product" && kind !== "label") {
+        return json({ success: false, error: "No cadastro de produto, envie apenas a foto da capa." });
+      }
+      let count = 0;
+      if (session.capture_context === "product") {
+        count = Number(session.product_photo_count || 0);
+        if (count >= 4 && !session.product_has_cover) {
+          return json({ success: false, error: "Limite de 4 fotos do produto atingido. Remova uma foto no computador." });
+        }
+      } else {
+        const result = await admin.from("device_capture_events")
+          .select("id", { count: "exact", head: true })
+          .eq("session_id", session.id).eq("event_type", "photo");
+        if (result.error) throw result.error;
+        count = result.count || 0;
+        if (count >= MAX_PHOTOS) {
+          return json({ success: false, error: "Limite de 5 fotos atingido nesta captura." });
+        }
       }
 
       const name = safeFileName(file.name || `foto.${extensionFor(file)}`);
@@ -491,8 +530,18 @@ Deno.serve(async (request) => {
         throw eventError;
       }
       const now = new Date().toISOString();
-      await admin.from("device_capture_sessions").update({ last_seen_at: now, updated_at: now }).eq("id", session.id);
-      return json({ success: true, photo_count: (count || 0) + 1 });
+      const nextCount = session.capture_context === "product"
+        ? Math.min(4, count + (session.product_has_cover ? 0 : 1))
+        : count + 1;
+      const sessionUpdate: Record<string, unknown> = { last_seen_at: now, updated_at: now };
+      if (session.capture_context === "product") {
+        sessionUpdate.product_photo_count = nextCount;
+        sessionUpdate.product_has_cover = true;
+      }
+      const { error: updateError } = await admin.from("device_capture_sessions")
+        .update(sessionUpdate).eq("id", session.id).eq("status", "active");
+      if (updateError) throw updateError;
+      return json({ success: true, photo_count: nextCount, has_cover: session.capture_context === "product" ? true : false });
     }
 
     return json({ success: false, error: "Ação de captura inválida." });
