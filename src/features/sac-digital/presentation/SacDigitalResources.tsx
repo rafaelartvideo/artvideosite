@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { resourceEnabled } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
@@ -208,7 +209,7 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
       {!embedded && <AdminCard square>
         <AdminCardHeader><h3 className="text-xs font-black uppercase tracking-wider">Registros · {areaLabel}</h3><span className="text-xs text-muted-foreground">{items.length} nesta página</span></AdminCardHeader>
         {items.length === 0 ? <AdminCardContent><p className="py-6 text-center text-sm text-muted-foreground">Nenhum registro encontrado.</p></AdminCardContent>
-          : <div className="overflow-x-auto"><table><thead><tr>{columns.map(label => <th key={label} className="text-left">{label}</th>)}{!columns.length && <th className="text-left">Registro</th>}<th className="text-right">Ações</th></tr></thead>
+          : <div className="overflow-x-auto"><TopTableScrollbar /><table><thead><tr>{columns.map(label => <th key={label} className="text-left">{label}</th>)}{!columns.length && <th className="text-left">Registro</th>}<th className="text-right">Ações</th></tr></thead>
             <tbody>{items.map((item: any, index: number) => {
               const entries = Object.fromEntries(friendlyEntries(item));
               const hasIdentity = item.id != null || item.code != null || item.protocol != null;
