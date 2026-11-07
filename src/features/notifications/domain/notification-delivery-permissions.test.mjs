@@ -54,3 +54,13 @@ test("tarefas e servicos pessoais continuam individuais", () => {
   assert.match(migration, /p_recipient is not null/);
   assert.match(migration, /'notifications\.personal\.receive'/);
 });
+
+test("central oferece filtros de avisos pessoais, tarefas e modulos", () => {
+  const panel = read("src/features/notifications/presentation/AdminNotifications.tsx");
+  assert.match(panel, /label: "Para mim"/);
+  assert.match(panel, /label: "Tarefas"/);
+  assert.match(panel, /label: "Módulos"/);
+  assert.match(panel, /Boolean\(notification\.recipient_user_id\)/);
+  assert.match(panel, /notification\.module_key === "workItems"/);
+  assert.match(panel, /filteredNotifications\.map/);
+});
