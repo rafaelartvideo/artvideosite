@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
@@ -738,7 +739,7 @@ export function TabAuditLog() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto"><TopTableScrollbar />
               <table className="min-w-[920px]">
                 <thead>
                   <tr>
