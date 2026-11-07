@@ -91,7 +91,7 @@ create or replace function private.notification_is_relevant_v1(
   select p_recipient is not null
       or p_audit_id is null
       or (p_event='created' and p_entity in
-         ('financial_settlements','pdv_sales','quote_requests','document_signatures'));
+         ('service_orders','financial_settlements','pdv_sales','quote_requests','document_signatures'));
 $$;
 
 create or replace function private.notification_can_receive_v1(
