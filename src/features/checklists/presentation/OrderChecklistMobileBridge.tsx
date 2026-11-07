@@ -221,17 +221,15 @@ export function OrderChecklistMobileBridge({
                 <QRCodeSVG value={checklistUrl} size={220} level="M" marginSize={2} />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
-                <p className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#0057e7]">
-                  <Hash size={12} /> Código
-                </p>
-                <p className="font-mono text-xl font-black tracking-[0.14em] text-[#0d1b2e] sm:text-2xl">
-                  {formatPairingCode(session.pairingCode)}
-                </p>
-                <AdminButton variant="secondary" size="sm" disabled={ending} loading={ending} loadingText="Encerrando..."
+                            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#0057e7]"><Hash size={12} /> Código</p>
+                  <p className="whitespace-nowrap font-mono text-base font-black tracking-[0.07em] text-[#0d1b2e] sm:text-xl">{formatPairingCode(session.pairingCode)}</p>
+                </div>
+                <AdminButton variant="secondary" size="sm" className="shrink-0 !px-2 sm:!px-3"
+                  disabled={ending} loading={ending} loadingText="Encerrando..."
                   onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
               </div>
-
               <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>
                   {connected ? <Wifi size={17} /> : <Smartphone size={17} />}
