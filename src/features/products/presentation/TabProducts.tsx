@@ -1482,7 +1482,7 @@ export function TabProducts({
                   placeholder="Código interno"
                 />
 
-                <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4">
+                <div className="grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4">
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
                     <FSelect
@@ -1606,6 +1606,7 @@ export function TabProducts({
                       onRemove={() => setForm(current => ({ ...current, cover_media_id: "" }))}
                       canUpload={!saving && !galleryUploading && (editItem ? canEdit : canCreate)}
                       removeIconOnly
+                      photoActions
                       coverFill
                       label="Foto de capa"
                     />
@@ -1666,7 +1667,8 @@ export function TabProducts({
 
 
           <TabsContent value="relationships" className="mt-0 w-full min-w-0 space-y-5">
-            <div className="min-w-0 space-y-5">
+            <Section title="Criar atributos e variações" description="Defina atributos, gere as combinações disponíveis e vincule versões já cadastradas.">
+              <div className="min-w-0 space-y-5">
               <ProductVariationMatrix
                 options={variantOptions} setOptions={setVariantOptions}
                 parentProductId={editItem?.id || null}
@@ -1691,26 +1693,19 @@ export function TabProducts({
                   }}
                 />
               </div>}
-            </div>
-            <div className="min-w-0 border-t border-border pt-4">
-              <div className="min-w-0 pb-1">
-                <div className="min-w-0 space-y-3">
-                  <div className="space-y-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código.
-                      </p>
-                    </div>
-                    <AdminButton variant="secondary" size="sm" className="w-full"
+              </div>
+            </Section>
+            <Section title="Códigos relacionados"
+              description="O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código."
+              actions={<AdminButton variant="secondary" size="sm"
                       disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
                       onClick={() => setForm(current => ({
                         ...current,
                         related_codes: [...current.related_codes, { code: "", relation_type: DEFAULT_RELATED_CODE_TYPE }],
                       }))}>
                       <Plus size={15} /> Adicionar código
-                    </AdminButton>
-                  </div>
+                    </AdminButton>}>
+              <div className="min-w-0 space-y-3">
                   {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
                   {relatedCodesLoaded && form.related_codes.length === 0 &&
                     <p className="text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
@@ -1742,11 +1737,8 @@ export function TabProducts({
                       <Trash2 size={16}/>
                     </button>
                   </div>)}
-                </div>
-
-
               </div>
-            </div>
+            </Section>
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 w-full min-w-0 space-y-5">
