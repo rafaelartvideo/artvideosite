@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eraser, History, MapPin, Package, Search } from "lucide-react";
@@ -198,7 +199,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
             </article>;
           })}
         </div>
-        <div className="hidden overflow-x-auto md:block"><table className="min-w-[860px]"><thead><tr>{showName && <th className="text-left">Nome</th>}{showSku && <th className="text-left">SKU</th>}<th className="text-left">Endereço</th>{showQuantity && <th className="text-left">Quantidade</th>}{showMinQuantity && <th className="text-left">Mínimo</th>}{showPurchasePrice && <th className="text-left">Compra</th>}{showSalePrice && <th className="text-left">Venda</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>
+        <div className="hidden overflow-x-auto md:block"><TopTableScrollbar /><table className="min-w-[860px]"><thead><tr>{showName && <th className="text-left">Nome</th>}{showSku && <th className="text-left">SKU</th>}<th className="text-left">Endereço</th>{showQuantity && <th className="text-left">Quantidade</th>}{showMinQuantity && <th className="text-left">Mínimo</th>}{showPurchasePrice && <th className="text-left">Compra</th>}{showSalePrice && <th className="text-left">Venda</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>
           {paged.map((item: any) => <tr key={item.id} onClick={() => canViewDetails && setDetailItem(item)}>
             {showName && <td><p className="font-semibold text-[#0d1b2e]">{item.name}</p>{item.description && <p className="max-w-xs truncate text-[11px] text-[#5a6a82]">{item.description}</p>}</td>}
             {showSku && <td className="font-mono text-xs text-[#5a6a82]">{item.sku || "—"}</td>}
