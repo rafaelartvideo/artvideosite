@@ -358,7 +358,7 @@ export function DeviceCaptureBridge({
               </div>
               <AdminButton variant="secondary" size="sm" className="shrink-0 !px-2 sm:!px-3"
                 disabled={ending} loading={ending} loadingText="Encerrando..."
-                onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
+                onClick={() => void endSession()}><WifiOff size={14} /> <span className="sm:hidden">Encerrar</span><span className="hidden sm:inline">Encerrar conexão</span></AdminButton>
             </div>
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>{connected ? <Wifi size={17} /> : <Smartphone size={17} />}</span>
