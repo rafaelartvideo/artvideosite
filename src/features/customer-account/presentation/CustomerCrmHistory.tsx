@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useState } from "react";
 import { ClipboardList } from "lucide-react";
 import type { CustomerPortal, CustomerServiceOrder } from "../infrastructure/customer-account.repository";
@@ -66,7 +67,7 @@ export function CustomerCrmHistory({portal}:{portal:CustomerPortal}) {
           </button>;
         })}
       </div>
-      <div className="hidden overflow-x-auto rounded-xl border border-[#e2e8f1] bg-white md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-[#e2e8f1] bg-white md:block"><TopTableScrollbar />
         <table className="w-full min-w-[600px] border-collapse text-left text-[13px]">
           <thead className="bg-[#f3f6fa] text-[11px] font-bold uppercase tracking-wider text-[#61748e]">
             <tr><th className="px-4 py-3">Ordem de serviço</th><th className="px-4 py-3">Equipamento</th>
