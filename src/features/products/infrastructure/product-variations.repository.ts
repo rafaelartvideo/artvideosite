@@ -78,3 +78,33 @@ export async function createProductVariationCombinations(
   if (error) throw error;
   return (data || []) as Array<{ product_id: string; variation_label: string }>;
 }
+
+export type ProductVariantOption = { name: string; values: string };
+
+/** Atributos do produto principal persistem mesmo quando só existe uma opção. */
+export async function listProductVariationOptions(
+  organizationId: string,
+  productId: string,
+): Promise<ProductVariantOption[]> {
+  const { data, error } = await supabase.rpc("list_product_variation_options_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data)) throw new Error("Formato inválido dos atributos do produto.");
+  return data as ProductVariantOption[];
+}
+
+/** Guarda a configuração sem criar produtos/estoques artificiais. */
+export async function replaceProductVariationOptions(
+  organizationId: string,
+  productId: string,
+  options: ProductVariantOption[],
+): Promise<void> {
+  const { error } = await supabase.rpc("replace_product_variation_options_v1", {
+    p_organization_id: organizationId,
+    p_parent_product_id: productId,
+    p_options: options,
+  });
+  if (error) throw error;
+}
