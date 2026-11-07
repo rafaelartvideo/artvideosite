@@ -38,14 +38,17 @@ export function OrderChecklistMobileBridge({
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<MobileOrderChecklistSession | null>(null);
   const [creating, setCreating] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [connected, setConnected] = useState(false);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
   const [savedChanges, setSavedChanges] = useState(0);
   const sessionRef = useRef<MobileOrderChecklistSession | null>(null);
   const lastChecklistUpdateRef = useRef("");
+  const errorRef = useRef("");
 
   sessionRef.current = session;
+  errorRef.current = error;
 
   const startSession = useCallback(async () => {
     if (!activeOrganizationId || disabled || creating || !orderId) return;
@@ -78,13 +81,23 @@ export function OrderChecklistMobileBridge({
 
   const endSession = async () => {
     const current = sessionRef.current;
-    if (current) await closeMobileOrderChecklistSession(current.id).catch(() => undefined);
-    sessionRef.current = null;
-    setSession(null);
-    setConnected(false);
-    setExpired(false);
-    setSavedChanges(0);
-    lastChecklistUpdateRef.current = "";
+    if (!current || ending) return;
+    setEnding(true);
+    setError("");
+    try {
+      await closeMobileOrderChecklistSession(current.id);
+      sessionRef.current = null;
+      setSession(null);
+      setConnected(false);
+      setExpired(false);
+      setSavedChanges(0);
+      lastChecklistUpdateRef.current = "";
+    } catch (closeError) {
+      setOpen(true);
+      setError(closeError instanceof Error ? closeError.message : "Não foi possível encerrar a conexão.");
+    } finally {
+      setEnding(false);
+    }
   };
 
   useEffect(() => {
@@ -129,7 +142,10 @@ export function OrderChecklistMobileBridge({
       sessionId: session.id,
       presenceRole: "desktop",
       onMobilePresenceChange: value => {
-        if (!cancelled) setConnected(value);
+        if (!cancelled) {
+          setConnected(value);
+          if (value && !errorRef.current) setOpen(false);
+        }
       },
       onSessionChange: applySessionRow,
     });
@@ -166,13 +182,13 @@ export function OrderChecklistMobileBridge({
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
         className={scope === "payment-proof"
-          ? connected ? "inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "inline-flex border-primary/25 bg-card text-primary hover:bg-primary/5"
-          : connected ? "hidden md:inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "hidden md:inline-flex border-primary/25 text-primary hover:bg-primary/5"}
+          ? connected ? "inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "inline-flex border-primary/25 bg-card text-primary hover:bg-primary/5"
+          : connected ? "hidden md:inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "hidden md:inline-flex border-primary/25 text-primary hover:bg-primary/5"}
         title={scope === "payment-proof" ? "Anexar comprovante de pagamento pelo celular" : scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
       >
         <Smartphone size={14} />
         <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="h-2 w-2 rounded-full bg-white" />}
+        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
       </AdminButton>
 
       <AdminDialog
@@ -205,13 +221,15 @@ export function OrderChecklistMobileBridge({
                 <QRCodeSVG value={checklistUrl} size={220} level="M" marginSize={2} />
               </div>
 
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
                 <p className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#0057e7]">
                   <Hash size={12} /> Código
                 </p>
                 <p className="font-mono text-xl font-black tracking-[0.14em] text-[#0d1b2e] sm:text-2xl">
                   {formatPairingCode(session.pairingCode)}
                 </p>
+                <AdminButton variant="secondary" size="sm" disabled={ending} loading={ending} loadingText="Encerrando..."
+                  onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
               </div>
 
               <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
@@ -251,11 +269,6 @@ export function OrderChecklistMobileBridge({
                 O token expira automaticamente e permite acesso somente aos recursos autorizados desta OS.
               </p>
 
-              <div className="flex justify-end">
-                <AdminButton variant="secondary" onClick={() => void endSession()}>
-                  <WifiOff size={14} /> Encerrar conexão
-                </AdminButton>
-              </div>
             </>
           )}
 
