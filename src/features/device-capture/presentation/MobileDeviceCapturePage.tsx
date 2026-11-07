@@ -311,8 +311,11 @@ export function MobileDeviceCapturePage() {
         }
       } catch (refreshError) {
         if (cancelled) return;
-        setConnectionState("expired");
-        setNotice({ text: refreshError instanceof Error ? refreshError.message : "A conexão foi encerrada.", type: "error" });
+        const message = refreshError instanceof Error ? refreshError.message : "Não foi possível atualizar a conexão.";
+        if (/expirou|encerrad|não encontrada|invalid|inválid/i.test(message)) {
+          setConnectionState("expired");
+        }
+        setNotice({ text: message, type: "error" });
       } finally {
         busy = false;
       }
