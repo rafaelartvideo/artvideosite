@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from '@/shared/ui/admin/AdminLayout';
@@ -49,7 +50,7 @@ export function SacDigitalDeliveryHistory({ organizationId, kind = 'delivery_his
       {notice && <div role="status" className="m-4 border-l-2 border-primary bg-muted/30 p-3 text-sm">{notice}</div>}
       {loading ? <AdminCardContent><LoadingState text="Carregando histórico..." /></AdminCardContent>
         : rows.length === 0 ? <AdminCardContent><p className="py-8 text-center text-sm text-muted-foreground">Nenhum registro nesta página.</p></AdminCardContent>
-        : <div className="overflow-x-auto"><table><thead><tr><th className="text-left">Data e hora</th>{sms ? <><th className="text-left">Contato</th><th className="text-left">Mensagem</th></> : <><th className="text-left">Entrega</th><th className="text-left">Protocolo</th><th className="text-left">Referência</th><th className="text-right">Ações</th></>}</tr></thead>
+        : <div className="overflow-x-auto"><TopTableScrollbar /><table><thead><tr><th className="text-left">Data e hora</th>{sms ? <><th className="text-left">Contato</th><th className="text-left">Mensagem</th></> : <><th className="text-left">Entrega</th><th className="text-left">Protocolo</th><th className="text-left">Referência</th><th className="text-right">Ações</th></>}</tr></thead>
           <tbody>{rows.map(row => <tr key={row.id || row.source_event_hash}>
             <td data-mobile-label="Data e hora" className="whitespace-nowrap align-top"><SacResourceValue value={sms ? row.received_at : row.created_at} compact /></td>
             {sms ? <><td data-mobile-label="Contato" className="align-top"><SacResourceValue value={reply(row).contact || reply(row).name || reply(row).number || reply(row).phone} compact /></td><td className="min-w-48 max-w-lg align-top"><p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">Mensagem</p><SacResourceValue value={reply(row).text || reply(row).message || reply(row).content || reply(row).body} /></td></>
