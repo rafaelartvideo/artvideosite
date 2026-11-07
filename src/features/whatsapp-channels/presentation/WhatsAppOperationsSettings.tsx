@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, Check, Pencil, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -153,7 +154,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   return <div className="space-y-4">
     {loading ? <LoadingState text="Carregando configuração..." /> :
       <AdminCard square>
-        {section === "operators" ? <div className="overflow-x-auto">
+        {section === "operators" ? <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[750px] w-full">
             <thead><tr><th className="text-left">Funcionário</th><th className="text-left">Perfil no atendimento</th>
               <th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead>
@@ -193,7 +194,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
             Gestor supervisiona e configura sem responder mensagens. Operador atende somente as filas autorizadas e suas conversas. Gestor + Operador acumula as duas funções. O cargo do CRM não é alterado.
           </p>
-        </div> : <div className="overflow-x-auto">
+        </div> : <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[680px] w-full">
             <thead><tr><th className="text-left">{section === "queues" ? "Fila" : "Departamento"}</th>
               <th className="text-left">Situação</th><th className="text-left">Entrada de conversas</th>
