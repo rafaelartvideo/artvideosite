@@ -16,6 +16,7 @@ type AdminListSectionProps = {
   searchPlaceholder?: string;
   searchDisabled?: boolean;
   searchAutoFocus?: boolean;
+  searchAction?: ReactNode;
   loading?: boolean;
   loadingText?: ReactNode;
   error?: ReactNode;
@@ -37,6 +38,7 @@ export function AdminListSection({
   searchPlaceholder = "Buscar",
   searchDisabled = false,
   searchAutoFocus = false,
+  searchAction,
   loading = false,
   loadingText = "Carregando...",
   error,
@@ -59,16 +61,19 @@ export function AdminListSection({
         {typeof count === "number" && <span className="shrink-0 text-[10px] font-bold text-muted-foreground" aria-live="polite">{loading ? "…" : `${count} ${countLabel}`}</span>}
       </div>
 
-      {hasSearch && <div className="relative mt-3">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          autoFocus={searchAutoFocus}
-          disabled={searchDisabled}
-          value={searchValue}
-          onChange={event => onSearchChange(event.target.value)}
-          placeholder={searchPlaceholder}
-          className={cn(INPUT, "h-10 w-full pl-9 pr-3 text-sm")}
-        />
+      {hasSearch && <div className="mt-3 flex min-w-0 items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            autoFocus={searchAutoFocus}
+            disabled={searchDisabled}
+            value={searchValue}
+            onChange={event => onSearchChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            className={cn(INPUT, "h-10 w-full pl-9 pr-3 text-sm")}
+          />
+        </div>
+        {searchAction}
       </div>}
     </div>
 
