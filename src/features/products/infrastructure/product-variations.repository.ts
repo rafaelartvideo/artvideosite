@@ -58,6 +58,8 @@ export type NewProductVariation = {
   sku: string;
   barcode: string | null;
   product_condition?: "new" | "used" | "refurbished";
+  supplier_mode?: "inherit" | "custom";
+  supplier_links?: Array<{ entity_id: string; supplier_reference: string | null }>;
   price: number | null;
   quantity: number;
 };
