@@ -24,11 +24,12 @@ export function visibleProductIdentifierKinds(product: {
 /** Interface unificada; os valores continuam em colunas distintas do produto.
  * Não valida formatos, checksum, quantidade de dígitos nem tipo de conteúdo. */
 export function ProductIdentifiersEditor({
-  kinds, values, onChange, onSwitch, onAdd, onRemove, disabled = false,
+  kinds, values, onChange, onSelect, onSwitch, onAdd, onRemove, disabled = false,
 }: {
   kinds: ProductIdentifierKind[];
   values: Record<ProductIdentifierKind, string>;
   onChange: (kind: ProductIdentifierKind, value: string) => void;
+  onSelect?: (kind: ProductIdentifierKind) => void;
   onSwitch: (from: ProductIdentifierKind, to: ProductIdentifierKind) => void;
   onAdd: () => void;
   onRemove: (kind: ProductIdentifierKind) => void;
@@ -54,6 +55,7 @@ export function ProductIdentifiersEditor({
             value={values[kind]}
             disabled={disabled}
             placeholder="Informe o código"
+            onFocus={() => onSelect?.(kind)}
             onChange={(event: any) => onChange(kind, event.target.value)}
           />
         </div>
