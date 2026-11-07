@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { ArrowLeft, RefreshCw, Sparkles, Save, Coins } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -114,7 +115,7 @@ export function UnionAiToolPage({onBack}:{onBack:()=>void}){
      </section>
      <section className="overflow-hidden rounded-xl border border-border bg-card">
        <div className="p-4"><h2 className="font-bold">Últimas gerações deste mês</h2><p className="text-xs text-muted-foreground">Somente metadados: nenhum texto de cliente é armazenado no histórico da IA.</p></div>
-       <div className="overflow-x-auto"><table className="w-full min-w-[590px] text-left text-xs">
+       <div className="overflow-x-auto"><TopTableScrollbar /><table className="w-full min-w-[590px] text-left text-xs">
          <thead className="bg-muted/50 text-muted-foreground"><tr>
            <th className="px-4 py-3">Data</th><th className="px-4 py-3">Campo</th><th className="px-4 py-3">Operação</th>
            <th className="px-4 py-3">Situação</th><th className="px-4 py-3 text-right">Tokens</th><th className="px-4 py-3 text-right">Custo</th>
