@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { ArrowLeftRight, Edit2, Layers3, List, Package } from "lucide-react";
+import { ArrowLeftRight, Edit2, List, Package } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { listRelatedProductCodes, listProductSimilarIds, listProductCodeCompatibilities } from "../infrastructure/products.repository";
-import { listProductVariations } from "../infrastructure/product-variations.repository";
+import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
+import { productRelationLabel } from "../domain/product-relation-labels";
 import { loadProductGallery } from "../infrastructure/product-lookup.repository";
 import { listInventoryItemSuppliers } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
@@ -14,7 +14,6 @@ import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 
 type Props = {
   product: any | null;
-  allProducts: any[];
   organizationId: string;
   canEdit: boolean;
   canMove: boolean;
@@ -37,7 +36,7 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 }
 
 export function InventoryProductDetailsDialog({
-  product, allProducts, organizationId, canEdit, canMove, canHistory, canViewCosts,
+  product, organizationId, canEdit, canMove, canHistory, canViewCosts,
   canViewSuppliers, saleSummary, onClose, onEdit, onMove, onHistory, onOpenProduct,
 }: Props) {
   const id = product?.id as string | undefined;
@@ -48,27 +47,15 @@ export function InventoryProductDetailsDialog({
   const minimum = Number(inventory?.min_quantity || 0) / (unit === "cx" ? factor : 1);
   const { url: coverUrl } = useMediaUrl(product?.cover_media_id || null);
 
-  const variants = useQuery({
-    queryKey: ["products", "variation-family", organizationId, id],
-    queryFn: () => listProductVariations(organizationId, id!),
-    enabled: Boolean(product && organizationId && id),
-    staleTime: 20_000,
-  });
   const relatedCodes = useQuery({
     queryKey: ["products", "related-codes-detail", organizationId, id],
     queryFn: () => listRelatedProductCodes(organizationId, id!),
     enabled: Boolean(product && organizationId && id),
     staleTime: 30_000,
   });
-  const similars = useQuery({
-    queryKey: ["products", "similar-products", organizationId, id],
-    queryFn: () => listProductSimilarIds(organizationId, id!),
-    enabled: Boolean(product && organizationId && id),
-    staleTime: 20_000,
-  });
-  const compatible = useQuery({
-    queryKey: ["products", "automatic-compatibilities", organizationId, id],
-    queryFn: () => listProductCodeCompatibilities(organizationId, id!),
+  const relations = useQuery({
+    queryKey: ["products", "relations-detail", organizationId, id],
+    queryFn: () => listProductRelations(organizationId, id!),
     enabled: Boolean(product && organizationId && id),
     staleTime: 20_000,
   });
@@ -179,87 +166,42 @@ export function InventoryProductDetailsDialog({
       </div>
     </section>}
 
-    <section className="space-y-2" aria-label="Códigos relacionados">
+    <section className="space-y-3 border-t border-border pt-4" aria-label="Códigos relacionados">
       <h4 className="text-sm font-bold text-foreground">Códigos relacionados</h4>
       {relatedCodes.isPending ? <p className="text-xs text-muted-foreground">Carregando códigos...</p>
-        : relatedCodes.isError ? <p className="text-xs text-muted-foreground">Não foi possível consultar os códigos.</p>
-        : relatedCodes.data?.length ? <div className="flex flex-wrap gap-1.5">
-          {relatedCodes.data.map((code,index) => <span key={index}
-            className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[11px] text-foreground">
-            {code.code}
-          </span>)}
+        : relatedCodes.isError ? <p className="text-xs text-destructive">Não foi possível consultar os códigos.</p>
+        : relatedCodes.data?.length ? <div className="divide-y divide-border rounded-lg border border-border">
+          {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <span className="break-all font-mono text-xs font-semibold text-foreground">{code.code}</span>
+            <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">{productRelationLabel(code.relation_type)}</span>
+          </div>)}
         </div> : <p className="text-xs text-muted-foreground">Nenhum código relacionado.</p>}
     </section>
 
-    <section className="space-y-2" aria-label="Variações do item">
-      <div className="flex items-center gap-2"><Layers3 size={16} className="text-primary"/>
-        <h4 className="text-sm font-bold text-foreground">Variações do produto</h4>
-      </div>
-      {variants.isPending ? <p className="text-xs text-muted-foreground">Carregando variações...</p>
-        : variants.isError ? <p className="text-xs text-muted-foreground">Não foi possível consultar as variações.</p>
-        : !variants.data?.length ? <p className="text-xs text-muted-foreground">
-          Nenhuma variação vinculada. Você pode agrupar outros itens cadastrados pela tela Editar.
-        </p> : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {variants.data.map(variant => {
-            const variantUnit = variant.unit === "cx" ? "cx" : "un";
-            const variantStock = variant.quantity / (variantUnit === "cx" ? variant.conversion_factor : 1);
-            return <button type="button" key={variant.product_id}
-              disabled={variant.product_id === product.id}
-              onClick={() => onOpenProduct(variant.product_id)}
-              className={cn("flex min-w-0 items-center gap-2.5 rounded-xl border border-border p-2.5 text-left transition-colors",
-                variant.product_id === product.id ? "bg-primary/5" : "hover:border-primary/40 hover:bg-muted/30")}>
-              <ProductAdminThumb mediaId={variant.cover_media_id} name={variant.name}/>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-bold text-foreground">{variant.name}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">{variant.variation_label} · {variant.sku || "Sem SKU"}</span>
-                <span className="block truncate text-[11px] font-semibold text-foreground">
-                  {variant.price == null ? "Sem preço" : formatCurrency(variant.price)}
-                  {" · "}{formatNumber(variantStock)} {variantUnit}
-                </span>
-              </span>
-            </button>;
-          })}
-        </div>}
-    </section>
-
-
-    <section className="space-y-2 border-t border-border pt-4" aria-label="Produtos similares">
-      <h4 className="text-sm font-bold text-foreground">Produtos similares</h4>
-      <p className="text-xs text-muted-foreground">Alternativas comerciais, como versões originais ou genéricas. Não representam automaticamente compatibilidade técnica.</p>
-      {similars.isPending ? <p className="text-xs text-muted-foreground">Carregando similares...</p>
-        : similars.isError ? <p className="text-xs text-destructive">Não foi possível consultar similares.</p>
-        : !similars.data?.length ? <p className="text-xs text-muted-foreground">Nenhum similar vinculado.</p>
+    <section className="space-y-3 border-t border-border pt-4" aria-label="Produtos relacionados">
+      <h4 className="text-sm font-bold text-foreground">Produtos relacionados</h4>
+      <p className="text-xs text-muted-foreground">Produtos identificados automaticamente por códigos e variações, nos dois sentidos.</p>
+      {relations.isPending ? <p className="text-xs text-muted-foreground">Carregando produtos relacionados...</p>
+        : relations.isError ? <p className="text-xs text-destructive">Não foi possível consultar as relações.</p>
+        : !relations.data?.length ? <p className="text-xs text-muted-foreground">Nenhum produto relacionado identificado.</p>
         : <div className="divide-y divide-border rounded-lg border border-border">
-          {similars.data.map(otherId => {
-            const other = allProducts.find(entry => String(entry.id) === otherId);
-            if (!other) return null;
-            return <button key={otherId} type="button" onClick={() => onOpenProduct(otherId)}
-              className="flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-muted/30">
-              <ProductAdminThumb mediaId={other.cover_media_id} name={other.name}/>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-foreground">{other.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{other.sku || "Sem SKU"}</span>
-              </span>
-              <span className="shrink-0 text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
-            </button>;
-          })}
-        </div>}
-    </section>
-    <section className="space-y-2 border-t border-border pt-4" aria-label="Produtos compatíveis">
-      <h4 className="text-sm font-bold text-foreground">Produtos compatíveis</h4>
-      <p className="text-xs text-muted-foreground">Referências técnicas verificadas e relacionamentos confirmados manualmente.</p>
-      {compatible.isPending ? <p className="text-xs text-muted-foreground">Carregando compatibilidades...</p>
-        : compatible.isError ? <p className="text-xs text-destructive">Não foi possível consultar compatibilidades.</p>
-        : !compatible.data?.length ? <p className="text-xs text-muted-foreground">Nenhum compatível identificado.</p>
-        : <div className="divide-y divide-border rounded-lg border border-border">
-          {compatible.data.map(other => <button key={other.product_id} type="button" onClick={() => onOpenProduct(other.product_id)}
-            className="flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-muted/30">
+          {relations.data.map(other => <button key={other.product_id} type="button" onClick={() => onOpenProduct(other.product_id)}
+            className="flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30">
             <ProductAdminThumb mediaId={other.cover_media_id} name={other.name}/>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-foreground">{other.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{other.sku || "Sem SKU"}</span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                SKU {other.sku || "—"}{other.barcode ? " · GTIN " + other.barcode : ""}
+              </span>
+              {other.matched_code && <span className="block truncate text-[11px] text-muted-foreground">Referência: {other.matched_code}</span>}
+              <span className="mt-1 inline-flex rounded-md border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-bold text-primary">
+                {productRelationLabel(other.relation_type)}
+              </span>
             </span>
-            <span className="shrink-0 text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+            <span className="shrink-0 text-right">
+              <span className="block text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+              <span className="mt-1 block text-[11px] text-muted-foreground">{formatNumber(other.stock)} {other.unit}</span>
+            </span>
           </button>)}
         </div>}
     </section>
