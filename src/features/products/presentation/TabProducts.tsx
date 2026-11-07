@@ -964,6 +964,12 @@ export function TabProducts({
             variantRows.map(row => ({
               label: row.label, attributes: row.attributes, sku: row.sku.trim(),
               barcode: row.barcode.trim() || null, product_condition: row.product_condition, price: nullableNumber(row.price),
+              supplier_mode: canManageSuppliers && row.supplier_mode === "custom" ? "custom" : "inherit",
+              supplier_links: canManageSuppliers && row.supplier_mode === "custom"
+                ? (row.supplier_entities || []).map(supplier => ({
+                    entity_id: supplier.id, supplier_reference: supplier.supplier_reference?.trim() || null,
+                  }))
+                : [],
               quantity: Number(row.quantity),
             })));
           setVariantRows([]);
@@ -1617,8 +1623,10 @@ export function TabProducts({
                 rows={variantRows} setRows={setVariantRows}
                 candidates={variantCandidates} setCandidates={setVariantCandidates}
                 defaultCondition={form.product_condition}
+                organizationId={activeOrganizationId || ""}
+                canManageSuppliers={canManageSuppliers}
                 baseSku={form.sku} defaultPrice={form.price}
-                disabled={saving || !canCreate || !canEdit}
+                disabled={saving}
               />
               {editItem && <div className="border-t border-border pt-4">
                 <h4 className="mb-3 text-sm font-semibold text-foreground">Vincular versões já cadastradas</h4>
