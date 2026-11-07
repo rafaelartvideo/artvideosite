@@ -109,3 +109,22 @@ test("vínculos históricos preservam isolamento de empresa sem permitir inclus�
   assert.ok(sql.includes("where p.id=x and p.organization_id=p_organization_id"));
   assert.ok(sql.includes("select auth.uid()"));
 });
+
+test("não mantém referências a similarProducts nas telas e recupera uma versão antiga só uma vez", () => {
+  const boundary = read("src/app/AppRuntimeBoundary.tsx");
+  assert.ok(boundary.includes("isStaleProductRelationsBundleError"));
+  assert.ok(boundary.includes("similarProducts|compatibleProducts|similarByProduct|compatibleByProduct"));
+  assert.ok(boundary.includes("isStaleProductRelationsBundleError(error)) return reloadOnce()"));
+  assert.ok(boundary.includes("MODULE_RELOAD_WINDOW_MS = 30_000"));
+  for (const file of [
+    "src/features/pdv/presentation/PdvSaleWorkspace.tsx",
+    "src/features/orders/presentation/OrderQuoteCommercialEditor.tsx",
+    "src/features/orders/presentation/OrderProductsServicesSection.tsx",
+    "src/features/orders/presentation/PartRequestModal.tsx",
+  ]) {
+    const code = read(file);
+    assert.ok(!/\\bsimilarProducts\\b/.test(code), file);
+    assert.ok(!/\\bcompatibleProducts\\b/.test(code), file);
+    assert.ok(code.includes("relatedProducts") || code.includes("relatedQuery"), file);
+  }
+});
