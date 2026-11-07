@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, FileText, Search, Wrench } from "lucide-react";
@@ -156,7 +157,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
              </div>
            </article>;
          })}</div>
-         <div className="hidden overflow-x-auto md:block">
+         <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
            <table className="min-w-[810px]"><thead><tr>
              {showProtocol&&<th className="text-left">Protocolo</th>}
              {showCustomer&&<th className="text-left">Cliente</th>}
