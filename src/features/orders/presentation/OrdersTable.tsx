@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
@@ -270,7 +271,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
             <table className="min-w-[1120px]">
               <thead><tr>
                 {hasActiveFilters && <th className="w-14 text-left">#</th>}
