@@ -17,26 +17,36 @@ export function TopTableScrollbar() {
   useLayoutEffect(() => {
     const bar = barRef.current;
     const container = bar?.parentElement;
-    const table = container?.querySelector("table");
-    if (!bar || !container || !table) return;
+    if (!bar || !container) return;
 
     let frame = 0;
+    let observedTable: HTMLTableElement | null = null;
+    const sizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => scheduleMeasure());
+
     const measure = () => {
       frame = 0;
-      const width = Math.ceil(table.scrollWidth);
+      // O Financeiro pode montar o contêiner antes da tabela terminar de carregar.
+      const table = container.querySelector("table");
+      if (table !== observedTable) {
+        if (observedTable) sizeObserver?.unobserve(observedTable);
+        observedTable = table;
+        if (observedTable) sizeObserver?.observe(observedTable);
+      }
+      const width = table ? Math.ceil(table.scrollWidth) : 0;
       const viewport = container.clientWidth;
       const overflow = viewport > 0 && width > viewport + 2;
       setContentWidth(width);
       setShow(overflow);
-      if (!overflow) {
-        bar.scrollLeft = 0;
-      } else if (Math.abs(bar.scrollLeft - container.scrollLeft) > 1) {
+      if (!overflow) bar.scrollLeft = 0;
+      else if (Math.abs(bar.scrollLeft - container.scrollLeft) > 1) {
         bar.scrollLeft = container.scrollLeft;
       }
     };
-    const scheduleMeasure = () => {
+    function scheduleMeasure() {
       if (!frame) frame = window.requestAnimationFrame(measure);
-    };
+    }
     const syncFromTop = () => {
       if (Math.abs(container.scrollLeft - bar.scrollLeft) > 1) {
         container.scrollLeft = bar.scrollLeft;
@@ -50,9 +60,10 @@ export function TopTableScrollbar() {
 
     bar.addEventListener("scroll", syncFromTop, { passive: true });
     container.addEventListener("scroll", syncFromTable, { passive: true });
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleMeasure);
-    observer?.observe(container);
-    observer?.observe(table);
+    sizeObserver?.observe(container);
+    const contentObserver = typeof MutationObserver === "undefined" ? null
+      : new MutationObserver(() => scheduleMeasure());
+    contentObserver?.observe(container, { childList: true, subtree: true });
     window.addEventListener("resize", scheduleMeasure, { passive: true });
     scheduleMeasure();
 
@@ -60,7 +71,8 @@ export function TopTableScrollbar() {
       if (frame) window.cancelAnimationFrame(frame);
       bar.removeEventListener("scroll", syncFromTop);
       container.removeEventListener("scroll", syncFromTable);
-      observer?.disconnect();
+      sizeObserver?.disconnect();
+      contentObserver?.disconnect();
       window.removeEventListener("resize", scheduleMeasure);
     };
   }, []);
