@@ -45,9 +45,15 @@ export function validVariantOptions(options: VariantOption[]): boolean {
   if (!options.length) return true;
   if (options.length > MAX_VARIATION_ATTRIBUTES) return false;
   const names = options.map(option => option.name.trim().toLocaleLowerCase("pt-BR"));
+  const primaryLabel = options.map(option =>
+    option.name.trim() + ": " + (parseValues(option.values)[0] || "")
+  ).join(" · ");
   return names.every(Boolean)
     && new Set(names).size === names.length
-    && options.every(option => parseValues(option.values).length > 0)
+    && options.every(option => option.values.length <= 4096
+      && parseValues(option.values).length > 0
+      && parseValues(option.values).every(value => value.length <= 100))
+    && primaryLabel.length <= 100
     && countVariantCombinations(options) <= MAX_VARIATION_CANDIDATES;
 }
 
