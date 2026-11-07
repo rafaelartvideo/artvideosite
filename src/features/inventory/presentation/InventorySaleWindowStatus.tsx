@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock3, CheckCircle2 } from "lucide-react";
 import { cn, formatNumber } from "@/shared/domain/formatters";
@@ -82,7 +83,7 @@ export function InventorySaleBatchesPanel({
     </div>
     {query.isPending ? <p className="text-xs text-muted-foreground">Carregando entradas...</p>
       : query.error ? <p role="alert" className="text-xs text-destructive">Não foi possível consultar os prazos.</p>
-      : query.data?.length ? <div className="min-w-0 overflow-x-auto rounded-lg border border-border">
+      : query.data?.length ? <div className="min-w-0 overflow-x-auto rounded-lg border border-border"><TopTableScrollbar />
         <table className="min-w-[630px] w-full text-left text-xs">
           <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
             <tr><th className="px-3 py-2">Entrada</th><th className="px-3 py-2">Quantidade recebida</th><th className="px-3 py-2">Saldo restante</th>
