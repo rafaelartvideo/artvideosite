@@ -776,7 +776,6 @@ export function TabProducts({
         && variantRows.every(row => allowedLabels.has(row.label)
           && row.label.length <= 100 && row.sku.trim().length > 0
           && row.sku.trim().toUpperCase() !== form.sku.trim().toUpperCase()
-          && (!row.barcode || /^[0-9A-Za-z._-]{4,32}$/.test(row.barcode.trim()))
           && (row.price.trim() === "" || (nullableNumber(row.price) !== null && nullableNumber(row.price)! >= 0))
           && Number.isInteger(Number(row.quantity)) && Number(row.quantity) >= 0)
         && new Set(skus).size === skus.length
