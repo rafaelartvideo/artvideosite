@@ -239,6 +239,9 @@ export interface Product {
   slug: string;
   sku: string | null;
   barcode: string | null;
+  internal_barcode?: string | null;
+  manufacturer_code?: string | null;
+  product_condition: "new" | "used" | "refurbished";
   commercial_unit: "un" | "cx";
   short_description: string | null;
   description: string | null;
