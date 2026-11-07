@@ -360,7 +360,7 @@ export function permissionDependencies(key: string) {
     if (key === "notifications.personal.view") return ["notifications.view"];
     if (key === "notifications.personal.receive") return ["notifications.personal.view", "notifications.view"];
     if (key.endsWith(".view")) return ["notifications.view"];
-    if (key.endsWith(".receive")) return [key.replace(/\\.receive$/, ".view"), "notifications.view"];
+    if (key.endsWith(".receive")) return [key.slice(0, -".receive".length) + ".view", "notifications.view"];
     return [];
   }
   if (key === "organizations.audit.view") return [];
