@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -330,7 +331,7 @@ export function TabCustomerRequests() {
               <p className="text-xs text-muted-foreground">Atendente: {item.creatorName}</p>
             </article>)}
           </div>
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
             <table className="min-w-[890px]">
               <thead><tr>
                 <th className="text-left">Cliente</th>
