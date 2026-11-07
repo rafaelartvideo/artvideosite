@@ -29,14 +29,15 @@ test("Modal exibe informações e fotos, mas não vaza custos a quem não tem pe
   for (const title of [
     "Detalhes do item", "Informações do cadastro", "Preço de venda", "Saldo disponível",
     "Estoque mínimo", "Código fabricante / MPN", "Prazo para vender",
-    "Fotos do produto", "Códigos relacionados", "Variações do produto",
+    "Fotos do produto", "Códigos relacionados", "Produtos relacionados",
     "Fornecedores", "Histórico", "Movimentar", "Editar",
   ]) assert.ok(ui.includes(title), `Seção ausente: ${title}`);
   assert.ok(ui.includes("canViewCosts &&"));
   assert.ok(ui.includes("canViewSuppliers &&"));
   assert.ok(ui.includes("InventorySaleBatchesPanel"));
-  assert.ok(ui.includes("listProductVariations(organizationId, id!)"));
-  assert.ok(ui.includes("onOpenProduct(variant.product_id)"));
+  assert.ok(ui.includes("listProductRelations(organizationId, id!)"));
+  assert.ok(ui.includes("productRelationLabel(other.relation_type)"));
+  assert.ok(ui.includes("onOpenProduct(other.product_id)"));
 });
 
 test("Editor agrupa cadastros existentes em variações mas mantém preços e estoques separados", async () => {
