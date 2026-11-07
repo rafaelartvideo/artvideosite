@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -414,7 +415,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
       <WhatsAppRolePermissions onBack={onBack}/> :
       <AdminCard square>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[850px] w-full">
             <thead><tr>
               <th className="text-left">Canal</th>
