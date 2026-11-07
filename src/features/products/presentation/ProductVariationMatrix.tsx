@@ -314,6 +314,27 @@ export function ProductVariationMatrix({
                 <input aria-label={"Saldo de " + row.label} type="number" min="0" step="1" value={row.quantity} disabled={disabled}
                   onChange={event => updateRow(row.label, "quantity", event.target.value)} className={inputClass}/>
               </label>
+              {canManageSuppliers && <div className="min-w-0 space-y-2 sm:col-span-2">
+                <span className="block text-xs font-medium text-muted-foreground">Fornecedores da variação</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={disabled}
+                    onClick={() => updateSupplierPreference(row.label, "inherit")}
+                    aria-pressed={row.supplier_mode !== "custom"}
+                    className={`min-h-9 rounded-lg border px-2 text-xs font-semibold disabled:opacity-40 ${row.supplier_mode !== "custom" ? "border-primary bg-primary/5 text-primary" : "border-border bg-background text-foreground"}`}>
+                    Mesmos do principal
+                  </button>
+                  <button type="button" disabled={disabled}
+                    onClick={() => updateSupplierPreference(row.label, "custom")}
+                    aria-pressed={row.supplier_mode === "custom"}
+                    className={`min-h-9 rounded-lg border px-2 text-xs font-semibold disabled:opacity-40 ${row.supplier_mode === "custom" ? "border-primary bg-primary/5 text-primary" : "border-border bg-background text-foreground"}`}>
+                    Fornecedores próprios
+                  </button>
+                </div>
+                {row.supplier_mode === "custom" ?
+                  <VariantSupplierPicker organizationId={organizationId} value={row.supplier_entities || []}
+                    disabled={disabled} onChange={suppliers => updateSupplierPreference(row.label, "custom", suppliers)}/> :
+                  <p className="text-[11px] text-muted-foreground">Serão usados os fornecedores do produto principal ao salvar.</p>}
+              </div>}
             </div>}
           </div>;
         })}
