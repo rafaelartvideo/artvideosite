@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
@@ -51,18 +51,27 @@ export function InventorySuppliersEditor({
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
   const selectedKey = selectedIdList.join(",");
   const [loading, setLoading] = useState(Boolean(organizationId));
+  const loadedOrganizationRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (!organizationId) {
+        loadedOrganizationRef.current = null;
         setAvailable([]);
         setTotalItems(0);
         setLoading(false);
         return;
       }
-      setLoading(true);
+      // O vínculo de fornecedores do produto chega depois da primeira consulta.
+      // Nessas atualizações, conservar a lista visível evita uma piscada de skeleton.
+      // Ao trocar de empresa, nunca manter itens da empresa anterior na tela.
+      if (loadedOrganizationRef.current !== organizationId) {
+        setAvailable([]);
+        setTotalItems(0);
+        setLoading(true);
+      }
       setError(null);
       try {
         const result = await listAvailableInventorySuppliersPage(
@@ -73,6 +82,7 @@ export function InventorySuppliersEditor({
           selectedIdList,
         );
         if (!cancelled) {
+          loadedOrganizationRef.current = organizationId;
           setAvailable(result.items);
           setTotalItems(result.total);
           const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
