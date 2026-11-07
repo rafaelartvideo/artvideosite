@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -136,7 +137,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
       <EmptyState icon={Building2} title="Nenhuma empresa parceira" message="Cadastre a primeira empresa parceira para iniciar a configuração." />
     ) : (
       <AdminCard>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[720px]">
             <thead><tr><th className="text-left">Empresa</th><th className="text-left">CPF/CNPJ</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead>
             <tbody>{companies.map((company: any) => <tr key={company.id} onClick={() => onRouteChange?.(company.id, null)} className="cursor-pointer">
