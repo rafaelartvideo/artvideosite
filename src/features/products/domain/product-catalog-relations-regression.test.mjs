@@ -8,14 +8,17 @@ const read = path => readFileSync(path, "utf8");
 test("cadastro mostra variações e códigos relacionados em uma única seção, sem vínculos duplicados", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
   const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
+  const labels = read("src/features/products/domain/product-relation-labels.ts");
   for (const [name, code] of [["TabProducts.tsx", ui], ["ProductVariationMatrix.tsx", matrix]]) {
     assert.ok((await transformWithEsbuild(code, name, { loader: "tsx" })).code);
   }
   assert.ok(ui.includes('value="relationships"'));
   assert.ok(ui.includes("<ProductVariationMatrix"));
   assert.ok(ui.includes("Códigos relacionados"));
-  assert.ok(ui.includes("Produto similar"));
-  assert.ok(ui.includes("Produto genérico"));
+  assert.ok(labels.includes("Produto similar"));
+  assert.ok(labels.includes("Produto genérico"));
+  assert.ok(!labels.includes("Peça compatível"));
+  assert.ok(ui.includes("options={[...RELATED_CODE_TYPE_OPTIONS]}"));
   assert.ok(!ui.includes("<ProductSimilarProductsEditor"));
   assert.ok(!ui.includes("<ProductAutoCompatibilityPreview"));
   assert.ok(!ui.includes("setRelationshipTab"));
@@ -66,23 +69,25 @@ test("criação em lote de variantes tem estoque próprio, é atômica e mantém
   assert.ok(repo.includes("createProductVariationCombinations"));
 });
 
-test("PDV, orçamento, OS e pedidos de peças consultam similares sem misturar compatíveis", async () => {
-  const sql = read("supabase/migrations/20261106222000_product_similars_pdv_service_orders.sql");
-  assert.ok(sql.includes("list_pdv_product_similars_v1"));
-  assert.ok(sql.includes("list_service_order_product_similars_v1"));
-  assert.ok(sql.includes("private.can_view_service_order"));
-  const files = [
+test("PDV, orçamento, OS e pedidos de peças mostram relações bidirecionais identificadas", async () => {
+  const migration = read("supabase/migrations/20261107123000_product_relations_bidirectional_unified.sql");
+  assert.ok(migration.includes("private.find_product_relations_v2"));
+  assert.ok(migration.includes("by_family"));
+  assert.ok(migration.includes("by_code"));
+  assert.ok(migration.includes("dst.kind='previous' then 'successor'"));
+  assert.ok(migration.includes("dst.kind='generic' then 'original'"));
+  for (const file of [
     "src/features/pdv/presentation/PdvSaleWorkspace.tsx",
     "src/features/orders/presentation/OrderQuoteCommercialEditor.tsx",
     "src/features/orders/presentation/OrderProductsServicesSection.tsx",
     "src/features/orders/presentation/PartRequestModal.tsx",
-  ];
-  for (const name of files) {
-    const ui = read(name);
-    assert.ok((await transformWithEsbuild(ui, name, { loader: "tsx" })).code);
-    assert.ok(ui.includes("listOrderProductSimilars") || ui.includes("listPdvSimilarProducts"), name);
-    assert.ok(ui.includes('title="Produtos similares"'), name);
-    assert.ok(ui.includes("CompatibleProductCarousel"), name);
+  ]) {
+    const ui = read(file);
+    assert.ok((await transformWithEsbuild(ui,file,{loader:"tsx"})).code);
+    assert.ok(ui.includes("Produtos relacionados"),file);
+    assert.ok(ui.includes("relationType:"),file);
+    assert.ok(ui.includes("listOrderRelatedProducts") || ui.includes("listPdvRelatedProducts"),file);
+    assert.ok(!ui.includes("listOrderProductCompatibilities") && !ui.includes("listPdvCompatibleProducts"),file);
   }
 });
 
