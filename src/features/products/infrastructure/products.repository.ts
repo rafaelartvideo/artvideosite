@@ -98,7 +98,7 @@ export async function updateProductFlags(
 
 export type RelatedProductCode = {
   code: string;
-  relation_type: "previous" | "successor" | "compatible" | "alternate" | "similar" | "generic";
+  relation_type: "previous" | "successor" | "alternate" | "similar" | "generic";
 };
 
 export async function listRelatedProductCodes(
