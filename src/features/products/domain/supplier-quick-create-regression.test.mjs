@@ -21,7 +21,12 @@ test("fornecedores do produto exibem botão azul + ao lado da busca e abrem o ca
   assert.ok(!suppliers.includes('description="Vincule os fornecedores disponíveis a este item do estoque."'));
   assert.ok(!suppliers.includes("count={loading ? undefined : totalItems}"));
   assert.ok(list.includes("{searchAction}"));
-  assert.ok(suppliers.includes("searchAction={canCreateSupplier && !disabled ? <AdminButton"));
+  const searchRow = suppliers.indexOf('<div className="mb-3 flex min-w-0 items-center gap-2">');
+  const listStart = suppliers.indexOf("<AdminListSection");
+  assert.ok(searchRow >= 0 && searchRow < listStart, "Busca e Adicionar ficam fora e acima da lista de fornecedores");
+  assert.ok(suppliers.includes('aria-label="Buscar fornecedor por nome ou CPF/CNPJ"'));
+  assert.ok(!suppliers.includes("searchAction={"), "Nenhuma barra de busca dentro da lista");
+  assert.ok(list.includes("(!headerless || hasSearch) && <div"), "Lista sem cabeçalho e sem busca não gera faixa vazia");
   assert.ok(suppliers.includes('variant="primary"'));
   assert.ok(suppliers.includes('ariaLabel="Adicionar fornecedor"'));
   assert.ok(suppliers.includes("<SupplierQuickCreateDialog"));
