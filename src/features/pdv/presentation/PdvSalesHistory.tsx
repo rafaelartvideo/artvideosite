@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -228,7 +229,7 @@ export function PdvSalesHistory({
           message={debouncedSearch || status ? "Altere os filtros para tentar novamente." : "As vendas finalizadas no PDV aparecerão aqui."}
         />
       ) : <>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[900px]">
             <thead>
               <tr>
