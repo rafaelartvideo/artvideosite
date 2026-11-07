@@ -28,6 +28,7 @@ import {
   saveCompleteProduct,
   updateProductFlags,
   listRelatedProductCodes,
+  searchInventoryProductRelations,
   replaceRelatedProductCodes,
   type RelatedProductCode,
 } from "../infrastructure/products.repository";
@@ -72,7 +73,7 @@ import {
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
-import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS } from "../domain/product-relation-labels";
+import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
@@ -405,6 +406,14 @@ export function TabProducts({
   const [variantCandidates, setVariantCandidates] = useState<VariantMatrixRow[]>([]);
   const [nameSearch, setNameSearch] = useState("");
   const [gtinSearch, setGtinSearch] = useState("");
+  const relatedSearchTerm = nameSearch.trim() && gtinSearch.trim() ? "" : (nameSearch.trim() || gtinSearch.trim());
+  const productRelationSearch = useQuery({
+    queryKey: ["products", "search-related", activeOrganizationId, relatedSearchTerm],
+    queryFn: () => searchInventoryProductRelations(activeOrganizationId!, relatedSearchTerm),
+    enabled: Boolean(activeOrganizationId && (canViewTable || canViewDetails) && relatedSearchTerm.length >= 2),
+    staleTime: 30_000,
+  });
+  const relatedSearchResults = new Map((productRelationSearch.data || []).map(row => [row.product_id, row]));
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
   const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc" | "newest">("name_asc");
@@ -1014,10 +1023,14 @@ export function TabProducts({
     const normalizedGtin = gtinSearch.trim().toLocaleLowerCase("pt-BR");
     const normalizedLocation = locationSearch.trim().toLocaleLowerCase("pt-BR");
 
+    const relatedMatch = relatedSearchResults.has(String(product.id));
     const matchesName = !normalizedName
-      || String(product.name || "").toLocaleLowerCase("pt-BR").includes(normalizedName);
+      || [product.name, product.sku, product.manufacturer_code]
+        .some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(normalizedName))
+      || (relatedSearchTerm === nameSearch.trim() && normalizedName.length >= 2 && relatedMatch);
     const matchesGtin = !normalizedGtin
-      || String(product.barcode || product.tax_barcode || "").toLocaleLowerCase("pt-BR").includes(normalizedGtin);
+      || String(product.barcode || product.tax_barcode || "").toLocaleLowerCase("pt-BR").includes(normalizedGtin)
+      || (relatedSearchTerm === gtinSearch.trim() && normalizedGtin.length >= 2 && relatedMatch);
     const matchesCategory = !categoryFilter || String(product.category_id || "") === categoryFilter;
     const matchesLocation = !normalizedLocation
       || [inventory.storage_shelf, inventory.storage_level, inventory.storage_compartment]
@@ -1195,6 +1208,10 @@ export function TabProducts({
                           <p className="mt-0.5 text-[10px] font-semibold text-[#7a8aa0]">
                             {product.sku || item?.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
                           </p>
+                          {relatedSearchResults.get(String(product.id))?.relation_type && <span
+                            className="mt-1 inline-flex rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                            {productRelationLabel(relatedSearchResults.get(String(product.id))?.relation_type)}
+                          </span>}
                         </div>
                       </div>
                     </td>}
