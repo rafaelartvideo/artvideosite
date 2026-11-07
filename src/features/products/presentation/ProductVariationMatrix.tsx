@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Layers3, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { PRODUCT_CONDITION_OPTIONS, productConditionLabel, type ProductCondition } from "../domain/product-condition";
 import type { InventorySupplier } from "@/features/inventory/infrastructure/inventory.repository";
 import { VariantSupplierPicker } from "./VariantSupplierPicker";
@@ -204,7 +204,6 @@ export function ProductVariationMatrix({
   return <section aria-label="Criar variações por atributos" className="min-w-0 space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Layers3 size={16} className="text-primary"/>Criar variações</h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           Ex.: cor, voltagem, tamanho, acabamento ou modelo. Você pode informar apenas uma cor;
           ela identifica o produto principal. Outras versões são adicionadas quando existirem.
