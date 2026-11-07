@@ -5,26 +5,26 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("cadastro separa variantes, similares e compatibilidade técnica em uma aba compacta", async () => {
+test("cadastro mostra variações e códigos relacionados em uma única seção, sem vínculos duplicados", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
-  const similar = read("src/features/products/presentation/ProductSimilarProductsEditor.tsx");
   const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
-  for (const [name, code] of [["TabProducts.tsx", ui], ["ProductSimilarProductsEditor.tsx", similar], ["ProductVariationMatrix.tsx", matrix]]) {
+  for (const [name, code] of [["TabProducts.tsx", ui], ["ProductVariationMatrix.tsx", matrix]]) {
     assert.ok((await transformWithEsbuild(code, name, { loader: "tsx" })).code);
   }
-  for (const marker of ['value="relationships"', "Produtos similares", "Compatibilidade técnica",
-    "<ProductVariationMatrix", "<ProductSimilarProductsEditor", "<ProductAutoCompatibilityPreview"]) {
-    assert.ok(ui.includes(marker), marker);
-  }
+  assert.ok(ui.includes('value="relationships"'));
+  assert.ok(ui.includes("<ProductVariationMatrix"));
+  assert.ok(ui.includes("Códigos relacionados"));
+  assert.ok(ui.includes("Produto similar"));
+  assert.ok(ui.includes("Produto genérico"));
+  assert.ok(!ui.includes("<ProductSimilarProductsEditor"));
+  assert.ok(!ui.includes("<ProductAutoCompatibilityPreview"));
+  assert.ok(!ui.includes("setRelationshipTab"));
   assert.ok(ui.includes("createProductVariationCombinations(activeOrganizationId, savedProductId"));
   assert.ok(ui.includes("setEditItem(current => current || { id: savedProductId"));
-  assert.ok(ui.includes("setRelationshipTab(\"variations\")"));
   assert.ok(matrix.includes("buildVariantMatrix"));
   assert.ok(matrix.includes("Gerar combinações"));
-  assert.ok(matrix.includes("combinations.slice(1)"), "A primeira opção deve usar o cadastro principal e não criar estoque duplicado");
+  assert.ok(matrix.includes("combinations.slice(1)"), "A primeira combinação pertence ao produto principal");
   assert.ok(matrix.includes("Aplicar a todas"));
-  assert.ok(matrix.includes("sku: baseSku.trim()"));
-  assert.ok(similar.includes("replaceProductSimilarIds"));
 });
 
 test("similares têm tabela própria, permissão e isolamento entre empresas", () => {
@@ -73,4 +73,17 @@ test("PDV, orçamento, OS e pedidos de peças consultam similares sem misturar c
     assert.ok(ui.includes('title="Produtos similares"'), name);
     assert.ok(ui.includes("CompatibleProductCarousel"), name);
   }
+});
+
+test("relações similares e genéricas por código preservam os vínculos antigos sem misturar compatibilidade técnica", () => {
+  const sql = read("supabase/migrations/20261107080000_product_related_codes_classification.sql");
+  assert.ok(sql.includes("'similar','generic'"));
+  assert.ok(sql.includes("create or replace function private.find_code_similar_products_v1"));
+  assert.ok(sql.includes("create or replace function public.replace_product_related_codes"));
+  assert.ok(sql.includes("create or replace function public.list_pdv_product_similars_v1"));
+  assert.ok(sql.includes("create or replace function public.list_service_order_product_similars_v1"));
+  assert.ok(sql.includes("public.product_similar_links"), "Os vínculos existentes seguem disponíveis");
+  assert.ok(sql.includes("src.is_similar_code or dst.is_similar_code"));
+  assert.ok(sql.includes("p.organization_id=p_organization_id"));
+  assert.ok(sql.includes("rel.is_verified=true"));
 });
