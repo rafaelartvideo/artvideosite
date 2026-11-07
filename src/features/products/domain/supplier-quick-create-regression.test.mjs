@@ -15,6 +15,11 @@ test("fornecedores do produto exibem botão azul + ao lado da busca e abrem o ca
     ["VariantSupplierPicker.tsx", variation],
   ]) assert.ok((await transformWithEsbuild(code, name, { loader: "tsx" })).code);
   assert.ok(list.includes("searchAction?: ReactNode"));
+  assert.ok(list.includes("headerless?: boolean"));
+  assert.ok(list.includes("!headerless && <div"), "O cabeçalho só é ocultado quando solicitado");
+  assert.ok(suppliers.includes("headerless"), "Fornecedores usa lista sem cabeçalho");
+  assert.ok(!suppliers.includes('description="Vincule os fornecedores disponíveis a este item do estoque."'));
+  assert.ok(!suppliers.includes("count={loading ? undefined : totalItems}"));
   assert.ok(list.includes("{searchAction}"));
   assert.ok(suppliers.includes("searchAction={canCreateSupplier && !disabled ? <AdminButton"));
   assert.ok(suppliers.includes('variant="primary"'));
