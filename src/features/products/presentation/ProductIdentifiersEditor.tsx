@@ -34,13 +34,7 @@ export function ProductIdentifiersEditor({
   onRemove: (kind: ProductIdentifierKind) => void;
   disabled?: boolean;
 }) {
-  return <section className="min-w-0 space-y-3 sm:col-span-2" aria-label="Identificação do produto">
-    <div className="min-w-0">
-      <h3 className="text-sm font-semibold text-foreground">Códigos de identificação</h3>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Opcional. Escolha o tipo e informe o código livremente. Adicione outro caso o produto possua mais de um.
-      </p>
-    </div>
+  return <section className="min-w-0 space-y-2 sm:col-span-2" aria-label="Códigos do produto">
     <div className="min-w-0 divide-y divide-border">
       {kinds.map((kind, index) => <div key={kind} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 py-2.5 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)_42px]">
         <div className="col-span-2 min-w-0 sm:col-span-1">
