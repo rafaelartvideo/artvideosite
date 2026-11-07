@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useState } from "react";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
@@ -178,7 +179,7 @@ export function EquipmentBrandsDirectory({ choices, brands, types, search = "", 
   const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
   return <div className="min-w-0 space-y-4">
     <AdminCard>
-      {visible.length ? <div className="overflow-x-auto">
+      {visible.length ? <div className="overflow-x-auto"><TopTableScrollbar />
         <table className="min-w-[780px]">
           <thead><tr>
             <th className="w-[28%] text-left">Marca</th>
