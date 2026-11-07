@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -211,7 +212,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
         <span className="shrink-0 text-xs font-bold text-muted-foreground">2 documentos</span>
       </AdminCardHeader>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto"><TopTableScrollbar />
         <table className="min-w-[820px]">
           <thead>
             <tr>
