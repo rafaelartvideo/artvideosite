@@ -39,9 +39,8 @@ import {
   loadPdvSaleDetail,
   searchPdvCustomers,
   searchPdvProducts,
-  listPdvCompatibleProducts,
-  listPdvSimilarProducts,
-  type PdvCompatibleProduct,
+  listPdvRelatedProducts,
+  type PdvRelatedProduct,
   type PdvBootstrap,
   type PdvCustomer,
   type PdvPaymentMethod,
@@ -201,39 +200,22 @@ export function PdvSaleWorkspace({
     () => (productsQuery.data || []).map(product => product.product_id),
     [productsQuery.data],
   );
-  const compatibleQuery = useQuery({
-    queryKey: ["pdv", "compatible-products", organizationId, debouncedSearch, foundProductIds.join(",")],
-    queryFn: () => listPdvCompatibleProducts(organizationId, foundProductIds),
+  const relatedQuery = useQuery({
+    queryKey: ["pdv", "related-products", organizationId, debouncedSearch, foundProductIds.join(",")],
+    queryFn: () => listPdvRelatedProducts(organizationId, foundProductIds),
     enabled: Boolean(organizationId && canSell && debouncedSearch.trim().length >= 2
       && !productsQuery.isPending && foundProductIds.length),
     staleTime: 30_000,
   });
-  const compatibleByProduct = useMemo(() => {
-    const grouped = new Map<string, PdvCompatibleProduct[]>();
-    for (const item of compatibleQuery.data || []) {
+  const relatedByProduct = useMemo(() => {
+    const grouped = new Map<string, PdvRelatedProduct[]>();
+    for (const item of relatedQuery.data || []) {
       const linked = grouped.get(item.source_product_id) || [];
       if (!linked.some(candidate => candidate.product_id === item.product_id)) linked.push(item);
       grouped.set(item.source_product_id, linked);
     }
     return grouped;
-  }, [compatibleQuery.data]);
-
-  const similarQuery = useQuery({
-    queryKey: ["pdv", "similar-products", organizationId, debouncedSearch, foundProductIds.join(",")],
-    queryFn: () => listPdvSimilarProducts(organizationId, foundProductIds),
-    enabled: Boolean(organizationId && canSell && debouncedSearch.trim().length >= 2
-      && !productsQuery.isPending && foundProductIds.length),
-    staleTime: 30_000,
-  });
-  const similarByProduct = useMemo(() => {
-    const grouped = new Map<string, PdvCompatibleProduct[]>();
-    for (const item of similarQuery.data || []) {
-      const linked = grouped.get(item.source_product_id) || [];
-      if (!linked.some(candidate => candidate.product_id === item.product_id)) linked.push(item);
-      grouped.set(item.source_product_id, linked);
-    }
-    return grouped;
-  }, [similarQuery.data]);
+  }, [relatedQuery.data]);
 
   const customersQuery = useQuery({
     queryKey: queryKeys.pdv.customers(organizationId || "none", debouncedCustomerSearch),
@@ -789,7 +771,7 @@ export function PdvSaleWorkspace({
             {products.map(product => {
               const available = availableQuantity(product);
               const noStock = available <= 0;
-              const compatibleProducts = compatibleByProduct.get(product.product_id) || [];
+              const relatedProducts = relatedByProduct.get(product.product_id) || [];
               return <div key={product.product_id} className="min-w-0">
                 <button
                 type="button"
@@ -809,36 +791,18 @@ export function PdvSaleWorkspace({
                 </div>
                 <Plus size={15} className="shrink-0 text-primary" />
               </button>
-              {similarProducts.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/20 p-3">
+              {relatedProducts.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/20 p-3">
                 <CompatibleProductCarousel
-                  title="Produtos similares"
+                  title="Produtos relacionados"
                   sourceName={product.name}
-                  products={similarProducts.map(alternative => ({
+                  products={relatedProducts.map(alternative => ({
                     id: alternative.product_id, name: alternative.name, sku: alternative.sku,
                     barcode: alternative.barcode, coverMediaId: alternative.cover_media_id,
                     price: alternative.price, stock: availableQuantity(alternative), unit: alternative.unit,
+                    relationType: alternative.relation_type, matchedCode: alternative.matched_code,
                   }))}
                   onPick={picked => {
-                    const alternative = similarProducts.find(item => item.product_id === picked.id);
-                    if (alternative) addProduct(alternative);
-                  }}
-                />
-              </div>}
-              {compatibleProducts.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/20 p-3">
-                <CompatibleProductCarousel
-                  sourceName={product.name}
-                  products={compatibleProducts.map(alternative => ({
-                    id: alternative.product_id,
-                    name: alternative.name,
-                    sku: alternative.sku,
-                    barcode: alternative.barcode,
-                    coverMediaId: alternative.cover_media_id,
-                    price: alternative.price,
-                    stock: availableQuantity(alternative),
-                    unit: alternative.unit,
-                  }))}
-                  onPick={picked => {
-                    const alternative = compatibleProducts.find(item => item.product_id === picked.id);
+                    const alternative = relatedProducts.find(item => item.product_id === picked.id);
                     if (alternative) addProduct(alternative);
                   }}
                 />
