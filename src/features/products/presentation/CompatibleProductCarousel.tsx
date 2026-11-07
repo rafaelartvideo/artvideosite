@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { ChevronLeft, ChevronRight, Package, Plus } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { productRelationLabel } from "../domain/product-relation-labels";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 
 export type CompatibleProductSuggestion = {
@@ -12,6 +13,8 @@ export type CompatibleProductSuggestion = {
   stock?: number | null;
   unit?: string | null;
   coverMediaId?: string | null;
+  relationType?: string | null;
+  matchedCode?: string | null;
 };
 
 function ProductPhoto({ mediaId, name }: { mediaId?: string | null; name: string }) {
@@ -26,7 +29,7 @@ function ProductPhoto({ mediaId, name }: { mediaId?: string | null; name: string
 
 /** Mesmo carrossel reutilizado no PDV, no orçamento, na OS e em pedidos de peças. */
 export function CompatibleProductCarousel({
-  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos compatíveis",
+  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos relacionados",
 }: {
   products: CompatibleProductSuggestion[];
   onPick?: (product: CompatibleProductSuggestion) => void;
@@ -79,7 +82,9 @@ export function CompatibleProductCarousel({
             <ProductPhoto mediaId={product.coverMediaId} name={product.name}/>
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-xs font-bold leading-snug text-foreground">{product.name}</p>
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">{product.sku || product.barcode || "Sem código"}</p>
+              {product.relationType && <span className="mt-1 inline-flex max-w-full truncate rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{productRelationLabel(product.relationType)}</span>}
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">SKU {product.sku || "—"}{product.barcode ? " · GTIN " + product.barcode : ""}</p>
+              {product.matchedCode && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Referência: {product.matchedCode}</p>
               <p className="mt-1.5 text-sm font-black text-foreground">
                 {product.price == null ? "Sem preço" : formatCurrency(product.price)}
               </p>
