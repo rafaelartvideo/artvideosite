@@ -36,6 +36,14 @@ export function isExternalDomMutationError(error: unknown) {
   );
 }
 
+/** Uma versão anterior do PDV/OS ainda pode executar variáveis removidas na
+ * unificação de produtos relacionados. Recarregar uma vez troca o bundle antigo
+ * pelo atual, sem fazer refresh automático para qualquer ReferenceError real. */
+export function isStaleProductRelationsBundleError(error: unknown) {
+  return /^ReferenceError:\s*(?:similarProducts|compatibleProducts|similarByProduct|compatibleByProduct|similarQuery|compatibleQuery)\s+is not defined$/i
+    .test(errorText(error).trim());
+}
+
 function reloadOnce() {
   if (!import.meta.env.PROD) return false;
 
@@ -62,7 +70,7 @@ export function recoverFromModuleLoadError(error: unknown) {
 }
 
 export function recoverFromRuntimeError(error: unknown) {
-  if (isModuleLoadError(error) || isExternalDomMutationError(error)) return reloadOnce();
+  if (isModuleLoadError(error) || isExternalDomMutationError(error) || isStaleProductRelationsBundleError(error)) return reloadOnce();
   return false;
 }
 
@@ -152,7 +160,9 @@ export class AppRuntimeBoundary extends Component<Props, State> {
             Não foi possível carregar esta tela
           </h1>
           <p style={{ margin: "10px 0 0", color: "#5a6a82", fontSize: 14, lineHeight: 1.55 }}>
-            A página pode ter sido atualizada enquanto estava aberta ou ocorreu um erro inesperado. Atualize para continuar.
+            {isStaleProductRelationsBundleError(this.state.error)
+              ? "Esta tela está usando arquivos antigos de uma atualização. Atualize para carregar a versão corrigida."
+              : "A página pode ter sido atualizada enquanto estava aberta ou ocorreu um erro inesperado. Atualize para continuar."}
           </p>
           <button
             type="button"
