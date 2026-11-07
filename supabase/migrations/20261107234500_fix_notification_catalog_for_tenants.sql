@@ -58,7 +58,7 @@ select case
  ]
  else array[split_part(p_key,'.',1)]
 end;
-$function$
+$function$;
 
 -- Preenche as permissões pessoais para funções que já podiam usar
 -- OS, tarefas ou painel técnico. Notificações gerais permanecem opt-in.
