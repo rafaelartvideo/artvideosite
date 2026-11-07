@@ -481,6 +481,8 @@ export function TabProducts({
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
     queryClient.invalidateQueries({ queryKey: ["products", "relations-detail"] }),
     queryClient.invalidateQueries({ queryKey: ["products", "related-codes-detail"] }),
+    queryClient.invalidateQueries({ queryKey: ["products", "search-related"] }),
+    queryClient.invalidateQueries({ queryKey: ["orders", "related-search"] }),
     queryClient.invalidateQueries({ queryKey: ["pdv", "related-products"] }),
     queryClient.invalidateQueries({ queryKey: ["orders", "related-products"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
