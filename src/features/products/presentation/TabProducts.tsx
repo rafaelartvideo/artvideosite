@@ -400,6 +400,8 @@ export function TabProducts({
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
   const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
+  // Mantém candidatos mesmo quando o usuário alterna entre Geral, Comercial e Relações.
+  const [variantCandidates, setVariantCandidates] = useState<VariantMatrixRow[]>([]);
   const [nameSearch, setNameSearch] = useState("");
   const [gtinSearch, setGtinSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -497,6 +499,7 @@ export function TabProducts({
     setEditorTab("general");
     setVariantOptions([]);
     setVariantRows([]);
+    setVariantCandidates([]);
     setDrawerOpen(true);
   };
 
@@ -616,6 +619,7 @@ export function TabProducts({
     setEditorTab("general");
     setVariantOptions([]);
     setVariantRows([]);
+    setVariantCandidates([]);
     setDrawerOpen(true);
   };
 
@@ -899,6 +903,7 @@ export function TabProducts({
               quantity: Number(row.quantity),
             })));
           setVariantRows([]);
+          setVariantCandidates([]);
           setVariantOptions([]);
           await queryClient.invalidateQueries({ queryKey: ["products", "variation-family", activeOrganizationId] });
         } catch (variantError) {
@@ -1513,6 +1518,7 @@ export function TabProducts({
               <ProductVariationMatrix
                 options={variantOptions} setOptions={setVariantOptions}
                 rows={variantRows} setRows={setVariantRows}
+                candidates={variantCandidates} setCandidates={setVariantCandidates}
                 baseSku={form.sku} defaultPrice={form.price}
                 disabled={saving || !canCreate || !canEdit}
               />
