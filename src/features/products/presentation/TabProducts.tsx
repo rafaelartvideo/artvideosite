@@ -462,10 +462,14 @@ export function TabProducts({
   };
 
   const handleProductMobilePhoto = async (file: File, kind: "label" | "equipment") => {
-    if (!activeOrganizationId || !canEditGallery) return;
-    if (kind !== "label" && galleryPhotoCount >= 4) {
-      setToast({ msg: "Limite de 4 fotos por produto. Remova uma foto antes de adicionar outra.", type: "error" });
-      return;
+    if (!activeOrganizationId || !canEditGallery) {
+      throw new Error("O produto está ocupado ou não permite receber fotos agora.");
+    }
+    if (kind !== "label") {
+      throw new Error("A captura móvel deste produto aceita apenas a foto da capa.");
+    }
+    if (galleryPhotoCount >= 4 && !form.cover_media_id) {
+      throw new Error("Limite de 4 fotos do produto. Remova uma imagem antes de adicionar a capa.");
     }
     setGalleryUploading(true);
     try {
@@ -484,6 +488,7 @@ export function TabProducts({
       setToast({ msg: kind === "label" ? "Foto da capa recebida. Salve para confirmar." : "Foto adicionada à galeria. Salve para confirmar.", type: "success" });
     } catch (error) {
       setToast({ msg: "Não foi possível receber a foto do celular: " + systemErrorMessage(error), type: "error" });
+      throw error;
     } finally {
       setGalleryUploading(false);
     }
@@ -1586,7 +1591,7 @@ export function TabProducts({
                     placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
                   />
                 </div>
-                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,260px)] sm:items-stretch">
+                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,260px)] sm:items-start">
                   <div className="min-w-0 [&>div]:flex [&>div]:h-full [&>div]:flex-col [&_textarea]:min-h-0 [&_textarea]:flex-1">
                     <FTextarea
                       label="Observações internas"
@@ -1597,7 +1602,7 @@ export function TabProducts({
                       placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
                     />
                   </div>
-                  <div className="min-w-0 rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
+                  <div className="min-w-0 self-start rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
                     <ImageUpload
                       bucket="product-images"
                       organizationId={activeOrganizationId || undefined}
