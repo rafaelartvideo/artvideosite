@@ -19,6 +19,7 @@ export type AdminNotification = {
   metadata: Record<string, unknown>;
   created_at: string;
   read_at: string | null;
+  delivery_allowed?: boolean;
 };
 
 type NotificationRow = Omit<AdminNotification, "read_at">;
