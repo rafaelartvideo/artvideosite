@@ -2213,10 +2213,10 @@ export function TabProducts({
         </div>
       </Tabs>
 
-      <AdminStickyToolbar className="z-10 justify-end">
+      <AdminStickyToolbar className="z-10 !justify-end md:!justify-start">
         <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
-        {(editItem ? canEdit : canCreate) && <div className="hidden shrink-0 md:flex">
+        {(editItem ? canEdit : canCreate) && <div className="ml-auto hidden shrink-0 md:flex">
           <DeviceCaptureBridge
             context="product"
             disabled={saving || galleryUploading}
