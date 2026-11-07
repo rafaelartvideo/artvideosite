@@ -6,6 +6,7 @@ import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domai
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
 import { productRelationLabel } from "../domain/product-relation-labels";
+import { productConditionLabel } from "../domain/product-condition";
 import { loadProductGallery } from "../infrastructure/product-lookup.repository";
 import { listInventoryItemSuppliers } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
@@ -138,6 +139,7 @@ export function InventoryProductDetailsDialog({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Detail label="Marca" value={product.brands?.name || "—"}/>
         <Detail label="Categoria" value={product.product_categories?.name || "—"}/>
+        <Detail label="Condição" value={productConditionLabel(product.product_condition)}/>
         <Detail label="Modelo" value={product.model || "—"}/>
         <Detail label="Código fabricante / MPN" value={product.manufacturer_code || "—"}/>
         <Detail label="Código de barras / GTIN" value={product.barcode || "—"}/>
