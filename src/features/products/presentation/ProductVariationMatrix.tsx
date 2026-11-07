@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Layers3, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { PRODUCT_CONDITION_OPTIONS, productConditionLabel, type ProductCondition } from "../domain/product-condition";
+import type { InventorySupplier } from "@/features/inventory/infrastructure/inventory.repository";
+import { VariantSupplierPicker } from "./VariantSupplierPicker";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 
 export const MAX_VARIATION_ATTRIBUTES = 5;
@@ -15,6 +17,8 @@ export type VariantMatrixRow = {
   sku: string;
   barcode: string;
   product_condition: ProductCondition;
+  supplier_mode?: "inherit" | "custom";
+  supplier_entities?: InventorySupplier[];
   price: string;
   quantity: string;
 };
@@ -60,13 +64,13 @@ export function buildVariantMatrix(
     return prior || {
       label, attributes,
       sku: baseSku.trim() ? baseSku.trim() + "-" + String(index + 2).padStart(2, "0") : "",
-      barcode: "", product_condition: defaultCondition, price: defaultPrice, quantity: "0",
+      barcode: "", product_condition: defaultCondition, supplier_mode: "inherit", supplier_entities: [], price: defaultPrice, quantity: "0",
     };
   });
 }
 
 export function ProductVariationMatrix({
-  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, defaultCondition, disabled,
+  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, defaultCondition, organizationId, canManageSuppliers, disabled,
 }: {
   options: VariantOption[];
   setOptions: (value: VariantOption[]) => void;
@@ -77,6 +81,8 @@ export function ProductVariationMatrix({
   baseSku: string;
   defaultPrice: string;
   defaultCondition: ProductCondition;
+  organizationId: string;
+  canManageSuppliers: boolean;
   disabled: boolean;
 }) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
@@ -128,6 +134,13 @@ export function ProductVariationMatrix({
     setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
   };
+  const updateSupplierPreference = (label: string, mode: "inherit" | "custom", suppliers?: InventorySupplier[]) => {
+    const apply = (row: VariantMatrixRow) => row.label === label
+      ? { ...row, supplier_mode: mode, supplier_entities: suppliers ?? row.supplier_entities ?? [] }
+      : row;
+    setCandidates(candidates.map(apply));
+    setRows(rows.map(apply));
+  };
   const applyBulk = () => {
     if (!bulkPrice.trim() && !bulkStock.trim()) return;
     const apply = (row: VariantMatrixRow) => selectedLabels.has(row.label)
@@ -138,6 +151,14 @@ export function ProductVariationMatrix({
   };
   const canGenerate = !disabled && options.length > 0 && validNames && uniqueNames
     && count > 1 && count <= MAX_VARIATION_CANDIDATES && firstLabel.length <= 100;
+  const generateDisabledReason = disabled ? "Aguarde o fim do salvamento."
+    : !options.length ? "Adicione um atributo com valores para gerar combinações."
+    : !validNames ? "Preencha o nome e pelo menos um valor de cada atributo."
+    : !uniqueNames ? "Os nomes dos atributos não podem se repetir."
+    : count <= 1 ? "Informe pelo menos dois valores. Uma combinação só já é o produto principal."
+    : count > MAX_VARIATION_CANDIDATES ? "Limite de 200 possibilidades. Reduza os valores."
+    : firstLabel.length > 100 ? "A identificação da combinação principal passou de 100 caracteres."
+    : "";
   const inputClass = "mt-1 h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground";
 
   return <section aria-label="Criar variações por atributos" className="min-w-0 space-y-4">
@@ -182,6 +203,7 @@ export function ProductVariationMatrix({
           <WandSparkles size={15}/>Gerar combinações
         </AdminButton>
       </div>
+      {!canGenerate && <p className="text-xs text-muted-foreground" role="status">{generateDisabledReason}</p>}
       {options.length > 0 && <p className="text-xs text-muted-foreground" role="status">
         {count.toLocaleString("pt-BR")} {count === 1 ? "combinação possível" : "combinações possíveis"}
         {" · "}até {MAX_ADDITIONAL_VARIATIONS} adicionais selecionadas, mais o produto principal.
