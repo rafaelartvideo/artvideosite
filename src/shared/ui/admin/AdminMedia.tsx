@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Camera, Image as ImageIcon, Package, Tag, Trash2, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
+import type { UploadImagePreset } from "@/shared/application/upload-file-optimizer";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
-export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove, removeIconOnly = false, coverFill = false }: {
-  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean; removeIconOnly?: boolean; coverFill?: boolean;
+export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove, removeIconOnly = false, coverFill = false, imagePreset }: {
+  imagePreset?: UploadImagePreset; bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean; removeIconOnly?: boolean; coverFill?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
     try {
-      const mediaId = await uploadMediaFile(bucket, file, organizationId);
+      const mediaId = await uploadMediaFile(bucket, file, organizationId, imagePreset);
       onUpload(mediaId);
       setPreviewUrl(null);
       notifyAdmin("Imagem enviada. Salve o cadastro para confirmar a alteração.", "success");

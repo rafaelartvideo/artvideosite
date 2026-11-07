@@ -1,3 +1,4 @@
+import { assertPreparedUploadImage } from "../_shared/upload-image-guard.mjs";
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const cors = {
@@ -357,6 +358,8 @@ Deno.serve(async request => {
         .eq("event_type", "checklist_photo")
         .eq("checklist_item_key", itemKey);
       if ((count || 0) >= MAX_ITEM_PHOTOS) return json({ success: false, error: "Limite de 5 fotos atingido neste item." }, 400);
+
+      await assertPreparedUploadImage(file, "service-photo");
 
       const path = `capture/${session.organization_id}/${session.id}/checklist/${crypto.randomUUID()}.${extensionFor(file)}`;
       const { error: uploadError } = await admin.storage.from("service-images").upload(path, file, {

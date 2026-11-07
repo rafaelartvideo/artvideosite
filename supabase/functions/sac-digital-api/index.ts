@@ -1,3 +1,4 @@
+import { assertPreparedUploadImage } from "../_shared/upload-image-guard.mjs";
 import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
 import { providerDelivery, submissionCanMatchHistory } from '../_shared/sac-delivery.mjs';
 import { formatSacOutgoingText, formatSacSignatureInvite } from '../_shared/sac-message-label.mjs';
@@ -3449,6 +3450,10 @@ Deno.serve(async request => {
       const requestedExternalContactId = String(body.external_contact_id || "").trim();
       let text = String(body.text || "").trim();
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
+      if (uploadFile.type.startsWith("image/")) {
+        try { await assertPreparedUploadImage(uploadFile, "sac-image"); }
+        catch (error) { return json({ success: false, error: error instanceof Error ? error.message : "Imagem inválida." }, 400); }
+      }
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
         return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
       }

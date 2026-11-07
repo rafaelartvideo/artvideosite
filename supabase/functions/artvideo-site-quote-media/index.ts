@@ -1,3 +1,4 @@
+import { assertPreparedUploadImage } from "../_shared/upload-image-guard.mjs";
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const HEADERS={
@@ -24,9 +25,11 @@ Deno.serve(async req=>{
     const items=["equipment","label","site"].map(kind=>({kind,file:input.get(kind)}))
       .filter(item=>item.file instanceof File) as {kind:string;file:File}[];
     if(!items.length)return respond({success:true,uploaded:0});
-    for(const {file} of items){
+    for(const {kind,file} of items){
       if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>6*1024*1024||file.size===0)
         return respond({error:"Envie somente fotos JPG, PNG ou WebP de até 6 MB cada."},400);
+      try { await assertPreparedUploadImage(file, kind === "label" ? "service-label" : "service-photo"); }
+      catch (error) { return respond({error:error instanceof Error ? error.message : "Foto inválida."},400); }
     }
     const supabase=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
       auth:{persistSession:false,autoRefreshToken:false},

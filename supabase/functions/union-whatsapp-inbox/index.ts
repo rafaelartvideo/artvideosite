@@ -1403,6 +1403,8 @@ Deno.serve(async request => {
           ref.mime_type==="application/pdf"?"pdf":
           (String(ref.file_name||"").split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
         mediaPath=org+"/"+thread.channel_id+"/"+thread.id+"/"+messageId+"."+ext;
+        // Incoming provider media is an archive of the received message, including
+        // stickers/documents. Preserve its original bytes for downloads and evidence.
         const {error:uploadError}=await admin.storage.from("union-whatsapp-media")
           .upload(mediaPath,bytes,{contentType:ref.mime_type,upsert:false});
         if(uploadError && !String(uploadError.message||"").includes("already exists")) throw uploadError;

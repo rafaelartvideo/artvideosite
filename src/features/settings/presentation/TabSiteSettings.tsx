@@ -13,6 +13,7 @@ import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar, BtnPrimary, Bt
 import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
 import { SiteContactFields, siteContactGroups } from "./SiteContactFields";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import type { UploadImagePreset } from "@/shared/application/upload-file-optimizer";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 
@@ -72,8 +73,8 @@ const groups: { title: string; subtitle?: string; fields: Field[] }[] = [
   ] },
 ];
 
-function ImageSetting({ label, mediaId, onChange, disabled }: {
-  label: string; mediaId: string; onChange: (id: string) => void; disabled: boolean;
+function ImageSetting({ label, mediaId, onChange, disabled, imagePreset }: {
+  imagePreset?: UploadImagePreset; label: string; mediaId: string; onChange: (id: string) => void; disabled: boolean;
 }) {
   const mediaOrganizationQuery = useQuery({
     queryKey: ["organization", "artvideo-id"],
@@ -81,7 +82,7 @@ function ImageSetting({ label, mediaId, onChange, disabled }: {
     staleTime: Infinity,
   });
   return <div className="space-y-2">
-    <ImageUpload bucket="public-assets" organizationId={mediaOrganizationQuery.data}
+    <ImageUpload bucket="public-assets" imagePreset={imagePreset} organizationId={mediaOrganizationQuery.data}
       currentMediaId={mediaId} onUpload={onChange}
       canUpload={!disabled && Boolean(mediaOrganizationQuery.data)}
       label={label} />
@@ -471,7 +472,7 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
               onChange={(event: any) => updateSetting(field.key, event.target.value)} />}
           </div>)}
         </div>
-        {editingGroup.title === "Identidade visual" && <ImageSetting label="Logotipo do site"
+        {editingGroup.title === "Identidade visual" && <ImageSetting imagePreset="logo-image" label="Logotipo do site"
           mediaId={String(settings.logo_media_id || "")} onChange={id => updateSetting("logo_media_id", id)} disabled={disabled}/>}
         {editingGroup.title === "Capa da página inicial" && <ImageSetting label="Foto da capa"
           mediaId={String(settings.hero_image_media_id || "")} onChange={id => updateSetting("hero_image_media_id", id)} disabled={disabled}/>}

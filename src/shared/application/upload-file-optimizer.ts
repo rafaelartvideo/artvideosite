@@ -1,26 +1,19 @@
-export type UploadImagePreset = "service-photo" | "service-label" | "document-image" | "catalog-image" | "whatsapp-image" | "sac-image";
-
-type ImagePresetConfig = {
-  maxDimension: number;
-  quality: number;
-  minQuality: number;
-  minBytesToOptimize: number;
-  targetMaxBytes: number;
-};
-
-const IMAGE_PRESETS: Record<UploadImagePreset, ImagePresetConfig> = {
-  "service-photo": { maxDimension: 1600, quality: 0.80, minQuality: 0.68, minBytesToOptimize: 250 * 1024, targetMaxBytes: 900 * 1024 },
-  "service-label": { maxDimension: 2200, quality: 0.88, minQuality: 0.82, minBytesToOptimize: 450 * 1024, targetMaxBytes: 1600 * 1024 },
-  "document-image": { maxDimension: 1920, quality: 0.84, minQuality: 0.76, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
-  "catalog-image": { maxDimension: 1600, quality: 0.82, minQuality: 0.70, minBytesToOptimize: 250 * 1024, targetMaxBytes: 950 * 1024 },
-  "sac-image": { maxDimension: 1600, quality: 0.80, minQuality: 0.68, minBytesToOptimize: 160 * 1024, targetMaxBytes: 900 * 1024 },
-  "whatsapp-image": { maxDimension: 2560, quality: 0.86, minQuality: 0.68, minBytesToOptimize: 160 * 1024, targetMaxBytes: 3 * 1024 * 1024 },
-};
+import { IMAGE_PRESETS, type UploadImagePreset } from "../../../supabase/functions/_shared/upload-image-profiles.ts";
+export { IMAGE_PRESETS, type UploadImagePreset } from "../../../supabase/functions/_shared/upload-image-profiles.ts";
 
 const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024;
 const MAX_GENERIC_FILE_BYTES = 20 * 1024 * 1024;
 
-const OPTIMIZABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const OUTPUT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const OPTIMIZABLE_IMAGE_TYPES = new Set([...OUTPUT_IMAGE_TYPES, "image/heic", "image/heif", "image/avif", "image/bmp"]);
+const PRESERVED_IMAGE_TYPES = new Set(["image/gif", "image/svg+xml"]);
+
+export function uploadImageMimeType(file: Pick<File, "type" | "name">): string {
+  const type = file.type.toLowerCase();
+  if (type && type !== "application/octet-stream") return type === "image/jpg" ? "image/jpeg" : type;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif", avif: "image/avif", bmp: "image/bmp", gif: "image/gif", svg: "image/svg+xml" } as Record<string, string>)[extension || ""] || type;
+}
 
 function fileBaseName(name: string) {
   const normalized = String(name || "imagem").trim();
@@ -42,13 +35,15 @@ export function extensionForUploadFile(file: File) {
 // Weak keys allow selected source files and encoded results to be collected when
 // their form is closed. Share concurrent preparation without recompressing results.
 const preparedImages = new WeakMap<File, Map<UploadImagePreset, Promise<File>>>();
+// Bound decoded pixel memory when a gallery selects many camera photos at once.
+let imageQueue: Promise<unknown> = Promise.resolve();
 
-async function isAnimatedImage(file: File) {
-  if (file.type !== "image/png" && file.type !== "image/webp") return false;
+async function isAnimatedImage(file: File, type: string) {
+  if (type !== "image/png" && type !== "image/webp") return false;
   const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const text = (bytes: Uint8Array) => String.fromCharCode(...bytes);
-  const png = file.type === "image/png" && header[0] === 137 && text(header.slice(1, 4)) === "PNG";
-  const webp = file.type === "image/webp" && text(header.slice(0, 4)) === "RIFF" && text(header.slice(8, 12)) === "WEBP";
+  const png = type === "image/png" && header[0] === 137 && text(header.slice(1, 4)) === "PNG";
+  const webp = type === "image/webp" && text(header.slice(0, 4)) === "RIFF" && text(header.slice(8, 12)) === "WEBP";
   if (!png && !webp) return false;
   // Read only chunk headers, never copy all compressed pixels into JS memory.
   let offset = png ? 8 : 12;
@@ -71,7 +66,7 @@ async function decodeImage(file: File): Promise<{
 }> {
   if (typeof createImageBitmap === "function") {
     try {
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
       return { image: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
     } catch { /* Some mobile browsers decode through HTMLImageElement only. */ }
   }
@@ -102,8 +97,11 @@ export async function prepareImageForUpload(
   if (!byPreset) { byPreset = new Map(); preparedImages.set(file, byPreset); }
   let preparation = byPreset.get(preset);
   if (!preparation) {
-    preparation = optimizeImageForUpload(file, preset);
+    preparation = imageQueue.then(() => optimizeImageForUpload(file, preset));
+    imageQueue = preparation.catch(() => undefined);
     byPreset.set(preset, preparation);
+    // A temporary decoder/encoder failure must not poison retries forever.
+    void preparation.catch(() => { byPreset?.delete(preset); });
   }
   const prepared = await preparation;
   if (prepared !== file) {
@@ -122,9 +120,19 @@ async function optimizeImageForUpload(
   if (file.size > MAX_IMAGE_SOURCE_BYTES) {
     throw new Error("A imagem deve ter no máximo 25 MB antes da otimização.");
   }
-  if (!OPTIMIZABLE_IMAGE_TYPES.has(file.type)) return file;
-  if (await isAnimatedImage(file)) return file;
-  if (typeof document === "undefined") return file;
+  const sourceType = uploadImageMimeType(file);
+  // Normalize metadata without decoding pixels again; this also covers small files
+  // and the no-size-increase return, without uploading an empty/octet MIME.
+  if (sourceType.startsWith("image/") && sourceType !== file.type) {
+    file = new File([file], file.name, { type: sourceType, lastModified: file.lastModified });
+  }
+  if (PRESERVED_IMAGE_TYPES.has(sourceType)) return file;
+  if (!OPTIMIZABLE_IMAGE_TYPES.has(sourceType)) {
+    if (sourceType.startsWith("image/")) throw new Error("Formato de imagem não suportado para otimização. Use JPEG, PNG ou WebP.");
+    return file;
+  }
+  if (await isAnimatedImage(file, sourceType)) return file;
+  if (typeof document === "undefined") throw new Error("Este navegador não permite otimizar imagens antes do envio.");
 
   const config = IMAGE_PRESETS[preset];
   let decoded: Awaited<ReturnType<typeof decodeImage>> | null = null;
@@ -133,10 +141,14 @@ async function optimizeImageForUpload(
   try {
     decoded = await decodeImage(file);
     const { image, width: sourceWidth, height: sourceHeight } = decoded;
+    if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight) || sourceWidth <= 0 || sourceHeight <= 0) {
+      throw new Error("A imagem possui dimensões inválidas.");
+    }
     const largestDimension = Math.max(sourceWidth, sourceHeight);
     const scale = Math.min(1, config.maxDimension / Math.max(1, largestDimension));
     const shouldResize = scale < 1;
-    const shouldReencode = shouldResize || file.size > config.minBytesToOptimize;
+    const providerConversion = (preset === "whatsapp-image" || preset === "sac-image") && sourceType !== "image/jpeg" && sourceType !== "image/png";
+    const shouldReencode = shouldResize || file.size > config.minBytesToOptimize || !OUTPUT_IMAGE_TYPES.has(sourceType) || providerConversion;
 
     if (!shouldReencode) return file;
 
@@ -147,7 +159,7 @@ async function optimizeImageForUpload(
     canvas.height = height;
 
     const context = canvas.getContext("2d", { alpha: true });
-    if (!context) return file;
+    if (!context) throw new Error("Canvas indisponível para otimizar a imagem.");
 
     context.drawImage(image, 0, 0, width, height);
 
@@ -156,10 +168,12 @@ async function optimizeImageForUpload(
       // sticker there). Optimize before Storage upload, using JPEG for
       // opaque photos while retaining PNG alpha transparency.
       let hasTransparency = false;
-      if (file.type === "image/png" || file.type === "image/webp") {
-        const alpha = context.getImageData(0, 0, width, height).data;
-        for (let i = 3; i < alpha.length; i += 4) {
-          if (alpha[i] !== 255) { hasTransparency = true; break; }
+      if (sourceType !== "image/jpeg") {
+        for (let row = 0; row < height && !hasTransparency; row += 64) {
+          const alpha = context.getImageData(0, row, width, Math.min(64, height - row)).data;
+          for (let i = 3; i < alpha.length; i += 4) {
+            if (alpha[i] !== 255) { hasTransparency = true; break; }
+          }
         }
       }
       const destinationType = hasTransparency ? "image/png" : "image/jpeg";
@@ -177,28 +191,35 @@ async function optimizeImageForUpload(
           optimized = next;
         }
       }
-      if (!optimized?.size) return file;
-      if (!shouldResize && optimized.size >= file.size * 0.98 &&
-        (file.type === "image/jpeg" || file.type === "image/png")) return file;
-      if (optimized.type !== "image/png" && optimized.type !== "image/jpeg") return file;
+      if (!optimized?.size) throw new Error("Não foi possível codificar a imagem.");
+      if (optimized.size >= file.size) {
+        if (sourceType === "image/jpeg" || sourceType === "image/png") return file;
+        throw new Error("Não foi possível converter a imagem sem aumentar seu tamanho. Use JPEG ou PNG.");
+      }
+      if (optimized.type !== destinationType) throw new Error("Formato de saída incompatível com o envio de imagem.");
       const ext = optimized.type === "image/png" ? "png" : "jpg";
       return new File([optimized], `${fileBaseName(file.name)}.${ext}`,
         { type: optimized.type, lastModified: file.lastModified || Date.now() });
     }
 
+    // Logos carry fine edges and may have alpha; PNG encoding is lossless.
+    const encodingType = preset === "logo-image" && sourceType !== "image/jpeg" ? "image/png" : "image/webp";
     let quality = config.quality;
-    let webp = await canvasToBlob(canvas, "image/webp", quality);
-    if (!webp?.size || !OPTIMIZABLE_IMAGE_TYPES.has(webp.type)) return file;
+    let webp = await canvasToBlob(canvas, encodingType, quality);
+    if (!webp?.size || !OUTPUT_IMAGE_TYPES.has(webp.type)) throw new Error("Não foi possível codificar a imagem em um formato compatível.");
 
     while (webp.size > config.targetMaxBytes && quality > config.minQuality) {
       quality = Math.max(config.minQuality, Number((quality - 0.04).toFixed(2)));
-      const next = await canvasToBlob(canvas, "image/webp", quality);
+      const next = await canvasToBlob(canvas, encodingType, quality);
       if (!next?.size || next.size >= webp.size) break;
       webp = next;
     }
 
     // Evita substituir um arquivo que já esteja menor que a versão otimizada.
-    if (!shouldResize && webp.size >= file.size * 0.98) return file;
+    if (webp.size >= file.size) {
+      if (OUTPUT_IMAGE_TYPES.has(sourceType)) return file;
+      throw new Error("Não foi possível converter a imagem sem aumentar seu tamanho. Use JPEG, PNG ou WebP.");
+    }
 
     return new File(
       [webp],
@@ -206,8 +227,7 @@ async function optimizeImageForUpload(
       { type: webp.type, lastModified: file.lastModified || Date.now() },
     );
   } catch (error) {
-    console.warn("[MEDIA] Não foi possível otimizar a imagem; enviando o arquivo original.", error);
-    return file;
+    throw new Error(`Não foi possível otimizar a imagem. ${error instanceof Error ? error.message : "Selecione outro arquivo."}`);
   } finally {
     decoded?.release();
     // Release the potentially multi-megabyte backing buffer immediately.
@@ -218,12 +238,14 @@ async function optimizeImageForUpload(
 export async function prepareFileForUpload(
   file: File,
   preset: UploadImagePreset = "document-image",
-) {
-  // Attachments can be contracts, receipts, scans or originals. Keep their
-  // pixels, transparency and bytes intact; only explicit photo flows are lossy.
-  if (preset === "document-image" || !file.type.startsWith("image/")) {
-    if (file.size > MAX_GENERIC_FILE_BYTES) throw new Error("O arquivo deve ter no máximo 20 MB.");
+  options: { preserveOriginal?: boolean; maxBytes?: number } = {},
+): Promise<File> {
+  // Explicit binary-integrity exception for signed originals. PDFs and other
+  // non-image documents always retain their bytes, irrespective of the preset.
+  if (options.preserveOriginal || !uploadImageMimeType(file).startsWith("image/")) {
+    const maxBytes = options.maxBytes ?? MAX_GENERIC_FILE_BYTES;
+    if (file.size > maxBytes) throw new Error(`O arquivo deve ter no máximo ${maxBytes / (1024 * 1024)} MB.`);
     return file;
   }
-  return prepareImageForUpload(file, preset);
+  return prepareImageForUpload(file, preset, options.maxBytes);
 }

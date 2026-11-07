@@ -338,7 +338,7 @@ Deno.serve(async (request) => {
       return json({ success: true, ...result });
     }
 
-    if (action === "import-image") {
+    if (action === "import-image" || action === "fetch-image") {
       const imageUrl = String(body?.image_url || "").trim();
       if (!/^https?:\/\//i.test(imageUrl)) return json({ success: false, error: "URL de imagem inválida." }, 400);
 
@@ -355,6 +355,18 @@ Deno.serve(async (request) => {
       if (bytes.byteLength > 8 * 1024 * 1024) return json({ success: false, error: "A imagem externa excede 8 MB." }, 422);
 
       const extension = extensionFor(contentType);
+      if (action === "fetch-image") {
+        // Fetch through the authenticated, SSRF-checked proxy; the browser then
+        // runs the shared catalog optimizer before the only Storage upload.
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+          binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        }
+        return json({ success: true, image_base64: btoa(binary), mime_type: contentType, extension });
+      }
+      // Legacy API compatibility: remote imports made outside the CRM still
+      // preserve the provider bytes. New CRM clients use fetch-image + the
+      // central browser optimizer; this Edge runtime has no image codec.
       const fileName = `external-${Date.now()}-${crypto.randomUUID()}.${extension}`;
       const storagePath = `${organizationId}/external/${fileName}`;
 

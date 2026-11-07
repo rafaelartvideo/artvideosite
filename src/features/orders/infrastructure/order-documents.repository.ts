@@ -109,9 +109,9 @@ export async function attachOrderSituationDocument({
   if (orderError) throw orderError;
   if (!order) throw new Error("A OS não pertence à empresa informada ou não está disponível para este acesso.");
 
-  // Comprovantes fotografados usam o otimizador do CRM com preset legível para documentos;
-  // os anexos comuns e os PDFs preservam os bytes originais.
-  const preparedFile = await prepareFileForUpload(file, optimizePhoto && file.type.startsWith("image/") ? "service-label" : "document-image");
+  // Optimize photographed documents before transfer; non-images (including PDFs)
+  // retain their original bytes in the shared preparer.
+  const preparedFile = await prepareFileForUpload(file, optimizePhoto ? "payment-proof" : "document-image");
   const extension = extensionForUploadFile(preparedFile);
   const scope = situationId ? `situations/${situationId}` : "attachments";
   const path = `orders/${serviceOrderId}/${scope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;

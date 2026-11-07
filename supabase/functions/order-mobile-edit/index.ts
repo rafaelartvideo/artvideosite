@@ -1,3 +1,4 @@
+import { assertPreparedUploadImage } from "../_shared/upload-image-guard.mjs";
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import { normalizeEmployeeIds, normalizeTechnicalValues, sanitizeMobileOrderPatch } from "./order-mobile-edit-policy.mjs";
 
@@ -523,6 +524,7 @@ async function uploadPhoto(context: any) {
   if (!(file instanceof File)) throw Object.assign(new Error("Nenhuma foto recebida."), { status: 400 });
   if (!ACCEPTED_IMAGE_TYPES.has(file.type) || file.size <= 0 || file.size > MAX_IMAGE_BYTES) throw Object.assign(new Error("Use JPG, PNG ou WebP com até 10 MB."), { status: 400 });
 
+  await assertPreparedUploadImage(file, kind === "label" ? "service-label" : "service-photo");
   const extension = extensionFor(file);
   const storagePath = `orders/${session.organization_id}/${session.service_order_id}/mobile/${crypto.randomUUID()}.${extension}`;
   const { error: uploadError } = await admin.storage.from("service-images").upload(storagePath, file, { contentType: file.type, cacheControl: "3600", upsert: false });
