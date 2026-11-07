@@ -34,6 +34,7 @@ import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback
 import { FCurrencyInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
+import { productRelationLabel } from "@/features/products/domain/product-relation-labels";
 import {
   finalizePdvSale,
   loadPdvSaleDetail,
@@ -772,6 +773,9 @@ export function PdvSaleWorkspace({
               const available = availableQuantity(product);
               const noStock = available <= 0;
               const relatedProducts = relatedByProduct.get(product.product_id) || [];
+              const relationFromAnotherResult = (relatedQuery.data || []).find(item => item.product_id === product.product_id);
+              const identifiedType = relationFromAnotherResult?.relation_type
+                || (relatedProducts.some(item => item.relation_type === "variation") ? "parent" : null);
               return <div key={product.product_id} className="min-w-0">
                 <button
                 type="button"
@@ -782,6 +786,9 @@ export function PdvSaleWorkspace({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-black text-foreground">{product.name}</p>
                   <p className="mt-0.5 truncate text-xs font-semibold text-[#7a8aa0]">{product.sku || "Sem SKU"}{product.barcode ? " · " + product.barcode : ""}</p>
+                  {identifiedType && <span className="mt-1 inline-flex rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {productRelationLabel(identifiedType)}
+                  </span>}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-sm font-black text-foreground">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
