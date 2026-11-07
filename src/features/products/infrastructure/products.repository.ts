@@ -202,3 +202,29 @@ export async function replaceProductSimilarIds(
   if (error) throw error;
   return Number(data || 0);
 }
+
+
+export type RelatedCatalogProduct = {
+  product_id: string;
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+  manufacturer_code: string | null;
+  price: number | null;
+  cover_media_id: string | null;
+  stock: number;
+  unit: string;
+  relation_type: string;
+  matched_code: string | null;
+};
+
+/** A mesma consulta funciona do produto principal para filhos e no sentido inverso. */
+export async function listProductRelations(organizationId: string, productId: string): Promise<RelatedCatalogProduct[]> {
+  const { data, error } = await supabase.rpc("list_product_relations_v2", {
+    p_organization_id: organizationId, p_product_id: productId,
+  });
+  if (error) throw error;
+  return ((data || []) as RelatedCatalogProduct[]).map(row => ({
+    ...row, stock: Number(row.stock || 0), price: row.price == null ? null : Number(row.price),
+  }));
+}
