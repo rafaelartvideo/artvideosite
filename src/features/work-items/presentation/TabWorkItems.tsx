@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -495,7 +496,7 @@ export function TabWorkItems() {
               <TaskCard compact item={item} employees={employees} canPerform={canPerformItem(item)} onOpen={openTask} />
             </div>)}
           </div>
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
             <table className="min-w-[770px]">
               <thead><tr><th className="text-left">Atividade</th><th className="text-left">Andamento</th><th className="text-left">Prioridade</th><th className="text-left">Prazo</th><th className="text-left">Responsáveis</th></tr></thead>
               <tbody>{listPage.map(item => <tr key={item.id} role="button" tabIndex={0} onClick={() => openTask(item)}
