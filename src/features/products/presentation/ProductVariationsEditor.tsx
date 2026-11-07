@@ -5,6 +5,7 @@ import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { productConditionLabel } from "../domain/product-condition";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import {
   listProductVariations, replaceProductVariations,
@@ -16,6 +17,7 @@ type Candidate = {
   name: string;
   sku?: string | null;
   price?: number | null;
+  product_condition?: string | null;
   cover_media_id?: string | null;
   inventory?: { quantity?: number | null; unit?: string | null; conversion_factor?: number | null } | null;
 };
@@ -132,10 +134,12 @@ export function ProductVariationsEditor({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-foreground">{product?.name || "Produto não disponível"}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {product?.sku || "Sem SKU"} · {product?.price == null ? "Sem preço" : formatCurrency(product.price)}
+                    {product?.sku || "Sem SKU"} · {productConditionLabel(product?.product_condition)} · {product?.price == null ? "Sem preço" : formatCurrency(product.price)}
                     {" · "}{formatNumber(unit === "cx" ? qty / factor : qty)} {unit}
                   </p>
                 </div>
+                {canEdit && onEditProduct && <AdminButton variant="tertiary" size="sm" disabled={saving}
+                  onClick={() => onEditProduct(item.product_id)}>Editar</AdminButton>}
                 {canEdit && <AdminIconButton ariaLabel="Remover variação" title="Remover variação"
                   disabled={saving} variant="danger"
                   onClick={() => { setDraft(current => current.filter(entry => entry.product_id !== item.product_id)); setMessage(""); }}>
