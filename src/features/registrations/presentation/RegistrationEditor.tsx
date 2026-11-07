@@ -108,7 +108,7 @@ export function RegistrationEditor({
   const editorBody = <>
     <div className="space-y-5 p-4 sm:p-5">
       {!employeeOnly && (
-        <Section title="Tipo e vínculos">
+        <Section title={supplierQuickCreate ? "Tipo de pessoa" : "Tipo e vínculos"}>
           <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
               <div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF, nascimento e contatos.</div>
