@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, Eraser, Search, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -172,7 +173,7 @@ export function PartnerCustomersList({
           </article>)}
         </div>
 
-        <div className="hidden overflow-x-auto md:block">
+        <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
           <table className="min-w-[700px]">
             <thead><tr>
               {showName && <th className="text-left">Nome</th>}
