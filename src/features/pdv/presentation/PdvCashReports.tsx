@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -120,7 +121,7 @@ export function PdvCashReports({
           message="Abra o primeiro caixa no PDV para iniciar o histórico de turnos."
         />
       ) : <>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[900px]">
             <thead>
               <tr>
