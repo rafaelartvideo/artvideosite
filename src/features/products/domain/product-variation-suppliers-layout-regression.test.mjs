@@ -30,9 +30,10 @@ test("Geral alinha nome e SKU, categoria/marca e modelo/condição em duas linha
 
 test("toolbar deixa Usar celular à direita sem dropdown de GTIN/MPN", () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
-  const toolbar = page.slice(page.indexOf('<AdminStickyToolbar className="z-10 justify-end">'),page.indexOf('</AdminStickyToolbar>'));
+  const toolbar = page.slice(page.indexOf('<AdminStickyToolbar className="z-10 !justify-end md:!justify-start">'),page.indexOf('</AdminStickyToolbar>'));
   assert.ok(toolbar.indexOf('<DeviceCaptureBridge') > toolbar.indexOf('>Salvar</BtnPrimary>'));
   assert.ok(!toolbar.includes('<select'));
+  assert.ok(toolbar.includes('className="ml-auto hidden shrink-0 md:flex"'), "Usar celular ocupa a extremidade direita da toolbar");
   assert.ok(!toolbar.includes('Tipo do código lido no celular'));
   assert.ok(page.includes('setMobileScanTarget(to)'));
   assert.ok(page.includes('setMobileScanTarget(kind)'));
