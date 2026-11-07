@@ -13,7 +13,9 @@ test("catalog editor restores individual related codes and their original relati
   const { validateTypedRelatedCodes, parseRelatedCodesInput } = await import(
     "data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
-  assert.ok(editor.includes("Código do fabricante / MPN"));
+  const identifiers = read("../presentation/ProductIdentifiersEditor.tsx");
+  assert.ok(identifiers.includes("Código do fabricante / MPN"));
+  assert.ok(editor.includes("<ProductIdentifiersEditor"));
   assert.ok(editor.includes("Códigos relacionados"));
   assert.ok(editor.includes("Adicionar código"));
   assert.ok(editor.includes('<FSelect label="Tipo de relação"'));
