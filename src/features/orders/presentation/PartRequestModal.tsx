@@ -9,7 +9,7 @@ import { cn } from "@/shared/domain/formatters";
 import { normalizeSearchText } from "../application/order-search";
 import type { PartRequestInventoryItem, SelectedPartRequestItem } from "../domain/part-request.types";
 import { CenteredModal } from "./PartRequestModals";
-import { listOrderProductCompatibilities, listOrderProductSimilars } from "../infrastructure/order-commercial-items.repository";
+import { listOrderRelatedProducts } from "../infrastructure/order-commercial-items.repository";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
 
 const INVENTORY_PAGE_SIZE = 4;
@@ -77,23 +77,13 @@ export function PartRequestModal({
     ? selectedSourceIds.slice(0,4)
     : query.length >= 2 ? visibleItems.slice(0,2).map(item => item.id) : [];
   const sourceKey = sourceIds.join(",");
-  const compatibleQuery = useQuery({
-    queryKey: ["orders", "auto-compatible", "part-requests", orderId, sourceKey],
-    queryFn: () => listOrderProductCompatibilities(orderId, sourceIds),
+  const relatedQuery = useQuery({
+    queryKey: ["orders", "related-products", "part-requests", orderId, sourceKey],
+    queryFn: () => listOrderRelatedProducts(orderId, sourceIds),
     enabled: Boolean(orderId && sourceIds.length && !inventoryLoading),
     staleTime: 15_000,
   });
-  const compatibleChoices = Array.from(new Map((compatibleQuery.data || [])
-    .filter(item => !selectedIds.has(item.inventory_item_id))
-    .map(item => [item.inventory_item_id,item])).values());
-
-  const similarQuery = useQuery({
-    queryKey: ["orders", "similar-products", "part-requests", orderId, sourceKey],
-    queryFn: () => listOrderProductSimilars(orderId, sourceIds),
-    enabled: Boolean(orderId && sourceIds.length && !inventoryLoading),
-    staleTime: 15_000,
-  });
-  const similarChoices = Array.from(new Map((similarQuery.data || [])
+  const relatedChoices = Array.from(new Map((relatedQuery.data || [])
     .filter(item => !selectedIds.has(item.inventory_item_id))
     .map(item => [item.inventory_item_id,item])).values());
 
@@ -198,33 +188,15 @@ export function PartRequestModal({
           })}
         </AdminListSection>
 
-        {compatibleChoices.length > 0 && <div className="min-w-0 rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
+        {relatedChoices.length > 0 && <div className="min-w-0 border-b border-border py-3">
           <CompatibleProductCarousel
+            title="Produtos relacionados"
             sourceName={selectedItems[0]?.name || visibleItems[0]?.name}
-            products={compatibleChoices.map(item => ({
+            products={relatedChoices.map(item => ({
               id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
               coverMediaId:item.cover_media_id,price:item.price,
               stock:inventoryItems.find(part => part.id===item.inventory_item_id)?.quantity ?? item.stock,
-              unit:"un",
-            }))}
-            disabled={submitting}
-            selectedIds={selectedItems.map(item => item.inventory_item_id)}
-            onPick={picked => {
-              const matched = inventoryItems.find(item => item.id===picked.id);
-              if (matched) onSelect(matched);
-            }}
-          />
-        </div>}
-
-        {similarChoices.length > 0 && <div className="min-w-0 border-b border-border py-3">
-          <CompatibleProductCarousel
-            title="Produtos similares"
-            sourceName={selectedItems[0]?.name || visibleItems[0]?.name}
-            products={similarChoices.map(item => ({
-              id:item.inventory_item_id,name:item.name,sku:item.sku,barcode:item.barcode,
-              coverMediaId:item.cover_media_id,price:item.price,
-              stock:inventoryItems.find(part => part.id===item.inventory_item_id)?.quantity ?? item.stock,
-              unit:item.unit,
+              unit:item.unit,relationType:item.relation_type,matchedCode:item.matched_code,
             }))}
             disabled={submitting}
             selectedIds={selectedItems.map(item => item.inventory_item_id)}
