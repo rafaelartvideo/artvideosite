@@ -141,6 +141,7 @@ export function InventoryProductDetailsDialog({
         <Detail label="Modelo" value={product.model || "—"}/>
         <Detail label="Código fabricante / MPN" value={product.manufacturer_code || "—"}/>
         <Detail label="Código de barras / GTIN" value={product.barcode || "—"}/>
+        <Detail label="Código de barras interno" value={product.internal_barcode || "—"}/>
         <Detail label="Unidade comercial" value={unit === "cx" ? `Caixa · ${factor} unidades` : "Unidade"}/>
         <Detail label="Prazo para vender" value={product.sale_window_days ? `${product.sale_window_days} dias por entrada` : "Não configurado"}/>
         <Detail label="Endereço no estoque" value={location}/>
