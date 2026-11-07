@@ -17,6 +17,7 @@ import { getStoreProductExtras, loadStorePickupOption, quoteStoreShipping, submi
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { PublicHeading, PublicButton } from "@/features/public-shell/presentation/PublicUi";
+import { productConditionLabel } from "@/features/products/domain/product-condition";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { getWhatsAppNumber } from "@/features/public-shell/application/site-settings";
 
@@ -141,6 +142,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const formatCm = (value: unknown) => (Number(value) / 10).toLocaleString("pt-BR", {maximumFractionDigits: 1}) + " cm";
   const baseSpecs: { label: string; value: string }[] = [
     {label: "Marca", value: String(brand?.name ?? "")},
+    {label: "Condição", value: productConditionLabel(product.product_condition)},
     {label: "Modelo", value: String(product.model ?? "")},
     {label: "Referência do fabricante", value: String(product.manufacturer_code ?? "")},
     {label: "Código do produto", value: String(product.sku ?? "")},
@@ -239,6 +241,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         <div className="min-w-0 py-1 sm:py-2">
           <p className="text-[12px] font-bold text-[var(--art-primary)]">{brand?.name || "Eletrônica Artvideo"}</p>
           <h1 className="mt-2 text-[20px] font-extrabold leading-[1.3] tracking-[-.025em] sm:text-[30px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>{name}</h1>
+          <p className="mt-2 inline-flex rounded-md border border-[#dce6f3] bg-[#f4f8ff] px-2 py-1 text-xs font-semibold text-[#28538b]">Condição: {productConditionLabel(product.product_condition)}</p>
           {product.sku && <p className="mt-2 text-[11px] text-[#7c8b9f]">Código: {product.sku}</p>}
           <a href="#avaliacoes" className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#45617f] hover:text-[var(--art-primary)]">
             {extras?.reviewCount ? <><strong className="text-[#0b1d37]">{extras.rating.toFixed(1)}</strong> {reviewStars(extras.rating)} <span>({extras.reviewCount} avaliações)</span></> :
