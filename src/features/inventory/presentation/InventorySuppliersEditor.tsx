@@ -123,10 +123,7 @@ export function InventorySuppliersEditor({
   return <>
   <AdminListSection
     title="Fornecedores"
-    description="Vincule os fornecedores disponíveis a este item do estoque."
-    count={loading ? undefined : totalItems}
-    countSingular="fornecedor"
-    countPlural="fornecedores"
+    headerless
     searchValue={search}
     onSearchChange={setSearch}
     searchPlaceholder="Buscar por nome ou CPF/CNPJ"
