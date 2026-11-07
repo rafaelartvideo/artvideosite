@@ -1,11 +1,28 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleHelp, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { PRODUCT_CONDITION_OPTIONS, productConditionLabel, type ProductCondition } from "../domain/product-condition";
 import type { InventorySupplier } from "@/features/inventory/infrastructure/inventory.repository";
 import { VariantSupplierPicker } from "./VariantSupplierPicker";
 import { listProductVariations } from "../infrastructure/product-variations.repository";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+
+/** Ajuda compacta para campos de atributos, acessível também no mobile. */
+function AttributeFieldHelp({ field, description }: { field: string; description: string }) {
+  return <Popover>
+    <PopoverTrigger asChild>
+      <button type="button" aria-label={`Ajuda sobre ${field}`}
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+        <CircleHelp size={15} aria-hidden="true" />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent align="start" side="top" sideOffset={6}
+      className="z-[350] w-72 max-w-[calc(100vw-2rem)] text-xs leading-relaxed text-popover-foreground">
+      {description}
+    </PopoverContent>
+  </Popover>;
+}
 
 export const MAX_VARIATION_ATTRIBUTES = 5;
 export const MAX_VARIATION_CANDIDATES = 200;
@@ -192,9 +209,6 @@ export function ProductVariationMatrix({
   const generateDisabledReason = disabled ? "Aguarde o fim do salvamento."
     : linkedLoading ? "Carregando variações já cadastradas..."
     : linkedQuery.isError ? "Não foi possível consultar as variações atuais. Tente novamente."
-    : !options.length ? "Adicione um atributo com valores para gerar combinações."
-    : !validNames ? "Preencha o nome e pelo menos um valor de cada atributo."
-    : !uniqueNames ? "Os nomes dos atributos não podem se repetir."
     : count > MAX_VARIATION_CANDIDATES ? "Limite de 200 possibilidades. Reduza os valores."
     : firstLabel.length > 100 ? "A identificação da combinação principal passou de 100 caracteres."
     : availableSlots === 0 && count > 1 ? "Limite de 30 versões por produto atingido."
@@ -202,36 +216,42 @@ export function ProductVariationMatrix({
   const inputClass = "mt-1 h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground";
 
   return <section aria-label="Criar variações por atributos" className="min-w-0 space-y-4">
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0">
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Ex.: cor, voltagem, tamanho, acabamento ou modelo. Você pode informar apenas uma cor;
-          ela identifica o produto principal. Outras versões são adicionadas quando existirem.
-        </p>
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">{options.length}/{MAX_VARIATION_ATTRIBUTES} atributos</span>
-    </div>
-
     <div className="space-y-3">
-      {options.map((option, index) => <div key={index} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 border-b border-border/70 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,170px)_minmax(0,1fr)_42px]">
-        <label className="min-w-0 text-xs font-medium text-muted-foreground">
-          Atributo {index + 1}
-          <input aria-label={"Nome do atributo " + (index + 1)} value={option.name}
-            onChange={event => updateOption(index, "name", event.target.value)}
-            placeholder="Cor, tamanho, modelo..." disabled={disabled} maxLength={40} className={inputClass}/>
-        </label>
-        <label className="col-start-1 row-start-2 min-w-0 text-xs font-medium text-muted-foreground sm:col-start-2 sm:row-start-1">
-          Valores (separados por vírgula)
-          <input aria-label={"Valores do atributo " + (index + 1)} value={option.values}
-            onChange={event => updateOption(index, "values", event.target.value)}
-            placeholder="Preto, Branco, Azul" disabled={disabled} className={inputClass}/>
-        </label>
-        <AdminIconButton className="col-start-2 row-start-2 !h-10 !w-[42px] sm:col-start-3 sm:row-start-1"
-          ariaLabel={"Remover atributo " + (index + 1)} title="Remover atributo" disabled={disabled} variant="danger"
-          onClick={() => { setOptions(options.filter((_, i) => i !== index)); resetGenerated(); }}>
-          <Trash2 size={16}/>
-        </AdminIconButton>
-      </div>)}
+      {options.map((option, index) => {
+        const normalizedName = option.name.trim().toLocaleLowerCase("pt-BR");
+        const duplicateName = Boolean(normalizedName) && options.some((other, otherIndex) =>
+          otherIndex !== index && other.name.trim().toLocaleLowerCase("pt-BR") === normalizedName);
+        return <div key={index} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 border-b border-border/70 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,170px)_minmax(0,1fr)_42px]">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <label htmlFor={`variation-attribute-name-${index}`} className="text-xs font-medium text-muted-foreground">Atributo {index + 1}</label>
+              <AttributeFieldHelp field="nome do atributo"
+                description="Use nomes como Cor, Voltagem ou Tamanho. Não repita nomes de atributos no mesmo produto." />
+            </div>
+            <input id={`variation-attribute-name-${index}`} aria-label={"Nome do atributo " + (index + 1)}
+              aria-invalid={duplicateName} value={option.name}
+              onChange={event => updateOption(index, "name", event.target.value)}
+              placeholder="Cor, tamanho, modelo..." disabled={disabled} maxLength={40}
+              className={`${inputClass} ${duplicateName ? "border-destructive focus-visible:outline-destructive" : ""}`}/>
+            {duplicateName && <p role="alert" className="mt-1 text-xs text-destructive">Nome do atributo repetido.</p>}
+          </div>
+          <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2 sm:row-start-1">
+            <div className="flex items-center gap-1.5">
+              <label htmlFor={`variation-attribute-values-${index}`} className="text-xs font-medium text-muted-foreground">Valores (separados por vírgula)</label>
+              <AttributeFieldHelp field="valores do atributo"
+                description="Preencha todos os nomes e valores antes de gerar combinações. Informe pelo menos um valor para cada atributo, separando múltiplos valores por vírgula." />
+            </div>
+            <input id={`variation-attribute-values-${index}`} aria-label={"Valores do atributo " + (index + 1)}
+              value={option.values} onChange={event => updateOption(index, "values", event.target.value)}
+              placeholder="Preto, Branco, Azul" disabled={disabled} className={inputClass}/>
+          </div>
+          <AdminIconButton className="col-start-2 row-start-2 !h-10 !w-[42px] sm:col-start-3 sm:row-start-1"
+            ariaLabel={"Remover atributo " + (index + 1)} title="Remover atributo" disabled={disabled} variant="danger"
+            onClick={() => { setOptions(options.filter((_, i) => i !== index)); resetGenerated(); }}>
+            <Trash2 size={16}/>
+          </AdminIconButton>
+        </div>;
+      })}
       <div className="grid min-w-0 grid-cols-2 gap-2">
         {options.length < MAX_VARIATION_ATTRIBUTES && <AdminButton variant="secondary" size="sm" className="w-full" disabled={disabled}
           onClick={() => { setOptions([...options, { name: "", values: "" }]); resetGenerated(); }}>
@@ -242,19 +262,13 @@ export function ProductVariationMatrix({
           <WandSparkles size={15}/>{count === 1 ? "Confirmar versão principal" : "Gerar combinações"}
         </AdminButton>
       </div>
-      {!canGenerate && <p className="text-xs text-muted-foreground" role="status">{generateDisabledReason}</p>}
-      {options.length > 0 && <p className="text-xs text-muted-foreground" role="status">
-        {count.toLocaleString("pt-BR")} {count === 1 ? "combinação possível" : "combinações possíveis"}
-        {" · "}até {availableSlots} adicionais, mais o produto principal.
-      </p>}
+      {!canGenerate && generateDisabledReason && <p className="text-center text-xs text-muted-foreground" role="status">{generateDisabledReason}</p>}
       {singleReady && count === 1 && <p role="status" className="text-xs text-foreground">
         A única combinação pertence ao produto principal. Clique em Salvar para guardar o atributo, sem gerar estoque duplicado.
       </p>}
       {allAlreadyRegistered && <p role="status" className="text-xs text-muted-foreground">
         Todas as combinações já estão cadastradas. Acrescente um novo valor ao atributo para criar outra versão.
       </p>}
-      {options.length > 0 && (!validNames || !uniqueNames) &&
-        <p className="text-xs text-destructive">Preencha todos os nomes e valores e não repita nomes de atributos.</p>}
       {count > MAX_VARIATION_CANDIDATES &&
         <p className="text-xs text-destructive">São mais de {MAX_VARIATION_CANDIDATES} possibilidades. Reduza os valores para gerar a lista sem sobrecarregar o cadastro.</p>}
       {firstLabel.length > 100 &&
