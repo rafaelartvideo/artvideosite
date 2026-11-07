@@ -102,14 +102,14 @@ export function InventoryProductDetailsDialog({
   }
 
   const childVariation = variationFamily.data?.find(item => item.product_id === id && !item.is_parent);
-  const childAttributes = childVariation?.variation_label?.split(/\\s*·\\s*/).map(part => {
+  const childAttributes = childVariation?.variation_label?.split(/\s*·\s*/).map(part => {
     const separator = part.indexOf(":");
     return separator > 0
       ? { name: part.slice(0, separator).trim(), value: part.slice(separator + 1).trim(), otherValues: [] as string[] }
       : { name: "Variação", value: part.trim(), otherValues: [] as string[] };
   }).filter(attribute => attribute.name && attribute.value) || [];
   const mainAttributes = (variantOptions.data || []).map(option => {
-    const values = option.values.split(/[;,\\n]/).map(value => value.trim()).filter(Boolean);
+    const values = option.values.split(/[;,\n]/).map(value => value.trim()).filter(Boolean);
     return { name: option.name.trim(), value: values[0] || "", otherValues: values.slice(1) };
   }).filter(attribute => attribute.name && attribute.value);
   const attributes = childVariation ? childAttributes : mainAttributes;
