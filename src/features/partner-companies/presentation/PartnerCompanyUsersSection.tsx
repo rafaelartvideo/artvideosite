@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users } from "lucide-react";
@@ -273,7 +274,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
 
       </AdminDialog>}
 
-      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">Não foi possível carregar os usuários.</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td>
+      {usersQuery.isPending ? <LoadingState /> : usersQuery.isError ? <AdminCardContent><p className="text-sm font-semibold text-red-700">Não foi possível carregar os usuários.</p></AdminCardContent> : (usersQuery.data || []).length === 0 ? <AdminCardContent><EmptyState icon={Users} title="Nenhum usuário vinculado" message="Esta empresa ainda não possui usuários cadastrados." /></AdminCardContent> : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[820px]"><thead><tr><th className="text-left">Usuário</th><th className="text-left">Login</th><th className="text-left">E-mail</th><th className="text-left">Função</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{(usersQuery.data || []).map((user: any) => <tr key={user.membership_id}><td>
   <div className="flex flex-wrap items-center gap-2">
     <p className="font-bold text-[#0d1b2e]">{user.full_name || "—"}</p>
     {user.is_owner && <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Proprietário</span>}
