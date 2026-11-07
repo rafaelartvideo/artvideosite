@@ -141,6 +141,16 @@ export async function closeDeviceCaptureSession(sessionId: string, token?: strin
   await invoke({ action: "close", session_id: sessionId });
 }
 
+/** Espelha a quantidade real do produto no celular; somente o dono da sessão pode atualizar. */
+export async function syncProductCapturePhotos(sessionId: string, photoCount: number, hasCover: boolean) {
+  return invoke({
+    action: "sync_product_photos",
+    session_id: sessionId,
+    photo_count: photoCount,
+    has_cover: hasCover,
+  });
+}
+
 export async function connectDeviceCaptureSession(sessionId: string, token: string) {
   return invoke({ action: "status", session_id: sessionId, token });
 }
