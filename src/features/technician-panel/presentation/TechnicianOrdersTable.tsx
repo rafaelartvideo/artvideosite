@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ClipboardList, Search } from "lucide-react";
@@ -208,7 +209,7 @@ export function TechnicianOrdersTable({
     {loading ? <LoadingState />
       : !visible.length ? <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" />
       : <>
-        <div className="hidden overflow-x-auto md:block">
+        <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
           <table className="min-w-[880px] text-left">
             <thead><tr>
                 <th scope="col" className="px-4 py-3 text-left">OS</th><th scope="col" className="px-4 py-3 text-left">Cliente</th>
