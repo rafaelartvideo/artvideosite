@@ -8,6 +8,7 @@ import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 type AdminListSectionProps = {
   title: ReactNode;
   description?: ReactNode;
+  headerless?: boolean;
   count?: number;
   countSingular?: string;
   countPlural?: string;
@@ -30,6 +31,7 @@ type AdminListSectionProps = {
 export function AdminListSection({
   title,
   description,
+  headerless = false,
   count,
   countSingular = "item",
   countPlural = "itens",
@@ -52,16 +54,16 @@ export function AdminListSection({
   const countLabel = count === 1 ? countSingular : countPlural;
 
   return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
-    <div className="bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className={cn(headerless ? "px-4 py-3" : "bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4")}>
+      {!headerless && <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-foreground">{title}</p>
           {description && <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>}
         </div>
         {typeof count === "number" && <span className="shrink-0 text-[10px] font-bold text-muted-foreground" aria-live="polite">{loading ? "…" : `${count} ${countLabel}`}</span>}
-      </div>
+      </div>}
 
-      {hasSearch && <div className="mt-3 flex min-w-0 items-center gap-2">
+      {hasSearch && <div className={cn("flex min-w-0 items-center gap-2", !headerless && "mt-3")}>
         <div className="relative min-w-0 flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
