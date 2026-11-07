@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link2, Plus, Trash2 } from "lucide-react";
+import { Link2, Plus, Search, Trash2 } from "lucide-react";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useAuth } from "@/lib/auth";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { SupplierQuickCreateDialog } from "@/features/registrations/presentation/SupplierQuickCreateDialog";
@@ -121,18 +122,28 @@ export function InventorySuppliersEditor({
   };
 
   return <>
-  <AdminListSection
-    title="Fornecedores"
-    headerless
-    searchValue={search}
-    onSearchChange={setSearch}
-    searchPlaceholder="Buscar por nome ou CPF/CNPJ"
-    searchAction={canCreateSupplier && !disabled ? <AdminButton
+  <div className="mb-3 flex min-w-0 items-center gap-2">
+    <div className="relative min-w-0 flex-1">
+      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input
+        type="search"
+        aria-label="Buscar fornecedor por nome ou CPF/CNPJ"
+        value={search}
+        onChange={event => setSearch(event.target.value)}
+        placeholder="Buscar por nome ou CPF/CNPJ"
+        className={`${INPUT} h-10 w-full pl-9 pr-3 text-sm`}
+      />
+    </div>
+    {canCreateSupplier && !disabled && <AdminButton
       variant="primary" size="sm" type="button"
       ariaLabel="Adicionar fornecedor"
       className="h-10 w-10 shrink-0 !p-0"
       onClick={() => setCreatingSupplier(true)}
-    ><Plus size={18}/></AdminButton> : undefined}
+    ><Plus size={18}/></AdminButton>}
+  </div>
+  <AdminListSection
+    title="Fornecedores"
+    headerless
     loading={loading}
     loadingText="Carregando fornecedores..."
     error={error ? `Erro ao carregar fornecedores: ${error}` : undefined}
