@@ -13,8 +13,11 @@ test("Geral mantém nome e SKU, categoria/marca acima de modelo/condição", asy
   assert.ok(positions.every(index => index >= 0));
   assert.ok(positions.every((position, index) => index === 0 || position > positions[index - 1]));
   assert.ok(layout.includes("grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4"));
-  const toolbar = ui.slice(ui.indexOf('<AdminStickyToolbar className="z-10 justify-end">'), ui.indexOf("</AdminStickyToolbar>"));
+  const toolbarStart = ui.indexOf('<AdminStickyToolbar className="z-10 !justify-end md:!justify-start">');
+  assert.ok(toolbarStart >= 0, "Toolbar do produto deve usar o alinhamento atual");
+  const toolbar = ui.slice(toolbarStart, ui.indexOf("</AdminStickyToolbar>", toolbarStart));
   assert.ok(toolbar.indexOf("<DeviceCaptureBridge") > toolbar.indexOf("Salvar</BtnPrimary>"));
+  assert.ok(toolbar.includes('className="ml-auto hidden shrink-0 md:flex"'), "Usar celular permanece na extrema direita");
   assert.ok(!toolbar.includes("<select"));
 });
 
