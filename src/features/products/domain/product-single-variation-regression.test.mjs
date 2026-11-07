@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
 const read = file => readFileSync(file, "utf8");
 
-test("Geral mantém nome e SKU, categoria/marca/modelo na mesma linha e condição depois", async () => {
+test("Geral mantém nome e SKU, categoria/marca acima de modelo/condição", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(ui, "TabProducts.tsx", { loader: "tsx" })).code);
   const layout = ui.slice(ui.indexOf('<TabsContent value="general"'), ui.indexOf("<ProductIdentifiersEditor"));
@@ -12,7 +12,7 @@ test("Geral mantém nome e SKU, categoria/marca/modelo na mesma linha e condiç�
   const positions = labels.map(label => layout.indexOf(`label="${label}"`));
   assert.ok(positions.every(index => index >= 0));
   assert.ok(positions.every((position, index) => index === 0 || position > positions[index - 1]));
-  assert.ok(layout.includes("sm:col-span-2 sm:grid-cols-3"));
+  assert.ok(layout.includes("grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4"));
   const toolbar = ui.slice(ui.indexOf('<AdminStickyToolbar className="z-10 justify-end">'), ui.indexOf("</AdminStickyToolbar>"));
   assert.ok(toolbar.indexOf("<DeviceCaptureBridge") > toolbar.indexOf("Salvar</BtnPrimary>"));
   assert.ok(!toolbar.includes("<select"));
