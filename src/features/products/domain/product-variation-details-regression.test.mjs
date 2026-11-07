@@ -75,3 +75,28 @@ test("Migração garante que cada variação pertence a um só principal e a mes
   assert.ok(!sql.includes("update public.inventory_items"));
   assert.ok(!sql.includes("update public.products"));
 });
+
+test("Estoque apresenta atributos cadastrados e amplia fotos na lista e nos detalhes", async () => {
+  const catalog = read("src/features/products/presentation/TabProducts.tsx");
+  const details = read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const lightbox = read("src/features/products/presentation/InventoryProductImageLightbox.tsx");
+  for (const [name, source] of [
+    ["TabProducts.tsx", catalog],
+    ["InventoryProductDetailsDialog.tsx", details],
+    ["InventoryProductImageLightbox.tsx", lightbox],
+  ]) assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+
+  assert.ok(details.includes("listProductVariationOptions(organizationId, id!)"));
+  assert.ok(details.includes("listProductVariations(organizationId, id!)"));
+  assert.ok(details.includes("Atributos do produto"));
+  assert.ok(details.includes("Outras opções:"));
+  assert.ok(details.includes("setActivePhotoIndex(0)"));
+  assert.ok(details.includes("photos.findIndex(photo => photo.mediaId === image.media_id)"));
+  assert.ok(details.includes("<InventoryProductImageLightbox"));
+  assert.ok(catalog.includes("setPreviewProductPhoto({ mediaId:"));
+  assert.ok(catalog.includes("<InventoryProductImageLightbox"));
+  assert.ok(catalog.includes("event.stopPropagation()"));
+  assert.ok(lightbox.includes('aria-label="Foto anterior"'));
+  assert.ok(lightbox.includes('aria-label="Próxima foto"'));
+  assert.ok(lightbox.includes("object-contain"));
+});
