@@ -40,7 +40,7 @@ export function validateTypedRelatedCodes(
 ): { codes: RelatedProductCode[]; error: string | null } {
   if (rows.length > 100) return { codes: [], error: "Informe no máximo 100 códigos relacionados." };
   const allowedTypes = new Set<RelatedProductCode["relation_type"]>([
-    "previous", "successor", "compatible", "alternate",
+    "previous", "successor", "compatible", "alternate", "similar", "generic",
   ]);
   const codes = rows.map(row => ({
     code: String(row.code || "").trim().toUpperCase(),
