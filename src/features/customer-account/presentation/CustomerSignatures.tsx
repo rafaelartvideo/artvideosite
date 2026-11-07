@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useState } from "react";
 import { Download, FileSignature, LoaderCircle } from "lucide-react";
 import { Link } from "react-router";
@@ -128,7 +129,7 @@ export function CustomerSignatures({userId}:{userId:string}) {
           </article>;
         })}
       </div>
-      <div className="hidden overflow-x-auto rounded-xl border border-[#e2e8f1] bg-white md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-[#e2e8f1] bg-white md:block"><TopTableScrollbar />
         <table className="w-full min-w-[650px] border-collapse text-left text-[13px]">
           <thead className="bg-[#f3f6fa] text-[11px] font-bold uppercase tracking-wider text-[#61748e]">
             <tr><th scope="col" className="px-4 py-3">Documento</th><th scope="col" className="px-4 py-3">Ordem de serviço</th>
