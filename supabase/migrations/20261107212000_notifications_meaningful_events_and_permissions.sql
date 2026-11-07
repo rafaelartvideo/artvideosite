@@ -56,7 +56,6 @@ with eligible as (
    or (e.technician and p.key in ('notifications.technician.view','notifications.technician.receive'))
    or (e.orders and p.key='notifications.orders.view')
    or (e.manager and p.key like 'notifications.%.view')
-   or (e.manager and p.key in ('notifications.finance.receive','notifications.quotes.receive','notifications.pdv.receive'))
  )
  and private.permission_belongs_to_organization(r.organization_id,p.key)
 )
