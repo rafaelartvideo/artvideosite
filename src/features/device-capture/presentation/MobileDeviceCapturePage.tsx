@@ -144,6 +144,7 @@ export function MobileDeviceCapturePage() {
     : null;
 
   const [pairing, setPairing] = useState<Pairing | null>(() => initialPairing);
+  const [captureContext, setCaptureContext] = useState<"order" | "product">(initialParams.get("context") === "product" ? "product" : "order");
   const [connectionState, setConnectionState] = useState<"idle" | "checking" | "connected" | "expired">(
     initialPairing ? "checking" : "idle",
   );
@@ -250,6 +251,7 @@ export function MobileDeviceCapturePage() {
         setConnectionState("connected");
         setExpiresAt(String(result.expires_at || ""));
         setPhotoCount(Number(result.photo_count || 0));
+        setCaptureContext(result.capture_context === "product" ? "product" : "order");
         keepFixedCaptureUrl();
       } catch (error) {
         if (cancelled) return;
@@ -418,7 +420,7 @@ export function MobileDeviceCapturePage() {
       const result = await uploadDeviceCapturePhoto(pairing.sessionId, pairing.token, kind, file);
       setPhotoCount(result.photoCount);
       setNotice({
-        text: kind === "label" ? "Foto da etiqueta enviada para o computador." : "Foto do equipamento enviada para o computador.",
+        text: captureContext === "product" ? (kind === "label" ? "Foto da capa enviada para o cadastro." : "Foto da galeria enviada para o cadastro.") : kind === "label" ? "Foto da etiqueta enviada para o computador." : "Foto do equipamento enviada para o computador.",
         type: "success",
       });
     } catch (error) {
@@ -535,7 +537,7 @@ export function MobileDeviceCapturePage() {
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0057e7]"><Smartphone size={20} /></span>
-            <div className="min-w-0"><p className="text-sm font-black">Union World • Captura da OS</p><p className="mt-0.5 text-xs text-white/65">Celular conectado ao computador</p></div>
+            <div className="min-w-0"><p className="text-sm font-black">Union World • {captureContext === "product" ? "Cadastro de produto" : "Captura da OS"}</p><p className="mt-0.5 text-xs text-white/65">Celular conectado ao computador</p></div>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1.5 text-[11px] font-black text-emerald-300"><Wifi size={12} /> CONECTADO</span>
         </div>
@@ -544,7 +546,7 @@ export function MobileDeviceCapturePage() {
       <main className="mx-auto max-w-lg space-y-4 p-4">
         <div className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <div><p className="text-xs font-black uppercase tracking-wider text-[#5a6a82]">Sessão ativa</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{photoCount} de 5 fotos enviadas</p></div>
+            <div><p className="text-xs font-black uppercase tracking-wider text-[#5a6a82]">Sessão ativa</p><p className="mt-1 text-sm font-bold text-[#0d1b2e]">{photoCount} de {captureContext === "product" ? 4 : 5} fotos enviadas</p></div>
             {expiryLabel && <div className="text-right"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Expira</p><p className="text-sm font-black text-[#0d1b2e]">{expiryLabel}</p></div>}
           </div>
         </div>
@@ -555,7 +557,7 @@ export function MobileDeviceCapturePage() {
           <div className="border-b border-[#0d1b2e]/8 p-4">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8eef8] text-[#0057e7]"><ScanLine size={18} /></span>
-              <div><h2 className="text-sm font-black text-[#0d1b2e]">Número de série</h2><p className="text-xs text-[#5a6a82]">Fotografe o código de barras ou QR da etiqueta.</p></div>
+              <div><h2 className="text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Código do produto" : "Número de série"}</h2><p className="text-xs text-[#5a6a82]">Fotografe o código de barras ou QR da etiqueta.</p></div>
             </div>
           </div>
           <div className="space-y-3 p-4">
@@ -566,7 +568,7 @@ export function MobileDeviceCapturePage() {
               className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0] disabled:opacity-50"
             >
               {serialPhotoReading ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
-              {serialPhotoReading ? "Lendo foto..." : "Fotografar código de série"}
+              {serialPhotoReading ? "Lendo foto..." : captureContext === "product" ? "Escanear código do produto" : "Fotografar código de série"}
             </button>
             <p className="rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center text-[11px] leading-4 text-[#5a6a82]">A câmera padrão do celular será aberta. Foque a etiqueta, tire a foto e confirme; a leitura será feita depois que você voltar para esta tela.</p>
             <input
@@ -582,26 +584,26 @@ export function MobileDeviceCapturePage() {
               }}
             />
             <div className="flex gap-2">
-              <input value={serial} onChange={event => setSerial(event.target.value)} placeholder="Ou digite a série" autoCapitalize="characters" className="min-w-0 flex-1 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 py-3 text-sm font-bold text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15" />
+              <input value={serial} onChange={event => setSerial(event.target.value)} placeholder={captureContext === "product" ? "Ou digite o código" : "Ou digite a série"} autoCapitalize="characters" className="min-w-0 flex-1 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 py-3 text-sm font-bold text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15" />
               <button type="button" disabled={!serial.trim() || serialSending || serialPhotoReading} onClick={() => void sendSerial()} aria-label="Enviar série para o computador" className="flex w-12 shrink-0 items-center justify-center rounded-xl bg-[#0d1b2e] text-white disabled:opacity-40">{serialSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button>
             </div>
           </div>
         </section>
 
         <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef5ff] text-[#0057e7]"><Camera size={18} /></span><div><h2 className="text-sm font-black text-[#0d1b2e]">Fotos do equipamento</h2><p className="text-xs text-[#5a6a82]">As fotos aparecem automaticamente na OS do computador.</p></div></div>
+          <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef5ff] text-[#0057e7]"><Camera size={18} /></span><div><h2 className="text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Fotos do produto" : "Fotos do equipamento"}</h2><p className="text-xs text-[#5a6a82]">{captureContext === "product" ? "As imagens aparecem no cadastro para revisão antes de salvar." : "As fotos aparecem automaticamente na OS do computador."}</p></div></div>
           <div className="mt-4 grid gap-3">
-            <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => labelInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0057e7]">Foto da etiqueta</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Identificação, modelo e dados técnicos</span></span>{uploadingKind === "label" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <Camera className="shrink-0 text-[#0057e7]" size={20} />}</button>
-            <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => equipmentInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0d1b2e]">Outras fotos</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>{uploadingKind === "equipment" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <ImagePlus className="shrink-0 text-[#5a6a82]" size={20} />}</button>
+            <button type="button" disabled={photoCount >= (captureContext === "product" ? 4 : 5) || uploadingKind !== null} onClick={() => labelInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0057e7]">{captureContext === "product" ? "Foto da capa" : "Foto da etiqueta"}</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Identificação, modelo e dados técnicos</span></span>{uploadingKind === "label" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <Camera className="shrink-0 text-[#0057e7]" size={20} />}</button>
+            <button type="button" disabled={photoCount >= (captureContext === "product" ? 4 : 5) || uploadingKind !== null} onClick={() => equipmentInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Fotos da galeria" : "Outras fotos"}</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>{uploadingKind === "equipment" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <ImagePlus className="shrink-0 text-[#5a6a82]" size={20} />}</button>
           </div>
-          {photoCount >= 5 && <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={16} /> Limite de 5 fotos atingido.</div>}
+          {photoCount >= (captureContext === "product" ? 4 : 5) && <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={16} /> Limite de {captureContext === "product" ? 4 : 5} fotos atingido.</div>}
           <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }} />
           <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }} />
         </section>
 
-        <MobileEntryChecklist sessionId={pairing.sessionId} token={pairing.token} />
+        {captureContext === "order" && <MobileEntryChecklist sessionId={pairing.sessionId} token={pairing.token} />}
 
-        <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> Desconectar e conectar outra OS</button>
+        <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> {captureContext === "product" ? "Desconectar e conectar outro produto" : "Desconectar e conectar outra OS"}</button>
         <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#5a6a82]"><WifiOff size={12} /> A conexão também encerra automaticamente quando o QR/código expirar ou o PC fechar a sessão.</div>
       </main>
     </div>
