@@ -1275,22 +1275,47 @@ export function TabProducts({
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0 w-full min-w-0 max-w-full">
         <div className="w-full min-w-0 px-4 pt-4 sm:px-5 sm:pt-5">
-          <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border">
-          <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
-            <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
-            <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
-            <EditorTabTrigger value="relationships" icon={ArrowLeftRight}>Variações e relações</EditorTabTrigger>
-            {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
-            {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
-          </TabsList>
-          <div className="shrink-0 pb-2 sm:pb-0">
-            <FToggle
-              label={form.is_active ? "Item ativo" : "Item inativo"}
-              checked={form.is_active}
-              disabled={saving || !(editItem ? canEdit : canCreate)}
-              onChange={value => setForm(current => ({ ...current, is_active: value }))}
+          {/* Mobile: seção sempre visível, sem abas cortadas ou status disputando espaço. */}
+          <div className="space-y-3 border-b border-border pb-3 sm:hidden">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-foreground">Cadastro do produto</span>
+              <FToggle
+                label={form.is_active ? "Item ativo" : "Item inativo"}
+                checked={form.is_active}
+                disabled={saving || !(editItem ? canEdit : canCreate)}
+                onChange={value => setForm(current => ({ ...current, is_active: value }))}
+              />
+            </div>
+            <FSelect
+              label="Seção do cadastro"
+              value={editorTab}
+              options={[
+                { value: "general", label: "Geral" },
+                { value: "commercial", label: "Comercial e estoque" },
+                { value: "relationships", label: "Variações e relações" },
+                ...(canViewSuppliers ? [{ value: "suppliers", label: "Fornecedores" }] : []),
+                ...(isArtvideoTenant ? [{ value: "store", label: "Loja" }] : []),
+              ]}
+              onChange={(event: any) => setEditorTab(event.target.value as ProductEditorTab)}
             />
           </div>
+          {/* Desktop: preserva a navegação em abas, sem mudanças no padrão existente. */}
+          <div className="hidden min-w-0 items-center justify-between gap-4 border-b border-border sm:flex">
+            <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
+              <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
+              <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
+              <EditorTabTrigger value="relationships" icon={ArrowLeftRight}>Variações e relações</EditorTabTrigger>
+              {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
+              {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
+            </TabsList>
+            <div className="shrink-0">
+              <FToggle
+                label={form.is_active ? "Item ativo" : "Item inativo"}
+                checked={form.is_active}
+                disabled={saving || !(editItem ? canEdit : canCreate)}
+                onChange={value => setForm(current => ({ ...current, is_active: value }))}
+              />
+            </div>
           </div>
         </div>
 
