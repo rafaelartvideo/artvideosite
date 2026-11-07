@@ -42,7 +42,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
         className="w-full min-w-0 rounded-md border border-[#0d1b2e]/15 bg-transparent px-3 py-2 text-xs text-[#0d1b2e] outline-none focus:border-[#1032DC] sm:max-w-[300px]" />
     </div>
     <p className="text-xs text-[#65748b]">
-      Cada módulo reúne Visualização e Ações. Desmarcar uma visualização também desmarca as ações que dependem dela.
+      Cada módulo reúne Visualização e Ações. Em Notificações, Visualizar controla a central e Receber controla os alertas. Desmarcar uma visualização também desmarca os direitos dependentes.
     </p>
     <div className="divide-y divide-[#0d1b2e]/10 border-y border-[#0d1b2e]/10">
       {groups.map(group => {
@@ -71,7 +71,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
               })).filter(section => section.permissions.length > 0);
               if (!sections.length) return null;
               return <div key={kind.key} className="border-t border-[#0d1b2e]/10 py-3">
-                <div className="mb-2 text-xs font-bold text-[#0d1b2e]">{kind.title}</div>
+                <div className="mb-2 text-xs font-bold text-[#0d1b2e]">{group.name === "Notificações" && kind.key === "actions" ? "Receber" : kind.title}</div>
                 {sections.map(section => <div key={section.name} className="py-2">
                   <div className="mb-1 text-[11px] font-semibold text-[#65748b]">{section.name}</div>
                   {section.name === "Tabela" && <p className="mb-1 text-[11px] text-[#65748b]">Acesso à tabela e colunas exibidas.</p>}
