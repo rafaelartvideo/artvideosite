@@ -808,6 +808,11 @@ export function TabProducts({
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
     if (variantRows.length) {
+      if (!canCreate || !canEdit) {
+        setEditorTab("relationships");
+        setToast({ msg: "Para salvar variações, seu acesso precisa permitir criar e editar produtos.", type: "error" });
+        return;
+      }
       const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantCandidates);
       const allowedLabels = new Set(expected.map(row => row.label));
       const skus = variantRows.map(row => row.sku.trim().toUpperCase());
