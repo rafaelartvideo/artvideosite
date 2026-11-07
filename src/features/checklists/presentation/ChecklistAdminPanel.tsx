@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -171,7 +172,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       <PageHeader title="Checklists" subtitle={`${profiles.length} checklist${profiles.length === 1 ? "" : "s"} cadastrado${profiles.length === 1 ? "" : "s"}`} />
       <AdminCard>
         {!profiles.length ? <div className="p-8"><EmptyState icon={ClipboardCheck} title="Nenhum checklist cadastrado" message="Crie o primeiro checklist para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." /></div> : <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto"><TopTableScrollbar />
             <table className="min-w-[980px]">
               <thead><tr><th className="text-left">Checklist</th><th className="text-left">Descrição</th><th className="text-left">Versão</th><th className="text-left">Equipamentos</th><th className="text-left">Etapas</th><th className="text-left">Itens</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
               <tbody>{pagedProfiles.map(profile => {
