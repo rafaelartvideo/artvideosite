@@ -1483,7 +1483,7 @@ export function TabProducts({
                 />
 
                 {/* Categoria/Marca na primeira linha; Modelo/Condição na segunda. */}
-                <div className="col-span-2 grid min-w-0 grid-cols-2 gap-3 sm:gap-4">
+                <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4">
                   <div className="flex min-w-0 items-end gap-2">
                     <div className="min-w-0 flex-1">
                       <FSelect label="Categoria" value={form.category_id} disabled={saving || !canLoadCategories}
