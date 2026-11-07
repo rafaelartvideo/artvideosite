@@ -160,7 +160,7 @@ export function PdvSaleWorkspace({
   const [search, setSearch] = useState("");
   const [productSort, setProductSort] = useState<"name_asc" | "name_desc" | "price_asc">("name_asc");
   const debouncedSearch = useDebouncedValue(search);
-  const [cart, setCart] = useState<CartItem[]>(() => (initialItems || []).map(item => ({
+  const [cart, setCart] = useState<CartItem[]>(() => (initialItems || []).map((item): CartItem => ({
     product: item.product,
     quantity: item.quantity,
     discount: "",
