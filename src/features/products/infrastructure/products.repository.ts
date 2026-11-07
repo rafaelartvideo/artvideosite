@@ -228,3 +228,24 @@ export async function listProductRelations(organizationId: string, productId: st
     ...row, stock: Number(row.stock || 0), price: row.price == null ? null : Number(row.price),
   }));
 }
+
+
+export type InventoryProductSearchRelation = {
+  product_id: string;
+  relation_type: string | null;
+  is_direct: boolean;
+};
+
+/** Pesquisa no estoque por nome/código expande variantes e referências nos dois sentidos. */
+export async function searchInventoryProductRelations(
+  organizationId: string,
+  search: string,
+): Promise<InventoryProductSearchRelation[]> {
+  const { data, error } = await supabase.rpc("search_inventory_product_relations_v2", {
+    p_organization_id: organizationId,
+    p_search: search.trim(),
+    p_limit: 200,
+  });
+  if (error) throw error;
+  return (data || []) as InventoryProductSearchRelation[];
+}
