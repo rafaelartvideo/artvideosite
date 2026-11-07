@@ -1482,7 +1482,7 @@ export function TabProducts({
                   placeholder="Código interno"
                 />
 
-                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-3">
+                <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4">
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
                     <FSelect
@@ -1536,9 +1536,6 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
                   placeholder="Modelo comercial"
                 />
-
-                </div>
-                <div className="min-w-0 sm:col-start-2">
                 <FSelect
                   label="Condição do produto"
                   value={form.product_condition}
