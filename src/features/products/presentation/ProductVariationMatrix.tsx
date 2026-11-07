@@ -122,7 +122,7 @@ export function ProductVariationMatrix({
   };
   const updateRow = (label: string, key: "sku" | "barcode" | "price" | "quantity", value: string) => {
     const apply = (row: VariantMatrixRow) => row.label === label ? { ...row, [key]: value } : row;
-    setCandidates(current => current.map(apply));
+    setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
   };
   const applyBulk = () => {
@@ -130,7 +130,7 @@ export function ProductVariationMatrix({
     const apply = (row: VariantMatrixRow) => selectedLabels.has(row.label)
       ? { ...row, price: bulkPrice !== "" ? bulkPrice : row.price, quantity: bulkStock !== "" ? bulkStock : row.quantity }
       : row;
-    setCandidates(current => current.map(apply));
+    setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
   };
   const canGenerate = !disabled && options.length > 0 && validNames && uniqueNames
