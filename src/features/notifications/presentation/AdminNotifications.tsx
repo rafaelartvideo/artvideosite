@@ -110,7 +110,7 @@ function NotificationRow({
   const visual = notificationVisual(notification);
   const ModuleIcon = visual.icon;
   const EventIcon = eventIcon(notification);
-  const unread = !notification.read_at;
+  const unread = notification.delivery_allowed !== false && !notification.read_at;
 
   return <div className={cn(
     "group relative flex w-full gap-2 border-b border-[#0d1b2e]/7 px-3.5 py-3.5 transition-colors last:border-b-0 hover:bg-[#f7f9fc] dark:border-border dark:hover:bg-muted/40",
@@ -218,7 +218,7 @@ export function AdminNotificationPanel({
           </div>
           <p className="mt-3 text-sm font-bold text-foreground">Nenhuma notificação</p>
           <p className="mt-1 max-w-[240px] text-xs leading-5 text-muted-foreground">
-            Criações e alterações dos módulos aparecerão aqui.
+            Atribuições, prazos e eventos relevantes autorizados aparecerão aqui.
           </p>
         </div>
       ) : (
