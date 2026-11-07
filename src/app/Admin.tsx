@@ -47,6 +47,7 @@ const TabFieldTracking = lazy(() => import("@/features/field-tracking/presentati
 const FieldTrackingReporter = lazy(() => import("@/features/field-tracking/presentation/FieldTrackingReporter").then(({ FieldTrackingReporter }) => ({ default: FieldTrackingReporter })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
 const TabPdv = lazy(() => import("@/features/pdv/presentation/TabPdv").then(({ TabPdv }) => ({ default: TabPdv })));
+const TabSales = lazy(() => import("@/features/sales/presentation/TabSales").then(({ TabSales }) => ({ default: TabSales })));
 const TabRoles = lazy(() => import("@/features/roles/presentation/TabRoles").then(({ TabRoles }) => ({ default: TabRoles })));
 const TabServices = lazy(() => import("@/features/services/presentation/TabServices").then(({ TabServices }) => ({ default: TabServices })));
 const ServiceTypesAdminPanel = lazy(() => import("@/features/service-types/presentation/ServiceTypesAdminPanel").then(({ ServiceTypesAdminPanel }) => ({ default: ServiceTypesAdminPanel })));
@@ -79,7 +80,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "management", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "serviceProviders", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "management", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "sales", "pdv", "finance", "siteRequests", "partnerCompanies", "serviceProviders", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -193,6 +194,7 @@ export function AdminDashboard({
     if (tab === "management") return isPlatformOperatorOrganization && !crmMode && (hasPermission("platform.management.view") || hasPermission("platform.management.manage"));
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
+    if (tab === "sales" && isPlatformOperatorOrganization && !crmMode) return false;
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
     if (tab === "integrations" && isPlatformOperatorOrganization && !crmMode) return hasPermission("organizations.view") || hasPermission("organizations.modules.manage");
@@ -233,7 +235,7 @@ export function AdminDashboard({
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "serviceProviders" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
+  const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "sales" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "serviceProviders" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
   const showCrmBackToolbar = crmMode
     && activeTab !== "crm"
     && !route.resourceId
@@ -622,6 +624,7 @@ export function AdminDashboard({
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
+            <Route path="sales/*" element={<TabSales key={activeOrganizationId || "none"} onOpenPdv={() => navigateAdmin("pdv")} />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="nfse/*" element={<Navigate to="/admin" replace />} />
