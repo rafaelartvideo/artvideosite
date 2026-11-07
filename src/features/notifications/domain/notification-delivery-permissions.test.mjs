@@ -13,8 +13,8 @@ test("auditoria de edicoes de OS e cadastro de cliente nao vira aviso geral", ()
   assert.match(migration, /notification_is_relevant_v1/);
   assert.match(migration, /p_recipient is not null/);
   assert.match(migration, /p_audit_id is null/);
-  assert.match(migration, /financial_settlements','pdv_sales','quote_requests','document_signatures'/);
-  assert.doesNotMatch(migration, /'service_orders','entities'/);
+  assert.match(migration, /service_orders','financial_settlements','pdv_sales','quote_requests','document_signatures'/);
+  assert.doesNotMatch(migration, /'entities','service_orders'/);
   assert.match(migration, /before insert on public\.organization_notifications/);
   assert.match(migration, /return null;/);
   assert.match(migration, /private\.notification_is_relevant_v1\(audit_log_id,recipient_user_id,entity_type,event_type\)/);
