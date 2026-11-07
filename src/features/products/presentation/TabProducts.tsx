@@ -79,8 +79,8 @@ import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLa
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/product-condition";
 import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
-import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
-import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
+import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
+import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
@@ -410,6 +410,9 @@ export function TabProducts({
   const [identifierKinds, setIdentifierKinds] = useState<ProductIdentifierKind[]>(["barcode"]);
   const [mobileScanTarget, setMobileScanTarget] = useState<ProductIdentifierKind>("barcode");
   const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
+  const [variantOptionsLoaded, setVariantOptionsLoaded] = useState(true);
+  const [hadSavedVariantOptions, setHadSavedVariantOptions] = useState(false);
+  const variantOptionsRequestRef = useRef(0);
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   // Mantém candidatos mesmo quando o usuário alterna entre Geral, Comercial e Relações.
   const [variantCandidates, setVariantCandidates] = useState<VariantMatrixRow[]>([]);
@@ -556,7 +559,10 @@ export function TabProducts({
     setLinkedSuppliers([]);
     setGalleryMedia([]);
     setEditorTab("general");
+    variantOptionsRequestRef.current += 1;
     setVariantOptions([]);
+    setVariantOptionsLoaded(true);
+    setHadSavedVariantOptions(false);
     setVariantRows([]);
     setVariantCandidates([]);
     setDrawerOpen(true);
@@ -680,9 +686,25 @@ export function TabProducts({
         .catch(() => setGalleryMedia([]));
     }
     setEditorTab("general");
+    const variantOptionsRequest = ++variantOptionsRequestRef.current;
     setVariantOptions([]);
+    setVariantOptionsLoaded(false);
+    setHadSavedVariantOptions(false);
     setVariantRows([]);
     setVariantCandidates([]);
+    if (activeOrganizationId) {
+      void listProductVariationOptions(activeOrganizationId, product.id)
+        .then(options => {
+          if (variantOptionsRequest !== variantOptionsRequestRef.current) return;
+          setVariantOptions(options);
+          setHadSavedVariantOptions(options.length > 0);
+          setVariantOptionsLoaded(true);
+        })
+        .catch(error => {
+          if (variantOptionsRequest !== variantOptionsRequestRef.current) return;
+          setToast({ msg: "Não foi possível carregar os atributos das variações: " + systemErrorMessage(error), type: "error" });
+        });
+    }
     setDrawerOpen(true);
   };
 
@@ -808,6 +830,16 @@ export function TabProducts({
   const handleSave = async () => {
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
+    if (!variantOptionsLoaded) {
+      setEditorTab("relationships");
+      setToast({ msg: "Os atributos das variações não foram carregados. Reabra o produto antes de salvar.", type: "error" });
+      return;
+    }
+    if (!validVariantOptions(variantOptions)) {
+      setEditorTab("relationships");
+      setToast({ msg: "Informe até cinco atributos válidos, sem nomes repetidos, com até 200 combinações.", type: "error" });
+      return;
+    }
     if (variantRows.length) {
       if (!canCreate || !canEdit) {
         setEditorTab("relationships");
@@ -820,7 +852,7 @@ export function TabProducts({
       const gtins = variantRows.map(row => row.barcode.trim().toUpperCase()).filter(Boolean);
       // A lista selecionada é um subconjunto das combinações geradas, não precisa conter todas.
       const valid = canCreate && canEdit
-        && expected.length === variantCandidates.length
+        && expected.length >= variantCandidates.length
         && variantRows.length <= MAX_ADDITIONAL_VARIATIONS
         && variantRows.every(row => allowedLabels.has(row.label)
           && row.label.length <= 100 && row.sku.trim().length > 0
@@ -962,6 +994,21 @@ export function TabProducts({
         });
         void refresh();
         return;
+      }
+
+      if (variantOptions.length || hadSavedVariantOptions) {
+        try {
+          await replaceProductVariationOptions(activeOrganizationId, savedProductId, variantOptions);
+          setHadSavedVariantOptions(variantOptions.length > 0);
+        } catch (configurationError) {
+          setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+          onRouteChange?.(savedProductId, "edit");
+          setEditorTab("relationships");
+          setToast({ msg: "Produto salvo, mas não foi possível salvar os atributos das variações: "
+            + systemErrorMessage(configurationError) + ". Revise e salve novamente.", type: "error" });
+          void refresh();
+          return;
+        }
       }
 
       if (variantRows.length) {
@@ -1625,6 +1672,7 @@ export function TabProducts({
             <div className="min-w-0 space-y-5">
               <ProductVariationMatrix
                 options={variantOptions} setOptions={setVariantOptions}
+                parentProductId={editItem?.id || null}
                 rows={variantRows} setRows={setVariantRows}
                 candidates={variantCandidates} setCandidates={setVariantCandidates}
                 defaultCondition={form.product_condition}
