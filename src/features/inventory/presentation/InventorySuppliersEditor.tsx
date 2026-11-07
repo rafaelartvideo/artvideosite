@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Link2, Trash2 } from "lucide-react";
+import { Link2, Plus, Trash2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { SupplierQuickCreateDialog } from "@/features/registrations/presentation/SupplierQuickCreateDialog";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
@@ -35,6 +38,9 @@ export function InventorySuppliersEditor({
   onChange: (suppliers: InventorySupplier[]) => void;
   disabled?: boolean;
 }) {
+  const { hasPermission } = useAuth();
+  const canCreateSupplier = hasPermission("customers.create");
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
   const [available, setAvailable] = useState<InventorySupplier[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [search, setSearch] = useState("");
@@ -104,7 +110,8 @@ export function InventorySuppliersEditor({
     onChange([...value, supplier]);
   };
 
-  return <AdminListSection
+  return <>
+  <AdminListSection
     title="Fornecedores"
     description="Vincule os fornecedores disponíveis a este item do estoque."
     count={loading ? undefined : totalItems}
@@ -113,6 +120,12 @@ export function InventorySuppliersEditor({
     searchValue={search}
     onSearchChange={setSearch}
     searchPlaceholder="Buscar por nome ou CPF/CNPJ"
+    searchAction={canCreateSupplier && !disabled ? <AdminButton
+      variant="primary" size="sm" type="button"
+      ariaLabel="Adicionar fornecedor"
+      className="h-10 w-10 shrink-0 !p-0"
+      onClick={() => setCreatingSupplier(true)}
+    ><Plus size={18}/></AdminButton> : undefined}
     loading={loading}
     loadingText="Carregando fornecedores..."
     error={error ? `Erro ao carregar fornecedores: ${error}` : undefined}
@@ -168,5 +181,16 @@ export function InventorySuppliersEditor({
         </div>
       </AdminListSectionRow>;
     })}
-  </AdminListSection>;
+  </AdminListSection>
+  {creatingSupplier && organizationId && <SupplierQuickCreateDialog
+    organizationId={organizationId}
+    onClose={() => setCreatingSupplier(false)}
+    onCreated={supplier => {
+      onChange(selectedIds.has(supplier.id) ? value : [...value, supplier]);
+      setSearch("");
+      setPage(1);
+      setAvailable(previous => [supplier, ...previous.filter(item => item.id !== supplier.id)]);
+    }}
+  />}
+  </>;
 }
