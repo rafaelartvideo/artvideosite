@@ -25,6 +25,16 @@ test("cadastro mostra variações e códigos relacionados em uma única seção,
   assert.ok(matrix.includes("Gerar combinações"));
   assert.ok(matrix.includes("combinations.slice(1)"), "A primeira combinação pertence ao produto principal");
   assert.ok(matrix.includes("Aplicar a todas"));
+  assert.ok(matrix.includes("MAX_VARIATION_ATTRIBUTES = 5"));
+  assert.ok(matrix.includes("MAX_VARIATION_CANDIDATES = 200"));
+  assert.ok(matrix.includes("MAX_ADDITIONAL_VARIATIONS = MAX_VARIATIONS_PER_PRODUCT - 1"));
+  assert.ok(matrix.includes("Mostrar só selecionadas"));
+  assert.ok(matrix.includes("Selecionar até"));
+  assert.ok(matrix.includes("setCandidates(prepared)"));
+  assert.ok(!matrix.includes("min-w-[760px]"));
+  assert.ok(ui.includes('label="Seção do cadastro"'));
+  assert.ok(ui.includes('className="space-y-3 border-b border-border pb-3 sm:hidden"'));
+  assert.ok(ui.includes("candidates={variantCandidates} setCandidates={setVariantCandidates}"));
 });
 
 test("similares têm tabela própria, permissão e isolamento entre empresas", () => {
@@ -48,6 +58,7 @@ test("criação em lote de variantes tem estoque próprio, é atômica e mantém
   assert.ok(sql.includes("insert into public.product_variation_links"));
   assert.ok(sql.includes("variation_attributes"));
   assert.ok(sql.includes("v_count>30"));
+  assert.ok(sql.includes("jsonb_object_keys(v_attributes))>5"));
   assert.ok(sql.includes("perform pg_advisory_xact_lock"));
   assert.ok(sql.includes("unique") || sql.includes("repetida"));
   assert.ok(sql.includes("Sem permissão"));
