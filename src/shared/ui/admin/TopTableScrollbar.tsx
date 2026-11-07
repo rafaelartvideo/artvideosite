@@ -36,7 +36,9 @@ export function TopTableScrollbar() {
       }
       const width = table ? Math.ceil(table.scrollWidth) : 0;
       const viewport = container.clientWidth;
-      const overflow = viewport > 0 && width > viewport + 2;
+      const overflowStyle = window.getComputedStyle(container).overflowX;
+      const canScroll = overflowStyle === "auto" || overflowStyle === "scroll";
+      const overflow = canScroll && viewport > 0 && width > viewport + 2;
       setContentWidth(width);
       setShow(overflow);
       if (!overflow) bar.scrollLeft = 0;
