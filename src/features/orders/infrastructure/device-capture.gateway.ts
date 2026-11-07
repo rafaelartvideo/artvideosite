@@ -84,8 +84,9 @@ export async function bindDeviceCaptureChecklist(sessionId: string, equipmentTyp
 export async function createDeviceCaptureSession(
   organizationId: string,
   equipmentTypeId?: string | null,
+  context: "order" | "product" = "order",
 ): Promise<DeviceCaptureSession> {
-  const data = await invoke({ action: "create", organization_id: organizationId });
+  const data = await invoke({ action: "create", organization_id: organizationId, context });
   const session = {
     id: String(data.session.id),
     token: String(data.session.token),
@@ -93,7 +94,7 @@ export async function createDeviceCaptureSession(
     expiresAt: String(data.session.expires_at),
   };
 
-  const linkedEquipmentTypeId = equipmentTypeId || getNewOrderEntryChecklistDraft()?.equipmentTypeId || null;
+  const linkedEquipmentTypeId = context === "product" ? null : equipmentTypeId || getNewOrderEntryChecklistDraft()?.equipmentTypeId || null;
   if (linkedEquipmentTypeId) await bindDeviceCaptureChecklist(session.id, linkedEquipmentTypeId);
   return session;
 }
