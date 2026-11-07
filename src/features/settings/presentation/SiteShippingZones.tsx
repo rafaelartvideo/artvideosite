@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Eraser, MapPin, Pencil, Search, Trash2 } from "lucide-react";
@@ -278,7 +279,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
         rows.length === 0 ? <EmptyState icon={MapPin}
           title={items.length === 0 ? "Nenhuma área de entrega cadastrada" : "Nenhuma regra encontrada"}
           message={items.length === 0 ? "Cadastre os CEPs e faixas atendidos para disponibilizar a entrega na loja." : "Altere os filtros para encontrar outras regras."} /> :
-        <div className="min-w-0 overflow-x-auto">
+        <div className="min-w-0 overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[760px] text-left">
             <thead><tr>
               <th className="text-left">Região / modalidade</th>
