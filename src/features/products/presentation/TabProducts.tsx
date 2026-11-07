@@ -73,7 +73,7 @@ import {
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
-import { ProductVariationMatrix, buildVariantMatrix, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
+import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
@@ -749,11 +749,15 @@ export function TabProducts({
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
     if (variantRows.length) {
-      const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantRows);
+      const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantCandidates);
+      const allowedLabels = new Set(expected.map(row => row.label));
       const skus = variantRows.map(row => row.sku.trim().toUpperCase());
       const gtins = variantRows.map(row => row.barcode.trim().toUpperCase()).filter(Boolean);
-      const valid = canCreate && canEdit && expected.length === variantRows.length
-        && variantRows.every((row, index) => row.label === expected[index]?.label
+      // A lista selecionada é um subconjunto das combinações geradas, não precisa conter todas.
+      const valid = canCreate && canEdit
+        && expected.length === variantCandidates.length
+        && variantRows.length <= MAX_ADDITIONAL_VARIATIONS
+        && variantRows.every(row => allowedLabels.has(row.label)
           && row.label.length <= 100 && row.sku.trim().length > 0
           && row.sku.trim().toUpperCase() !== form.sku.trim().toUpperCase()
           && (!row.barcode || /^[0-9A-Za-z._-]{4,32}$/.test(row.barcode.trim()))
