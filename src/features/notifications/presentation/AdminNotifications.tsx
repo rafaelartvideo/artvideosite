@@ -180,6 +180,20 @@ export function AdminNotificationPanel({
   onDismiss: (notification: AdminNotification) => void;
   onDismissAll: () => void;
 }) {
+  const [filter, setFilter] = useState<"all" | "personal" | "tasks" | "modules">("all");
+  const filters = [
+    { key: "all", label: "Todas" },
+    { key: "personal", label: "Para mim" },
+    { key: "tasks", label: "Tarefas" },
+    { key: "modules", label: "Módulos" },
+  ] as const;
+  const filteredNotifications = notifications.filter(notification => {
+    if (filter === "personal") return Boolean(notification.recipient_user_id);
+    if (filter === "tasks") return notification.module_key === "workItems";
+    if (filter === "modules") return !notification.recipient_user_id;
+    return true;
+  });
+
   return <div className="flex max-h-[430px] flex-col">
     <div className="flex items-center justify-between border-b border-[#0d1b2e]/8 px-3.5 py-2.5 dark:border-border">
       <div>
@@ -208,10 +222,25 @@ export function AdminNotificationPanel({
       </div>
     </div>
 
+    <div className="grid grid-cols-4 gap-1 border-b border-[#0d1b2e]/8 px-2 py-2 dark:border-border" role="tablist" aria-label="Filtrar notificações">
+      {filters.map(option => <button
+        key={option.key}
+        type="button"
+        role="tab"
+        aria-selected={filter === option.key}
+        onClick={() => setFilter(option.key)}
+        className={cn(
+          "min-w-0 rounded-md px-1.5 py-1.5 text-[10px] font-bold transition-colors",
+          filter === option.key
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >{option.label}</button>)}
+    </div>
     <div className="min-h-0 overflow-y-auto overscroll-contain">
       {loading ? (
         <div className="flex min-h-32 items-center justify-center px-3 py-5"><InlineLoading text="Carregando notificações..." /></div>
-      ) : notifications.length === 0 ? (
+      ) : filteredNotifications.length === 0 ? (
         <div className="flex flex-col items-center px-5 py-9 text-center">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3f6fa] text-[#8b99aa] dark:bg-muted dark:text-muted-foreground">
             <Bell size={19} />
@@ -222,7 +251,7 @@ export function AdminNotificationPanel({
           </p>
         </div>
       ) : (
-        notifications.map(notification => (
+        filteredNotifications.map(notification => (
           <NotificationRow
             key={notification.id}
             notification={notification}
