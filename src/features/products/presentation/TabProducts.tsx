@@ -79,7 +79,7 @@ import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLa
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/product-condition";
 import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
-import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
+import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_VARIATION_ATTRIBUTES, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
@@ -1667,7 +1667,27 @@ export function TabProducts({
 
 
           <TabsContent value="relationships" className="mt-0 w-full min-w-0 space-y-5">
-            <Section title="Criar atributos e variações" description="Defina atributos, gere as combinações disponíveis e vincule versões já cadastradas.">
+            <Section
+              title={<span className="inline-flex min-w-0 items-center gap-1.5">
+                Criar atributos e variações
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label="Ajuda sobre criar atributos e variações"
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                      <CircleHelp size={15} aria-hidden="true" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" sideOffset={6}
+                    className="z-[350] w-80 max-w-[calc(100vw-2rem)] text-xs font-normal normal-case leading-relaxed tracking-normal text-popover-foreground">
+                    Ex.: cor, voltagem, tamanho, acabamento ou modelo. Você pode informar apenas uma cor;
+                    ela identifica o produto principal. Outras versões são adicionadas quando existirem.
+                  </PopoverContent>
+                </Popover>
+              </span>}
+              actions={<span className="whitespace-nowrap text-sm font-extrabold text-foreground">
+                {variantOptions.length}/{MAX_VARIATION_ATTRIBUTES} atributos
+              </span>}
+            >
               <div className="min-w-0 space-y-5">
               <ProductVariationMatrix
                 options={variantOptions} setOptions={setVariantOptions}
@@ -1706,9 +1726,9 @@ export function TabProducts({
                       <Plus size={15} /> Adicionar código
                     </AdminButton>}>
               <div className="min-w-0 space-y-3">
-                  {!relatedCodesLoaded && <p className="text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
+                  {!relatedCodesLoaded && <p className="flex min-h-20 items-center justify-center text-center text-xs text-muted-foreground">Carregando referências cadastradas...</p>}
                   {relatedCodesLoaded && form.related_codes.length === 0 &&
-                    <p className="text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
+                    <p className="flex min-h-20 items-center justify-center text-center text-xs text-muted-foreground">Nenhum código relacionado cadastrado.</p>}
                   {form.related_codes.map((item, index) => <div key={index}
                     className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,245px)_42px]">
                     <div className="col-span-2 sm:col-span-1"><FInput label={`Código ${index + 1}`} value={item.code}
