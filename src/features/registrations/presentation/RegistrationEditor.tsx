@@ -158,8 +158,8 @@ export function RegistrationEditor({
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCnpj()} disabled={lookups.cnpjLoading}>Consultar</BtnSecondary>
             </div>
           </div>
-          <FInput label="Nome fantasia" required error={fieldErrors.trade_name} value={form.trade_name} onChange={(event: any) => { onClearFieldError("trade_name"); setForm(current => ({ ...current, trade_name: event.target.value })); }} />
-          <FInput label="Razão social" value={form.legal_name} onChange={(event: any) => setForm(current => ({ ...current, legal_name: event.target.value }))} />
+          <FInput label="Nome fantasia" required={!form.roles.includes("supplier")} error={fieldErrors.trade_name} value={form.trade_name} onChange={(event: any) => { onClearFieldError("trade_name"); setForm(current => ({ ...current, trade_name: event.target.value })); }} />
+          <FInput label="Razão social" required={form.roles.includes("supplier") && !form.trade_name.trim()} error={fieldErrors.legal_name} value={form.legal_name} onChange={(event: any) => { onClearFieldError("legal_name"); setForm(current => ({ ...current, legal_name: event.target.value })); }} />
           <FBrazilianDateInput label="Data de fundação" error={fieldErrors.foundation_date} value={form.foundation_date} onChange={(event: any) => { onClearFieldError("foundation_date"); setForm(current => ({ ...current, foundation_date: event.target.value })); }} />
           <FInput label="Inscrição estadual" value={form.state_registration} onChange={(event: any) => setForm(current => ({ ...current, state_registration: event.target.value }))} />
           <FInput label="Inscrição municipal" value={form.municipal_registration} onChange={(event: any) => setForm(current => ({ ...current, municipal_registration: event.target.value }))} />
