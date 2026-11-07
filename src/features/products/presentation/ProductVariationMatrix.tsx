@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Layers3, Plus, Search, Trash2, WandSparkles } from "lucide-react";
+import { PRODUCT_CONDITION_OPTIONS, productConditionLabel, type ProductCondition } from "../domain/product-condition";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 
 export const MAX_VARIATION_ATTRIBUTES = 5;
@@ -13,6 +14,7 @@ export type VariantMatrixRow = {
   attributes: Record<string, string>;
   sku: string;
   barcode: string;
+  product_condition: ProductCondition;
   price: string;
   quantity: string;
 };
@@ -35,7 +37,7 @@ export function countVariantCombinations(options: VariantOption[]): number {
 
 export function buildVariantMatrix(
   options: VariantOption[], baseSku: string, defaultPrice: string,
-  previous: VariantMatrixRow[] = [],
+  previous: VariantMatrixRow[] = [], defaultCondition: ProductCondition = "new",
 ): VariantMatrixRow[] {
   if (!options.length || options.length > MAX_VARIATION_ATTRIBUTES) return [];
   if (options.some(option => !option.name.trim() || !parseValues(option.values).length)) return [];
@@ -58,13 +60,13 @@ export function buildVariantMatrix(
     return prior || {
       label, attributes,
       sku: baseSku.trim() ? baseSku.trim() + "-" + String(index + 2).padStart(2, "0") : "",
-      barcode: "", price: defaultPrice, quantity: "0",
+      barcode: "", product_condition: defaultCondition, price: defaultPrice, quantity: "0",
     };
   });
 }
 
 export function ProductVariationMatrix({
-  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, disabled,
+  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, defaultCondition, disabled,
 }: {
   options: VariantOption[];
   setOptions: (value: VariantOption[]) => void;
@@ -74,6 +76,7 @@ export function ProductVariationMatrix({
   setCandidates: (value: VariantMatrixRow[]) => void;
   baseSku: string;
   defaultPrice: string;
+  defaultCondition: ProductCondition;
   disabled: boolean;
 }) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
@@ -107,7 +110,7 @@ export function ProductVariationMatrix({
     resetGenerated();
   };
   const generate = () => {
-    const prepared = buildVariantMatrix(options, baseSku, defaultPrice, candidates);
+    const prepared = buildVariantMatrix(options, baseSku, defaultPrice, candidates, defaultCondition);
     setCandidates(prepared);
     // Se houver muitas possibilidades, o usuário escolhe explicitamente quais existem.
     setRows(prepared.length <= MAX_ADDITIONAL_VARIATIONS ? prepared : []);
@@ -120,7 +123,7 @@ export function ProductVariationMatrix({
     if (next.size > MAX_ADDITIONAL_VARIATIONS) return;
     setRows(candidates.filter(row => next.has(row.label)));
   };
-  const updateRow = (label: string, key: "sku" | "barcode" | "price" | "quantity", value: string) => {
+  const updateRow = (label: string, key: "sku" | "barcode" | "product_condition" | "price" | "quantity", value: string) => {
     const apply = (row: VariantMatrixRow) => row.label === label ? { ...row, [key]: value } : row;
     setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
@@ -259,7 +262,7 @@ export function ProductVariationMatrix({
                 <span className="min-w-0 flex-1">
                   <span className="block break-words text-sm font-semibold text-foreground">{row.label}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {row.sku || "Sem SKU"} · R$ {row.price || "—"} · Saldo {row.quantity || "0"}
+                    {row.sku || "Sem SKU"} · {productConditionLabel(row.product_condition)} · R$ {row.price || "—"} · Saldo {row.quantity || "0"}
                   </span>
                 </span>
                 {expanded ? <ChevronUp size={17} className="shrink-0 text-muted-foreground"/> : <ChevronDown size={17} className="shrink-0 text-muted-foreground"/>}
@@ -273,6 +276,13 @@ export function ProductVariationMatrix({
               <label className="min-w-0 text-xs font-medium text-muted-foreground">GTIN (opcional)
                 <input aria-label={"GTIN de " + row.label} value={row.barcode} disabled={disabled}
                   onChange={event => updateRow(row.label, "barcode", event.target.value)} className={inputClass}/>
+              </label>
+              <label className="min-w-0 text-xs font-medium text-muted-foreground">Condição da variação
+                <select aria-label={"Condição de " + row.label} value={row.product_condition}
+                  disabled={disabled} onChange={event => updateRow(row.label, "product_condition", event.target.value as ProductCondition)}
+                  className={inputClass}>
+                  {PRODUCT_CONDITION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </label>
               <label className="min-w-0 text-xs font-medium text-muted-foreground">Preço (R$)
                 <input aria-label={"Preço de " + row.label} type="number" min="0" step="0.01" value={row.price} disabled={disabled}
