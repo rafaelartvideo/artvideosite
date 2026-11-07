@@ -303,3 +303,22 @@ export async function setOrderCommercialDiscount(
   if (error) throw error;
   return normalizePricing(data);
 }
+
+
+export type OrderRelatedProduct = OrderCompatibleProduct & {
+  relation_type: string;
+  matched_code: string | null;
+};
+
+/** Única fonte para relações por código, variações pai/filhos e vínculos antigos. */
+export async function listOrderRelatedProducts(serviceOrderId: string, sourceInventoryItemIds: string[]): Promise<OrderRelatedProduct[]> {
+  if (!serviceOrderId || !sourceInventoryItemIds.length) return [];
+  const { data, error } = await supabase.rpc("list_service_order_product_relations_v2", {
+    p_service_order_id: serviceOrderId,
+    p_source_inventory_ids: [...new Set(sourceInventoryItemIds)].slice(0, 30),
+  });
+  if (error) throw error;
+  return ((data || []) as OrderRelatedProduct[]).map(item => ({
+    ...item, stock: numberValue(item.stock), price: item.price == null ? null : numberValue(item.price),
+  }));
+}
