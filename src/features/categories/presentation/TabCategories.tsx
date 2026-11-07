@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, FolderTree, Package, Plus, Trash2, Wrench } from "lucide-react";
@@ -251,7 +252,7 @@ export function TabCategories({
           ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada"
               message={`Crie categorias para organizar os ${label} do site.`}
               onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" />
-          : <><div className="overflow-x-auto">
+          : <><div className="overflow-x-auto"><TopTableScrollbar />
               <table className="min-w-[570px]">
                 <thead><tr>
                   {showName && <th className="text-left">Categoria</th>}
