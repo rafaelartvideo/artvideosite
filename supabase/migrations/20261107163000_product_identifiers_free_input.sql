@@ -35,8 +35,7 @@ from signals src
 join sources selected on selected.id=src.product_id
 join signals dst on dst.code=src.code and dst.product_id<>src.product_id
 where (src.is_similar_code or dst.is_similar_code);
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION private.find_product_relations_v2(p_organization_id uuid, p_source_ids uuid[])
  RETURNS TABLE(source_product_id uuid, product_id uuid, relation_type text, matched_code text)
@@ -135,8 +134,7 @@ order by r.source_product_id,r.product_id,
    when 'generic' then 4 when 'original' then 5
    when 'similar' then 6 else 7 end,
  r.matched_code nulls last;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.save_inventory_item_unified_v6(p_organization_id uuid, p_product_id uuid, p_product jsonb, p_inventory jsonb, p_initial_quantity numeric DEFAULT 0, p_initial_unit_cost numeric DEFAULT NULL::numeric)
  RETURNS uuid
@@ -184,8 +182,7 @@ begin
   perform set_config('app.inventory_sale_window_days','',true);
   return v_product_id;
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.search_inventory_product_relations_v2(p_organization_id uuid, p_search text, p_limit integer DEFAULT 100)
  RETURNS TABLE(product_id uuid, relation_type text, is_direct boolean)
@@ -236,8 +233,7 @@ begin
  group by h.pid
  order by bool_or(h.direct) desc,h.pid limit v_limit;
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.search_pdv_products_v1(p_organization_id uuid, p_search text DEFAULT ''::text, p_limit integer DEFAULT 30)
  RETURNS TABLE(product_id uuid, inventory_item_id uuid, name text, sku text, barcode text, price numeric, cover_media_id uuid, quantity numeric, min_quantity numeric, unit text, conversion_factor integer)
@@ -285,8 +281,7 @@ begin
  order by r.priority,case when p.barcode=v_search and v_search<>'' then 0 else 1 end,p.name,p.id
  limit v_limit;
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.search_service_order_products_v1(p_service_order_id uuid, p_search text DEFAULT ''::text, p_limit integer DEFAULT 20)
  RETURNS TABLE(id uuid, name text, description text, unit text, price numeric, stock numeric, price_at_completion boolean)
@@ -344,6 +339,6 @@ begin
  order by r.priority,case when v_search<>'' and lower(i.name) like v_search||'%' then 0 else 1 end,i.name,i.id
  limit v_limit;
 end;
-$function$
+$function$;
 
 commit;
