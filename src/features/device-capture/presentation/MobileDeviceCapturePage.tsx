@@ -293,6 +293,40 @@ export function MobileDeviceCapturePage() {
     });
   }, [pairing?.sessionId, connectionState, captureContext]);
 
+  // O Realtime pode não publicar alterações para um celular sem login no CRM.
+  // Consultar o estado da sessão garante atualização bidirecional mesmo sem esse canal.
+  useEffect(() => {
+    if (!pairing || connectionState !== "connected") return;
+    let cancelled = false;
+    let busy = false;
+    const refreshPhotoState = async () => {
+      if (busy || document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        const state = await connectDeviceCaptureSession(pairing.sessionId, pairing.token);
+        if (cancelled) return;
+        if (state.capture_context === "product") {
+          setPhotoCount(Number(state.photo_count || 0));
+          setHasCover(Boolean(state.has_cover));
+        }
+      } catch (refreshError) {
+        if (cancelled) return;
+        setConnectionState("expired");
+        setNotice({ text: refreshError instanceof Error ? refreshError.message : "A conexão foi encerrada.", type: "error" });
+      } finally {
+        busy = false;
+      }
+    };
+    const interval = window.setInterval(() => { void refreshPhotoState(); }, 5000);
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshPhotoState(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [pairing?.sessionId, pairing?.token, connectionState]);
+
   useEffect(() => {
     if (!pairing || !expiresAt || connectionState === "expired") return;
     const expiresAtMs = Date.parse(expiresAt);
