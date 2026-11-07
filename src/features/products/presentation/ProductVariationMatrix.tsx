@@ -169,12 +169,13 @@ export function ProductVariationMatrix({
           <Trash2 size={16}/>
         </AdminIconButton>
       </div>)}
-      <div className="flex flex-wrap items-center gap-2">
-        {options.length < MAX_VARIATION_ATTRIBUTES && <AdminButton variant="secondary" size="sm" disabled={disabled}
+      <div className="grid min-w-0 grid-cols-2 gap-2">
+        {options.length < MAX_VARIATION_ATTRIBUTES && <AdminButton variant="secondary" size="sm" className="w-full" disabled={disabled}
           onClick={() => { setOptions([...options, { name: "", values: "" }]); resetGenerated(); }}>
           <Plus size={15}/>Adicionar atributo
         </AdminButton>}
-        <AdminButton size="sm" disabled={!canGenerate} onClick={generate}>
+        <AdminButton size="sm" className={options.length < MAX_VARIATION_ATTRIBUTES ? "w-full" : "col-span-2 w-full"}
+          disabled={!canGenerate} onClick={generate}>
           <WandSparkles size={15}/>Gerar combinações
         </AdminButton>
       </div>
