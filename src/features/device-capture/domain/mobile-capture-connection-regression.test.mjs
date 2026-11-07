@@ -34,6 +34,10 @@ test("produto permite capturar somente a capa por câmera ou galeria com contado
   assert.ok(migration.includes("add column if not exists product_photo_count"));
   assert.ok(migration.includes("add column if not exists product_has_cover"));
   assert.ok(editor.includes("productPhotoCount={galleryPhotoCount}"));
+  assert.ok(editor.includes('key={`product-capture-${editItem?.id || "new"}`}'), "Cada produto precisa de sessão de captura isolada");
+  assert.ok(editor.includes("onPhoto={(file, kind) => handleProductMobilePhoto(file, kind)}"), "Deve aguardar o upload real");
+  const bridge = read("src/features/orders/presentation/DeviceCaptureBridge.tsx");
+  assert.ok(bridge.includes("await onPhoto(file, event.kind)"), "A ordem de eventos deve aguardar o processamento");
   assert.ok(editor.includes("productHasCover={Boolean(form.cover_media_id)}"));
   assert.ok(editor.includes('setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId))'));
 });
