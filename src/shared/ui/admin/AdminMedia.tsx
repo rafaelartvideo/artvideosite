@@ -47,12 +47,12 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     onRemove();
     notifyAdmin("Imagem desvinculada. Clique em Salvar para confirmar.", "success");
   };
-  return <div className={coverFill ? "flex h-full min-h-0 w-full min-w-0 flex-col" : undefined}>
+  return <div className={coverFill ? "flex w-full min-w-0 flex-col" : undefined}>
     <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{label}</label>
     {coverFill
-      ? <div className="mb-2 flex min-h-20 w-full min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/40 p-1.5">
+      ? <div className="mb-2 flex h-32 max-h-32 w-full min-w-0 flex-none items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/40 p-1.5 sm:h-36 sm:max-h-36">
           {displayUrl
-            ? <img src={displayUrl} alt="Foto de capa do produto" className="h-full min-h-0 w-full object-contain" />
+            ? <img src={displayUrl} alt="Foto de capa do produto" className="block h-full max-h-full w-full max-w-full object-contain" />
             : <ImageIcon size={23} aria-label="Sem foto de capa" className="text-muted-foreground/60" />}
         </div>
       : displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
