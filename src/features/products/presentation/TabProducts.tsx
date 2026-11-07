@@ -1519,11 +1519,9 @@ export function TabProducts({
                   }}
                   onRemove={kind => {
                     setForm(current => ({ ...current, [kind]: "" }));
-                    setIdentifierKinds(current => {
-                      const remaining = current.filter(item => item !== kind);
-                      setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
-                      return remaining.length ? remaining : ["barcode"];
-                    });
+                    const remaining = identifierKinds.filter(item => item !== kind);
+                    setIdentifierKinds(remaining.length ? remaining : ["barcode"]);
+                    setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
                   }}
                 />
 
