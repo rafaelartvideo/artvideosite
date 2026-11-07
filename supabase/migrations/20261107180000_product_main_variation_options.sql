@@ -118,7 +118,11 @@ begin
     -- A primeira opção é representada pelo estoque do produto principal.
     -- Usar o primeiro valor digitado, não a ordenação do array de validação.
     v_first := v_first || jsonb_build_object(
-      v_name, btrim((regexp_split_to_array(v_raw, E'[,;\n]'))[1])
+      v_name, (
+        select btrim(piece) from regexp_split_to_table(v_raw, E'[,;\n]')
+          with ordinality as tokens(piece, position)
+        where btrim(piece) <> '' order by position limit 1
+      )
     );
     v_combinations := v_combinations * cardinality(v_values);
     if v_combinations > 200 then
@@ -145,7 +149,11 @@ begin
         v_name := btrim(coalesce(v_item->>'name',''));
         v_raw := coalesce(v_item->>'values','');
         v_previous_first := v_previous_first || jsonb_build_object(
-          v_name, btrim((regexp_split_to_array(v_raw, E'[,;\n]'))[1])
+          v_name, (
+            select btrim(piece) from regexp_split_to_table(v_raw, E'[,;\n]')
+              with ordinality as tokens(piece, position)
+            where btrim(piece) <> '' order by position limit 1
+          )
         );
       end loop;
       if v_first <> v_previous_first then
