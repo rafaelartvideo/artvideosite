@@ -16,7 +16,9 @@ test("códigos relacionados e vínculos manuais geram compatibilidades no mesmo 
     ["ProductManualCompatibilityEditor.tsx",manual],
   ]) assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
   assert.ok(editor.includes("validateTypedRelatedCodes(form.related_codes, form.manufacturer_code)"));
-  assert.ok(editor.includes("<ProductAutoCompatibilityPreview"));
+  assert.ok(!editor.includes("<ProductAutoCompatibilityPreview"));
+  assert.ok(!editor.includes("<ProductSimilarProductsEditor"));
+  assert.ok(editor.includes("Códigos relacionados"));
   assert.ok(editor.includes("products={products}"));
   assert.ok(editor.includes("canEdit={canEdit}"));
   assert.ok(preview.includes("Produtos compatíveis"));
