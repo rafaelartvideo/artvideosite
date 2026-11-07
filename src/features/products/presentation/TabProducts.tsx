@@ -470,9 +470,10 @@ export function TabProducts({
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
-    queryClient.invalidateQueries({ queryKey: ["products", "automatic-compatibilities"] }),
-    queryClient.invalidateQueries({ queryKey: ["pdv", "compatible-products"] }),
-    queryClient.invalidateQueries({ queryKey: ["orders", "auto-compatible"] }),
+    queryClient.invalidateQueries({ queryKey: ["products", "relations-detail"] }),
+    queryClient.invalidateQueries({ queryKey: ["products", "related-codes-detail"] }),
+    queryClient.invalidateQueries({ queryKey: ["pdv", "related-products"] }),
+    queryClient.invalidateQueries({ queryKey: ["orders", "related-products"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.products() }),
@@ -2078,7 +2079,6 @@ export function TabProducts({
 
     {activeDetailsProduct && activeOrganizationId && <InventoryProductDetailsDialog
       product={activeDetailsProduct}
-      allProducts={products}
       organizationId={activeOrganizationId}
       canEdit={canEdit && canViewDetails}
       canMove={canCreateMovements}
