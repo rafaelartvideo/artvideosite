@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Database, PackagePlus, Settings2, SlidersHorizontal } from "lucide-react";
@@ -615,7 +616,7 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
         </div>
         {canManage && <AdminButton size="sm" onClick={openNewAddon}><PackagePlus size={14} /> Novo add-on</AdminButton>}
       </AdminCardHeader>
-      {config.addons.length ? <div className="overflow-x-auto">
+      {config.addons.length ? <div className="overflow-x-auto"><TopTableScrollbar />
         <table className="min-w-[900px]">
           <thead><tr><th className="text-left">Add-on</th><th className="text-left">Código</th><th className="text-left">Cobrança</th><th className="text-left">Valor</th><th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead>
           <tbody>{config.addons.map(addon => <tr key={addon.id}>
@@ -637,7 +638,7 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
           <p className="mt-1 text-xs text-muted-foreground">Adicione extras e exceções sem alterar o plano-base.</p>
         </div>
       </AdminCardHeader>
-      {financeData.subscriptions.length ? <div className="overflow-x-auto">
+      {financeData.subscriptions.length ? <div className="overflow-x-auto"><TopTableScrollbar />
         <table className="min-w-[920px]">
           <thead><tr><th className="text-left">Empresa</th><th className="text-left">Plano</th><th className="text-left">Add-ons ativos</th><th className="text-left">Exceções</th><th className="text-right">Ações</th></tr></thead>
           <tbody>{financeData.subscriptions.map(subscription => {
