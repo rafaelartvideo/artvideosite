@@ -37,7 +37,12 @@ test("produto permite capturar somente a capa por câmera ou galeria com contado
   assert.ok(editor.includes('key={`product-capture-${editItem?.id || "new"}`}'), "Cada produto precisa de sessão de captura isolada");
   assert.ok(editor.includes("onPhoto={(file, kind) => handleProductMobilePhoto(file, kind)}"), "Deve aguardar o upload real");
   const bridge = read("src/features/orders/presentation/DeviceCaptureBridge.tsx");
-  assert.ok(bridge.includes("await onPhoto(file, event.kind)"), "A ordem de eventos deve aguardar o processamento");
+  assert.ok(bridge.includes("await onPhotoRef.current(file, event.kind)"), "A ordem de eventos deve aguardar o processamento");
+  assert.ok(bridge.includes("onPhotoRef.current = onPhoto"));
+  assert.ok(bridge.includes("onSerialRef.current = onSerial"));
+  assert.ok(!bridge.includes("context, onPhoto, onSerial]"), "Receber foto não deve recriar a assinatura Realtime");
+  assert.ok(editor.includes("sm:items-start"), "A capa não deve esticar com o textarea");
+  assert.ok(editor.includes("throw error;"), "Falha real no upload não pode contar como foto recebida");
   assert.ok(editor.includes("productHasCover={Boolean(form.cover_media_id)}"));
   assert.ok(editor.includes('setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId))'));
 });
@@ -64,6 +69,10 @@ test("todos os modais Usar celular fecham ao conectar, bolinha verde pulsante e 
     assert.ok(source.includes('loading={ending} loadingText="Encerrando..."'), file);
     assert.ok(source.includes("setOpen(true);") && source.includes("setError(closeError instanceof Error"), file);
     const codeRow = source.indexOf('border-[#0057e7]/20 bg-[#eef5ff]');
+    const codeMarkup = source.slice(codeRow - 80, codeRow + 1400);
+    assert.ok(codeMarkup.includes('flex min-w-0 items-center gap-2'), "Código e encerramento devem compartilhar uma row: " + file);
+    assert.ok(!codeMarkup.includes("flex-wrap items-center justify-between"), "Código e encerramento não devem quebrar de linha: " + file);
+
     const endButton = source.indexOf('onClick={() => void endSession()}', codeRow);
     assert.ok(endButton > codeRow && endButton < codeRow + 1300, "Encerrar ao lado do código: " + file);
   }
