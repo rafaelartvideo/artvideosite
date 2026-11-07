@@ -56,3 +56,34 @@ test("foto de capa mostra Câmera ao lado de Adicionar com o mesmo upload", asyn
   assert.ok(media.includes('uploadMediaFile(bucket, file, organizationId)'));
   assert.ok(media.includes('<Camera size={14} /> Câmera'));
 });
+
+test("ajuda contextual substitui mensagens redundantes e avisa atributo duplicado sob seu input", async () => {
+  const page = read("src/features/products/presentation/TabProducts.tsx");
+  const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
+  const variations = read("src/features/products/presentation/ProductVariationsEditor.tsx");
+  for (const [name, source] of [
+    ["TabProducts.tsx", page],
+    ["ProductVariationMatrix.tsx", matrix],
+    ["ProductVariationsEditor.tsx", variations],
+  ]) assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+
+  assert.ok(page.includes('aria-label="Ajuda sobre criar atributos e variações"'));
+  assert.ok(page.includes('Ex.: cor, voltagem, tamanho, acabamento ou modelo.'));
+  assert.ok(page.includes('{variantOptions.length}/{MAX_VARIATION_ATTRIBUTES} atributos'));
+  assert.ok(matrix.includes('<AttributeFieldHelp field="nome do atributo"'));
+  assert.ok(matrix.includes("Não repita nomes de atributos no mesmo produto."));
+  assert.ok(matrix.includes('<AttributeFieldHelp field="valores do atributo"'));
+  assert.ok(matrix.includes("Preencha todos os nomes e valores antes de gerar combinações."));
+  assert.ok(matrix.includes('const duplicateName = Boolean(normalizedName)'));
+  assert.ok(matrix.includes('aria-invalid={duplicateName}'));
+  assert.ok(matrix.includes('duplicateName && <p role="alert"'));
+  assert.ok(!matrix.includes("Adicione um atributo com valores para gerar combinações."));
+  assert.ok(!matrix.includes("Preencha o nome e pelo menos um valor de cada atributo."));
+  assert.ok(!matrix.includes("0 combinações possíveis"));
+  assert.ok(!matrix.includes("até {availableSlots} adicionais, mais o produto principal."));
+  assert.ok(!matrix.includes("Preencha todos os nomes e valores e não repita nomes de atributos."));
+  assert.ok(variations.includes("Nenhuma variação vinculada ainda."));
+  assert.ok(variations.includes("min-h-20 items-center justify-center text-center"));
+  assert.ok(page.includes("Nenhum código relacionado cadastrado."));
+  assert.ok(page.includes('min-h-20 items-center justify-center text-center'));
+});
