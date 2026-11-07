@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1216,7 +1217,7 @@ export function TabProducts({
             title={hasInventoryFilters ? "Nenhum resultado" : "Nenhum item cadastrado"}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto"><TopTableScrollbar />
             <table className="min-w-[850px]">
               <thead>
                 <tr>
