@@ -175,7 +175,7 @@ export async function uploadDeviceCapturePhoto(
   const { data, error } = await supabase.functions.invoke("device-capture", { body });
   if (error) throw new Error("Não foi possível enviar a foto.");
   if (!data?.success) throw new Error(data?.error || "Não foi possível enviar a foto.");
-  return { photoCount: Number(data.photo_count || 0) };
+  return { photoCount: Number(data.photo_count || 0), hasCover: Boolean(data.has_cover) };
 }
 
 export async function getDeviceEntryChecklist(sessionId: string, token: string): Promise<DeviceEntryChecklist | null> {
