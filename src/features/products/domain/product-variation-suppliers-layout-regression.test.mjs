@@ -5,7 +5,7 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Geral alinha nome e SKU, categoria/marca/modelo e condição sem títulos redundantes", async () => {
+test("Geral alinha nome e SKU, categoria/marca e modelo/condição em duas linhas", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
   const layout = page.slice(page.indexOf('<TabsContent value="general"'),page.indexOf('<TabsContent value="commercial"'));
@@ -21,8 +21,8 @@ test("Geral alinha nome e SKU, categoria/marca/modelo e condição sem títulos 
   const codes = layout.indexOf('<ProductIdentifiersEditor');
   assert.ok(name >= 0 && sku > name && category > sku && brand > category && model > brand);
   assert.ok(condition > model && codes > condition);
-  assert.ok(layout.includes('sm:col-span-2 sm:grid-cols-3'));
-  assert.ok(layout.includes('sm:col-start-2'));
+  assert.ok(layout.includes('grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4'));
+  assert.ok(!layout.includes('sm:col-span-2 sm:grid-cols-3'), "Não devem existir três campos na mesma linha");
   assert.ok(!identifiers.includes('<h3 className="text-sm font-semibold text-foreground">Códigos de identificação</h3>'));
   assert.ok(!identifiers.includes("Opcional. Escolha o tipo"));
   assert.ok(layout.includes('label="Descrição"'),"A descrição real do produto permanece");
@@ -38,13 +38,15 @@ test("toolbar deixa Usar celular à direita sem dropdown de GTIN/MPN", () => {
   assert.ok(page.includes('setMobileScanTarget(kind)'));
 });
 
-test("combinações explicam por que gerador está desabilitado e podem ser geradas como prévia", async () => {
+test("combinações permitem o valor único como produto principal e bloqueiam dados inválidos", async () => {
   const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
   const page = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(matrix,"ProductVariationMatrix.tsx",{loader:"tsx"})).code);
-  assert.ok(matrix.includes('count > 1 && count <= MAX_VARIATION_CANDIDATES'));
+  assert.ok(matrix.includes('count >= 1 && count <= MAX_VARIATION_CANDIDATES'));
   assert.ok(matrix.includes('generateDisabledReason'));
-  assert.ok(matrix.includes('Informe pelo menos dois valores'));
+  assert.ok(matrix.includes('Confirmar versão principal'));
+  assert.ok(matrix.includes('A única combinação pertence ao produto principal'));
+  assert.ok(!matrix.includes('Informe pelo menos dois valores'));
   assert.ok(page.includes('defaultCondition={form.product_condition}'));
   assert.ok(page.includes('disabled={saving}'),"Gerador não deve exigir permissão de editar para prévia");
 });
