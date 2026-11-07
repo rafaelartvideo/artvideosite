@@ -18,7 +18,6 @@ export function VariantSupplierPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const ids = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
-  const selectedKey = value.map(supplier => supplier.id).join(",");
 
   useEffect(() => {
     if (!organizationId) { setResults([]); return; }
@@ -39,7 +38,7 @@ export function VariantSupplierPicker({
       }
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [organizationId, search, selectedKey]);
+  }, [organizationId, search]);
 
   return <div className="min-w-0 space-y-2 rounded-lg border border-border bg-background p-3">
     <div className="flex flex-wrap gap-1.5">
