@@ -72,6 +72,7 @@ import {
   type InventorySupplier,
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
+import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptureBridge";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
@@ -406,6 +407,7 @@ export function TabProducts({
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
   const [identifierKinds, setIdentifierKinds] = useState<ProductIdentifierKind[]>(["barcode"]);
+  const [mobileScanTarget, setMobileScanTarget] = useState<ProductIdentifierKind>("barcode");
   const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   // Mantém candidatos mesmo quando o usuário alterna entre Geral, Comercial e Relações.
@@ -447,6 +449,41 @@ export function TabProducts({
   const galleryPhotoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
   const canEditGallery = !saving && !galleryUploading && (editItem ? canEdit : canCreate);
   const canAddGalleryPhoto = canEditGallery && galleryPhotoCount < 4;
+
+  const handleProductMobileCode = (value: string) => {
+    if (!value.trim() || saving) return;
+    setIdentifierKinds(current => current.includes(mobileScanTarget) ? current : [...current, mobileScanTarget]);
+    setForm(current => ({ ...current, [mobileScanTarget]: value.trim() }));
+    setToast({ msg: "Código recebido pelo celular. Revise antes de salvar.", type: "success" });
+  };
+
+  const handleProductMobilePhoto = async (file: File, kind: "label" | "equipment") => {
+    if (!activeOrganizationId || !canEditGallery) return;
+    if (kind !== "label" && galleryPhotoCount >= 4) {
+      setToast({ msg: "Limite de 4 fotos por produto. Remova uma foto antes de adicionar outra.", type: "error" });
+      return;
+    }
+    setGalleryUploading(true);
+    try {
+      const mediaId = await uploadMediaFile("product-images", file, activeOrganizationId);
+      const image = await resolveProductMediaImage(activeOrganizationId, mediaId);
+      setGalleryMedia(current => {
+        const next = kind === "label"
+          ? current.filter(entry => entry.media_id !== form.cover_media_id)
+          : current;
+        return next.some(entry => entry.media_id === mediaId) ? next : [...next, image];
+      });
+      setForm(current => ({
+        ...current,
+        cover_media_id: kind === "label" ? mediaId : (current.cover_media_id || mediaId),
+      }));
+      setToast({ msg: kind === "label" ? "Foto da capa recebida. Salve para confirmar." : "Foto adicionada à galeria. Salve para confirmar.", type: "success" });
+    } catch (error) {
+      setToast({ msg: "Não foi possível receber a foto do celular: " + systemErrorMessage(error), type: "error" });
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
 
   const handleGalleryUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
@@ -511,6 +548,7 @@ export function TabProducts({
     setFieldErrors({});
     setForm(emptyForm());
     setIdentifierKinds(["barcode"]);
+    setMobileScanTarget("barcode");
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
     setEditItem(null);
@@ -532,6 +570,7 @@ export function TabProducts({
 
     setFieldErrors({});
     setIdentifierKinds(visibleProductIdentifierKinds(product));
+    setMobileScanTarget(visibleProductIdentifierKinds(product)[0]);
     setForm({
       name: product.name || "",
       sku: product.sku || inventory?.sku || "",
@@ -2118,6 +2157,26 @@ export function TabProducts({
       </Tabs>
 
       <AdminStickyToolbar className="z-10 justify-end">
+        {(editItem ? canEdit : canCreate) && <div className="hidden min-w-0 items-center gap-2 md:flex">
+          <select
+            aria-label="Tipo do código lido no celular"
+            title="Para qual campo enviar o código escaneado"
+            value={mobileScanTarget}
+            disabled={saving || galleryUploading}
+            onChange={event => setMobileScanTarget(event.target.value as ProductIdentifierKind)}
+            className="h-9 min-w-0 max-w-40 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="barcode">GTIN / barras</option>
+            <option value="manufacturer_code">Fabricante / MPN</option>
+            <option value="internal_barcode">Barras interno</option>
+          </select>
+          <DeviceCaptureBridge
+            context="product"
+            disabled={saving || galleryUploading}
+            onSerial={handleProductMobileCode}
+            onPhoto={(file, kind) => { void handleProductMobilePhoto(file, kind); }}
+          />
+        </div>}
         <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
