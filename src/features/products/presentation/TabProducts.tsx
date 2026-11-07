@@ -1503,6 +1503,7 @@ export function TabProducts({
                   }}
                   disabled={saving}
                   onChange={(kind, value) => { setMobileScanTarget(kind); setForm(current => ({ ...current, [kind]: value })); }}
+                  onSelect={setMobileScanTarget}
                   onSwitch={(from, to) => {
                     if (from === to || identifierKinds.includes(to)) return;
                     setForm(current => ({
