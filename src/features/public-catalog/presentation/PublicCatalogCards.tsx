@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Package, ShoppingCart, Plus } from "lucide-re
 import { addStoreCartItem } from "@/features/public-store/application/store-cart";
 import { CartAddToast } from "@/features/public-store/presentation/CartAddToast";
 import { ProductFavoriteButton } from "@/features/customer-account/presentation/SiteProductFavoriteButton";
+import { productConditionLabel } from "@/features/products/domain/product-condition";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -55,6 +56,7 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
         </div> : <Package size={49} strokeWidth={1.35} className="text-[#b2c8e5]"/>}
     </button>
     </div>
+    {product.product_condition && <span className="mt-2 inline-flex w-fit rounded-md border border-[#dce6f3] bg-[#f4f8ff] px-2 py-0.5 text-[10px] font-semibold text-[#28538b]">{productConditionLabel(product.product_condition)}</span>}
     <h3 className="mt-3 line-clamp-2 min-h-[42px] text-[13px] font-extrabold leading-[1.43] tracking-[-.025em] text-[#0c1a32]">{product.name}</h3>
     <div className="mt-2 mb-3">
       {hasDiscount && <p className="text-[12px] text-[#8798ab] line-through">{formatCurrency(oldPrice)}</p>}
