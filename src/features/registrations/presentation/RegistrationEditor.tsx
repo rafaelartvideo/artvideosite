@@ -3,7 +3,7 @@ import { useLocation } from "react-router";
 import { Building2, Users, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
-import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
   FBrazilianDateInput,
   FCnpjInput,
@@ -68,6 +68,7 @@ export function RegistrationEditor({
   onClose,
   onToggleRole,
   employeeOnly = false,
+  supplierQuickCreate = false,
 }: {
   creating: boolean;
   form: RegistrationFormState;
@@ -94,6 +95,7 @@ export function RegistrationEditor({
   onClose: () => void;
   onToggleRole: (role: RegistrationRole) => void;
   employeeOnly?: boolean;
+  supplierQuickCreate?: boolean;
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
   const location = useLocation();
@@ -103,16 +105,7 @@ export function RegistrationEditor({
   const canManageEmployeeSignature = hasPermission("registrations.employee_signature.manage");
   const fieldTrackingAvailable = hasModule("field_tracking");
 
-  return <AdminPage
-    open
-    onClose={onClose}
-    breadcrumb={employeeOnly ? "Usuários" : "Cadastros"}
-    title={creating ? (employeeOnly ? "Novo usuário" : "Novo cadastro") : registrationDisplayName(form) || (employeeOnly ? "Editar usuário" : "Editar cadastro")}
-    subtitle={creating
-      ? (employeeOnly ? "Cadastre um funcionário e configure seu acesso à Union World." : "Cadastre uma pessoa ou empresa e defina seus vínculos.")
-      : (employeeOnly ? "Atualize os dados do funcionário e seu acesso ao sistema." : "Atualize dados pessoais, endereços, serviços prestados e acessos quando permitido.")}
-    maxW="max-w-6xl"
-  >
+  const editorBody = <>
     <div className="space-y-5 p-4 sm:p-5">
       {!employeeOnly && (
         <Section title="Tipo e vínculos">
@@ -124,13 +117,13 @@ export function RegistrationEditor({
               <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
+          {!supplierQuickCreate && <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
             return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
               <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span>
             </button>;
-          })}</div>
+          })}</div>}
           {fieldErrors.roles && <p className="mt-2 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.roles}</p>}
         </Section>
       )}
@@ -227,10 +220,34 @@ export function RegistrationEditor({
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
     </div>
+  </>;
 
-    <AdminStickyToolbar className="flex-wrap justify-end gap-2">
-      <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-      <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
-    </AdminStickyToolbar>
+  const editorActions = <>
+    <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+    <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
+  </>;
+
+  if (supplierQuickCreate) return <AdminDialog
+    open
+    onClose={onClose}
+    title="Novo fornecedor"
+    description="Preencha CPF ou CNPJ, consulte os dados e conclua o cadastro."
+    className="w-[min(96vw,960px)] !max-w-[960px]"
+    bodyClassName="min-h-0 overflow-y-auto"
+    footer={<div className="flex w-full justify-end gap-2 px-4 py-3">{editorActions}</div>}
+  >{editorBody}</AdminDialog>;
+
+  return <AdminPage
+    open
+    onClose={onClose}
+    breadcrumb={employeeOnly ? "Usuários" : "Cadastros"}
+    title={creating ? (employeeOnly ? "Novo usuário" : "Novo cadastro") : registrationDisplayName(form) || (employeeOnly ? "Editar usuário" : "Editar cadastro")}
+    subtitle={creating
+      ? (employeeOnly ? "Cadastre um funcionário e configure seu acesso à Union World." : "Cadastre uma pessoa ou empresa e defina seus vínculos.")
+      : (employeeOnly ? "Atualize os dados do funcionário e seu acesso ao sistema." : "Atualize dados pessoais, endereços, serviços prestados e acessos quando permitido.")}
+    maxW="max-w-6xl"
+  >
+    {editorBody}
+    <AdminStickyToolbar className="flex-wrap justify-end gap-2">{editorActions}</AdminStickyToolbar>
   </AdminPage>;
 }
