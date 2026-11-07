@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -243,7 +244,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       </AdminCardToolbar>
       {loading ? <LoadingState text="Carregando catálogo..." /> : visible.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhum cadastro encontrado.</p>
-        : <div className="overflow-x-auto"><table className="min-w-[660px]">
+        : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[660px]">
           <thead><tr>
             <th className="text-left">Nome</th>
             {kind !== "brand" && <th className="text-left">Código</th>}
@@ -278,7 +279,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       </AdminCardToolbar>
       {loading ? <LoadingState text="Carregando distribuição..." /> : !distribution || distribution.companies.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
-        : <div className="overflow-x-auto"><table className="min-w-[580px]">
+        : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[580px]">
           <thead><tr>
             <th className="text-left">Empresa</th>
             <th className="text-right">Equipamentos</th>
