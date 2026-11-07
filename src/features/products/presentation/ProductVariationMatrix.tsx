@@ -64,17 +64,18 @@ export function buildVariantMatrix(
 }
 
 export function ProductVariationMatrix({
-  options, setOptions, rows, setRows, baseSku, defaultPrice, disabled,
+  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, disabled,
 }: {
   options: VariantOption[];
   setOptions: (value: VariantOption[]) => void;
   rows: VariantMatrixRow[];
   setRows: (value: VariantMatrixRow[]) => void;
+  candidates: VariantMatrixRow[];
+  setCandidates: (value: VariantMatrixRow[]) => void;
   baseSku: string;
   defaultPrice: string;
   disabled: boolean;
 }) {
-  const [candidates, setCandidates] = useState<VariantMatrixRow[]>([]);
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkStock, setBulkStock] = useState("");
