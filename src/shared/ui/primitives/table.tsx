@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "./utils";
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -10,6 +11,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       data-slot="table-container"
       className="relative w-full overflow-x-auto"
     >
+      <TopTableScrollbar />
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
