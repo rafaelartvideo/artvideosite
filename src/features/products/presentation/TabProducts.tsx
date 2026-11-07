@@ -75,6 +75,7 @@ import { InventorySuppliersEditor } from "@/features/inventory/presentation/Inve
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
+import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/product-condition";
 import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
 import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
@@ -95,6 +96,7 @@ type ProductForm = {
   name: string;
   sku: string;
   barcode: string;
+  product_condition: ProductCondition;
   internal_barcode: string;
   description: string;
   internal_notes: string;
@@ -203,6 +205,7 @@ function emptyForm(): ProductForm {
     name: "",
     sku: "",
     barcode: "",
+    product_condition: "new",
     internal_barcode: "",
     description: "",
     internal_notes: "",
@@ -533,6 +536,7 @@ export function TabProducts({
       name: product.name || "",
       sku: product.sku || inventory?.sku || "",
       barcode: product.barcode || "",
+      product_condition: PRODUCT_CONDITION_OPTIONS.some(item => item.value === product.product_condition) ? product.product_condition : "new",
       internal_barcode: product.internal_barcode || "",
       description: product.description || "",
       internal_notes: product.internal_notes || "",
@@ -807,6 +811,7 @@ export function TabProducts({
         slug: finalSlug,
         sku: form.sku.trim() || null,
         barcode: form.barcode.trim() || null,
+        product_condition: form.product_condition,
         internal_barcode: form.internal_barcode.trim() || null,
         description: form.description.trim() || null,
         internal_notes: form.internal_notes.trim() || null,
@@ -919,7 +924,7 @@ export function TabProducts({
           await createProductVariationCombinations(activeOrganizationId, savedProductId,
             variantRows.map(row => ({
               label: row.label, attributes: row.attributes, sku: row.sku.trim(),
-              barcode: row.barcode.trim() || null, price: nullableNumber(row.price),
+              barcode: row.barcode.trim() || null, product_condition: row.product_condition, price: nullableNumber(row.price),
               quantity: Number(row.quantity),
             })));
           setVariantRows([]);
@@ -1455,6 +1460,13 @@ export function TabProducts({
                   ><Plus size={17} /></AdminButton>}
                 </div>
 
+                <FSelect
+                  label="Condição do produto"
+                  value={form.product_condition}
+                  options={PRODUCT_CONDITION_OPTIONS}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, product_condition: event.target.value as ProductCondition }))}
+                />
                 <FInput
                   label="Modelo"
                   value={form.model}
@@ -1558,6 +1570,7 @@ export function TabProducts({
                 options={variantOptions} setOptions={setVariantOptions}
                 rows={variantRows} setRows={setVariantRows}
                 candidates={variantCandidates} setCandidates={setVariantCandidates}
+                defaultCondition={form.product_condition}
                 baseSku={form.sku} defaultPrice={form.price}
                 disabled={saving || !canCreate || !canEdit}
               />
