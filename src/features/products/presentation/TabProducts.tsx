@@ -72,6 +72,7 @@ import {
 } from "@/features/inventory/infrastructure/inventory.repository";
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
+import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
@@ -1543,18 +1544,18 @@ export function TabProducts({
             <div className="min-w-0 border-t border-border pt-4">
               <div className="min-w-0 pb-1">
                 <div className="min-w-0 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">Códigos relacionados</h3>
                       <p className="mt-1 text-xs text-muted-foreground">
                         O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código.
                       </p>
                     </div>
-                    <AdminButton variant="tertiary" size="sm"
+                    <AdminButton variant="secondary" size="sm" className="w-full"
                       disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
                       onClick={() => setForm(current => ({
                         ...current,
-                        related_codes: [...current.related_codes, { code: "", relation_type: "alternate" }],
+                        related_codes: [...current.related_codes, { code: "", relation_type: DEFAULT_RELATED_CODE_TYPE }],
                       }))}>
                       <Plus size={15} /> Adicionar código
                     </AdminButton>
@@ -1573,14 +1574,7 @@ export function TabProducts({
                       }))}/></div>
                     <div className="col-start-1 row-start-2 sm:col-start-2 sm:row-start-1"><FSelect label="Tipo de relação" value={item.relation_type}
                       disabled={saving || !relatedCodesLoaded}
-                      options={[
-                        { value: "previous", label: "Código antigo (substituído pelo atual)" },
-                        { value: "successor", label: "Código novo (substitui o atual)" },
-                        { value: "compatible", label: "Peça compatível" },
-                        { value: "similar", label: "Produto similar" },
-                        { value: "generic", label: "Produto genérico" },
-                        { value: "alternate", label: "Outra referência do mesmo produto" },
-                      ]}
+                      options={[...RELATED_CODE_TYPE_OPTIONS]}
                       onChange={(event: any) => setForm(current => ({
                         ...current,
                         related_codes: current.related_codes.map((related,i) =>
