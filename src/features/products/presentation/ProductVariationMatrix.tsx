@@ -271,7 +271,7 @@ export function ProductVariationMatrix({
                   onChange={event => updateRow(row.label, "sku", event.target.value)} className={inputClass}/>
               </label>
               <label className="min-w-0 text-xs font-medium text-muted-foreground">GTIN (opcional)
-                <input aria-label={"GTIN de " + row.label} value={row.barcode} maxLength={32} disabled={disabled}
+                <input aria-label={"GTIN de " + row.label} value={row.barcode} disabled={disabled}
                   onChange={event => updateRow(row.label, "barcode", event.target.value)} className={inputClass}/>
               </label>
               <label className="min-w-0 text-xs font-medium text-muted-foreground">Preço (R$)
