@@ -34,14 +34,17 @@ export function OrderMobileEditBridge({
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<MobileOrderEditSession | null>(null);
   const [creating, setCreating] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [connected, setConnected] = useState(false);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
   const [savedChanges, setSavedChanges] = useState(0);
   const sessionRef = useRef<MobileOrderEditSession | null>(null);
   const lastOrderUpdateRef = useRef("");
+  const errorRef = useRef("");
 
   sessionRef.current = session;
+  errorRef.current = error;
 
   const startSession = useCallback(async () => {
     if (!activeOrganizationId || disabled || creating || !orderId) return;
@@ -71,13 +74,23 @@ export function OrderMobileEditBridge({
 
   const endSession = async () => {
     const current = sessionRef.current;
-    if (current) await closeMobileOrderEditSession(current.id).catch(() => undefined);
-    sessionRef.current = null;
-    setSession(null);
-    setConnected(false);
-    setExpired(false);
-    setSavedChanges(0);
-    lastOrderUpdateRef.current = "";
+    if (!current || ending) return;
+    setEnding(true);
+    setError("");
+    try {
+      await closeMobileOrderEditSession(current.id);
+      sessionRef.current = null;
+      setSession(null);
+      setConnected(false);
+      setExpired(false);
+      setSavedChanges(0);
+      lastOrderUpdateRef.current = "";
+    } catch (closeError) {
+      setOpen(true);
+      setError(closeError instanceof Error ? closeError.message : "Não foi possível encerrar a conexão.");
+    } finally {
+      setEnding(false);
+    }
   };
 
   useEffect(() => {
@@ -110,7 +123,10 @@ export function OrderMobileEditBridge({
       sessionId: session.id,
       presenceRole: "desktop",
       onMobilePresenceChange: value => {
-        if (!cancelled) setConnected(value);
+        if (!cancelled) {
+          setConnected(value);
+          if (value && !errorRef.current) setOpen(false);
+        }
       },
       onSessionChange: applySessionRow,
     });
@@ -151,7 +167,7 @@ export function OrderMobileEditBridge({
       >
         <Smartphone size={14} />
         <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="h-2 w-2 rounded-full bg-white" />}
+        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
       </AdminButton>
 
       <AdminDialog
@@ -169,9 +185,11 @@ export function OrderMobileEditBridge({
             <div className="flex justify-center rounded-2xl border border-[#0d1b2e]/8 bg-white p-5">
               <QRCodeSVG value={editUrl} size={220} level="M" marginSize={2} />
             </div>
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0057e7]/20 bg-[#eef5ff] px-3 py-2">
               <p className="flex shrink-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-[#0057e7]"><Hash size={12} /> Código</p>
               <p className="font-mono text-xl font-black tracking-[0.14em] text-[#0d1b2e] sm:text-2xl">{formatPairingCode(session.pairingCode)}</p>
+              <AdminButton variant="secondary" size="sm" disabled={ending} loading={ending} loadingText="Encerrando..."
+                onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton>
             </div>
             <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${connected ? "border-emerald-200 bg-emerald-50" : "border-[#0057e7]/20 bg-[#eef5ff]"}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${connected ? "bg-emerald-600 text-white" : "bg-[#0057e7] text-white"}`}>{connected ? <Wifi size={17} /> : <Smartphone size={17} />}</span>
@@ -183,7 +201,6 @@ export function OrderMobileEditBridge({
             </div>
             {savedChanges > 0 && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={15} /> Alterações recebidas do celular.</div>}
             <p className="text-center text-[11px] leading-5 text-[#5a6a82]">O token expira automaticamente e permite acesso somente à OS vinculada.</p>
-            <div className="flex justify-end"><AdminButton variant="secondary" onClick={() => void endSession()}><WifiOff size={14} /> Encerrar conexão</AdminButton></div>
           </>}
 
           {!creating && expired && <div className="space-y-4 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Clock3 size={22} /></div><div><p className="text-base font-black text-[#0d1b2e]">A conexão expirou</p><p className="mt-1 text-sm text-[#5a6a82]">Gere outra conexão para continuar editando pelo celular.</p></div><AdminButton onClick={() => void startSession()}><RefreshCw size={14} /> Gerar nova conexão</AdminButton></div>}
