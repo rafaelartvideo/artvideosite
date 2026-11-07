@@ -75,6 +75,7 @@ import { InventorySuppliersEditor } from "@/features/inventory/presentation/Inve
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
+import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
 import { ProductVariationMatrix, buildVariantMatrix, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
@@ -94,6 +95,7 @@ type ProductForm = {
   name: string;
   sku: string;
   barcode: string;
+  internal_barcode: string;
   description: string;
   internal_notes: string;
   model: string;
@@ -162,7 +164,6 @@ type ProductFieldErrors = Partial<Record<
   "name"
   | "price"
   | "compare_at_price"
-  | "barcode"
   | "conversion_factor"
   | "sale_window_days"
   | "min_quantity"
@@ -202,6 +203,7 @@ function emptyForm(): ProductForm {
     name: "",
     sku: "",
     barcode: "",
+    internal_barcode: "",
     description: "",
     internal_notes: "",
     model: "",
@@ -400,6 +402,7 @@ export function TabProducts({
   const closingEditorRouteRef = useRef(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
+  const [identifierKinds, setIdentifierKinds] = useState<ProductIdentifierKind[]>(["barcode"]);
   const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   // Mantém candidatos mesmo quando o usuário alterna entre Geral, Comercial e Relações.
@@ -504,6 +507,7 @@ export function TabProducts({
     if (!canCreate) return;
     setFieldErrors({});
     setForm(emptyForm());
+    setIdentifierKinds(["barcode"]);
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
     setEditItem(null);
@@ -524,10 +528,12 @@ export function TabProducts({
     const factor = Math.max(1, Number(inventory?.conversion_factor ?? 1) || 1);
 
     setFieldErrors({});
+    setIdentifierKinds(visibleProductIdentifierKinds(product));
     setForm({
       name: product.name || "",
       sku: product.sku || inventory?.sku || "",
       barcode: product.barcode || "",
+      internal_barcode: product.internal_barcode || "",
       description: product.description || "",
       internal_notes: product.internal_notes || "",
       model: product.model || "",
@@ -702,9 +708,6 @@ export function TabProducts({
       errors.sale_window_days = "Informe um prazo entre 1 e 3650 dias.";
     }
     if (price !== null && price < 0) errors.price = "Informe um preço válido e não negativo.";
-    if (form.barcode && !/^[0-9A-Za-z._-]{4,32}$/.test(form.barcode.trim())) {
-      errors.barcode = "Informe um código de barras válido.";
-    }
 
     if (!Number.isInteger(factor) || factor < 1) {
       errors.conversion_factor = "Informe um fator inteiro maior ou igual a 1.";
@@ -805,6 +808,7 @@ export function TabProducts({
         slug: finalSlug,
         sku: form.sku.trim() || null,
         barcode: form.barcode.trim() || null,
+        internal_barcode: form.internal_barcode.trim() || null,
         description: form.description.trim() || null,
         internal_notes: form.internal_notes.trim() || null,
         model: form.model.trim() || null,
@@ -1375,17 +1379,35 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, sku: event.target.value }))}
                   placeholder="Código interno"
                 />
-                <FInput
-                  label="Código de barras / GTIN"
-                  value={form.barcode}
-                  disabled={saving}
-                  error={fieldErrors.barcode}
-                  onChange={(event: any) => {
-                    setFieldErrors(current => ({ ...current, barcode: undefined }));
-                    setForm(current => ({ ...current, barcode: event.target.value }));
+                <ProductIdentifiersEditor
+                  kinds={identifierKinds}
+                  values={{
+                    barcode: form.barcode,
+                    manufacturer_code: form.manufacturer_code,
+                    internal_barcode: form.internal_barcode,
                   }}
-                  placeholder="EAN, GTIN, UPC ou código utilizado no PDV"
-                  hint="GTIN é o identificador global; EAN e UPC são formatos usados em códigos de barras."
+                  disabled={saving}
+                  onChange={(kind, value) => setForm(current => ({ ...current, [kind]: value }))}
+                  onSwitch={(from, to) => {
+                    if (from === to || identifierKinds.includes(to)) return;
+                    setForm(current => ({
+                      ...current,
+                      [to]: current[from],
+                      [from]: "",
+                    }));
+                    setIdentifierKinds(current => current.map(kind => kind === from ? to : kind));
+                  }}
+                  onAdd={() => setIdentifierKinds(current => {
+                    const next = PRODUCT_IDENTIFIER_OPTIONS.find(option => !current.includes(option.value));
+                    return next ? [...current, next.value] : current;
+                  })}
+                  onRemove={kind => {
+                    setForm(current => ({ ...current, [kind]: "" }));
+                    setIdentifierKinds(current => {
+                      const remaining = current.filter(item => item !== kind);
+                      return remaining.length ? remaining : ["barcode"];
+                    });
+                  }}
                 />
 
                 <div className="flex min-w-0 items-end gap-2">
@@ -1440,13 +1462,6 @@ export function TabProducts({
                   disabled={saving}
                   onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
                   placeholder="Modelo comercial"
-                />
-                <FInput
-                  label="Código do fabricante / MPN"
-                  value={form.manufacturer_code}
-                  disabled={saving}
-                  onChange={(event: any) => setForm(current => ({ ...current, manufacturer_code: event.target.value }))}
-                  placeholder="Código original do fabricante"
                 />
 
                 <div className="sm:col-span-2">
