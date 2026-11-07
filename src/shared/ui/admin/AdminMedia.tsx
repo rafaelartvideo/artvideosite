@@ -67,8 +67,17 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
             loading={uploading}
             aria-label={displayUrl ? "Trocar imagem" : "Adicionar imagem"}
             title={displayUrl ? "Trocar imagem" : "Adicionar imagem"}
-            className="!h-9 min-w-0 flex-1 !px-2 border-primary/30 text-primary hover:bg-primary/5"
+            className="!h-9 min-w-0 flex-1 !px-1.5 border-primary/30 text-primary hover:bg-primary/5"
           ><Upload size={14} /> {displayUrl ? "Trocar" : "Adicionar"}</AdminButton>
+          {photoActions && <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={() => cameraInputRef.current?.click()}
+            loading={uploading}
+            aria-label="Abrir câmera para foto da capa"
+            title="Câmera"
+            className="!h-9 min-w-0 flex-1 !px-1.5 border-primary/30 text-primary hover:bg-primary/5"
+          ><Camera size={14} /> Câmera</AdminButton>}
           {onRemove && Boolean(currentMediaId) && <AdminButton
             variant="secondary"
             size="sm"
