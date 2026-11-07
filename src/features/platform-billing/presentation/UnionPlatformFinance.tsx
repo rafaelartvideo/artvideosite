@@ -1,3 +1,4 @@
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, CalendarDays, CheckCircle2, CreditCard, Plus, TrendingUp } from "lucide-react";
@@ -303,7 +304,7 @@ export function UnionPlatformFinance() {
           <div><h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Assinaturas</h3><p className="mt-1 text-xs text-muted-foreground">Plano e cobrança atual de cada empresa parceira.</p></div>
           {canManage && <AdminButton size="sm" onClick={openNewSubscription}><Plus size={14} /> Nova assinatura</AdminButton>}
         </AdminCardHeader>
-        {data.subscriptions.length ? <div className="overflow-x-auto">
+        {data.subscriptions.length ? <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[960px]">
             <thead><tr><th className="text-left">Empresa</th><th className="text-left">Plano</th><th className="text-left">Situação</th><th className="text-left">Valor</th><th className="text-left">Próximo vencimento</th><th className="text-right">Ações</th></tr></thead>
             <tbody>{data.subscriptions.map(subscription => <tr key={subscription.id}>
@@ -327,7 +328,7 @@ export function UnionPlatformFinance() {
         <AdminCardHeader>
           <div><h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Cobranças</h3><p className="mt-1 text-xs text-muted-foreground">Contas a receber das assinaturas da Union World.</p></div>
         </AdminCardHeader>
-        {data.charges.length ? <div className="overflow-x-auto">
+        {data.charges.length ? <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[980px]">
             <thead><tr><th className="text-left">Empresa</th><th className="text-left">Plano</th><th className="text-left">Vencimento</th><th className="text-left">Valor</th><th className="text-left">Situação</th><th className="text-left">Pagamento</th><th className="text-right">Ações</th></tr></thead>
             <tbody>{data.charges.map(charge => <tr key={charge.id}>
@@ -352,7 +353,7 @@ export function UnionPlatformFinance() {
           <div><h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Planos</h3><p className="mt-1 text-xs text-muted-foreground">Planos comerciais disponíveis para as empresas parceiras.</p></div>
           {canManage && <AdminButton size="sm" onClick={openNewPlan}><Plus size={14} /> Novo plano</AdminButton>}
         </AdminCardHeader>
-        {data.plans.length ? <div className="overflow-x-auto">
+        {data.plans.length ? <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[760px]">
             <thead><tr><th className="text-left">Plano</th><th className="text-left">Valor</th><th className="text-left">Ciclo</th><th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead>
             <tbody>{data.plans.map(plan => <tr key={plan.id}>
