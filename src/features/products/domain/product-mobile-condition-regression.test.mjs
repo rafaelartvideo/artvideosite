@@ -15,10 +15,11 @@ test("cadastro inclui botão Usar celular na toolbar com destino do código e fo
   assert.ok(ui.includes('context="product"'));
   const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
   const toolbar = ui.slice(
-    ui.indexOf('<AdminStickyToolbar className="z-10 justify-end">'),
+    ui.indexOf('<AdminStickyToolbar className="z-10 !justify-end md:!justify-start">'),
     ui.indexOf("</AdminStickyToolbar>"),
   );
   assert.ok(!toolbar.includes('<select'), "Não deve existir dropdown de código na toolbar");
+  assert.ok(toolbar.includes('className="ml-auto hidden shrink-0 md:flex"'), "Usar celular ocupa a extremidade direita da toolbar");
   assert.ok(toolbar.indexOf('<DeviceCaptureBridge') > toolbar.indexOf('Salvar</BtnPrimary>'),
     "Usar celular deve ficar à direita da ação Salvar");
   assert.ok(ui.includes('onSelect={setMobileScanTarget}'),
