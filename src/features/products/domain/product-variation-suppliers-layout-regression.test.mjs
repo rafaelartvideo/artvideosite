@@ -5,7 +5,7 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Geral alinha nome e SKU, categoria/marca/modelo e condição sem títulos redundantes", async () => {
+test("Geral alinha nome e SKU, categoria/marca e modelo/condição em duas linhas", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
   const layout = page.slice(page.indexOf('<TabsContent value="general"'),page.indexOf('<TabsContent value="commercial"'));
@@ -21,8 +21,8 @@ test("Geral alinha nome e SKU, categoria/marca/modelo e condição sem títulos 
   const codes = layout.indexOf('<ProductIdentifiersEditor');
   assert.ok(name >= 0 && sku > name && category > sku && brand > category && model > brand);
   assert.ok(condition > model && codes > condition);
-  assert.ok(layout.includes('sm:col-span-2 sm:grid-cols-3'));
-  assert.ok(layout.includes('sm:col-start-2'));
+  assert.ok(layout.includes('grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4'));
+  assert.ok(!layout.includes('sm:col-span-2 sm:grid-cols-3'));
   assert.ok(!identifiers.includes('<h3 className="text-sm font-semibold text-foreground">Códigos de identificação</h3>'));
   assert.ok(!identifiers.includes("Opcional. Escolha o tipo"));
   assert.ok(layout.includes('label="Descrição"'),"A descrição real do produto permanece");
