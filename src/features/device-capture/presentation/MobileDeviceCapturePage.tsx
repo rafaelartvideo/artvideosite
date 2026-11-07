@@ -150,6 +150,7 @@ export function MobileDeviceCapturePage() {
   );
   const [expiresAt, setExpiresAt] = useState("");
   const [photoCount, setPhotoCount] = useState(0);
+  const [hasCover, setHasCover] = useState(false);
   const [serial, setSerial] = useState("");
   const [serialSending, setSerialSending] = useState(false);
   const [serialPhotoReading, setSerialPhotoReading] = useState(false);
@@ -165,6 +166,7 @@ export function MobileDeviceCapturePage() {
   const scannerControlsRef = useRef<ScannerControls | null>(null);
   const serialCaptureInputRef = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const coverGalleryInputRef = useRef<HTMLInputElement>(null);
   const equipmentInputRef = useRef<HTMLInputElement>(null);
 
   const stopPairScanner = () => {
@@ -185,6 +187,7 @@ export function MobileDeviceCapturePage() {
     setConnectionState("idle");
     setExpiresAt("");
     setPhotoCount(0);
+    setHasCover(false);
     setSerial("");
     setPairingCode("");
     setNotice(null);
@@ -251,6 +254,7 @@ export function MobileDeviceCapturePage() {
         setConnectionState("connected");
         setExpiresAt(String(result.expires_at || ""));
         setPhotoCount(Number(result.photo_count || 0));
+        setHasCover(Boolean(result.has_cover));
         setCaptureContext(result.capture_context === "product" ? "product" : "order");
         keepFixedCaptureUrl();
       } catch (error) {
@@ -275,8 +279,19 @@ export function MobileDeviceCapturePage() {
     return subscribeMobileSessionRealtime({
       sessionId: pairing.sessionId,
       presenceRole: "mobile",
+      onSessionChange: row => {
+        if (row.status && row.status !== "active") {
+          setConnectionState("expired");
+          setNotice({ text: "A conexão foi encerrada no computador.", type: "error" });
+          return;
+        }
+        if (captureContext === "product") {
+          if (typeof row.product_photo_count === "number") setPhotoCount(row.product_photo_count);
+          if (typeof row.product_has_cover === "boolean") setHasCover(row.product_has_cover);
+        }
+      },
     });
-  }, [pairing?.sessionId, connectionState]);
+  }, [pairing?.sessionId, connectionState, captureContext]);
 
   useEffect(() => {
     if (!pairing || !expiresAt || connectionState === "expired") return;
@@ -309,6 +324,7 @@ export function MobileDeviceCapturePage() {
         setConnectionState("checking");
         setExpiresAt(result.expiresAt);
         setPhotoCount(0);
+        setHasCover(false);
         setSerial("");
         return;
       } catch { /* Not a new-order capture code. */ }
@@ -379,6 +395,7 @@ export function MobileDeviceCapturePage() {
           setPairing({ sessionId: nextPairing.sessionId, token: nextPairing.token });
           setConnectionState("checking");
           setPhotoCount(0);
+          setHasCover(false);
           setSerial("");
           setExpiresAt("");
         },
@@ -414,11 +431,16 @@ export function MobileDeviceCapturePage() {
 
   const uploadPhoto = async (kind: DeviceCapturePhotoKind, file?: File) => {
     if (!file || connectionState !== "connected" || !pairing) return;
+    if (captureContext === "product" && kind !== "label") {
+      setNotice({ text: "Pelo celular, envie somente a foto da capa do produto.", type: "error" });
+      return;
+    }
     setUploadingKind(kind);
     setNotice(null);
     try {
       const result = await uploadDeviceCapturePhoto(pairing.sessionId, pairing.token, kind, file);
       setPhotoCount(result.photoCount);
+      if (captureContext === "product") setHasCover(result.hasCover);
       setNotice({
         text: captureContext === "product" ? (kind === "label" ? "Foto da capa enviada para o cadastro." : "Foto da galeria enviada para o cadastro.") : kind === "label" ? "Foto da etiqueta enviada para o computador." : "Foto do equipamento enviada para o computador.",
         type: "success",
@@ -591,14 +613,51 @@ export function MobileDeviceCapturePage() {
         </section>
 
         <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef5ff] text-[#0057e7]"><Camera size={18} /></span><div><h2 className="text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Fotos do produto" : "Fotos do equipamento"}</h2><p className="text-xs text-[#5a6a82]">{captureContext === "product" ? "As imagens aparecem no cadastro para revisão antes de salvar." : "As fotos aparecem automaticamente na OS do computador."}</p></div></div>
-          <div className="mt-4 grid gap-3">
-            <button type="button" disabled={photoCount >= (captureContext === "product" ? 4 : 5) || uploadingKind !== null} onClick={() => labelInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0057e7]">{captureContext === "product" ? "Foto da capa" : "Foto da etiqueta"}</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Identificação, modelo e dados técnicos</span></span>{uploadingKind === "label" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <Camera className="shrink-0 text-[#0057e7]" size={20} />}</button>
-            <button type="button" disabled={photoCount >= (captureContext === "product" ? 4 : 5) || uploadingKind !== null} onClick={() => equipmentInputRef.current?.click()} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 text-left disabled:opacity-45"><span><span className="block text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Fotos da galeria" : "Outras fotos"}</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>{uploadingKind === "equipment" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20} /> : <ImagePlus className="shrink-0 text-[#5a6a82]" size={20} />}</button>
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef5ff] text-[#0057e7]"><Camera size={18}/></span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-black text-[#0d1b2e]">{captureContext === "product" ? "Foto da capa" : "Fotos do equipamento"}</h2>
+              <p className="text-xs text-[#5a6a82]">{captureContext === "product" ? "Envie ou substitua apenas a foto principal do produto." : "As fotos aparecem automaticamente na OS do computador."}</p>
+            </div>
           </div>
-          {photoCount >= (captureContext === "product" ? 4 : 5) && <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={16} /> Limite de {captureContext === "product" ? 4 : 5} fotos atingido.</div>}
-          <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }} />
-          <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }} />
+          {captureContext === "product" ? <>
+            <p aria-live="polite" className="mt-3 text-center text-xs font-bold text-[#5a6a82]">{photoCount} de 4 fotos enviadas</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" disabled={uploadingKind !== null || (photoCount >= 4 && !hasCover)}
+                onClick={() => labelInputRef.current?.click()}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-3 text-sm font-black text-[#0057e7] disabled:opacity-45">
+                {uploadingKind === "label" ? <Loader2 size={18} className="animate-spin"/> : <Camera size={18}/>} Câmera
+              </button>
+              <button type="button" disabled={uploadingKind !== null || (photoCount >= 4 && !hasCover)}
+                onClick={() => coverGalleryInputRef.current?.click()}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/10 bg-white px-3 text-sm font-black text-[#0d1b2e] disabled:opacity-45">
+                {uploadingKind === "label" ? <Loader2 size={18} className="animate-spin"/> : <ImagePlus size={18}/>} Galeria
+              </button>
+            </div>
+            {photoCount >= 4 && !hasCover && <p className="mt-3 text-center text-xs text-amber-700">Remova uma foto no computador para liberar espaço.</p>}
+            <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }}/>
+            <input ref={coverGalleryInputRef} type="file" accept="image/*" className="hidden"
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }}/>
+          </> : <>
+            <div className="mt-4 grid gap-3">
+              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => labelInputRef.current?.click()}
+                className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-4 text-left disabled:opacity-45">
+                <span><span className="block text-sm font-black text-[#0057e7]">Foto da etiqueta</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Identificação, modelo e dados técnicos</span></span>
+                {uploadingKind === "label" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20}/> : <Camera className="shrink-0 text-[#0057e7]" size={20}/>}
+              </button>
+              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => equipmentInputRef.current?.click()}
+                className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 text-left disabled:opacity-45">
+                <span><span className="block text-sm font-black text-[#0d1b2e]">Outras fotos</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>
+                {uploadingKind === "equipment" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20}/> : <ImagePlus className="shrink-0 text-[#5a6a82]" size={20}/>}
+              </button>
+            </div>
+            {photoCount >= 5 && <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={16}/> Limite de 5 fotos atingido.</div>}
+            <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }}/>
+            <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }}/>
+          </>}
         </section>
 
         {captureContext === "order" && <MobileEntryChecklist sessionId={pairing.sessionId} token={pairing.token} />}
