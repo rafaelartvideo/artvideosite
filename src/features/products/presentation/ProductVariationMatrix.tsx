@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Layers3, Plus, Search, Trash2, WandSparkles } from "lucide-react";
 import { PRODUCT_CONDITION_OPTIONS, productConditionLabel, type ProductCondition } from "../domain/product-condition";
 import type { InventorySupplier } from "@/features/inventory/infrastructure/inventory.repository";
 import { VariantSupplierPicker } from "./VariantSupplierPicker";
+import { listProductVariations } from "../infrastructure/product-variations.repository";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 
 export const MAX_VARIATION_ATTRIBUTES = 5;
@@ -39,6 +41,16 @@ export function countVariantCombinations(options: VariantOption[]): number {
   return options.reduce((count, option) => count * parseValues(option.values).length, 1);
 }
 
+export function validVariantOptions(options: VariantOption[]): boolean {
+  if (!options.length) return true;
+  if (options.length > MAX_VARIATION_ATTRIBUTES) return false;
+  const names = options.map(option => option.name.trim().toLocaleLowerCase("pt-BR"));
+  return names.every(Boolean)
+    && new Set(names).size === names.length
+    && options.every(option => parseValues(option.values).length > 0)
+    && countVariantCombinations(options) <= MAX_VARIATION_CANDIDATES;
+}
+
 export function buildVariantMatrix(
   options: VariantOption[], baseSku: string, defaultPrice: string,
   previous: VariantMatrixRow[] = [], defaultCondition: ProductCondition = "new",
@@ -70,7 +82,7 @@ export function buildVariantMatrix(
 }
 
 export function ProductVariationMatrix({
-  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, defaultCondition, organizationId, canManageSuppliers, disabled,
+  options, setOptions, rows, setRows, candidates, setCandidates, baseSku, defaultPrice, defaultCondition, organizationId, parentProductId, canManageSuppliers, disabled,
 }: {
   options: VariantOption[];
   setOptions: (value: VariantOption[]) => void;
@@ -82,6 +94,7 @@ export function ProductVariationMatrix({
   defaultPrice: string;
   defaultCondition: ProductCondition;
   organizationId: string;
+  parentProductId?: string | null;
   canManageSuppliers: boolean;
   disabled: boolean;
 }) {
@@ -90,6 +103,17 @@ export function ProductVariationMatrix({
   const [bulkStock, setBulkStock] = useState("");
   const [search, setSearch] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
+  const [singleReady, setSingleReady] = useState(false);
+  const linkedQuery = useQuery({
+    queryKey: ["products", "variation-family", organizationId, parentProductId],
+    queryFn: () => listProductVariations(organizationId, parentProductId!),
+    enabled: Boolean(organizationId && parentProductId),
+    staleTime: 20_000,
+  });
+  const linkedLabels = new Set((linkedQuery.data || []).filter(item => !item.is_parent)
+    .map(item => item.variation_label.toLocaleLowerCase("pt-BR")));
+  const availableSlots = Math.max(0, MAX_ADDITIONAL_VARIATIONS - linkedLabels.size);
+  const linkedLoading = Boolean(parentProductId) && linkedQuery.isPending;
 
   const count = useMemo(() => countVariantCombinations(options), [options]);
   const validNames = options.every(option => option.name.trim() && parseValues(option.values).length);
@@ -110,23 +134,26 @@ export function ProductVariationMatrix({
     setExpandedLabel(null);
     setSearch("");
     setSelectedOnly(false);
+    setSingleReady(false);
   };
   const updateOption = (index: number, key: keyof VariantOption, value: string) => {
     setOptions(options.map((option, i) => i === index ? { ...option, [key]: value } : option));
     resetGenerated();
   };
   const generate = () => {
-    const prepared = buildVariantMatrix(options, baseSku, defaultPrice, candidates, defaultCondition);
+    // A primeira combinação já é o produto principal; ignorar versões existentes.
+    const prepared = buildVariantMatrix(options, baseSku, defaultPrice, candidates, defaultCondition)
+      .filter(row => !linkedLabels.has(row.label.toLocaleLowerCase("pt-BR")));
     setCandidates(prepared);
-    // Se houver muitas possibilidades, o usuário escolhe explicitamente quais existem.
-    setRows(prepared.length <= MAX_ADDITIONAL_VARIATIONS ? prepared : []);
-    setExpandedLabel(prepared.length <= MAX_ADDITIONAL_VARIATIONS ? prepared[0]?.label || null : null);
+    setSingleReady(count === 1);
+    setRows(prepared.length <= availableSlots ? prepared : []);
+    setExpandedLabel(prepared.length <= availableSlots ? prepared[0]?.label || null : null);
     setSearch("");
     setSelectedOnly(false);
   };
   const selectRow = (label: string, selected: boolean) => {
     const next = selected ? new Set([...selectedLabels, label]) : new Set([...selectedLabels].filter(item => item !== label));
-    if (next.size > MAX_ADDITIONAL_VARIATIONS) return;
+    if (next.size > availableSlots) return;
     setRows(candidates.filter(row => next.has(row.label)));
   };
   const updateRow = (label: string, key: "sku" | "barcode" | "product_condition" | "price" | "quantity", value: string) => {
@@ -149,15 +176,19 @@ export function ProductVariationMatrix({
     setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
   };
-  const canGenerate = !disabled && options.length > 0 && validNames && uniqueNames
-    && count > 1 && count <= MAX_VARIATION_CANDIDATES && firstLabel.length <= 100;
+  const canGenerate = !disabled && !linkedLoading && !linkedQuery.isError
+    && options.length > 0 && validNames && uniqueNames
+    && count >= 1 && count <= MAX_VARIATION_CANDIDATES && firstLabel.length <= 100
+    && (count === 1 || availableSlots > 0);
   const generateDisabledReason = disabled ? "Aguarde o fim do salvamento."
+    : linkedLoading ? "Carregando variações já cadastradas..."
+    : linkedQuery.isError ? "Não foi possível consultar as variações atuais. Tente novamente."
     : !options.length ? "Adicione um atributo com valores para gerar combinações."
     : !validNames ? "Preencha o nome e pelo menos um valor de cada atributo."
     : !uniqueNames ? "Os nomes dos atributos não podem se repetir."
-    : count <= 1 ? "Informe pelo menos dois valores. Uma combinação só já é o produto principal."
     : count > MAX_VARIATION_CANDIDATES ? "Limite de 200 possibilidades. Reduza os valores."
     : firstLabel.length > 100 ? "A identificação da combinação principal passou de 100 caracteres."
+    : availableSlots === 0 && count > 1 ? "Limite de 30 versões por produto atingido."
     : "";
   const inputClass = "mt-1 h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground";
 
@@ -166,8 +197,8 @@ export function ProductVariationMatrix({
       <div className="min-w-0">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Layers3 size={16} className="text-primary"/>Criar variações</h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Ex.: cor, voltagem, tamanho, acabamento ou modelo. A primeira combinação usa o produto principal;
-          as demais podem ter SKU, preço e estoque próprios.
+          Ex.: cor, voltagem, tamanho, acabamento ou modelo. Você pode informar apenas uma cor;
+          ela identifica o produto principal. Outras versões são adicionadas quando existirem.
         </p>
       </div>
       <span className="shrink-0 text-xs text-muted-foreground">{options.length}/{MAX_VARIATION_ATTRIBUTES} atributos</span>
@@ -200,13 +231,16 @@ export function ProductVariationMatrix({
         </AdminButton>}
         <AdminButton size="sm" className={options.length < MAX_VARIATION_ATTRIBUTES ? "w-full" : "col-span-2 w-full"}
           disabled={!canGenerate} onClick={generate}>
-          <WandSparkles size={15}/>Gerar combinações
+          <WandSparkles size={15}/>{count === 1 ? "Confirmar versão principal" : "Gerar combinações"}
         </AdminButton>
       </div>
       {!canGenerate && <p className="text-xs text-muted-foreground" role="status">{generateDisabledReason}</p>}
       {options.length > 0 && <p className="text-xs text-muted-foreground" role="status">
         {count.toLocaleString("pt-BR")} {count === 1 ? "combinação possível" : "combinações possíveis"}
-        {" · "}até {MAX_ADDITIONAL_VARIATIONS} adicionais selecionadas, mais o produto principal.
+        {" · "}até {availableSlots} adicionais, mais o produto principal.
+      </p>}
+      {singleReady && count === 1 && <p role="status" className="text-xs text-foreground">
+        A única combinação pertence ao produto principal. Clique em Salvar para guardar o atributo, sem gerar estoque duplicado.
       </p>}
       {options.length > 0 && (!validNames || !uniqueNames) &&
         <p className="text-xs text-destructive">Preencha todos os nomes e valores e não repita nomes de atributos.</p>}
@@ -224,21 +258,21 @@ export function ProductVariationMatrix({
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{rows.length} de {candidates.length} versões adicionais selecionadas</p>
-          <p className="text-xs leading-5 text-muted-foreground">Marque somente as combinações que existem. As desmarcadas não serão cadastradas.</p>
+          <p className="text-xs leading-5 text-muted-foreground">Marque somente versões disponíveis. As já cadastradas são ignoradas, e as desmarcadas não serão criadas.</p>
         </div>
         <AdminButton variant="tertiary" size="sm" disabled={disabled}
           onClick={() => { resetGenerated(); }}>Limpar combinações</AdminButton>
       </div>
-      {candidates.length > MAX_ADDITIONAL_VARIATIONS && <p role="status" className="text-xs text-muted-foreground">
-        Existem mais combinações do que o limite de cadastro simultâneo. Selecione até {MAX_ADDITIONAL_VARIATIONS} adicionais; nenhuma foi marcada automaticamente.
+      {candidates.length > availableSlots && <p role="status" className="text-xs text-muted-foreground">
+        Existem mais combinações do que o limite de cadastro simultâneo. Selecione até {availableSlots} adicionais; nenhuma foi marcada automaticamente.
       </p>}
       {invalidCandidateLabels && <p role="alert" className="text-xs text-destructive">
         Uma ou mais combinações ultrapassam 100 caracteres. Encurte os atributos antes de cadastrar.
       </p>}
       <div className="flex flex-wrap items-center gap-2">
         <AdminButton variant="secondary" size="sm" disabled={disabled}
-          onClick={() => setRows(candidates.slice(0, MAX_ADDITIONAL_VARIATIONS))}>
-          Selecionar até {MAX_ADDITIONAL_VARIATIONS}
+          onClick={() => setRows(candidates.slice(0, availableSlots))}>
+          Selecionar até {availableSlots}
         </AdminButton>
         <AdminButton variant="tertiary" size="sm" disabled={disabled || rows.length === 0}
           onClick={() => setRows([])}>Desmarcar todas</AdminButton>
@@ -276,7 +310,7 @@ export function ProductVariationMatrix({
           return <div key={row.label} className="min-w-0">
             <div className="flex min-w-0 items-center gap-2 px-3 py-3">
               <input type="checkbox" className="h-4 w-4 shrink-0 accent-primary" aria-label={"Selecionar " + row.label}
-                checked={selected} disabled={disabled || (!selected && rows.length >= MAX_ADDITIONAL_VARIATIONS)}
+                checked={selected} disabled={disabled || (!selected && rows.length >= availableSlots)}
                 onChange={event => selectRow(row.label, event.target.checked)}/>
               <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 disabled={disabled} aria-expanded={expanded} aria-label={"Editar " + row.label}
