@@ -120,7 +120,7 @@ export function ProductVariationsEditor({
           onClick={() => onEditProduct(parent.product_id)}>Editar produto principal</AdminButton>}
       </div> : <>
         <div className="grid gap-2 sm:grid-cols-2">
-          {draft.length === 0 && <p className="text-xs text-muted-foreground sm:col-span-2">
+          {draft.length === 0 && <p className="flex min-h-20 items-center justify-center text-center text-xs text-muted-foreground sm:col-span-2">
             Nenhuma variação vinculada ainda.
           </p>}
           {draft.map((item, index) => {
@@ -162,7 +162,7 @@ export function ProductVariationsEditor({
               value={search} onChange={event => setSearch(event.target.value)} disabled={saving}/>
           </div>
           {search.trim().length >= 2 && <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-border bg-card p-1">
-            {candidates.length === 0 ? <p className="p-2 text-xs text-muted-foreground">Nenhum item encontrado.</p>
+            {candidates.length === 0 ? <p className="flex min-h-16 items-center justify-center p-2 text-center text-xs text-muted-foreground">Nenhum item encontrado.</p>
               : candidates.map(product => <button key={product.id} type="button"
                   className={cn("flex w-full items-center gap-2 rounded-md p-2 text-left text-xs text-foreground hover:bg-muted")}
                   onClick={() => { setDraft(current => [...current, { product_id: product.id, label: "" }]); setSearch(""); setMessage(""); }}>
