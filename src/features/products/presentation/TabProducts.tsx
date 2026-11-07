@@ -1602,8 +1602,16 @@ export function TabProducts({
                       bucket="product-images"
                       organizationId={activeOrganizationId || undefined}
                       currentMediaId={form.cover_media_id}
-                      onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
-                      onRemove={() => setForm(current => ({ ...current, cover_media_id: "" }))}
+                      onUpload={mediaId => {
+                        const oldCoverId = form.cover_media_id;
+                        setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId));
+                        setForm(current => ({ ...current, cover_media_id: mediaId }));
+                      }}
+                      onRemove={() => {
+                        const oldCoverId = form.cover_media_id;
+                        setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId));
+                        setForm(current => ({ ...current, cover_media_id: "" }));
+                      }}
                       canUpload={!saving && !galleryUploading && (editItem ? canEdit : canCreate)}
                       removeIconOnly
                       photoActions
@@ -2239,6 +2247,8 @@ export function TabProducts({
         {(editItem ? canEdit : canCreate) && <div className="ml-auto hidden shrink-0 md:flex">
           <DeviceCaptureBridge
             context="product"
+            productPhotoCount={galleryPhotoCount}
+            productHasCover={Boolean(form.cover_media_id)}
             disabled={saving || galleryUploading}
             onSerial={handleProductMobileCode}
             onPhoto={(file, kind) => { void handleProductMobilePhoto(file, kind); }}
