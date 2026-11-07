@@ -2246,6 +2246,7 @@ export function TabProducts({
         {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
         {(editItem ? canEdit : canCreate) && <div className="ml-auto hidden shrink-0 md:flex">
           <DeviceCaptureBridge
+            key={`product-capture-${editItem?.id || "new"}`}
             context="product"
             productPhotoCount={galleryPhotoCount}
             productHasCover={Boolean(form.cover_media_id)}
