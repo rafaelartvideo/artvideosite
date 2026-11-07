@@ -13,7 +13,18 @@ test("cadastro inclui botão Usar celular na toolbar com destino do código e fo
   }
   assert.ok(ui.includes('<DeviceCaptureBridge'));
   assert.ok(ui.includes('context="product"'));
-  assert.ok(ui.includes('aria-label="Tipo do código lido no celular"'));
+  const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
+  const toolbar = ui.slice(
+    ui.indexOf('<AdminStickyToolbar className="z-10 justify-end">'),
+    ui.indexOf("</AdminStickyToolbar>"),
+  );
+  assert.ok(!toolbar.includes('<select'), "Não deve existir dropdown de código na toolbar");
+  assert.ok(toolbar.indexOf('<DeviceCaptureBridge') > toolbar.indexOf('Salvar</BtnPrimary>'),
+    "Usar celular deve ficar à direita da ação Salvar");
+  assert.ok(ui.includes('onSelect={setMobileScanTarget}'),
+    "O destino do scanner é definido pelo campo de identificação");
+  assert.ok(identifiers.includes("onFocus={() => onSelect?.(kind)}"),
+    "Ao selecionar um campo, ele passa a receber o próximo código escaneado");
   assert.ok(ui.includes('handleProductMobileCode'));
   assert.ok(ui.includes('handleProductMobilePhoto'));
   assert.ok(ui.includes('uploadMediaFile("product-images", file'));
