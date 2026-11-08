@@ -29,21 +29,65 @@ export type AdminNotificationsBootstrap = {
   unreadCount: number;
 };
 
+// All consumers share one in-flight RPC per user+organization. A failed
+// server call enters a bounded cooldown instead of triggering a request storm
+// from Realtime, React Query and the home page at the same time.
+const notificationLoadsInFlight = new Map<string, Promise<AdminNotificationsBootstrap>>();
+const notificationLoadFailures = new Map<string, {
+  until: number;
+  attempts: number;
+  error: unknown;
+}>();
+
 export async function loadAdminNotifications(
   organizationId: string,
   limit = 50,
+  userId?: string,
 ): Promise<AdminNotificationsBootstrap> {
-  const { data, error } = await supabase.rpc("load_admin_notifications_v1", {
-    p_organization_id: organizationId,
-    p_limit: limit,
-  }).abortSignal(AbortSignal.timeout(20_000));
-  if (error) throw error;
+  // User identity is part of the key: never share an in-flight response
+  // between users belonging to the same organization.
+  const cacheKey = userId ? `${userId}:${organizationId}:${limit}` : null;
+  const pending = cacheKey ? notificationLoadsInFlight.get(cacheKey) : null;
+  if (pending) return pending;
 
-  const bootstrap = (data || {}) as Record<string, unknown>;
-  return {
-    items: Array.isArray(bootstrap.items) ? bootstrap.items as AdminNotification[] : [],
-    unreadCount: Number(bootstrap.unreadCount || 0),
-  };
+  const failure = cacheKey ? notificationLoadFailures.get(cacheKey) : null;
+  if (failure && Date.now() < failure.until) throw failure.error;
+
+  const request = (async (): Promise<AdminNotificationsBootstrap> => {
+    const { data, error } = await supabase.rpc("load_admin_notifications_v1", {
+      p_organization_id: organizationId,
+      p_limit: limit,
+    }).abortSignal(AbortSignal.timeout(12_000));
+    if (error) throw error;
+
+    const bootstrap = (data || {}) as Record<string, unknown>;
+    return {
+      items: Array.isArray(bootstrap.items) ? bootstrap.items as AdminNotification[] : [],
+      unreadCount: Number(bootstrap.unreadCount || 0),
+    };
+  })();
+
+  if (cacheKey) notificationLoadsInFlight.set(cacheKey, request);
+  try {
+    const snapshot = await request;
+    if (cacheKey) notificationLoadFailures.delete(cacheKey);
+    return snapshot;
+  } catch (error) {
+    if (cacheKey) {
+      const attempts = Math.min((failure?.attempts || 0) + 1, 4);
+      const cooldown = Math.min(15_000 * (2 ** (attempts - 1)), 120_000);
+      notificationLoadFailures.set(cacheKey, {
+        until: Date.now() + cooldown,
+        attempts,
+        error,
+      });
+    }
+    throw error;
+  } finally {
+    if (cacheKey && notificationLoadsInFlight.get(cacheKey) === request) {
+      notificationLoadsInFlight.delete(cacheKey);
+    }
+  }
 }
 
 export async function listAdminNotifications(
