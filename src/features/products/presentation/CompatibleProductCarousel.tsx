@@ -52,13 +52,18 @@ export function CompatibleProductCarousel({
   return <section aria-label={title} className="min-w-0 space-y-2.5">
     <div className="flex min-w-0 items-center justify-between gap-2">
       {!hideTitle && <div className="min-w-0">
-        <h4 className="text-xs font-bold text-foreground">{title}</h4>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+          <h4 className="text-sm font-bold text-foreground">{title}</h4>
+          {salesAppearance&&<span className="text-xs font-semibold tabular-nums text-muted-foreground">
+            {products.length} {products.length===1?"item":"itens"}
+          </span>}
+        </div>
         {sourceName && <p className="truncate text-[11px] text-muted-foreground">Alternativas para {sourceName}</p>}
       </div>}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-bold tabular-nums text-muted-foreground" aria-label={`${products.length} ${title.toLocaleLowerCase("pt-BR")}`}>
+        {!salesAppearance&&<span className="mr-1 text-[11px] font-bold tabular-nums text-muted-foreground" aria-label={`${products.length} ${title.toLocaleLowerCase("pt-BR")}`}>
           {products.length} {products.length === 1 ? "item" : "itens"}
-        </span>
+        </span>}
         {products.length > 1 && <>
         <button type="button" onClick={() => move(-1)}
           aria-label={`Ver ${title.toLocaleLowerCase("pt-BR")} anteriores`}
