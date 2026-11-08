@@ -58,7 +58,7 @@ export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize,
   standalone?: boolean;
 }) {
   const count = Math.max(1, Math.min(100, totalItems > 0 ? Math.min(pageSize, totalItems) : pageSize));
-  const previewRows = Array.from({ length: Math.min(count, 4) }, (_, index) => index);
+  const rows = Array.from({ length: count }, (_, index) => index);
   const columns = [
     hasActiveFilters && { key: "index", width: "52px" },
     hasPermission("orders.table.os") && { key: "order", width: "130px" },
@@ -74,35 +74,50 @@ export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize,
   const template = columns.map(column => column.width).join(" ");
   return <div role={standalone ? "status" : undefined} aria-label={standalone ? "Carregando ordens de serviço" : undefined} aria-busy={standalone ? "true" : undefined} className="overflow-hidden">
     {standalone && <span className="sr-only">Carregando ordens de serviço...</span>}
-    {/* Mobile: poucos cards representativos, sem repetir dezenas de animações. */}
-    <div className="space-y-3 p-3 md:hidden" style={{ minHeight: count * 160 }} aria-hidden="true">
-      {previewRows.map(index => <div key={index} className="space-y-3 bg-muted/15 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-8 w-8 rounded-lg" />
+    {/* Cada card mobile recebe placeholders em todos os campos, sem espaços vazios. */}
+    <div className="divide-y divide-border md:hidden" aria-hidden="true">
+      {rows.map(index => <div key={index} className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <Skeleton className="h-9 w-1.5 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-3.5 w-3/4 max-w-56" />
+            </div>
+          </div>
+          {hasPermission("orders.table.actions") && <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />}
         </div>
-        <Skeleton className="h-3.5 w-3/5" />
-        <div className="grid grid-cols-2 gap-3">
-          <Skeleton className="h-3 w-4/5" />
-          <Skeleton className="h-3 w-2/3" />
+        {hasPermission("orders.table.situation") && <Skeleton className="h-6 w-28 rounded-full" />}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {Array.from({ length: 4 }, (_, field) => <div key={field} className="space-y-2">
+            <Skeleton className="h-2.5 w-20" />
+            <Skeleton className={`h-3.5 ${field % 2 ? "w-4/5" : "w-2/3"}`} />
+          </div>)}
         </div>
       </div>)}
     </div>
-    <div className="hidden md:block" aria-hidden="true">
-      {/* Nenhum th ou texto real de coluna: somente placeholders neutros. */}
+    <div className="hidden overflow-x-auto md:block" aria-hidden="true">
+      {/* Os cabeçalhos e todas as células têm skeleton, sem texto real. */}
       <div className="min-w-[1120px] bg-muted/20 px-4 py-3">
         <div className="grid items-center gap-3" style={{ gridTemplateColumns: template }}>
           {columns.map((column, index) => <Skeleton key={column.key} className={`h-3 rounded-sm ${index % 3 === 0 ? "w-1/2" : "w-4/5"}`} />)}
         </div>
       </div>
-      {/* Reserva a altura da preferência de paginação sem animar todas as linhas. */}
-      <div className="min-w-[1120px] space-y-0" style={{ minHeight: count * 57 }}>
-        {previewRows.map(index => <div key={index} className="grid h-[57px] items-center gap-3 px-4" style={{ gridTemplateColumns: template }}>
-          {columns.map((column, columnIndex) => (
-            column.key === "order" || column.key === "customer" || column.key === "situation" || columnIndex === (index % Math.max(1, columns.length))
-              ? <Skeleton key={column.key} className={`h-3.5 ${column.key === "customer" ? "w-4/5" : "w-2/3"}`} />
-              : <div key={column.key} />
-          ))}
+      <div className="min-w-[1120px] divide-y divide-border">
+        {rows.map(index => <div key={index} className="grid min-h-[57px] items-center gap-3 px-4 py-2" style={{ gridTemplateColumns: template }}>
+          {columns.map(column => {
+            if (column.key === "order") return <div key={column.key} className="flex items-center gap-2">
+              <Skeleton className="h-8 w-1.5 shrink-0 rounded-full" />
+              <Skeleton className="h-5 w-16" />
+            </div>;
+            if (column.key === "customer") return <div key={column.key} className="space-y-2">
+              <Skeleton className="h-3.5 w-4/5" />
+              <Skeleton className="h-2.5 w-3/5" />
+            </div>;
+            if (column.key === "situation") return <Skeleton key={column.key} className="h-6 w-24 rounded-full" />;
+            if (column.key === "actions") return <div key={column.key} className="flex justify-end"><Skeleton className="h-9 w-9 rounded-lg" /></div>;
+            return <Skeleton key={column.key} className={`h-3.5 ${column.key === "index" ? "w-6" : column.key === "external" ? "w-20" : "w-4/5"}`} />;
+          })}
         </div>)}
       </div>
     </div>
