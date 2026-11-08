@@ -1,5 +1,6 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { OrdersTableSkeleton } from "./OrdersSkeletons";
+import { OrderConclusionButton } from "./OrderConclusionButton";
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
@@ -265,7 +266,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                   {hasPermission("orders.table.equipment") && <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Equipamento</p><p className="truncate font-medium text-muted-foreground">{equipmentSummary(o) || "—"}</p></div>}
                 </div>
                 {hasPermission("orders.table.actions") && canComplete(o) && <div onClick={event => event.stopPropagation()} className="flex justify-end border-t border-border pt-3">
-                  <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} title="Concluir OS" className="h-9 shrink-0 px-2.5"><span>Concluir</span></AdminButton>
+                  <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />
                 </div>}
               </article>
             ))}
@@ -301,7 +302,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                     </div>
                   : <span className="text-xs text-muted-foreground">—</span>}</td>}
                 {hasPermission("orders.table.actions") && <td><div onClick={event => event.stopPropagation()} className="flex items-center justify-end gap-2">
-                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }}>Concluir</AdminButton>}
+                  {canComplete(o) && <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />}
                   {quickActions(o)}
                 </div></td>}
               </tr>)}</tbody>
