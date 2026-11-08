@@ -13,7 +13,7 @@ test("notificações administrativas preservam Realtime e evitam requisições r
   const realtimeEnd = source.indexOf("    });", realtimeStart);
   assert.ok(realtimeStart >= 0 && realtimeEnd > realtimeStart);
   const realtimeCallbacks = source.slice(realtimeStart, realtimeEnd);
-  assert.doesNotMatch(realtimeCallbacks, /invalidateQueries\\(\\{ queryKey: \\["admin-home", "activity"/);
+  assert.ok(!realtimeCallbacks.includes('invalidateQueries({ queryKey: ["admin-home", "activity"'), "Realtime must not invalidate Home on each INSERT");
   assert.match(source, /staleTime: 60_000/);
   assert.match(source, /refetchOnWindowFocus: false/);
   assert.match(source, /retry: false/);
