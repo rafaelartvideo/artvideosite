@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminUseMobileButton } from "@/shared/ui/admin/AdminUseMobileButton";
 import {
   subscribeMobileSessionRealtime,
   type MobileSessionRealtimeRow,
@@ -176,20 +177,13 @@ export function OrderChecklistMobileBridge({
 
   return (
     <>
-      <AdminButton
-        variant={connected ? "primary" : "secondary"}
-        size="sm"
+      <AdminUseMobileButton
+        connected={connected}
+        showOnMobile={scope === "payment-proof"}
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={scope === "payment-proof"
-          ? connected ? "inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "inline-flex border-primary/25 bg-card text-primary hover:bg-primary/5"
-          : connected ? "hidden md:inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "hidden md:inline-flex border-primary/25 text-primary hover:bg-primary/5"}
         title={scope === "payment-proof" ? "Anexar comprovante de pagamento pelo celular" : scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
-      >
-        <Smartphone size={14} />
-        <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
-      </AdminButton>
+      />
 
       <AdminDialog
         open={open}
