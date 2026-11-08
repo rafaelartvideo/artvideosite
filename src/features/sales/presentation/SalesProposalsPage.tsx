@@ -118,7 +118,7 @@ export function SalesProposalsPage() {
             <div className="min-w-0 flex-1 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-bold text-foreground">Proposta #{proposal.proposal_number}</span>
-                <strong className="tabular-nums text-sm">{formatCurrency(proposal.total_amount)}</strong>
+                <strong className="tabular-nums text-sm text-emerald-700 dark:text-emerald-400">{formatCurrency(proposal.total_amount)}</strong>
               </div>
               <p className="truncate text-sm font-medium text-foreground">{proposal.customer_name_snapshot}</p>
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -185,7 +185,7 @@ export function SalesProposalsPage() {
                   {formatSalesDate(proposal.created_at)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
-                  <strong className="tabular-nums">{formatCurrency(proposal.total_amount)}</strong>
+                  <strong className="tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(proposal.total_amount)}</strong>
                 </td>
               </tr>)}
             </tbody>
