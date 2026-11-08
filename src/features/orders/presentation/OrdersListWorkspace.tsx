@@ -81,7 +81,7 @@ export function OrdersListWorkspace(props: Props) {
     (hasPermission("settings.update") || (hasPermission("settings.view") && hasPermission("settings.details.view")));
 
   return <>
-    <OrdersHeader total={generalTotalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={generalTotalItems} loading={loading} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
     {settingsOpen && workspace.organizationId && <OrderSettingsDialog
       open={settingsOpen}
       onClose={() => setSettingsOpen(false)}
