@@ -14,6 +14,10 @@ export type SalesProductDetails = {
   variant_attributes: Record<string, string>;
   site_characteristics: Array<{ label: string; value: string }>;
   gallery_media_ids: string[];
+  stock_location: string | null;
+  storage_shelf: string | null;
+  storage_level: string | null;
+  storage_compartment: string | null;
 };
 
 export async function getSalesProductDetails(organizationId: string, productId: string): Promise<SalesProductDetails> {
@@ -62,6 +66,58 @@ function organization(value: string) {
   return id;
 }
 
+export type SalesCatalogProduct = PdvProduct & {
+  category_id: string | null;
+  category_name: string | null;
+};
+
+export type SalesCatalogPage = {
+  items: SalesCatalogProduct[];
+  total_count: number;
+  page_size: number;
+  offset: number;
+};
+export type SalesCatalogCategory = { id: string; name: string; total: number };
+export type SalesCatalogCategories = {
+  total_products: number;
+  categories: SalesCatalogCategory[];
+};
+
+export async function loadSalesCatalogCategories(organizationId: string): Promise<SalesCatalogCategories> {
+  const { data, error } = await supabase.rpc("get_sales_catalog_categories_v1", {
+    p_organization_id: organization(organizationId),
+  });
+  if (error) throw error;
+  return data as SalesCatalogCategories;
+}
+
+export async function searchSalesCatalog(organizationId: string, options: {
+  search?: string;
+  categoryId?: string | null;
+  page?: number;
+  pageSize?: number;
+  sort?: "name" | "price_low" | "price_high" | "stock";
+  onlyAvailable?: boolean;
+  favoriteIds?: string[] | null;
+} = {}): Promise<SalesCatalogPage> {
+  const page = Math.max(1,Math.floor(options.page || 1));
+  const pageSize = Math.min(100,Math.max(1,Math.floor(options.pageSize || 40)));
+  const { data, error } = await supabase.rpc("search_sales_catalog_v2", {
+    p_organization_id: organization(organizationId),
+    p_search: options.search?.trim() || "",
+    p_category_id: options.categoryId || null,
+    p_limit: pageSize,
+    p_offset: (page-1)*pageSize,
+    p_sort: options.sort || "name",
+    p_available: Boolean(options.onlyAvailable),
+    p_favorites: options.favoriteIds || null,
+  });
+  if (error) throw error;
+  return data as SalesCatalogPage;
+}
+
+export type SalesRelatedProduct = PdvRelatedProduct & { stock_location: string | null };
+
 /** Mesmo catálogo empresarial, mas com permissão do módulo Vendas, não do PDV. */
 export async function searchSalesProducts(organizationId: string, search: string, limit = 80): Promise<PdvProduct[]> {
   const { data, error } = await supabase.rpc("search_sales_products_v1", {
@@ -71,13 +127,13 @@ export async function searchSalesProducts(organizationId: string, search: string
   return (data || []) as PdvProduct[];
 }
 
-export async function listSalesProductRelations(organizationId: string, productIds: string[]): Promise<PdvRelatedProduct[]> {
+export async function listSalesProductRelations(organizationId: string, productIds: string[]): Promise<SalesRelatedProduct[]> {
   if (!productIds.length) return [];
-  const { data, error } = await supabase.rpc("list_sales_product_relations_v1", {
+  const { data, error } = await supabase.rpc("list_sales_product_relations_v2", {
     p_organization_id: organization(organizationId), p_source_product_ids: [...new Set(productIds)].slice(0, 30),
   });
   if (error) throw error;
-  return (data || []) as PdvRelatedProduct[];
+  return (data || []) as SalesRelatedProduct[];
 }
 
 export async function searchSalesCustomers(organizationId: string, search: string): Promise<PdvCustomer[]> {
