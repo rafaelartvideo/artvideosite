@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import { ChevronLeft, ChevronRight, Package, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Package, Plus } from "lucide-react";
+import { Popover,PopoverTrigger,PopoverContent } from "@/shared/ui/primitives/popover";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { productRelationLabel } from "../domain/product-relation-labels";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
@@ -15,12 +16,14 @@ export type CompatibleProductSuggestion = {
   coverMediaId?: string | null;
   relationType?: string | null;
   matchedCode?: string | null;
+  stockLocation?: string | null;
+  illustrationUrl?: string | null;
 };
 
-function ProductPhoto({ mediaId, name }: { mediaId?: string | null; name: string }) {
+function ProductPhoto({ mediaId, name,illustrationUrl }: { mediaId?: string | null; name: string; illustrationUrl?: string | null }) {
   const { url } = useMediaUrl(mediaId || null);
-  return url
-    ? <img src={url} alt={name} loading="lazy"
+  return (url || illustrationUrl)
+    ? <img src={url || illustrationUrl || ""} alt={name} loading="lazy"
         className="h-20 w-20 shrink-0 rounded-lg border border-border bg-card object-contain" />
     : <div aria-label="Sem foto" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60">
         <Package size={23} className="text-muted-foreground" />
@@ -29,7 +32,7 @@ function ProductPhoto({ mediaId, name }: { mediaId?: string | null; name: string
 
 /** Mesmo carrossel reutilizado no PDV, no orçamento, na OS e em pedidos de peças. */
 export function CompatibleProductCarousel({
-  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos relacionados",
+  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos relacionados",salesAppearance=false,
 }: {
   products: CompatibleProductSuggestion[];
   onPick?: (product: CompatibleProductSuggestion) => void;
@@ -39,6 +42,7 @@ export function CompatibleProductCarousel({
   actionLabel?: string;
   hideTitle?: boolean;
   title?: string;
+  salesAppearance?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   if (!products.length) return null;
@@ -79,17 +83,33 @@ export function CompatibleProductCarousel({
         return <article key={product.id}
           className="flex w-[min(84vw,298px)] min-w-0 shrink-0 snap-start flex-col justify-between gap-2.5 rounded-xl border border-border bg-card p-3 sm:w-[298px]">
           <div className="flex min-w-0 items-start gap-2.5">
-            <ProductPhoto mediaId={product.coverMediaId} name={product.name}/>
+            <ProductPhoto mediaId={product.coverMediaId} name={product.name} illustrationUrl={product.illustrationUrl}/>
             <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-xs font-bold leading-snug text-foreground">{product.name}</p>
+              <div className="flex min-w-0 items-start gap-1.5">
+                <p className="line-clamp-2 min-w-0 flex-1 text-xs font-bold leading-snug text-foreground">
+                  {product.name}
+                </p>
+                {product.stockLocation&&<Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label={"Localização de "+product.name}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
+                      <MapPin size={14} aria-hidden="true"/>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-64 space-y-1 p-3">
+                    <p className="text-xs font-bold">Localização no estoque</p>
+                    <p className="break-words text-xs text-foreground">{product.stockLocation}</p>
+                  </PopoverContent>
+                </Popover>}
+              </div>
               {product.relationType && <span className="mt-1 inline-flex max-w-full truncate rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{productRelationLabel(product.relationType)}</span>}
               <p className="mt-1 truncate text-[11px] text-muted-foreground">SKU {product.sku || "—"}{product.barcode ? " · GTIN " + product.barcode : ""}</p>
               {product.matchedCode && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Referência: {product.matchedCode}</p>}
-              <p className="mt-1.5 text-sm font-black text-foreground">
+              <p className={"mt-1.5 text-sm font-black "+(salesAppearance?"text-emerald-700 dark:text-emerald-400":"text-foreground")}>
                 {product.price == null ? "Sem preço" : formatCurrency(product.price)}
               </p>
               <p className={cn("mt-0.5 text-[11px] font-semibold",
-                noStock ? "text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-300")}>
+                noStock ? "text-red-600 dark:text-red-400" : salesAppearance?"text-primary":"text-emerald-700 dark:text-emerald-300")}>
                 {formatNumber(stock)} {product.unit || "un"} em estoque
               </p>
             </div>
