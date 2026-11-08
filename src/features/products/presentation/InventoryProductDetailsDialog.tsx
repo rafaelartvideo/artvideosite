@@ -5,6 +5,8 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
+import { listCompatibleModelsForProducts } from "../infrastructure/product-compatible-models.repository";
+import { CompatibleDeviceModelsList } from "./CompatibleDeviceModelsList";
 import { productRelationLabel } from "../domain/product-relation-labels";
 import { productConditionLabel } from "../domain/product-condition";
 import { loadProductGallery } from "../infrastructure/product-lookup.repository";
@@ -59,6 +61,12 @@ export function InventoryProductDetailsDialog({
     queryFn: () => listProductRelations(organizationId, id!),
     enabled: Boolean(product && organizationId && id),
     staleTime: 20_000,
+  });
+  const compatibleModels = useQuery({
+    queryKey: ["products", "device-compatible-models", organizationId, id],
+    queryFn: () => listCompatibleModelsForProducts(organizationId, [id!]),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 30_000,
   });
   const gallery = useQuery({
     queryKey: ["products", "gallery-detail", organizationId, id],
@@ -179,6 +187,14 @@ export function InventoryProductDetailsDialog({
             <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">{productRelationLabel(code.relation_type)}</span>
           </div>)}
         </div> : <p className="text-xs text-muted-foreground">Nenhum código relacionado.</p>}
+    </section>
+
+    <section className="space-y-3 border-t border-border pt-4" aria-label="Modelos de aparelhos compatíveis">
+      {compatibleModels.isPending ? <p className="text-xs text-muted-foreground">Carregando modelos compatíveis...</p>
+        : compatibleModels.isError ? <p className="text-xs text-destructive">Não foi possível consultar os modelos compatíveis.</p>
+        : compatibleModels.data?.length ? <CompatibleDeviceModelsList models={compatibleModels.data} />
+        : <><h4 className="text-sm font-bold text-foreground">Modelos de aparelhos compatíveis</h4>
+           <p className="text-xs text-muted-foreground">Nenhum modelo de aparelho informado.</p></>}
     </section>
 
     <section className="space-y-3 border-t border-border pt-4" aria-label="Produtos relacionados">
