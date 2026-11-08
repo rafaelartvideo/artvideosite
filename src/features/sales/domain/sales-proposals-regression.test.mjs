@@ -81,3 +81,24 @@ test("validades vencidas admitem reabertura autorizada sem modificar uma venda",
   assert.match(sql,/v_p\.status in \('sent','approved'\) and v_p\.valid_until<current_date and p_next_status='draft'/);
   assert.doesNotMatch(sql,/update public\.sales_orders/);
 });
+
+test("preço desatualizado não substitui silenciosamente o valor mostrado ao cliente",()=>{
+  const sql=read("supabase/migrations/20261108200000_sales_proposal_expected_price_guard.sql");
+  assert.match(sql,/expected_unit_price/);
+  assert.match(sql,/round\(v_product\.price,2\)/);
+  assert.match(sql,/O preço de % mudou/);
+  const repo=read("src/features/sales/infrastructure/sales-proposals.repository.ts");
+  assert.match(repo,/expected_unit_price: item\.expectedUnitPrice/);
+  const editor=read("src/features/sales/presentation/SalesProposalEditorDialog.tsx");
+  assert.match(editor,/expectedUnitPrice:line\.price/);
+});
+
+test("envio ou aprovação podem ser revogados com justificativa e histórico",()=>{
+  const sql=read("supabase/migrations/20261108194000_sales_proposal_reopen_after_approval.sql");
+  assert.match(sql,/v_p\.status in \('sent','approved'\) and p_next_status='draft'/);
+  assert.match(sql,/Sem permissão para desfazer a aprovação registrada/);
+  assert.match(sql,/Informe o motivo da renegociação da proposta aprovada/);
+  const ui=read("src/features/sales/presentation/SalesProposalDetailDialog.tsx");
+  assert.match(ui,/Reabrir negociação/);
+  assert.match(ui,/Motivo da renegociação/);
+});
