@@ -638,7 +638,7 @@ export function TabSales() {
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2 text-sm font-semibold text-foreground">{line.product.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(line.product.price || 0)} / {line.product.unit || "un"}</p>
+                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">{formatCurrency(line.product.price || 0)} / {line.product.unit || "un"}</p>
               </div>
               <button type="button" onClick={() => setQuantity(line.product.product_id, 0)}
                 aria-label={"Remover " + line.product.name} className="text-destructive"><Trash2 size={15} /></button>
@@ -653,14 +653,14 @@ export function TabSales() {
                   onClick={() => setQuantity(line.product.product_id, line.quantity + 1)}
                   className="flex h-full w-8 items-center justify-center"><Plus size={14} /></button>
               </div>
-              <span className="text-sm font-bold tabular-nums text-foreground">{formatCurrency((line.product.price || 0) * line.quantity)}</span>
+              <span className="text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency((line.product.price || 0) * line.quantity)}</span>
             </div>
           </div>)}
         </div>
         <div className="space-y-3 border-t border-border p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-muted-foreground">Total estimado</span>
-            <strong className="text-xl tabular-nums text-foreground">{formatCurrency(cartTotal)}</strong>
+            <strong className="text-xl tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(cartTotal)}</strong>
           </div>
           <AdminButton className="w-full justify-center" disabled={!canSell || cart.length === 0}
             onClick={() => setCheckoutIntent(true)}><CheckCircle2 size={16} /> Finalizar venda</AdminButton>
@@ -692,7 +692,7 @@ export function TabSales() {
       footer={<div className="flex w-full flex-col gap-2">
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Total estimado</span>
-          <strong className="text-xl tabular-nums">{formatCurrency(cartTotal)}</strong>
+          <strong className="text-xl tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(cartTotal)}</strong>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {hasPermission("sales.proposals.manage")&&<AdminButton size="sm" variant="secondary"
@@ -714,8 +714,8 @@ export function TabSales() {
             className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-3">
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-semibold">{line.product.name}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(line.product.price||0)} por unidade</p>
-              <strong className="mt-1 block text-sm tabular-nums">
+              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">{formatCurrency(line.product.price||0)} por unidade</p>
+              <strong className="mt-1 block text-sm tabular-nums text-emerald-700 dark:text-emerald-400">
                 {formatCurrency((line.product.price||0)*line.quantity)}
               </strong>
             </div>
