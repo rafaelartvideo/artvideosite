@@ -311,9 +311,12 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-[11px] md:py-2 font-semibold text-muted-foreground" aria-label="Legenda dos indicadores da ordem de serviço">
             <span className="font-bold text-foreground">Legenda:</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#16a34a]" aria-hidden="true" />Aberta</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#0057e7]" aria-hidden="true" />Fechada</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
+            {(["Aberta", "Fechada", "Cancelada"] as const).map(status => (
+              <span key={status} className="inline-flex items-center gap-1.5">
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex(status) }} aria-hidden="true" />
+                {status}
+              </span>
+            ))}
             {hasActiveFilters && <span className="inline-flex items-center border-l border-border pl-4 font-normal text-[#0057e7]">Total do filtro: {totalItems} OS</span>}
           </div>
         </>
