@@ -135,9 +135,9 @@ export function SalesProductDetailsDialog({
         </div>
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap gap-2" aria-label="Categoria, marca e condição">
-            {details.data?.category&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{details.data.category}</span>}
-            {details.data?.brand&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{details.data.brand}</span>}
-            {details.data?.condition&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{productConditionLabel(details.data.condition)}</span>}
+            {details.data?.category&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{details.data.category}</span>}
+            {details.data?.brand&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{details.data.brand}</span>}
+            {details.data?.condition&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{productConditionLabel(details.data.condition)}</span>}
           </div>
           <div className="space-y-2">
             <h3 className="break-words text-lg font-bold leading-6 text-foreground">{product.name}</h3>
