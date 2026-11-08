@@ -137,7 +137,7 @@ export function SalesProposalEditorDialog({
     description="Escolha o cliente, os produtos e a validade. Nenhuma movimentação de estoque ou Financeiro será feita."
     className="w-[calc(100vw-1.25rem)] max-w-3xl"
     bodyClassName="max-h-[min(76dvh,740px)] overflow-y-auto"
-    footer={<div className="flex w-full flex-wrap justify-end gap-2">
+    footer={<div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
       <AdminButton size="sm" variant="secondary" disabled={mutation.isPending}
         onClick={onClose}>Cancelar</AdminButton>
       <AdminButton size="sm" disabled={Boolean(invalid)||mutation.isPending}
@@ -202,24 +202,27 @@ export function SalesProposalEditorDialog({
         </div>}
         <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
           {lines.length===0?<p className="p-4 text-center text-xs text-muted-foreground">Nenhum produto selecionado.</p>
-            :lines.map(line=><div key={line.productId} className="flex flex-wrap items-center gap-2 p-3">
-              <div className="min-w-[145px] flex-1">
+            :lines.map(line=><div key={line.productId}
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,1fr)_96px_100px_36px]">
+              <div className="col-span-2 min-w-0 sm:col-span-1">
                 <p className="break-words text-sm font-semibold">{line.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(line.price)} cada</p>
               </div>
-              <label className="flex items-center gap-1 text-xs">
-                Qtd.
+              <label className="flex min-w-0 flex-col gap-1 text-xs">
+                <span className="font-semibold text-muted-foreground">Quantidade</span>
                 <input type="number" min={1} max={9999} step={1} value={line.quantity}
                   onChange={event=>setLines(current=>current.map(item=>item.productId===line.productId
                     ?{...item,quantity:Number(event.target.value)}:item))}
-                  className="h-9 w-16 rounded-lg border border-border bg-background px-2 text-right"/>
+                  className="h-10 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-right"/>
               </label>
-              <strong className="min-w-[85px] text-right text-sm tabular-nums">
-                {formatCurrency(line.price*line.quantity)}
-              </strong>
+              <div className="text-right">
+                <p className="text-[11px] text-muted-foreground sm:hidden">Subtotal</p>
+                <strong className="text-sm tabular-nums">{formatCurrency(line.price*line.quantity)}</strong>
+              </div>
               <button type="button" aria-label={"Remover "+line.name}
                 onClick={()=>setLines(current=>current.filter(item=>item.productId!==line.productId))}
-                className="flex h-9 w-8 items-center justify-center text-destructive"><Trash2 size={15}/></button>
+                className="col-span-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border text-xs font-semibold text-destructive sm:col-span-1 sm:w-9"
+              ><Trash2 size={15}/><span className="sm:sr-only">Remover</span></button>
             </div>)}
         </div>
       </section>
