@@ -19,6 +19,8 @@ export type SalesOrderListRow = {
   discount_amount: number;
   total_amount: number;
   received_amount: number;
+  return_credit_amount?: number;
+  net_total_amount?: number;
   open_amount: number;
   due_date: string | null;
   financial_entry_id: string | null;
@@ -60,7 +62,7 @@ export type SalesOrderItem = {
 
 export type SalesOrderHistoryEvent = {
   id: string;
-  type: "created" | "fulfillment_changed" | "cancelled" | "delivery_configured" | "delivery_completed" | "return_requested" | "return_approved" | "return_rejected" | "return_received";
+  type: "created" | "fulfillment_changed" | "cancelled" | "delivery_configured" | "delivery_completed" | "return_requested" | "return_approved" | "return_rejected" | "return_received" | "return_reconciled" | "delivery_configured" | "delivery_completed" | "return_requested" | "return_approved" | "return_rejected" | "return_received";
   data: Record<string, unknown>;
   at: string;
   by: string;
