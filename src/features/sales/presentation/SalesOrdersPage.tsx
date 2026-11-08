@@ -4,8 +4,9 @@ import { ClipboardList, CreditCard, Plus, RefreshCw, ShoppingBag, Wallet, Chevro
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminButton, AdminCard, Section } from "@/shared/ui/admin/AdminLayout";
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { LoadingState, EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesOrders, type SalesOrderFilters, type SalesOrderListRow } from "../infrastructure/sales-orders.repository";
@@ -69,6 +70,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
   const [from,setFrom]=useState("");
   const [to,setTo]=useState("");
   const [page,setPage]=useState(1);
+  const [sort,setSort]=useState<"newest"|"oldest"|"highest"|"lowest">("newest");
   const [pageSize,setPageSize]=useState(15);
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [toast,setToast]=useState<string|null>(null);
@@ -91,11 +93,20 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     staleTime:15_000,
     refetchOnWindowFocus:true,
   });
-  const orders=ordersQuery.data?.items || [];
+  // A ordenação alternativa se aplica somente aos itens da página carregada.
+  const orders=useMemo(()=>{
+    const list=[...(ordersQuery.data?.items||[])];
+    return list.sort((a,b)=>{
+      if(sort==="highest")return Number(b.total_amount)-Number(a.total_amount);
+      if(sort==="lowest")return Number(a.total_amount)-Number(b.total_amount);
+      const delta=new Date(b.created_at).getTime()-new Date(a.created_at).getTime();
+      return sort==="oldest"?-delta:delta;
+    });
+  },[ordersQuery.data?.items,sort]);
   const data=ordersQuery.data;
 
   const clearFilters=()=>{
-    setSearch("");setStatus("all");setPayment("all");setFrom("");setTo("");setPage(1);
+    setSearch("");setStatus("all");setPayment("all");setFrom("");setTo("");setPage(1);setSort("newest");
   };
   const setFilter=<T,>(setter:(v:T)=>void,value:T)=>{setter(value);setPage(1);};
   const metrics=[
@@ -125,17 +136,26 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     </div>
 
     <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-      {metrics.map(metric=><div key={metric.label} className="min-w-0 rounded-xl border border-border bg-card px-4 py-3">
+      {metrics.map(metric=><AdminCard key={metric.label} className="px-4 py-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <metric.icon size={15}/><span>{metric.label}</span>
         </div>
         <p className="mt-2 break-words text-xl font-bold tabular-nums text-foreground">{metric.value}</p>
-      </div>)}
+      </AdminCard>)}
     </div>
 
     <AdminSearchPanel title="Buscar pedidos"
-      headerActions={(search||status!=="all"||payment!=="all"||from||to)
-        ? <AdminSearchClearButton onClick={clearFilters}/> : undefined}>
+      headerActions={<>
+        {(search||status!=="all"||payment!=="all"||from||to||sort!=="newest")
+          && <AdminSearchClearButton onClick={clearFilters}/>}
+        <AdminSearchSortMenu label="Ordenar pedidos nesta página" value={sort}
+          onChange={setSort} options={[
+            {value:"newest",label:"Mais recentes"},
+            {value:"oldest",label:"Mais antigos"},
+            {value:"highest",label:"Maior valor"},
+            {value:"lowest",label:"Menor valor"},
+          ]}/>
+      </>}>
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <AdminSearchTextField label="Pedido, cliente, produto ou SKU"
           value={search} onChange={value=>setFilter(setSearch,value)}
@@ -185,7 +205,8 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
       : orders.length===0 ? <EmptyState icon={ShoppingBag} title="Nenhum pedido encontrado"
         message={data?.total===0 && !debouncedSearch && status==="all" && payment==="all" && !from && !to
           ? "As vendas confirmadas pela Vitrine aparecerão aqui." : "Tente alterar os filtros da busca."}/>
-      : <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+      : <Section title="Lista de pedidos" description="Selecione um pedido para visualizar os detalhes." flush
+        className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         <div className="divide-y divide-border md:hidden">
           {orders.map(order=><button type="button" key={order.id}
             onClick={()=>setSelectedId(order.id)}
@@ -215,9 +236,10 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           </button>)}
         </div>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[840px] text-left text-sm">
-            <thead className="bg-muted/40">
-              <tr className="border-b border-border text-[11px] font-semibold text-muted-foreground">
+          <TopTableScrollbar/>
+          <table className="min-w-[840px]">
+            <thead>
+              <tr>
                 <th className="px-4 py-3">Pedido</th>
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Situações</th>
@@ -258,7 +280,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           showFilteredTotal
           onPageChange={setPage}
           onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
-      </div>}
+      </Section>}
 
     {selectedId && <SalesOrderDetailDialog
       organizationId={organizationId}
