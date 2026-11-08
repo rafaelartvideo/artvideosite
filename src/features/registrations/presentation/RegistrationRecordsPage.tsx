@@ -7,6 +7,7 @@ import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import type { Registration } from "../infrastructure/registrations.repository";
 import {
   addRegistrationRecordAttachments,
@@ -217,20 +218,25 @@ export function RegistrationRecordsPage({
             <label className="min-w-0 text-[10px] font-bold uppercase text-[#5a6a82]">Data
               <input type="date" value={dateFilter} onChange={event => setDateFilter(event.target.value)} className={cn(INPUT, "mt-1 min-w-0 text-xs font-medium normal-case")} />
             </label>
-            <div className="min-w-0">
-              <label className="mb-1 block text-[10px] font-bold uppercase text-[#5a6a82]">Ordenação</label>
-              <AdminSelect
+            <div className="flex items-end justify-end gap-2 lg:col-span-2">
+              {(authorFilter || dateFilter || sort !== "desc") && (
+                <AdminSearchClearButton variant="surface" onClick={() => {
+                  setAuthorFilter("");
+                  setDateFilter("");
+                  setSort("desc");
+                }} />
+              )}
+              <AdminSearchSortMenu
+                variant="surface"
+                label="Ordenação dos registros"
                 value={sort}
-                onValueChange={value => setSort(value as "desc" | "asc")}
-                ariaLabel="Ordenação"
-                className="min-w-0 text-xs font-medium normal-case"
+                onChange={setSort}
                 options={[
                   { value: "desc", label: "Mais recentes primeiro" },
                   { value: "asc", label: "Mais antigos primeiro" },
                 ]}
               />
             </div>
-            {(authorFilter || dateFilter) && <button type="button" onClick={() => { setAuthorFilter(""); setDateFilter(""); }} className="h-10 self-end rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50">Limpar</button>}
           </div>
         </AdminCard>
 
