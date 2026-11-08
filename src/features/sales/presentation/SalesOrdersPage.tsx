@@ -194,7 +194,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
             <div className="min-w-0 flex-1 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-bold text-foreground">Pedido #{order.order_number}</span>
-                <strong className="text-sm tabular-nums text-foreground">{formatCurrency(order.total_amount)}</strong>
+                <strong className="text-sm tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(order.total_amount)}</strong>
               </div>
               <p className="truncate text-sm font-medium text-foreground">
                 {order.customer_name_snapshot||"Consumidor não identificado"}
@@ -243,7 +243,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
                 <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-muted-foreground">{formatSalesDate(order.created_at)}</td>
                 <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-muted-foreground">{formatSalesDueDate(order.due_date)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
-                  <strong className="tabular-nums text-foreground">{formatCurrency(order.total_amount)}</strong>
+                  <strong className="tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(order.total_amount)}</strong>
                   {order.status!=="cancelled" && order.open_amount>0 && <p className="mt-1 text-[11px] text-orange-700 dark:text-orange-300">
                     {formatCurrency(order.open_amount)} em aberto
                   </p>}
