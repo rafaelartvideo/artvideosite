@@ -15,6 +15,7 @@ import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { getMediaPreview } from "@/shared/infrastructure/media.repository";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { salesHomologationImage } from "../domain/sales-homologation-images";
 import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
@@ -238,8 +239,23 @@ export function TabSales() {
       ]).then(values=>[values[0],values[1]] as const);
       const mediaIds=[product.cover_media_id,...(detail.gallery_media_ids||[]),
         ...related.map(item=>item.cover_media_id)].filter((id):id is string=>Boolean(id));
-      await Promise.all([...new Set(mediaIds)].slice(0,18).map(mediaId=>
-        getMediaPreview(queryClient,mediaId).catch(()=>null)));
+      // A mesma chave usada pelo hook de mídia impede um segundo carregamento visível no modal.
+      const previews=await Promise.all([...new Set(mediaIds)].slice(0,18).map(mediaId=>
+        queryClient.fetchQuery({
+          queryKey:queryKeys.publicSite.media(mediaId),
+          queryFn:()=>getMediaPreview(queryClient,mediaId),
+          staleTime:30*60_000,
+        }).catch(()=>null)));
+      // Aguarda a capa e algumas miniaturas realmente decodificarem no navegador.
+      const illustration=salesHomologationImage(product.sku);
+      const urls=[illustration,...previews.map(preview=>preview?.url||null)]
+        .filter((url):url is string=>Boolean(url)).slice(0,10);
+      await Promise.all(urls.map(url=>new Promise<void>(resolve=>{
+        const image=new Image();
+        image.onload=()=>resolve();image.onerror=()=>resolve();
+        image.src=url;
+        if(image.complete)resolve();
+      })));
       if(seq===preparingSeqRef.current)setSelected(product);
     }catch(error){
       if(seq===preparingSeqRef.current){
