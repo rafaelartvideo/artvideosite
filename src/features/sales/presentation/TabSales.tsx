@@ -11,6 +11,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
+import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
 import { searchSalesProducts, listSalesProductRelations } from "../infrastructure/sales.repository";
 import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
@@ -115,6 +116,24 @@ export function TabSales() {
     enabled: Boolean(organizationId && canView && (!debouncedSearch.trim() || debouncedSearch.trim().length >= 2)),
     staleTime: 20_000,
   });
+
+  const catalogProductIds = useMemo(() => (productsQuery.data || []).map(row => row.product_id), [productsQuery.data]);
+  const deviceModelsQuery = useQuery({
+    queryKey: ["products", "device-compatible-models", "sales", organizationId, catalogProductIds.join(",")],
+    queryFn: () => listCompatibleModelsForProducts(organizationId, catalogProductIds),
+    enabled: Boolean(organizationId && canView && catalogProductIds.length),
+    staleTime: 30_000,
+  });
+  const modelsByProduct = useMemo(() => {
+    const result = new Map<string, CompatibleDeviceModel[]>();
+    for (const row of deviceModelsQuery.data || []) {
+      if (!row.product_id) continue;
+      const current = result.get(row.product_id) || [];
+      current.push(row);
+      result.set(row.product_id, current);
+    }
+    return result;
+  }, [deviceModelsQuery.data]);
 
   const relatedQuery = useQuery({
     queryKey: ["sales", organizationId, "relations", selected?.product_id || ""],
@@ -274,6 +293,7 @@ export function TabSales() {
               {products.map(product => {
                 const available = availableQuantity(product);
                 const isFavorite = favorites.includes(product.product_id);
+                const deviceModels = modelsByProduct.get(product.product_id) || [];
                 const canAdd = canSell && available > 0 && product.price != null && Number(product.price) > 0;
                 const cartCount = cart.find(line => line.product.product_id === product.product_id)?.quantity || 0;
                 return <article key={product.product_id}
@@ -299,6 +319,12 @@ export function TabSales() {
                     <p className={"text-xs font-medium " + (available > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-destructive")}>
                       {available > 0 ? formatNumber(available) + " disponíveis" : "Sem estoque"}
                     </p>
+                    {deviceModels.length > 0 && <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground"
+                      title={deviceModels.map(model => model.brand + " " + model.model).join(" · ")}>
+                      <span className="font-semibold text-foreground">Compatível: </span>
+                      {deviceModels[0].brand} {deviceModels[0].model}
+                      {deviceModels.length > 1 ? " · +" + (deviceModels.length - 1) : ""}
+                    </p>}
                     <AdminButton size="sm" disabled={!canAdd || cartCount >= available} className="mt-auto w-full justify-center"
                       onClick={() => addProduct(product)}><Plus size={14} /> Adicionar</AdminButton>
                   </div>
