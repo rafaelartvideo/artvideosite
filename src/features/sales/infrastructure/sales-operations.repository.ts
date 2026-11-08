@@ -97,6 +97,9 @@ export type SalesReturn = {
   created_at: string;
   received_at: string | null;
   notes: string | null;
+  exchange_items: Array<{
+    id:string;product_id:string;product:string;quantity:number;line_total:number;
+  }>;
   items: Array<{
     id: string;
     order_item_id: string;
@@ -131,6 +134,18 @@ export async function receiveSalesReturn(organizationId:string,id:string,
   });
   if(error)throw error;
   return data as {status:string;refund_payable_id:string|null;stock_restored:number};
+}
+export async function issueSalesExchange(
+  organizationId:string,returnId:string,items:Array<{productId:string;quantity:number}>,
+  notes:string,
+):Promise<{status:"closed";value:number;items:number}> {
+  const {data,error}=await supabase.rpc("issue_sales_exchange_v1",{
+    p_organization_id:org(organizationId),p_return_id:returnId,
+    p_items:items.map(item=>({product_id:item.productId,quantity:item.quantity})),
+    p_notes:notes.trim(),
+  });
+  if(error)throw error;
+  return data as {status:"closed";value:number;items:number};
 }
 export async function reconcileSalesReturnCredit(
   organizationId:string,returnId:string,reason:string,
