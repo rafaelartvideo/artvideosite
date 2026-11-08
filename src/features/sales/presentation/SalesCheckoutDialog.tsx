@@ -303,6 +303,16 @@ export function SalesCheckoutDialog({
                   className="flex h-10 w-8 items-center justify-center text-destructive"><Trash2 size={15}/></button>
                 : <span className="w-8"/>}
               </div>)}
+              {mode === "deposit" && paymentLines.length === 1 && <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Entrada rápida:</span>
+                {[25,50].map(percent => <button type="button" key={percent}
+                  onClick={() => updatePayment(paymentLines[0].key, {
+                    amountText: moneyText(Math.round(total * percent) / 100),
+                  })}
+                  className="rounded-md border border-border bg-card px-2 py-1.5 font-semibold text-primary">
+                  {percent}%
+                </button>)}
+              </div>}
               {paymentLines.length < MAX_PAYMENTS && <button type="button" onClick={addPayment}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
                 <Plus size={14}/> Adicionar forma de pagamento
@@ -388,7 +398,7 @@ export function SalesCheckoutDialog({
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="sales-discount" className="text-sm text-muted-foreground">Desconto (R$)</label>
               <input id="sales-discount" inputMode="decimal" value={discountText} placeholder="0,00"
-                onChange={event=>setDiscountText(event.target.value)}
+                onChange={event=>{setDiscountText(event.target.value);setReceivedConfirmed(false);}}
                 disabled={!canDiscount} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60"/>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3">
