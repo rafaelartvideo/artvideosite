@@ -50,10 +50,10 @@ export function AdminSearchTextField({ label, value, onChange, placeholder, inpu
 /** O mesmo botão de ícone Material 3 nos painéis de busca e em superfícies claras. */
 type SearchActionVariant = "header" | "surface";
 const searchActionButtonClass = (variant: SearchActionVariant) => cn(
-  "inline-flex shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97]",
+  "inline-flex shrink-0 items-center justify-center rounded-none border-0 bg-transparent p-0 shadow-none transition-opacity duration-150 hover:opacity-75 active:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
   variant === "header"
-    ? "h-9 w-9 border-white/20 bg-white/[0.12] text-white hover:bg-white/[0.22] active:bg-white/[0.30] focus-visible:ring-white focus-visible:ring-offset-primary md:h-10 md:w-10"
-    : "h-11 w-11 border-border bg-muted/70 text-foreground hover:bg-muted active:bg-muted/80 focus-visible:ring-primary focus-visible:ring-offset-background",
+    ? "h-9 w-9 text-white md:h-10 md:w-10"
+    : "h-11 w-11 text-foreground",
 );
 
 /** Google Material Symbols: delete_sweep (outlined, peso 400). */
