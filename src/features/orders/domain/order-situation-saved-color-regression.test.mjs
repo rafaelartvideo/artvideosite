@@ -60,7 +60,7 @@ test("conclusão usa verde #059669 e cancelamento aplica o estilo 4 de rejeitar 
   assert.doesNotMatch(conclusion, /bg-\[#B9FC01\]/);
   assert.match(quote, /variant="quaternary"[^>]*onClick=\{\(\)=>openAction\("reject"\)\}/);
   assert.match(details, /variant="quaternary" onClick=\{\(\) => setCancelOpen\(true\)\}/);
-  assert.match(kanban, /<AdminButton variant="quaternary" size="sm"[^>]*setCancelTarget\(order\)/);
+  assert.match(kanban, /<AdminButton variant="quaternary" size="sm"[^\n]*setCancelTarget\(order\)/);
   assert.match(dialog, /variant="quaternary"/);
   assert.match(dialog, /onClick=\{\(\) => void onConfirm\(reason\.trim\(\)\)\}/);
   assert.match(dialog, /loadingText="Cancelando\.\.\."/);
