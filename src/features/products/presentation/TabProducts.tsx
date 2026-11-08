@@ -75,6 +75,11 @@ import {
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptureBridge";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
+import { ProductCompatibleModelsEditor } from "./ProductCompatibleModelsEditor";
+import {
+  getProductCompatibleModels, replaceProductCompatibleModels,
+  type CompatibleDeviceModel,
+} from "../infrastructure/product-compatible-models.repository";
 import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/product-condition";
@@ -437,6 +442,11 @@ export function TabProducts({
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
   const relatedCodesRequestRef = useRef(0);
+  const [compatibleModels, setCompatibleModels] = useState<CompatibleDeviceModel[]>([]);
+  const [compatibleModelsLoaded, setCompatibleModelsLoaded] = useState(true);
+  const [compatibleModelsInherited, setCompatibleModelsInherited] = useState(false);
+  const [compatibleModelsParentId, setCompatibleModelsParentId] = useState<string | null>(null);
+  const compatibleModelsRequestRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -560,6 +570,11 @@ export function TabProducts({
     setMobileScanTarget("barcode");
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
+    compatibleModelsRequestRef.current += 1;
+    setCompatibleModels([]);
+    setCompatibleModelsLoaded(true);
+    setCompatibleModelsInherited(false);
+    setCompatibleModelsParentId(null);
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -673,6 +688,25 @@ export function TabProducts({
         .catch(error => {
           if (codesRequest !== relatedCodesRequestRef.current) return;
           setToast({ msg: "Não foi possível carregar os códigos relacionados: " + systemErrorMessage(error), type: "error" });
+        });
+    }
+    const modelRequest = ++compatibleModelsRequestRef.current;
+    setCompatibleModels([]);
+    setCompatibleModelsLoaded(false);
+    setCompatibleModelsInherited(false);
+    setCompatibleModelsParentId(null);
+    if (activeOrganizationId) {
+      void getProductCompatibleModels(activeOrganizationId, product.id)
+        .then(data => {
+          if (modelRequest !== compatibleModelsRequestRef.current) return;
+          setCompatibleModels(data.models);
+          setCompatibleModelsInherited(data.inherited);
+          setCompatibleModelsParentId(data.parent_product_id);
+          setCompatibleModelsLoaded(true);
+        })
+        .catch(error => {
+          if (modelRequest !== compatibleModelsRequestRef.current) return;
+          setToast({ msg: "Não foi possível carregar modelos compatíveis: " + systemErrorMessage(error), type: "error" });
         });
     }
     setLinkedSuppliers([]);
@@ -801,6 +835,11 @@ export function TabProducts({
     }
 
     const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
+    if (!compatibleModelsLoaded) {
+      setEditorTab("relationships");
+      setToast({ msg: "Aguarde a consulta dos modelos compatíveis antes de salvar.", type: "error" });
+      return;
+    }
     if (!relatedCodesLoaded) {
       setEditorTab("relationships");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
@@ -985,6 +1024,21 @@ export function TabProducts({
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
+      try {
+        await replaceProductCompatibleModels(activeOrganizationId, savedProductId,
+          compatibleModels, compatibleModelsInherited);
+      } catch (compatibilityError) {
+        setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+        onRouteChange?.(savedProductId, "edit");
+        setEditorTab("relationships");
+        setToast({ msg: "Produto salvo, mas não foi possível registrar os modelos compatíveis: "
+          + systemErrorMessage(compatibilityError) + ". Corrija e salve novamente.", type: "error" });
+        void refresh();
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["products", "device-compatible-models"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["pdv"] });
       try {
         await replaceRelatedProductCodes(activeOrganizationId, savedProductId, validateTypedRelatedCodes(form.related_codes, form.manufacturer_code).codes);
       } catch (codeError) {
@@ -1727,6 +1781,18 @@ export function TabProducts({
                 />
               </div>}
               </div>
+            </Section>
+            <Section title="Modelos de aparelhos compatíveis"
+              description="Vincule os modelos dos aparelhos atendidos por este produto. Variações podem herdar os modelos do produto principal ou ter uma lista própria.">
+              <ProductCompatibleModelsEditor
+                models={compatibleModels}
+                onChange={setCompatibleModels}
+                inherited={compatibleModelsInherited}
+                onInheritedChange={setCompatibleModelsInherited}
+                parentProductId={compatibleModelsParentId}
+                disabled={saving}
+                loaded={compatibleModelsLoaded}
+              />
             </Section>
             <Section title="Códigos relacionados"
               description="O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código."
