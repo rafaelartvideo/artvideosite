@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router";
 import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, ShoppingBag, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
@@ -52,6 +53,13 @@ export function SalesOrderDetailDialog({
 }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const openFinance = (entryId: string) => {
+    const mode = new URLSearchParams(location.search).get("mode") === "crm" ? "?mode=crm" : "";
+    onClose();
+    navigate("/admin/finance/receivables/" + encodeURIComponent(entryId) + mode);
+  };
   const canManage = hasPermission("sales.orders.manage");
   const canCancel = hasPermission("sales.cancel");
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -109,6 +117,12 @@ export function SalesOrderDetailDialog({
       className="w-[calc(100vw-1.25rem)] max-w-4xl"
       bodyClassName="max-h-[min(75dvh,800px)] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap justify-end gap-2">
+        {order?.status === "confirmed" && order.open_amount > 0 && order.financial_entry_id &&
+          hasPermission("finance.receivables.view") &&
+          <AdminButton variant="secondary" size="sm"
+            onClick={() => openFinance(order.financial_entry_id)}>
+            <Wallet size={15} /> Receber no Financeiro
+          </AdminButton>}
         {order?.status === "confirmed" && nextStatus && canManage &&
           <AdminButton size="sm" disabled={fulfillmentMutation.isPending || cancellationMutation.isPending}
             loading={fulfillmentMutation.isPending} onClick={() => fulfillmentMutation.mutate()}>
@@ -220,6 +234,37 @@ export function SalesOrderDetailDialog({
               </p>
             </section>
 
+            {order.installments?.length > 0 && <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-bold">
+                <Calendar size={16}/> Parcelas e vencimentos
+              </h3>
+              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+                {order.installments.map(installment => <div key={installment.id}
+                  className="flex min-w-0 items-center justify-between gap-3 px-3 py-2.5 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">
+                      {installment.number}ª de {installment.total_installments} · {formatSalesDueDate(installment.due_date)}
+                    </p>
+                    <p className={installment.status === "paid"
+                      ? "mt-1 text-emerald-700 dark:text-emerald-300"
+                      : installment.status === "overdue" ? "mt-1 text-red-600"
+                        : "mt-1 text-muted-foreground"}>
+                      {installment.status === "paid" ? "Recebida"
+                        : installment.status === "partial" ? "Parcialmente recebida"
+                          : installment.status === "overdue" ? "Vencida"
+                            : installment.status === "cancelled" ? "Cancelada" : "Pendente"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <strong className="tabular-nums">{formatCurrency(installment.amount)}</strong>
+                    {installment.settled_amount > 0 && installment.settled_amount < installment.amount &&
+                      <p className="mt-1 tabular-nums text-emerald-700 dark:text-emerald-300">
+                        {formatCurrency(installment.settled_amount)} recebido
+                      </p>}
+                  </div>
+                </div>)}
+              </div>
+            </section>}
             {order.settlements.length>0 && <section className="space-y-2">
               <h3 className="flex items-center gap-2 text-sm font-bold"><CheckCircle2 size={16}/> Recebimentos</h3>
               <div className="divide-y divide-border rounded-xl border border-border">
