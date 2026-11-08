@@ -36,7 +36,9 @@ test("vitrine e modal não usam bootstrap, caixa ou RPC do PDV", () => {
   for (const src of [sales, modal, repository]) {
     assert.doesNotMatch(src, /PdvSaleWorkspace|loadPdvBootstrap|finalizePdvSale|get_pdv_bootstrap_v1|finalize_pdv_sale_v1/);
   }
-  assert.match(sales, /searchSalesProducts\(organizationId, debouncedSearch\.trim\(\), 80\)/);
+  assert.match(sales, /searchSalesCatalog\(organizationId,/);
+  assert.match(repository, /"search_sales_catalog_v2"/);
+  assert.match(repository, /"get_sales_catalog_categories_v1"/);
   assert.match(sales, /listSalesProductRelations\(organizationId, \[selected!\.product_id\]\)/);
   assert.match(sales, /<SalesCheckoutDialog/);
   assert.match(sales, /union-sales-cart:v1:/);
