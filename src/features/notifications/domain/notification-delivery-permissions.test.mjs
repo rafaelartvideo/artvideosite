@@ -39,7 +39,7 @@ test("visualizar e receber sao direitos separados no banco e na UI de perfis", (
 });
 
 test("realtime nao promove avisos sem direito de recebimento e agrupa rajadas", () => {
-  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50\)/);
+  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId\)/);
   assert.match(hook, /item\.delivery_allowed === true/);
   assert.match(hook, /pendingIds/);
   assert.match(hook, /refreshTimer/);
