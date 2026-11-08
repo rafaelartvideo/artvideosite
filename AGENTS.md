@@ -17,7 +17,7 @@
 - Investigate the **first real error** in GitHub Actions logs. A failure shown at `test.mjs:1:1` may be a syntax/regex parse error, not an application failure. Do not rewrite working production code based on that summary alone.
 - Before committing, run `npm run test:quality` (the quality suite parses all `*.test.mjs` files), plus the focused tests covering modified components. When a TypeScript/TSX component changes, run the corresponding build or TypeScript/TSX parser check before claiming it compiles.
 - For UI or behavior changes, check existing regression contracts **before editing**, and add or update regression tests to validate the intended behavior. Do not blindly replace an assertion or disable tests just to make CI green.
-- In JavaScript regex literals, escape metacharacters only once: `/columns\\.map\\(column => \\{/` matches the literal JSX code. Avoid duplicate/malformed regex assertions.
+- In JavaScript regex literals, escape metacharacters only once: `/columns\.map\(column => \{/` matches the literal JSX code. Avoid duplicate/malformed regex assertions.
 - Group related changes, tests, and configuration into **one validated commit where possible**, instead of generating a production workflow run for every individual file. Re-read the latest `main` before changing files to avoid overwriting another agent's work.
 - Never weaken the CI or deploy gates to ship faster. Short preflight checks catch failures early; full regression and both builds must still succeed before production publishing.
 - If local execution is unavailable, inspect the exact remote CI error and state clearly what was verified and what remains unverified.
