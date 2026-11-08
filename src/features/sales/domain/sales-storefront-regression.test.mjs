@@ -41,9 +41,9 @@ test("vitrine e modal não usam bootstrap, caixa ou RPC do PDV", () => {
   assert.match(sales, /<SalesCheckoutDialog/);
   assert.match(sales, /union-sales-cart:v1:/);
   assert.match(modal, /createCommercialSale\(organizationId,/);
-  assert.match(modal, /Confirmo que o pagamento foi recebido/);
-  assert.match(modal, /Receber depois/);
-  assert.match(repository, /"create_sales_order_v1"/);
+  assert.match(modal, /Confirmo que o valor de/);
+  assert.match(modal, /Sem entrada/);
+  assert.match(repository, /"create_sales_order_v2"/);
 });
 
 test("motor comercial registra pedido próprio com estoque, financeiro e idempotência", () => {
