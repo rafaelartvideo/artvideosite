@@ -1,5 +1,4 @@
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
-import { Search } from "lucide-react";
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 
 // Quantidade de placeholders acompanha o tamanho real da página (5, 10, 20, 30, 50 ou 100).
@@ -10,8 +9,8 @@ function Line({ className = "" }: { className?: string }) {
 }
 
 /**
- * Primeira carga da lista: Buscar OS + resultados usam uma única região
- * de skeleton e aparecem juntos. Não substitui filtros durante refetch em cache.
+ * Carregamento inicial único: só existem blocos neutros. Sem barra azul,
+ * textos de labels, bordas de inputs ou títulos de tabela fora do skeleton.
  */
 export function OrdersWorkspaceSkeleton({ displayMode, sharedView, hasPermission, hasActiveFilters, pageSize, totalItems }: {
   displayMode: "list" | "kanban";
@@ -25,47 +24,32 @@ export function OrdersWorkspaceSkeleton({ displayMode, sharedView, hasPermission
   const fields = Array.from({ length: fieldCount }, (_, index) => index);
   return <section role="status" aria-label="Carregando busca e ordens de serviço" aria-busy="true" className="space-y-5">
     <span className="sr-only">Carregando busca e ordens de serviço...</span>
-    <div className="admin-search-panel min-w-0 overflow-hidden border border-border bg-card shadow-[var(--admin-panel-shadow)]">
-      <div className="admin-primary-bar flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 px-4 text-white md:h-11">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} aria-hidden="true" className="text-white/90" /></span>
-          <span className="text-xs font-bold uppercase tracking-[0.08em]">Buscar OS</span>
-        </div>
-        <Skeleton className="h-7 w-7 shrink-0 rounded-lg bg-white/20 dark:bg-white/20" />
-      </div>
-      <div className="admin-search-panel-content min-w-0 p-4 md:p-3" aria-hidden="true">
+    <div className="min-w-0 overflow-hidden bg-card" aria-hidden="true">
+      {/* A barra inteira é um skeleton: o cabeçalho real não aparece por trás. */}
+      <Skeleton className="h-11 w-full rounded-none" />
+      <div className="p-3 sm:p-4 md:p-3">
         <div className="space-y-2 md:hidden">
           <Skeleton className="h-[42px] w-full rounded-lg" />
           <Skeleton className="h-[42px] w-full rounded-lg" />
         </div>
         <div className={`hidden items-start gap-x-2 gap-y-3 md:grid ${sharedView ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
-          {fields.map(index => <div key={index} className="min-w-0 space-y-1">
-            <div className="flex gap-2">
-              <Skeleton className="h-2.5 w-24 max-w-[46%] rounded-sm" />
-              {!sharedView && (index === 0 || index === 5) && <Skeleton className="h-2.5 w-24 max-w-[46%] rounded-sm" />}
-            </div>
-            <div className="flex h-9 min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background p-1">
-              {!sharedView && (index === 0 || index === 5)
-                ? <><Skeleton className="h-full min-w-0 flex-1 rounded-md" /><span className="mx-1 h-6 w-px bg-border" /><Skeleton className="h-full min-w-0 flex-1 rounded-md" /></>
-                : <Skeleton className="h-full w-full rounded-md" />}
-            </div>
+          {fields.map(index => <div key={index} className="min-w-0 space-y-2">
+            <Skeleton className={`h-2.5 rounded-sm ${index % 3 === 1 ? "w-32" : "w-24"}`} />
+            {/* A área completa do input é preenchida; não sobra contorno real. */}
+            <Skeleton className="h-9 w-full rounded-lg" />
           </div>)}
         </div>
       </div>
     </div>
     {displayMode === "list"
-      ? <div className="min-w-0 overflow-hidden border border-border bg-card shadow-[var(--admin-panel-shadow)] [&_table]:w-full [&_table]:text-sm [&_thead]:border-b [&_thead]:border-border [&_thead]:bg-[var(--admin-panel-heading)] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:tracking-[0.06em] [&_thead]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3.5 [&_tbody]:divide-y [&_tbody]:divide-border">
+      ? <div className="min-w-0 overflow-hidden bg-card">
           <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} standalone={false} />
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/55 px-4 py-3" aria-hidden="true">
-            <Skeleton className="h-8 w-32" />
-            <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
-          </div>
         </div>
-       : <OrdersKanbanSkeleton standalone={false} />}
+      : <OrdersKanbanSkeleton standalone={false} />}
   </section>;
 }
 
-/** Espelha a tabela no desktop e os cards compactos no celular, sem expor dados fictícios. */
+/** Colunas e linhas ficam inteiramente em skeleton, sem exibir a tabela real. */
 export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize, totalItems, standalone = true }: {
   hasPermission: (permission: string) => boolean;
   hasActiveFilters: boolean;
@@ -74,57 +58,57 @@ export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize,
   standalone?: boolean;
 }) {
   const count = Math.max(1, Math.min(100, totalItems > 0 ? Math.min(pageSize, totalItems) : pageSize));
-  const rows = Array.from({ length: count }, (_, index) => index);
-  return <div role={standalone ? "status" : undefined} aria-label={standalone ? "Carregando ordens de serviço" : undefined} aria-busy={standalone ? "true" : undefined}>
+  const previewRows = Array.from({ length: Math.min(count, 4) }, (_, index) => index);
+  const columns = [
+    hasActiveFilters && { key: "index", width: "52px" },
+    hasPermission("orders.table.os") && { key: "order", width: "130px" },
+    hasPermission("orders.table.external_os") && { key: "external", width: "125px" },
+    hasPermission("orders.table.customer") && { key: "customer", width: "minmax(175px, 1fr)" },
+    hasPermission("orders.table.service_type") && { key: "service", width: "155px" },
+    hasPermission("orders.table.equipment") && { key: "equipment", width: "155px" },
+    { key: "created", width: "138px" },
+    hasPermission("orders.table.scheduled_at") && { key: "scheduled", width: "140px" },
+    hasPermission("orders.table.situation") && { key: "situation", width: "155px" },
+    hasPermission("orders.table.actions") && { key: "actions", width: "90px" },
+  ].filter((column): column is { key: string; width: string } => Boolean(column));
+  const template = columns.map(column => column.width).join(" ");
+  return <div role={standalone ? "status" : undefined} aria-label={standalone ? "Carregando ordens de serviço" : undefined} aria-busy={standalone ? "true" : undefined} className="overflow-hidden">
     {standalone && <span className="sr-only">Carregando ordens de serviço...</span>}
-    <div className="divide-y divide-border md:hidden" aria-hidden="true">
-      {rows.map(index => <div key={index} className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
-            <Skeleton className="h-9 w-1.5 shrink-0 rounded-full motion-reduce:animate-none" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Line className="h-5 w-24" />
-              <Line className="w-3/4 max-w-56" />
-            </div>
-          </div>
-          {hasPermission("orders.table.actions") && <Skeleton className="h-9 w-9 rounded-lg motion-reduce:animate-none" />}
+    {/* Mobile: poucos cards representativos, sem repetir dezenas de animações. */}
+    <div className="space-y-3 p-3 md:hidden" style={{ minHeight: count * 160 }} aria-hidden="true">
+      {previewRows.map(index => <div key={index} className="space-y-3 bg-muted/15 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-8 w-8 rounded-lg" />
         </div>
-        <Line className="h-6 w-28 rounded-full" />
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          {COLUMNS.concat(3).map(item => <div key={item} className="space-y-2">
-            <Line className="h-2.5 w-20" />
-            <Line className={item % 2 ? "w-4/5" : "w-2/3"} />
-          </div>)}
+        <Skeleton className="h-3.5 w-3/5" />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-3 w-4/5" />
+          <Skeleton className="h-3 w-2/3" />
         </div>
       </div>)}
     </div>
-    <div className="hidden overflow-x-auto md:block" aria-hidden="true">
-      <table className="min-w-[1120px]">
-        <thead><tr>
-          {hasActiveFilters && <th className="w-14 text-left">#</th>}
-          {hasPermission("orders.table.os") && <th className="w-36 text-left">OS</th>}
-          {hasPermission("orders.table.external_os") && <th className="w-32 text-left">OS Externa</th>}
-          {hasPermission("orders.table.customer") && <th className="text-left">Cliente</th>}
-          {hasPermission("orders.table.service_type") && <th className="w-40 text-left">Tipo de atendimento</th>}
-          {hasPermission("orders.table.equipment") && <th className="w-40 text-left">Equipamento</th>}
-          <th className="w-36 text-left">Data de abertura</th>
-          {hasPermission("orders.table.scheduled_at") && <th className="w-36 text-left">Data de agendamento</th>}
-          {hasPermission("orders.table.situation") && <th className="w-44 text-left">Situação</th>}
-          {hasPermission("orders.table.actions") && <th className="w-28 text-right">Ações</th>}
-        </tr></thead>
-        <tbody>{rows.map(index => <tr key={index}>
-          {hasActiveFilters && <td><Line className="w-6" /></td>}
-          {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><Skeleton className="h-8 w-1.5 rounded-full" /><Line className="h-5 w-16" /></div></td>}
-          {hasPermission("orders.table.external_os") && <td><Line className="w-20" /></td>}
-          {hasPermission("orders.table.customer") && <td><div className="space-y-2"><Line className="w-36" /><Line className="h-2.5 w-24" /></div></td>}
-          {hasPermission("orders.table.service_type") && <td><Line className="w-28" /></td>}
-          {hasPermission("orders.table.equipment") && <td><Line className="w-28" /></td>}
-          <td><Line className="w-28" /></td>
-          {hasPermission("orders.table.scheduled_at") && <td><Line className="w-28" /></td>}
-          {hasPermission("orders.table.situation") && <td><Line className="h-6 w-24 rounded-full" /></td>}
-          {hasPermission("orders.table.actions") && <td><div className="flex justify-end"><Skeleton className="h-9 w-9 rounded-lg" /></div></td>}
-        </tr>)}</tbody>
-      </table>
+    <div className="hidden md:block" aria-hidden="true">
+      {/* Nenhum th ou texto real de coluna: somente placeholders neutros. */}
+      <div className="min-w-[1120px] bg-muted/20 px-4 py-3">
+        <div className="grid items-center gap-3" style={{ gridTemplateColumns: template }}>
+          {columns.map((column, index) => <Skeleton key={column.key} className={`h-3 rounded-sm ${index % 3 === 0 ? "w-1/2" : "w-4/5"}`} />)}
+        </div>
+      </div>
+      {/* Reserva a altura da preferência de paginação sem animar todas as linhas. */}
+      <div className="min-w-[1120px] space-y-0" style={{ minHeight: count * 57 }}>
+        {previewRows.map(index => <div key={index} className="grid h-[57px] items-center gap-3 px-4" style={{ gridTemplateColumns: template }}>
+          {columns.map((column, columnIndex) => (
+            column.key === "order" || column.key === "customer" || column.key === "situation" || columnIndex === (index % Math.max(1, columns.length))
+              ? <Skeleton key={column.key} className={`h-3.5 ${column.key === "customer" ? "w-4/5" : "w-2/3"}`} />
+              : <div key={column.key} />
+          ))}
+        </div>)}
+      </div>
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/15 px-4 py-3" aria-hidden="true">
+      <Skeleton className="h-8 w-28" />
+      <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
     </div>
   </div>;
 }
