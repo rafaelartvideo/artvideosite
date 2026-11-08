@@ -9,7 +9,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import type { SalesOrderDetail } from "../infrastructure/sales-orders.repository";
 import {
-  listSalesReturns,receiveSalesReturn,requestSalesReturn,reviewSalesReturn,
+  listSalesReturns,receiveSalesReturn,requestSalesReturn,reviewSalesReturn,reconcileSalesReturnCredit,
   type SalesReturn,
 } from "../infrastructure/sales-operations.repository";
 import { formatSalesDate } from "../domain/sales-order-display";
@@ -33,7 +33,7 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
   const [requestType,setRequestType]=useState<SalesReturn["type"]>("refund");
   const [reason,setReason]=useState("");
   const [quantities,setQuantities]=useState<Record<string,number>>({});
-  const [action,setAction]=useState<{id:string;kind:"approve"|"reject"|"receive"}|null>(null);
+  const [action,setAction]=useState<{id:string;kind:"approve"|"reject"|"receive"|"reconcile"}|null>(null);
   const [resolution,setResolution]=useState("");
   const [disposition,setDisposition]=useState<"restock"|"quarantine">("restock");
   const [error,setError]=useState<string|null>(null);
@@ -96,7 +96,17 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
       :"Mercadoria recebida. "+(data.refund_payable_id?"Reembolso registrado em Contas a Pagar.":"Histórico atualizado.")),
     onError:e=>setError(systemErrorMessage(e,"Não foi possível registrar o retorno de mercadoria.")),
   });
-  const busy=requestMutation.isPending||reviewMutation.isPending||receiveMutation.isPending;
+  const reconcileMutation=useMutation({
+    mutationFn:()=>reconcileSalesReturnCredit(organizationId,action!.id,resolution),
+    onSuccess:data=>refresh(
+      "Crédito conciliado: "+formatCurrency(data.receivable_credit)+
+      (data.refund_payable_id?" · Reembolso a pagar: "+formatCurrency(data.refund_due):" · Sem reembolso adicional.")
+    ),
+    onError:e=>setError(systemErrorMessage(e,
+      "Não foi possível conciliar automaticamente. Confira o histórico no Financeiro.")),
+  });
+  const busy=requestMutation.isPending||reviewMutation.isPending||
+    receiveMutation.isPending||reconcileMutation.isPending;
   const openFinance=(id:string,type:"receivables"|"payables")=>{
     const mode=new URLSearchParams(location.search).get("mode")==="crm"?"?mode=crm":"";
     onClose();navigate("/admin/finance/"+type+"/"+encodeURIComponent(id)+mode);
@@ -151,6 +161,13 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
               <Wallet size={14}/> Abrir reembolso
             </AdminButton>
           </div>}
+          {entry.status==="awaiting_finance"&&hasPermission("sales.returns.approve")&&
+            hasPermission("finance.receivables.edit")&&
+            <AdminButton variant="secondary" size="sm" className="mt-3" onClick={()=>{
+              setAction({id:entry.id,kind:"reconcile"});setResolution("");setError(null);
+            }}>
+              <Wallet size={14}/> Conciliar crédito no Financeiro
+            </AdminButton>}
           {entry.status==="approved"&&hasPermission("sales.returns.approve")&&
             <AdminButton size="sm" className="mt-3" onClick={()=>{setAction({id:entry.id,kind:"receive"});setError(null);}}>
               <CheckCircle2 size={14}/> Registrar recebimento
@@ -221,16 +238,19 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
 
     {action&&<AdminDialog open onClose={()=>!busy&&setAction(null)}
       title={action.kind==="receive"?"Receber mercadorias devolvidas":
+        action.kind==="reconcile"?"Conciliar devolução financeira":
         action.kind==="approve"?"Aprovar devolução":"Recusar devolução"}
       description="A ação ficará registrada no histórico do pedido."
       className="max-w-lg"
       footer={<div className="flex justify-end gap-2">
         <AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>setAction(null)}>Voltar</AdminButton>
         <AdminButton size="sm" disabled={busy||
-          (action.kind!=="receive"&&resolution.trim().length<5)} loading={busy}
+          (action.kind==="reconcile"&&resolution.trim().length<10)||
+          (action.kind!=="receive"&&action.kind!=="reconcile"&&resolution.trim().length<5)} loading={busy}
           onClick={()=>{
             setError(null);
             if(action.kind==="receive")receiveMutation.mutate();
+            else if(action.kind==="reconcile")reconcileMutation.mutate();
             else reviewMutation.mutate();
           }}>Confirmar</AdminButton>
       </div>}>
@@ -243,13 +263,19 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
           </button>)}
         </div>}
         <label className="block space-y-1.5 text-xs font-semibold">
-          <span>{action.kind==="receive"?"Observações do recebimento":"Motivo ou parecer *"}</span>
+          <span>{action.kind==="receive"?"Observações do recebimento":
+            action.kind==="reconcile"?"Motivo da conciliação *":"Motivo ou parecer *"}</span>
           <textarea value={resolution} rows={3} maxLength={1000}
             onChange={e=>setResolution(e.target.value)}
             className="w-full rounded-lg border border-border bg-background p-3 text-sm"/>
         </label>
         {action.kind==="receive"&&<p className="text-xs text-muted-foreground">
           Ao confirmar, o retorno físico será registrado apenas uma vez. Reembolsos devem ser concluídos pelo Financeiro.
+        </p>}
+        {action.kind==="reconcile"&&<p className="text-xs text-muted-foreground">
+          Esta ação abate primeiro parcelas ainda não recebidas. Se o crédito superar o saldo
+          em aberto, cria uma conta a pagar para o reembolso real. Nenhuma baixa de dinheiro
+          será simulada. O histórico da cobrança é preservado.
         </p>}
         {error&&<p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>
