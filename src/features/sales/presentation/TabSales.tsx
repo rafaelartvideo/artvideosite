@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -100,29 +100,50 @@ export function TabSales() {
   const [display, setDisplay] = useState<"grid" | "list">("grid");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>(() => readFavorites(favoritesStorageKey));
-  const [cart, setCart] = useState<CartLine[]>(() => readCart(cartStorageKey));
-  const [selected, setSelected] = useState<PdvProduct | null>(null);
-  const [checkoutIntent, setCheckoutIntent] = useState(false);
-  const [proposalIntent, setProposalIntent] = useState(false);
+  // Troca de empresa/usuário jamais reutiliza o carrinho ou favoritos do tenant anterior.
+  const [cartState,setCartState] = useState(()=>({
+    key:cartStorageKey,items:readCart(cartStorageKey),
+  }));
+  const [favoritesState,setFavoritesState] = useState(()=>({
+    key:favoritesStorageKey,items:readFavorites(favoritesStorageKey),
+  }));
+  const cart = cartState.key===cartStorageKey ? cartState.items : readCart(cartStorageKey);
+  const favorites = favoritesState.key===favoritesStorageKey
+    ? favoritesState.items : readFavorites(favoritesStorageKey);
+  const setCart = (next:SetStateAction<CartLine[]>) => setCartState(previous=>{
+    const items=previous.key===cartStorageKey ? previous.items : readCart(cartStorageKey);
+    return {key:cartStorageKey,items:typeof next==="function"?next(items):next};
+  });
+  const setFavorites = (next:SetStateAction<string[]>) => setFavoritesState(previous=>{
+    const items=previous.key===favoritesStorageKey ? previous.items : readFavorites(favoritesStorageKey);
+    return {key:favoritesStorageKey,items:typeof next==="function"?next(items):next};
+  });
+  const [selection,setSelection]=useState<{organizationId:string;product:PdvProduct}|null>(null);
+  const selected = selection?.organizationId===organizationId ? selection.product : null;
+  const setSelected = (product:PdvProduct|null) =>
+    setSelection(product?{organizationId,product}:null);
+  const [checkoutFor,setCheckoutFor]=useState<string|null>(null);
+  const [proposalFor,setProposalFor]=useState<string|null>(null);
+  const checkoutIntent=Boolean(organizationId&&checkoutFor===organizationId);
+  const proposalIntent=Boolean(organizationId&&proposalFor===organizationId);
+  const setCheckoutIntent=(open:boolean)=>setCheckoutFor(open?organizationId:null);
+  const setProposalIntent=(open:boolean)=>setProposalFor(open?organizationId:null);
   const [lastSaleCompleted, setLastSaleCompleted] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
-    if (!cartStorageKey) return;
+    if (!cartStorageKey || cartState.key!==cartStorageKey) return;
     try {
-      if (cart.length) window.sessionStorage.setItem(cartStorageKey, JSON.stringify(cart));
+      if (cartState.items.length) window.sessionStorage.setItem(cartStorageKey,JSON.stringify(cartState.items));
       else window.sessionStorage.removeItem(cartStorageKey);
-    } catch {
-      // O bloqueio de armazenamento do navegador não impede uma venda em andamento.
-    }
-  }, [cartStorageKey, cart]);
+    } catch { /* armazenamento bloqueado não impede a venda atual */ }
+  },[cartStorageKey,cartState]);
 
   useEffect(() => {
-    if (!favoritesStorageKey) return;
-    try { window.localStorage.setItem(favoritesStorageKey, JSON.stringify(favorites)); }
-    catch { /* favoritos continuam disponíveis nesta sessão */ }
-  }, [favoritesStorageKey, favorites]);
+    if (!favoritesStorageKey || favoritesState.key!==favoritesStorageKey) return;
+    try {window.localStorage.setItem(favoritesStorageKey,JSON.stringify(favoritesState.items));}
+    catch { /* favoritos permanecem disponíveis nesta sessão */ }
+  },[favoritesStorageKey,favoritesState]);
 
   const productsQuery = useQuery({
     queryKey: ["sales", organizationId, "products", debouncedSearch],
@@ -224,42 +245,39 @@ export function TabSales() {
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
-    <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border pb-2" role="tablist" aria-label="Seções de Vendas">
+    <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-border pb-2 sm:gap-2" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
-        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="storefront"
+        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="storefront"
           ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
         Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "proposals"}
         onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
-        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="proposals"
+        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="proposals"
           ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
         Propostas
+      </button>
+      <button type="button" role="tab" aria-selected={currentView === "orders"}
+        onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
+        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="orders"
+          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        Pedidos
       </button>
       {hasPermission("sales.reports.view")&&<button type="button" role="tab"
         aria-selected={currentView === "management"}
         onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
-        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " +
+        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " +
           (currentView==="management"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted")}>
         Gestão
       </button>}
-      <button type="button" role="tab" aria-selected={currentView === "orders"}
-        onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
-        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="orders"
-          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
-        Pedidos
-      </button>
     </div>
     {currentView === "orders"
       ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
       : currentView === "management"
       ? <SalesManagementPage />
       : currentView === "proposals"
-      ? <SalesProposalsPage onNewProposal={() => {
-          navigate("/admin/sales" + salesModeSuffix);
-          setToast({msg:"Selecione os produtos na Vitrine e clique em Criar proposta.",type:"success"});
-        }}/>
+      ? <SalesProposalsPage />
       : <>
     {proposalIntent && <SalesProposalEditorDialog
       key={"new-proposal:" + organizationId + ":" + (user?.id || "")}
