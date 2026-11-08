@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCopy, Clock3, FileText, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
+import { ClipboardCopy, Clock3, Download, FileText, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -9,6 +9,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { changeSalesProposalStatus, getSalesProposalDetail,
   type SalesProposalDetail } from "../infrastructure/sales-proposals.repository";
 import { formatSalesDate, formatSalesDueDate } from "../domain/sales-order-display";
+import { downloadSalesProposalPdf } from "../application/sales-proposal-pdf";
 
 const labels: Record<string,string> = {
   draft:"Rascunho",sent:"Enviada",approved:"Aprovada",rejected:"Recusada",
@@ -38,6 +39,7 @@ export function SalesProposalDetailDialog({
   const [reason,setReason] = useState("");
   const [errorText,setErrorText] = useState<string|null>(null);
   const [feedback,setFeedback] = useState<string|null>(null);
+  const [pdfBusy,setPdfBusy] = useState(false);
   const canManage=hasPermission("sales.proposals.manage");
   const canApprove=hasPermission("sales.proposals.approve");
   const canSell=hasPermission("sales.create");
@@ -88,6 +90,18 @@ export function SalesProposalDetailDialog({
     }
   };
 
+  const downloadPdf=async()=>{
+    if(!proposal || pdfBusy)return;
+    setPdfBusy(true);setFeedback(null);
+    try{
+      await downloadSalesProposalPdf(organizationId,proposal);
+      setFeedback("PDF da proposta preparado.");
+    }catch(error){
+      setFeedback(systemErrorMessage(error,"Não foi possível gerar o PDF da proposta."));
+    }finally{
+      setPdfBusy(false);
+    }
+  };
   const showAction=(next:ProposalAction)=>{
     setAction(next);setReason("");setErrorText(null);
   };
@@ -152,9 +166,15 @@ export function SalesProposalDetailDialog({
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><FileText size={15}/> Itens da proposta</h3>
-              <AdminButton variant="secondary" size="sm" onClick={()=>void copySummary()}>
-                <ClipboardCopy size={14}/> Copiar resumo
-              </AdminButton>
+              <div className="flex flex-wrap items-center gap-2">
+                <AdminButton variant="secondary" size="sm" onClick={()=>void downloadPdf()}
+                  disabled={pdfBusy} loading={pdfBusy}>
+                  <Download size={14}/> PDF
+                </AdminButton>
+                <AdminButton variant="secondary" size="sm" onClick={()=>void copySummary()}>
+                  <ClipboardCopy size={14}/> Copiar resumo
+                </AdminButton>
+              </div>
             </div>
             <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
               {proposal.items.map(item=><div key={item.product_id} className="flex min-w-0 justify-between gap-3 p-3">
