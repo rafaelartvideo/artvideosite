@@ -12,7 +12,7 @@ import type { useOrderServiceAddress } from "../application/useOrderServiceAddre
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { OrdersKanbanSkeleton } from "./OrdersSkeletons";
+import { OrdersKanbanSkeleton, OrdersWorkspaceSkeleton } from "./OrdersSkeletons";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -65,6 +65,8 @@ export function OrdersListWorkspace(props: Props) {
   // A tabela depende apenas da consulta paginada. Os dados auxiliares (catálogos,
   // situações, funcionários) carregam em paralelo e não bloqueiam as OS já prontas.
   const loading = listLoading;
+  // Busca e resultados entram juntos na primeira carga; refetch com cache não desmonta filtros.
+  const screenLoading = loading || (resolvedDisplayMode === "kanban" && workspace.loading);
   const changeKanbanServiceType = (serviceTypeId: string) => {
     // O quadro tem um único atendimento ativo; situações incompatíveis são limpas.
     setFilterSituation("");
@@ -81,7 +83,7 @@ export function OrdersListWorkspace(props: Props) {
     (hasPermission("settings.update") || (hasPermission("settings.view") && hasPermission("settings.details.view")));
 
   return <>
-    <OrdersHeader total={generalTotalItems} loading={loading} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    <OrdersHeader total={generalTotalItems} loading={screenLoading} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
     {settingsOpen && workspace.organizationId && <OrderSettingsDialog
       open={settingsOpen}
       onClose={() => setSettingsOpen(false)}
@@ -89,6 +91,7 @@ export function OrdersListWorkspace(props: Props) {
       canEdit={hasPermission("settings.update")}
     />}
 
+    {screenLoading ? <OrdersWorkspaceSkeleton displayMode={resolvedDisplayMode} sharedView={sharedView} hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} /> : <>
     {sharedView ? <PartnerOrdersFilters
       numberSearch={osNumberSearch}
       documentSearch={documentSearch}
@@ -242,6 +245,7 @@ export function OrdersListWorkspace(props: Props) {
         onPageChange={setPage}
         onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
       />}
+    </>}
     </>}
   </>;
 }
