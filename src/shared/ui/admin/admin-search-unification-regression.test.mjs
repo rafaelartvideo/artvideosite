@@ -70,7 +70,8 @@ test("search actions use one clear-all icon and the requested Material glyphs", 
   assert.match(shared, /M3,18V16H9v2H3/);
   assert.match(shared, /delete_sweep/);
   assert.match(shared, /aria-label={label} title={label}/);
-  assert.match(shared, /rounded-full border/);
+  assert.match(shared, /rounded-none border-0 bg-transparent p-0 shadow-none/);
+  assert.doesNotMatch(shared, /rounded-full border/);
   assert.doesNotMatch(shared, /ArrowUpDown|ArrowUpNarrowWide|ArrowDownWideNarrow|Eraser/);
   assert.doesNotMatch(shared, /<span className="hidden sm:inline">{label}<\/span>/);
 
