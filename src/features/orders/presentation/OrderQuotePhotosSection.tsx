@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, ImagePlus, Trash2, X } from "lucide-react";
 import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { OrderPhotosSkeleton } from "./OrdersSkeletons";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   addOrderQuotePhoto, listOrderQuotePhotos, removeOrderQuotePhoto,
@@ -141,7 +142,7 @@ export function OrderQuotePhotosSection({
             </BtnPrimary>
           </div>
         </div>}
-        {isLoading && <div className="flex justify-center py-5"><LoadingSpinner /></div>}
+        {isLoading && <OrderPhotosSkeleton />}
         {error && <p role="alert" className="text-xs text-destructive">
           {systemErrorMessage(error, "Não foi possível carregar as fotos do orçamento.")}
         </p>}
