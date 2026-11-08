@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import {
   CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
   Search, ShoppingBag, ShoppingCart, Trash2, X,
