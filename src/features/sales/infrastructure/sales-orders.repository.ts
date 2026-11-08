@@ -75,6 +75,16 @@ export type SalesOrderSettlement = {
   reversed_at: string | null;
 };
 
+export type SalesOrderInstallment = {
+  id: string;
+  number: number;
+  total_installments: number;
+  amount: number;
+  settled_amount: number;
+  due_date: string;
+  status: "pending" | "partial" | "paid" | "overdue" | "cancelled";
+};
+
 export type SalesOrderDetail = {
   id: string;
   order_number: number;
@@ -102,6 +112,7 @@ export type SalesOrderDetail = {
   items: SalesOrderItem[];
   events: SalesOrderHistoryEvent[];
   settlements: SalesOrderSettlement[];
+  installments: SalesOrderInstallment[];
 };
 
 function requireOrg(value: string) {
