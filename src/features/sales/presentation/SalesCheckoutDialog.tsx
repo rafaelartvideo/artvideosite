@@ -9,6 +9,8 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { SalesQuickCustomerDialog } from "./SalesQuickCustomerDialog";
+import { SalesPaymentTermsDialog } from "./SalesPaymentTermsDialog";
+import { listSalesPaymentPresets } from "../infrastructure/sales-operations.repository";
 import type { PdvProduct, PdvCustomer } from "@/features/pdv/infrastructure/pdv.repository";
 import { convertSalesProposal } from "../infrastructure/sales-proposals.repository";
 import {
@@ -43,6 +45,7 @@ export function SalesCheckoutDialog({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [customer, setCustomer] = useState<PdvCustomer | null>(proposal?.customer || null);
   const [quickCustomerOpen,setQuickCustomerOpen]=useState(false);
+  const [paymentTermsOpen,setPaymentTermsOpen]=useState(false);
   const [mode, setMode] = useState<CheckoutMode>("full");
   const [paymentLines, setPaymentLines] = useState<ReceivedLine[]>([
     { key: 1, paymentMethodId: "", amountText: "" },
@@ -68,6 +71,12 @@ export function SalesCheckoutDialog({
     queryFn: () => searchSalesCustomers(organizationId, debouncedSearch),
     enabled: Boolean(open && organizationId && !customer && (debouncedSearch.length === 0 || debouncedSearch.length >= 2)),
     staleTime: 30_000,
+  });
+  const termsQuery=useQuery({
+    queryKey:["sales",organizationId,"payment-presets"],
+    queryFn:()=>listSalesPaymentPresets(organizationId),
+    enabled:Boolean(open&&organizationId),
+    staleTime:30_000,
   });
   const optionsQuery = useQuery({
     queryKey: ["sales", organizationId, "payment-options"],
@@ -351,6 +360,27 @@ export function SalesCheckoutDialog({
 
           {mode!=="full" && <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="min-w-[180px] flex-1 space-y-1 text-xs font-semibold">
+                <span>Condição de pagamento pronta</span>
+                <select defaultValue="" onChange={event=>{
+                  const chosen=termsQuery.data?.find(preset=>preset.id===event.target.value);
+                  if(!chosen)return;
+                  setInstallmentCount(chosen.installment_count);
+                  setFirstDueDate(localDate(chosen.first_due_days));
+                }} className="h-10 w-full rounded-lg border border-border bg-background px-2 text-xs">
+                  <option value="">Personalizar</option>
+                  {(termsQuery.data||[]).map(preset=><option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>)}
+                </select>
+              </label>
+              {hasPermission("sales.payment_terms.manage")&&
+                <button type="button" onClick={()=>setPaymentTermsOpen(true)}
+                  className="mt-4 text-xs font-semibold text-primary">
+                  Configurar condições
+                </button>}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold">Saldo a receber</span>
               <strong className="text-base tabular-nums text-foreground">{formatCurrency(Math.max(0,Number.isFinite(remaining)?remaining:0))}</strong>
             </div>
@@ -460,6 +490,8 @@ export function SalesCheckoutDialog({
       </p>}
     </div>}
   </AdminDialog>
+  {paymentTermsOpen&&<SalesPaymentTermsDialog organizationId={organizationId}
+    onClose={()=>setPaymentTermsOpen(false)}/>}
   {quickCustomerOpen&&<SalesQuickCustomerDialog organizationId={organizationId}
     onClose={()=>setQuickCustomerOpen(false)}
     onSaved={saved=>{
