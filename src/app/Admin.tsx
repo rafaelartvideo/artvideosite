@@ -624,7 +624,7 @@ export function AdminDashboard({
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
-            <Route path="sales/*" element={<TabSales key={(activeOrganizationId || "none") + ":" + (user?.id || "none")} onOpenPdv={() => navigateAdmin("pdv")} />} />
+            <Route path="sales/*" element={<TabSales key={(activeOrganizationId || "none") + ":" + (user?.id || "none")} />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
             <Route path="nfse/*" element={<Navigate to="/admin" replace />} />
