@@ -4,6 +4,7 @@ import { ArrowLeftRight, Edit2, List, Package } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
 import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
 import { listCompatibleModelsForProducts } from "../infrastructure/product-compatible-models.repository";
 import { CompatibleDeviceModelsList } from "./CompatibleDeviceModelsList";
@@ -49,6 +50,7 @@ export function InventoryProductDetailsDialog({
   const stock = Number(inventory?.quantity || 0) / (unit === "cx" ? factor : 1);
   const minimum = Number(inventory?.min_quantity || 0) / (unit === "cx" ? factor : 1);
   const { url: coverUrl } = useMediaUrl(product?.cover_media_id || null);
+  const coverIllustration = salesHomologationImage(product?.sku);
 
   const relatedCodes = useQuery({
     queryKey: ["products", "related-codes-detail", organizationId, id],
@@ -109,7 +111,7 @@ export function InventoryProductDetailsDialog({
   >
     <section className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start" aria-label="Resumo do item">
       <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30">
-        {coverUrl ? <img src={coverUrl} alt={product.name} className="h-full w-full object-contain"/>
+        {(coverUrl || coverIllustration) ? <img src={coverUrl || coverIllustration || ""} alt={product.name} className="h-full w-full object-contain"/>
           : <Package size={36} className="text-muted-foreground"/>}
       </div>
       <div className="min-w-0 flex-1 space-y-2">
