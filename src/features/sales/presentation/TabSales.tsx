@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
   CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
-  Search, ShoppingBag, ShoppingCart, Trash2, X,
+  Search, ShoppingBag, ShoppingCart, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
@@ -282,10 +283,9 @@ export function TabSales() {
               onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addExactCode(); } }}
               placeholder="Buscar nome, SKU, GTIN ou código relacionado"
               aria-label="Buscar produtos para venda"
-              className="h-11 w-full rounded-lg border border-border bg-background pl-10 pr-10 text-sm text-foreground outline-none focus:border-primary"
+              className="h-11 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary"
             />
-            {search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><X size={16} /></button>}
+
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" aria-pressed={onlyAvailable} onClick={() => setOnlyAvailable(value => !value)}
@@ -296,16 +296,28 @@ export function TabSales() {
               className={"inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold " + (onlyFavorites ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground")}>
               <Heart size={13} /> Favoritos
             </button>
-            <label className="ml-auto flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              Ordenar
-              <select value={sort} onChange={event => setSort(event.target.value as ProductSort)}
-                className="h-8 max-w-40 rounded-md border border-border bg-background px-2 text-xs text-foreground">
-                <option value="name">Nome A–Z</option>
-                <option value="price_low">Menor preço</option>
-                <option value="price_high">Maior preço</option>
-                <option value="stock">Mais estoque</option>
-              </select>
-            </label>
+            <div className="ml-auto flex items-center gap-2">
+              {(search || onlyAvailable || onlyFavorites || sort !== "name") && (
+                <AdminSearchClearButton variant="surface" onClick={() => {
+                  setSearch("");
+                  setOnlyAvailable(false);
+                  setOnlyFavorites(false);
+                  setSort("name");
+                }} />
+              )}
+              <AdminSearchSortMenu
+                variant="surface"
+                label="Ordenação dos produtos"
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { value: "name", label: "Nome A–Z" },
+                  { value: "price_low", label: "Menor preço" },
+                  { value: "price_high", label: "Maior preço" },
+                  { value: "stock", label: "Mais estoque" },
+                ]}
+              />
+            </div>
           </div>
         </div>
 
