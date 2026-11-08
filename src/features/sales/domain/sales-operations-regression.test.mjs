@@ -82,7 +82,7 @@ test("entrega exige PIN ou comprovante e imagem passa pelo compressor",()=>{
   assert.match(sql,/proof_media_id/);
   const ui=read("src/features/sales/presentation/SalesDeliveryDialog.tsx");
   assert.match(ui,/uploadMediaFile\("service-images"/);
-  assert.match(ui,/Registrar/);
+  assert.match(ui,/Confirmar recebimento/);
   assert.match(ui,/confirm/);
 });
 
