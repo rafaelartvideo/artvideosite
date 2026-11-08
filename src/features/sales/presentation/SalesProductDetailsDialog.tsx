@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, Minus, Package, Plus, Trash2 } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
-import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { productConditionLabel } from "@/features/products/domain/product-condition";
 import { CompatibleDeviceModelsList } from "@/features/products/presentation/CompatibleDeviceModelsList";
@@ -27,9 +27,9 @@ function ImagePreview({ mediaId, name, illustrationUrl, className = "" }: {
 
 function Attribute({ label, value }: { label:string;value:string|null|undefined }) {
   if (!value) return null;
-  return <div className="min-w-0 space-y-1 py-1">
-    <p className="text-xs font-medium text-muted-foreground">{label}</p>
-    <p className="break-words text-sm font-semibold text-foreground">{value}</p>
+  return <div className="min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+    <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+    <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>;
 }
 
@@ -41,7 +41,7 @@ function availableQuantity(product:PdvProduct){
 
 export function SalesProductDetailsDialog({
   organizationId,product,cartQuantity,canSell,relatedProducts,relatedLoading,
-  relatedError,onClose,onAdd,onRemove,
+  relatedError,onClose,onAdd,onRemove,onSetCartQuantity,preparing=false,
 }: {
   organizationId:string;
   product:PdvProduct;
@@ -53,6 +53,8 @@ export function SalesProductDetailsDialog({
   onClose:()=>void;
   onAdd:(product:PdvProduct,quantity?:number)=>void;
   onRemove:(productId:string)=>void;
+  onSetCartQuantity:(productId:string,quantity:number)=>void;
+  preparing?:boolean;
 }) {
   const [quantity,setQuantity]=useState(1);
   const [activeMediaId,setActiveMediaId]=useState<string|null>(product.cover_media_id);
@@ -76,16 +78,24 @@ export function SalesProductDetailsDialog({
   const visibleMediaId=activeMediaId||gallery[0]||null;
   const remaining=Math.max(0,availableQuantity(product)-cartQuantity);
   const validPrice=product.price!=null&&Number(product.price)>0;
-  const actualQuantity=Math.max(1,Math.min(quantity,remaining||1));
+  const totalAvailable=availableQuantity(product);
+  const actualQuantity=cartQuantity>0
+    ? cartQuantity : Math.max(1,Math.min(quantity,remaining||1));
+  const adjustQuantity=(step:-1|1)=>{
+    if(!canSell)return;
+    if(cartQuantity>0) {
+      const next=cartQuantity+step;
+      if(next>=0&&next<=totalAvailable)onSetCartQuantity(product.product_id,next);
+    } else {
+      setQuantity(value=>Math.max(1,Math.min(totalAvailable||1,value+step)));
+    }
+  };
   const variantAttributes=Object.entries(details.data?.variant_attributes||{})
     .filter(([,value])=>value!=null&&value!=="");
   const characteristics=Array.isArray(details.data?.site_characteristics)
     ?details.data.site_characteristics.filter(item=>item&&item.label&&item.value):[];
 
   const baseAttributes=[
-    {label:"Categoria",value:details.data?.category},
-    {label:"Marca",value:details.data?.brand},
-    {label:"Condição",value:details.data?.condition?productConditionLabel(details.data.condition):null},
     {label:"SKU",value:product.sku},
     {label:"Código de barras / GTIN",value:product.barcode},
     {label:"Modelo",value:details.data?.product_model},
@@ -93,16 +103,15 @@ export function SalesProductDetailsDialog({
     {label:"Código interno",value:details.data?.internal_barcode},
   ];
 
-  // O pai faz prefetch dos detalhes, modelos, relações e miniaturas antes de abrir.
-  if (details.isPending||models.isPending) {
-    return <AdminDialog open onClose={onClose} title="Preparando produto"
-      className="max-w-sm"><LoadingState text="Preparando produto..."/></AdminDialog>;
-  }
-
   return <AdminDialog open onClose={onClose} title="Detalhes do produto" description={product.name}
     className="w-[calc(100vw-1.25rem)] max-w-4xl"
     bodyClassName="max-h-[min(77dvh,820px)] overflow-y-auto">
-    <div className="min-w-0 space-y-6">
+    {preparing||details.isPending||models.isPending||relatedLoading
+      ?<div role="status" aria-live="polite" className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-center">
+        <span aria-hidden="true" className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary/20 border-t-primary"/>
+        <p className="text-sm font-semibold text-foreground">Preparando produto...</p>
+      </div>
+      :<div className="min-w-0 space-y-6">
       <section className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,250px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-2">
           <div className="aspect-[4/3] overflow-hidden rounded-xl border border-border">
@@ -125,6 +134,11 @@ export function SalesProductDetailsDialog({
           </div>
         </div>
         <div className="min-w-0 space-y-4">
+          <div className="flex flex-wrap gap-2" aria-label="Categoria, marca e condição">
+            {details.data?.category&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{details.data.category}</span>}
+            {details.data?.brand&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{details.data.brand}</span>}
+            {details.data?.condition&&<span className="rounded-md border border-border bg-muted/10 px-2 py-1 text-xs text-muted-foreground">{productConditionLabel(details.data.condition)}</span>}
+          </div>
           <div className="space-y-2">
             <h3 className="break-words text-lg font-bold leading-6 text-foreground">{product.name}</h3>
             <strong className="block text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
@@ -133,9 +147,6 @@ export function SalesProductDetailsDialog({
             <p className={"text-sm font-semibold "+(remaining>0?"text-primary":"text-destructive")}>
               {formatNumber(remaining)} {product.unit||"un"} disponíveis
             </p>
-            {cartQuantity>0&&<p className="text-xs font-medium text-primary">
-              {formatNumber(cartQuantity)} {cartQuantity===1?"unidade no carrinho":"unidades no carrinho"}
-            </p>}
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3"
             aria-label="Características e identificação">
@@ -143,29 +154,29 @@ export function SalesProductDetailsDialog({
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border">
-              <button type="button" onClick={()=>setQuantity(q=>Math.max(1,q-1))}
-                aria-label="Diminuir quantidade" disabled={quantity<=1}
+              <button type="button" onClick={()=>adjustQuantity(-1)}
+                aria-label="Diminuir quantidade" disabled={!canSell||(cartQuantity===0&&actualQuantity<=1)}
                 className="flex h-full w-9 items-center justify-center text-muted-foreground disabled:opacity-40">
                 <Minus size={15}/>
               </button>
               <span className="w-8 text-center text-sm font-bold tabular-nums">{actualQuantity}</span>
-              <button type="button" onClick={()=>setQuantity(q=>Math.min(remaining,q+1))}
-                disabled={remaining<=actualQuantity} aria-label="Aumentar quantidade"
+              <button type="button" onClick={()=>adjustQuantity(1)}
+                disabled={!canSell||actualQuantity>=totalAvailable} aria-label="Aumentar quantidade"
                 className="flex h-full w-9 items-center justify-center text-primary disabled:opacity-40">
                 <Plus size={15}/>
               </button>
             </div>
             <AdminButton disabled={!canSell||!validPrice||remaining<1}
               className="min-w-0 flex-1 justify-center"
-              onClick={()=>onAdd(product,actualQuantity)}>
+              onClick={()=>onAdd(product,cartQuantity>0?1:actualQuantity)}>
               <Plus size={15}/> Adicionar ao carrinho
             </AdminButton>
-            {canSell&&cartQuantity>0&&<button type="button"
-              aria-label={"Remover "+product.name+" do carrinho"} title="Remover do carrinho"
-              onClick={()=>onRemove(product.product_id)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-destructive hover:bg-destructive/10">
+            {canSell&&cartQuantity>0&&<AdminIconButton
+              variant="quaternary" className="h-10 w-10 shrink-0"
+              ariaLabel={"Remover "+product.name+" do carrinho"} title="Remover do carrinho"
+              onClick={()=>onRemove(product.product_id)}>
               <Trash2 size={17}/>
-            </button>}
+            </AdminIconButton>}
           </div>
         </div>
       </section>
@@ -201,6 +212,6 @@ export function SalesProductDetailsDialog({
               if(picked)onAdd(picked,1);
             }}/>}
       </section>}
-    </div>
+    </div>}
   </AdminDialog>;
 }
