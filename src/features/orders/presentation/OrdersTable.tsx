@@ -227,7 +227,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
-        <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} />
+        <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
       ) : (
