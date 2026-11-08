@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
-  CheckCircle2, ChevronLeft, ChevronRight, Grid2X2, Heart, List, LoaderCircle, Minus, Package, Plus,
-  Search, ShoppingBag, ShoppingCart, Trash2,
+  BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Grid2X2, Heart,
+  List, Minus, Package, Plus, Search, ShoppingBag, ShoppingCart, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
@@ -218,6 +218,7 @@ export function TabSales() {
     if(preparingProduct)return;
     const seq=++preparingSeqRef.current;
     setPreparingProduct(product.product_id);
+    setSelected(product);
     setToast(null);
     try{
       const [detail,related]=await Promise.all([
@@ -256,7 +257,7 @@ export function TabSales() {
         image.src=url;
         if(image.complete)resolve();
       })));
-      if(seq===preparingSeqRef.current)setSelected(product);
+      // O modal já abriu: o indicador interno cessa quando os dados ficam prontos.
     }catch(error){
       if(seq===preparingSeqRef.current){
         setToast({type:"error",msg:systemErrorMessage(error,"Não foi possível preparar os detalhes do produto.")});
@@ -320,39 +321,33 @@ export function TabSales() {
 
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {preparingProduct&&<div role="status" aria-live="polite"
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-background/40 px-4 backdrop-blur-[1px]">
-      <div className="flex min-w-[230px] items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-xl">
-        <LoaderCircle size={22} className="animate-spin text-primary" aria-hidden="true"/>
-        <p className="text-sm font-semibold text-foreground">Preparando produto...</p>
-      </div>
-    </div>}
+
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
     <div className="flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto border-b border-border pb-0" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
-        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
+        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
           ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        Vitrine
+        <Package size={14} aria-hidden="true"/> Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "proposals"}
         onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
-        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
+        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
           ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        Propostas
+        <FileText size={14} aria-hidden="true"/> Propostas
       </button>
       <button type="button" role="tab" aria-selected={currentView === "orders"}
         onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
-        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
+        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
           ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        Pedidos
+        <ClipboardList size={14} aria-hidden="true"/> Pedidos
       </button>
       {hasPermission("sales.reports.view")&&<button type="button" role="tab"
         aria-selected={currentView === "management"}
         onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
-        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
+        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
           (currentView==="management"?"border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
-        Gestão
+        <BarChart3 size={14} aria-hidden="true"/> Gestão
       </button>}
     </div>
     {currentView === "orders"
@@ -403,9 +398,7 @@ export function TabSales() {
             <h2 className="text-base font-bold text-foreground">
               Vitrine de produtos <span className="font-semibold text-muted-foreground">({totalProducts})</span>
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {totalFiltered} {totalFiltered===1?"resultado":"resultados"} · mostrando {products.length} por página
-            </p>
+
           </div>
           <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
             <button type="button" onClick={() => setDisplay("grid")} aria-label="Ver produtos em grade"
@@ -419,11 +412,20 @@ export function TabSales() {
           </div>
         </div>
         <AdminSearchPanel title="Buscar produtos"
-          headerActions={(search||onlyAvailable||onlyFavorites||categoryId||sort!=="name")
-            ? <AdminSearchClearButton onClick={()=>{
+          headerActions={<>
+            {(search||onlyAvailable||onlyFavorites||categoryId||sort!=="name")
+              && <AdminSearchClearButton onClick={()=>{
                 setSearch("");setOnlyAvailable(false);setOnlyFavorites(false);
                 setCategoryId(null);setPage(1);setSort("name");
-              }}/> : undefined}>
+              }}/>}
+            <AdminSearchSortMenu label="Ordenar produtos" value={sort}
+              onChange={value=>{setSort(value);setPage(1);}} options={[
+                {value:"name",label:"Nome A–Z"},
+                {value:"price_low",label:"Menor preço"},
+                {value:"price_high",label:"Maior preço"},
+                {value:"stock",label:"Mais estoque"},
+              ]}/>
+          </>}>
           <label className="block min-w-0 space-y-1.5">
             <span className="block text-xs font-semibold text-muted-foreground">
               Nome, SKU, GTIN, modelo ou código relacionado
@@ -480,13 +482,6 @@ export function TabSales() {
                 <ChevronRight size={16}/>
               </button>
             </div>}
-            <AdminSearchSortMenu variant="surface" label="Ordenação dos produtos"
-              value={sort} onChange={value=>{setSort(value);setPage(1);}} options={[
-                {value:"name",label:"Nome A–Z"},
-                {value:"price_low",label:"Menor preço"},
-                {value:"price_high",label:"Maior preço"},
-                {value:"stock",label:"Mais estoque"},
-              ]}/>
           </div>
         </AdminSearchPanel>
 
@@ -500,7 +495,7 @@ export function TabSales() {
           : products.length === 0 ? <EmptyState icon={Package} title="Nenhum produto encontrado"
               message="Tente outra pesquisa ou altere os filtros. Cadastros são gerenciados no Estoque." />
           : display==="list"
-          ?<div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+          ?<AdminCard square className="[&_th]:py-3 [&_td]:py-3">
             <div className="min-w-0 overflow-x-auto">
               <TopTableScrollbar/>
               <table className="w-full min-w-[750px] text-sm">
@@ -559,7 +554,7 @@ export function TabSales() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </AdminCard>
           :<div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
             {products.map(product=>{
               const available=availableQuantity(product);
@@ -750,7 +745,13 @@ export function TabSales() {
       canSell={canSell}
       onAdd={addProduct}
       onRemove={productId=>setQuantity(productId,0)}
-      onClose={() => setSelected(null)}
+      onSetCartQuantity={setQuantity}
+      preparing={preparingProduct===selected.product_id}
+      onClose={() => {
+        preparingSeqRef.current++;
+        setPreparingProduct(null);
+        setSelected(null);
+      }}
       relatedProducts={relatedQuery.data || []}
       relatedLoading={relatedQuery.isPending}
       relatedError={relatedQuery.isError}
