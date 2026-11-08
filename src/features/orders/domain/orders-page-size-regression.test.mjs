@@ -56,8 +56,10 @@ test("skeleton de OS é cinza e usa a quantidade de linhas da página selecionad
   assert.match(primitive, /dark:bg-neutral-700/);
   assert.doesNotMatch(primitive, /bg-accent/);
   assert.match(table, /<OrdersTableSkeleton[^>]*pageSize=\{pageSize\}[^>]*totalItems=\{totalItems\}/);
-  assert.match(skeletons, /const rows = Array\.from\(\{ length: count \}/);
+  assert.match(skeletons, /const previewRows = Array\.from\(\{ length: Math\.min\(count, 4\) \}/);
   assert.match(skeletons, /Math\.min\(100, totalItems > 0 \? Math\.min\(pageSize, totalItems\) : pageSize\)/);
+  assert.match(skeletons, /minHeight: count \* 57/);
+  assert.match(skeletons, /minHeight: count \* 160/);
   const compiled = await transformWithEsbuild(skeletons, "OrdersSkeletons.tsx", { loader: "tsx" });
   assert.ok(compiled.code.length > 0);
 });
