@@ -3,6 +3,7 @@ import { CheckCircle2, Clock3, Hash, Loader2, RefreshCw, Smartphone, Wifi, WifiO
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminUseMobileButton } from "@/shared/ui/admin/AdminUseMobileButton";
 import {
   subscribeMobileSessionRealtime,
   type MobileSessionRealtimeRow,
@@ -321,18 +322,12 @@ export function DeviceCaptureBridge({
 
   return (
     <>
-      <AdminButton
-        variant={connected ? "primary" : "secondary"}
-        size="sm"
+      <AdminUseMobileButton
+        connected={connected}
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "hidden md:inline-flex bg-[#1651ea] text-white hover:bg-[#1045ce]" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
         title={context === "product" ? "Fotografar o produto e escanear seus códigos pelo celular" : "Usar a câmera do celular nesta OS"}
-      >
-        <Smartphone size={14} />
-        <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
-      </AdminButton>
+      />
 
       <AdminDialog
         open={open}
