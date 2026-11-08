@@ -33,6 +33,10 @@ test("skeletons de OS acompanham tabela, Kanban, detalhes, editor e histórico s
   assert.match(details, /detailHydrated:/);
   assert.match(tab, /!detailsController\.detailHydrated/);
   assert.match(skeletons, /motion-reduce:animate-none/);
+  assert.match(read("src/features/orders/presentation/OrderProductsServicesSection.tsx"), /<OrderItemsSkeleton/);
+  assert.match(read("src/features/orders/presentation/OrderQuoteWorkspace.tsx"), /<OrderQuoteSkeleton/);
+  assert.match(read("src/features/orders/presentation/OrderDocumentsPage.tsx"), /<OrderDocumentsSkeleton/);
+  assert.match(read("src/features/orders/presentation/OrderQuotePhotosSection.tsx"), /<OrderPhotosSkeleton/);
 });
 
 test("lentidão da lista e do carregamento auxiliar é registrada separadamente sem PII", () => {
