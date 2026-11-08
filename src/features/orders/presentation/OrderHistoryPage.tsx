@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { FilterX, SortAsc, SortDesc } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { OrderHistorySkeleton } from "./OrdersSkeletons";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { WorkItemDialog } from "@/features/work-items/presentation/WorkItemDialog";
@@ -171,8 +171,8 @@ export function OrderHistoryPage({
             )}
           </div>
         </AdminCard>
-        {(history.loading || (sameOrganization && linkedWorkQuery.isLoading))
-          ? <LoadingState text="Carregando histórico..." />
+        {(history.loading || (sameOrganization && linkedWorkQuery.isLoading)) && entries.length === 0
+          ? <OrderHistorySkeleton />
           : entries.length === 0
             ? <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nenhum registro encontrado.</div>
             : <div className="space-y-3">{entries.map(item => {
