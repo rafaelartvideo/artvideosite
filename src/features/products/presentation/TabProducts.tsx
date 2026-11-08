@@ -1365,7 +1365,7 @@ export function TabProducts({
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
                     {showProduct && <td>
                       <div className="flex items-center gap-3">
-                        <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
+                        <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
                         <div className="min-w-0">
                           {canViewDetails
                             ? <button type="button" onClick={() => openDetails(product)}
