@@ -140,6 +140,7 @@ export function TabSales() {
   const cartTotal = cart.reduce((total, line) => total + Number(line.product.price || 0) * line.quantity, 0);
 
   const addProduct = (product: PdvProduct) => {
+    if (!canSell) return;
     if (product.price == null || !Number.isFinite(Number(product.price)) || Number(product.price) <= 0) {
       setToast({ type: "error", msg: "Defina o preço de venda deste produto no Estoque antes de vender." });
       return;
@@ -272,7 +273,7 @@ export function TabSales() {
               {products.map(product => {
                 const available = availableQuantity(product);
                 const isFavorite = favorites.includes(product.product_id);
-                const canAdd = available > 0 && product.price != null && Number(product.price) > 0;
+                const canAdd = canSell && available > 0 && product.price != null && Number(product.price) > 0;
                 const cartCount = cart.find(line => line.product.product_id === product.product_id)?.quantity || 0;
                 return <article key={product.product_id}
                   className={"min-w-0 overflow-hidden rounded-xl border border-border bg-card " + (display === "list" ? "flex items-center gap-2 p-2" : "flex flex-col")}>
@@ -373,7 +374,7 @@ export function TabSales() {
               <p className="mt-1 text-sm text-muted-foreground">{formatNumber(availableQuantity(selected))} {selected.unit || "un"} disponíveis</p>
               {selected.barcode && <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Barcode size={14} /> {selected.barcode}</p>}
             </div>
-            <AdminButton disabled={availableQuantity(selected) <= 0 || selected.price == null}
+            <AdminButton disabled={!canSell || availableQuantity(selected) <= 0 || selected.price == null}
               onClick={() => addProduct(selected)}><Plus size={15} /> Adicionar ao carrinho</AdminButton>
           </div>
         </div>
