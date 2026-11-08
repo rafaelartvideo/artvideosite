@@ -60,7 +60,7 @@ export type SalesOrderItem = {
 
 export type SalesOrderHistoryEvent = {
   id: string;
-  type: "created" | "fulfillment_changed" | "cancelled";
+  type: "created" | "fulfillment_changed" | "cancelled" | "delivery_configured" | "delivery_completed" | "return_requested" | "return_approved" | "return_rejected" | "return_received";
   data: Record<string, unknown>;
   at: string;
   by: string;
