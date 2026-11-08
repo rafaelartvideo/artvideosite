@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
-  CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
+  CheckCircle2, ChevronLeft, ChevronRight, Grid2X2, Heart, List, LoaderCircle, Minus, Package, Plus,
   Search, ShoppingBag, ShoppingCart, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -13,9 +13,12 @@ import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLay
 import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { getMediaPreview } from "@/shared/infrastructure/media.repository";
+import { salesHomologationImage } from "../domain/sales-homologation-images";
 import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
-import { searchSalesProducts, listSalesProductRelations } from "../infrastructure/sales.repository";
+import { searchSalesCatalog,loadSalesCatalogCategories,getSalesProductDetails,listSalesProductRelations } from "../infrastructure/sales.repository";
 import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
 import { SalesOrdersPage } from "./SalesOrdersPage";
 import { SalesProposalsPage } from "./SalesProposalsPage";
@@ -67,12 +70,13 @@ function readFavorites(key: string): string[] {
 }
 
 function SalesProductPhoto({
-  mediaId, name, className = "h-full w-full",
-}: { mediaId: string | null; name: string; className?: string }) {
+  mediaId, name, sku, className = "h-full w-full",
+}: { mediaId: string | null; name: string;sku?:string|null; className?: string }) {
   const { url } = useMediaUrl(mediaId);
+  const illustration = salesHomologationImage(sku);
   return <div className={"flex items-center justify-center overflow-hidden bg-muted/30 " + className}>
-    {url
-      ? <img src={url} alt={name} loading="lazy" className="h-full max-h-full w-full object-contain p-2.5" />
+    {url||illustration
+      ? <img src={url||illustration||""} alt={name} loading="lazy" className="h-full max-h-full w-full object-contain p-2.5" />
       : <Package size={33} className="text-muted-foreground/50" aria-label="Produto sem foto" />}
   </div>;
 }
@@ -93,6 +97,8 @@ export function TabSales() {
   const cartStorageKey = organizationId && user?.id ? "union-sales-cart:v1:" + organizationId + ":" + user.id : "";
   const favoritesStorageKey = organizationId && user?.id ? "union-sales-favorites:v1:" + organizationId + ":" + user.id : "";
   const cartRef = useRef<HTMLDivElement>(null);
+  const categoriesRef=useRef<HTMLDivElement>(null);
+  const preparingSeqRef=useRef(0);
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedSearch(search);
@@ -100,6 +106,9 @@ export function TabSales() {
   const [display, setDisplay] = useState<"grid" | "list">("grid");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [categoryId,setCategoryId]=useState<string|null>(null);
+  const [page,setPage]=useState(1);
+  const [preparingProduct,setPreparingProduct]=useState<string|null>(null);
   // Troca de empresa/usuário jamais reutiliza o carrinho ou favoritos do tenant anterior.
   const [cartState,setCartState] = useState(()=>({
     key:cartStorageKey,items:readCart(cartStorageKey),
@@ -146,19 +155,39 @@ export function TabSales() {
     catch { /* favoritos permanecem disponíveis nesta sessão */ }
   },[favoritesStorageKey,favoritesState]);
 
-  const productsQuery = useQuery({
-    queryKey: ["sales", organizationId, "products", debouncedSearch],
-    queryFn: () => searchSalesProducts(organizationId, debouncedSearch.trim(), 80),
-    enabled: Boolean(organizationId && canView && (!debouncedSearch.trim() || debouncedSearch.trim().length >= 2)),
-    staleTime: 20_000,
+  const categoriesQuery=useQuery({
+    queryKey:["sales",organizationId,"catalog-categories"],
+    queryFn:()=>loadSalesCatalogCategories(organizationId),
+    enabled:Boolean(organizationId&&canView),
+    staleTime:60_000,
   });
 
-  const catalogProductIds = useMemo(() => (productsQuery.data || []).map(row => row.product_id), [productsQuery.data]);
-  const deviceModelsQuery = useQuery({
-    queryKey: ["products", "device-compatible-models", "sales", organizationId, catalogProductIds.join(",")],
-    queryFn: () => listCompatibleModelsForProducts(organizationId, catalogProductIds),
-    enabled: Boolean(organizationId && canView && catalogProductIds.length),
-    staleTime: 30_000,
+  useEffect(()=>{
+    setCategoryId(null);
+    setPage(1);
+    setSearch("");
+  },[organizationId]);
+
+  const productsQuery=useQuery({
+    queryKey:["sales",organizationId,"catalog-page",debouncedSearch,categoryId,page,sort,
+      onlyAvailable,onlyFavorites,favorites.join(",")],
+    queryFn:()=>searchSalesCatalog(organizationId,{
+      search:debouncedSearch,categoryId,page,pageSize:40,sort,
+      onlyAvailable,favoriteIds:onlyFavorites?favorites:null,
+    }),
+    enabled:Boolean(organizationId&&canView&&(!debouncedSearch.trim()||debouncedSearch.trim().length>=2)),
+    staleTime:20_000,
+  });
+
+  const catalogProductIds=useMemo(
+    ()=>(productsQuery.data?.items||[]).map(row=>row.product_id),
+    [productsQuery.data],
+  );
+  const deviceModelsQuery=useQuery({
+    queryKey:["products","device-compatible-models","sales",organizationId,catalogProductIds.join(",")],
+    queryFn:()=>listCompatibleModelsForProducts(organizationId,catalogProductIds),
+    enabled:Boolean(organizationId&&canView&&catalogProductIds.length),
+    staleTime:30_000,
   });
   const modelsByProduct = useMemo(() => {
     const result = new Map<string, CompatibleDeviceModel[]>();
@@ -178,18 +207,48 @@ export function TabSales() {
     staleTime: 30_000,
   });
 
-  const products = useMemo(() => {
-    const list = (productsQuery.data || []).filter(product =>
-      (!onlyAvailable || availableQuantity(product) > 0)
-      && (!onlyFavorites || favorites.includes(product.product_id)),
-    );
-    return [...list].sort((a, b) => {
-      if (sort === "price_low") return Number(a.price ?? Infinity) - Number(b.price ?? Infinity);
-      if (sort === "price_high") return Number(b.price ?? -1) - Number(a.price ?? -1);
-      if (sort === "stock") return availableQuantity(b) - availableQuantity(a);
-      return a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" });
-    });
-  }, [productsQuery.data, onlyAvailable, onlyFavorites, favorites, sort]);
+  // Filtros e ordenação rodam antes da paginação no servidor.
+  const products=productsQuery.data?.items||[];
+  const totalFiltered=Number(productsQuery.data?.total_count||0);
+  const totalProducts=Number(categoriesQuery.data?.total_products||0);
+  const totalPages=Math.max(1,Math.ceil(totalFiltered/40));
+
+  const prepareProduct=async(product:PdvProduct)=>{
+    if(preparingProduct)return;
+    const seq=++preparingSeqRef.current;
+    setPreparingProduct(product.product_id);
+    setToast(null);
+    try{
+      const [detail,related]=await Promise.all([
+        queryClient.fetchQuery({
+          queryKey:["sales","product-details",organizationId,product.product_id],
+          queryFn:()=>getSalesProductDetails(organizationId,product.product_id),
+          staleTime:30_000,
+        }),
+        queryClient.fetchQuery({
+          queryKey:["sales",organizationId,"relations",product.product_id],
+          queryFn:()=>listSalesProductRelations(organizationId,[product.product_id]),
+          staleTime:30_000,
+        }),
+        queryClient.fetchQuery({
+          queryKey:["products","device-compatible-models",organizationId,product.product_id],
+          queryFn:()=>listCompatibleModelsForProducts(organizationId,[product.product_id]),
+          staleTime:30_000,
+        }),
+      ]).then(values=>[values[0],values[1]] as const);
+      const mediaIds=[product.cover_media_id,...(detail.gallery_media_ids||[]),
+        ...related.map(item=>item.cover_media_id)].filter((id):id is string=>Boolean(id));
+      await Promise.all([...new Set(mediaIds)].slice(0,18).map(mediaId=>
+        getMediaPreview(queryClient,mediaId).catch(()=>null)));
+      if(seq===preparingSeqRef.current)setSelected(product);
+    }catch(error){
+      if(seq===preparingSeqRef.current){
+        setToast({type:"error",msg:systemErrorMessage(error,"Não foi possível preparar os detalhes do produto.")});
+      }
+    }finally{
+      if(seq===preparingSeqRef.current)setPreparingProduct(null);
+    }
+  };
 
   const cartQuantity = cart.reduce((total, line) => total + line.quantity, 0);
   const cartTotal = cart.reduce((total, line) => total + Number(line.product.price || 0) * line.quantity, 0);
@@ -237,7 +296,7 @@ export function TabSales() {
 
   const addExactCode = () => {
     const code = search.trim().toLocaleLowerCase("pt-BR");
-    const exact = productsQuery.data?.find(product =>
+    const exact = productsQuery.data?.items.find(product =>
       product.sku?.toLocaleLowerCase("pt-BR") === code || product.barcode?.toLocaleLowerCase("pt-BR") === code,
     );
     if (exact) addProduct(exact);
@@ -561,6 +620,7 @@ export function TabSales() {
       cartQuantity={cart.find(line => line.product.product_id === selected.product_id)?.quantity || 0}
       canSell={canSell}
       onAdd={addProduct}
+      onRemove={productId=>setQuantity(productId,0)}
       onClose={() => setSelected(null)}
       relatedProducts={relatedQuery.data || []}
       relatedLoading={relatedQuery.isPending}
