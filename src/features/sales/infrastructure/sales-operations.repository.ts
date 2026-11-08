@@ -132,6 +132,15 @@ export async function receiveSalesReturn(organizationId:string,id:string,
   if(error)throw error;
   return data as {status:string;refund_payable_id:string|null;stock_restored:number};
 }
+export async function reconcileSalesReturnCredit(
+  organizationId:string,returnId:string,reason:string,
+):Promise<{status:string;receivable_credit:number;refund_payable_id:string|null;refund_due:number}> {
+  const {data,error}=await supabase.rpc("reconcile_sales_return_credit_v1",{
+    p_organization_id:org(organizationId),p_return_id:returnId,p_reason:reason.trim(),
+  });
+  if(error)throw error;
+  return data as {status:string;receivable_credit:number;refund_payable_id:string|null;refund_due:number};
+}
 export async function listSalesReturns(organizationId:string,orderId:string):Promise<SalesReturn[]> {
   const {data,error}=await supabase.rpc("list_sales_returns_v1",{
     p_organization_id:org(organizationId),p_order_id:orderId,
