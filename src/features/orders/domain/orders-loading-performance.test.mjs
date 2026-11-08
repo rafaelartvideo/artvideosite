@@ -39,6 +39,27 @@ test("skeletons de OS acompanham tabela, Kanban, detalhes, editor e histórico s
   assert.match(read("src/features/orders/presentation/OrderQuotePhotosSection.tsx"), /<OrderPhotosSkeleton/);
 });
 
+test("primeira carga de OS troca Buscar OS e resultados juntos num único skeleton", async () => {
+  const list = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
+  const skeleton = read("src/features/orders/presentation/OrdersSkeletons.tsx");
+  assert.match(list, /const screenLoading = loading \|\| \(resolvedDisplayMode === "kanban" && workspace\.loading\);/);
+  assert.match(list, /\{screenLoading \? <OrdersWorkspaceSkeleton[^>]*pageSize=\{pageSize\}[^>]*totalItems=\{totalItems\} \/> : <>/);
+  assert.match(list, /<OrdersHeader total=\{generalTotalItems\} loading=\{screenLoading\}/);
+  assert.match(skeleton, /export function OrdersWorkspaceSkeleton/);
+  assert.match(skeleton, /className="admin-search-panel/);
+  assert.match(skeleton, /Buscar OS/);
+  assert.match(skeleton, /<OrdersTableSkeleton[^>]*standalone=\{false\}/);
+  assert.match(skeleton, /<OrdersKanbanSkeleton standalone=\{false\}/);
+  assert.match(skeleton, /role="status" aria-label="Carregando busca e ordens de serviço"/);
+  assert.match(skeleton, /fieldCount = sharedView \? 2 : displayMode === "kanban" \? 11 : 12/);
+  assert.match(skeleton, /md:grid-cols-3/);
+  assert.match(skeleton, /md:hidden/);
+  for (const [source, name] of [[list, "OrdersListWorkspace"], [skeleton, "OrdersSkeletons"]]) {
+    const compiled = await transformWithEsbuild(source, name + ".tsx", { loader: "tsx" });
+    assert.ok(compiled.code.length > 0);
+  }
+});
+
 test("lentidão da lista e do carregamento auxiliar é registrada separadamente sem PII", () => {
   const filters = read("src/features/orders/application/useOrderFilters.ts");
   const workspace = read("src/features/orders/application/useOrdersWorkspace.ts");
