@@ -2,7 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle2, PackagePlus, Pencil, Wrench, X } from "lucide-react";
+import { Ban, PackagePlus, Pencil, Wrench, X } from "lucide-react";
 import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -10,6 +10,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cancelServiceOrder } from "../infrastructure/order-cancellation.repository";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { OrderCancelDialog } from "./OrderCancelDialog";
+import { OrderConclusionButton } from "./OrderConclusionButton";
 
 export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
   detail: any;
@@ -86,7 +87,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5 md:w-auto md:flex-wrap md:gap-2" />}
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:hidden" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
-          {canComplete && <BtnPrimary onClick={() => onComplete()} aria-label="Concluir OS" title="Concluir OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><CheckCircle2 className="h-5 w-5 shrink-0 md:hidden" /><span className="sr-only md:not-sr-only">Concluir OS</span></BtnPrimary>}
+          {canComplete && <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
         </div>}
