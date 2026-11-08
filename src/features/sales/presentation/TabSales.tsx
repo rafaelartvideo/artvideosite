@@ -9,8 +9,8 @@ import { useAuth } from "@/lib/auth";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
@@ -129,6 +129,7 @@ export function TabSales() {
   const setCheckoutIntent=(open:boolean)=>setCheckoutFor(open?organizationId:null);
   const setProposalIntent=(open:boolean)=>setProposalFor(open?organizationId:null);
   const [lastSaleCompleted, setLastSaleCompleted] = useState(false);
+  const [mobileCartOpen,setMobileCartOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -331,52 +332,51 @@ export function TabSales() {
             </button>
           </div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="relative">
-            <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addExactCode(); } }}
-              placeholder="Buscar nome, SKU, GTIN ou código relacionado"
-              aria-label="Buscar produtos para venda"
-              className="h-11 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary"
-            />
-
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" aria-pressed={onlyAvailable} onClick={() => setOnlyAvailable(value => !value)}
-              className={"rounded-full border px-3 py-1.5 text-xs font-semibold " + (onlyAvailable ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground")}>
+        <AdminSearchPanel title="Buscar produtos"
+          headerActions={(search||onlyAvailable||onlyFavorites||sort!=="name")
+            ? <AdminSearchClearButton onClick={()=>{
+                setSearch("");setOnlyAvailable(false);setOnlyFavorites(false);setSort("name");
+              }}/> : undefined}>
+          <label className="block min-w-0 space-y-1.5">
+            <span className="block text-xs font-semibold text-muted-foreground">
+              Nome, SKU, GTIN, modelo ou código relacionado
+            </span>
+            <div className="relative min-w-0">
+              <Search size={16} aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+              <input value={search}
+                onChange={event=>setSearch(event.target.value)}
+                onKeyDown={event=>{
+                  if(event.key==="Enter"){event.preventDefault();addExactCode();}
+                }}
+                placeholder="Buscar produtos para venda..." aria-label="Buscar produtos para venda"
+                className="h-[42px] w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary md:h-9"/>
+            </div>
+          </label>
+          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+            <button type="button" aria-pressed={onlyAvailable}
+              onClick={()=>setOnlyAvailable(value=>!value)}
+              className={"rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                (onlyAvailable?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
               Disponíveis
             </button>
-            <button type="button" aria-pressed={onlyFavorites} onClick={() => setOnlyFavorites(value => !value)}
-              className={"inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold " + (onlyFavorites ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground")}>
-              <Heart size={13} /> Favoritos
+            <button type="button" aria-pressed={onlyFavorites}
+              onClick={()=>setOnlyFavorites(value=>!value)}
+              className={"inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                (onlyFavorites?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
+              <Heart size={13}/> Favoritos
             </button>
             <div className="ml-auto flex items-center gap-2">
-              {(search || onlyAvailable || onlyFavorites || sort !== "name") && (
-                <AdminSearchClearButton variant="surface" onClick={() => {
-                  setSearch("");
-                  setOnlyAvailable(false);
-                  setOnlyFavorites(false);
-                  setSort("name");
-                }} />
-              )}
-              <AdminSearchSortMenu
-                variant="surface"
-                label="Ordenação dos produtos"
-                value={sort}
-                onChange={setSort}
-                options={[
-                  { value: "name", label: "Nome A–Z" },
-                  { value: "price_low", label: "Menor preço" },
-                  { value: "price_high", label: "Maior preço" },
-                  { value: "stock", label: "Mais estoque" },
-                ]}
-              />
+              <AdminSearchSortMenu variant="surface" label="Ordenação dos produtos"
+                value={sort} onChange={setSort} options={[
+                  {value:"name",label:"Nome A–Z"},
+                  {value:"price_low",label:"Menor preço"},
+                  {value:"price_high",label:"Maior preço"},
+                  {value:"stock",label:"Mais estoque"},
+                ]}/>
             </div>
           </div>
-        </div>
+        </AdminSearchPanel>
 
         {!canView ? <EmptyState icon={ShoppingBag} title="Sem permissão para visualizar Vendas"
           message="Solicite acesso ao módulo Vendas ao gestor da empresa." />
@@ -433,7 +433,7 @@ export function TabSales() {
             </div>}
       </section>
 
-      <aside ref={cartRef} className="min-w-0 rounded-xl border border-border bg-card xl:sticky xl:top-4">
+      <aside ref={cartRef} className="hidden min-w-0 rounded-xl border border-border bg-card xl:sticky xl:top-4 xl:block">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
             <ShoppingCart size={18} /> Carrinho <span className="text-xs font-medium text-muted-foreground">({cartQuantity})</span>
@@ -488,12 +488,71 @@ export function TabSales() {
       </aside>
     </div>
 
-    {cartQuantity > 0 && <button type="button" onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}
-      className="fixed inset-x-4 bottom-4 z-30 flex h-12 items-center justify-between rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-lg xl:hidden"
+    {cartQuantity > 0 && !mobileCartOpen && <button type="button" onClick={() => setMobileCartOpen(true)}
+      className="fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 flex h-12 items-center justify-between rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-lg xl:hidden"
       aria-label="Abrir carrinho de vendas">
       <span className="flex items-center gap-2"><ShoppingCart size={17} /> {cartQuantity} {cartQuantity === 1 ? "item" : "itens"}</span>
       <span>{formatCurrency(cartTotal)}</span>
     </button>}
+
+
+    {mobileCartOpen&&<AdminDialog open onClose={()=>setMobileCartOpen(false)}
+      title={"Carrinho de vendas ("+cartQuantity+")"}
+      description="Confira quantidades e valores antes de continuar."
+      className="w-[calc(100vw-1rem)] max-w-lg"
+      bodyClassName="max-h-[min(67dvh,650px)] overflow-y-auto"
+      footer={<div className="flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-muted-foreground">Total estimado</span>
+          <strong className="text-xl tabular-nums">{formatCurrency(cartTotal)}</strong>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {hasPermission("sales.proposals.manage")&&<AdminButton size="sm" variant="secondary"
+            className="w-full justify-center" disabled={cart.length===0}
+            onClick={()=>{setMobileCartOpen(false);setProposalIntent(true);}}>
+            <ShoppingBag size={15}/> Criar proposta
+          </AdminButton>}
+          <AdminButton size="sm" className="w-full justify-center"
+            disabled={!canSell||cart.length===0}
+            onClick={()=>{setMobileCartOpen(false);setCheckoutIntent(true);}}>
+            <CheckCircle2 size={15}/> Finalizar venda
+          </AdminButton>
+        </div>
+      </div>}>
+      <div className="divide-y divide-border">
+        {cart.length===0
+          ?<p className="py-8 text-center text-sm text-muted-foreground">Carrinho vazio. Escolha produtos na Vitrine.</p>
+          :cart.map(line=><div key={line.product.product_id}
+            className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-sm font-semibold">{line.product.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(line.product.price||0)} por unidade</p>
+              <strong className="mt-1 block text-sm tabular-nums">
+                {formatCurrency((line.product.price||0)*line.quantity)}
+              </strong>
+            </div>
+            <div className="flex items-center gap-1">
+              <button type="button" aria-label={"Diminuir "+line.product.name}
+                className="flex h-10 w-9 items-center justify-center rounded-lg border border-border"
+                onClick={()=>setQuantity(line.product.product_id,line.quantity-1)}>
+                <Minus size={16}/>
+              </button>
+              <span className="w-9 text-center text-sm font-semibold tabular-nums">{line.quantity}</span>
+              <button type="button" aria-label={"Aumentar "+line.product.name}
+                className="flex h-10 w-9 items-center justify-center rounded-lg border border-border"
+                onClick={()=>setQuantity(line.product.product_id,line.quantity+1)}
+                disabled={line.quantity>=availableQuantity(line.product)}>
+                <Plus size={16}/>
+              </button>
+              <button type="button" aria-label={"Remover "+line.product.name}
+                className="flex h-10 w-9 items-center justify-center text-destructive"
+                onClick={()=>setQuantity(line.product.product_id,0)}>
+                <Trash2 size={16}/>
+              </button>
+            </div>
+          </div>)}
+      </div>
+    </AdminDialog>}
 
     {selected && <SalesProductDetailsDialog
       key={selected.product_id}
