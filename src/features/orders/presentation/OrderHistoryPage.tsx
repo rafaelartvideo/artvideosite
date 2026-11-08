@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { FilterX, SortAsc, SortDesc } from "lucide-react";
+import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { OrderHistorySkeleton } from "./OrdersSkeletons";
@@ -147,26 +147,18 @@ export function OrderHistoryPage({
                 <input type="date" value={history.dateFilter} onChange={event => history.setDateFilter(event.target.value)}
                   className={cn(INPUT, "mt-1 w-full min-w-0 text-xs font-medium normal-case")} />
               </label>
-              <button type="button"
-                onClick={() => history.setSort(history.sort === "desc" ? "asc" : "desc")}
-                aria-label={history.sort === "desc" ? "Ordenar mais antigos primeiro" : "Ordenar mais recentes primeiro"}
-                title={history.sort === "desc" ? "Mais recentes primeiro" : "Mais antigos primeiro"}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                {history.sort === "desc" ? <SortDesc className="h-[18px] w-[18px]" /> : <SortAsc className="h-[18px] w-[18px]" />}
-              </button>
+              <AdminSearchSortMenu
+                variant="surface"
+                value={history.sort}
+                onChange={history.setSort}
+                label="Ordenação do histórico"
+                options={[{ value: "desc", label: "Mais recentes" }, { value: "asc", label: "Mais antigos" }]}
+              />
             </div>
 
-            {(history.userFilter || history.dateFilter) && (
+            {(history.userFilter || history.dateFilter || history.sort !== "desc") && (
               <div className="flex min-w-0 items-end">
-                <button
-                  type="button"
-                  onClick={history.clearFilters}
-                  aria-label="Limpar filtros"
-                  title="Limpar filtros"
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/70 dark:hover:bg-red-950/30"
-                >
-                  <FilterX className="h-[18px] w-[18px]" />
-                </button>
+                <AdminSearchClearButton variant="surface" onClick={history.clearFilters} />
               </div>
             )}
           </div>
