@@ -1,7 +1,7 @@
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 
-const ROWS = [0, 1, 2, 3, 4, 5];
+// Quantidade de placeholders acompanha o tamanho real da página (5, 10, 20, 30, 50 ou 100).
 const COLUMNS = [0, 1, 2];
 
 function Line({ className = "" }: { className?: string }) {
@@ -9,14 +9,18 @@ function Line({ className = "" }: { className?: string }) {
 }
 
 /** Espelha a tabela no desktop e os cards compactos no celular, sem expor dados fictícios. */
-export function OrdersTableSkeleton({ hasPermission, hasActiveFilters }: {
+export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize, totalItems }: {
   hasPermission: (permission: string) => boolean;
   hasActiveFilters: boolean;
+  pageSize: number;
+  totalItems: number;
 }) {
+  const count = Math.max(1, Math.min(100, totalItems > 0 ? Math.min(pageSize, totalItems) : pageSize));
+  const rows = Array.from({ length: count }, (_, index) => index);
   return <div role="status" aria-label="Carregando ordens de serviço" aria-busy="true">
     <span className="sr-only">Carregando ordens de serviço...</span>
     <div className="divide-y divide-border md:hidden" aria-hidden="true">
-      {ROWS.map(index => <div key={index} className="space-y-3 p-4">
+      {rows.map(index => <div key={index} className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-start gap-2">
             <Skeleton className="h-9 w-1.5 shrink-0 rounded-full motion-reduce:animate-none" />
@@ -50,7 +54,7 @@ export function OrdersTableSkeleton({ hasPermission, hasActiveFilters }: {
           {hasPermission("orders.table.situation") && <th className="w-44 text-left">Situação</th>}
           {hasPermission("orders.table.actions") && <th className="w-28 text-right">Ações</th>}
         </tr></thead>
-        <tbody>{ROWS.map(index => <tr key={index}>
+        <tbody>{rows.map(index => <tr key={index}>
           {hasActiveFilters && <td><Line className="w-6" /></td>}
           {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><Skeleton className="h-8 w-1.5 rounded-full" /><Line className="h-5 w-16" /></div></td>}
           {hasPermission("orders.table.external_os") && <td><Line className="w-20" /></td>}
