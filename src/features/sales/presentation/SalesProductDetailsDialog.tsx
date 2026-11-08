@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Barcode, Minus, Package, Plus } from "lucide-react";
+import { Minus, Package, Plus } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -67,6 +67,7 @@ export function SalesProductDetailsDialog({
   const gallery = useMemo(() => Array.from(new Set(
     [product.cover_media_id, ...(details.data?.gallery_media_ids || [])].filter((id): id is string => Boolean(id)),
   )).slice(0, 8), [product.cover_media_id, details.data?.gallery_media_ids]);
+  const visibleMediaId = activeMediaId || gallery[0] || product.cover_media_id;
   const remaining = Math.max(0, availableQuantity(product) - cartQuantity);
   const validPrice = product.price != null && Number(product.price) > 0;
   const actualQuantity = Math.max(1, Math.min(quantity, remaining || 1));
@@ -79,13 +80,13 @@ export function SalesProductDetailsDialog({
       <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,250px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-2">
           <div className="aspect-[4/3] overflow-hidden rounded-xl border border-border">
-            <ImagePreview mediaId={activeMediaId || product.cover_media_id} name={product.name} />
+            <ImagePreview mediaId={visibleMediaId} name={product.name} />
           </div>
           {gallery.length > 1 && <div className="flex gap-2 overflow-x-auto pb-1">
             {gallery.map((id, i) => <button key={id} type="button" onClick={() => setActiveMediaId(id)}
               aria-label={"Visualizar foto " + (i + 1)}
               className={"h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 " +
-                ((activeMediaId || product.cover_media_id) === id ? "border-primary" : "border-border")}>
+                (visibleMediaId === id ? "border-primary" : "border-border")}>
               <ImagePreview mediaId={id} name={product.name}/>
             </button>)}
           </div>}
