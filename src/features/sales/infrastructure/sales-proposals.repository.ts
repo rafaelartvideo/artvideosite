@@ -61,7 +61,7 @@ export type SaveProposalInput = {
   validUntil: string;
   discount: number;
   notes: string;
-  items: Array<{ productId: string; quantity: number }>;
+  items: Array<{ productId: string; quantity: number; expectedUnitPrice: number }>;
 };
 
 export type ProposalSaved = {
@@ -114,7 +114,8 @@ export async function saveSalesProposal(organizationId: string, input: SavePropo
       valid_until: input.validUntil,
       discount: input.discount,
       notes: input.notes,
-      items: input.items.map(item => ({ product_id: item.productId, quantity: item.quantity })),
+      items: input.items.map(item => ({ product_id: item.productId, quantity: item.quantity,
+        expected_unit_price: item.expectedUnitPrice })),
     },
   });
   if (error) throw error;
