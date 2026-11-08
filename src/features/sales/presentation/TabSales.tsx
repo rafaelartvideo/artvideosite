@@ -19,6 +19,7 @@ import { searchSalesProducts, listSalesProductRelations } from "../infrastructur
 import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
 import { SalesOrdersPage } from "./SalesOrdersPage";
 import { SalesProposalsPage } from "./SalesProposalsPage";
+import { SalesManagementPage } from "./SalesManagementPage";
 import { SalesProposalEditorDialog } from "./SalesProposalEditorDialog";
 
 type CartLine = { product: PdvProduct; quantity: number };
@@ -83,7 +84,8 @@ export function TabSales() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentView = location.pathname.startsWith("/admin/sales/orders") ? "orders"
-    : location.pathname.startsWith("/admin/sales/proposals") ? "proposals" : "storefront";
+    : location.pathname.startsWith("/admin/sales/proposals") ? "proposals"
+      : location.pathname.startsWith("/admin/sales/management") ? "management" : "storefront";
   const salesModeSuffix = new URLSearchParams(location.search).get("mode") === "crm" ? "?mode=crm" : "";
   const organizationId = activeOrganizationId || "";
   const canView = hasPermission("sales.view");
@@ -235,6 +237,13 @@ export function TabSales() {
           ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
         Propostas
       </button>
+      {hasPermission("sales.reports.view")&&<button type="button" role="tab"
+        aria-selected={currentView === "management"}
+        onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
+        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " +
+          (currentView==="management"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted")}>
+        Gestão
+      </button>}
       <button type="button" role="tab" aria-selected={currentView === "orders"}
         onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
         className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="orders"
@@ -244,6 +253,8 @@ export function TabSales() {
     </div>
     {currentView === "orders"
       ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
+      : currentView === "management"
+      ? <SalesManagementPage />
       : currentView === "proposals"
       ? <SalesProposalsPage onNewProposal={() => {
           navigate("/admin/sales" + salesModeSuffix);
