@@ -57,7 +57,7 @@ test("Detalhes têm características em três colunas sem linhas de separação 
   assert.match(related,/PopoverTrigger/);
   assert.match(related,/MapPin size=\{14\}/);
   assert.match(related,/salesAppearance/);
-  assert.match(related,/items"/);
+  assert.match(related,/itens"/);
   const vitrine=read("src/features/sales/presentation/TabSales.tsx");
   assert.match(vitrine,/AdminCard square/);
   for(const code of [vitrine,read("src/features/sales/presentation/SalesOrdersPage.tsx"),read("src/features/sales/presentation/SalesProposalsPage.tsx")]){
