@@ -83,10 +83,8 @@ export function OrdersFilters({
   onServiceTypeChange,
   onStateSelect,
   onStateRemove,
-  onStatesClear,
   onCitySelect,
   onCityRemove,
-  onCitiesClear,
   onNeighborhoodSelect,
   onNeighborhoodRemove,
   onDateFromChange,
@@ -234,8 +232,6 @@ export function OrdersFilters({
   };
 
   return <AdminSearchPanel title="Buscar OS" headerActions={<>
-    {selectedStates.length > 0 && <AdminSearchClearButton label="Limpar Estados" onClick={onStatesClear} />}
-    {selectedCities.length > 0 && <AdminSearchClearButton label="Limpar Cidades" onClick={onCitiesClear} />}
     {hasActiveFilters && <AdminSearchClearButton onClick={onClear} />}
     <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
       options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
