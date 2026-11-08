@@ -28,7 +28,7 @@ test("parcelamento calcula em centavos e não perde valores", async()=>{
   const installments = splitSalesInstallments(100,3,"2026-11-30");
   assert.deepEqual(installments.map(item=>item.amount),[33.34,33.33,33.33]);
   assert.deepEqual(installments.map(item=>item.dueDate),["2026-11-30","2026-12-30","2027-01-30"]);
-  assert.equal(installments.reduce((sum,item)=>Math.round((sum+item.amount)*100),0),10000);
+  assert.equal(installments.reduce((sum,item)=>sum+Math.round(item.amount*100),0),10000);
   assert.deepEqual(splitSalesInstallments(0.02,3,"2026-11-30"),[]);
   assert.deepEqual(splitSalesInstallments(100,13,"2026-11-30"),[]);
   assert.deepEqual(splitSalesInstallments(-5,2,"2026-11-30"),[]);
