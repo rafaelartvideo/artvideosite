@@ -1,4 +1,5 @@
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { Search } from "lucide-react";
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 
 // Quantidade de placeholders acompanha o tamanho real da página (5, 10, 20, 30, 50 ou 100).
@@ -6,6 +7,62 @@ const COLUMNS = [0, 1, 2];
 
 function Line({ className = "" }: { className?: string }) {
   return <Skeleton className={`h-3.5 motion-reduce:animate-none ${className}`} />;
+}
+
+/**
+ * Primeira carga da lista: Buscar OS + resultados usam uma única região
+ * de skeleton e aparecem juntos. Não substitui filtros durante refetch em cache.
+ */
+export function OrdersWorkspaceSkeleton({ displayMode, sharedView, hasPermission, hasActiveFilters, pageSize, totalItems }: {
+  displayMode: "list" | "kanban";
+  sharedView: boolean;
+  hasPermission: (permission: string) => boolean;
+  hasActiveFilters: boolean;
+  pageSize: number;
+  totalItems: number;
+}) {
+  const fieldCount = sharedView ? 2 : displayMode === "kanban" ? 11 : 12;
+  const fields = Array.from({ length: fieldCount }, (_, index) => index);
+  return <section role="status" aria-label="Carregando busca e ordens de serviço" aria-busy="true" className="space-y-5">
+    <span className="sr-only">Carregando busca e ordens de serviço...</span>
+    <div className="admin-search-panel min-w-0 overflow-hidden border border-border bg-card shadow-[var(--admin-panel-shadow)]">
+      <div className="admin-primary-bar flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 px-4 text-white md:h-11">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} aria-hidden="true" className="text-white/90" /></span>
+          <span className="text-xs font-bold uppercase tracking-[0.08em]">Buscar OS</span>
+        </div>
+        <Skeleton className="h-7 w-7 shrink-0 rounded-lg bg-white/20 dark:bg-white/20" />
+      </div>
+      <div className="admin-search-panel-content min-w-0 p-4 md:p-3" aria-hidden="true">
+        <div className="space-y-2 md:hidden">
+          <Skeleton className="h-[42px] w-full rounded-lg" />
+          <Skeleton className="h-[42px] w-full rounded-lg" />
+        </div>
+        <div className={`hidden items-start gap-x-2 gap-y-3 md:grid ${sharedView ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+          {fields.map(index => <div key={index} className="min-w-0 space-y-1">
+            <div className="flex gap-2">
+              <Skeleton className="h-2.5 w-24 max-w-[46%] rounded-sm" />
+              {!sharedView && (index === 0 || index === 5) && <Skeleton className="h-2.5 w-24 max-w-[46%] rounded-sm" />}
+            </div>
+            <div className="flex h-9 min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background p-1">
+              {!sharedView && (index === 0 || index === 5)
+                ? <><Skeleton className="h-full min-w-0 flex-1 rounded-md" /><span className="mx-1 h-6 w-px bg-border" /><Skeleton className="h-full min-w-0 flex-1 rounded-md" /></>
+                : <Skeleton className="h-full w-full rounded-md" />}
+            </div>
+          </div>)}
+        </div>
+      </div>
+    </div>
+    {displayMode === "list"
+      ? <div className="min-w-0 overflow-hidden border border-border bg-card shadow-[var(--admin-panel-shadow)] [&_table]:w-full [&_table]:text-sm [&_thead]:border-b [&_thead]:border-border [&_thead]:bg-[var(--admin-panel-heading)] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:tracking-[0.06em] [&_thead]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3.5 [&_tbody]:divide-y [&_tbody]:divide-border">
+          <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} />
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/55 px-4 py-3" aria-hidden="true">
+            <Skeleton className="h-8 w-32" />
+            <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
+          </div>
+        </div>
+      : <OrdersKanbanSkeleton />}
+  </section>;
 }
 
 /** Espelha a tabela no desktop e os cards compactos no celular, sem expor dados fictícios. */
