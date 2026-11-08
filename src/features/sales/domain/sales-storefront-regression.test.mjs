@@ -5,47 +5,71 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Vitrine e roteamento Union Vendas transpilem sem erros de sintaxe", async () => {
+test("Vendas tem rota própria e componentes independentes do checkout PDV", async () => {
   for (const path of [
     "src/features/sales/presentation/TabSales.tsx",
-    "src/features/pdv/presentation/PdvSaleWorkspace.tsx",
+    "src/features/sales/presentation/SalesCheckoutDialog.tsx",
+    "src/features/sales/infrastructure/sales.repository.ts",
     "src/app/Admin.tsx",
   ]) {
-    const result = await transformWithEsbuild(read(path), path, { loader: "tsx" });
-    assert.ok(result.code.length > 0, path);
+    const result = await transformWithEsbuild(read(path), path, { loader: path.endsWith(".ts") ? "ts" : "tsx" });
+    assert.ok(result.code.length > 100, path);
   }
-  const types = read("src/features/admin-shell/domain/admin.types.ts");
   const routes = read("src/features/admin-shell/admin-routes.ts");
-  const navigation = read("src/features/admin-shell/navigation-config.ts");
-  const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
+  const nav = read("src/features/admin-shell/navigation-config.ts");
   const admin = read("src/app/Admin.tsx");
-  assert.match(types, /"sales"/);
+  const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
+  const permissions = read("src/features/access/domain/permission-scope.ts");
   assert.match(routes, /sales:\s*"\/admin\/sales"/);
-  assert.match(navigation, /id:\s*"sales", label:\s*"Vendas"/);
-  assert.match(navigation, /sales:\s*"pdv\.sales\.create"/);
-  assert.match(navigation, /sales:\s*"pdv"/);
-  assert.match(sidebar, /"inventory", "sales", "pdv", "finance"/);
+  assert.match(nav, /id:\s*"sales", label:\s*"Vendas"/);
+  assert.match(nav, /sales:\s*"sales\.view"/);
+  assert.match(nav, /sales:\s*"sales"/);
   assert.match(admin, /<Route path="sales\/\*"/);
+  assert.match(sidebar, /"inventory", "sales", "pdv", "finance"/);
+  assert.match(permissions, /key\.startsWith\("sales\."\)/);
 });
 
-test("a Vitrine utiliza dados reais por empresa e não altera o estoque ao adicionar ao carrinho", () => {
+test("vitrine e modal não usam bootstrap, caixa ou RPC do PDV", () => {
   const sales = read("src/features/sales/presentation/TabSales.tsx");
-  assert.match(sales, /searchPdvProducts\(organizationId, debouncedSearch\.trim\(\), 80\)/);
-  assert.match(sales, /listPdvRelatedProducts\(organizationId, \[selected!\.product_id\]\)/);
-  assert.match(sales, /hasPermission\("pdv\.sales\.create"\)/);
+  const modal = read("src/features/sales/presentation/SalesCheckoutDialog.tsx");
+  const repository = read("src/features/sales/infrastructure/sales.repository.ts");
+  for (const src of [sales, modal, repository]) {
+    assert.doesNotMatch(src, /PdvSaleWorkspace|loadPdvBootstrap|finalizePdvSale|get_pdv_bootstrap_v1|finalize_pdv_sale_v1/);
+  }
+  assert.match(sales, /searchSalesProducts\(organizationId, debouncedSearch\.trim\(\), 80\)/);
+  assert.match(sales, /listSalesProductRelations\(organizationId, \[selected!\.product_id\]\)/);
+  assert.match(sales, /<SalesCheckoutDialog/);
   assert.match(sales, /union-sales-cart:v1:/);
-  assert.match(sales, /union-sales-favorites:v1:/);
-  assert.match(sales, /<PdvSaleWorkspace/);
-  assert.match(sales, /onSaleCompleted=\{\(\) => setCart\(\[\]\)\}/);
-  assert.doesNotMatch(sales, /supabase\.from\("inventory_movements"\)/);
-  assert.doesNotMatch(sales, /finalizePdvSale\(/);
+  assert.match(modal, /createCommercialSale\(organizationId,/);
+  assert.match(modal, /Confirmo que o pagamento foi recebido/);
+  assert.match(modal, /Receber depois/);
+  assert.match(repository, /"create_sales_order_v1"/);
 });
 
-test("checkout importa itens da vitrine e mantém a finalização única do PDV", () => {
-  const checkout = read("src/features/pdv/presentation/PdvSaleWorkspace.tsx");
-  assert.match(checkout, /initialItems\?: Array<\{ product: PdvProduct; quantity: number \}>/);
-  assert.match(checkout, /initialItems \|\| \[\]\)\.map\(\(item\): CartItem/);
-  assert.match(checkout, /Boolean\(initialItems\?\.length\)/);
-  assert.match(checkout, /onSaleCompleted\?\.\(\)/);
-  assert.match(checkout, /finalizePdvSale\(organizationId,/);
+test("motor comercial registra pedido próprio com estoque, financeiro e idempotência", () => {
+  const sql = read("supabase/migrations/20261107223000_union_sales_commercial_checkout.sql");
+  for (const token of [
+    "create table if not exists public.sales_orders",
+    "create table if not exists public.sales_order_items",
+    "create or replace function public.create_sales_order_v1",
+    "private.has_tenant_module_permission(p_organization_id,'sales','sales.create')",
+    "pg_advisory_xact_lock",
+    "from public.products",
+    "for update",
+    "movement_origin",
+    "'sales_order'",
+    "insert into public.financial_entries",
+    "insert into public.financial_installments",
+    "insert into public.financial_settlements",
+    "private.finance_post_settlement_movements",
+    "grant execute on function public.create_sales_order_v1",
+  ]) assert.ok(sql.includes(token), token);
+  assert.doesNotMatch(sql, /insert into public\.pdv_sales|insert into public\.pdv_sale_payments/);
+  assert.ok(sql.includes("enable row level security"));
+});
+
+test("PDV preserva seu próprio fluxo de venda, sem receber carrinho da vitrine", () => {
+  const pdv = read("src/features/pdv/presentation/PdvSaleWorkspace.tsx");
+  assert.match(pdv, /finalizePdvSale\(organizationId,/);
+  assert.doesNotMatch(pdv, /initialItems|backLabel|onSaleCompleted/);
 });
