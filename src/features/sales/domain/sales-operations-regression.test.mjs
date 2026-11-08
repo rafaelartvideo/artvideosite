@@ -134,3 +134,17 @@ test("troca equivalente baixa substitutos sem criar segunda venda nem recebiment
   const guard=read("supabase/migrations/20261108233000_sales_return_credit_deferred_until_ledger.sql");
   assert.match(guard,/p_request_type not in \('refund','exchange'\)/);
 });
+
+test("troca equivalente preserva receita, comissões e captura custo de substituição",()=>{
+  const exchange=read("supabase/migrations/20261108233500_sales_exchange_unit_cost_normalization.sql");
+  assert.match(exchange,/unit_cost_snapshot/);
+  assert.match(exchange,/v_stock\.average_cost/);
+  assert.match(exchange,/then 'cx' else 'un' end,v_qty,v_factor/);
+  const metrics=read("supabase/migrations/20261108234000_sales_margin_returns_exchanges_accurate.sql");
+  assert.match(metrics,/sales_order_exchange_items/);
+  assert.match(metrics,/sr\.disposition='restock'/);
+  assert.match(metrics,/r\.request_type='refund'/);
+  assert.match(metrics,/invoiced_amount-paid_amount/);
+  const commissions=read("supabase/migrations/20261108234500_sales_commission_refund_only_adjustments.sql");
+  assert.match(commissions,/r\.request_type='refund'/);
+});
