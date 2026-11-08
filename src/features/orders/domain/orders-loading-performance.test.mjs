@@ -12,8 +12,27 @@ test("tabela de OS só espera lista paginada e não o RPC amplo de referências"
   assert.doesNotMatch(list, /const loading = workspace\.loading \|\| listLoading/);
   assert.match(tab, /loading: ordersLoading/);
   assert.doesNotMatch(tab, /workspaceLoading \|\| ordersLoading/);
-  assert.match(list, /workspace\.loading \? <LoadingState text="Preparando quadro de ordens"/);
+  assert.match(list, /workspace\.loading \? <OrdersKanbanSkeleton/);
   assert.match(list, /filters\.error && !filteredOrders\.length && !loading/);
+});
+
+test("skeletons de OS acompanham tabela, Kanban, detalhes, editor e histórico sem substituir cache válido", async () => {
+  const skeletons = read("src/features/orders/presentation/OrdersSkeletons.tsx");
+  const table = read("src/features/orders/presentation/OrdersTable.tsx");
+  const list = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
+  const tab = read("src/features/orders/presentation/TabOrders.tsx");
+  const history = read("src/features/orders/presentation/OrderHistoryPage.tsx");
+  const details = read("src/features/orders/application/useOrderDetails.ts");
+  const compiled = await transformWithEsbuild(skeletons, "OrdersSkeletons.tsx", { loader: "tsx" });
+  assert.ok(compiled.code.length > 0);
+  assert.match(table, /<OrdersTableSkeleton/);
+  assert.match(list, /<OrdersKanbanSkeleton/);
+  assert.match(tab, /<OrderDetailsSkeleton/);
+  assert.match(tab, /<OrderEditorSkeleton/);
+  assert.match(history, /<OrderHistorySkeleton/);
+  assert.match(details, /detailHydrated:/);
+  assert.match(tab, /!detailsController\.detailHydrated/);
+  assert.match(skeletons, /motion-reduce:animate-none/);
 });
 
 test("lentidão da lista e do carregamento auxiliar é registrada separadamente sem PII", () => {
@@ -51,7 +70,8 @@ test("fechar uma OS troca lista e detalhe na mesma rota sem flash ou reset do sc
   assert.doesNotMatch(admin, /if \(!resourceId\) setPage\(null\)/);
 
   assert.match(tab, /visible=\{!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && \(!detail \|\| Boolean\(onOrderRouteChange\) \|\| Boolean\(completionFromListId\)\)\}/);
-  assert.match(tab, /visible=\{Boolean\(detail && !completionFromListId && !solveOpen && !editingRouteActive && \(!onOrderRouteChange \|\| initialOrderId\)\)\}/);
+  assert.match(tab, /const detailPageVisible = Boolean\(detail && !completionFromListId && !solveOpen && !editingRouteActive && \(!onOrderRouteChange \|\| initialOrderId\)\)/);
+  assert.match(tab, /visible=\{detailPageVisible\}/);
   assert.match(detail, /if \(onClose\) onClose\(\);\s*else closeDetail\(\);/);
   assert.match(detail, /onClose=\{closePage\} smoothMotion=\{false\}/);
 });
