@@ -13,52 +13,17 @@ import {
   createCommercialSale, loadSalesCheckoutOptions, searchSalesCustomers,
   type CommercialSaleResult,
 } from "../infrastructure/sales.repository";
+import {
+  parseSalesMoney as toCurrencyNumber,
+  salesMoneyText as moneyText,
+  localSalesDate as localDate,
+  splitSalesInstallments as splitInstallments,
+} from "../domain/sales-payment-schedule";
 
 type CartLine = { product: PdvProduct; quantity: number };
 type CheckoutMode = "full" | "deposit" | "later";
 type ReceivedLine = { key: number; paymentMethodId: string; amountText: string };
 const MAX_PAYMENTS = 5;
-
-function toCurrencyNumber(text: string): number {
-  const raw = text.trim().replace(/^R\$\s*/, "").replace(/\s/g, "");
-  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
-  if (!normalized) return 0;
-  const value = Number(normalized);
-  return Number.isFinite(value) && value >= 0 && Math.round(value * 100) === value * 100
-    ? Math.round(value * 100) / 100 : Number.NaN;
-}
-const moneyText = (value: number) => (Math.round(value * 100) / 100).toFixed(2).replace(".", ",");
-
-function localDate(offsetDays = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
-}
-
-function monthlyDate(firstDate: string, offset: number): string {
-  const [year, month, day] = firstDate.split("-").map(Number);
-  if (!year || !month || !day) return "";
-  const firstOfMonth = new Date(Date.UTC(year, month - 1 + offset, 1));
-  const lastDay = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0)).getUTCDate();
-  return [
-    firstOfMonth.getUTCFullYear(),
-    String(firstOfMonth.getUTCMonth() + 1).padStart(2, "0"),
-    String(Math.min(day, lastDay)).padStart(2, "0"),
-  ].join("-");
-}
-
-function splitInstallments(total: number, count: number, firstDate: string) {
-  if (count < 1 || !Number.isInteger(count) || !firstDate || !Number.isFinite(total)) return [];
-  const cents = Math.round(total * 100);
-  if (cents < count || count > 12) return [];
-  const base = Math.floor(cents / count);
-  const extra = cents % count;
-  return Array.from({ length: count }, (_, index) => ({
-    number: index + 1,
-    dueDate: monthlyDate(firstDate, index),
-    amount: (base + (index < extra ? 1 : 0)) / 100,
-  }));
-}
 
 /** Fluxo comercial: recebimentos informados como já realizados; parcelas futuras vão para Contas a Receber. */
 export function SalesCheckoutDialog({
