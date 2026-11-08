@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
-import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, RotateCcw, ShoppingBag, Truck, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, MoreHorizontal, PackageCheck, RotateCcw, ShoppingBag, Truck, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuItem} from "@/shared/ui/primitives/dropdown-menu";
 import { SalesDeliveryDialog } from "./SalesDeliveryDialog";
 import { SalesReturnsDialog } from "./SalesReturnsDialog";
 import {
@@ -120,6 +121,12 @@ export function SalesOrderDetailDialog({
     && order.received_amount === 0
     && order.settlements.length === 0 && canCancel,
   );
+  const canOpenFinance=Boolean(order?.status==="confirmed"&&order.open_amount>0&&
+    order.financial_entry_id&&hasPermission("finance.receivables.view"));
+  const canDelivery=Boolean(order?.status==="confirmed"&&hasPermission("sales.delivery.manage"));
+  const canReturns=Boolean(order?.status==="confirmed"&&order.fulfillment_status!=="pending"&&
+    (hasPermission("sales.returns.create")||hasPermission("sales.returns.approve")));
+  const hasMoreActions=canOpenFinance||canDelivery||canReturns||canOfferCancellation;
 
   return <>
     <AdminDialog open onClose={onClose}
@@ -127,33 +134,39 @@ export function SalesOrderDetailDialog({
       description="Detalhes, pagamento, produtos, separação e histórico"
       className="w-[calc(100vw-1.25rem)] max-w-4xl"
       bodyClassName="max-h-[min(75dvh,800px)] overflow-y-auto"
-      footer={<div className="flex w-full flex-wrap justify-end gap-2">
-        {order?.status === "confirmed" && order.open_amount > 0 && order.financial_entry_id &&
-          hasPermission("finance.receivables.view") &&
-          <AdminButton variant="secondary" size="sm"
-            onClick={() => openFinance(order.financial_entry_id)}>
-            <Wallet size={15} /> Receber no Financeiro
+      footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
+        {hasMoreActions&&<DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label="Mais ações do pedido"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground outline-none hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-primary">
+              <MoreHorizontal size={17}/> Ações
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[210px]">
+            {canOpenFinance&&order?.financial_entry_id&&
+              <DropdownMenuItem onSelect={()=>openFinance(order.financial_entry_id!)}>
+                <Wallet size={15} className="mr-2"/> Receber no Financeiro
+              </DropdownMenuItem>}
+            {canDelivery&&<DropdownMenuItem onSelect={()=>setDeliveryOpen(true)}>
+              <Truck size={15} className="mr-2"/> Entrega ou retirada
+            </DropdownMenuItem>}
+            {canReturns&&<DropdownMenuItem onSelect={()=>setReturnsOpen(true)}>
+              <RotateCcw size={15} className="mr-2"/> Trocas e devoluções
+            </DropdownMenuItem>}
+            {canOfferCancellation&&<DropdownMenuItem
+              onSelect={()=>{setErrorMessage(null);setCancelReason("");setCancelOpen(true);}}
+              className="text-destructive focus:text-destructive">
+              <AlertCircle size={15} className="mr-2"/> Cancelar pedido
+            </DropdownMenuItem>}
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {order?.status==="confirmed"&&nextStatus&&nextStatus!=="delivered"&&canManage&&
+          <AdminButton size="sm"
+            disabled={fulfillmentMutation.isPending||cancellationMutation.isPending}
+            loading={fulfillmentMutation.isPending} onClick={()=>fulfillmentMutation.mutate()}>
+            <PackageCheck size={15}/>
+            {nextStatus==="separating"?"Iniciar separação":"Marcar como pronto"}
           </AdminButton>}
-        {order?.status === "confirmed" && hasPermission("sales.delivery.manage") &&
-          <AdminButton variant="secondary" size="sm" onClick={()=>setDeliveryOpen(true)}>
-            <Truck size={15}/> Entrega / retirada
-          </AdminButton>}
-        {order && order.status==="confirmed" && order.fulfillment_status!=="pending" &&
-          <AdminButton variant="secondary" size="sm" onClick={()=>setReturnsOpen(true)}>
-            <RotateCcw size={15}/> Trocas e devoluções
-          </AdminButton>}
-        {order?.status === "confirmed" && nextStatus && nextStatus!=="delivered" && canManage &&
-          <AdminButton size="sm" disabled={fulfillmentMutation.isPending || cancellationMutation.isPending}
-            loading={fulfillmentMutation.isPending} onClick={() => fulfillmentMutation.mutate()}>
-            <PackageCheck size={15} />
-            {nextStatus === "separating" ? "Iniciar separação"
-              : nextStatus === "ready" ? "Marcar como pronto" : "Confirmar entrega"}
-          </AdminButton>}
-        {canOfferCancellation && <AdminButton size="sm" variant="danger"
-          disabled={fulfillmentMutation.isPending || cancellationMutation.isPending}
-          onClick={() => { setErrorMessage(null); setCancelReason(""); setCancelOpen(true); }}>
-          Cancelar pedido
-        </AdminButton>}
         <AdminButton variant="secondary" size="sm" onClick={onClose}>Fechar</AdminButton>
       </div>}>
       {detailQuery.isPending ? <div className="py-10"><LoadingState text="Carregando pedido..." /></div>
