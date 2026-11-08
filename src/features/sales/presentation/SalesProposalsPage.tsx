@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Plus, RefreshCw, ShoppingCart, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useLocation, useNavigate } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminButton, Section } from "@/shared/ui/admin/AdminLayout";
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesProposals, type SalesProposalDetail, type ProposalStatus } from "../infrastructure/sales-proposals.repository";
@@ -36,6 +37,7 @@ export function SalesProposalsPage() {
   const [searchDebounced,setSearchDebounced]=useState("");
   const [status,setStatus]=useState("all");
   const [page,setPage]=useState(1);
+  const [sort,setSort]=useState<"newest"|"oldest"|"highest"|"lowest">("newest");
   const [pageSize,setPageSize]=useState(15);
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [editing,setEditing]=useState<SalesProposalDetail|null>(null);
@@ -55,6 +57,15 @@ export function SalesProposalsPage() {
     enabled:Boolean(org&&hasPermission("sales.view")),
     staleTime:15_000,refetchOnWindowFocus:true,
   });
+  const proposals=useMemo(()=>{
+    const values=[...(proposalsQuery.data?.items||[])];
+    return values.sort((a,b)=>{
+      if(sort==="highest")return Number(b.total_amount)-Number(a.total_amount);
+      if(sort==="lowest")return Number(a.total_amount)-Number(b.total_amount);
+      const delta=new Date(b.created_at).getTime()-new Date(a.created_at).getTime();
+      return sort==="oldest"?-delta:delta;
+    });
+  },[proposalsQuery.data?.items,sort]);
   const refresh=(message?:string)=>{
     if(message)setToast(message);
     void queryClient.invalidateQueries({queryKey:["sales",org]});
@@ -82,9 +93,18 @@ export function SalesProposalsPage() {
       </div>
     </div>
 <AdminSearchPanel title="Buscar propostas"
-      headerActions={(search||status!=="all")?<AdminSearchClearButton onClick={()=>{
-        setSearch("");setStatus("all");setPage(1);
-      }}/>:undefined}>
+      headerActions={<>
+        {(search||status!=="all"||sort!=="newest")&&<AdminSearchClearButton onClick={()=>{
+          setSearch("");setStatus("all");setPage(1);setSort("newest");
+        }}/>}
+        <AdminSearchSortMenu label="Ordenar propostas nesta página" value={sort}
+          onChange={setSort} options={[
+            {value:"newest",label:"Mais recentes"},
+            {value:"oldest",label:"Mais antigas"},
+            {value:"highest",label:"Maior valor"},
+            {value:"lowest",label:"Menor valor"},
+          ]}/>
+      </>}>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
         <AdminSearchTextField label="Número, cliente, produto ou SKU"
           value={search} onChange={value=>{setSearch(value);setPage(1);}}
@@ -109,9 +129,10 @@ export function SalesProposalsPage() {
       :!proposalsQuery.data?.items.length?
       <EmptyState icon={ClipboardList} title="Nenhuma proposta encontrada"
         message="Crie um orçamento a partir da Vitrine ou ajuste os filtros."/>
-      :<div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+      :<Section title="Lista de propostas" description="Negociações e propostas cadastradas." flush
+        className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         <div className="divide-y divide-border md:hidden">
-          {proposalsQuery.data.items.map(proposal=><button type="button" key={proposal.id}
+          {proposals.map(proposal=><button type="button" key={proposal.id}
             onClick={()=>setSelectedId(proposal.id)}
             aria-label={"Abrir proposta "+proposal.proposal_number}
             className="flex w-full min-w-0 items-start gap-3 p-3.5 text-left outline-none hover:bg-muted/25 focus-visible:bg-primary/10">
@@ -142,8 +163,9 @@ export function SalesProposalsPage() {
           </button>)}
         </div>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[710px] text-left text-sm">
-            <thead className="border-b border-border bg-muted/40 text-[11px] text-muted-foreground">
+          <TopTableScrollbar/>
+          <table className="min-w-[710px]">
+            <thead>
               <tr>
                 <th className="px-4 py-3">Proposta</th>
                 <th className="px-4 py-3">Cliente</th>
@@ -154,7 +176,7 @@ export function SalesProposalsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {proposalsQuery.data.items.map(proposal=><tr key={proposal.id}
+              {proposals.map(proposal=><tr key={proposal.id}
                 tabIndex={0} role="button" aria-label={"Abrir proposta "+proposal.proposal_number}
                 onClick={()=>setSelectedId(proposal.id)}
                 onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){
@@ -196,7 +218,7 @@ export function SalesProposalsPage() {
           onPageSizeChange={size=>{setPageSize(size);setPage(1);}}
           pageSizeOptions={[10,15,25,50]} defaultPageSize={15}
           storageKey="union-sales-proposals-page-size" showFilteredTotal/>
-      </div>}
+      </Section>}
 
     {selectedId&&<SalesProposalDetailDialog organizationId={org} id={selectedId}
       onClose={()=>setSelectedId(null)}
