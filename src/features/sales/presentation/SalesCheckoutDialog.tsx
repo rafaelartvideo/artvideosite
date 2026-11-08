@@ -9,6 +9,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import type { PdvProduct, PdvCustomer } from "@/features/pdv/infrastructure/pdv.repository";
+import { convertSalesProposal } from "../infrastructure/sales-proposals.repository";
 import {
   createCommercialSale, loadSalesCheckoutOptions, searchSalesCustomers,
   type CommercialSaleResult,
@@ -27,18 +28,19 @@ const MAX_PAYMENTS = 5;
 
 /** Fluxo comercial: recebimentos informados como já realizados; parcelas futuras vão para Contas a Receber. */
 export function SalesCheckoutDialog({
-  open, items, onClose, onCompleted,
+  open, items, onClose, onCompleted, proposal,
 }: {
   open: boolean;
   items: CartLine[];
   onClose: () => void;
   onCompleted: (sale: CommercialSaleResult) => void;
+  proposal?: { id: string; customer: PdvCustomer; discount: number };
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const organizationId = activeOrganizationId || "";
   const [customerSearch, setCustomerSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [customer, setCustomer] = useState<PdvCustomer | null>(null);
+  const [customer, setCustomer] = useState<PdvCustomer | null>(proposal?.customer || null);
   const [mode, setMode] = useState<CheckoutMode>("full");
   const [paymentLines, setPaymentLines] = useState<ReceivedLine[]>([
     { key: 1, paymentMethodId: "", amountText: "" },
@@ -47,7 +49,7 @@ export function SalesCheckoutDialog({
   const [receivedConfirmed, setReceivedConfirmed] = useState(false);
   const [firstDueDate, setFirstDueDate] = useState(() => localDate(30));
   const [installmentCount, setInstallmentCount] = useState(1);
-  const [discountText, setDiscountText] = useState("");
+  const [discountText, setDiscountText] = useState(proposal?.discount ? String(proposal.discount).replace(".", ",") : "");
   const [notes, setNotes] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [result, setResult] = useState<CommercialSaleResult | null>(null);
@@ -165,16 +167,23 @@ export function SalesCheckoutDialog({
   })();
 
   const mutation = useMutation({
-    mutationFn: () => createCommercialSale(organizationId, {
-      idempotencyKey,
-      customerId: customer?.id || null,
-      discount,
-      receivedPayments: payments,
-      installmentCount: futureCount,
-      firstDueDate: futureCount > 0 ? firstDueDate : null,
-      notes: notes.trim(),
-      items: items.map(item => ({ productId: item.product.product_id, quantity: item.quantity })),
-    }),
+    mutationFn: () => proposal
+      ? convertSalesProposal(organizationId,proposal.id,{
+          idempotencyKey,
+          receivedPayments:payments,
+          installmentCount:futureCount,
+          firstDueDate:futureCount>0?firstDueDate:null,
+        })
+      : createCommercialSale(organizationId, {
+          idempotencyKey,
+          customerId: customer?.id || null,
+          discount,
+          receivedPayments: payments,
+          installmentCount: futureCount,
+          firstDueDate: futureCount > 0 ? firstDueDate : null,
+          notes: notes.trim(),
+          items: items.map(item => ({ productId: item.product.product_id, quantity: item.quantity })),
+        }),
     onSuccess: sale => {
       setResult(sale);
       setErrorText(null);
@@ -204,7 +213,7 @@ export function SalesCheckoutDialog({
   </div>;
 
   return <AdminDialog open={open} onClose={close}
-    title={result ? "Pedido registrado" : "Finalizar venda"}
+    title={result ? "Pedido registrado" : proposal ? "Converter proposta em pedido" : "Finalizar venda"}
     description={result
       ? "Venda comercial registrada no Estoque e no Financeiro."
       : "Selecione o cliente, o recebimento e confirme. O saldo e as parcelas são calculados automaticamente."}
@@ -231,8 +240,8 @@ export function SalesCheckoutDialog({
               <p className="truncate text-sm font-semibold">{customer.name}</p>
               {customer.document && <p className="text-xs text-muted-foreground">{customer.document}</p>}
             </div>
-            <button type="button" onClick={() => {setCustomer(null);setCustomerSearch("");}}
-              className="shrink-0 text-xs font-semibold text-primary">Alterar</button>
+            {!proposal && <button type="button" onClick={() => {setCustomer(null);setCustomerSearch("");}}
+              className="shrink-0 text-xs font-semibold text-primary">Alterar</button>}
           </div> : <>
             <div className="relative">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
@@ -367,12 +376,12 @@ export function SalesCheckoutDialog({
           </div>}
         </section>
 
-        <section className="space-y-2">
+        {!proposal && <section className="space-y-2">
           <label className="block text-xs font-semibold text-muted-foreground">Observações (opcional)</label>
           <textarea rows={2} value={notes} onChange={event=>setNotes(event.target.value)}
             maxLength={1000} placeholder="Retirada, entrega ou combinado com o cliente..."
             className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary"/>
-        </section>
+        </section>}
       </div>
 
       <div className="min-w-0 space-y-4">
@@ -399,7 +408,7 @@ export function SalesCheckoutDialog({
               <label htmlFor="sales-discount" className="text-sm text-muted-foreground">Desconto (R$)</label>
               <input id="sales-discount" inputMode="decimal" value={discountText} placeholder="0,00"
                 onChange={event=>{setDiscountText(event.target.value);setReceivedConfirmed(false);}}
-                disabled={!canDiscount} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60"/>
+                disabled={!canDiscount || Boolean(proposal)} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60"/>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3">
               <strong>Total</strong>
