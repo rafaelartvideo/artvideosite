@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, Image as ImageIcon, Package, Tag, Trash2, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -108,9 +109,10 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
   </div>;
 }
 
-export function ProductAdminThumb({ mediaId, name }: { mediaId: string | null; name: string }) {
+export function ProductAdminThumb({ mediaId, name, sku }: { mediaId: string | null; name: string; sku?: string | null }) {
   const { url } = useMediaUrl(mediaId);
-  return url ? <img src={url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-border" /> : <div className="w-10 h-10 bg-muted rounded-lg flex-shrink-0 border border-border flex items-center justify-center"><Package size={16} className="text-muted-foreground" /></div>;
+  const illustration = salesHomologationImage(sku);
+  return url || illustration ? <img src={url || illustration || ""} alt={name} className="w-10 h-10 rounded-lg object-contain flex-shrink-0 border border-border" /> : <div className="w-10 h-10 bg-muted rounded-lg flex-shrink-0 border border-border flex items-center justify-center"><Package size={16} className="text-muted-foreground" /></div>;
 }
 
 export function BrandAdminLogo({ mediaId, name }: { mediaId: string | null; name: string }) {
