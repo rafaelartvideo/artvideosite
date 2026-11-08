@@ -43,7 +43,7 @@ export function OrderConclusionButton({
       <span
         aria-hidden="true"
         className={[
-          "ml-auto flex shrink-0 items-center justify-center rounded-full border-[3px] border-primary bg-[#B9FC01] text-[#0D1B2E]",
+          "ml-auto flex shrink-0 items-center justify-center rounded-full border-[3px] border-primary bg-[#059669] text-[#0D1B2E]",
           compact ? "h-9 w-9" : "h-11 w-11",
           mobileIconOnly ? "max-sm:h-10 max-sm:w-10" : "",
         ].filter(Boolean).join(" ")}
