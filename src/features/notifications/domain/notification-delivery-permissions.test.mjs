@@ -64,3 +64,28 @@ test("central oferece filtros de avisos pessoais, tarefas e modulos", () => {
   assert.match(panel, /notification\.module_key === "workItems"/);
   assert.match(panel, /filteredNotifications\.map/);
 });
+
+test("RPC de notificações preserva RLS e resolve permissões por escopo, sem chamadas em rajada", () => {
+  const migration = read("supabase/migrations/20261108194500_optimize_notification_scope_delivery.sql");
+  const repository = read("src/features/notifications/infrastructure/notifications.repository.ts");
+  const home = read("src/features/admin-home/presentation/AdminHomePage.tsx");
+
+  assert.match(migration, /language sql stable security invoker/);
+  assert.match(migration, /visible_notifications as materialized/);
+  assert.match(migration, /delivery_scopes as materialized/);
+  assert.match(migration, /select distinct private\.notification_scope_v1\(module_key\)/);
+  assert.match(migration, /personal_delivery as materialized/);
+  assert.match(migration, /authorized_notifications as materialized/);
+  assert.match(migration, /n\.recipient_user_id is null or p\.may_receive/);
+  assert.doesNotMatch(migration, /security definer/);
+
+  assert.match(repository, /notificationLoadsInFlight = new Map/);
+  assert.match(repository, /notificationLoadFailures = new Map/);
+  assert.match(repository, /userId \? `\$\{userId\}:\$\{organizationId\}:\$\{limit\}` : null/);
+  assert.match(repository, /notificationLoadsInFlight\.get\(cacheKey\)/);
+  assert.match(repository, /Date\.now\(\) < failure\.until/);
+  assert.match(repository, /Math\.min\(15_000 \* \(2 \*\* \(attempts - 1\)\), 120_000\)/);
+  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId\)/);
+  assert.match(home, /loadAdminNotifications\(activeOrganizationId!, 50, user!\.id\)/);
+  assert.match(hook, /received\.forEach\(id => pendingIds\.add\(id\)\)/);
+});
