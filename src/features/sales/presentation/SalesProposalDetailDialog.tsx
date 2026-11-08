@@ -106,8 +106,8 @@ export function SalesProposalDetailDialog({
     setAction(next);setReason("");setErrorText(null);
   };
   const canReopen=Boolean(proposal && (
-    proposal.status==="rejected" ||
-    (proposal.effective_status==="expired" && (proposal.status==="sent" || proposal.status==="approved"))
+    proposal.status==="rejected" || proposal.status==="sent" ||
+    (proposal.status==="approved" && canApprove)
   ));
 
   return <>
@@ -228,16 +228,21 @@ export function SalesProposalDetailDialog({
         <AdminButton size="sm" variant="secondary" disabled={changeMutation.isPending}
           onClick={()=>setAction(null)}>Voltar</AdminButton>
         <AdminButton size="sm" disabled={changeMutation.isPending||
-          (action==="approved"&&reason.trim().length<3)}
+          (action==="approved"&&reason.trim().length<3)||
+          (action==="draft"&&proposal?.status==="approved"&&reason.trim().length<5)}
           loading={changeMutation.isPending} onClick={()=>changeMutation.mutate()}>Confirmar</AdminButton>
       </div>}>
       <label className="block space-y-1.5">
         <span className="text-xs font-semibold">
-          {action==="approved"?"Como o cliente aprovou?": "Observações (opcional)"}
+          {action==="approved"?"Como o cliente aprovou?":
+            action==="draft"&&proposal?.status==="approved"?"Motivo da renegociação":
+            "Observações (opcional)"}
         </span>
         <textarea value={reason} rows={3} maxLength={500}
           onChange={event=>setReason(event.target.value)}
-          placeholder={action==="approved"?"Ex.: Aprovado pelo cliente via WhatsApp":"Observações da negociação"}
+          placeholder={action==="approved"?"Ex.: Aprovado pelo cliente via WhatsApp":
+            action==="draft"&&proposal?.status==="approved"?"Ex.: preço alterado; precisa de nova aprovação":
+            "Observações da negociação"}
           className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm"/>
       </label>
       {errorText&&<p role="alert" className="mt-2 text-xs text-destructive">{errorText}</p>}
