@@ -1,9 +1,11 @@
 import { LayoutDashboard, List, Plus, Settings2 } from "lucide-react";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { filteredTotalLabel } from "../domain/order-list-display.mjs";
+import { Skeleton } from "@/shared/ui/primitives/skeleton";
 
 export function OrdersHeader({
   total,
+  loading = false,
   displayMode,
   canCreate,
   canConfigure = false,
@@ -13,6 +15,7 @@ export function OrdersHeader({
   showViewToggle = true,
 }: {
   total: number;
+  loading?: boolean;
   displayMode: "list" | "kanban";
   canCreate: boolean;
   canConfigure?: boolean;
@@ -34,7 +37,7 @@ export function OrdersHeader({
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         ><Settings2 size={18} /></button>}
       </span>}
-      subtitle={filteredTotalLabel(total, false)}
+      subtitle={loading ? <span role="status" aria-label="Carregando quantidade de OS"><Skeleton aria-hidden="true" className="h-3.5 w-36 motion-reduce:animate-none" /></span> : filteredTotalLabel(total, false)}
       actions={hasActions ? (
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           {showViewToggle && <div className="flex items-center rounded-lg border border-[#0d1b2e]/15 bg-white p-1">
