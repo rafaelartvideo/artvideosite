@@ -8,7 +8,7 @@ export type SalesPaymentMethod = {
   financial_account_id: string;
   account_name: string;
 };
-export type SalesCheckoutOptions = { payment_methods: SalesPaymentMethod[] };
+export type SalesCheckoutOptions = { payment_methods: SalesPaymentMethod[]; finance_ready: boolean };
 
 export type CreateCommercialSale = {
   idempotencyKey: string;
