@@ -36,7 +36,7 @@ test("detalhes do estoque, da Vitrine e do PDV exibem a lista reutilizável", as
     assert.ok(ui.includes("CompatibleDeviceModelsList"),path);
   }
   const storefront = read("src/features/sales/presentation/TabSales.tsx");
-  assert.match(storefront, /listCompatibleModelsForProducts\(organizationId, catalogProductIds\)/);
+  assert.match(storefront, /listCompatibleModelsForProducts\(organizationId,\s*catalogProductIds\)/);
   assert.match(storefront, /deviceModels\[0\]\.brand/);
   const pdv = read(paths[3]);
   assert.match(pdv, /listCompatibleModelsForProducts\(organizationId, foundProductIds\)/);
@@ -45,7 +45,7 @@ test("detalhes do estoque, da Vitrine e do PDV exibem a lista reutilizável", as
   assert.match(sales, /getSalesProductDetails\(organizationId, product\.product_id\)/);
   assert.match(sales, /gallery_media_ids/);
   assert.match(sales, /variant_attributes/);
-  assert.match(sales, /Modelos de aparelhos compatíveis/);
+  assert.match(sales, /<CompatibleDeviceModelsList models=\{models\.data\}/);
 });
 
 test("banco isola modelos por empresa e permite busca por modelo no PDV e em Vendas", () => {
