@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Barcode, CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
+  CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
   Search, ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -10,7 +10,7 @@ import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
+import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
 import { searchSalesProducts, listSalesProductRelations } from "../infrastructure/sales.repository";
 import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
@@ -139,7 +139,8 @@ export function TabSales() {
   const cartQuantity = cart.reduce((total, line) => total + line.quantity, 0);
   const cartTotal = cart.reduce((total, line) => total + Number(line.product.price || 0) * line.quantity, 0);
 
-  const addProduct = (product: PdvProduct) => {
+  const addProduct = (product: PdvProduct, quantity = 1) => {
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) return;
     if (!canSell) return;
     if (product.price == null || !Number.isFinite(Number(product.price)) || Number(product.price) <= 0) {
       setToast({ type: "error", msg: "Defina o preço de venda deste produto no Estoque antes de vender." });
@@ -147,7 +148,7 @@ export function TabSales() {
     }
     const max = availableQuantity(product);
     const current = cart.find(line => line.product.product_id === product.product_id)?.quantity || 0;
-    if (max <= current) {
+    if (max < current + quantity) {
       setToast({ type: "error", msg: "Não há mais unidades disponíveis para adicionar ao carrinho." });
       return;
     }
@@ -155,8 +156,8 @@ export function TabSales() {
       const found = previous.find(line => line.product.product_id === product.product_id);
       return found
         ? previous.map(line => line.product.product_id === product.product_id
-          ? { ...line, product, quantity: Math.min(max, line.quantity + 1) } : line)
-        : [...previous, { product, quantity: 1 }];
+          ? { ...line, product, quantity: Math.min(max, line.quantity + quantity) } : line)
+        : [...previous, { product, quantity }];
     });
     setToast(null);
   };
@@ -363,38 +364,17 @@ export function TabSales() {
       <span>{formatCurrency(cartTotal)}</span>
     </button>}
 
-    {selected && <AdminDialog open onClose={() => setSelected(null)} title={selected.name}
-      description={selected.sku || selected.barcode || "Detalhes do produto"} className="max-w-3xl">
-      <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
-          <SalesProductPhoto mediaId={selected.cover_media_id} name={selected.name} className="h-52 w-full rounded-xl border border-border" />
-          <div className="flex flex-col justify-between gap-3">
-            <div>
-              <p className="text-xl font-bold text-foreground">{selected.price == null ? "Sem preço" : formatCurrency(selected.price)}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{formatNumber(availableQuantity(selected))} {selected.unit || "un"} disponíveis</p>
-              {selected.barcode && <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Barcode size={14} /> {selected.barcode}</p>}
-            </div>
-            <AdminButton disabled={!canSell || availableQuantity(selected) <= 0 || selected.price == null}
-              onClick={() => addProduct(selected)}><Plus size={15} /> Adicionar ao carrinho</AdminButton>
-          </div>
-        </div>
-        {relatedQuery.isPending ? <LoadingState text="Buscando variações e alternativas..." />
-          : relatedQuery.error ? <p className="text-xs text-muted-foreground">Alternativas indisponíveis no momento.</p>
-          : Boolean(relatedQuery.data?.length) && <CompatibleProductCarousel
-            title="Variações, similares e compatíveis"
-            sourceName={selected.name}
-            products={(relatedQuery.data || []).map(alternative => ({
-              id: alternative.product_id, name: alternative.name, sku: alternative.sku,
-              barcode: alternative.barcode, coverMediaId: alternative.cover_media_id,
-              price: alternative.price, stock: availableQuantity(alternative), unit: alternative.unit,
-              relationType: alternative.relation_type, matchedCode: alternative.matched_code,
-            }))}
-            onPick={choice => {
-              const product = relatedQuery.data?.find(entry => entry.product_id === choice.id);
-              if (product) addProduct(product);
-            }}
-          />}
-      </div>
-    </AdminDialog>}
+    {selected && <SalesProductDetailsDialog
+      key={selected.product_id}
+      organizationId={organizationId}
+      product={selected}
+      cartQuantity={cart.find(line => line.product.product_id === selected.product_id)?.quantity || 0}
+      canSell={canSell}
+      onAdd={addProduct}
+      onClose={() => setSelected(null)}
+      relatedProducts={relatedQuery.data || []}
+      relatedLoading={relatedQuery.isPending}
+      relatedError={relatedQuery.isError}
+    />}
   </div>;
 }
