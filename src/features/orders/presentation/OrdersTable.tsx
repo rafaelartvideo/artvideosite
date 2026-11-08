@@ -1,5 +1,6 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { OrdersTableSkeleton } from "./OrdersSkeletons";
+import { Skeleton } from "@/shared/ui/primitives/skeleton";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
@@ -316,7 +317,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           </div>
         </>
       )}
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />
+      {loading ? <div role="status" aria-label="Carregando paginação" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3"><Skeleton className="h-4 w-32 motion-reduce:animate-none" /><div className="flex gap-2"><Skeleton className="h-9 w-24 motion-reduce:animate-none" /><Skeleton className="h-9 w-24 motion-reduce:animate-none" /></div></div> : <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />}
     </AdminCard>
   </>;
 }
