@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, CreditCard, Plus, RefreshCw, Search, ShoppingBag, Wallet, X } from "lucide-react";
+import { ClipboardList, CreditCard, Plus, RefreshCw, ShoppingBag, Wallet, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
 import { LoadingState, EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesOrders, type SalesOrderFilters, type SalesOrderListRow } from "../infrastructure/sales-orders.repository";
@@ -21,9 +22,9 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return <label className="min-w-0 space-y-1.5">
-    <span className="block text-[11px] font-semibold text-muted-foreground">{label}</span>
+    <span className="block text-xs font-semibold text-muted-foreground">{label}</span>
     <select value={value} onChange={event => onChange(event.target.value)}
-      className="h-10 w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground outline-none focus:border-primary">
+      className="h-[42px] w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground outline-none focus:border-primary md:h-9">
       {options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   </label>;
@@ -132,24 +133,13 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
       </div>)}
     </div>
 
-    <div className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Buscar pedidos</h3>
-        <button type="button" onClick={clearFilters}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary">
-          <X size={14}/> Limpar filtros
-        </button>
-      </div>
+    <AdminSearchPanel title="Buscar pedidos"
+      headerActions={(search||status!=="all"||payment!=="all"||from||to)
+        ? <AdminSearchClearButton onClick={clearFilters}/> : undefined}>
       <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <label className="min-w-0 space-y-1.5">
-          <span className="block text-[11px] font-semibold text-muted-foreground">Pedido, cliente, produto ou SKU</span>
-          <div className="relative">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input value={search} onChange={event=>setFilter(setSearch,event.target.value)}
-              placeholder="Buscar pedidos..."
-              className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"/>
-          </div>
-        </label>
+        <AdminSearchTextField label="Pedido, cliente, produto ou SKU"
+          value={search} onChange={value=>setFilter(setSearch,value)}
+          placeholder="Buscar pedidos..."/>
         <FilterSelect label="Situação comercial" value={status||"all"}
           onChange={value=>setFilter(setStatus,value as SalesOrderFilters["status"])}
           options={[
@@ -166,19 +156,23 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
             {value:"paid",label:"Recebido"},
             {value:"cancelled",label:"Cancelado"},
           ]}/>
-        <label className="min-w-0 space-y-1.5">
-          <span className="block text-[11px] font-semibold text-muted-foreground">Data inicial</span>
-          <input type="date" value={from} onChange={event=>setFilter(setFrom,event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"/>
-        </label>
-        <label className="min-w-0 space-y-1.5">
-          <span className="block text-[11px] font-semibold text-muted-foreground">Data final</span>
-          <input type="date" value={to} onChange={event=>setFilter(setTo,event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"/>
-        </label>
+        <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 xl:col-span-2">
+          <label className="min-w-0 space-y-1.5">
+            <span className="block text-xs font-semibold text-muted-foreground">Data inicial</span>
+            <input type="date" value={from} onChange={event=>setFilter(setFrom,event.target.value)}
+              className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary md:h-9"/>
+          </label>
+          <label className="min-w-0 space-y-1.5">
+            <span className="block text-xs font-semibold text-muted-foreground">Data final</span>
+            <input type="date" value={to} onChange={event=>setFilter(setTo,event.target.value)}
+              className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary md:h-9"/>
+          </label>
+        </div>
       </div>
-      {badPeriod && <p role="alert" className="text-xs text-destructive">A data inicial não pode ser posterior à data final.</p>}
-    </div>
+      {badPeriod && <p role="alert" className="mt-3 text-xs text-destructive">
+        A data inicial não pode ser posterior à data final.
+      </p>}
+    </AdminSearchPanel>
 
     {!canView ? <EmptyState icon={ClipboardList} title="Sem permissão para visualizar pedidos"
       message="Solicite acesso ao módulo Vendas."/>
@@ -192,7 +186,35 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
         message={data?.total===0 && !debouncedSearch && status==="all" && payment==="all" && !from && !to
           ? "As vendas confirmadas pela Vitrine aparecerão aqui." : "Tente alterar os filtros da busca."}/>
       : <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-border md:hidden">
+          {orders.map(order=><button type="button" key={order.id}
+            onClick={()=>setSelectedId(order.id)}
+            aria-label={"Ver pedido comercial "+order.order_number}
+            className="flex w-full min-w-0 items-start gap-3 p-3.5 text-left outline-none hover:bg-muted/25 focus-visible:bg-primary/10">
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-bold text-foreground">Pedido #{order.order_number}</span>
+                <strong className="text-sm tabular-nums text-foreground">{formatCurrency(order.total_amount)}</strong>
+              </div>
+              <p className="truncate text-sm font-medium text-foreground">
+                {order.customer_name_snapshot||"Consumidor não identificado"}
+              </p>
+              <OrderStatuses order={order}/>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span>{formatSalesDate(order.created_at)}</span>
+                {order.open_amount>0&&order.status!=="cancelled"
+                  ?<span className="font-semibold text-orange-700 dark:text-orange-300">
+                    {formatCurrency(order.open_amount)} em aberto
+                  </span>
+                  :order.status!=="cancelled"&&order.payment_status==="paid"
+                  ?<span className="font-semibold text-emerald-700 dark:text-emerald-300">Recebido</span>
+                  :null}
+              </div>
+            </div>
+            <ChevronRight size={18} className="mt-1 shrink-0 text-muted-foreground" aria-hidden="true"/>
+          </button>)}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[840px] text-left text-sm">
             <thead className="bg-muted/40">
               <tr className="border-b border-border text-[11px] font-semibold text-muted-foreground">
