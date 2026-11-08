@@ -305,30 +305,30 @@ export function TabSales() {
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
-    <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-border pb-2 sm:gap-2" role="tablist" aria-label="Seções de Vendas">
+    <div className="flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto border-b border-border pb-0" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
-        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="storefront"
-          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
+          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "proposals"}
         onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
-        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="proposals"
-          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
+          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         Propostas
       </button>
       <button type="button" role="tab" aria-selected={currentView === "orders"}
         onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
-        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " + (currentView==="orders"
-          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
+          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         Pedidos
       </button>
       {hasPermission("sales.reports.view")&&<button type="button" role="tab"
         aria-selected={currentView === "management"}
         onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
-        className={"shrink-0 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:px-4 " +
-          (currentView==="management"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted")}>
+        className={"-mb-px shrink-0 border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
+          (currentView==="management"?"border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
         Gestão
       </button>}
     </div>
@@ -377,8 +377,12 @@ export function TabSales() {
       <section className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-foreground">Vitrine de produtos</h2>
-            <p className="text-xs text-muted-foreground">Produtos ativos da empresa · até 80 resultados por pesquisa</p>
+            <h2 className="text-base font-bold text-foreground">
+              Vitrine de produtos <span className="font-semibold text-muted-foreground">({totalProducts})</span>
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {totalFiltered} {totalFiltered===1?"resultado":"resultados"} · mostrando {products.length} por página
+            </p>
           </div>
           <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
             <button type="button" onClick={() => setDisplay("grid")} aria-label="Ver produtos em grade"
@@ -392,9 +396,10 @@ export function TabSales() {
           </div>
         </div>
         <AdminSearchPanel title="Buscar produtos"
-          headerActions={(search||onlyAvailable||onlyFavorites||sort!=="name")
+          headerActions={(search||onlyAvailable||onlyFavorites||categoryId||sort!=="name")
             ? <AdminSearchClearButton onClick={()=>{
-                setSearch("");setOnlyAvailable(false);setOnlyFavorites(false);setSort("name");
+                setSearch("");setOnlyAvailable(false);setOnlyFavorites(false);
+                setCategoryId(null);setPage(1);setSort("name");
               }}/> : undefined}>
           <label className="block min-w-0 space-y-1.5">
             <span className="block text-xs font-semibold text-muted-foreground">
@@ -404,7 +409,7 @@ export function TabSales() {
               <Search size={16} aria-hidden="true"
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={search}
-                onChange={event=>setSearch(event.target.value)}
+                onChange={event=>{setSearch(event.target.value);setPage(1);}}
                 onKeyDown={event=>{
                   if(event.key==="Enter"){event.preventDefault();addExactCode();}
                 }}
@@ -412,28 +417,53 @@ export function TabSales() {
                 className="h-[42px] w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary md:h-9"/>
             </div>
           </label>
-          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
-            <button type="button" aria-pressed={onlyAvailable}
-              onClick={()=>setOnlyAvailable(value=>!value)}
-              className={"rounded-full border px-3 py-1.5 text-xs font-semibold "+
-                (onlyAvailable?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
-              Disponíveis
-            </button>
-            <button type="button" aria-pressed={onlyFavorites}
-              onClick={()=>setOnlyFavorites(value=>!value)}
-              className={"inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold "+
-                (onlyFavorites?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
-              <Heart size={13}/> Favoritos
-            </button>
-            <div className="ml-auto flex items-center gap-2">
-              <AdminSearchSortMenu variant="surface" label="Ordenação dos produtos"
-                value={sort} onChange={setSort} options={[
-                  {value:"name",label:"Nome A–Z"},
-                  {value:"price_low",label:"Menor preço"},
-                  {value:"price_high",label:"Maior preço"},
-                  {value:"stock",label:"Mais estoque"},
-                ]}/>
+          <div className="mt-3 flex min-w-0 items-center gap-2">
+            <div ref={categoriesRef} role="group" aria-label="Filtros por disponibilidade, favoritos e categorias"
+              className="flex min-w-0 flex-1 snap-x items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:thin]">
+              <button type="button" aria-pressed={categoryId===null}
+                onClick={()=>{setCategoryId(null);setPage(1);}}
+                className={"shrink-0 snap-start rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                  (categoryId===null?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
+                Todas ({totalProducts})
+              </button>
+              <button type="button" aria-pressed={onlyAvailable}
+                onClick={()=>{setOnlyAvailable(value=>!value);setPage(1);}}
+                className={"shrink-0 snap-start rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                  (onlyAvailable?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
+                Disponíveis
+              </button>
+              <button type="button" aria-pressed={onlyFavorites}
+                onClick={()=>{setOnlyFavorites(value=>!value);setPage(1);}}
+                className={"inline-flex shrink-0 snap-start items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                  (onlyFavorites?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
+                <Heart size={13}/> Favoritos
+              </button>
+              {(categoriesQuery.data?.categories||[]).map(category=><button type="button"
+                key={category.id} aria-pressed={categoryId===category.id}
+                onClick={()=>{setCategoryId(category.id);setPage(1);}}
+                className={"shrink-0 snap-start rounded-full border px-3 py-1.5 text-xs font-semibold "+
+                  (categoryId===category.id?"border-primary/30 bg-primary/10 text-primary":"border-border text-muted-foreground")}>
+                {category.name} ({category.total})
+              </button>)}
+              {categoriesQuery.isPending&&<span className="shrink-0 text-xs text-muted-foreground">Preparando categorias...</span>}
             </div>
+            {(categoriesQuery.data?.categories.length||0)>3&&<div className="flex shrink-0 items-center gap-1">
+              <button type="button" onClick={()=>categoriesRef.current?.scrollBy({left:-280,behavior:"smooth"})}
+                aria-label="Categorias anteriores" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
+                <ChevronLeft size={16}/>
+              </button>
+              <button type="button" onClick={()=>categoriesRef.current?.scrollBy({left:280,behavior:"smooth"})}
+                aria-label="Próximas categorias" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
+                <ChevronRight size={16}/>
+              </button>
+            </div>}
+            <AdminSearchSortMenu variant="surface" label="Ordenação dos produtos"
+              value={sort} onChange={value=>{setSort(value);setPage(1);}} options={[
+                {value:"name",label:"Nome A–Z"},
+                {value:"price_low",label:"Menor preço"},
+                {value:"price_high",label:"Maior preço"},
+                {value:"stock",label:"Mais estoque"},
+              ]}/>
           </div>
         </AdminSearchPanel>
 
