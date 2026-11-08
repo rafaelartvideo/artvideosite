@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminUseMobileButton } from "@/shared/ui/admin/AdminUseMobileButton";
 import {
   subscribeMobileSessionRealtime,
   type MobileSessionRealtimeRow,
@@ -157,18 +158,12 @@ export function OrderMobileEditBridge({
 
   return (
     <>
-      <AdminButton
-        variant="primary"
-        size="sm"
+      <AdminUseMobileButton
+        connected={connected}
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className="hidden md:inline-flex bg-[#0057e7] text-white hover:bg-[#0046bd]"
         title="Abrir a edição desta OS no celular"
-      >
-        <Smartphone size={14} />
-        <span>{connected ? "Celular conectado" : "Usar celular"}</span>
-        {connected && <span className="relative ml-1 inline-flex h-2.5 w-2.5 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-1 ring-white/70" /></span>}
-      </AdminButton>
+      />
 
       <AdminDialog
         open={open}
