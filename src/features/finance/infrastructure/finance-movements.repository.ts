@@ -104,6 +104,7 @@ export async function listFinancialMovementsPage(
               : entry.origin_type === "recurring" ? "Recorrência"
               : entry.origin_type === "manual" ? "Lançamento manual"
               : entry.origin_type === "pdv_sale" ? "PDV"
+              : entry.origin_type === "sales_order" ? "Vendas"
               : "Lançamento financeiro";
             originBySettlement.set(settlement.id, origin);
           }
