@@ -838,7 +838,7 @@ export function TabProducts({
     if (!compatibleModelsLoaded) {
       setEditorTab("relationships");
       setToast({ msg: "Aguarde a consulta dos modelos compatíveis antes de salvar.", type: "error" });
-      return;
+      return false;
     }
     if (!relatedCodesLoaded) {
       setEditorTab("relationships");
@@ -1785,6 +1785,7 @@ export function TabProducts({
             <Section title="Modelos de aparelhos compatíveis"
               description="Vincule os modelos dos aparelhos atendidos por este produto. Variações podem herdar os modelos do produto principal ou ter uma lista própria.">
               <ProductCompatibleModelsEditor
+                key={editItem?.id || "new"}
                 models={compatibleModels}
                 onChange={setCompatibleModels}
                 inherited={compatibleModelsInherited}
