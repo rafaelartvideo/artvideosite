@@ -217,3 +217,38 @@ export async function saveSalesSellerGoal(organizationId:string,input:{
   });
   if(error)throw error;
 }
+
+export type ApprovedSalesCommission = {
+  id:string;
+  seller_id:string;
+  name:string;
+  month:string;
+  eligible_amount:number;
+  rate:number;
+  amount:number;
+  basis:"received"|"confirmed";
+  financial_entry_id:string;
+  financial_status:string;
+  paid_amount:number;
+  approved_at:string;
+  notes:string|null;
+};
+export async function listApprovedSalesCommissions(
+  organizationId:string,month:string,
+):Promise<ApprovedSalesCommission[]> {
+  const {data,error}=await supabase.rpc("list_sales_commissions_v1",{
+    p_organization_id:org(organizationId),p_month:month+"-01",
+  });
+  if(error)throw error;
+  return (data||[]) as ApprovedSalesCommission[];
+}
+export async function approveSalesCommission(
+  organizationId:string,sellerId:string,month:string,notes:string,
+):Promise<{id:string;amount:number;financial_entry_id:string;already_approved:boolean}> {
+  const {data,error}=await supabase.rpc("approve_sales_commission_v1",{
+    p_organization_id:org(organizationId),p_seller_id:sellerId,
+    p_month:month+"-01",p_notes:notes.trim(),
+  });
+  if(error)throw error;
+  return data as {id:string;amount:number;financial_entry_id:string;already_approved:boolean};
+}
