@@ -135,3 +135,46 @@ export function OrderHistorySkeleton() {
     </div>)}
   </div>;
 }
+
+/** Mantém a estrutura das seções enquanto os dados comerciais da OS são buscados. */
+export function OrderQuoteSkeleton() {
+  return <div role="status" aria-label="Carregando orçamento da OS" aria-busy="true" className="space-y-4">
+    <span className="sr-only">Carregando orçamento da ordem de serviço...</span>
+    <SectionSkeleton lines={4} />
+    <SectionSkeleton lines={4} />
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SectionSkeleton lines={2} /><SectionSkeleton lines={2} />
+    </div>
+  </div>;
+}
+
+export function OrderItemsSkeleton() {
+  return <div role="status" aria-label="Carregando produtos e serviços da OS" aria-busy="true" className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:p-4 xl:grid-cols-2">
+    <span className="sr-only">Carregando produtos e serviços...</span>
+    {COLUMNS.concat(3).map(index => <div key={index} className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div className="flex justify-between gap-2"><Line className="w-24" /><Line className="h-5 w-20 rounded-full" /></div>
+      <Line className="h-4 w-3/4" /><Line className="w-1/2" />
+      <div className="flex items-center justify-between border-t border-border pt-3"><Line className="w-20" /><Line className="w-16" /></div>
+    </div>)}
+  </div>;
+}
+
+export function OrderDocumentsSkeleton() {
+  return <div role="status" aria-label="Carregando documentos da OS" aria-busy="true" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <span className="sr-only">Carregando documentos da ordem de serviço...</span>
+    {COLUMNS.map(index => <div key={index} className="space-y-3 rounded-xl border border-border bg-card p-3">
+      <Skeleton className="h-28 w-full rounded-lg motion-reduce:animate-none" />
+      <Line className="w-4/5" /><Line className="w-1/2" />
+    </div>)}
+  </div>;
+}
+
+export function OrderPhotosSkeleton() {
+  return <div role="status" aria-label="Carregando fotos do orçamento" aria-busy="true" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <span className="sr-only">Carregando fotos do orçamento...</span>
+    {COLUMNS.map(index => <div key={index} className="space-y-2 rounded-lg border border-border bg-card p-2">
+      <Skeleton className="h-36 w-full rounded-md motion-reduce:animate-none" />
+      <Line className="w-20" />
+    </div>)}
+  </div>;
+}
