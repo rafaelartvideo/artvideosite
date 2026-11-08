@@ -327,26 +327,26 @@ export function TabSales() {
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
         className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
-          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
+          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <Package size={14} aria-hidden="true"/> Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "proposals"}
         onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
         className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
-          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
+          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <FileText size={14} aria-hidden="true"/> Propostas
       </button>
       <button type="button" role="tab" aria-selected={currentView === "orders"}
         onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
         className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
-          ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
+          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <ClipboardList size={14} aria-hidden="true"/> Pedidos
       </button>
       {hasPermission("sales.reports.view")&&<button type="button" role="tab"
         aria-selected={currentView === "management"}
         onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
         className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
-          (currentView==="management"?"border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
+          (currentView==="management"?"!border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
         <BarChart3 size={14} aria-hidden="true"/> Gestão
       </button>}
     </div>
@@ -496,7 +496,47 @@ export function TabSales() {
               message="Tente outra pesquisa ou altere os filtros. Cadastros são gerenciados no Estoque." />
           : display==="list"
           ?<AdminCard square className="[&_th]:py-3 [&_td]:py-3">
-            <div className="min-w-0 overflow-x-auto">
+            <div className="divide-y divide-border md:hidden">
+              {products.map(product=>{
+                const available=availableQuantity(product);
+                const favorite=favorites.includes(product.product_id);
+                const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
+                const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+                return <div key={product.product_id} className="flex min-w-0 items-start gap-3 p-3">
+                  <button type="button" onClick={()=>void prepareProduct(product)}
+                    aria-label={"Ver detalhes de "+product.name}
+                    className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border">
+                    <SalesProductPhoto mediaId={product.cover_media_id} name={product.name} sku={product.sku}/>
+                  </button>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <button type="button" onClick={()=>void prepareProduct(product)}
+                      className="block break-words text-left text-sm font-semibold text-foreground hover:text-primary">
+                      {product.name}
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      {product.sku||product.barcode||"Sem código"} · {product.category_name||"Sem categoria"}
+                    </p>
+                    <p className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                      {product.price==null?"Sem preço":formatCurrency(product.price)}
+                    </p>
+                    <p className={"text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
+                      {available>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
+                    </p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button type="button" aria-label={favorite?"Remover favorito":"Favoritar produto"}
+                        aria-pressed={favorite} onClick={()=>toggleFavorite(product.product_id)}
+                        className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg "+
+                          (favorite?"text-red-500":"text-muted-foreground hover:text-primary")}>
+                        <Heart size={17} fill={favorite?"currentColor":"none"}/>
+                      </button>
+                      <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                        onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                    </div>
+                  </div>
+                </div>;
+              })}
+            </div>
+            <div className="hidden min-w-0 overflow-x-auto md:block">
               <TopTableScrollbar/>
               <table className="w-full min-w-[750px] text-sm">
                 <thead>
