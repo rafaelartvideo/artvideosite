@@ -6,6 +6,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { SalesQuickCustomerDialog } from "./SalesQuickCustomerDialog";
 import { searchSalesCustomers, searchSalesProducts } from "../infrastructure/sales.repository";
 import { saveSalesProposal, type SalesProposalDetail } from "../infrastructure/sales-proposals.repository";
 import { localSalesDate, parseSalesMoney } from "../domain/sales-payment-schedule";
@@ -33,6 +34,7 @@ export function SalesProposalEditorDialog({
   onSaved: (message: string) => void;
 }) {
   const { hasPermission } = useAuth();
+  const [quickCustomerOpen,setQuickCustomerOpen]=useState(false);
   const [customer, setCustomer] = useState<{ id: string; name: string; document?: string | null } | null>(
     initial ? { id: initial.customer_id, name: initial.customer_name_snapshot,
       document: initial.customer_document_snapshot } : null);
@@ -130,7 +132,7 @@ export function SalesProposalEditorDialog({
     onError: error => setErrorText(systemErrorMessage(error,"Não foi possível salvar a proposta.")),
   });
 
-  return <AdminDialog open onClose={() => !mutation.isPending && onClose()}
+  return <><AdminDialog open onClose={() => !mutation.isPending && onClose()}
     title={initial ? "Renegociar proposta #"+initial.proposal_number : "Nova proposta comercial"}
     description="Escolha o cliente, os produtos e a validade. Nenhuma movimentação de estoque ou Financeiro será feita."
     className="w-[calc(100vw-1.25rem)] max-w-3xl"
@@ -146,7 +148,13 @@ export function SalesProposalEditorDialog({
     </div>}>
     <div className="min-w-0 space-y-5">
       <section className="space-y-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold"><UserRound size={16}/> Cliente</h3>
+<div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><UserRound size={16}/> Cliente</h3>
+          {hasPermission("sales.quick_customer")&&<button type="button" onClick={()=>setQuickCustomerOpen(true)}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+            <Plus size={14}/> Novo cliente
+          </button>}
+        </div>
         {customer ? <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{customer.name}</p>
@@ -250,5 +258,14 @@ export function SalesProposalEditorDialog({
       {invalid && <p className="text-xs text-muted-foreground">{invalid}</p>}
       {errorText && <p role="alert" className="text-xs text-destructive">{errorText}</p>}
     </div>
-  </AdminDialog>;
+  </AdminDialog>
+  {quickCustomerOpen&&<SalesQuickCustomerDialog organizationId={organizationId}
+    onClose={()=>setQuickCustomerOpen(false)}
+    onSaved={saved=>{
+      setCustomer({id:saved.id,name:saved.name,document:saved.document});
+      setQuickCustomerOpen(false);
+      setSearch("");
+      setErrorText(null);
+    }}/>}
+  </>;
 }
