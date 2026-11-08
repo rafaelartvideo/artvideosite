@@ -304,6 +304,13 @@ export function TabSales() {
 
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    {preparingProduct&&<div role="status" aria-live="polite"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-background/40 px-4 backdrop-blur-[1px]">
+      <div className="flex min-w-[230px] items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-xl">
+        <LoaderCircle size={22} className="animate-spin text-primary" aria-hidden="true"/>
+        <p className="text-sm font-semibold text-foreground">Preparando produto...</p>
+      </div>
+    </div>}
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
     <div className="flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto border-b border-border pb-0" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
@@ -476,50 +483,126 @@ export function TabSales() {
           </div>
           : products.length === 0 ? <EmptyState icon={Package} title="Nenhum produto encontrado"
               message="Tente outra pesquisa ou altere os filtros. Cadastros são gerenciados no Estoque." />
-          : <div className={display === "grid"
-              ? "grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4"
-              : "space-y-2"}>
-              {products.map(product => {
-                const available = availableQuantity(product);
-                const isFavorite = favorites.includes(product.product_id);
-                const deviceModels = modelsByProduct.get(product.product_id) || [];
-                const canAdd = canSell && available > 0 && product.price != null && Number(product.price) > 0;
-                const cartCount = cart.find(line => line.product.product_id === product.product_id)?.quantity || 0;
-                return <article key={product.product_id}
-                  className={"min-w-0 overflow-hidden rounded-xl border border-border bg-card " + (display === "list" ? "flex items-center gap-2 p-2" : "flex flex-col")}>
-                  <button type="button" onClick={() => setSelected(product)} aria-label={"Ver detalhes de " + product.name}
-                    className={"relative shrink-0 overflow-hidden rounded-lg " + (display === "list" ? "h-20 w-20" : "aspect-[4/3] w-full")}>
-                    <SalesProductPhoto mediaId={product.cover_media_id} name={product.name} />
-                  </button>
-                  <div className="flex min-w-0 flex-1 flex-col gap-2 p-2.5">
-                    <div className="flex min-w-0 items-start gap-1">
-                      <button type="button" onClick={() => setSelected(product)}
-                        className="min-w-0 flex-1 text-left text-sm font-bold leading-5 text-foreground hover:text-primary line-clamp-2">
-                        {product.name}
-                      </button>
-                      <button type="button" aria-label={isFavorite ? "Remover favorito" : "Favoritar produto"}
-                        aria-pressed={isFavorite} onClick={() => toggleFavorite(product.product_id)}
-                        className={"shrink-0 rounded-md p-1 " + (isFavorite ? "text-red-500" : "text-muted-foreground")}>
-                        <Heart size={17} fill={isFavorite ? "currentColor" : "none"} />
-                      </button>
-                    </div>
-                    <p className="truncate text-[11px] text-muted-foreground">{product.sku || product.barcode || "Sem código"}</p>
-                    <p className="text-base font-bold text-foreground">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
-                    <p className={"text-xs font-medium " + (available > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-destructive")}>
-                      {available > 0 ? formatNumber(available) + " disponíveis" : "Sem estoque"}
-                    </p>
-                    {deviceModels.length > 0 && <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground"
-                      title={deviceModels.map(model => model.brand + " " + model.model).join(" · ")}>
-                      <span className="font-semibold text-foreground">Compatível: </span>
-                      {deviceModels[0].brand} {deviceModels[0].model}
-                      {deviceModels.length > 1 ? " · +" + (deviceModels.length - 1) : ""}
-                    </p>}
-                    <AdminButton size="sm" disabled={!canAdd || cartCount >= available} className="mt-auto w-full justify-center"
-                      onClick={() => addProduct(product)}><Plus size={14} /> Adicionar</AdminButton>
+          : display==="list"
+          ?<div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+            <div className="min-w-0 overflow-x-auto">
+              <TopTableScrollbar/>
+              <table className="w-full min-w-[750px] text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-left">Produto</th>
+                    <th className="text-left">SKU / Código</th>
+                    <th className="text-left">Categoria</th>
+                    <th className="text-left">Preço</th>
+                    <th className="text-left">Disponível</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map(product=>{
+                    const available=availableQuantity(product);
+                    const favorite=favorites.includes(product.product_id);
+                    const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
+                    const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+                    return <tr key={product.product_id}>
+                      <td className="min-w-[230px]">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <button type="button" onClick={()=>void prepareProduct(product)}
+                            aria-label={"Ver detalhes de "+product.name}
+                            className="h-12 w-14 shrink-0 overflow-hidden rounded-lg border border-border">
+                            <SalesProductPhoto mediaId={product.cover_media_id} name={product.name} sku={product.sku}/>
+                          </button>
+                          <button type="button" onClick={()=>void prepareProduct(product)}
+                            className="min-w-0 max-w-[300px] text-left text-xs font-semibold leading-5 hover:text-primary">
+                            {product.name}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="font-mono text-xs text-muted-foreground">{product.sku||product.barcode||"—"}</td>
+                      <td className="text-xs text-muted-foreground">{product.category_name||"Sem categoria"}</td>
+                      <td className="whitespace-nowrap text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                        {product.price==null?"Sem preço":formatCurrency(product.price)}
+                      </td>
+                      <td className={"whitespace-nowrap text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
+                        {available>0?formatNumber(available)+" "+(product.unit||"un"):"Sem estoque"}
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button type="button" aria-label={favorite?"Remover favorito":"Favoritar produto"}
+                            aria-pressed={favorite} onClick={()=>toggleFavorite(product.product_id)}
+                            className={"flex h-9 w-9 items-center justify-center rounded-md "+
+                              (favorite?"text-red-500":"text-muted-foreground hover:text-primary")}>
+                            <Heart size={17} fill={favorite?"currentColor":"none"}/>
+                          </button>
+                          <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                            onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                        </div>
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          :<div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+            {products.map(product=>{
+              const available=availableQuantity(product);
+              const favorite=favorites.includes(product.product_id);
+              const deviceModels=modelsByProduct.get(product.product_id)||[];
+              const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
+              const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+              return <article key={product.product_id}
+                className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+                <button type="button" onClick={()=>void prepareProduct(product)}
+                  aria-label={"Ver detalhes de "+product.name}
+                  className="relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-lg">
+                  <SalesProductPhoto mediaId={product.cover_media_id} name={product.name} sku={product.sku}/>
+                </button>
+                <div className="flex min-w-0 flex-1 flex-col gap-2 p-2.5">
+                  <div className="flex min-w-0 items-start gap-1">
+                    <button type="button" onClick={()=>void prepareProduct(product)}
+                      className="line-clamp-2 min-w-0 flex-1 text-left text-sm font-bold leading-5 text-foreground hover:text-primary">
+                      {product.name}
+                    </button>
+                    <button type="button" aria-label={favorite?"Remover favorito":"Favoritar produto"}
+                      aria-pressed={favorite} onClick={()=>toggleFavorite(product.product_id)}
+                      className={"shrink-0 rounded-md p-1 "+(favorite?"text-red-500":"text-muted-foreground")}>
+                      <Heart size={17} fill={favorite?"currentColor":"none"}/>
+                    </button>
                   </div>
-                </article>;
-              })}
-            </div>}
+                  <p className="truncate text-xs text-muted-foreground">{product.sku||product.barcode||"Sem código"}</p>
+                  <p className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                    {product.price==null?"Sem preço":formatCurrency(product.price)}
+                  </p>
+                  <p className={"text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
+                    {available>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
+                  </p>
+                  {deviceModels.length>0&&<p className="line-clamp-2 text-xs leading-4 text-muted-foreground"
+                    title={deviceModels.map(model=>model.brand+" "+model.model).join(" · ")}>
+                    <span className="font-semibold text-foreground">Compatível: </span>
+                    {deviceModels[0].brand} {deviceModels[0].model}
+                    {deviceModels.length>1?" · +"+(deviceModels.length-1):""}
+                  </p>}
+                  <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                    className="mt-auto w-full justify-center"
+                    onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                </div>
+              </article>;
+            })}
+          </div>}
+        {canView&&totalPages>1&&!productsQuery.isPending&&<nav
+          aria-label="Paginação de produtos"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+          <span className="text-xs text-muted-foreground">
+            Página {page} de {totalPages} · {totalFiltered} produtos
+          </span>
+          <div className="flex items-center gap-2">
+            <AdminButton variant="secondary" size="sm" disabled={page<=1}
+              onClick={()=>setPage(v=>Math.max(1,v-1))}>Anterior</AdminButton>
+            <AdminButton variant="secondary" size="sm" disabled={page>=totalPages}
+              onClick={()=>setPage(v=>Math.min(totalPages,v+1))}>Próxima</AdminButton>
+          </div>
+        </nav>}
       </section>
 
       <aside ref={cartRef} className="hidden min-w-0 rounded-xl border border-border bg-card xl:sticky xl:top-4 xl:block">
