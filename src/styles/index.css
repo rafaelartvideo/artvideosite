@@ -13,18 +13,18 @@ body {
 	font-synthesis: none;
 
 	/* Union World brand palette. Keep brand changes centralized here. */
-	--primary: #1032dc;
-	--primary-hover: #0d29b8;
-	--primary-active: #0a218f;
+	--primary: #0131cd;
+	--primary-hover: #002bb5;
+	--primary-active: #00218f;
 	--primary-soft: #eef1ff;
 	--primary-soft-strong: #e1e6ff;
 	--primary-light: #5d73ef;
 	--primary-foreground: #ffffff;
 	--secondary: #eef1ff;
-	--ring: #1032dc;
+	--ring: #0131cd;
 	--accent: #5d73ef;
-	--sidebar-primary: #1032dc;
-	--sidebar-ring: #1032dc;
+	--sidebar-primary: #0131cd;
+	--sidebar-ring: #0131cd;
 	/* Semântica para estados — ações principais mantêm o azul Union. */
 	--admin-success-text: #065f46;
 	--admin-success-surface: #ecfdf5;
@@ -42,14 +42,14 @@ body {
 /* Root tokens also reach Radix portals rendered outside the CRM shell. */
 html[data-admin-theme] {
 	--admin-shell-header-height: 4rem;
-	--primary: #1032dc;
-	--primary-hover: #0d29b8;
-	--primary-active: #0a218f;
+	--primary: #0131cd;
+	--primary-hover: #002bb5;
+	--primary-active: #00218f;
 	--primary-soft: #eef1ff;
 	--primary-soft-strong: #e1e6ff;
 	--primary-light: #5d73ef;
 	--primary-foreground: #ffffff;
-	--ring: #1032dc;
+	--ring: #0131cd;
 }
 
 .admin-crm {
@@ -131,7 +131,7 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
 
 .admin-primary-loader {
 	background:
-		radial-gradient(circle at 50% 38%, rgba(16, 50, 220, 0.18) 0%, transparent 34%),
+		radial-gradient(circle at 50% 38%, rgba(1, 49, 205, 0.18) 0%, transparent 34%),
 		linear-gradient(145deg, #020612 0%, #050d20 42%, #081536 72%, #0b2168 100%);
 }
 
@@ -208,9 +208,9 @@ html[data-admin-theme="dark"] {
 	--muted: #172136;
 	--muted-foreground: #9aa8bb;
 	--border: rgba(226, 232, 240, 0.12);
-	--primary: #1032dc;
-	--primary-hover: #2447e8;
-	--primary-active: #3153ef;
+	--primary: #0131cd;
+	--primary-hover: #1642e2;
+	--primary-active: #3158eb;
 	--primary-soft: #17224d;
 	--primary-soft-strong: #1c2b62;
 	--primary-light: #9aaaff;
@@ -244,9 +244,9 @@ html[data-admin-theme="dark"] {
 	--input: rgba(226, 232, 240, 0.14);
 	--input-background: #131d2f;
 	--switch-background: #526178;
-	--primary: #1032dc;
-	--primary-hover: #2447e8;
-	--primary-active: #3153ef;
+	--primary: #0131cd;
+	--primary-hover: #1642e2;
+	--primary-active: #3158eb;
 	--primary-soft: #17224d;
 	--primary-soft-strong: #1c2b62;
 	--primary-light: #9aaaff;
@@ -948,12 +948,12 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 
 /* Ação azul suave compartilhada: Detalhes da OS e Meus horários da Agenda. */
 .admin-crm .admin-action-blue-outline {
-	border-color: rgba(16, 50, 220, 0.25);
+	border-color: rgba(1, 49, 205, 0.25);
 	background-color: #f0f6ff;
 	color: var(--primary);
 }
 .admin-crm .admin-action-blue-outline:hover {
-	border-color: rgba(16, 50, 220, 0.4);
+	border-color: rgba(1, 49, 205, 0.4);
 	background-color: #e2edff;
 	color: var(--primary);
 }
