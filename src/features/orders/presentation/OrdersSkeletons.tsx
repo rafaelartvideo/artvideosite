@@ -55,27 +55,28 @@ export function OrdersWorkspaceSkeleton({ displayMode, sharedView, hasPermission
     </div>
     {displayMode === "list"
       ? <div className="min-w-0 overflow-hidden border border-border bg-card shadow-[var(--admin-panel-shadow)] [&_table]:w-full [&_table]:text-sm [&_thead]:border-b [&_thead]:border-border [&_thead]:bg-[var(--admin-panel-heading)] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:tracking-[0.06em] [&_thead]:text-muted-foreground [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3.5 [&_tbody]:divide-y [&_tbody]:divide-border">
-          <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} />
+          <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} standalone={false} />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/55 px-4 py-3" aria-hidden="true">
             <Skeleton className="h-8 w-32" />
             <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
           </div>
         </div>
-      : <OrdersKanbanSkeleton />}
+       : <OrdersKanbanSkeleton standalone={false} />}
   </section>;
 }
 
 /** Espelha a tabela no desktop e os cards compactos no celular, sem expor dados fictícios. */
-export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize, totalItems }: {
+export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize, totalItems, standalone = true }: {
   hasPermission: (permission: string) => boolean;
   hasActiveFilters: boolean;
   pageSize: number;
   totalItems: number;
+  standalone?: boolean;
 }) {
   const count = Math.max(1, Math.min(100, totalItems > 0 ? Math.min(pageSize, totalItems) : pageSize));
   const rows = Array.from({ length: count }, (_, index) => index);
-  return <div role="status" aria-label="Carregando ordens de serviço" aria-busy="true">
-    <span className="sr-only">Carregando ordens de serviço...</span>
+  return <div role={standalone ? "status" : undefined} aria-label={standalone ? "Carregando ordens de serviço" : undefined} aria-busy={standalone ? "true" : undefined}>
+    {standalone && <span className="sr-only">Carregando ordens de serviço...</span>}
     <div className="divide-y divide-border md:hidden" aria-hidden="true">
       {rows.map(index => <div key={index} className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -129,9 +130,9 @@ export function OrdersTableSkeleton({ hasPermission, hasActiveFilters, pageSize,
 }
 
 /** Simula colunas e cartões do Kanban, sem criar situações ou OS artificiais. */
-export function OrdersKanbanSkeleton() {
-  return <div role="status" aria-label="Carregando quadro de ordens" className="space-y-4" aria-busy="true">
-    <span className="sr-only">Carregando quadro de ordens...</span>
+export function OrdersKanbanSkeleton({ standalone = true }: { standalone?: boolean } = {}) {
+  return <div role={standalone ? "status" : undefined} aria-label={standalone ? "Carregando quadro de ordens" : undefined} className="space-y-4" aria-busy={standalone ? "true" : undefined}>
+    {standalone && <span className="sr-only">Carregando quadro de ordens...</span>}
     <div className="space-y-2" aria-hidden="true">
       <Line className="w-36" />
       <div className="flex gap-2"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-36" /><Skeleton className="h-10 w-28" /></div>
