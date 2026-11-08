@@ -241,12 +241,12 @@ export function SalesCheckoutDialog({
           : result.payment_status === "partial" ? "Entrada registrada e parcelas lançadas em Contas a Receber."
           : "Parcelas lançadas em Contas a Receber."} Estoque atualizado.
       </p>
-      <strong className="text-2xl tabular-nums text-foreground">{formatCurrency(result.total_amount)}</strong>
+      <strong className="text-2xl tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(result.total_amount)}</strong>
     </div> : <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(270px,0.82fr)] lg:gap-5">
       <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-3 py-3 lg:hidden">
         <div>
           <p className="text-xs font-medium text-muted-foreground">Total da venda</p>
-          <strong className="block text-lg tabular-nums">{formatCurrency(Math.max(0,total))}</strong>
+          <strong className="block text-lg tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(Math.max(0,total))}</strong>
         </div>
         <div className="text-right">
           <p className="text-xs text-muted-foreground">A receber</p>
@@ -472,7 +472,7 @@ export function SalesCheckoutDialog({
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3">
               <strong>Total</strong>
-              <strong className="text-xl tabular-nums">{formatCurrency(Math.max(0,total))}</strong>
+              <strong className="text-xl tabular-nums text-emerald-700 dark:text-emerald-400">{formatCurrency(Math.max(0,total))}</strong>
             </div>
             <div className="flex items-center justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Recebido</span>
