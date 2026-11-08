@@ -11,6 +11,7 @@ test("novos módulos comerciais possuem telas TSX válidas e navegação própri
     "src/features/sales/presentation/SalesCommissionsSection.tsx",
     "src/features/sales/presentation/SalesReturnsDialog.tsx",
     "src/features/sales/presentation/SalesDeliveryDialog.tsx",
+    "src/features/sales/presentation/SalesExchangeDialog.tsx",
     "src/features/sales/presentation/SalesQuickCustomerDialog.tsx",
     "src/features/sales/presentation/SalesPaymentTermsDialog.tsx",
     "src/features/sales/presentation/PublicSalesProposalApprovalPage.tsx",
@@ -113,4 +114,23 @@ test("gestão comercial e comissões respeitam permissão de margem e geram cont
   assert.match(commissions,/insert into public\.financial_entries/);
   assert.match(commissions,/already_approved/);
   assert.doesNotMatch(commissions,/insert into public\.financial_movements/);
+});
+
+test("troca equivalente baixa substitutos sem criar segunda venda nem recebimento",()=>{
+  const sql=read("supabase/migrations/20261108232000_sales_exchange_inventory_fulfillment.sql");
+  assert.match(sql,/issue_sales_exchange_v1/);
+  assert.match(sql,/v_return\.request_type<>'exchange'/);
+  assert.match(sql,/v_total-v_return\.gross_credit_amount/);
+  assert.match(sql,/status='closed'/);
+  assert.match(sql,/insert into public\.inventory_movements/);
+  assert.match(sql,/update public\.inventory_items set quantity=quantity-v_base/);
+  assert.match(sql,/exchange_issued/);
+  assert.doesNotMatch(sql,/insert into public\.financial_settlements/);
+  assert.doesNotMatch(sql,/insert into public\.sales_orders/);
+  const returns=read("src/features/sales/presentation/SalesReturnsDialog.tsx");
+  assert.match(returns,/SalesExchangeDialog/);
+  assert.match(returns,/entry\.exchange_items/);
+  assert.doesNotMatch(returns,/<option value="store_credit">/);
+  const guard=read("supabase/migrations/20261108233000_sales_return_credit_deferred_until_ledger.sql");
+  assert.match(guard,/p_request_type not in \('refund','exchange'\)/);
 });
