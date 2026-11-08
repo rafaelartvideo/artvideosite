@@ -109,7 +109,7 @@ begin
   'fulfilled_at',v_order.fulfilled_at,
   'items',v_items,'events',v_events,'settlements',v_settlements,'installments',v_installments
  );
-end;$function$
+end;$function$;
 
 CREATE OR REPLACE FUNCTION public.list_sales_orders_v1(p_organization_id uuid, p_search text DEFAULT ''::text, p_status text DEFAULT 'all'::text, p_payment text DEFAULT 'all'::text, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date, p_page integer DEFAULT 1, p_page_size integer DEFAULT 15)
  RETURNS jsonb
@@ -205,7 +205,7 @@ begin
    'gross_total',v_total,'open_total',v_open,
    'page',v_page,'page_size',v_page_size,'items',v_items
  );
-end;$function$
+end;$function$;
 
 revoke all on function public.get_sales_order_detail_v1(uuid,uuid) from public,anon;
 revoke all on function public.list_sales_orders_v1(uuid,text,text,text,date,date,integer,integer) from public,anon;
