@@ -46,10 +46,14 @@ test("primeira carga de OS troca Buscar OS e resultados juntos num único skelet
   assert.match(list, /\{screenLoading \? <OrdersWorkspaceSkeleton[^>]*pageSize=\{pageSize\}[^>]*totalItems=\{totalItems\} \/> : <>/);
   assert.match(list, /<OrdersHeader total=\{generalTotalItems\} loading=\{screenLoading\}/);
   assert.match(skeleton, /export function OrdersWorkspaceSkeleton/);
-  assert.match(skeleton, /className="admin-search-panel/);
-  assert.match(skeleton, /Buscar OS/);
+  // O loader deve cobrir os elementos, não exibir header azul, inputs com borda ou colunas reais.
+  assert.doesNotMatch(skeleton, /admin-primary-bar|border border-border bg-input-background|<thead>|<th>/);
+  assert.match(skeleton, /<Skeleton className="h-11 w-full rounded-none"/);
+  assert.match(skeleton, /<Skeleton className="h-9 w-full rounded-lg"/);
   assert.match(skeleton, /<OrdersTableSkeleton[^>]*standalone=\{false\}/);
   assert.match(skeleton, /<OrdersKanbanSkeleton standalone=\{false\}/);
+  assert.match(skeleton, /columns\.map\(\(column, index\) => <Skeleton/);
+  assert.match(skeleton, /const previewRows = Array\.from\(\{ length: Math\.min\(count, 4\) \}/);
   assert.match(skeleton, /role="status" aria-label="Carregando busca e ordens de serviço"/);
   assert.match(skeleton, /fieldCount = sharedView \? 2 : displayMode === "kanban" \? 11 : 12/);
   assert.match(skeleton, /md:grid-cols-3/);
