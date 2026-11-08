@@ -117,7 +117,7 @@ export function SalesManagementPage(){
           Tentar novamente
         </AdminButton>
       </div>:<>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
           {([
             {label:"Vendas líquidas",value:formatCurrency(data.summary.net_sales),icon:BarChart3},
             {label:"Recebido",value:formatCurrency(data.summary.received),icon:Wallet},
@@ -127,10 +127,10 @@ export function SalesManagementPage(){
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <card.icon size={16}/>{card.label}
             </p>
-            <p className="mt-2 break-words text-xl font-bold tabular-nums">{card.value}</p>
+            <p className="mt-2 break-words text-base font-bold tabular-nums sm:text-xl">{card.value}</p>
           </div>)}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
           <div className="rounded-lg border border-border bg-card p-3 text-xs">
             <p className="text-muted-foreground">Pedidos confirmados</p>
             <strong className="mt-2 block text-lg">{data.summary.orders}</strong>
@@ -186,7 +186,45 @@ export function SalesManagementPage(){
               <Plus size={14}/> Configurar
             </AdminButton>}
           </div>
-          <div className="overflow-x-auto">
+          <div className="divide-y divide-border lg:hidden">
+            {sellers.length===0
+              ?<p className="px-4 py-6 text-sm text-muted-foreground">Sem vendedores ativos neste período.</p>
+              :sellers.map(seller=><div key={seller.seller_id} className="space-y-3 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{seller.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{seller.orders} pedido(s)</p>
+                  </div>
+                  {manage&&<button type="button" onClick={()=>editGoal(seller)}
+                    className="text-xs font-semibold text-primary">Editar meta</button>}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div><p className="text-muted-foreground">Vendas líquidas</p>
+                    <strong className="mt-1 block text-sm tabular-nums">{formatCurrency(seller.net)}</strong>
+                  </div>
+                  <div><p className="text-muted-foreground">Meta mensal</p>
+                    <strong className="mt-1 block text-sm tabular-nums">{formatCurrency(seller.target)}</strong>
+                  </div>
+                  <div><p className="text-muted-foreground">Comissão estimada</p>
+                    <strong className="mt-1 block text-sm tabular-nums">{formatCurrency(seller.commission_estimated)}</strong>
+                  </div>
+                  <div><p className="text-muted-foreground">Regra</p>
+                    <p className="mt-1 font-semibold">{seller.rate}% · {seller.basis==="received"?"recebido":"confirmado"}</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Atingimento da meta</span>
+                    <strong>{seller.target>0?seller.progress+"%":"Meta não definida"}</strong>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary"
+                      style={{width:Math.min(100,Math.max(0,numeric(seller.progress)))+"%"}}/>
+                  </div>
+                </div>
+              </div>)}
+          </div>
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[900px] text-left text-xs">
               <thead className="border-b border-border bg-muted/30 text-muted-foreground">
                 <tr><th className="px-4 py-3">Vendedor</th>
