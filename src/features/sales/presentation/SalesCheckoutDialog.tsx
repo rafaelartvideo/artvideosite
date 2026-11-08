@@ -120,7 +120,12 @@ export function SalesCheckoutDialog({
     setReceivedConfirmed(false);
   };
   const removePayment = (key: number) => {
-    setPaymentLines(previous => previous.filter(line => line.key !== key));
+    setPaymentLines(previous => {
+      const next = previous.filter(line => line.key !== key);
+      return mode === "full" && next.length === 1
+        ? [{ ...next[0], amountText: "" }]
+        : next;
+    });
     setReceivedConfirmed(false);
   };
 
