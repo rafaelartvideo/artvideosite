@@ -16,7 +16,15 @@ export type SalesReservationRow = {
   quantity_base: number;
   expires_at: string;
   inventory_item_id: string;
+  product_name: string;
 };
+export async function listSalesProposalReservations(organizationId:string,proposalId:string):Promise<SalesReservationRow[]> {
+  const {data,error}=await supabase.rpc("list_sales_proposal_reservations_v1",{
+    p_organization_id:org(organizationId),p_proposal_id:proposalId,
+  });
+  if(error)throw error;
+  return (data||[]) as SalesReservationRow[];
+}
 
 export async function reserveSalesProposal(organizationId:string,proposalId:string,days=7):Promise<SalesReservation> {
   const {data,error}=await supabase.rpc("reserve_sales_proposal_v1",{
