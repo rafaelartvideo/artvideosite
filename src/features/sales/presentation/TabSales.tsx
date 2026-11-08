@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Barcode, CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
   Search, ShoppingBag, ShoppingCart, Trash2, X,
@@ -11,11 +11,9 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
-import {
-  listPdvRelatedProducts, loadPdvBootstrap, searchPdvProducts,
-  type PdvProduct,
-} from "@/features/pdv/infrastructure/pdv.repository";
-import { PdvSaleWorkspace } from "@/features/pdv/presentation/PdvSaleWorkspace";
+import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
+import { searchSalesProducts, listSalesProductRelations } from "../infrastructure/sales.repository";
+import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
 
 type CartLine = { product: PdvProduct; quantity: number };
 type ProductSort = "name" | "price_low" | "price_high" | "stock";
@@ -72,15 +70,13 @@ function SalesProductPhoto({
   </div>;
 }
 
-/**
- * Etapa 1 do Union Vendas: vitrine e carrinho reais.
- * A finalização reutiliza o PDV, que já concentra estoque/caixa/financeiro e idempotência.
- * Propostas e pedidos serão acrescentados com entidades próprias, sem simular persistência.
- */
-export function TabSales({ onOpenPdv }: { onOpenPdv: () => void }) {
+/** Vitrine e venda comercial próprias: PDV não participa da conclusão. */
+export function TabSales() {
   const { activeOrganizationId, user, hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
-  const canSell = hasPermission("pdv.sales.create");
+  const canView = hasPermission("sales.view");
+  const canSell = hasPermission("sales.create");
   const cartStorageKey = organizationId && user?.id ? "union-sales-cart:v1:" + organizationId + ":" + user.id : "";
   const favoritesStorageKey = organizationId && user?.id ? "union-sales-favorites:v1:" + organizationId + ":" + user.id : "";
   const cartRef = useRef<HTMLDivElement>(null);
@@ -115,23 +111,16 @@ export function TabSales({ onOpenPdv }: { onOpenPdv: () => void }) {
 
   const productsQuery = useQuery({
     queryKey: ["sales", organizationId, "products", debouncedSearch],
-    queryFn: () => searchPdvProducts(organizationId, debouncedSearch.trim(), 80),
-    enabled: Boolean(organizationId && canSell && (!debouncedSearch.trim() || debouncedSearch.trim().length >= 2)),
+    queryFn: () => searchSalesProducts(organizationId, debouncedSearch.trim(), 80),
+    enabled: Boolean(organizationId && canView && (!debouncedSearch.trim() || debouncedSearch.trim().length >= 2)),
     staleTime: 20_000,
   });
 
   const relatedQuery = useQuery({
     queryKey: ["sales", organizationId, "relations", selected?.product_id || ""],
-    queryFn: () => listPdvRelatedProducts(organizationId, [selected!.product_id]),
-    enabled: Boolean(organizationId && canSell && selected?.product_id),
+    queryFn: () => listSalesProductRelations(organizationId, [selected!.product_id]),
+    enabled: Boolean(organizationId && canView && selected?.product_id),
     staleTime: 30_000,
-  });
-
-  const bootstrapQuery = useQuery({
-    queryKey: ["sales", organizationId, "pdv-bootstrap"],
-    queryFn: () => loadPdvBootstrap(organizationId),
-    enabled: Boolean(organizationId && canSell && checkoutIntent),
-    staleTime: 0,
   });
 
   const products = useMemo(() => {
@@ -197,40 +186,22 @@ export function TabSales({ onOpenPdv }: { onOpenPdv: () => void }) {
     if (exact) addProduct(exact);
   };
 
-  const checkoutBootstrap = bootstrapQuery.data;
-  const checkoutReady = Boolean(
-    checkoutBootstrap?.configured
-    && checkoutBootstrap?.settings?.default_cash_account_id
-    && (!checkoutBootstrap.settings.require_open_cash || checkoutBootstrap.open_session)
-    && checkoutBootstrap.payment_methods?.some(method => method.available_for_pdv
-      && (method.method_type !== "cash" || checkoutBootstrap.open_session)),
-  );
-
-  if (checkoutIntent) {
-    if (bootstrapQuery.isPending) return <LoadingState text="Preparando pagamento..." />;
-    if (!checkoutBootstrap || !checkoutReady) return <div className="space-y-4">
-      <PageHeader title="Preparar pagamento" subtitle="A venda imediata utiliza o caixa e as formas de pagamento já configuradas no PDV."
-        actions={<AdminButton variant="secondary" onClick={() => setCheckoutIntent(false)}>Voltar à vitrine</AdminButton>} />
-      <div className="rounded-xl border border-border bg-card p-6">
-        <p className="text-sm font-bold text-foreground">{bootstrapQuery.error
-          ? systemErrorMessage(bootstrapQuery.error, "Não foi possível consultar as configurações do PDV.")
-          : "O PDV precisa estar configurado e com uma forma de pagamento disponível. Se a empresa exigir caixa aberto, abra-o antes de vender."}</p>
-        <AdminButton className="mt-4" onClick={onOpenPdv}>Abrir PDV</AdminButton>
-      </div>
-    </div>;
-    return <PdvSaleWorkspace
-      key={organizationId}
-      bootstrap={checkoutBootstrap}
-      initialItems={cart}
-      backLabel="Voltar à vitrine"
-      onBack={() => setCheckoutIntent(false)}
-      onSaleCompleted={() => setCart([])}
-    />;
-  }
-
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Vendas" subtitle="Escolha produtos do Estoque, monte o carrinho e finalize com o mesmo controle financeiro do PDV." />
+    <PageHeader title="Vendas" subtitle="Escolha produtos na vitrine e conclua a venda no próprio módulo, com acompanhamento no Financeiro." />
+    {checkoutIntent && <SalesCheckoutDialog
+      key={organizationId + ":" + (user?.id || "")}
+      open
+      items={cart}
+      onClose={() => setCheckoutIntent(false)}
+      onCompleted={sale => {
+        setCart([]);
+        setToast({ msg: "Pedido comercial #" + sale.order_number + " registrado com sucesso.", type: "success" });
+        void queryClient.invalidateQueries({ queryKey: ["sales", organizationId] });
+        void queryClient.invalidateQueries({ queryKey: ["inventory"] });
+        void queryClient.invalidateQueries({ queryKey: ["finance"] });
+      }}
+    />}
 
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,350px)]">
       <section className="min-w-0 space-y-3">
@@ -286,8 +257,8 @@ export function TabSales({ onOpenPdv }: { onOpenPdv: () => void }) {
           </div>
         </div>
 
-        {!canSell ? <EmptyState icon={ShoppingBag} title="Sem permissão para vender"
-          message="Solicite a permissão de realizar vendas ao gestor da empresa." />
+        {!canView ? <EmptyState icon={ShoppingBag} title="Sem permissão para visualizar Vendas"
+          message="Solicite acesso ao módulo Vendas ao gestor da empresa." />
           : debouncedSearch.trim().length === 1 ? <p className="p-5 text-sm text-muted-foreground">Digite pelo menos dois caracteres para buscar.</p>
           : productsQuery.isPending ? <LoadingState text="Carregando vitrine..." />
           : productsQuery.error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-5 text-sm text-destructive">
@@ -378,7 +349,7 @@ export function TabSales({ onOpenPdv }: { onOpenPdv: () => void }) {
           <AdminButton className="w-full justify-center" disabled={!canSell || cart.length === 0}
             onClick={() => setCheckoutIntent(true)}><CheckCircle2 size={16} /> Finalizar venda</AdminButton>
           <p className="text-[11px] leading-4 text-muted-foreground">
-            O pagamento e a baixa de estoque são confirmados pelo PDV. O carrinho fica salvo neste navegador para esta conta e empresa.
+            A venda é confirmada no próprio módulo Vendas. O carrinho fica salvo neste navegador para esta conta e empresa.
           </p>
         </div>
       </aside>
