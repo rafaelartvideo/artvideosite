@@ -127,7 +127,9 @@ export function SalesProposalDetailDialog({
           onClick={()=>showAction("rejected")}>Registrar recusa</AdminButton>}
         {proposal && status==="sent" && canApprove && canManage && <AdminButton size="sm"
           onClick={()=>showAction("approved")}>Registrar aprovação</AdminButton>}
-        {proposal && status==="approved" && canSell && <AdminButton size="sm"
+        {proposal && status==="approved" && canSell && Number(proposal.discount_amount)>0 && !hasPermission("sales.discount") &&
+          <p className="max-w-52 text-xs text-muted-foreground">A conversão desta proposta com desconto exige autorização.</p>}
+        {proposal && status==="approved" && canSell && (Number(proposal.discount_amount)===0 || hasPermission("sales.discount")) && <AdminButton size="sm"
           onClick={()=>{onConvert(proposal);onClose();}}>
           <ShoppingCart size={15}/> Converter em pedido
         </AdminButton>}
