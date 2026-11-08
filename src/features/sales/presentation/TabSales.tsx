@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   CheckCircle2, Grid2X2, Heart, List, Minus, Package, Plus,
   Search, ShoppingBag, ShoppingCart, Trash2, X,
@@ -15,6 +16,7 @@ import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/f
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
 import { searchSalesProducts, listSalesProductRelations } from "../infrastructure/sales.repository";
 import { SalesCheckoutDialog } from "./SalesCheckoutDialog";
+import { SalesOrdersPage } from "./SalesOrdersPage";
 
 type CartLine = { product: PdvProduct; quantity: number };
 type ProductSort = "name" | "price_low" | "price_high" | "stock";
@@ -75,6 +77,9 @@ function SalesProductPhoto({
 export function TabSales() {
   const { activeOrganizationId, user, hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentView = location.pathname.startsWith("/admin/sales/orders") ? "orders" : "storefront";
   const organizationId = activeOrganizationId || "";
   const canView = hasPermission("sales.view");
   const canSell = hasPermission("sales.create");
@@ -92,6 +97,7 @@ export function TabSales() {
   const [cart, setCart] = useState<CartLine[]>(() => readCart(cartStorageKey));
   const [selected, setSelected] = useState<PdvProduct | null>(null);
   const [checkoutIntent, setCheckoutIntent] = useState(false);
+  const [lastSaleCompleted, setLastSaleCompleted] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -209,14 +215,38 @@ export function TabSales() {
 
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Vendas" subtitle="Escolha produtos na vitrine e conclua a venda no próprio módulo, com acompanhamento no Financeiro." />
+    <PageHeader title="Vendas" subtitle="Vitrine, pedidos comerciais e recebimentos integrados ao Financeiro, sem depender do PDV." />
+    <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border pb-2" role="tablist" aria-label="Seções de Vendas">
+      <button type="button" role="tab" aria-selected={currentView === "storefront"}
+        onClick={() => {setSelected(null);navigate("/admin/sales");}}
+        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="storefront"
+          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        Vitrine
+      </button>
+      <button type="button" role="tab" aria-selected={currentView === "orders"}
+        onClick={() => {setSelected(null);navigate("/admin/sales/orders");}}
+        className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="orders"
+          ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
+        Pedidos
+      </button>
+    </div>
+    {currentView === "orders"
+      ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales")} />
+      : <>
     {checkoutIntent && <SalesCheckoutDialog
       key={organizationId + ":" + (user?.id || "")}
       open
       items={cart}
-      onClose={() => setCheckoutIntent(false)}
+      onClose={() => {
+        setCheckoutIntent(false);
+        if (lastSaleCompleted) {
+          setLastSaleCompleted(false);
+          navigate("/admin/sales/orders");
+        }
+      }}
       onCompleted={sale => {
         setCart([]);
+        setLastSaleCompleted(true);
         setToast({ msg: "Pedido comercial #" + sale.order_number + " registrado com sucesso.", type: "success" });
         void queryClient.invalidateQueries({ queryKey: ["sales", organizationId] });
         void queryClient.invalidateQueries({ queryKey: ["inventory"] });
@@ -402,5 +432,6 @@ export function TabSales() {
       relatedLoading={relatedQuery.isPending}
       relatedError={relatedQuery.isError}
     />}
+    </>}
   </div>;
 }
