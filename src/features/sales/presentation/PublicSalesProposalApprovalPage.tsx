@@ -45,9 +45,16 @@ export function PublicSalesProposalApprovalPage(){
         p_document_last4:last4.trim(),p_consent:true,
       });
       if(error)throw error;
-      return data as {status:"approved"|"rejected"};
+      return data as {status:"approved"|"rejected"|"verification_failed"|"locked";message?:string};
     },
-    onSuccess:value=>{setConfirmed(value.status);setError(null);},
+    onSuccess:value=>{
+      if(value.status!=="approved" && value.status!=="rejected"){
+        setConfirmed(null);
+        setError(value.message||"Não foi possível verificar os dados. Revise e tente novamente.");
+        return;
+      }
+      setConfirmed(value.status);setError(null);
+    },
     onError:e=>setError(systemErrorMessage(e,"Não foi possível registrar a resposta.")),
   });
 
