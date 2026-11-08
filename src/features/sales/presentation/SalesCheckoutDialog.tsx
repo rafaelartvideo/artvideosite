@@ -215,9 +215,11 @@ export function SalesCheckoutDialog({
 
   const footer = result ? <div className="flex w-full justify-end">
     <AdminButton onClick={close}>Ir para Pedidos</AdminButton>
-  </div> : <div className="flex w-full flex-wrap justify-end gap-2">
-    <AdminButton variant="secondary" disabled={mutation.isPending} onClick={close}>Cancelar</AdminButton>
-    <AdminButton disabled={Boolean(invalidReason) || mutation.isPending}
+  </div> : <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+    <AdminButton variant="secondary" className="w-full justify-center sm:w-auto"
+      disabled={mutation.isPending} onClick={close}>Cancelar</AdminButton>
+    <AdminButton className="w-full justify-center sm:w-auto"
+      disabled={Boolean(invalidReason) || mutation.isPending}
       loading={mutation.isPending} loadingText="Confirmando..." onClick={submit}>
       <CheckCircle2 size={16}/> {mode === "full" ? "Confirmar venda" : "Criar pedido"}
     </AdminButton>
@@ -240,7 +242,19 @@ export function SalesCheckoutDialog({
           : "Parcelas lançadas em Contas a Receber."} Estoque atualizado.
       </p>
       <strong className="text-2xl tabular-nums text-foreground">{formatCurrency(result.total_amount)}</strong>
-    </div> : <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(270px,0.82fr)]">
+    </div> : <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(270px,0.82fr)] lg:gap-5">
+      <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-3 py-3 lg:hidden">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">Total da venda</p>
+          <strong className="block text-lg tabular-nums">{formatCurrency(Math.max(0,total))}</strong>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">A receber</p>
+          <strong className="block text-base tabular-nums text-orange-700 dark:text-orange-300">
+            {formatCurrency(Math.max(0,Number.isFinite(remaining)?remaining:0))}
+          </strong>
+        </div>
+      </div>
       <div className="min-w-0 space-y-4">
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -290,19 +304,26 @@ export function SalesCheckoutDialog({
           <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <CreditCard size={16}/> Como será o pagamento?
           </h3>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {([
               ["full","Recebido","Tudo agora"],
               ["deposit","Entrada","+ parcelas"],
               ["later","A receber","Sem entrada"],
             ] as const).map(([value,label,description]) => <button type="button" key={value}
               aria-pressed={mode===value} onClick={() => changeMode(value)}
-              className={"min-w-0 rounded-lg border px-2 py-3 text-left text-xs font-semibold sm:px-3 " +
+              className={"min-w-0 rounded-lg border px-2 py-2.5 text-left text-xs font-semibold sm:px-3 sm:py-3 " +
                 (mode===value ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground")}>
               <span className="block">{label}</span>
               <span className="mt-1 block text-[11px] font-normal text-muted-foreground">{description}</span>
             </button>)}
           </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {mode==="full"
+              ?"Registre apenas pagamentos realmente recebidos. Esta confirmação não faz cobrança automática."
+              :mode==="deposit"
+              ?"Informe a entrada recebida agora; o restante será dividido em parcelas."
+              :"O pedido ficará a receber no Financeiro, sem simular pagamento agora."}
+          </p>
 
           {isReceived && <>
             <div className="space-y-2">
