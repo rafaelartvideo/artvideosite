@@ -42,7 +42,7 @@ test("detalhes do estoque, da Vitrine e do PDV exibem a lista reutilizável", as
   assert.match(pdv, /listCompatibleModelsForProducts\(organizationId, foundProductIds\)/);
   assert.match(pdv, /modelsByProduct\.get\(product\.product_id\)/);
   const sales = read(paths[2]);
-  assert.match(sales, /getSalesProductDetails\(organizationId, product\.product_id\)/);
+  assert.match(sales, /getSalesProductDetails\(organizationId,\s*product\.product_id\)/);
   assert.match(sales, /gallery_media_ids/);
   assert.match(sales, /variant_attributes/);
   assert.match(sales, /<CompatibleDeviceModelsList models=\{models\.data\}/);
