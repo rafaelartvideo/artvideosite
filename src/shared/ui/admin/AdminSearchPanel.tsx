@@ -52,20 +52,20 @@ type SearchActionVariant = "header" | "surface";
 const searchActionButtonClass = (variant: SearchActionVariant) => cn(
   "inline-flex shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97]",
   variant === "header"
-    ? "h-9 w-9 border-white/20 bg-white/[0.12] text-white hover:bg-white/[0.22] active:bg-white/[0.30] focus-visible:ring-white focus-visible:ring-offset-primary md:h-8 md:w-8"
+    ? "h-9 w-9 border-white/20 bg-white/[0.12] text-white hover:bg-white/[0.22] active:bg-white/[0.30] focus-visible:ring-white focus-visible:ring-offset-primary md:h-10 md:w-10"
     : "h-11 w-11 border-border bg-muted/70 text-foreground hover:bg-muted active:bg-muted/80 focus-visible:ring-primary focus-visible:ring-offset-background",
 );
 
 /** Google Material Symbols: delete_sweep (outlined, peso 400). */
 export function AdminSearchClearIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
     <path d="M15 18.25v-1.5h3.625v1.5H15Zm0-9.2v-1.5h7v1.5H15Zm0 4.6v-1.5h5.875v1.5H15ZM3.125 7.125H2v-1.5h4.25V4.5h3.375v1.125h4.25v1.5H12.75V17.5q0 .6-.45 1.05t-1.05 .45H4.625q-.6 0-1.05-.45t-.45-1.05V7.125Zm1.5 0V17.5h6.625V7.125H4.625Z" />
   </svg>;
 }
 
 /** Ícone de ordenação enviado para o CRM; não muda de desenho com o sentido. */
 export function AdminSearchSortIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
     <path d="M3,18V16H9v2H3Zm0-5V11H15v2H3ZM3,8V6H21V8H3Z" />
   </svg>;
 }
