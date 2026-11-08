@@ -8,6 +8,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { SalesQuickCustomerDialog } from "./SalesQuickCustomerDialog";
 import type { PdvProduct, PdvCustomer } from "@/features/pdv/infrastructure/pdv.repository";
 import { convertSalesProposal } from "../infrastructure/sales-proposals.repository";
 import {
@@ -41,6 +42,7 @@ export function SalesCheckoutDialog({
   const [customerSearch, setCustomerSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [customer, setCustomer] = useState<PdvCustomer | null>(proposal?.customer || null);
+  const [quickCustomerOpen,setQuickCustomerOpen]=useState(false);
   const [mode, setMode] = useState<CheckoutMode>("full");
   const [paymentLines, setPaymentLines] = useState<ReceivedLine[]>([
     { key: 1, paymentMethodId: "", amountText: "" },
@@ -212,7 +214,7 @@ export function SalesCheckoutDialog({
     </AdminButton>
   </div>;
 
-  return <AdminDialog open={open} onClose={close}
+  return <><AdminDialog open={open} onClose={close}
     title={result ? "Pedido registrado" : proposal ? "Converter proposta em pedido" : "Finalizar venda"}
     description={result
       ? "Venda comercial registrada no Estoque e no Financeiro."
@@ -232,9 +234,16 @@ export function SalesCheckoutDialog({
     </div> : <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(270px,0.82fr)]">
       <div className="min-w-0 space-y-4">
         <section className="space-y-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <UserRound size={16}/> Cliente
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <UserRound size={16}/> Cliente
+            </h3>
+            {!proposal&&hasPermission("sales.quick_customer")&&<button type="button"
+              onClick={()=>setQuickCustomerOpen(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+              <Plus size={14}/> Novo cliente
+            </button>}
+          </div>
           {customer ? <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{customer.name}</p>
@@ -450,5 +459,15 @@ export function SalesCheckoutDialog({
         {errorText}
       </p>}
     </div>}
-  </AdminDialog>;
+  </AdminDialog>
+  {quickCustomerOpen&&<SalesQuickCustomerDialog organizationId={organizationId}
+    onClose={()=>setQuickCustomerOpen(false)}
+    onSaved={saved=>{
+      setCustomer({id:saved.id,name:saved.name,document:saved.document,
+        whatsapp:saved.whatsapp,phone:saved.phone});
+      setQuickCustomerOpen(false);
+      setCustomerSearch("");
+      setErrorText(null);
+    }}/>}
+  </>;
 }
