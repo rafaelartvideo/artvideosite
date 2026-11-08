@@ -84,7 +84,8 @@ export function SalesCheckoutDialog({
     }
     if (!Number.isFinite(discount) || discount < 0 || discount >= subtotal) return "Informe um desconto inferior ao subtotal.";
     if (discount > 0 && !canDiscount) return "Você não possui permissão para aplicar desconto.";
-    if (!optionsQuery.data) return "Carregando formas de pagamento...";
+    if (!optionsQuery.data) return optionsQuery.error ? "Não foi possível consultar a configuração financeira." : "Carregando formas de pagamento...";
+    if (!optionsQuery.data.finance_ready) return "Configure a categoria de recebimentos no Financeiro antes de vender.";
     if (mode === "paid" && (!selectedMethod || !paymentConfirmed)) {
       return !selectedMethod ? "Selecione a forma de pagamento recebida." : "Confirme que o pagamento foi realmente recebido.";
     }
@@ -259,6 +260,10 @@ export function SalesCheckoutDialog({
           </p>
         </div>
       </div>
+      {!optionsQuery.isPending && optionsQuery.data && !optionsQuery.data.finance_ready &&
+        <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 lg:col-span-2">
+          Antes de vender, configure uma categoria padrão de receitas em Financeiro &gt; Configurações. Nenhum pedido foi registrado.
+        </p>}
       {errorText && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive lg:col-span-2">{errorText}</p>}
     </div>}
   </AdminDialog>;
