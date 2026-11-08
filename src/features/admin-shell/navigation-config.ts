@@ -93,8 +93,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   workItems: "work_items.view",
   fieldTracking: "field_tracking.view",
   products: "products.view",
-  // A primeira fase reutiliza o direito de venda do PDV até o motor comercial próprio.
-  sales: "pdv.sales.create",
+  sales: "sales.view",
   pdv: "pdv.view",
   categories: "categories.view",
   brands: "brands.view",
@@ -162,7 +161,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   terms: "company_settings",
   contact: "site_settings",
   products: "products",
-  sales: "pdv",
+  sales: "sales",
   pdv: "pdv",
   categories: "site_categories",
   brands: "site_brands",
