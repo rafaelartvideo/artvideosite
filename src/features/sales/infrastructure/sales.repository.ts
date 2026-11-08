@@ -1,6 +1,31 @@
 import { supabase } from "@/lib/supabase";
 import type { PdvProduct, PdvCustomer, PdvRelatedProduct } from "@/features/pdv/infrastructure/pdv.repository";
 
+export type SalesProductDetails = {
+  product_id: string;
+  name: string;
+  brand: string | null;
+  category: string | null;
+  product_model: string | null;
+  manufacturer_code: string | null;
+  internal_barcode: string | null;
+  condition: "new" | "used" | "refurbished" | string | null;
+  description: string | null;
+  variant_attributes: Record<string, string>;
+  site_characteristics: Array<{ label: string; value: string }>;
+  gallery_media_ids: string[];
+};
+
+export async function getSalesProductDetails(organizationId: string, productId: string): Promise<SalesProductDetails> {
+  if (!organizationId || !productId) throw new Error("Produto ou empresa não informados.");
+  const { data, error } = await supabase.rpc("get_sales_product_details_v1", {
+    p_organization_id: organizationId,
+    p_product_id: productId,
+  });
+  if (error) throw error;
+  return data as SalesProductDetails;
+}
+
 export type SalesPaymentMethod = {
   id: string;
   name: string;
