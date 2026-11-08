@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, CreditCard, FileText, Search, ShoppingBag, UserRound } from "lucide-react";
+import {
+  CalendarDays, CheckCircle2, CreditCard, FileText, Plus, Search, ShoppingBag, Trash2, UserRound,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -13,20 +15,52 @@ import {
 } from "../infrastructure/sales.repository";
 
 type CartLine = { product: PdvProduct; quantity: number };
+type CheckoutMode = "full" | "deposit" | "later";
+type ReceivedLine = { key: number; paymentMethodId: string; amountText: string };
+const MAX_PAYMENTS = 5;
 
-function currencyInput(value: string) {
-  const text = value.trim().replace(/^R\$\s*/, "").replace(/\s/g, "");
-  const normalized = text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text;
-  const numeric = Number(normalized || "0");
-  return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : Number.NaN;
+function toCurrencyNumber(text: string): number {
+  const raw = text.trim().replace(/^R\$\s*/, "").replace(/\s/g, "");
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  if (!normalized) return 0;
+  const value = Number(normalized);
+  return Number.isFinite(value) && value >= 0 && Math.round(value * 100) === value * 100
+    ? Math.round(value * 100) / 100 : Number.NaN;
+}
+const moneyText = (value: number) => (Math.round(value * 100) / 100).toFixed(2).replace(".", ",");
+
+function localDate(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
 }
 
-function todayLocal() {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+function monthlyDate(firstDate: string, offset: number): string {
+  const [year, month, day] = firstDate.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const firstOfMonth = new Date(Date.UTC(year, month - 1 + offset, 1));
+  const lastDay = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0)).getUTCDate();
+  return [
+    firstOfMonth.getUTCFullYear(),
+    String(firstOfMonth.getUTCMonth() + 1).padStart(2, "0"),
+    String(Math.min(day, lastDay)).padStart(2, "0"),
+  ].join("-");
 }
 
-/** Checkout comercial: não abre, registra nem consulta sessões de caixa do PDV. */
+function splitInstallments(total: number, count: number, firstDate: string) {
+  if (count < 1 || !Number.isInteger(count) || !firstDate || !Number.isFinite(total)) return [];
+  const cents = Math.round(total * 100);
+  if (cents < count || count > 12) return [];
+  const base = Math.floor(cents / count);
+  const extra = cents % count;
+  return Array.from({ length: count }, (_, index) => ({
+    number: index + 1,
+    dueDate: monthlyDate(firstDate, index),
+    amount: (base + (index < extra ? 1 : 0)) / 100,
+  }));
+}
+
+/** Fluxo comercial: recebimentos informados como já realizados; parcelas futuras vão para Contas a Receber. */
 export function SalesCheckoutDialog({
   open, items, onClose, onCompleted,
 }: {
@@ -40,10 +74,14 @@ export function SalesCheckoutDialog({
   const [customerSearch, setCustomerSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [customer, setCustomer] = useState<PdvCustomer | null>(null);
-  const [mode, setMode] = useState<"paid" | "pending">("paid");
-  const [paymentMethodId, setPaymentMethodId] = useState("");
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [dueDate, setDueDate] = useState(todayLocal);
+  const [mode, setMode] = useState<CheckoutMode>("full");
+  const [paymentLines, setPaymentLines] = useState<ReceivedLine[]>([
+    { key: 1, paymentMethodId: "", amountText: "" },
+  ]);
+  const [nextPaymentKey, setNextPaymentKey] = useState(2);
+  const [receivedConfirmed, setReceivedConfirmed] = useState(false);
+  const [firstDueDate, setFirstDueDate] = useState(() => localDate(30));
+  const [installmentCount, setInstallmentCount] = useState(1);
   const [discountText, setDiscountText] = useState("");
   const [notes, setNotes] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -69,28 +107,90 @@ export function SalesCheckoutDialog({
     staleTime: 30_000,
   });
 
-  const subtotal = useMemo(() => items.reduce((sum, line) =>
-    sum + Number(line.product.price || 0) * line.quantity, 0), [items]);
-  const discount = currencyInput(discountText);
+  const subtotal = useMemo(() => items.reduce((sum, item) =>
+    sum + Number(item.product.price || 0) * item.quantity, 0), [items]);
+  const discount = toCurrencyNumber(discountText);
   const total = Math.round((subtotal - (Number.isFinite(discount) ? discount : 0)) * 100) / 100;
-  const methods = optionsQuery.data?.payment_methods || [];
-  const selectedMethod = methods.find(method => method.id === paymentMethodId);
+  const paymentMethods = optionsQuery.data?.payment_methods || [];
+  const activePaymentLines = mode === "later" ? [] : paymentLines;
+  const payments = activePaymentLines.map(line => ({
+    paymentMethodId: line.paymentMethodId,
+    amount: mode === "full" && paymentLines.length === 1 && line.amountText.trim() === ""
+      ? total : toCurrencyNumber(line.amountText),
+  }));
+  const received = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const remaining = Math.round((total - (Number.isFinite(received) ? received : 0)) * 100) / 100;
+  const futureCount = mode === "full" ? 0 : installmentCount;
+  const futureInstallments = splitInstallments(remaining, futureCount, firstDueDate);
+  const isReceived = mode !== "later";
+
+  const changeMode = (next: CheckoutMode) => {
+    if (next === mode) return;
+    setMode(next);
+    setPaymentLines([{ key: nextPaymentKey, paymentMethodId: "", amountText: "" }]);
+    setNextPaymentKey(previous => previous + 1);
+    setReceivedConfirmed(false);
+    setErrorText(null);
+  };
+  const updatePayment = (key: number, patch: Partial<ReceivedLine>) => {
+    setPaymentLines(previous => previous.map(line => line.key === key ? { ...line, ...patch } : line));
+    setReceivedConfirmed(false);
+    setErrorText(null);
+  };
+  const addPayment = () => {
+    if (paymentLines.length >= MAX_PAYMENTS) return;
+    setPaymentLines(previous => {
+      if (mode === "full" && previous.length === 1 && previous[0].amountText.trim() === "") {
+        const half = Math.floor(total * 100 / 2) / 100;
+        return [
+          { ...previous[0], amountText: moneyText(half) },
+          { key: nextPaymentKey, paymentMethodId: "", amountText: moneyText(total - half) },
+        ];
+      }
+      const entered = previous.reduce((sum, line) => sum + toCurrencyNumber(line.amountText), 0);
+      const nextAmount = mode === "full" ? Math.max(0, Math.round((total - entered) * 100) / 100) : 0;
+      return [...previous, { key: nextPaymentKey, paymentMethodId: "", amountText: nextAmount > 0 ? moneyText(nextAmount) : "" }];
+    });
+    setNextPaymentKey(previous => previous + 1);
+    setReceivedConfirmed(false);
+  };
+  const removePayment = (key: number) => {
+    setPaymentLines(previous => previous.filter(line => line.key !== key));
+    setReceivedConfirmed(false);
+  };
 
   const invalidReason = (() => {
-    if (!organizationId) return "Selecione a empresa.";
-    if (!items.length) return "Adicione pelo menos um produto.";
-    if (items.some(line => !line.product.product_id || line.quantity <= 0 || !Number.isSafeInteger(line.quantity))) {
-      return "Carrinho contém produtos ou quantidades inválidos.";
-    }
-    if (!Number.isFinite(discount) || discount < 0 || discount >= subtotal) return "Informe um desconto inferior ao subtotal.";
+    if (!organizationId) return "Selecione uma empresa.";
+    if (!items.length) return "Adicione um produto antes de finalizar.";
+    if (items.some(line => !line.product.product_id || !Number.isSafeInteger(line.quantity) || line.quantity < 1))
+      return "O carrinho contém um produto ou quantidade inválida.";
+    if (!Number.isFinite(discount) || discount < 0 || discount >= subtotal)
+      return "Informe um desconto inferior ao subtotal.";
     if (discount > 0 && !canDiscount) return "Você não possui permissão para aplicar desconto.";
-    if (!optionsQuery.data) return optionsQuery.error ? "Não foi possível consultar a configuração financeira." : "Carregando formas de pagamento...";
-    if (!optionsQuery.data.finance_ready) return "Configure a categoria de recebimentos no Financeiro antes de vender.";
-    if (mode === "paid" && (!selectedMethod || !paymentConfirmed)) {
-      return !selectedMethod ? "Selecione a forma de pagamento recebida." : "Confirme que o pagamento foi realmente recebido.";
-    }
-    if (mode === "pending" && !customer) return "Selecione um cliente para receber posteriormente.";
-    if (mode === "pending" && (!dueDate || dueDate < todayLocal())) return "Informe uma data de vencimento válida.";
+    if (!optionsQuery.data) return optionsQuery.error
+      ? "Não foi possível consultar a configuração financeira." : "Carregando formas de pagamento...";
+    if (!optionsQuery.data.finance_ready) return "Configure uma categoria padrão de recebimentos no Financeiro.";
+    if (total <= 0) return "O valor total da venda precisa ser positivo.";
+    if ((mode === "deposit" || mode === "later") && !customer)
+      return "Selecione um cliente para registrar parcelas futuras.";
+    if (mode === "full" && (payments.some(payment => !payment.paymentMethodId || !Number.isFinite(payment.amount) || payment.amount <= 0)
+      || Math.abs(received - total) > 0.005))
+      return "Informe as formas de pagamento e distribua exatamente o total da venda.";
+    if (mode === "deposit" && (payments.some(payment => !payment.paymentMethodId || !Number.isFinite(payment.amount) || payment.amount <= 0)
+      || received <= 0 || received >= total))
+      return "Informe uma entrada recebida maior que zero e menor que o total.";
+    if (payments.length > 5) return "Limite de cinco formas de pagamento.";
+    if (new Set(payments.map(payment => payment.paymentMethodId)).size !== payments.length)
+      return "Não repita a mesma forma de pagamento.";
+    if (payments.some(payment => !paymentMethods.some(method => method.id === payment.paymentMethodId)))
+      return "Selecione uma forma de pagamento ativa.";
+    if (mode !== "full" && (installmentCount < 1 || installmentCount > 12 ||
+      !firstDueDate || firstDueDate < localDate() || firstDueDate > localDate(365)))
+      return "Informe de uma a doze parcelas, com primeiro vencimento dentro dos próximos 365 dias.";
+    if (mode !== "full" && futureInstallments.length !== installmentCount)
+      return "O saldo não permite essa quantidade de parcelas.";
+    if (isReceived && !receivedConfirmed)
+      return "Confirme que os valores informados já foram realmente recebidos.";
     return null;
   })();
 
@@ -98,27 +198,25 @@ export function SalesCheckoutDialog({
     mutationFn: () => createCommercialSale(organizationId, {
       idempotencyKey,
       customerId: customer?.id || null,
-      customerName: customer?.name || null,
-      customerDocument: customer?.document || null,
       discount,
-      paid: mode === "paid",
-      paymentMethodId: mode === "paid" ? paymentMethodId : null,
-      dueDate: mode === "pending" ? dueDate : null,
+      receivedPayments: payments,
+      installmentCount: futureCount,
+      firstDueDate: futureCount > 0 ? firstDueDate : null,
       notes: notes.trim(),
-      items: items.map(line => ({ productId: line.product.product_id, quantity: line.quantity })),
+      items: items.map(item => ({ productId: item.product.product_id, quantity: item.quantity })),
     }),
     onSuccess: sale => {
       setResult(sale);
       setErrorText(null);
       onCompleted(sale);
     },
-    onError: error => setErrorText(systemErrorMessage(error, "Não foi possível confirmar a venda comercial.")),
+    onError: error => setErrorText(systemErrorMessage(error, "Não foi possível registrar a venda comercial.")),
   });
 
   const submit = () => {
     setErrorText(null);
     if (invalidReason || mutation.isPending) {
-      setErrorText(invalidReason);
+      if (invalidReason) setErrorText(invalidReason);
       return;
     }
     mutation.mutate();
@@ -126,145 +224,242 @@ export function SalesCheckoutDialog({
   const close = () => { if (!mutation.isPending) onClose(); };
 
   const footer = result ? <div className="flex w-full justify-end">
-    <AdminButton onClick={close}>Concluir</AdminButton>
+    <AdminButton onClick={close}>Ir para Pedidos</AdminButton>
   </div> : <div className="flex w-full flex-wrap justify-end gap-2">
     <AdminButton variant="secondary" disabled={mutation.isPending} onClick={close}>Cancelar</AdminButton>
-    <AdminButton disabled={Boolean(invalidReason) || mutation.isPending} loading={mutation.isPending}
-      loadingText="Confirmando..." onClick={submit}>
-      <CheckCircle2 size={16} /> {mode === "paid" ? "Confirmar venda" : "Criar pedido"}
+    <AdminButton disabled={Boolean(invalidReason) || mutation.isPending}
+      loading={mutation.isPending} loadingText="Confirmando..." onClick={submit}>
+      <CheckCircle2 size={16}/> {mode === "full" ? "Confirmar venda" : "Criar pedido"}
     </AdminButton>
   </div>;
 
   return <AdminDialog open={open} onClose={close}
-    title={result ? "Venda registrada" : "Finalizar venda"}
-    description={result ? "Registro comercial criado com sucesso." : "Confira os produtos, escolha o cliente e defina como será o recebimento."}
+    title={result ? "Pedido registrado" : "Finalizar venda"}
+    description={result
+      ? "Venda comercial registrada no Estoque e no Financeiro."
+      : "Selecione o cliente, o recebimento e confirme. O saldo e as parcelas são calculados automaticamente."}
     className="w-[calc(100vw-1.25rem)] max-w-4xl"
-    bodyClassName="max-h-[min(72dvh,680px)] overflow-y-auto"
+    bodyClassName="max-h-[min(76dvh,760px)] overflow-y-auto"
     footer={footer}>
     {result ? <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
-      <CheckCircle2 size={48} className="text-emerald-600" />
+      <CheckCircle2 size={48} className="text-emerald-600"/>
       <h3 className="text-lg font-bold text-foreground">Pedido comercial #{result.order_number}</h3>
       <p className="text-sm text-muted-foreground">
-        {result.payment_status === "paid"
-          ? "Pagamento registrado no Financeiro. Estoque atualizado."
-          : "Pedido registrado com pagamento pendente no Financeiro. Estoque comprometido."}
+        {result.payment_status === "paid" ? "Total recebido e registrado no Financeiro."
+          : result.payment_status === "partial" ? "Entrada registrada e parcelas lançadas em Contas a Receber."
+          : "Parcelas lançadas em Contas a Receber."} Estoque atualizado.
       </p>
       <strong className="text-2xl tabular-nums text-foreground">{formatCurrency(result.total_amount)}</strong>
     </div> : <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(270px,0.82fr)]">
       <div className="min-w-0 space-y-4">
         <section className="space-y-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><UserRound size={16} /> Cliente</h3>
-          {customer ? <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
-            <div className="min-w-0"><p className="truncate text-sm font-semibold">{customer.name}</p>
-              {customer.document && <p className="text-xs text-muted-foreground">{customer.document}</p>}</div>
-            <button type="button" className="text-xs font-semibold text-primary" onClick={() => { setCustomer(null); setCustomerSearch(""); }}>Alterar</button>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <UserRound size={16}/> Cliente
+          </h3>
+          {customer ? <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{customer.name}</p>
+              {customer.document && <p className="text-xs text-muted-foreground">{customer.document}</p>}
+            </div>
+            <button type="button" onClick={() => {setCustomer(null);setCustomerSearch("");}}
+              className="shrink-0 text-xs font-semibold text-primary">Alterar</button>
           </div> : <>
-            <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={customerSearch} onChange={event => setCustomerSearch(event.target.value)}
-                placeholder="Buscar cliente por nome, CPF ou WhatsApp"
-                aria-label="Pesquisar cliente"
-                className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/></div>
+                placeholder="Buscar por nome, CPF ou WhatsApp" aria-label="Pesquisar cliente"
+                className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/>
+            </div>
             <div className="max-h-32 overflow-y-auto rounded-lg border border-border bg-card">
-              {customersQuery.isPending ? <LoadingState text="Buscando clientes..." /> : customersQuery.error
+              {customersQuery.isPending ? <LoadingState text="Buscando clientes..."/>
+                : customersQuery.isError
                 ? <p role="alert" className="p-3 text-xs text-destructive">{systemErrorMessage(customersQuery.error,"Não foi possível buscar clientes.")}</p>
-                : (customersQuery.data || []).length ? (customersQuery.data || []).map(entry =>
-                  <button type="button" key={entry.id} onClick={() => setCustomer(entry)}
-                    className="block w-full border-b border-border px-3 py-2 text-left hover:bg-muted/30">
-                    <span className="block truncate text-sm font-semibold">{entry.name}</span>
-                    <span className="text-xs text-muted-foreground">{entry.document || entry.whatsapp || "Cliente cadastrado"}</span>
-                  </button>)
+                : (customersQuery.data || []).length
+                ? (customersQuery.data || []).map(entry => <button type="button" key={entry.id} onClick={() => setCustomer(entry)}
+                  className="block w-full border-b border-border px-3 py-2 text-left hover:bg-muted/30">
+                  <span className="block truncate text-sm font-semibold">{entry.name}</span>
+                  <span className="text-xs text-muted-foreground">{entry.document || entry.whatsapp || "Cliente cadastrado"}</span>
+                </button>)
                 : <p className="p-3 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>}
             </div>
-            {mode === "paid" && <p className="text-xs text-muted-foreground">Cliente opcional para venda com pagamento recebido.</p>}
+            <p className="text-xs text-muted-foreground">
+              {mode === "full" ? "Cliente opcional para venda recebida integralmente."
+                : "Selecione um cliente para vincular as parcelas a receber."}
+            </p>
           </>}
         </section>
 
-        <section className="space-y-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><CreditCard size={16} /> Recebimento</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" aria-pressed={mode==="paid"} onClick={() => setMode("paid")}
-              className={"rounded-lg border p-3 text-left text-sm font-semibold " +
-                (mode==="paid"?"border-primary bg-primary/5 text-primary":"border-border text-foreground")}>
-              Recebido agora
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">Registrar pagamento</span>
-            </button>
-            <button type="button" aria-pressed={mode==="pending"} onClick={() => setMode("pending")}
-              className={"rounded-lg border p-3 text-left text-sm font-semibold " +
-                (mode==="pending"?"border-primary bg-primary/5 text-primary":"border-border text-foreground")}>
-              Receber depois
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">Gerar contas a receber</span>
-            </button>
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <CreditCard size={16}/> Como será o pagamento?
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              ["full","Recebido","Tudo agora"],
+              ["deposit","Entrada","+ parcelas"],
+              ["later","A receber","Sem entrada"],
+            ] as const).map(([value,label,description]) => <button type="button" key={value}
+              aria-pressed={mode===value} onClick={() => changeMode(value)}
+              className={"min-w-0 rounded-lg border px-2 py-3 text-left text-xs font-semibold sm:px-3 " +
+                (mode===value ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground")}>
+              <span className="block">{label}</span>
+              <span className="mt-1 block text-[11px] font-normal text-muted-foreground">{description}</span>
+            </button>)}
           </div>
-          {mode === "paid" ? <>
-            <label className="block text-xs font-semibold text-muted-foreground">Forma de pagamento</label>
-            <select value={paymentMethodId} onChange={event => { setPaymentMethodId(event.target.value); setPaymentConfirmed(false); }}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
-              <option value="">Selecione...</option>
-              {methods.map(method => <option value={method.id} key={method.id}>{method.name} · {method.account_name}</option>)}
-            </select>
-            {optionsQuery.error && <p role="alert" className="text-xs text-destructive">{systemErrorMessage(optionsQuery.error,"Não foi possível carregar os pagamentos.")}</p>}
-            {selectedMethod && <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-3 text-sm">
-              <input type="checkbox" checked={paymentConfirmed} onChange={event => setPaymentConfirmed(event.target.checked)}
-                className="mt-0.5 accent-primary" />
-              <span>Confirmo que o pagamento foi recebido por {selectedMethod.name}.</span>
-            </label>}
+
+          {isReceived && <>
+            <div className="space-y-2">
+              {paymentLines.map((line,index) => <div key={line.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_105px_auto] items-end gap-2">
+                <label className="min-w-0 space-y-1">
+                  <span className="block text-[11px] font-semibold text-muted-foreground">
+                    {index === 0 ? "Forma de pagamento" : "Outra forma"}
+                  </span>
+                  <select value={line.paymentMethodId} onChange={event => updatePayment(line.key, {paymentMethodId:event.target.value})}
+                    className="h-10 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground">
+                    <option value="">Selecione...</option>
+                    {paymentMethods.map(method => <option key={method.id} value={method.id}>
+                      {method.name} · {method.account_name}
+                    </option>)}
+                  </select>
+                </label>
+                <label className="min-w-0 space-y-1">
+                  <span className="block text-[11px] font-semibold text-muted-foreground">Valor recebido</span>
+                  <input value={line.amountText}
+                    inputMode="decimal" placeholder={mode === "full" && paymentLines.length===1 ? moneyText(total) : "0,00"}
+                    onChange={event => updatePayment(line.key,{amountText:event.target.value})}
+                    className="h-10 w-full rounded-lg border border-border bg-background px-2 text-right text-xs text-foreground"/>
+                </label>
+                {index>0 ? <button type="button" onClick={()=>removePayment(line.key)} aria-label="Remover forma de pagamento"
+                  className="flex h-10 w-8 items-center justify-center text-destructive"><Trash2 size={15}/></button>
+                : <span className="w-8"/>}
+              </div>)}
+              {paymentLines.length < MAX_PAYMENTS && <button type="button" onClick={addPayment}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                <Plus size={14}/> Adicionar forma de pagamento
+              </button>}
+              {mode==="full" && paymentLines.length===1 && paymentLines[0].amountText==="" &&
+                <p className="text-xs text-muted-foreground">O valor total será preenchido automaticamente para esta forma.</p>}
+            </div>
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-3 text-xs">
+              <input type="checkbox" checked={receivedConfirmed}
+                onChange={event => setReceivedConfirmed(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"/>
+              <span>Confirmo que o valor de <strong>{formatCurrency(Number.isFinite(received)?received:0)}</strong> já foi realmente recebido.</span>
+            </label>
             <p className="text-xs leading-5 text-muted-foreground">
-              Este registro não gera cobrança automática, link PIX ou transação em maquininha.
-              Confirme apenas valores efetivamente recebidos.
+              Não gera cobrança PIX nem processa cartão. Registre aqui apenas pagamentos já confirmados.
             </p>
-          </> : <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><CalendarDays size={14}/> Vencimento</label>
-            <input type="date" value={dueDate} min={todayLocal()} onChange={event => setDueDate(event.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" />
-            <p className="text-xs leading-5 text-muted-foreground">O pedido ficará com pagamento pendente. A quantidade será baixada do saldo disponível ao confirmar.</p>
+          </>}
+
+          {mode!=="full" && <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold">Saldo a receber</span>
+              <strong className="text-base tabular-nums text-foreground">{formatCurrency(Math.max(0,Number.isFinite(remaining)?remaining:0))}</strong>
+            </div>
+            <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+              <label className="space-y-1">
+                <span className="block text-[11px] font-semibold text-muted-foreground">Parcelas</span>
+                <select value={installmentCount} onChange={event=>setInstallmentCount(Number(event.target.value))}
+                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm">
+                  {Array.from({length:12},(_,index)=>index+1).map(number=>
+                    <option key={number} value={number}>{number}x</option>)}
+                </select>
+              </label>
+              <label className="min-w-0 space-y-1">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                  <CalendarDays size={12}/> Primeiro vencimento
+                </span>
+                <input type="date" value={firstDueDate} min={localDate()} max={localDate(365)}
+                  onChange={event => setFirstDueDate(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"/>
+              </label>
+            </div>
+            {futureInstallments.length>0 && <div className="max-h-44 divide-y divide-border overflow-y-auto">
+              {futureInstallments.map(installment => <div key={installment.number}
+                className="flex justify-between gap-3 py-1.5 text-xs">
+                <span>{installment.number}ª parcela · {installment.dueDate.split("-").reverse().join("/")}</span>
+                <strong className="tabular-nums">{formatCurrency(installment.amount)}</strong>
+              </div>)}
+            </div>}
+            <p className="text-xs text-muted-foreground">
+              As parcelas serão criadas automaticamente no Financeiro. A baixa pode ser feita posteriormente por lá.
+            </p>
           </div>}
         </section>
 
         <section className="space-y-2">
           <label className="block text-xs font-semibold text-muted-foreground">Observações (opcional)</label>
-          <textarea rows={2} value={notes} onChange={event => setNotes(event.target.value)}
-            maxLength={1000} placeholder="Combinação com o cliente, retirada, entrega..."
-            className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary" />
+          <textarea rows={2} value={notes} onChange={event=>setNotes(event.target.value)}
+            maxLength={1000} placeholder="Retirada, entrega ou combinado com o cliente..."
+            className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-primary"/>
         </section>
       </div>
 
       <div className="min-w-0 space-y-4">
         <section className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="flex items-center gap-2 border-b border-border p-3 text-sm font-semibold"><ShoppingBag size={16}/> Resumo da venda</div>
+          <div className="flex items-center gap-2 border-b border-border p-3 text-sm font-semibold">
+            <ShoppingBag size={16}/> Resumo da venda
+          </div>
           <div className="max-h-52 space-y-3 overflow-y-auto p-3">
-            {items.map(line => <div key={line.product.product_id} className="flex justify-between gap-3 text-sm">
+            {items.map(item => <div key={item.product.product_id} className="flex justify-between gap-3 text-sm">
               <div className="min-w-0">
-                <p className="line-clamp-2 font-medium">{line.product.name}</p>
-                <p className="text-xs text-muted-foreground">{line.quantity} × {formatCurrency(line.product.price || 0)}</p>
+                <p className="line-clamp-2 font-medium">{item.product.name}</p>
+                <p className="text-xs text-muted-foreground">{item.quantity} × {formatCurrency(item.product.price || 0)}</p>
               </div>
-              <span className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(line.product.price || 0)*line.quantity)}</span>
+              <span className="shrink-0 font-semibold tabular-nums">
+                {formatCurrency(Number(item.product.price || 0) * item.quantity)}
+              </span>
             </div>)}
           </div>
           <div className="space-y-3 border-t border-border p-3">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span><strong>{formatCurrency(subtotal)}</strong>
+            </div>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="sales-discount" className="text-sm text-muted-foreground">Desconto (R$)</label>
-              <input id="sales-discount" inputMode="decimal" placeholder="0,00" value={discountText}
-                onChange={event => setDiscountText(event.target.value)} disabled={!canDiscount}
-                className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60" />
+              <input id="sales-discount" inputMode="decimal" value={discountText} placeholder="0,00"
+                onChange={event=>setDiscountText(event.target.value)}
+                disabled={!canDiscount} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60"/>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3">
-              <strong>Total</strong><strong className="text-xl tabular-nums">{formatCurrency(Math.max(0,total))}</strong>
+              <strong>Total</strong>
+              <strong className="text-xl tabular-nums">{formatCurrency(Math.max(0,total))}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Recebido</span>
+              <strong className="text-emerald-700 dark:text-emerald-300">
+                {formatCurrency(Number.isFinite(received)?received:0)}
+              </strong>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Em aberto</span>
+              <strong className="text-orange-700 dark:text-orange-300">
+                {formatCurrency(Math.max(0,Number.isFinite(remaining)?remaining:0))}
+              </strong>
             </div>
           </div>
         </section>
         <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 p-3">
           <FileText size={17} className="shrink-0 text-muted-foreground"/>
           <p className="text-xs leading-5 text-muted-foreground">
-            A confirmação gera um pedido comercial independente e registra a operação no Estoque e no Financeiro, sem abrir o caixa PDV.
+            Vendas registra o pedido comercial, movimenta o Estoque e gera recebimentos e parcelas
+            no Financeiro. Não abre caixa do PDV.
           </p>
         </div>
       </div>
+
       {!optionsQuery.isPending && optionsQuery.data && !optionsQuery.data.finance_ready &&
         <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 lg:col-span-2">
-          Antes de vender, configure uma categoria padrão de receitas em Financeiro &gt; Configurações. Nenhum pedido foi registrado.
+          Configure a categoria padrão de recebimentos em Financeiro antes de vender.
         </p>}
-      {errorText && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive lg:col-span-2">{errorText}</p>}
+      {invalidReason && !errorText && !optionsQuery.isPending && <p role="status"
+        className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground lg:col-span-2">
+        {invalidReason}
+      </p>}
+      {errorText && <p role="alert"
+        className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive lg:col-span-2">
+        {errorText}
+      </p>}
     </div>}
   </AdminDialog>;
 }
