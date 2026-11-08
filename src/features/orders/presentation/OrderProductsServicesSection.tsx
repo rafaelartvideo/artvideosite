@@ -6,7 +6,8 @@ import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cac
 import { CalendarDays, Camera, MapPin, Pencil, Pin, Plus, Search, Trash2, Wrench } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { InlineLoading, LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { OrderItemsSkeleton } from "./OrdersSkeletons";
 import { supabase } from "@/lib/supabase";
 import { AdminSectionEmpty,
   AdminButton,
@@ -1225,7 +1226,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
       <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{items.length}</span>
     </span>} flush>
       {loadingItems
-        ? <LoadingState text="Carregando itens da OS..." />
+        ? <OrderItemsSkeleton />
         : items.length === 0
           ? <AdminSectionEmpty>Nenhum produto ou serviço foi adicionado a esta OS.</AdminSectionEmpty>
           : <div className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-2">
