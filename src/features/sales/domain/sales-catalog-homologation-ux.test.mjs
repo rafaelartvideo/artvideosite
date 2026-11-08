@@ -19,8 +19,11 @@ test("Vitrine e detalhes têm TSX válido com carregamento antecipado e localiza
     assert.ok(result.code.length>350,path);
   }
   const vitrine=read(files[0]);
-  assert.match(vitrine,/preparingProduct&&/);
-  assert.match(vitrine,/Preparando produto/);
+  assert.match(vitrine,/preparing=\{preparingProduct===selected\.product_id\}/);
+  const dialog=read("src/features/sales/presentation/SalesProductDetailsDialog.tsx");
+  assert.match(dialog,/Preparando produto/);
+  assert.match(dialog,/min-h-\[300px\]/);
+  assert.doesNotMatch(vitrine,/fixed inset-0 z-\[90\]/);
   assert.match(vitrine,/queryClient\.fetchQuery/);
   assert.match(vitrine,/queryKeys\.publicSite\.media/);
   assert.match(vitrine,/getSalesProductDetails\(organizationId,product\.product_id\)/);
@@ -41,6 +44,11 @@ test("Detalhes têm características em três colunas sem linhas de separação 
   assert.match(modal,/Localização no estoque/);
   assert.match(modal,/Produtos Relacionados/);
   assert.match(modal,/cartQuantity>0/);
+  assert.match(modal,/onSetCartQuantity/);
+  assert.match(modal,/AdminIconButton/);
+  assert.match(modal,/variant="quaternary"/);
+  assert.match(modal,/aria-label="Categoria, marca e condição"/);
+  assert.match(modal,/bg-muted\/20 px-3 py-2\.5/);
   assert.match(modal,/<Trash2 size=\{17\}/);
   assert.match(modal,/text-emerald-700 dark:text-emerald-400/);
   assert.match(modal,/text-primary/);
@@ -49,6 +57,12 @@ test("Detalhes têm características em três colunas sem linhas de separação 
   assert.match(related,/PopoverTrigger/);
   assert.match(related,/MapPin size=\{14\}/);
   assert.match(related,/salesAppearance/);
+  assert.match(related,/items"/);
+  const vitrine=read("src/features/sales/presentation/TabSales.tsx");
+  assert.match(vitrine,/AdminCard square/);
+  for(const code of [vitrine,read("src/features/sales/presentation/SalesOrdersPage.tsx"),read("src/features/sales/presentation/SalesProposalsPage.tsx")]){
+    assert.match(code,/AdminSearchSortMenu/);
+  }
 });
 
 test("40 imagens demonstrativas têm fallback restrito a SKUs de homologação",()=>{
