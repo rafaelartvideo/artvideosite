@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
-import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, ShoppingBag, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, RotateCcw, ShoppingBag, Truck, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { SalesDeliveryDialog } from "./SalesDeliveryDialog";
+import { SalesReturnsDialog } from "./SalesReturnsDialog";
 import {
   cancelSalesOrder, getSalesOrderDetail, updateSalesOrderFulfillment,
   type SalesOrderHistoryEvent,
@@ -21,6 +23,12 @@ const progress = ["pending", "separating", "ready", "delivered"] as const;
 function eventText(event: SalesOrderHistoryEvent): string {
   if (event.type === "created") return "Pedido comercial criado";
   if (event.type === "cancelled") return "Pedido cancelado e estoque devolvido";
+  if (event.type === "delivery_configured") return "Retirada ou entrega configurada";
+  if (event.type === "delivery_completed") return "Entrega ou retirada concluída";
+  if (event.type === "return_requested") return "Solicitação de troca/devolução aberta";
+  if (event.type === "return_approved") return "Troca/devolução aprovada";
+  if (event.type === "return_rejected") return "Troca/devolução recusada";
+  if (event.type === "return_received") return "Mercadoria devolvida recebida";
   if (event.type === "fulfillment_changed") {
     const value = String(event.data?.next || "");
     return "Separação/entrega: " + (Object.prototype.hasOwnProperty.call(orderFulfillmentLabels,value)
@@ -63,6 +71,8 @@ export function SalesOrderDetailDialog({
   const canManage = hasPermission("sales.orders.manage");
   const canCancel = hasPermission("sales.cancel");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [deliveryOpen,setDeliveryOpen]=useState(false);
+  const [returnsOpen,setReturnsOpen]=useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const detailQuery = useQuery({
@@ -123,7 +133,15 @@ export function SalesOrderDetailDialog({
             onClick={() => openFinance(order.financial_entry_id)}>
             <Wallet size={15} /> Receber no Financeiro
           </AdminButton>}
-        {order?.status === "confirmed" && nextStatus && canManage &&
+        {order?.status === "confirmed" && hasPermission("sales.delivery.manage") &&
+          <AdminButton variant="secondary" size="sm" onClick={()=>setDeliveryOpen(true)}>
+            <Truck size={15}/> Entrega / retirada
+          </AdminButton>}
+        {order && order.status==="confirmed" && order.fulfillment_status!=="pending" &&
+          <AdminButton variant="secondary" size="sm" onClick={()=>setReturnsOpen(true)}>
+            <RotateCcw size={15}/> Trocas e devoluções
+          </AdminButton>}
+        {order?.status === "confirmed" && nextStatus && nextStatus!=="delivered" && canManage &&
           <AdminButton size="sm" disabled={fulfillmentMutation.isPending || cancellationMutation.isPending}
             loading={fulfillmentMutation.isPending} onClick={() => fulfillmentMutation.mutate()}>
             <PackageCheck size={15} />
@@ -308,6 +326,19 @@ export function SalesOrderDetailDialog({
       </p>}
     </AdminDialog>
 
+    {order && deliveryOpen && <SalesDeliveryDialog
+      organizationId={organizationId}
+      orderId={orderId}
+      ready={order.fulfillment_status==="ready"}
+      onClose={()=>setDeliveryOpen(false)}
+      onSaved={message=>{invalidate();onChanged?.(message);}}
+    />}
+    {order && returnsOpen && <SalesReturnsDialog
+      organizationId={organizationId}
+      order={order}
+      onClose={()=>setReturnsOpen(false)}
+      onChanged={message=>{invalidate();onChanged?.(message);}}
+    />}
     {cancelOpen && <AdminDialog open onClose={() => !cancellationMutation.isPending && setCancelOpen(false)}
       title={"Cancelar pedido #" + (order?.order_number || "")}
       description="A operação exige confirmação e motivo. O cancelamento não pode ser desfeito automaticamente."
