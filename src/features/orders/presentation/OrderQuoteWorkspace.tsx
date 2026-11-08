@@ -7,7 +7,8 @@ import { AlertCircle, ArrowRight, CheckCircle2, History, RotateCcw, XCircle } fr
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { OrderQuoteSkeleton } from "./OrdersSkeletons";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
@@ -256,7 +257,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       setBusy(false);
     }
   };
-  if(loading)return <LoadingState text="Carregando orçamento da OS..."/>;
+  if(loading)return <OrderQuoteSkeleton />;
   return <>
     <div className="space-y-4">
     <Section title="Diagnóstico e solução proposta">
