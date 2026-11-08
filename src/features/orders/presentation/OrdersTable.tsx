@@ -1,4 +1,5 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { OrdersTableSkeleton } from "./OrdersSkeletons";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
@@ -224,9 +225,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
-        <div className="min-h-[300px] flex items-center justify-center">
-          <LoadingState text="Carregando ordens" />
-        </div>
+        <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
       ) : (
