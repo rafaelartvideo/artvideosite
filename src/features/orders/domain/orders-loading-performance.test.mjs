@@ -52,11 +52,11 @@ test("primeira carga de OS troca Buscar OS e resultados juntos num único skelet
   assert.match(skeleton, /<Skeleton className="h-9 w-full rounded-lg"/);
   assert.match(skeleton, /<OrdersTableSkeleton[^>]*standalone=\{false\}/);
   assert.match(skeleton, /<OrdersKanbanSkeleton standalone=\{false\}/);
-  assert.match(skeleton, /columns\.map\(\(column, index\) => <Skeleton/);
-  assert.match(skeleton, /const rows = Array\\.from\\(\\{ length: count \\}/);
-  assert.match(skeleton, /rows\\.map\\(index => <div key=\\{index\\}/);
+  assert.match(skeleton, /columns\.map\(column => \{/);
+  assert.match(skeleton, /const rows = Array\.from\(\{ length: count \}/);
+  assert.match(skeleton, /rows\.map\(index => <div key=\{index\}/);
   assert.match(skeleton, /columns\\.map\\(column => \\{/);
-  assert.doesNotMatch(skeleton, /previewRows|Math\\.min\\(count, 4\\)|minHeight: count/);
+  assert.doesNotMatch(skeleton, /previewRows|Math\.min\(count, 4\)|minHeight: count/);
   assert.match(skeleton, /role="status" aria-label="Carregando busca e ordens de serviço"/);
   assert.match(skeleton, /fieldCount = sharedView \? 2 : displayMode === "kanban" \? 11 : 12/);
   assert.match(skeleton, /md:grid-cols-3/);
