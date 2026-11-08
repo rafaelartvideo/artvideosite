@@ -35,6 +35,9 @@ test("detalhes do estoque, da Vitrine e do PDV exibem a lista reutilizável", as
     assert.ok((await transformWithEsbuild(ui,path,{loader:"tsx"})).code.length>100,path);
     assert.ok(ui.includes("CompatibleDeviceModelsList"),path);
   }
+  const storefront = read("src/features/sales/presentation/TabSales.tsx");
+  assert.match(storefront, /listCompatibleModelsForProducts\(organizationId, catalogProductIds\)/);
+  assert.match(storefront, /deviceModels\[0\]\.brand/);
   const pdv = read(paths[3]);
   assert.match(pdv, /listCompatibleModelsForProducts\(organizationId, foundProductIds\)/);
   assert.match(pdv, /modelsByProduct\.get\(product\.product_id\)/);
