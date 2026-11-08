@@ -10,6 +10,7 @@ import { getSalesManagement,saveSalesSellerGoal,
   type SalesManagement,type SalesSellerMetric,
 } from "../infrastructure/sales-operations.repository";
 import { localSalesDate,parseSalesMoney } from "../domain/sales-payment-schedule";
+import { SalesCommissionsSection } from "./SalesCommissionsSection";
 
 function numeric(value:unknown){return Number(value)||0;}
 function downloadCsv(data:SalesManagement){
@@ -223,6 +224,7 @@ export function SalesManagementPage(){
             Os valores descontam devoluções recebidas e podem ser recalculados antes do pagamento de comissões.
           </p>
         </section>
+        <SalesCommissionsSection organizationId={org} month={month} sellers={sellers} canManage={manage}/>
       </>}
 
     {editing&&<AdminDialog open onClose={()=>!saveMutation.isPending&&setEditing(null)}
