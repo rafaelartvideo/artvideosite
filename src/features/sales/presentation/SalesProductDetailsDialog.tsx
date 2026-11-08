@@ -4,7 +4,6 @@ import { MapPin, Minus, Package, Plus, Trash2 } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { productConditionLabel } from "@/features/products/domain/product-condition";
 import { CompatibleDeviceModelsList } from "@/features/products/presentation/CompatibleDeviceModelsList";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
