@@ -4,7 +4,8 @@ import { ArrowDownToLine, BarChart3, Medal, Plus, Target, Wallet } from "lucide-
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
+import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { getSalesManagement,saveSalesSellerGoal,
   type SalesManagement,type SalesSellerMetric,
@@ -123,12 +124,12 @@ export function SalesManagementPage(){
             {label:"Recebido",value:formatCurrency(data.summary.received),icon:Wallet},
             {label:"Saldo em aberto",value:formatCurrency(data.summary.open_receivables),icon:Wallet},
             {label:"Ticket médio",value:formatCurrency(data.summary.average_ticket),icon:Medal},
-          ]).map(card=><div key={card.label} className="rounded-xl border border-border bg-card p-4">
+          ]).map(card=><AdminCard key={card.label} className="p-4">
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <card.icon size={16}/>{card.label}
             </p>
             <p className="mt-2 break-words text-base font-bold tabular-nums sm:text-xl">{card.value}</p>
-          </div>)}
+          </AdminCard>)}
         </div>
         <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
           <div className="rounded-lg border border-border bg-card p-3 text-xs">
@@ -149,8 +150,8 @@ export function SalesManagementPage(){
           </div>}
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
-          <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-            <h3 className="flex items-center gap-2 text-sm font-bold"><BarChart3 size={16}/> Últimos seis meses</h3>
+          <Section title="Últimos seis meses">
+            <div className="space-y-3">
             {data.trend.map(point=><div key={point.month} className="grid grid-cols-[70px_minmax(0,1fr)_110px] items-center gap-3">
               <span className="text-xs text-muted-foreground">{point.month.slice(5)}/{point.month.slice(2,4)}</span>
               <div className="h-5 overflow-hidden rounded-md bg-muted">
@@ -158,9 +159,10 @@ export function SalesManagementPage(){
               </div>
               <strong className="text-right text-xs tabular-nums">{formatCurrency(point.net)}</strong>
             </div>)}
-          </section>
-          <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-            <h3 className="flex items-center gap-2 text-sm font-bold"><Target size={16}/> Produtos mais vendidos</h3>
+            </div>
+          </Section>
+          <Section title="Produtos mais vendidos">
+            <div className="space-y-3">
             {data.top_products.length===0?<p className="text-xs text-muted-foreground">Ainda não há vendas neste mês.</p>
               :data.top_products.map(product=><div key={product.product_id} className="space-y-1">
                 <div className="flex min-w-0 justify-between gap-2 text-xs">
@@ -171,21 +173,15 @@ export function SalesManagementPage(){
                   <div className="h-full rounded-full bg-primary" style={{width:Math.max(0,100*numeric(product.total)/maxProduct)+"%"}}/>
                 </div>
               </div>)}
-          </section>
-        </div>
-        <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
-            <div>
-              <h3 className="text-sm font-bold">Vendedores, metas e comissões</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Comissão estimada; não gera pagamento até aprovação e baixa financeira.
-                A base é definida por vendedor.
-              </p>
             </div>
-            {manage&&<AdminButton variant="secondary" size="sm" onClick={()=>editGoal()}>
-              <Plus size={14}/> Configurar
-            </AdminButton>}
-          </div>
+          </Section>
+        </div>
+        <Section title="Vendedores, metas e comissões"
+          description="Comissão estimada; não gera pagamento até aprovação e baixa financeira. A base é definida por vendedor."
+          flush className="[&_th]:md:py-2 [&_td]:md:py-2.5"
+          actions={manage&&<AdminButton variant="secondary" size="sm" onClick={()=>editGoal()}>
+            <Plus size={14}/> Configurar
+          </AdminButton>}>
           <div className="divide-y divide-border lg:hidden">
             {sellers.length===0
               ?<p className="px-4 py-6 text-sm text-muted-foreground">Sem vendedores ativos neste período.</p>
@@ -225,8 +221,9 @@ export function SalesManagementPage(){
               </div>)}
           </div>
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+            <TopTableScrollbar/>
+            <table className="min-w-[900px]">
+              <thead>
                 <tr><th className="px-4 py-3">Vendedor</th>
                   <th className="px-4 py-3 text-right">Pedidos</th>
                   <th className="px-4 py-3 text-right">Vendas líquidas</th>
@@ -261,7 +258,7 @@ export function SalesManagementPage(){
             Recebimentos são vinculados ao mês da venda; não representam necessariamente o fluxo de caixa do mês.
             Os valores descontam devoluções recebidas e podem ser recalculados antes do pagamento de comissões.
           </p>
-        </section>
+        </Section>
         <SalesCommissionsSection organizationId={org} month={month} sellers={sellers} canManage={manage}/>
       </>}
 
