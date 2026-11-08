@@ -40,6 +40,7 @@ export type SalesProposalEvent = {
 
 export type SalesProposalDetail = SalesProposalRow & {
   customer_id: string;
+  customer_whatsapp: string | null;
   created_by: string | null;
   updated_by: string | null;
   converted_at: string | null;
@@ -159,4 +160,14 @@ export async function convertSalesProposal(
   });
   if (error) throw error;
   return data as CommercialSaleResult;
+}
+
+export async function createSalesProposalApprovalLink(
+  organizationId:string,proposalId:string,
+):Promise<{token:string;expires_at:string}>{
+  const {data,error}=await supabase.rpc("create_sales_proposal_approval_link_v1",{
+    p_organization_id:tenant(organizationId),p_proposal_id:proposalId,
+  });
+  if(error)throw error;
+  return data as {token:string;expires_at:string};
 }
