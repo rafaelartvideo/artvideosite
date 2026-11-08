@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCopy, Clock3, Download, FileText, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
+import { ClipboardCopy, Clock3, Download, FileText, Link2, PackageCheck, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { changeSalesProposalStatus, getSalesProposalDetail,
+import { changeSalesProposalStatus, createSalesProposalApprovalLink, getSalesProposalDetail,
   type SalesProposalDetail } from "../infrastructure/sales-proposals.repository";
 import { formatSalesDate, formatSalesDueDate } from "../domain/sales-order-display";
 import { downloadSalesProposalPdf } from "../application/sales-proposal-pdf";
+import {
+  listSalesProposalReservations,releaseSalesProposalReservation,reserveSalesProposal,
+} from "../infrastructure/sales-operations.repository";
 
 const labels: Record<string,string> = {
   draft:"Rascunho",sent:"Enviada",approved:"Aprovada",rejected:"Recusada",
@@ -40,6 +43,9 @@ export function SalesProposalDetailDialog({
   const [errorText,setErrorText] = useState<string|null>(null);
   const [feedback,setFeedback] = useState<string|null>(null);
   const [pdfBusy,setPdfBusy] = useState(false);
+  const [approvalLink,setApprovalLink]=useState<string|null>(null);
+  const [approvalExpires,setApprovalExpires]=useState<string|null>(null);
+  const [reserveDays,setReserveDays]=useState(7);
   const canManage=hasPermission("sales.proposals.manage");
   const canApprove=hasPermission("sales.proposals.approve");
   const canSell=hasPermission("sales.create");
@@ -51,6 +57,41 @@ export function SalesProposalDetailDialog({
   });
   const proposal=detailQuery.data;
   const status=proposal?.effective_status||"draft";
+  const canReserve=hasPermission("sales.reservations.manage");
+  const reservationsQuery=useQuery({
+    queryKey:["sales",organizationId,"proposal-reservations",id],
+    queryFn:()=>listSalesProposalReservations(organizationId,id),
+    enabled:Boolean(organizationId&&id),staleTime:10_000,
+  });
+  const activeReservations=(reservationsQuery.data||[]).filter(item=>item.status==="active");
+  const linkMutation=useMutation({
+    mutationFn:()=>createSalesProposalApprovalLink(organizationId,id),
+    onSuccess:data=>{
+      const url=window.location.origin+"/vendas/aprovar/"+data.token;
+      setApprovalLink(url);setApprovalExpires(data.expires_at);
+      setFeedback("Link pronto. Compartilhe com o cliente; ele expira em até 72 horas.");
+      void client.invalidateQueries({queryKey:["sales",organizationId,"proposal",id]});
+    },
+    onError:error=>setFeedback(systemErrorMessage(error,"Não foi possível gerar link de aprovação.")),
+  });
+  const reservationMutation=useMutation({
+    mutationFn:()=>reserveSalesProposal(organizationId,id,reserveDays),
+    onSuccess:()=>{
+      setFeedback("Mercadorias reservadas. A conversão em pedido libera a reserva e baixa o estoque uma só vez.");
+      void client.invalidateQueries({queryKey:["sales",organizationId]});
+      onChanged("Reserva registrada para a proposta.");
+    },
+    onError:error=>setFeedback(systemErrorMessage(error,"Não foi possível reservar mercadorias.")),
+  });
+  const releaseMutation=useMutation({
+    mutationFn:()=>releaseSalesProposalReservation(organizationId,id,"Liberação manual pelo responsável."),
+    onSuccess:()=>{
+      setFeedback("Reserva liberada. O estoque físico não foi alterado.");
+      void client.invalidateQueries({queryKey:["sales",organizationId]});
+      onChanged("Reserva de estoque liberada.");
+    },
+    onError:error=>setFeedback(systemErrorMessage(error,"Não foi possível liberar a reserva.")),
+  });
 
   const changeMutation=useMutation({
     mutationFn:()=>changeSalesProposalStatus(organizationId,id,action!,reason.trim()),
@@ -65,6 +106,33 @@ export function SalesProposalDetailDialog({
     onError:error=>setErrorText(systemErrorMessage(error,"Não foi possível atualizar a proposta.")),
   });
 
+  const shareWhatsApp=()=>{
+    if(!proposal)return;
+    const digits=String(proposal.customer_whatsapp||"").replace(/\D/g,"");
+    const normalized=digits.startsWith("55")?digits:"55"+digits;
+    const message=[
+      "Olá, "+proposal.customer_name_snapshot+"!",
+      "Segue a proposta comercial #"+proposal.proposal_number+".",
+      "Total: "+formatCurrency(proposal.total_amount),
+      "Validade: "+formatSalesDueDate(proposal.valid_until)+".",
+      approvalLink?"Acesse para aprovar ou recusar: "+approvalLink:
+        "Responda esta mensagem para confirmar sua decisão.",
+    ].join("\n");
+    if(!digits || normalized.length<12){
+      setFeedback("Cliente sem WhatsApp válido. Use Copiar resumo ou Link de aprovação.");
+      return;
+    }
+    window.open("https://wa.me/"+normalized+"?text="+encodeURIComponent(message),
+      "_blank","noopener,noreferrer");
+    setFeedback("WhatsApp aberto com a mensagem preparada. Confira e envie ao cliente.");
+  };
+  const copyApprovalLink=async()=>{
+    if(!approvalLink)return;
+    try{
+      await navigator.clipboard.writeText(approvalLink);
+      setFeedback("Link de aprovação copiado. Compartilhe com o cliente.");
+    }catch{setFeedback("Não foi possível copiar o link automaticamente.");}
+  };
   const copySummary=async()=>{
     if(!proposal)return;
     const content=[
@@ -121,6 +189,11 @@ export function SalesProposalDetailDialog({
           onClick={()=>{onEdit(proposal);onClose();}}>Editar</AdminButton>}
         {proposal && canManage && canReopen && <AdminButton size="sm" variant="secondary"
           onClick={()=>showAction("draft")}>Reabrir negociação</AdminButton>}
+        {proposal && canManage && status==="sent" && <AdminButton size="sm"
+          variant="secondary" disabled={linkMutation.isPending}
+          loading={linkMutation.isPending} onClick={()=>linkMutation.mutate()}>
+          <Link2 size={15}/> Gerar link de aprovação
+        </AdminButton>}
         {proposal && canManage && status==="draft" && <AdminButton size="sm"
           onClick={()=>showAction("sent")}>Marcar como enviada</AdminButton>}
         {proposal && status==="sent" && canManage && <AdminButton size="sm" variant="secondary"
@@ -148,6 +221,22 @@ export function SalesProposalDetailDialog({
             </span>
             <span className="text-xs text-muted-foreground">Criada em {formatSalesDate(proposal.created_at)}</span>
           </div>
+          {approvalLink&&<div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="text-xs font-semibold">Link individual de aprovação</p>
+            <div className="flex flex-wrap gap-2">
+              <AdminButton variant="secondary" size="sm" onClick={()=>void copyApprovalLink()}>
+                <ClipboardCopy size={14}/> Copiar link
+              </AdminButton>
+              <AdminButton variant="secondary" size="sm" onClick={shareWhatsApp}>
+                Compartilhar no WhatsApp
+              </AdminButton>
+            </div>
+            <p className="break-all text-xs text-muted-foreground">{approvalLink}</p>
+            {approvalExpires&&<p className="text-xs text-muted-foreground">
+              Expira: {formatSalesDate(approvalExpires)}
+            </p>}
+            <p className="text-xs text-muted-foreground">Ao gerar outro link, o anterior será invalidado.</p>
+          </div>}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 rounded-xl border border-border p-3">
               <p className="flex items-center gap-2 text-xs font-semibold"><UserRound size={14}/> Cliente</p>
@@ -173,6 +262,9 @@ export function SalesProposalDetailDialog({
                   disabled={pdfBusy} loading={pdfBusy}>
                   <Download size={14}/> PDF
                 </AdminButton>
+                <AdminButton variant="secondary" size="sm" onClick={shareWhatsApp}>
+                  WhatsApp
+                </AdminButton>
                 <AdminButton variant="secondary" size="sm" onClick={()=>void copySummary()}>
                   <ClipboardCopy size={14}/> Copiar resumo
                 </AdminButton>
@@ -196,6 +288,40 @@ export function SalesProposalDetailDialog({
                 <strong>Total</strong><strong>{formatCurrency(proposal.total_amount)}</strong>
               </div>
             </div>
+          </section>
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <PackageCheck size={15}/> Reserva de mercadorias
+            </h3>
+            {activeReservations.length>0?<div className="space-y-2 rounded-lg border border-border p-3">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                {activeReservations.length} {activeReservations.length===1?"item reservado":"itens reservados"}
+              </p>
+              {activeReservations.map(entry=><div key={entry.id}
+                className="flex justify-between gap-3 text-xs">
+                <span>{entry.product_name} · {entry.quantity_base} un. base</span>
+                <span className="shrink-0 text-muted-foreground">{formatSalesDate(entry.expires_at)}</span>
+              </div>)}
+              {canReserve&&<AdminButton size="sm" variant="secondary"
+                loading={releaseMutation.isPending} onClick={()=>releaseMutation.mutate()}>
+                Liberar reserva
+              </AdminButton>}
+            </div>:<p className="text-xs text-muted-foreground">
+              Esta proposta não tem reserva ativa. Só reserve quando tiver aprovação e confirmação do cliente.
+            </p>}
+            {canReserve&&status==="approved"&&<div className="flex flex-wrap items-end gap-2">
+              <label className="space-y-1 text-xs font-semibold">
+                <span className="block">Reservar por</span>
+                <select value={reserveDays} onChange={e=>setReserveDays(Number(e.target.value))}
+                  className="h-9 rounded-lg border border-border bg-background px-2 text-xs">
+                  {[1,3,7,15,30].map(days=><option key={days} value={days}>{days} dias</option>)}
+                </select>
+              </label>
+              <AdminButton size="sm" disabled={reservationMutation.isPending}
+                loading={reservationMutation.isPending} onClick={()=>reservationMutation.mutate()}>
+                {activeReservations.length?"Renovar reserva":"Reservar estoque"}
+              </AdminButton>
+            </div>}
           </section>
           {proposal.notes&&<section className="space-y-1.5">
             <h3 className="text-sm font-semibold">Condições e observações</h3>
