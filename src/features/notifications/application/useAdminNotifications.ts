@@ -45,12 +45,12 @@ export function useAdminNotifications(
   const notificationsQuery = useQuery({
     queryKey,
     enabled,
-    queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50),
+    queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50, normalizedUserId!),
     // O canal Realtime entrega novidades imediatamente. A verificação
     // periódica é só contingência para eventos perdidos/reconexão.
     // Não consulte novamente a cada troca de módulo ou foco da janela.
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: query => query.state.status === "error" ? 120_000 : 60_000,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -61,6 +61,9 @@ export function useAdminNotifications(
 
     let disposed = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let stateRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconcileAfter = 0;
+    let lastErrorLogAt = 0;
     const pendingIds = new Set<number>();
 
     // Um evento Realtime nao prova que o usuario pode RECEBER o alerta.
@@ -68,40 +71,60 @@ export function useAdminNotifications(
     // e consolida bursts de INSERT em uma unica consulta.
     const flushNotifications = async () => {
       refreshTimer = null;
+      if (disposed || pendingIds.size === 0) return;
+      // Back off all Realtime bursts after a failed request. Do not replay
+      // invalidations immediately, which would start another expensive RPC.
+      if (Date.now() < reconcileAfter) {
+        refreshTimer = setTimeout(() => void flushNotifications(), reconcileAfter - Date.now());
+        return;
+      }
       const received = new Set(pendingIds);
       pendingIds.clear();
       try {
-        const snapshot = await loadAdminNotifications(normalizedOrganizationId, 50);
+        const snapshot = await loadAdminNotifications(normalizedOrganizationId, 50, normalizedUserId);
         if (disposed) return;
+        reconcileAfter = 0;
         queryClient.setQueryData<AdminNotificationsBootstrap>(queryKey, snapshot);
         snapshot.items.filter(item =>
           received.has(item.id) && item.delivery_allowed === true && !item.read_at,
         ).reverse().forEach(enqueueLiveNotification);
       } catch (error) {
-        if (!disposed) {
-          console.error("[notifications] Failed to reconcile realtime delivery", error);
-          void queryClient.invalidateQueries({ queryKey });
+        if (disposed) return;
+        received.forEach(id => pendingIds.add(id));
+        reconcileAfter = Date.now() + 30_000;
+        // One diagnostic per minute, never one per notification.
+        if (Date.now() - lastErrorLogAt >= 60_000) {
+          console.warn("[notifications] Inbox unavailable; scheduling a delayed reconciliation", error);
+          lastErrorLogAt = Date.now();
         }
       }
       if (!disposed && pendingIds.size > 0 && refreshTimer === null) {
-        refreshTimer = setTimeout(() => void flushNotifications(), 250);
+        refreshTimer = setTimeout(
+          () => void flushNotifications(),
+          Math.max(1_000, reconcileAfter - Date.now()),
+        );
       }
     };
 
     const unsubscribe = subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
       onNotification: notification => {
-        pendingIds.add(notification.id);
-        if (refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 250);
-        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+        // The home page uses the same React Query key. Flush once instead of
+        // invalidating it separately for every inserted notification.
+        if (pendingIds.size < 200) pendingIds.add(notification.id);
+        if (refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 1_000);
       },
       onStateChange: () => {
-        void queryClient.invalidateQueries({ queryKey });
-        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+        if (stateRefreshTimer !== null) return;
+        stateRefreshTimer = setTimeout(() => {
+          stateRefreshTimer = null;
+          if (!disposed) void queryClient.invalidateQueries({ queryKey });
+        }, 1_000);
       },
     });
     return () => {
       disposed = true;
       if (refreshTimer !== null) clearTimeout(refreshTimer);
+      if (stateRefreshTimer !== null) clearTimeout(stateRefreshTimer);
       unsubscribe();
     };
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
