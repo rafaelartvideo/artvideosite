@@ -124,8 +124,8 @@ export function SalesOrderDetailDialog({
   const canOpenFinance=Boolean(order?.status==="confirmed"&&order.open_amount>0&&
     order.financial_entry_id&&hasPermission("finance.receivables.view"));
   const canDelivery=Boolean(order?.status==="confirmed"&&hasPermission("sales.delivery.manage"));
-  const canReturns=Boolean(order?.status==="confirmed"&&order.fulfillment_status!=="pending"&&
-    (hasPermission("sales.returns.create")||hasPermission("sales.returns.approve")));
+  // A visualização do histórico exige apenas sales.view; operações são protegidas no próprio modal.
+  const canReturns=Boolean(order?.status==="confirmed"&&order.fulfillment_status!=="pending");
   const hasMoreActions=canOpenFinance||canDelivery||canReturns||canOfferCancellation;
 
   return <>
