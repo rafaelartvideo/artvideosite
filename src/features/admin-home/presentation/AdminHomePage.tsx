@@ -250,7 +250,7 @@ export function AdminHomePage({
   const activityQuery = useQuery({
     queryKey: adminNotificationsKey(activeOrganizationId || null, user?.id || null),
     enabled: Boolean(activeOrganizationId && user?.id),
-    queryFn: () => loadAdminNotifications(activeOrganizationId!, 50),
+    queryFn: () => loadAdminNotifications(activeOrganizationId!, 50, user!.id),
     staleTime: 5 * 60_000,
     retry: false,
   });
