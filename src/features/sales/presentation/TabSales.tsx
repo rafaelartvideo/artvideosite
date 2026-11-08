@@ -80,6 +80,7 @@ export function TabSales() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentView = location.pathname.startsWith("/admin/sales/orders") ? "orders" : "storefront";
+  const salesModeSuffix = new URLSearchParams(location.search).get("mode") === "crm" ? "?mode=crm" : "";
   const organizationId = activeOrganizationId || "";
   const canView = hasPermission("sales.view");
   const canSell = hasPermission("sales.create");
@@ -218,20 +219,20 @@ export function TabSales() {
     <PageHeader title="Vendas" subtitle="Vitrine, pedidos comerciais e recebimentos integrados ao Financeiro, sem depender do PDV." />
     <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border pb-2" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
-        onClick={() => {setSelected(null);navigate("/admin/sales");}}
+        onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
         className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="storefront"
           ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
         Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "orders"}
-        onClick={() => {setSelected(null);navigate("/admin/sales/orders");}}
+        onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
         className={"rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors " + (currentView==="orders"
           ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted")}>
         Pedidos
       </button>
     </div>
     {currentView === "orders"
-      ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales")} />
+      ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
       : <>
     {checkoutIntent && <SalesCheckoutDialog
       key={organizationId + ":" + (user?.id || "")}
@@ -241,7 +242,7 @@ export function TabSales() {
         setCheckoutIntent(false);
         if (lastSaleCompleted) {
           setLastSaleCompleted(false);
-          navigate("/admin/sales/orders");
+          navigate("/admin/sales/orders" + salesModeSuffix);
         }
       }}
       onCompleted={sale => {
