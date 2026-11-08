@@ -12,7 +12,7 @@ import type { useOrderServiceAddress } from "../application/useOrderServiceAddre
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { OrdersKanbanSkeleton } from "./OrdersSkeletons";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -196,7 +196,7 @@ export function OrdersListWorkspace(props: Props) {
       totalPages={totalPages}
       onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
       onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-    /> : workspace.loading ? <LoadingState text="Preparando quadro de ordens" /> : <>
+    /> : workspace.loading ? <OrdersKanbanSkeleton /> : <>
       <OrdersKanban
         filteredOrders={filteredOrders}
         situations={situations}
