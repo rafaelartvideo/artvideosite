@@ -40,7 +40,6 @@ export function SalesExchangeDialog({organizationId,entry,onClose,onCompleted}:{
   const valid=lines.length>0&&Math.abs(difference)<0.005&&
     lines.every(line=>line.quantity>0&&Number.isInteger(line.quantity)&&
       line.quantity<=available(line.product));
-  const busy=false;
   const mutation=useMutation({
     mutationFn:()=>issueSalesExchange(organizationId,entry.id,
       lines.map(line=>({productId:line.product.product_id,quantity:line.quantity})),notes),
