@@ -9,7 +9,11 @@ test("notificações administrativas preservam Realtime e evitam requisições r
   assert.match(source, /reconcileAfter = Date.now\(\) \+ 30_000/);
   assert.match(source, /if \(stateRefreshTimer !== null\) return/);
   assert.match(source, /if \(pendingIds.size < 200\) pendingIds.add\(notification.id\)/);
-  assert.doesNotMatch(source, /invalidateQueries\(\{ queryKey: \["admin-home", "activity"/);
+  const realtimeStart = source.indexOf("onNotification: notification => {");
+  const realtimeEnd = source.indexOf("    });", realtimeStart);
+  assert.ok(realtimeStart >= 0 && realtimeEnd > realtimeStart);
+  const realtimeCallbacks = source.slice(realtimeStart, realtimeEnd);
+  assert.doesNotMatch(realtimeCallbacks, /invalidateQueries\\(\\{ queryKey: \\["admin-home", "activity"/);
   assert.match(source, /staleTime: 60_000/);
   assert.match(source, /refetchOnWindowFocus: false/);
   assert.match(source, /retry: false/);
