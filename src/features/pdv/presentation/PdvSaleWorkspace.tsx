@@ -140,15 +140,9 @@ function quickCashValues(amount: number) {
 export function PdvSaleWorkspace({
   bootstrap,
   onBack,
-  initialItems,
-  backLabel = "Voltar ao PDV",
-  onSaleCompleted,
 }: {
   bootstrap: PdvBootstrap;
   onBack: () => void;
-  initialItems?: Array<{ product: PdvProduct; quantity: number }>;
-  backLabel?: string;
-  onSaleCompleted?: () => void;
 }) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
@@ -160,18 +154,11 @@ export function PdvSaleWorkspace({
   const [search, setSearch] = useState("");
   const [productSort, setProductSort] = useState<"name_asc" | "name_desc" | "price_asc">("name_asc");
   const debouncedSearch = useDebouncedValue(search);
-  const [cart, setCart] = useState<CartItem[]>(() => (initialItems || []).map((item): CartItem => ({
-    product: item.product,
-    quantity: item.quantity,
-    discount: "",
-    condition: "new",
-    conditionNotes: "",
-    serialNumber: "",
-  })));
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCartProductId, setSelectedCartProductId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const [checkoutOpen, setCheckoutOpen] = useState(() => Boolean(initialItems?.length));
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const debouncedCustomerSearch = useDebouncedValue(customerSearch);
   const [selectedCustomer, setSelectedCustomer] = useState<PdvCustomer | null>(null);
@@ -591,7 +578,6 @@ export function PdvSaleWorkspace({
       setSaleResult(result);
       setCheckoutOpen(false);
       setCart([]);
-      onSaleCompleted?.();
       setSelectedCartProductId(null);
       setSearch("");
       void queryClient.invalidateQueries({ queryKey: queryKeys.pdv.all });
@@ -720,9 +706,9 @@ export function PdvSaleWorkspace({
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader
-      title={initialItems?.length ? "Finalizar venda" : "Nova venda"}
-      subtitle={initialItems?.length ? "Confira os itens da vitrine e escolha a forma de pagamento." : "Operação rápida de balcão com leitor de código de barras e atalhos de teclado."}
-      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={15} /> {backLabel}</AdminButton>}
+      title="Nova venda"
+      subtitle="Operação rápida de balcão com leitor de código de barras e atalhos de teclado."
+      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={15} /> Voltar ao PDV</AdminButton>}
     />
 
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
