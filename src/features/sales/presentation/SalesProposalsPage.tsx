@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plus, RefreshCw, Search, ShoppingCart, X } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useLocation, useNavigate } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesProposals, type SalesProposalDetail, type ProposalStatus } from "../infrastructure/sales-proposals.repository";
@@ -24,7 +25,7 @@ const options: Array<{value:string;label:string}> = [
   ...Object.entries(statuses).map(([value,label])=>({value,label})),
 ];
 
-export function SalesProposalsPage({ onNewProposal }: { onNewProposal:()=>void }) {
+export function SalesProposalsPage() {
   const { activeOrganizationId, hasPermission } = useAuth();
   const org=activeOrganizationId||"";
   const queryClient=useQueryClient();
@@ -38,6 +39,7 @@ export function SalesProposalsPage({ onNewProposal }: { onNewProposal:()=>void }
   const [pageSize,setPageSize]=useState(15);
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [editing,setEditing]=useState<SalesProposalDetail|null>(null);
+  const [creating,setCreating]=useState(false);
   const [converting,setConverting]=useState<SalesProposalDetail|null>(null);
   const [converted,setConverted]=useState(false);
   const [toast,setToast]=useState<string|null>(null);
@@ -59,7 +61,7 @@ export function SalesProposalsPage({ onNewProposal }: { onNewProposal:()=>void }
   };
   const newProposal=()=>{
     setSelectedId(null);
-    onNewProposal();
+    setCreating(true);
   };
 
   return <div className="min-w-0 space-y-4 pb-6">
@@ -79,33 +81,23 @@ export function SalesProposalsPage({ onNewProposal }: { onNewProposal:()=>void }
         </AdminButton>}
       </div>
     </div>
-    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Buscar propostas</h3>
-        <button type="button" onClick={()=>{setSearch("");setStatus("all");setPage(1);}}
-          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary">
-          <X size={14}/> Limpar filtros
-        </button>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px]">
+<AdminSearchPanel title="Buscar propostas"
+      headerActions={(search||status!=="all")?<AdminSearchClearButton onClick={()=>{
+        setSearch("");setStatus("all");setPage(1);
+      }}/>:undefined}>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
+        <AdminSearchTextField label="Número, cliente, produto ou SKU"
+          value={search} onChange={value=>{setSearch(value);setPage(1);}}
+          placeholder="Buscar propostas..."/>
         <label className="min-w-0 space-y-1.5">
-          <span className="block text-[11px] font-semibold text-muted-foreground">Número, cliente, produto ou SKU</span>
-          <div className="relative">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input value={search} placeholder="Pesquisar proposta..."
-              onChange={event=>{setSearch(event.target.value);setPage(1);}}
-              className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm"/>
-          </div>
-        </label>
-        <label className="min-w-0 space-y-1.5">
-          <span className="block text-[11px] font-semibold text-muted-foreground">Situação</span>
+          <span className="block text-xs font-semibold text-muted-foreground">Situação</span>
           <select value={status} onChange={event=>{setStatus(event.target.value);setPage(1);}}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
+            className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm md:h-9">
             {options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
       </div>
-    </div>
+    </AdminSearchPanel>
 
     {!hasPermission("sales.view")?
       <EmptyState icon={ClipboardList} title="Acesso indisponível" message="Solicite permissão para consultar Vendas."/>
@@ -180,6 +172,11 @@ export function SalesProposalsPage({ onNewProposal }: { onNewProposal:()=>void }
       onEdit={proposal=>setEditing(proposal)}
       onConvert={proposal=>{setConverted(false);setConverting(proposal);}}
       onChanged={message=>refresh(message)}
+    />}
+    {creating&&<SalesProposalEditorDialog key={"new-proposal:"+org}
+      organizationId={org}
+      onClose={()=>setCreating(false)}
+      onSaved={message=>{setCreating(false);refresh(message);}}
     />}
     {editing&&<SalesProposalEditorDialog key={editing.id+":"+editing.updated_at}
       organizationId={org} initial={editing} onClose={()=>setEditing(null)}
