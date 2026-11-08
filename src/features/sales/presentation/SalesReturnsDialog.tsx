@@ -7,6 +7,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { SalesExchangeDialog } from "./SalesExchangeDialog";
 import type { SalesOrderDetail } from "../infrastructure/sales-orders.repository";
 import {
   listSalesReturns,receiveSalesReturn,requestSalesReturn,reviewSalesReturn,reconcileSalesReturnCredit,
@@ -30,6 +31,7 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
   const location=useLocation();
   const client=useQueryClient();
   const [createOpen,setCreateOpen]=useState(false);
+  const [exchanging,setExchanging]=useState<SalesReturn|null>(null);
   const [requestType,setRequestType]=useState<SalesReturn["type"]>("refund");
   const [reason,setReason]=useState("");
   const [quantities,setQuantities]=useState<Record<string,number>>({});
@@ -151,6 +153,14 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
               <strong className="shrink-0">{formatCurrency(item.credit_amount)}</strong>
             </div>)}
           </div>
+          {entry.exchange_items?.length>0&&<div className="mt-3 space-y-1 rounded-lg border border-border p-3">
+            <p className="text-xs font-semibold">Produtos entregues na troca</p>
+            {entry.exchange_items.map(item=><div key={item.id}
+              className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 break-words">{item.quantity} × {item.product}</span>
+              <strong className="shrink-0">{formatCurrency(item.line_total)}</strong>
+            </div>)}
+          </div>}
           {entry.notes&&<p className="mt-2 text-xs text-muted-foreground">{entry.notes}</p>}
           {entry.status==="awaiting_finance"&&<p className="mt-2 rounded-lg border border-orange-500/20 p-3 text-xs text-orange-700 dark:text-orange-300">
             Produto recebido. A venda ainda possui saldo financeiro; concilie o crédito antes de reembolsar o cliente.
@@ -167,6 +177,10 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
               setAction({id:entry.id,kind:"reconcile"});setResolution("");setError(null);
             }}>
               <Wallet size={14}/> Conciliar crédito no Financeiro
+            </AdminButton>}
+          {entry.status==="received"&&entry.type==="exchange"&&hasPermission("sales.returns.approve")&&
+            <AdminButton size="sm" className="mt-3" onClick={()=>setExchanging(entry)}>
+              <ArrowLeftRight size={14}/> Entregar substitutos
             </AdminButton>}
           {entry.status==="approved"&&hasPermission("sales.returns.approve")&&
             <AdminButton size="sm" className="mt-3" onClick={()=>{setAction({id:entry.id,kind:"receive"});setError(null);}}>
@@ -202,7 +216,6 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
             className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
             <option value="refund">Devolução com reembolso</option>
             <option value="exchange">Troca de produto</option>
-            <option value="store_credit">Crédito em loja</option>
           </select>
         </label>
         <div className="divide-y divide-border rounded-lg border border-border">
@@ -236,6 +249,12 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
       </div>
     </AdminDialog>}
 
+    {exchanging&&<SalesExchangeDialog
+      organizationId={organizationId}
+      entry={exchanging}
+      onClose={()=>setExchanging(null)}
+      onCompleted={message=>{setExchanging(null);refresh(message);}}
+    />}
     {action&&<AdminDialog open onClose={()=>!busy&&setAction(null)}
       title={action.kind==="receive"?"Receber mercadorias devolvidas":
         action.kind==="reconcile"?"Conciliar devolução financeira":
