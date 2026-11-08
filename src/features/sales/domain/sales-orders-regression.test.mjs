@@ -47,6 +47,10 @@ test("listas refletem recebimentos no Financeiro e não apenas status gravado na
   assert.match(sql,/sales_order_events/);
   assert.match(sql,/p_organization_id,'sales','sales\.view'/);
   assert.match(sql,/order by created_at desc,order_number desc/);
+  const aliasFix=read("supabase/migrations/20261108130000_union_sales_order_list_payment_alias.sql");
+  assert.match(aliasFix,/end as payment_status/);
+  assert.match(aliasFix,/coalesce\(p_payment,'all'\)='all' or payment_status=p_payment/);
+  assert.doesNotMatch(aliasFix,/effective_payment_status/);
 });
 
 test("cancelamento exige permissão própria e não desfaz recebimento existente",()=>{
