@@ -29,6 +29,7 @@ function eventText(event: SalesOrderHistoryEvent): string {
   if (event.type === "return_approved") return "Troca/devolução aprovada";
   if (event.type === "return_rejected") return "Troca/devolução recusada";
   if (event.type === "return_received") return "Mercadoria devolvida recebida";
+  if (event.type === "return_reconciled") return "Devolução conciliada com o Financeiro";
   if (event.type === "fulfillment_changed") {
     const value = String(event.data?.next || "");
     return "Separação/entrega: " + (Object.prototype.hasOwnProperty.call(orderFulfillmentLabels,value)
@@ -192,6 +193,16 @@ export function SalesOrderDetailDialog({
                   <span className="text-muted-foreground">Total do pedido</span>
                   <strong>{formatCurrency(order.total_amount)}</strong>
                 </div>
+                {Number(order.return_credit_amount||0)>0&&<>
+                  <div className="flex justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">Crédito de devolução conciliado</span>
+                    <strong>{formatCurrency(order.return_credit_amount||0)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">Total líquido</span>
+                    <strong>{formatCurrency(order.net_total_amount??order.total_amount)}</strong>
+                  </div>
+                </>}
                 <div className="flex justify-between gap-2 text-xs">
                   <span className="text-muted-foreground">Total recebido</span>
                   <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(order.received_amount)}</strong>
