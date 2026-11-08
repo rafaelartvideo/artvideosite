@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, RotateCcw, ShoppingBag, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, PackageCheck, ShoppingBag, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -29,7 +29,7 @@ function eventText(event: SalesOrderHistoryEvent): string {
 }
 
 function Pill({ children, tone }: {
-  children: React.ReactNode;
+  children: ReactNode;
   tone: "neutral" | "green" | "orange" | "red" | "blue";
 }) {
   const style = {
