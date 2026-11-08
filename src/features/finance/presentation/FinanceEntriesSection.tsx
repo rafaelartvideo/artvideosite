@@ -61,6 +61,8 @@ function originText(entry: FinancialEntry) {
   }
   if (entry.origin_type === "inventory_purchase") return "Compra de estoque";
   if (entry.origin_type === "recurring") return "Recorrência";
+  if (entry.origin_type === "pdv_sale") return "PDV";
+  if (entry.origin_type === "sales_order") return "Vendas";
   return "Outra origem";
 }
 
