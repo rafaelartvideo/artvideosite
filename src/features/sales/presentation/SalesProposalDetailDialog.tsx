@@ -93,7 +93,7 @@ export function SalesProposalDetailDialog({
   };
   const canReopen=Boolean(proposal && (
     proposal.status==="rejected" ||
-    (proposal.effective_status==="expired" && proposal.status!=="converted" && proposal.status!=="cancelled")
+    (proposal.effective_status==="expired" && (proposal.status==="sent" || proposal.status==="approved"))
   ));
 
   return <>
@@ -103,7 +103,7 @@ export function SalesProposalDetailDialog({
       className="w-[calc(100vw-1.25rem)] max-w-3xl"
       bodyClassName="max-h-[min(75dvh,760px)] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap justify-end gap-2">
-        {proposal && canManage && status==="draft" && <AdminButton size="sm" variant="secondary"
+        {proposal && canManage && proposal.status==="draft" && <AdminButton size="sm" variant="secondary"
           onClick={()=>{onEdit(proposal);onClose();}}>Editar</AdminButton>}
         {proposal && canManage && canReopen && <AdminButton size="sm" variant="secondary"
           onClick={()=>showAction("draft")}>Reabrir negociação</AdminButton>}
