@@ -73,7 +73,8 @@ begin
  if v_email is not null and (v_email not like '%@%.%' or length(v_email)>160) then
    raise exception 'E-mail inválido.' using errcode='22023'; end if;
  -- Lock serial por CPF/WhatsApp/empresa evita duplicidade em cadastros simultâneos.
- perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':'+v_document,0));
+ perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':'||v_document,0));
+ perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':whatsapp:'||v_phone,0));
  if exists(select 1 from public.customers c where c.organization_id=p_organization_id
    and regexp_replace(coalesce(c.document,c.cnpj,''),'[^0-9]','','g')=v_document) then
    raise exception 'Já existe cliente com este CPF/CNPJ.' using errcode='23505'; end if;
