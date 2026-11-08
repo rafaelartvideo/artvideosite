@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plus, RefreshCw, ShoppingCart } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw, ShoppingCart, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useLocation, useNavigate } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -110,7 +110,38 @@ export function SalesProposalsPage() {
       <EmptyState icon={ClipboardList} title="Nenhuma proposta encontrada"
         message="Crie um orçamento a partir da Vitrine ou ajuste os filtros."/>
       :<div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-border md:hidden">
+          {proposalsQuery.data.items.map(proposal=><button type="button" key={proposal.id}
+            onClick={()=>setSelectedId(proposal.id)}
+            aria-label={"Abrir proposta "+proposal.proposal_number}
+            className="flex w-full min-w-0 items-start gap-3 p-3.5 text-left outline-none hover:bg-muted/25 focus-visible:bg-primary/10">
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-bold text-foreground">Proposta #{proposal.proposal_number}</span>
+                <strong className="tabular-nums text-sm">{formatCurrency(proposal.total_amount)}</strong>
+              </div>
+              <p className="truncate text-sm font-medium text-foreground">{proposal.customer_name_snapshot}</p>
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <span className={"inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold "+
+                  (proposal.effective_status==="approved"||proposal.effective_status==="converted"
+                    ?"border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300":
+                   proposal.effective_status==="expired"||proposal.effective_status==="rejected"
+                    ?"border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300":
+                    "border-border bg-muted/30 text-foreground")}>
+                  {statuses[proposal.effective_status]||proposal.effective_status}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Validade: {formatSalesDueDate(proposal.valid_until)}
+                </span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {proposal.seller_name} · {formatSalesDate(proposal.created_at)}
+              </p>
+            </div>
+            <ChevronRight size={18} className="mt-1 shrink-0 text-muted-foreground" aria-hidden="true"/>
+          </button>)}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[710px] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-[11px] text-muted-foreground">
               <tr>
