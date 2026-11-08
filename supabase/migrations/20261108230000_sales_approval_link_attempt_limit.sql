@@ -32,21 +32,7 @@ begin
    raise exception 'A proposta não está mais aguardando sua resposta.' using errcode='22023'; end if;
  v_doc4:=right(regexp_replace(coalesce(v_proposal.customer_document_snapshot,''),'[^0-9]','','g'),4);
  if length(v_doc4)=4 and
-   (p_document_last4 is null or p_document_last4 !~ '^[0-9]{4}
- v_decision:=p_decision;
- update public.sales_proposals set status=v_decision,updated_at=now()
- where id=v_proposal.id and organization_id=v_proposal.organization_id;
- update public.sales_proposal_approval_links set used_at=now()
- where id=v_link.id;
- update public.sales_proposal_approval_links set revoked_at=now()
- where organization_id=v_link.organization_id and proposal_id=v_link.proposal_id
-   and id<>v_link.id and used_at is null and revoked_at is null;
- insert into public.sales_proposal_events(organization_id,proposal_id,event_type,event_data,created_by)
- values(v_link.organization_id,v_link.proposal_id,v_decision,
-  jsonb_build_object('source','customer_link','name',v_name,
-   'consent_confirmed',true,'confirmed_at',now()),null);
- return jsonb_build_object('status',v_decision,'proposal_number',v_proposal.proposal_number);
-end;$function$; or p_document_last4<>v_doc4) then
+   (p_document_last4 is null or p_document_last4 !~ '^[0-9]{4}$' or p_document_last4<>v_doc4) then
    update public.sales_proposal_approval_links
      set failed_identity_attempts=failed_identity_attempts+1
      where id=v_link.id;
