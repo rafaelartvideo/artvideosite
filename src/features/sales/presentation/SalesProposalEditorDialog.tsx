@@ -93,7 +93,7 @@ export function SalesProposalEditorDialog({
     setLines(previous => {
       const existing=previous.find(item=>item.productId===product.product_id);
       if(existing) return previous.map(item=>item.productId===product.product_id
-        ? {...item,quantity:Math.min(9999,item.quantity+1)}:item);
+        ? {...item,price}:item);
       if(previous.length>=80) return previous;
       return [...previous,{productId:product.product_id,name:product.name,sku:product.sku,
         price,quantity:1}];
@@ -123,7 +123,7 @@ export function SalesProposalEditorDialog({
       proposalId:initial?.id || null,
       customerId:customer!.id,
       validUntil,discount,notes:notes.trim(),
-      items:lines.map(line=>({productId:line.productId,quantity:line.quantity})),
+      items:lines.map(line=>({productId:line.productId,quantity:line.quantity,expectedUnitPrice:line.price})),
     }),
     onSuccess: saved => onSaved("Proposta #"+saved.proposal_number+
       (initial ? " atualizada." : " criada. Envie ao cliente e registre a resposta.")),
@@ -245,7 +245,7 @@ export function SalesProposalEditorDialog({
         </div>
       </div>
       {initial && <p className="text-xs text-muted-foreground">
-        A revisão atualiza os preços conforme o cadastro atual do Estoque. Confira os valores antes de reenviar ao cliente.
+        Se um preço mudou no Estoque, selecione novamente o produto na busca acima para atualizar o valor antes de salvar.
       </p>}
       {invalid && <p className="text-xs text-muted-foreground">{invalid}</p>}
       {errorText && <p role="alert" className="text-xs text-destructive">{errorText}</p>}
