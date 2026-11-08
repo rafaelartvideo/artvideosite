@@ -77,6 +77,13 @@ create table if not exists public.sales_order_items (
 );
 create index if not exists sales_order_items_org_order_idx on public.sales_order_items(organization_id,order_id);
 
+drop trigger if exists universal_audit_row_changes on public.sales_orders;
+create trigger universal_audit_row_changes after insert or update or delete on public.sales_orders
+for each row execute function private.audit_log_row_change();
+drop trigger if exists universal_audit_row_changes on public.sales_order_items;
+create trigger universal_audit_row_changes after insert or update or delete on public.sales_order_items
+for each row execute function private.audit_log_row_change();
+
 alter table public.sales_orders enable row level security;
 alter table public.sales_order_items enable row level security;
 revoke all on public.sales_orders,public.sales_order_items from anon,authenticated;
@@ -88,7 +95,7 @@ using (private.has_tenant_module_permission(organization_id,'sales','sales.view'
 drop policy if exists sales_order_items_read on public.sales_order_items;
 create policy sales_order_items_read on public.sales_order_items for select to authenticated
 using (private.has_tenant_module_permission(organization_id,'sales','sales.view')
- and exists(select 1 from public.sales_orders o where o.id=order_id and o.organization_id=organization_id));
+ and exists(select 1 from public.sales_orders o where o.id=order_id and o.organization_id=public.sales_order_items.organization_id));
 
 -- Origens específicas e auditáveis: NÃO associar vendas comerciais ao PDV.
 alter table public.financial_entries drop constraint if exists financial_entries_origin_type_check;
@@ -241,6 +248,7 @@ begin
  if v_actor is null or not private.has_tenant_module_permission(p_organization_id,'sales','sales.create')
  then raise exception 'Sem permissão para criar vendas comerciais.' using errcode='42501'; end if;
  if p_idempotency_key is null then raise exception 'Identificador da operação inválido.' using errcode='22023'; end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':'||p_idempotency_key::text,0));
  select * into v_existing from public.sales_orders
  where organization_id=p_organization_id and idempotency_key=p_idempotency_key;
  if found then
@@ -302,7 +310,7 @@ begin
     where product_id=v_product_id and organization_id=p_organization_id and is_active and archived_at is null
     order by id limit 1 for update;
    if not found then raise exception 'Produto sem cadastro de estoque ativo.' using errcode='22023'; end if;
-   v_unit:=coalesce(nullif(v_stock.unit,''),'un');
+   v_unit:=case when lower(coalesce(v_stock.unit,'un'))='cx' then 'cx' else 'un' end;
    v_factor:=greatest(1,coalesce(v_stock.conversion_factor,1));
    v_base:=case when v_unit='cx' then v_quantity*v_factor else v_quantity end;
    if v_stock.quantity<v_base then
@@ -329,7 +337,7 @@ begin
    select * into v_stock from public.inventory_items
     where product_id=v_product_id and organization_id=p_organization_id and is_active and archived_at is null
     order by id limit 1 for update;
-   v_unit:=coalesce(nullif(v_stock.unit,''),'un');
+   v_unit:=case when lower(coalesce(v_stock.unit,'un'))='cx' then 'cx' else 'un' end;
    v_factor:=greatest(1,coalesce(v_stock.conversion_factor,1));
    v_base:=case when v_unit='cx' then v_quantity*v_factor else v_quantity end;
    v_price:=round(v_product.price,2);
