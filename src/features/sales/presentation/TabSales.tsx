@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
@@ -394,6 +395,7 @@ export function TabSales() {
 
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,350px)]">
       <section className="min-w-0 space-y-3">
+        {canView && productsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={4} columns={9} rows={40} variant={display === "list" ? "table" : "grid"} /> : <>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-foreground">
@@ -477,7 +479,7 @@ export function TabSales() {
         {!canView ? <EmptyState icon={ShoppingBag} title="Sem permissão para visualizar Vendas"
           message="Solicite acesso ao módulo Vendas ao gestor da empresa." />
           : debouncedSearch.trim().length === 1 ? <p className="p-5 text-sm text-muted-foreground">Digite pelo menos dois caracteres para buscar.</p>
-          : productsQuery.isPending ? <LoadingState text="Carregando vitrine..." />
+          
           : productsQuery.error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-5 text-sm text-destructive">
             {systemErrorMessage(productsQuery.error, "Não foi possível carregar o catálogo.")}
           </div>
@@ -658,6 +660,7 @@ export function TabSales() {
               onClick={()=>setPage(v=>Math.min(totalPages,v+1))}>Próxima</AdminButton>
           </div>
         </nav>}
+        </>}
       </section>
 
       <aside ref={cartRef} className="hidden min-w-0 rounded-xl border border-border bg-card xl:sticky xl:top-4 xl:block">
