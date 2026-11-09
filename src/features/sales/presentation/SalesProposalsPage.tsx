@@ -1,3 +1,4 @@
+import { initialPageSize } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -42,7 +43,7 @@ export function SalesProposalsPage() {
   const [status,setStatus]=useState("all");
   const [page,setPage]=useState(1);
   const [sort,setSort]=useState<"newest"|"oldest"|"highest"|"lowest">("newest");
-  const [pageSize,setPageSize]=useState(15);
+  const [pageSize,setPageSize]=useState(() => initialPageSize([10,15,25,50], "union-sales-proposals-page-size", 15));
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [editing,setEditing]=useState<SalesProposalDetail|null>(null);
   const [creating,setCreating]=useState(false);
@@ -59,6 +60,7 @@ export function SalesProposalsPage() {
     queryKey:["sales",org,"proposals",searchDebounced,status,page,pageSize],
     queryFn:()=>listSalesProposals(org,{search:searchDebounced,status,page,pageSize}),
     enabled:Boolean(org&&canView),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === org ? previous : undefined,
     staleTime:15_000,refetchOnWindowFocus:true,
     refetchInterval:30_000, // validade de propostas pode mudar sem update no banco
   });
