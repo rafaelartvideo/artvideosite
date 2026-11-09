@@ -95,8 +95,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
     </DropdownMenuContent>
   </DropdownMenu>;
   return <div className="min-w-0 space-y-5">
+    {canView && quotesQuery.isPending ? <AdminWorkspaceSkeleton pageHeader={!embedded} searchFields={4} columns={7} rows={pageSize} /> : <>
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
-    {canView&&(quotesQuery.isPending ? <AdminWorkspaceSkeleton searchFields={4} columns={7} rows={pageSize} /> : <><AdminSearchPanel title="Buscar orçamentos" headerActions={<>
+    {canView&&<><AdminSearchPanel title="Buscar orçamentos" headerActions={<>
       {hasAdjustments&&<AdminSearchClearButton onClick={clear}/>}
       <AdminSearchSortMenu value={sort} onChange={v=>setSort(v as QuoteSort)}
         options={[{value:"",label:"Mais recentes"},{value:"asc",label:"Protocolo crescente"},{value:"desc",label:"Protocolo decrescente"}]}/>
@@ -191,6 +192,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
        </>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={total} showFilteredTotal={hasActiveFilters}
         onPageChange={setPage} onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
-    </AdminCard></>)}
+    </AdminCard></>}
+    </>}
   </div>;
 }
