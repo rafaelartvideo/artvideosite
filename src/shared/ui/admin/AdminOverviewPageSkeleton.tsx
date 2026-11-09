@@ -9,6 +9,7 @@ type Props = {
   shortcuts?: number;
   rows?: number;
   financeSurface?: FinanceSurface;
+  financeColumns?: number;
 };
 
 function SectionHeadingSkeleton() {
@@ -50,8 +51,10 @@ function PanelSkeleton({ chart = false }: { chart?: boolean }) {
   </div>;
 }
 
-function FinanceTableSkeleton({ rows }: { rows: number }) {
+function FinanceTableSkeleton({ rows, columns }: { rows: number; columns: number }) {
   const indices = Array.from({ length: rows }, (_, index) => index);
+  const columnIndices = Array.from({ length: columns }, (_, index) => index);
+  const gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
   return <div className="min-w-0 overflow-hidden rounded-xl bg-card" aria-hidden="true">
     <Skeleton className="h-11 w-full rounded-none" />
     <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-4">
@@ -62,13 +65,13 @@ function FinanceTableSkeleton({ rows }: { rows: number }) {
         </div>)}
     </div>
     <div className="hidden overflow-x-auto md:block">
-      <div className="grid min-w-[940px] grid-cols-8 gap-3 px-4 py-3">
-        {Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-3 w-4/5" />)}
+      <div className="grid min-w-[940px] gap-3 px-4 py-3" style={{ gridTemplateColumns }}>
+        {columnIndices.map(index => <Skeleton key={index} className="h-3 w-4/5" />)}
       </div>
       <div className="min-w-[940px] divide-y divide-border/35">
-        {indices.map(row => <div key={row} className="grid min-h-[57px] grid-cols-8 items-center gap-3 px-4 py-2">
-          {Array.from({ length: 8 }, (_, column) =>
-            <Skeleton key={column} className={column === 7 ? "ml-auto h-8 w-8" : "h-3.5 w-4/5"} />)}
+        {indices.map(row => <div key={row} className="grid min-h-[57px] items-center gap-3 px-4 py-2" style={{ gridTemplateColumns }}>
+          {columnIndices.map(column =>
+            <Skeleton key={column} className={column === columns - 1 ? "ml-auto h-8 w-8" : "h-3.5 w-4/5"} />)}
         </div>)}
       </div>
     </div>
@@ -87,9 +90,10 @@ function FinanceTableSkeleton({ rows }: { rows: number }) {
 }
 
 /** Carregamento inicial único, sem títulos, abas, saudação ou contagens reais vazando para a página. */
-export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview" }: Props) {
+export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview", financeColumns = 9 }: Props) {
   const tabCount = Math.max(0, Math.min(tabs, 12));
   const rowCount = Math.max(1, Math.min(rows, 100));
+  const columnCount = Math.max(1, Math.min(financeColumns, 14));
   return <section role="status" aria-label="Carregando página e indicadores" aria-busy="true"
     className="min-w-0 space-y-4 pb-3">
     <span className="sr-only">Preparando todos os dados da página...</span>
@@ -128,7 +132,7 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
         </div>)}
       </div>}
       {variant === "finance" && financeSurface === "table"
-        ? <FinanceTableSkeleton rows={rowCount} />
+        ? <FinanceTableSkeleton rows={rowCount} columns={columnCount} />
         : variant === "finance" && financeSurface === "reports"
           ? <><div className="flex flex-wrap items-end gap-3">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-9 w-36 max-w-[45%]" />)}</div><PanelSkeleton chart /><PanelSkeleton /></>
           : <>
@@ -136,7 +140,7 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
               {Array.from({ length: variant === "dashboard" ? 6 : 4 }, (_, index) => <MetricSkeleton key={index} />)}
             </div>
             {variant === "finance" && financeSurface === "accounts"
-              ? <FinanceTableSkeleton rows={rowCount} />
+              ? <FinanceTableSkeleton rows={rowCount} columns={columnCount} />
               : <div className="grid gap-4 xl:grid-cols-2"><PanelSkeleton chart /><PanelSkeleton /></div>}
           </>}
     </>}
