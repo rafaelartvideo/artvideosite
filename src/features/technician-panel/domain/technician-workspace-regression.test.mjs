@@ -181,7 +181,11 @@ test("modal da Agenda usa altura pelo conteúdo e limites compartilhados do CRM"
 });
 
 test("atalhos usam os botões originais do CRM com contador abaixo, sem cards extras", () => {
-  const section = panel.split('!routeOrderId ? <>')[1]?.split('<div className="space-y-3">')[0] ?? "";
+  // Valida a linha real dos atalhos; o skeleton inicial é apenas um placeholder.
+  const realActionsStart = panel.indexOf('{(canViewAgenda || canViewWhatsApp) && <div className={`grid w-full');
+  const realActionsEnd = panel.indexOf('<div className="space-y-3">', realActionsStart);
+  const section = realActionsStart >= 0 && realActionsEnd > realActionsStart
+    ? panel.slice(realActionsStart, realActionsEnd) : "";
   assert.ok(section.includes('grid w-full min-w-0 gap-2 sm:gap-4'), "A linha ocupa toda a largura do painel");
   assert.ok(section.includes('canViewAgenda && canViewWhatsApp ? "grid-cols-2" : "grid-cols-1"'), "Dois botões dividem igualmente a linha");
   assert.equal(section.split('<AdminButton variant="secondary" size="sm"').length - 1, 2);
