@@ -16,7 +16,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   listOrganizationTerms,
