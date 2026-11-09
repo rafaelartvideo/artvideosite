@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
@@ -155,7 +156,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [createdDate, setCreatedDate] = useState("");
   const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const debouncedNameSearch = useDebouncedValue(nameSearch);
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
 
