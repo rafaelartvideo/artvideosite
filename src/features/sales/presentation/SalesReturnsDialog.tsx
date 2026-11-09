@@ -1,4 +1,4 @@
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { INPUT, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CheckCircle2, ClipboardList, RotateCcw, Wallet } from "lucide-react";
@@ -213,11 +213,9 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
       <div className="space-y-4">
         <label className="block space-y-1 text-xs font-semibold">
           <span>Tipo de solicitação</span>
-          <select value={requestType} onChange={e=>setRequestType(e.target.value as SalesReturn["type"])}
-            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}>
-            <option value="refund">Devolução com reembolso</option>
-            <option value="exchange">Troca de produto</option>
-          </select>
+          <AdminSelect value={requestType} onValueChange={value=>setRequestType(value as SalesReturn["type"])}
+            options={[{value:"refund",label:"Devolução com reembolso"},{value:"exchange",label:"Troca de produto"}]}
+            ariaLabel="Tipo de solicitação" className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
         </label>
         <div className="divide-y divide-border rounded-lg border border-border">
           {order.items.map(item=>{
