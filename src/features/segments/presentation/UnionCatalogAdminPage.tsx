@@ -7,7 +7,7 @@ import { UnionEquipmentTemplates } from "./UnionEquipmentTemplates";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCardToolbar, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadUnionCatalogAdmin, loadUnionCatalogDistribution, saveUnionCatalogItem, setUnionCatalogLink,
   type UnionCatalogData, type UnionCatalogDistribution, type UnionCatalogKind,
