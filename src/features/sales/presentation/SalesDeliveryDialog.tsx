@@ -1,3 +1,4 @@
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Camera, CheckCircle2, ClipboardCopy, MapPin, PackageCheck, Truck } from "lucide-react";
@@ -159,16 +160,16 @@ export function SalesDeliveryDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-xs font-semibold"><span>Transportadora (opcional)</span>
                   <input value={carrier} maxLength={120} onChange={e=>setCarrier(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/></label>
+                    className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
                 <label className="space-y-1 text-xs font-semibold"><span>Rastreio (opcional)</span>
                   <input value={tracking} maxLength={120} onChange={e=>setTracking(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/></label>
+                    className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
               </div>
             </>}
             <label className="block space-y-1 text-xs font-semibold">
               <span>Previsão de {method==="pickup"?"retirada":"entrega"} (opcional)</span>
               <input type="datetime-local" value={expectedAt} onChange={e=>setExpectedAt(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+                className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
             </label>
             {method==="pickup"&&<>
               {pin&&<div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
@@ -205,16 +206,16 @@ export function SalesDeliveryDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs font-semibold"><span>Quem recebeu? *</span>
                 <input value={recipient} maxLength={160} onChange={e=>setRecipient(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/></label>
+                  className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
               <label className="space-y-1 text-xs font-semibold"><span>Documento (opcional)</span>
                 <input value={recipientDocument} maxLength={30} onChange={e=>setRecipientDocument(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/></label>
+                  className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
             </div>
             {method==="pickup"&&<label className="block space-y-1 text-xs font-semibold">
               <span>PIN apresentado pelo cliente *</span>
               <input inputMode="numeric" autoComplete="off" maxLength={6} value={enteredPin}
                 onChange={e=>setEnteredPin(e.target.value.replace(/\D/g,"").slice(0,6))}
-                placeholder="000000" className="h-10 w-full rounded-lg border border-border bg-background px-3 font-mono tracking-widest"/>
+                placeholder="000000" className={INPUT+" h-[42px] font-mono tracking-widest md:h-9 md:py-1.5 md:text-xs"}/>
             </label>}
             <label className="block space-y-1 text-xs font-semibold">
               <span>Comprovante / observações {method==="delivery"?"(mínimo 10 caracteres sem foto)":""}</span>
