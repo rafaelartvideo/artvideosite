@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useMemo, useState } from "react";
 import { AlertTriangle, Banknote, CalendarClock, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -86,7 +87,7 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
 
     {reports.dashboardQuery.error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{reports.dashboardQuery.error instanceof Error ? reports.dashboardQuery.error.message : "Não foi possível carregar o resumo financeiro."}</div>}
 
-    {reports.dashboardQuery.isLoading ? <AdminCard className="p-8"><LoadingState text="Carregando resumo financeiro..." /></AdminCard> : dashboard && <>
+    {reports.dashboardQuery.isLoading ? <AdminWorkspaceSkeleton variant="cards" rows={3} /> : dashboard && <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {visible?.balance && <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Dinheiro nas contas e caixas" icon={Banknote} onClick={() => setMetricKind("balance")} />}
         {visible?.receivables && <MetricCard title="A receber" value={dashboard.receivable_open} detail="Valores que ainda devem entrar" icon={TrendingUp} onClick={() => setMetricKind("receivables")} />}
@@ -109,7 +110,7 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
         <div><h3 className="text-sm font-bold text-foreground">Entradas e saídas</h3><p className="mt-1 text-xs text-muted-foreground">Comparativo entre o valor previsto e o realizado no período.</p></div>
       </AdminCardHeader>
       <AdminCardContent>
-        {reports.cashFlowQuery.isLoading ? <LoadingState text="Carregando movimentações..." /> : chartRows.length === 0 ? <EmptyState icon={AlertTriangle} title="Nenhuma movimentação no período" /> : <div className="h-64 w-full sm:h-72">
+        {reports.cashFlowQuery.isLoading ? <AdminWorkspaceSkeleton variant="table" columns={6} rows={4} /> : chartRows.length === 0 ? <EmptyState icon={AlertTriangle} title="Nenhuma movimentação no período" /> : <div className="h-64 w-full sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartRows}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
