@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -62,7 +63,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const [kind, setKind] = useState<UnionCatalogKind>("segment");
   const [section, setSection] = useState<UnionCatalogKind | "distribution">("segment");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CatalogForm>(EMPTY_FORM);
@@ -243,7 +244,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
           {visible.length} de {currentTotal} registros
         </span>
       </AdminCardToolbar>
-      {loading ? <AdminWorkspaceSkeleton rows={5} columns={5} /> : visible.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={pageSize} columns={5} /> : visible.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhum cadastro encontrado.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[660px]">
           <thead><tr>
@@ -278,7 +279,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       <AdminCardToolbar className="sm:justify-end">
         <span className="text-xs font-semibold text-muted-foreground">{distribution?.companies.length ?? 0} empresas</span>
       </AdminCardToolbar>
-      {loading ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : !distribution || distribution.companies.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={pageSize} columns={6} /> : !distribution || distribution.companies.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[580px]">
           <thead><tr>
