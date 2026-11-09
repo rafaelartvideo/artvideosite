@@ -351,9 +351,9 @@ export function TabSales() {
     {firstPageLoading && <AdminOverviewPageSkeleton variant="sales" salesSection={currentView}
       tabs={hasPermission("sales.reports.view")?4:3} rows={currentView==="storefront"?12:15} />}
     {/* Mount active section during first load so its query can signal readiness. */}
-    <div className={firstPageLoading?"hidden":"contents"} aria-hidden={firstPageLoading}>
-    <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
-    <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0 border-b border-border" role="tablist" aria-label="Seções de Vendas">
+    <div className={firstPageLoading ? "hidden" : "min-w-0 space-y-5"} aria-hidden={firstPageLoading}>
+    <PageHeader className="!border-b-0 !pb-0" title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
+    <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
         className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
