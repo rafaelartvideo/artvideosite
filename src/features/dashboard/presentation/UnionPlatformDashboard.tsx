@@ -18,7 +18,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminMetricDetailDialog, type AdminMetricDetailRow } from "@/shared/ui/admin/AdminMetricDetailDialog";
 import { loadUnionPlatformDashboard, loadUnionPlatformFinance } from "@/features/platform-billing/infrastructure/platform-billing.repository";
 
