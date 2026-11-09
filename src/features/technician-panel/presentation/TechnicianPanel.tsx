@@ -239,7 +239,7 @@ export function TechnicianPanel() {
         if (cancelled) return;
         setMyEmployeeId(error ? null : (data?.id || null));
         setEmployeeLookupScope(scope);
-      }).catch(() => {
+      }, () => {
         if (!cancelled) { setMyEmployeeId(null); setEmployeeLookupScope(scope); }
       });
     return () => { cancelled = true; };
