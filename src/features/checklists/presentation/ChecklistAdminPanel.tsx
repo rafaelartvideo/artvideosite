@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
@@ -164,7 +165,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   };
 
   if (!canView) return null;
-  if (query.isPending) return <LoadingState text="Carregando perfis de checklist..." />;
+  if (query.isPending) return <AdminWorkspaceSkeleton rows={5} columns={5} />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
