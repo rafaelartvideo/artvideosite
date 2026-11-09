@@ -8,7 +8,7 @@ import { getAddressMapUrl, validateCustomerAddress, type Address } from "@/lib/a
 import { isValidCpf, isValidCnpj } from "@/shared/domain/formatters";
 import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { openProviderAttachment, type PlatformProvider, type PlatformProviderDraft, type PlatformProviderAttachment } from "../infrastructure/platform-providers.repository";
 
