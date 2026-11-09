@@ -578,10 +578,10 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    {!routeResourceId && <>
+    {!routeResourceId && (itemsQuery.isPending && canViewTable ? <AdminWorkspaceSkeleton pageHeader searchFields={4} columns={8} rows={pageSize} /> : <>
       <PageHeader title="Estoque" subtitle="Controle de itens, fornecedores, custos e movimentações do almoxarifado" actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null} />
 
-      {canViewTable && (itemsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={4} columns={8} rows={pageSize} /> : <><AdminSearchPanel title="Buscar estoque" headerActions={<>
+      {canViewTable && <><AdminSearchPanel title="Buscar estoque" headerActions={<>
         {hasFilters && <AdminSearchClearButton onClick={clearFilters} />}
         <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
           options={[{ value: "asc", label: "Nome A–Z" }, { value: "desc", label: "Nome Z–A" }]} />
@@ -620,8 +620,8 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           return <tr key={item.id}>{showName && <td><div className="font-semibold text-[#0d1b2e]">{item.name}</div><div className="mt-1"><InventorySaleWindowBadge summary={saleSummaryByItemId.get(String(item.id))} unit={item.unit === "cx" ? "cx" : "un"} factor={item.unit === "cx" ? conversionFactor(item) : 1}/></div>{item.description && <div className="max-w-sm text-[11px] text-[#5a6a82]">{item.description}</div>}</td>}{showSku && <td className="font-mono text-xs text-[#5a6a82]">{item.sku || "—"}</td>}<td className="max-w-[220px] text-xs text-[#5a6a82]">{storageAddress(item) || "—"}</td>{showUnit && <td className="text-xs text-[#5a6a82]">{unitLabel(item.unit)}{conversionFactor(item) > 1 && <div className="text-[10px]">{formatNumber(conversionFactor(item))} un/cx</div>}</td>}{showQuantity && <td className={cn("font-bold", quantity === 0 ? "text-red-700" : quantity <= minQuantity ? "text-amber-700" : "text-[#0d1b2e]")}>{formatNumber(quantity)}{item.unit === "cx" && <div className="text-[10px] font-normal text-[#5a6a82]">{formatNumber(equivalentUnits(quantity, item))} un</div>}</td>}{showMinQuantity && <td className="text-xs text-[#5a6a82]">{formatNumber(minQuantity)}</td>}{showPurchasePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>}{canViewCosts && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.average_cost)}</td>}{canViewCosts && <td className="text-xs font-semibold text-[#0d1b2e]">{formatCurrency(item.stock_value)}</td>}{showSalePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>}{showStatus && <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canViewMovements && <AdminIconButton ariaLabel="Histórico" onClick={() => openHistoryPage(item)}><List size={14} /></AdminIconButton>}{canCreateMovements && <AdminIconButton ariaLabel="Movimentar" onClick={() => openMovementPage(item)}><ArrowLeftRight size={14} /></AdminIconButton>}{canToggleActive && !item.product_id && <AdminActiveStateButton active={item.is_active !== false} entityLabel="item" onClick={() => void toggleActive(item)} iconSize={14} />}</div></td>}</tr>;
         })}</tbody></table></div>
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
-      </>}</AdminCard></>)}
-    </>}
+      </>}</AdminCard></>}
+    </>)}
 
     {routeResourceId && !routePageReady && <AdminCard className="p-8"><LoadingState /></AdminCard>}
 
