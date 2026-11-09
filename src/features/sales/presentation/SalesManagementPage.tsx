@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownToLine, BarChart3, Edit2, Medal, Plus, Wallet } from "lucide-react";
@@ -110,7 +111,7 @@ export function SalesManagementPage(){
     </div>
     {!allowed?<EmptyState icon={BarChart3} title="Sem acesso aos relatórios"
       message="Solicite permissão para visualizar relatórios comerciais."/>
-      :query.isPending?<LoadingState text="Carregando indicadores comerciais..."/>
+      :query.isPending?<AdminWorkspaceSkeleton variant="cards" rows={8} />
       :query.isError||!data?<div className="space-y-2 rounded-xl border border-destructive/20 p-4">
         <p role="alert" className="text-xs text-destructive">
           {systemErrorMessage(query.error,"Não foi possível carregar a gestão comercial.")}
