@@ -4,7 +4,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
 import { ChevronRight, ShieldAlert } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { AdminCard, AdminCardHeader, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinancePendingApprovals } from "../application/useFinanceEntries";
