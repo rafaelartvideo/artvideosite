@@ -52,12 +52,13 @@ export function FinanceSubsectionTabs<T extends string>({
 }
 
 export function FinanceSectionTabs({
-  section, allowedSections, onSelect, counts, availableRegistrySections, activeRegistry, onOpenRegistry,
+  section, allowedSections, onSelect, counts, countErrors = [], availableRegistrySections, activeRegistry, onOpenRegistry,
 }: {
   section: FinanceSection;
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
   counts?: Partial<Record<FinanceSection, number>>;
+  countErrors?: FinanceSection[];
   availableRegistrySections: FinanceRegistrySection[];
   activeRegistry: FinanceRegistrySection | null;
   onOpenRegistry: (registry: FinanceRegistrySection) => void;
@@ -80,6 +81,10 @@ export function FinanceSectionTabs({
             className={cn("ml-0.5 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums", selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
             {counts[id]!.toLocaleString("pt-BR")}
           </span>}
+          {counts?.[id] === undefined && countErrors.includes(id) && <span
+            title="Não foi possível carregar esta contagem"
+            aria-label="Contagem indisponível"
+            className="ml-0.5 inline-flex min-w-6 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">—</span>}
         </button>;
       })}
       {hasRegistryMenu && <>
