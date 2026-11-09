@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, Server, ShieldCheck, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminCard, AdminCardContent, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { checkUnionWhatsAppEngine, type UnionWhatsAppEngineStatus } from "../infrastructure/union-whatsapp-engine.repository";
 
