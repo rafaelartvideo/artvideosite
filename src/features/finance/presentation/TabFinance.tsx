@@ -168,9 +168,10 @@ export function TabFinance({
     : initialPageSize([10, 20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 10);
   const financeSurface = section === "receivables" || section === "payables" || section === "movements"
     ? "table" : section === "accounts" ? "accounts" : section === "reports" ? "reports" : "overview";
+  const financeColumns = section === "movements" ? 7 : section === "accounts" ? 6 : 9;
 
   return <div className="min-w-0 space-y-5">
-    {initialLoading ? <AdminOverviewPageSkeleton variant="finance" financeSurface={financeSurface} tabs={primarySections.length} rows={skeletonRows} /> : <>
+    {initialLoading ? <AdminOverviewPageSkeleton variant="finance" financeSurface={financeSurface} financeColumns={financeColumns} tabs={primarySections.length + (allowedSections.includes("registries") ? 1 : 0)} rows={skeletonRows} /> : <>
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
       actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
         {(canIssueReceipt || canViewReceiptHistory) && <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border admin-action-blue-outline">
