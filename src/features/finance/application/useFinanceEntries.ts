@@ -85,7 +85,7 @@ export function useFinanceEntries(
       operationalStatus: filters.operationalStatus,
       sort: filters.sort,
     }),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationKey && previousQuery?.queryKey[3] === entryType ? previous : undefined,
   });
 
   const counterpartiesQuery = useQuery({
@@ -105,7 +105,7 @@ export function useFinanceEntries(
       counterpartySelectedId,
       25,
     ),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === organizationKey && previousQuery?.queryKey[3] === entryType ? previous : undefined,
   });
 
   const detailQuery = useQuery({
@@ -179,7 +179,7 @@ export function useFinancePendingApprovals(page = 1, pageSize = 10) {
     ] as const,
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listPendingFinancialApprovalsPage(organizationId, page, pageSize),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationKey ? previous : undefined,
   });
 }
 
