@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -437,7 +438,7 @@ export function TabProducts({
   const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc" | "newest">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "gtin" | "category" | "location">("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
