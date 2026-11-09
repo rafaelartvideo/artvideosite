@@ -61,7 +61,7 @@ function OrderStatuses({ order }: { order: SalesOrderListRow }) {
   </div>;
 }
 
-export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
+export function SalesOrdersPage({ onNewSale, onInitialReady }: { onNewSale: () => void; onInitialReady?: (section: "orders") => void }) {
   const { activeOrganizationId,hasPermission } = useAuth();
   const organizationId=activeOrganizationId || "";
   const queryClient=useQueryClient();
@@ -98,6 +98,10 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     refetchOnWindowFocus:true,
     refetchInterval:20_000, // segurança caso o status financeiro não dispare evento no pedido
   });
+  useEffect(() => {
+    if (!canView || badPeriod || !ordersQuery.isPending) onInitialReady?.("orders");
+  }, [canView, badPeriod, ordersQuery.isPending, onInitialReady]);
+
   // A ordenação alternativa se aplica somente aos itens da página carregada.
   useEffect(()=>{
     if(!organizationId||!canView)return;
