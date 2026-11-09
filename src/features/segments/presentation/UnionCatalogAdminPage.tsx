@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -242,7 +243,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
           {visible.length} de {currentTotal} registros
         </span>
       </AdminCardToolbar>
-      {loading ? <LoadingState text="Carregando catálogo..." /> : visible.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={5} columns={5} /> : visible.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhum cadastro encontrado.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[660px]">
           <thead><tr>
@@ -277,7 +278,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       <AdminCardToolbar className="sm:justify-end">
         <span className="text-xs font-semibold text-muted-foreground">{distribution?.companies.length ?? 0} empresas</span>
       </AdminCardToolbar>
-      {loading ? <LoadingState text="Carregando distribuição..." /> : !distribution || distribution.companies.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : !distribution || distribution.companies.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[580px]">
           <thead><tr>
