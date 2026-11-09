@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Minus, Plus, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { searchSalesProducts } from "../infrastructure/sales.repository";
 import { issueSalesExchange, type SalesReturn } from "../infrastructure/sales-operations.repository";
 import type { PdvProduct } from "@/features/pdv/infrastructure/pdv.repository";
@@ -90,12 +91,8 @@ export function SalesExchangeDialog({organizationId,entry,onClose,onCompleted}:{
       </div>
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Escolher produtos substitutos</h3>
-        <div className="relative">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)}
-            placeholder="Nome, código, modelo compatível..."
-            className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm"/>
-        </div>
+        <AdminSearchTextField label="" value={search} onChange={setSearch}
+          placeholder="Nome, código, modelo compatível..." ariaLabel="Buscar produtos para troca"/>
         {productsQuery.isPending?<LoadingState text="Buscando produtos..."/>
           :productsQuery.isError?<p role="alert" className="text-xs text-destructive">
             {systemErrorMessage(productsQuery.error,"Não foi possível buscar produtos.")}
