@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -492,6 +493,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       </p>
     </AdminCard>}
 
+    {loading && !orders.length ? <AdminWorkspaceSkeleton searchFields={6} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar pedidos" headerActions={
       hasActiveFilters ? <AdminSearchClearButton onClick={() => {
         setCustomerSearch(""); setOrderSearch(""); setProductSearch("");
@@ -587,8 +589,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           Falha ao carregar os pedidos: {error}
           <button type="button" onClick={() => void refresh()} className="ml-2 font-bold underline">Tentar novamente</button>
         </div>}
-        {loading && !orders.length ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando pedidos...</p>
-        : !rows.length ? <div className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        {!rows.length ? <div className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           <ShoppingBag size={29} className="mx-auto mb-3"/>
           {orders.length ? "Nenhum pedido encontrado neste filtro." : "Nenhum pedido registrado."}
         </div>
@@ -663,6 +664,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </div>
     </AdminCard>
+    </>}
     {!embedded && <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
     </AdminStickyToolbar>}
