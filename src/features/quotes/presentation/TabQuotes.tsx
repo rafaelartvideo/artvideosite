@@ -11,7 +11,7 @@ import { AdminCard,AdminRowActionsTrigger,PageHeader } from "@/shared/ui/admin/A
 import { AdminSearchPanel,AdminSearchClearButton,AdminSearchSortMenu,AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain/formatters";
-import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminFieldLabel,AdminSelect,INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
