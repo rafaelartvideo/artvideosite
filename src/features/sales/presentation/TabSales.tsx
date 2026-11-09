@@ -171,7 +171,7 @@ export function TabSales() {
 
   const productsQuery=useQuery({
     queryKey:["sales",organizationId,"catalog-page",debouncedSearch,categoryId,page,sort,
-      onlyAvailable,onlyFavorites,favorites.join(",")],
+      onlyAvailable,onlyFavorites,onlyFavorites?favorites.join(","):""],
     queryFn:()=>searchSalesCatalog(organizationId,{
       search:debouncedSearch,categoryId,page,pageSize:40,sort,
       onlyAvailable,favoriteIds:onlyFavorites?favorites:null,
@@ -323,29 +323,29 @@ export function TabSales() {
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
-    <div className="flex min-w-0 flex-nowrap items-center gap-4 overflow-x-auto border-b border-border pb-0" role="tablist" aria-label="Seções de Vendas">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0 border-b border-border" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
         onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
-        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
+        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
           ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <Package size={14} aria-hidden="true"/> Vitrine
       </button>
       <button type="button" role="tab" aria-selected={currentView === "proposals"}
         onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
-        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
+        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
           ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <FileText size={14} aria-hidden="true"/> Propostas
       </button>
       <button type="button" role="tab" aria-selected={currentView === "orders"}
         onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
-        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
+        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
           ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
         <ClipboardList size={14} aria-hidden="true"/> Pedidos
       </button>
       {hasPermission("sales.reports.view")&&<button type="button" role="tab"
         aria-selected={currentView === "management"}
         onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
-        className={"-mb-px inline-flex h-12 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
+        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
           (currentView==="management"?"!border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
         <BarChart3 size={14} aria-hidden="true"/> Gestão
       </button>}
