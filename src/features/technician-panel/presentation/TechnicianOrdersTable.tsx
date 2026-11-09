@@ -8,7 +8,7 @@ import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwit
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import type { TechnicianTask } from "../infrastructure/technician-tasks.repository";
 import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
