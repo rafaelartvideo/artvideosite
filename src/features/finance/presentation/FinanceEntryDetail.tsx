@@ -9,6 +9,7 @@ import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconBut
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceDocumentsPanel } from "./FinanceDocumentsPanel";
 import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
@@ -135,7 +136,7 @@ function EntryDetailContent({
         </div>
         <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
           <div><p className="text-muted-foreground">Emissão</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(detail.issue_date)}</p></div>
-          <div><p className="text-muted-foreground">Origem</p><p className="mt-0.5 font-semibold text-foreground">{originLabel}</p></div>
+          <div><p className="text-muted-foreground">Origem</p><p className="mt-0.5 font-semibold text-foreground">{detail.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={detail.origin_reference} number={detail.source_details?.os_number} /> : originLabel}</p></div>
           <div><p className="text-muted-foreground">Parcelas</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{detail.installments.length}</p></div>
         </div>
       </div>
