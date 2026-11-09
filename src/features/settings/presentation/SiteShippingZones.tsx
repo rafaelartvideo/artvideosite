@@ -14,7 +14,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, FInput, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { ConfirmDialog, EmptyState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 type ShippingZone = {
   id: string;
