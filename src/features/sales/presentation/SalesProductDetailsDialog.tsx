@@ -40,12 +40,13 @@ function availableQuantity(product:PdvProduct){
 }
 
 export function SalesProductDetailsDialog({
-  organizationId,product,cartQuantity,canSell,relatedProducts,relatedLoading,
+  organizationId,product,cartQuantity,cartQuantities,canSell,relatedProducts,relatedLoading,
   relatedError,onClose,onAdd,onRemove,onSetCartQuantity,preparing=false,
 }: {
   organizationId:string;
   product:PdvProduct;
   cartQuantity:number;
+  cartQuantities:Record<string,number>;
   canSell:boolean;
   relatedProducts:SalesRelatedProduct[];
   relatedLoading:boolean;
@@ -56,7 +57,6 @@ export function SalesProductDetailsDialog({
   onSetCartQuantity:(productId:string,quantity:number)=>void;
   preparing?:boolean;
 }) {
-  const [quantity,setQuantity]=useState(1);
   const [activeMediaId,setActiveMediaId]=useState<string|null>(product.cover_media_id);
   const details=useQuery({
     queryKey:["sales","product-details",organizationId,product.product_id],
@@ -79,16 +79,14 @@ export function SalesProductDetailsDialog({
   const remaining=Math.max(0,availableQuantity(product)-cartQuantity);
   const validPrice=product.price!=null&&Number(product.price)>0;
   const totalAvailable=availableQuantity(product);
-  const actualQuantity=cartQuantity>0
-    ? cartQuantity : Math.max(1,Math.min(quantity,remaining||1));
+  // O seletor mostra somente a quantidade efetivamente reservada no carrinho.
+  const actualQuantity=cartQuantity;
   const adjustQuantity=(step:-1|1)=>{
-    if(!canSell)return;
-    if(cartQuantity>0) {
-      const next=cartQuantity+step;
-      if(next>=0&&next<=totalAvailable)onSetCartQuantity(product.product_id,next);
-    } else {
-      setQuantity(value=>Math.max(1,Math.min(totalAvailable||1,value+step)));
-    }
+    if(!canSell||!validPrice)return;
+    const next=cartQuantity+step;
+    if(next<0||next>totalAvailable)return;
+    if(cartQuantity===0&&next>0)onAdd(product,1);
+    else onSetCartQuantity(product.product_id,next);
   };
   const variantAttributes=Object.entries(details.data?.variant_attributes||{})
     .filter(([,value])=>value!=null&&value!=="");
@@ -155,20 +153,20 @@ export function SalesProductDetailsDialog({
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border">
               <button type="button" onClick={()=>adjustQuantity(-1)}
-                aria-label="Diminuir quantidade" disabled={!canSell||(cartQuantity===0&&actualQuantity<=1)}
+                aria-label="Diminuir quantidade" disabled={!canSell||actualQuantity<=0}
                 className="flex h-full w-9 items-center justify-center text-muted-foreground disabled:opacity-40">
                 <Minus size={15}/>
               </button>
               <span className="w-8 text-center text-sm font-bold tabular-nums">{actualQuantity}</span>
               <button type="button" onClick={()=>adjustQuantity(1)}
-                disabled={!canSell||actualQuantity>=totalAvailable} aria-label="Aumentar quantidade"
+                disabled={!canSell||!validPrice||actualQuantity>=totalAvailable} aria-label="Aumentar quantidade"
                 className="flex h-full w-9 items-center justify-center text-primary disabled:opacity-40">
                 <Plus size={15}/>
               </button>
             </div>
             <AdminButton disabled={!canSell||!validPrice||remaining<1}
               className="min-w-0 flex-1 justify-center"
-              onClick={()=>onAdd(product,cartQuantity>0?1:actualQuantity)}>
+              onClick={()=>onAdd(product,1)}>
               <Plus size={15}/> Adicionar ao carrinho
             </AdminButton>
             {canSell&&cartQuantity>0&&<AdminIconButton
@@ -180,6 +178,7 @@ export function SalesProductDetailsDialog({
           </div>
         </div>
       </section>
+      <div role="separator" aria-label="Separação entre compra e características" className="border-t border-border"/>
 
       {(variantAttributes.length>0||characteristics.length>0)&&<section className="space-y-2">
         <h4 className="text-sm font-semibold text-foreground">Atributos e características</h4>
@@ -199,6 +198,8 @@ export function SalesProductDetailsDialog({
           :relatedError?<p className="text-xs text-destructive">Não foi possível consultar os produtos relacionados.</p>
           :<CompatibleProductCarousel title="Produtos Relacionados"
             salesAppearance
+            quantitiesById={cartQuantities}
+            onRemove={onRemove}
             products={relatedProducts.map(related=>({
               id:related.product_id,name:related.name,sku:related.sku,barcode:related.barcode,
               coverMediaId:related.cover_media_id,
