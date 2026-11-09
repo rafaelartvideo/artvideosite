@@ -12,7 +12,7 @@ import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
-import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { getMediaPreview } from "@/shared/infrastructure/media.repository";
