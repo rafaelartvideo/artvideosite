@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
   BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Grid2X2, Heart,
-  List, Minus, Package, Plus, Search, ShoppingBag, ShoppingCart, Trash2,
+  List, Minus, Package, Plus, ShoppingBag, ShoppingCart, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
@@ -267,6 +267,7 @@ export function TabSales() {
     }
   };
 
+  const cartQuantities:Record<string,number>=Object.fromEntries(cart.map(line=>[line.product.product_id,line.quantity]));
   const cartQuantity = cart.reduce((total, line) => total + line.quantity, 0);
   const cartTotal = cart.reduce((total, line) => total + Number(line.product.price || 0) * line.quantity, 0);
 
@@ -426,25 +427,13 @@ export function TabSales() {
                 {value:"stock",label:"Mais estoque"},
               ]}/>
           </>}>
-          <label className="block min-w-0 space-y-1.5">
-            <span className="block text-xs font-semibold text-muted-foreground">
-              Nome, SKU, GTIN, modelo ou código relacionado
-            </span>
-            <div className="relative min-w-0">
-              <Search size={16} aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input value={search}
-                onChange={event=>{setSearch(event.target.value);setPage(1);}}
-                onKeyDown={event=>{
-                  if(event.key==="Enter"){event.preventDefault();addExactCode();}
-                }}
-                placeholder="Buscar produtos para venda..." aria-label="Buscar produtos para venda"
-                className="h-[42px] w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary md:h-9"/>
-            </div>
-          </label>
+          <AdminSearchTextField label="Nome, SKU, GTIN, modelo ou código relacionado"
+            value={search} onChange={value=>{setSearch(value);setPage(1);}}
+            placeholder="Buscar produtos para venda..." ariaLabel="Buscar produtos para venda"
+            onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();addExactCode();}}}/>
           <div className="mt-3 flex min-w-0 items-center gap-2">
             <div ref={categoriesRef} role="group" aria-label="Filtros por disponibilidade, favoritos e categorias"
-              className="flex min-w-0 flex-1 snap-x items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:thin]">
+              className="flex min-w-0 flex-1 snap-x items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button type="button" aria-pressed={categoryId===null}
                 onClick={()=>{setCategoryId(null);setPage(1);}}
                 className={"shrink-0 snap-start rounded-full border px-3 py-1.5 text-xs font-semibold "+
@@ -498,10 +487,10 @@ export function TabSales() {
           ?<AdminCard square className="[&_th]:py-3 [&_td]:py-3">
             <div className="divide-y divide-border md:hidden">
               {products.map(product=>{
-                const available=availableQuantity(product);
+                const available=Math.max(0,availableQuantity(product)-(cartQuantities[product.product_id]||0));
                 const favorite=favorites.includes(product.product_id);
                 const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
-                const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+                const cartCount=cartQuantities[product.product_id]||0;
                 return <div key={product.product_id} className="flex min-w-0 items-start gap-3 p-3">
                   <button type="button" onClick={()=>void prepareProduct(product)}
                     aria-label={"Ver detalhes de "+product.name}
@@ -529,7 +518,7 @@ export function TabSales() {
                           (favorite?"text-red-500":"text-muted-foreground hover:text-primary")}>
                         <Heart size={17} fill={favorite?"currentColor":"none"}/>
                       </button>
-                      <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                      <AdminButton size="sm" disabled={!canAdd}
                         onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
                     </div>
                   </div>
@@ -551,10 +540,10 @@ export function TabSales() {
                 </thead>
                 <tbody>
                   {products.map(product=>{
-                    const available=availableQuantity(product);
+                    const available=Math.max(0,availableQuantity(product)-(cartQuantities[product.product_id]||0));
                     const favorite=favorites.includes(product.product_id);
                     const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
-                    const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+                    const cartCount=cartQuantities[product.product_id]||0;
                     return <tr key={product.product_id}>
                       <td className="min-w-[230px]">
                         <div className="flex min-w-0 items-center gap-2.5">
@@ -585,7 +574,7 @@ export function TabSales() {
                               (favorite?"text-red-500":"text-muted-foreground hover:text-primary")}>
                             <Heart size={17} fill={favorite?"currentColor":"none"}/>
                           </button>
-                          <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                          <AdminButton size="sm" disabled={!canAdd}
                             onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
                         </div>
                       </td>
@@ -597,11 +586,11 @@ export function TabSales() {
           </AdminCard>
           :<div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
             {products.map(product=>{
-              const available=availableQuantity(product);
+              const available=Math.max(0,availableQuantity(product)-(cartQuantities[product.product_id]||0));
               const favorite=favorites.includes(product.product_id);
               const deviceModels=modelsByProduct.get(product.product_id)||[];
               const canAdd=canSell&&available>0&&product.price!=null&&Number(product.price)>0;
-              const cartCount=cart.find(line=>line.product.product_id===product.product_id)?.quantity||0;
+              const cartCount=cartQuantities[product.product_id]||0;
               return <article key={product.product_id}
                 className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
                 <button type="button" onClick={()=>void prepareProduct(product)}
@@ -634,7 +623,7 @@ export function TabSales() {
                     {deviceModels[0].brand} {deviceModels[0].model}
                     {deviceModels.length>1?" · +"+(deviceModels.length-1):""}
                   </p>}
-                  <AdminButton size="sm" disabled={!canAdd||cartCount>=available}
+                  <AdminButton size="sm" disabled={!canAdd}
                     className="mt-auto w-full justify-center"
                     onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
                 </div>
@@ -781,7 +770,8 @@ export function TabSales() {
       key={selected.product_id}
       organizationId={organizationId}
       product={selected}
-      cartQuantity={cart.find(line => line.product.product_id === selected.product_id)?.quantity || 0}
+      cartQuantity={cartQuantities[selected.product_id]||0}
+       cartQuantities={cartQuantities}
       canSell={canSell}
       onAdd={addProduct}
       onRemove={productId=>setQuantity(productId,0)}
