@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
@@ -66,7 +67,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   const [linkedOrdersError, setLinkedOrdersError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
 
   useEffect(() => { if (configurationQuery.error) setToast({ msg: `Erro ao carregar tipos: ${systemErrorMessage(configurationQuery.error)}`, type: "error" }); }, [configurationQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
