@@ -97,7 +97,7 @@ test("Financeiro mantém consultas montadas na primeira carga e bloqueia só o c
   const finance = read("src/features/finance/presentation/TabFinance.tsx");
   assert.match(finance, /useWorkspaceFirstVisit\(/);
   assert.match(finance, /firstPageLoading && <AdminOverviewPageSkeleton variant="finance"/);
-  assert.match(finance, /className=\{firstPageLoading \? "hidden" : "contents"\}/);
+  assert.match(finance, /className=\{firstPageLoading \? "hidden" : "min-w-0 space-y-5"\}/);
   assert.match(finance, /!firstPageLoading && initialLoading && <AdminOverviewPageSkeleton variant="finance" contentOnly/);
   assert.ok(finance.indexOf("<FinanceSectionTabs section={section}") < finance.indexOf("{!firstPageLoading && initialLoading &&"));
   assert.match(finance, /readyScopes\[scope\]/);
@@ -120,7 +120,7 @@ test("Vendas só apresenta tela inteira na primeira visita e categoria recarrega
   const shell = read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx");
   assert.match(sales, /useWorkspaceFirstVisit\(/);
   assert.match(sales, /firstPageLoading && <AdminOverviewPageSkeleton variant="sales"/);
-  assert.match(sales, /className=\{firstPageLoading\?"hidden":"contents"\}/);
+  assert.match(sales, /className=\{firstPageLoading \? "hidden" : "min-w-0 space-y-5"\}/);
   assert.match(sales, /<SalesOrdersPage onInitialReady=\{markSalesSectionReady\}/);
   assert.match(sales, /<SalesProposalsPage onInitialReady=\{markSalesSectionReady\}/);
   assert.match(sales, /<SalesManagementPage onInitialReady=\{markSalesSectionReady\}/);
@@ -252,4 +252,26 @@ test("Demais listagens exibem header e resultados no primeiro skeleton", () => {
     ["src/features/work-items/presentation/TabWorkItems.tsx","<AdminWorkspaceSkeleton pageHeader"],
   ];
   for(const [path,needle] of expected)assert.ok(read(path).includes(needle),path);
+});
+
+test("Financeiro e Vendas: submenus sem fundo, alinhados à esquerda e espaçados do conteúdo", async () => {
+  const financeTabs = read("src/features/finance/presentation/FinanceSectionTabs.tsx");
+  const finance = read("src/features/finance/presentation/TabFinance.tsx");
+  const sales = read("src/features/sales/presentation/TabSales.tsx");
+  const layout = read("src/shared/ui/admin/AdminLayout.tsx");
+
+  assert.match(financeTabs, /<nav className="flex w-full min-w-0 max-w-full overflow-x-auto bg-transparent" aria-label="Áreas do financeiro"/);
+  assert.match(financeTabs, /items-center justify-start gap-1/);
+  assert.doesNotMatch(financeTabs, /mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card/);
+  assert.match(finance, /<PageHeader className="!border-b-0 !pb-0" title="Financeiro"/);
+  assert.match(finance, /className=\{initialLoading \? "hidden" : "min-w-0"\}/);
+  assert.match(sales, /<PageHeader className="!border-b-0 !pb-0" title="Vendas"/);
+  assert.match(sales, /flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0" role="tablist"/);
+  assert.doesNotMatch(sales, /gap-x-5 gap-y-0 border-b border-border/);
+  assert.match(layout, /export function PageHeader\(\{ title, subtitle, eyebrow, actions, className = "" \}/);
+  for (const [name, code] of [
+    ["FinanceSectionTabs", financeTabs], ["TabFinance", finance], ["TabSales", sales], ["AdminLayout", layout],
+  ]) {
+    assert.ok((await transformWithEsbuild(code, name+".tsx", { loader: "tsx" })).code.length > 0, name);
+  }
 });
