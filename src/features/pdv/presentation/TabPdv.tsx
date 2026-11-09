@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -299,7 +300,7 @@ export function TabPdv({
   };
 
   if (bootstrapQuery.isPending) {
-    return <div className="space-y-5"><PageHeader title="PDV" subtitle="Venda rápida, caixa e operação de balcão." /><AdminCard className="p-8"><LoadingState text="Carregando PDV..." /></AdminCard></div>;
+    return <div className="space-y-5"><PageHeader title="PDV" subtitle="Venda rápida, caixa e operação de balcão." /><AdminWorkspaceSkeleton variant="details" rows={3} columns={4} /></div>;
   }
 
   const cashOptions = (bootstrap?.cash_accounts || []).map(account => ({ value: account.id, label: account.name }));
