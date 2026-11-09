@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { SacDigitalMenuConfiguration } from './SacDigitalMenuSettings';
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -5,7 +6,7 @@ import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, Plus, Tra
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import {
   AdminButton,
   AdminStickyToolbar,
@@ -387,7 +388,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   };
 
   if (!canManage) return null;
-  if (!activeOrganizationId || loading) return <LoadingState text="Carregando integração..." />;
+  if (!activeOrganizationId || loading) return <AdminWorkspaceSkeleton variant="details" rows={3} columns={4} />;
 
   return <div className="min-w-0 space-y-5">
     <PageHeader
@@ -523,7 +524,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
        <AdminButton onClick={() => void saveMessagePresets()} loading={presetSaving} disabled={presetLoading}>Salvar mensagens</AdminButton>
       </div>}
     >
-      {presetLoading ? <LoadingState text="Carregando mensagens..." /> : <div className="space-y-4">
+      {presetLoading ? <AdminWorkspaceSkeleton variant="cards" rows={4} /> : <div className="space-y-4">
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Variáveis: <strong>{'{primeiro_nome}'}</strong>, <strong>{'{nome_cliente}'}</strong>, <strong>{'{os}'}</strong>, <strong>{'{protocolo}'}</strong>, <strong>{'{servico}'}</strong>, <strong>{'{data}'}</strong>, <strong>{'{horario}'}</strong> e <strong>{'{endereco}'}</strong>. Na OS e no orçamento são preenchidas conforme os dados disponíveis.
         </div>
@@ -731,7 +732,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
           Ative a integração e configure as credenciais para vincular funcionários aos operadores da SAC Digital.
         </div>
       ) : operatorLoading && !operatorData ? (
-        <LoadingState text="Carregando operadores e funcionários..." />
+        <AdminWorkspaceSkeleton columns={5} rows={5} />
       ) : !operatorData?.employees.length ? (
         <div className="rounded-lg border border-border bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
           Nenhum funcionário ativo foi encontrado nesta empresa.
