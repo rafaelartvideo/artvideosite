@@ -240,7 +240,9 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       sort: inventorySort,
     }),
     enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewMovements || canCreateMovements)),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === activeOrganizationId && previousQuery?.queryKey[3] === (canViewCosts ? "costs" : "safe")
+        ? previous : undefined,
   });
   const saleSummaryQuery = useQuery({
     queryKey: [...queryKeys.inventory.all, "sale-summary", activeOrganizationId],
