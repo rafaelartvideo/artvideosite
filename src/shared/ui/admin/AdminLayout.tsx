@@ -572,10 +572,10 @@ export function Section({
   </AdminCard>;
 }
 
-export function PageHeader({ title, subtitle, eyebrow, actions }: { title: React.ReactNode; subtitle?: string; eyebrow?: string; actions?: React.ReactNode }) {
+export function PageHeader({ title, subtitle, eyebrow, actions, className = "" }: { title: React.ReactNode; subtitle?: string; eyebrow?: string; actions?: React.ReactNode; className?: string }) {
   const onBack = React.useContext(AdminBackContext);
   return (
-    <header className="flex min-w-0 flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
+    <header className={cn("flex min-w-0 flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="min-w-0 flex-1">
         {eyebrow && <p className="mb-1 break-words text-[10px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p>}
         <h1 className="break-words text-2xl font-bold leading-tight tracking-[-0.025em] text-foreground">{title}</h1>
