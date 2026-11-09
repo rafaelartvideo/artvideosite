@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useState } from "react";
 import { useLocation,useNavigate } from "react-router";
 import { useMutation,useQuery,useQueryClient } from "@tanstack/react-query";
@@ -56,7 +57,7 @@ export function SalesCommissionsSection({organizationId,month,sellers,canManage}
     {!closedMonth&&<p className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3 text-xs">
       <CalendarClock size={15}/> Aguarde o encerramento do mês para aprovar comissões definitivas.
     </p>}
-    {query.isPending?<LoadingState text="Consultando comissões aprovadas..."/>
+    {query.isPending?<AdminWorkspaceSkeleton rows={5} columns={7} />
       :query.isError?<p role="alert" className="text-xs text-destructive">
         {systemErrorMessage(query.error,"Não foi possível consultar comissões aprovadas.")}
       </p>
