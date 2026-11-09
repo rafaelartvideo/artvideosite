@@ -16,6 +16,7 @@ import { FinanceCashActionDialog, type FinanceCashAction } from "./FinanceCashSe
 import { useFinanceCash } from "../application/useFinanceCash";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { FinanceOpeningBalanceDialog } from "./FinanceOpeningBalanceDialog";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 import { parsePinnedFinanceAccounts, prioritizePinnedFinanceAccounts } from "../domain/finance-account-cards.mjs";
 
 const ACCOUNT_TYPES: { value: FinancialAccountType; label: string }[] = [
@@ -367,7 +368,7 @@ export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { c
                     <tbody>{statement.items.map(item => <tr key={item.id} className="h-[54px] border-t border-border/70">
                       <td className="whitespace-nowrap text-xs text-muted-foreground">{new Date(item.occurred_at).toLocaleString("pt-BR")}</td>
                       <td className="whitespace-nowrap text-xs font-semibold text-foreground">{MOVEMENT_LABELS[item.movement_type] || item.movement_type}</td>
-                      <td className="max-w-[220px] truncate text-xs text-muted-foreground" title={item.description_snapshot}>{item.description_snapshot || "—"}</td>
+                      <td className="max-w-[220px] text-xs text-muted-foreground"><div className="truncate" title={item.description_snapshot}>{item.description_snapshot || "—"}</div>{item.origin_order_id && <div className="mt-1"><FinanceServiceOrderLink orderId={item.origin_order_id} label={item.origin_label || "Ordem de Serviço"} /></div>}</td>
                       <td className={`text-right text-xs font-bold tabular-nums ${item.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                         <span className="inline-flex items-center justify-end gap-1">{item.direction === "credit" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{item.direction === "credit" ? "+" : "−"} {formatCurrency(item.amount)}</span>
                       </td>
