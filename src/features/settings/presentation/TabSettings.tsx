@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
 import { AdminSegmentedControl, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { formatCnpj, formatCpf, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
