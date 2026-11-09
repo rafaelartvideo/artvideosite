@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -284,6 +285,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
       subtitle="Acompanhamento em tempo real das ordens de serviço vinculadas aos tipos monitorados das empresas parceiras."
     />
 
+    {listQuery.isPending || optionsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={8} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar OS" headerActions={<>
       {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={value => { setOrderSort(value); setPage(1); }}
@@ -341,8 +343,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
           {systemErrorMessage(optionsQuery.error || listQuery.error, "Não foi possível carregar o monitoramento de OS.")}
         </p>
       </AdminCard>
-    ) : listQuery.isPending || optionsQuery.isPending ? (
-      <LoadingState text="Carregando ordens monitoradas..." />
     ) : total === 0 ? (
       <EmptyState
         icon={Search}
@@ -410,5 +410,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
         />
       </AdminCard>
     )}
+    </>}
   </div>;
 }
