@@ -8,7 +8,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardHeader, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { getSalesManagement,saveSalesSellerGoal,
   type SalesManagement,type SalesSellerMetric,
 } from "../infrastructure/sales-operations.repository";
