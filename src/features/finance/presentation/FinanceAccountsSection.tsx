@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
@@ -256,7 +257,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
     </div>
 
     {errorMessage && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{errorMessage}</div>}
-    {loading ? <div className="p-8"><LoadingState text="Carregando contas e caixas" /></div> : accounts.length === 0
+    {loading ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : accounts.length === 0
       ? <div className="p-8"><EmptyState icon={Landmark} title="Nenhuma conta financeira" /></div>
       : <section aria-label="Contas e caixas" className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {orderedAccounts.map(account => {
