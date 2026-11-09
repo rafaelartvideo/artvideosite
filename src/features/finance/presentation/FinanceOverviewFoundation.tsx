@@ -1,5 +1,5 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AlertTriangle, Banknote, CalendarClock, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -54,9 +54,10 @@ function DueCard({ title, amount, detail, warning = false }: {
   </div>;
 }
 
-export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
+export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection, onInitialReady }: {
   onSelectEntry: (type: FinancialEntryType, id: string) => void;
   onSelectSection: (section: FinanceSection) => void;
+  onInitialReady?: () => void;
 }) {
   const [period, setPeriod] = useState(defaultPeriod);
   const [metricKind, setMetricKind] = useState<FinanceMetricKind | null>(null);
@@ -68,6 +69,10 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
     ...row,
     label: new Date(`${row.date.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
   })), [reports.cashFlowQuery.data?.rows]);
+
+  useEffect(() => {
+    if (!reports.dashboardQuery.isPending && (!reports.canCashFlow || !reports.cashFlowQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, reports.dashboardQuery.isPending, reports.cashFlowQuery.isPending, reports.canCashFlow]);
 
   return <div className="space-y-5">
     {dashboard && metricKind && <FinanceMetricDetailsDialog
