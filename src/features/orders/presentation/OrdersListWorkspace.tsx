@@ -1,5 +1,6 @@
 import { OrdersFilters } from "./OrdersFilters";
 import { OrdersHeader } from "./OrdersHeader";
+import { Skeleton } from "@/shared/ui/primitives/skeleton";
 import { OrderSettingsDialog } from "./OrderSettingsDialog";
 import { useState } from "react";
 import { OrdersKanban } from "./OrdersKanban";
@@ -83,7 +84,16 @@ export function OrdersListWorkspace(props: Props) {
     (hasPermission("settings.update") || (hasPermission("settings.view") && hasPermission("settings.details.view")));
 
   return <>
-    <OrdersHeader total={generalTotalItems} loading={screenLoading} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />
+    {screenLoading ? <div className="flex min-w-0 flex-wrap items-center justify-between gap-3" role="status" aria-label="Preparando ordens de serviço">
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-7 w-48 max-w-full" />
+        <Skeleton className="h-3.5 w-36 max-w-full" />
+      </div>
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-9 w-20 rounded-lg" />
+        <Skeleton className="h-9 w-28 rounded-lg" />
+      </div>
+    </div> : <OrdersHeader total={generalTotalItems} loading={screenLoading} displayMode={resolvedDisplayMode} canCreate={canCreate} canConfigure={canConfigure} onConfigure={() => setSettingsOpen(true)} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />}
     {settingsOpen && workspace.organizationId && <OrderSettingsDialog
       open={settingsOpen}
       onClose={() => setSettingsOpen(false)}
