@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
