@@ -67,8 +67,8 @@ export function FinanceSectionTabs({
   const hasRegistryMenu = allowedSections.includes("registries") && availableRegistrySections.length > 0;
   const isOptionsActive = Boolean(activeRegistry);
 
-  return <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do financeiro">
-    <div className="flex w-max items-center justify-center gap-1">
+  return <nav className="flex w-full min-w-0 max-w-full overflow-x-auto bg-transparent" aria-label="Áreas do financeiro">
+    <div className="flex w-max items-center justify-start gap-1">
       {primary.map(id => {
         const Icon = ICONS[id];
         const selected = id === section;
