@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useLocation, useNavigate } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -129,8 +129,7 @@ export function SalesProposalsPage() {
       :!proposalsQuery.data?.items.length?
       <EmptyState icon={ClipboardList} title="Nenhuma proposta encontrada"
         message="Crie um orçamento a partir da Vitrine ou ajuste os filtros."/>
-      :<Section title="Lista de propostas" description="Negociações e propostas cadastradas." flush
-        className="[&_th]:md:py-2 [&_td]:md:py-2.5">
+      :<AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         <div className="divide-y divide-border md:hidden">
           {proposals.map(proposal=><button type="button" key={proposal.id}
             onClick={()=>setSelectedId(proposal.id)}
@@ -167,11 +166,11 @@ export function SalesProposalsPage() {
           <table className="min-w-[710px]">
             <thead>
               <tr>
-                <th className="px-4 py-3">Proposta</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Situação</th>
-                <th className="px-4 py-3">Validade</th>
-                <th className="px-4 py-3">Criada em</th>
+                <th className="px-4 py-3 text-left">Proposta</th>
+                <th className="px-4 py-3 text-left">Cliente</th>
+                <th className="px-4 py-3 text-left">Situação</th>
+                <th className="px-4 py-3 text-left">Validade</th>
+                <th className="px-4 py-3 text-left">Criada em</th>
                 <th className="px-4 py-3 text-right">Total</th>
               </tr>
             </thead>
@@ -218,7 +217,7 @@ export function SalesProposalsPage() {
           onPageSizeChange={size=>{setPageSize(size);setPage(1);}}
           pageSizeOptions={[10,15,25,50]} defaultPageSize={15}
           storageKey="union-sales-proposals-page-size" showFilteredTotal/>
-      </Section>}
+      </AdminCard>}
 
     {selectedId&&<SalesProposalDetailDialog organizationId={org} id={selectedId}
       onClose={()=>setSelectedId(null)}
