@@ -10,7 +10,7 @@ import {
   loadPublicMarketplaceShell, loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
 } from "../infrastructure/marketplace.repository";
 import { MarketplaceCatalog } from "./MarketplaceCatalog";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { MarketplaceBuyerPage } from "./MarketplaceBuyerPage";
 import { MarketplaceProductDetailPage, MarketplaceServiceDetailPage } from "./MarketplaceListingDetailPage";
 
