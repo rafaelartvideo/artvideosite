@@ -702,11 +702,16 @@ export function TechnicianPanel() {
   );
 
   return <div className="mx-auto max-w-6xl space-y-4">
-    {!routeOrderId && <PageHeader title="Painel do Técnico"
-      subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
-        <WifiOff size={16} /> Sem internet
-      </span> : undefined} />}
+    {!routeOrderId && (overviewLoading
+      ? <div className="space-y-2 py-1" aria-hidden="true">
+          <Skeleton className="h-7 w-48 max-w-full" />
+          <Skeleton className="h-3.5 w-72 max-w-full" />
+        </div>
+      : <PageHeader title="Painel do Técnico"
+          subtitle="Ordens de serviço e atividades atribuídas a você."
+          actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+            <WifiOff size={16} /> Sem internet
+          </span> : undefined} />)}
 
     {!routeOrderId ? <>
       {overviewLoading ? <div className="space-y-4">
