@@ -7,7 +7,8 @@ import { AdminButton, AdminCard, AdminIconButton, PageHeader } from "@/shared/ui
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admin/AdminFilterMultiSelect";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import type { CustomerSort } from "../application/useCustomersList";
@@ -90,6 +91,7 @@ export function CustomersList(props: Props) {
       actions={canCreate ? <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar</AdminButton> : undefined}
     />
 
+    {loading ? <AdminWorkspaceSkeleton searchFields={4} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar clientes" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
@@ -108,7 +110,7 @@ export function CustomersList(props: Props) {
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {loading ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." onAdd={canCreate && totalItems === 0 ? onCreate : undefined} addLabel="Cadastrar Cliente" /> : <>
+      {filtered.length === 0 ? <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." onAdd={canCreate && totalItems === 0 ? onCreate : undefined} addLabel="Cadastrar Cliente" /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{pagedCustomers.map(customer => <article key={customer.id} role="button" tabIndex={0} onClick={() => onOpenDetail(customer)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(customer); } }} className="min-w-0 p-4 transition-colors active:bg-[#f5f7fa]">
           <div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0 flex-1">{showName && <p className="truncate text-sm font-bold text-[#0d1b2e]">{customer.full_name || "—"}</p>}{showDocument && <p className="mt-1 font-mono text-[11px] text-[#5a6a82]"><span className="font-bold text-[#0057e7]">{customer.customer_type === "PJ" ? "PJ" : "PF"}</span> · {customerDocument(customer)}</p>}</div>{showCreatedAt && <span className="shrink-0 text-[10px] font-medium text-[#8a96a8]">{formatDateOnly(customer.created_at, "—")}</span>}</div>
           <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-xs xs:grid-cols-2">{showWhatsapp && <Info label="WhatsApp" value={formatPhone(customer.whatsapp) || "—"} />}{showEmail && <Info label="E-mail" value={customer.email || "—"} />}</div>
@@ -118,6 +120,7 @@ export function CustomersList(props: Props) {
       </>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={nextPageSize => { onPageSizeChange(nextPageSize); onPageChange(1); }} />
     </AdminCard>
+    </>}
   </>;
 }
 
