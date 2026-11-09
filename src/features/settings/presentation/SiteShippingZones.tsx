@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -231,6 +232,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
   };
 
   return <div className="min-w-0 space-y-4">
+    {loading ? <AdminWorkspaceSkeleton searchFields={4} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar áreas de entrega" headerActions={<>
       {(search || statusFilter !== "all" || sortOrder !== "asc") && <AdminSearchClearButton onClick={resetFilters} />}
       <AdminSearchSortMenu value={sortOrder} onChange={value => { setSortOrder(value); setPage(1); }}
@@ -275,8 +277,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
         <span>{error}</span>
         <AdminButton size="sm" variant="secondary" onClick={() => void refresh(true)}>Tentar novamente</AdminButton>
       </div>}
-      {loading ? <LoadingState text="Carregando áreas de entrega..." /> :
-        rows.length === 0 ? <EmptyState icon={MapPin}
+      {rows.length === 0 ? <EmptyState icon={MapPin}
           title={items.length === 0 ? "Nenhuma área de entrega cadastrada" : "Nenhuma regra encontrada"}
           message={items.length === 0 ? "Cadastre os CEPs e faixas atendidos para disponibilizar a entrega na loja." : "Altere os filtros para encontrar outras regras."} /> :
         <div className="min-w-0 overflow-x-auto"><TopTableScrollbar />
@@ -312,9 +313,10 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
             </tr>)}</tbody>
           </table>
         </div>}
-      {!loading && <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
+      {<PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />}
     </AdminCard>
+    </>}
 
     <AdminStickyToolbar className="mt-4 justify-between">
       <BtnSecondary onClick={onBack} disabled={saving}>Voltar</BtnSecondary>
