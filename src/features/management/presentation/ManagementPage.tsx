@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -398,7 +399,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           </button>)}
           {!searchLoading&&!searchResults.length&&<p className="py-3 text-center text-xs text-muted-foreground">Nenhum registro encontrado.</p>}
         </div>}
-        {loading || contentLoading ? <LoadingState text="Carregando Central de Gestão..."/> : !selectedSpace ? <>
+        {loading || contentLoading ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : !selectedSpace ? <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
           <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {spaces.map(space=>
