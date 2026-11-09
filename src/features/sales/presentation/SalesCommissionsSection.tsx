@@ -6,7 +6,7 @@ import { BadgeCheck, CalendarClock, Wallet } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton,AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import {
   approveSalesCommission,listApprovedSalesCommissions,type SalesSellerMetric,
 } from "../infrastructure/sales-operations.repository";
