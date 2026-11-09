@@ -77,7 +77,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
   return debounced;
 }
 
-export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry, newEntrySignal = 0 }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void; newEntrySignal?: number }) {
+export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry, newEntrySignal = 0, onInitialReady }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void; newEntrySignal?: number; onInitialReady?: () => void }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const foundation = useFinanceFoundation();
   const [operationalFilter, setOperationalFilter] = useState("pending");
@@ -294,6 +294,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     await finance.adjustInstallmentMutation.mutateAsync({ entryId, installmentId, newAmount, reason });
     await finance.detailQuery.refetch();
   };
+
+  useEffect(() => {
+    if (!finance.entriesQuery.isPending && !foundation.accountsQuery.isPending && (entryType !== "receivable" || !creatorsQuery.isPending) && (entryType === "receivable" || !recurring.rulesQuery.isFetching)) onInitialReady?.();
+  }, [onInitialReady, finance.entriesQuery.isPending, foundation.accountsQuery.isPending, creatorsQuery.isPending, recurring.rulesQuery.isFetching, entryType]);
 
   const pagination = <PaginationBar
     page={page} pageSize={pageSize} totalItems={totalItems}
