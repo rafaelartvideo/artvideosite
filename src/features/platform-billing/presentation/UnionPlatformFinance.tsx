@@ -16,7 +16,7 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { SubscriptionConfiguration } from "./SubscriptionConfiguration";
 import { UnionSubscriptionUsageOverview } from "./UnionSubscriptionUsageOverview";
 import {
