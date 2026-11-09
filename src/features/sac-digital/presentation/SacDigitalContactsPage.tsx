@@ -91,6 +91,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
     queryFn: () => listSacDigitalContactsPage(organizationId, term, page, pageSize, sort),
     enabled: Boolean(organizationId && canView),
     staleTime: 30_000,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === organizationId ? previous : undefined,
   });
   const items = query.data?.items || [];
   const total = query.data?.total || 0;
