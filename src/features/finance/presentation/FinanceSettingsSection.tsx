@@ -1,7 +1,8 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 
@@ -35,9 +36,9 @@ export function FinanceSettingsSection({ modalOpen = false, onModalClose }: { mo
   if (loading) return modalOpen
     ? <AdminDialog open onClose={() => { if (!finance.saveSettings.isPending) onModalClose?.(); }}
         title="Configurações financeiras" className="w-[calc(100vw-1.5rem)] max-w-3xl">
-        <LoadingState text="Carregando configurações..." />
+        <AdminWorkspaceSkeleton variant="details" columns={4} rows={3} />
       </AdminDialog>
-    : <AdminCard className="p-8"><LoadingState /></AdminCard>;
+    : <AdminWorkspaceSkeleton variant="details" columns={4} rows={3} />;
 
   const error = finance.settingsQuery.error || finance.categoriesQuery.error;
   const revenueOptions = [{ value: "", label: "Nenhuma categoria padrão" }, ...categories.filter(item => item.is_active && item.nature === "revenue").map(item => ({ value: item.id, label: item.name }))];
