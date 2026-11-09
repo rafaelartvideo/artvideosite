@@ -427,9 +427,19 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         if(!response.ok){status="cdn_http_"+response.status;break;}
         const declared=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
         const len=Number(response.headers.get("content-length")||0);
-        if(len && len>200000)break;
-        const bytes=Buffer.from(await response.arrayBuffer());
-        if(!bytes.length || bytes.length>200000)break;
+        if(len && len>200000){await response.body?.cancel().catch(()=>{});break;}
+        // Some CDNs omit Content-Length: enforce the 200 kB limit while
+        // streaming, before a large body can occupy memory on the VPS.
+        if(!response.body)break;
+        const chunks=[];
+        let received=0;
+        for await (const chunk of response.body) {
+          received+=chunk.length;
+          if(received>200000)break;
+          chunks.push(Buffer.from(chunk));
+        }
+        if(!received || received>200000)break;
+        const bytes=Buffer.concat(chunks,received);
         const detected=bytes[0]===255 && bytes[1]===216?"image/jpeg":
           bytes[0]===137 && bytes[1]===80 && bytes[2]===78?"image/png":
           bytes.toString("ascii",0,4)==="RIFF" &&
