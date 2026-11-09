@@ -24,6 +24,11 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+// Photo lookups are only for contacts currently displayed, never the imported
+// address book. Refresh lazily to notice profile-photo/privacy changes.
+const AVATAR_FOUND_REFRESH_MS=60*60*1000;
+const AVATAR_MISSING_REFRESH_MS=15*60*1000;
+const AVATAR_ERROR_RETRY_MS=5*60*1000;
 const hasForwarding=(item:UnionWhatsAppConversation)=>
   Boolean(item.forwarded_at && item.status!=="finished" && item.status!=="abandoned");
 const queueOnly=(item:UnionWhatsAppConversation)=>item.status==="waiting" && !hasForwarding(item);
@@ -342,6 +347,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
 
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
+  const avatarCheckedAtRef=useRef(new Map<string,number>());
+  const avatarRequestsRef=useRef(new Set<string>());
+  const avatarScopeGenerationRef=useRef(0);
+  const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
   const messageIdentity = useRef(0);
 
@@ -465,6 +474,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setProtocolFilter(null);
     setProtocolsOpen(false);
     setProtocols([]);
+    avatarScopeGenerationRef.current++;
+    avatarCheckedAtRef.current.clear();
+    avatarRequestsRef.current.clear();
     setAvatars({});
     setLinkedCustomers({});
     setSelectedId(null);
@@ -503,6 +515,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
     setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
     setMessages([]);setSelectedId(null);setSelectedFallback(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
+    avatarScopeGenerationRef.current++;
+    avatarCheckedAtRef.current.clear();
+    avatarRequestsRef.current.clear();
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setNewConversationOpen(false);
@@ -690,19 +705,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return ()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
-  useEffect(() => {
-    if(!selectedId || !activeOrganizationId || !canView || channelReady!==true ||
-      Object.prototype.hasOwnProperty.call(avatars,selectedId)) return;
-    let cancelled=false;
-    const org=activeOrganizationId;
-    void operateUnionWhatsAppInbox(org,selectedId,"contact_avatar")
-      .then(result=>{
-        if(cancelled || organizationRef.current!==org) return;
-        setAvatars(old=>({...old,[selectedId]:result.avatar_url||null}));
-      }).catch(()=>{if(!cancelled) setAvatars(old=>({...old,[selectedId]:null}));});
-    return()=>{cancelled=true;};
-  },[selectedId,activeOrganizationId,canView,channelReady,avatars]);
-  useEffect(() => {
+   useEffect(() => {
     if(!onOpenCustomer || !hasPermission("customers.view") || !selectedId ||
        !activeOrganizationId || channelReady!==true ||
        Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
@@ -821,33 +824,64 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </span>;
   };
 
-  // Fetch photo previews for the first visible rows, in small batches so
-  // scrolling and messaging never wait for WhatsApp profile requests.
-  // Always prioritize the open conversation, including those not in the
-  // first 12 visible rows or from a previously selected filter.
+  // A lightweight timer (and tab focus) only re-checks timestamps; it never
+  // downloads photos by itself. Background tabs do not start new lookups.
+  useEffect(()=>{
+    const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
+    const timer=window.setInterval(wake,5*60*1000);
+    window.addEventListener("focus",wake);
+    document.addEventListener("visibilitychange",wake);
+    return()=>{
+      window.clearInterval(timer);
+      window.removeEventListener("focus",wake);
+      document.removeEventListener("visibilitychange",wake);
+    };
+  },[]);
+
+  // Selected conversation first, then a small visible subset. Keep old photos
+  // while refreshing to avoid flicker; never scan the imported contacts.
   const previewIds=[...new Set([selectedId,...visible.slice(0,12).map(item=>item.id)]
     .filter((id):id is string=>Boolean(id)))].join(",");
-  const avatarRequestsRef=useRef(new Set<string>());
   useEffect(()=>{
-    if(!activeOrganizationId || channelReady!==true || !previewIds)return;
-    const toLoad=previewIds.split(",")
-      .filter(id=>id && !Object.prototype.hasOwnProperty.call(avatars,id) &&
-        !avatarRequestsRef.current.has(id))
-      .slice(0,3);
+    if(!activeOrganizationId || !activeChannelId || !activeChannelPhone ||
+       channelReady!==true || !canView || !previewIds || document.visibilityState==="hidden")return;
+    const now=Date.now();
+    const toLoad=previewIds.split(",").filter(id=>{
+      if(!id || avatarRequestsRef.current.has(id))return false;
+      const checked=avatarCheckedAtRef.current.get(id);
+      if(!Object.prototype.hasOwnProperty.call(avatars,id) || checked===undefined)return true;
+      const ttl=avatars[id]?AVATAR_FOUND_REFRESH_MS:AVATAR_MISSING_REFRESH_MS;
+      return now-checked>=ttl;
+    }).slice(0,Math.max(0,3-avatarRequestsRef.current.size));
     if(!toLoad.length)return;
     const org=activeOrganizationId;
+    const generation=avatarScopeGenerationRef.current;
     for(const id of toLoad){
       avatarRequestsRef.current.add(id);
       void operateUnionWhatsAppInbox(org,id,"contact_avatar")
         .then(result=>{
-          if(organizationRef.current===org)setAvatars(old=>({...old,[id]:result.avatar_url||null}));
+          if(avatarScopeGenerationRef.current!==generation)return;
+          avatarCheckedAtRef.current.set(id,Date.now());
+          const value=result.avatar_url||null;
+          setAvatars(old=>Object.prototype.hasOwnProperty.call(old,id) && old[id]===value
+            ?old:{...old,[id]:value});
         })
         .catch(()=>{
-          if(organizationRef.current===org)setAvatars(old=>({...old,[id]:null}));
+          if(avatarScopeGenerationRef.current!==generation)return;
+          // Transient network failure: keep a previously loaded photo and
+          // retry in five minutes rather than permanently caching an error.
+          const ttl=avatars[id]?AVATAR_FOUND_REFRESH_MS:AVATAR_MISSING_REFRESH_MS;
+          avatarCheckedAtRef.current.set(id,Date.now()-(ttl-AVATAR_ERROR_RETRY_MS));
+          setAvatars(old=>Object.prototype.hasOwnProperty.call(old,id)?old:{...old,[id]:null});
         })
-        .finally(()=>avatarRequestsRef.current.delete(id));
+        .finally(()=>{
+          if(avatarScopeGenerationRef.current!==generation)return;
+          avatarRequestsRef.current.delete(id);
+          // Pump the next visible batch after a slot becomes free.
+          setAvatarRefreshTick(t=>t+1);
+        });
     }
-  },[activeOrganizationId,channelReady,previewIds,avatars]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,canView,channelReady,previewIds,avatars,avatarRefreshTick]);
 
   const loadDepartments = async () => {
     if(!activeOrganizationId) return [];
@@ -1530,7 +1564,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
                 className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
-                  onError={()=>setAvatars(old=>({...old,[item.id]:null}))}/>
+                  onError={()=>{avatarCheckedAtRef.current.set(item.id,Date.now());setAvatars(old=>({...old,[item.id]:null}));}}/>
                 <span className="min-w-0 flex-1">
                   <span className="flex justify-between gap-2">
                     <span className="truncate text-sm font-black text-foreground">{name}</span>
@@ -1597,7 +1631,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 }} aria-label={embedded ? "Voltar ao Painel do Técnico" : "Voltar para conversas"}
                 className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
-                src={avatars[selected.id]} onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/>
+                src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>({...old,[selected.id]:null}));}}/>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
