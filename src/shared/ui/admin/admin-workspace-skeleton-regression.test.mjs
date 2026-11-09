@@ -76,7 +76,8 @@ test("Home cobre saudação, avisos, tarefas e atividade em um único loading in
   assert.match(page,/announcementsQuery\.isPending && !announcementsQuery\.data/);
   assert.match(page,/activityQuery\.isPending && !activityQuery\.data/);
   assert.match(page,/canViewWorkItems && workItemsQuery\.isPending && !workItemsQuery\.data/);
-  assert.match(page,/if \(initialLoading\) return <AdminOverviewPageSkeleton variant="home"/);
+  assert.match(page,/\{initialLoading \? <AdminOverviewPageSkeleton variant="home" contentOnly/);
+  assert.ok(page.indexOf('className="overflow-hidden rounded-2xl border border-border bg-card"') < page.indexOf('{initialLoading ? <AdminOverviewPageSkeleton'));
   assert.match(skeleton,/variant === "home"/);
   assert.match(skeleton,/role="status" aria-label="Carregando página e indicadores"/);
   assert.doesNotMatch(skeleton, /<h1|<h2|<input|<thead|<th>/);
@@ -89,9 +90,10 @@ test("Dashboard não deixa navegação nem subseções fora do skeleton inicial"
   assert.match(dashboard,/const dashboardInitialLoading = authLoading/);
   assert.match(dashboard,/ordersSummaryQuery\.isPending && !ordersSummaryQuery\.data/);
   assert.match(dashboard,/inventoryPurchasesQuery\.isPending && !inventoryPurchasesQuery\.data/);
-  assert.match(dashboard,/if \(dashboardInitialLoading\) return <AdminOverviewPageSkeleton variant="dashboard"/);
+  assert.match(dashboard,/\{dashboardInitialLoading \? <AdminOverviewPageSkeleton variant="dashboard" contentOnly/);
+  assert.ok(dashboard.indexOf('<DashboardModuleNav items={modules}') < dashboard.indexOf('{dashboardInitialLoading ? <AdminOverviewPageSkeleton'));
   assert.match(platform,/if \(query\.isPending && !query\.data\) return <AdminOverviewPageSkeleton variant="dashboard" tabs=\{0\}/);
-  assert.match(read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx"),/tabCount > 0 && <div/);
+  assert.match(read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx"),/!contentOnly && tabCount > 0 && <div/);
 });
 
 test("Financeiro só libera cabeçalho, subseções e indicadores depois dos totais e da seção ativa", () => {
@@ -102,7 +104,8 @@ test("Financeiro só libera cabeçalho, subseções e indicadores depois dos tot
     assert.ok(finance.includes(query + ".isPending"),query);
   }
   assert.match(finance,/readyScopes\[scope\]/);
-  assert.match(finance,/initialLoading \? <AdminOverviewPageSkeleton variant="finance"/);
+  assert.match(finance,/initialLoading && <AdminOverviewPageSkeleton variant="finance" contentOnly/);
+  assert.ok(finance.indexOf('<FinanceSectionTabs section={section}') < finance.indexOf('{initialLoading && <AdminOverviewPageSkeleton'));
   assert.match(finance,/className=\{initialLoading \? "hidden" : "contents"\}/);
   assert.match(finance,/counts=\{tabCounts\} countErrors=\{countErrors\}/);
   assert.match(tabs,/Contagem indisponível/);
@@ -173,8 +176,9 @@ test("Serviços Gerais e Tipos de Atendimento cobrem todo o módulo com skeleton
   const shared = read("src/shared/ui/admin/AdminWorkspaceSkeleton.tsx");
 
   for (const source of [general, serviceTypes]) {
-    assert.match(source, /!routeResourceId && \(loading && canViewTable \? <AdminWorkspaceSkeleton/);
-    assert.match(source, /pageHeader/);
+    assert.match(source, /!routeResourceId && <>/);
+    assert.match(source, /\{loading && canViewTable \? <AdminWorkspaceSkeleton stickyToolbar/);
+    assert.doesNotMatch(source, /<AdminWorkspaceSkeleton pageHeader/);
     assert.match(source, /stickyToolbar columns=\{skeletonColumns\} rows=\{pageSize\}/);
     assert.match(source, /const skeletonColumns = \[[^\]]+\]\.filter\(Boolean\)\.length/);
     assert.match(source, /initialPageSize\(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5\)/);
@@ -182,11 +186,46 @@ test("Serviços Gerais e Tipos de Atendimento cobrem todo o módulo com skeleton
     assert.doesNotMatch(source, /<LoadingState(?:\s|\/|>)/);
     assert.ok((await transformWithEsbuild(source, "AdminRegistryList.tsx", { loader: "tsx" })).code.length > 0);
   }
-  assert.match(general, /<AdminWorkspaceSkeleton pageHeader inlineSearch stickyToolbar/);
-  assert.match(serviceTypes, /<AdminWorkspaceSkeleton pageHeader stickyToolbar/);
+  assert.match(general, /<AdminWorkspaceSkeleton stickyToolbar columns=\{skeletonColumns\}/);
+  assert.match(serviceTypes, /<AdminWorkspaceSkeleton stickyToolbar columns=\{skeletonColumns\}/);
+  assert.ok(general.indexOf('<PageHeader title="Serviços Gerais"') < general.indexOf('{loading && canViewTable ? <AdminWorkspaceSkeleton'));
+  assert.ok(serviceTypes.indexOf('<PageHeader title="Tipos de Atendimento"') < serviceTypes.indexOf('{loading && canViewTable ? <AdminWorkspaceSkeleton'));
   assert.match(shared, /\{pageHeader && <div/);
   assert.match(shared, /\{inlineSearch && <Skeleton/);
   assert.match(shared, /\{stickyToolbar && <div/);
   assert.match(shared, /rowIndices\.map/);
   assert.match(shared, /columnIndices\.map/);
+});
+
+
+test("Termos/Garantia mantém título real e carrega só os painéis inferiores", async () => {
+  const terms = read("src/features/terms/presentation/TabTerms.tsx");
+  assert.match(terms, /\{loading \? <AdminWorkspaceSkeleton variant="table" rows=\{2\} columns=\{6\} extraDetails stickyToolbar/);
+  assert.ok(terms.indexOf('title="Termos/Garantia"') < terms.indexOf('{loading ? <AdminWorkspaceSkeleton'));
+  assert.doesNotMatch(terms, /if \(loading\) return <AdminWorkspaceSkeleton/);
+  assert.ok((await transformWithEsbuild(terms, "TabTerms.tsx", { loader: "tsx" })).code.length > 0);
+});
+
+test("Painel do Técnico só libera resumo quando tarefas, agenda e conversas estão prontos", async () => {
+  const panel = read("src/features/technician-panel/presentation/TechnicianPanel.tsx");
+  assert.match(panel, /const overviewLoading = !routeOrderId &&/);
+  assert.match(panel, /employeeLookupScope !== panelScope/);
+  assert.match(panel, /myConversationsScope !== panelScope/);
+  assert.match(panel, /agendaCountQuery\.isPending && !agendaCountQuery\.data/);
+  assert.match(panel, /overviewLoading \? <div className="space-y-4">/);
+  assert.match(panel, /Array\.from\(\{ length: 2 \}/);
+  assert.match(panel, /Array\.from\(\{ length: 3 \}/);
+  assert.match(panel, /<AdminWorkspaceSkeleton searchFields=\{6\} columns=\{5\} rows=\{initialTableSize\}/);
+  assert.match(panel, /<TechnicianOrdersTable orders=\{assignedOrders\} loading=\{false\}/);
+  assert.ok((await transformWithEsbuild(panel, "TechnicianPanel.tsx", { loader: "tsx" })).code.length > 0);
+});
+
+test("Concluir OS exibe apenas Payments verde sem bolinha e seta", async () => {
+  const button = read("src/features/orders/presentation/OrderConclusionButton.tsx");
+  assert.match(button, /function PaymentsIcon\(\)/);
+  assert.match(button, /viewBox="0 0 24 24"/);
+  assert.match(button, /text-\[#059669\]/);
+  assert.doesNotMatch(button, /ArrowRight|border-\[3px\]|bg-\[#059669\]/);
+  assert.match(button, /<PaymentsIcon \/>/);
+  assert.ok((await transformWithEsbuild(button, "OrderConclusionButton.tsx", { loader: "tsx" })).code.length > 0);
 });
