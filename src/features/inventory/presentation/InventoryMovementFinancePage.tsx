@@ -8,7 +8,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { recordInventoryPurchaseWithFinance } from "../infrastructure/inventory-finance.repository";
 import {
   getInventoryItem,
@@ -19,6 +19,7 @@ import {
 type Props = {
   itemId: string;
   onClose: () => void;
+  embedded?: boolean;
 };
 
 type MovementType = "in" | "out" | "adjust";
@@ -72,7 +73,7 @@ function unitLabel(unit?: string | null) {
   return unit === "cx" ? "cx" : "un";
 }
 
-export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
+export function InventoryMovementFinancePage({ itemId, onClose, embedded = false }: Props) {
   const { activeOrganizationId, hasPermission, hasModule } = useAuth();
   const organizationId = activeOrganizationId || "";
   const queryClient = useQueryClient();
@@ -202,6 +203,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
         });
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
           queryClient.invalidateQueries({ queryKey: queryKeys.finance.all }),
         ]);
         onClose();
@@ -221,7 +223,10 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
         movement_origin: movementType === "IN" ? "purchase" : "manual",
         notes: form.notes.trim() || null,
       }, organizationId);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
+      ]);
       onClose();
     } catch (error) {
       setToast({ msg: `Erro na movimentação: ${systemErrorMessage(error)}`, type: "error" });
@@ -234,14 +239,7 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
   if (dataQuery.isLoading) return <AdminCard className="p-8"><LoadingState text="Carregando item do estoque..." /></AdminCard>;
   if (dataQuery.error || !item) return <AdminCard className="p-6"><EmptyState icon={Package} title="Item não encontrado" message="Não foi possível carregar este item." /></AdminCard>;
 
-  return <AdminPage
-    open
-    onClose={onClose}
-    breadcrumb="Estoque"
-    title={`Movimentação — ${item.name}`}
-    subtitle={financeEnabled ? "Compras geram pré-lançamentos pendentes no Financeiro; saídas e ajustes permanecem operacionais." : "Registre compras, saídas e ajustes com histórico completo."}
-    maxW="max-w-3xl"
-  >
+  const content = <>
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <div className="space-y-5 p-4 sm:p-5">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -291,9 +289,15 @@ export function InventoryMovementFinancePage({ itemId, onClose }: Props) {
       <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
       {form.type !== "in" && <FInput label="OS relacionada (opcional)" value={form.service_order_id} onChange={(event: any) => setForm(current => ({ ...current, service_order_id: event.target.value }))} />}
     </div>
-    <AdminStickyToolbar className="justify-end">
-      <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+    <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">
+      <BtnSecondary onClick={onClose} disabled={saving}>{embedded ? "Voltar aos detalhes" : "Cancelar"}</BtnSecondary>
       <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando...">Registrar</BtnPrimary>
-    </AdminStickyToolbar>
-  </AdminPage>;
+    </div>
+  </>;
+
+  if (embedded) return <div className="space-y-1">{content}</div>;
+  return <AdminPage open onClose={onClose} breadcrumb="Estoque"
+    title={`Movimentação — ${item.name}`}
+    subtitle={financeEnabled ? "Compras geram pré-lançamentos pendentes no Financeiro; saídas e ajustes permanecem operacionais." : "Registre compras, saídas e ajustes com histórico completo."}
+    maxW="max-w-3xl">{content}</AdminPage>;
 }
