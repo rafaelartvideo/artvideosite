@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
@@ -1240,7 +1241,7 @@ export function TabProducts({
         actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null}
       />
 
-      {canViewTable && <AdminSearchPanel title="Buscar no estoque" headerActions={<>
+      {canViewTable && (loading ? <AdminWorkspaceSkeleton searchFields={4} columns={10} rows={pageSize} /> : <><AdminSearchPanel title="Buscar no estoque" headerActions={<>
         {(hasInventoryFilters || inventorySort !== "name_asc") && <AdminSearchClearButton onClick={() => {
           setNameSearch(""); setGtinSearch(""); setCategoryFilter(""); setLocationSearch("");
           setInventorySort("name_asc"); setPage(1);
@@ -1314,10 +1315,10 @@ export function TabProducts({
             placeholder="Estante, nível ou compartimento"
           />
         </div>
-      </AdminSearchPanel>}
+      </AdminSearchPanel>
 
-      {canViewTable && <AdminCard>
-        {loading ? <LoadingState /> : filtered.length === 0 ? (
+      <AdminCard>
+        {filtered.length === 0 ? (
           <EmptyState
             icon={Package}
             title={hasInventoryFilters ? "Nenhum resultado" : "Nenhum item cadastrado"}
@@ -1437,7 +1438,7 @@ export function TabProducts({
           onPageChange={nextPage => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
           onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
         />
-      </AdminCard>}
+      </AdminCard></>)}
     </>}
 
     {routeResourceId && !drawerOpen && !closingEditorRouteRef.current && (
