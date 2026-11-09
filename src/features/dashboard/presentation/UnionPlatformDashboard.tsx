@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -137,7 +138,7 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
       subtitle="Visão geral da operação da Union World, empresas parceiras, monitoramento e assinaturas."
     />
 
-    {query.isPending ? <LoadingState text="Carregando indicadores da Union..." /> : query.isError || !data || !metrics ? (
+    {query.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : query.isError || !data || !metrics ? (
       <AdminCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <div>
