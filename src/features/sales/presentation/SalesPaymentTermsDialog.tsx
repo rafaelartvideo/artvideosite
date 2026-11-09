@@ -1,4 +1,4 @@
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { INPUT, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Plus, Trash2 } from "lucide-react";
@@ -68,10 +68,9 @@ export function SalesPaymentTermsDialog({organizationId,onClose}:{
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1 text-xs font-semibold"><span>Parcelas</span>
-            <select value={count} onChange={e=>setCount(Number(e.target.value))}
-              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}>
-              {Array.from({length:12},(_,i)=>i+1).map(v=><option key={v} value={v}>{v}x</option>)}
-            </select>
+            <AdminSelect value={count} onValueChange={value=>setCount(Number(value))}
+              options={Array.from({length:12},(_,i)=>i+1).map(v=>({value:v,label:v+"x"}))}
+              ariaLabel="Parcelas" className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Primeiro vencimento (dias)</span>
             <input type="number" min={0} max={365} step={1} value={days}
