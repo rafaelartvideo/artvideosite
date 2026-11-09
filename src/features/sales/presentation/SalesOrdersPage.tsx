@@ -10,7 +10,7 @@ import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminFieldLabel, AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesOrders, type SalesOrderFilters, type SalesOrderListRow } from "../infrastructure/sales-orders.repository";
 import { SalesOrderDetailDialog } from "./SalesOrderDetailDialog";
