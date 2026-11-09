@@ -1,4 +1,4 @@
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { INPUT, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -333,13 +333,12 @@ export function SalesCheckoutDialog({
                   <span className="block text-[11px] font-semibold text-muted-foreground">
                     {index === 0 ? "Forma de pagamento" : "Outra forma"}
                   </span>
-                  <select value={line.paymentMethodId} onChange={event => updatePayment(line.key, {paymentMethodId:event.target.value})}
-                    className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}>
-                    <option value="">Selecione...</option>
-                    {paymentMethods.map(method => <option key={method.id} value={method.id}>
-                      {method.name} · {method.account_name}
-                    </option>)}
-                  </select>
+                  <AdminSelect value={line.paymentMethodId}
+                    onValueChange={value=>updatePayment(line.key,{paymentMethodId:value})}
+                    options={[{value:"",label:"Selecione..."},...paymentMethods.map(method=>({
+                      value:method.id,label:method.name+" · "+method.account_name,
+                    }))]} ariaLabel="Forma de pagamento"
+                    className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
                 </label>
                 <label className="min-w-0 space-y-1">
                   <span className="block text-[11px] font-semibold text-muted-foreground">Valor recebido</span>
@@ -384,17 +383,15 @@ export function SalesCheckoutDialog({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="min-w-[180px] flex-1 space-y-1 text-xs font-semibold">
                 <span>Condição de pagamento pronta</span>
-                <select defaultValue="" onChange={event=>{
-                  const chosen=termsQuery.data?.find(preset=>preset.id===event.target.value);
+                <AdminSelect defaultValue="" onValueChange={value=>{
+                  const chosen=termsQuery.data?.find(preset=>preset.id===value);
                   if(!chosen)return;
                   setInstallmentCount(chosen.installment_count);
                   setFirstDueDate(localDate(chosen.first_due_days));
-                }} className="h-10 w-full rounded-lg border border-border bg-background px-2 text-xs">
-                  <option value="">Personalizar</option>
-                  {(termsQuery.data||[]).map(preset=><option key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </option>)}
-                </select>
+                }} options={[{value:"",label:"Personalizar"},...(termsQuery.data||[]).map(preset=>({
+                  value:preset.id,label:preset.name,
+                }))]} ariaLabel="Condição de pagamento pronta"
+                  className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
               </label>
               {hasPermission("sales.payment_terms.manage")&&
                 <button type="button" onClick={()=>setPaymentTermsOpen(true)}
@@ -409,11 +406,11 @@ export function SalesCheckoutDialog({
             <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
               <label className="space-y-1">
                 <span className="block text-[11px] font-semibold text-muted-foreground">Parcelas</span>
-                <select value={installmentCount} onChange={event=>setInstallmentCount(Number(event.target.value))}
-                  className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}>
-                  {Array.from({length:12},(_,index)=>index+1).map(number=>
-                    <option key={number} value={number}>{number}x</option>)}
-                </select>
+                <AdminSelect value={installmentCount} onValueChange={value=>setInstallmentCount(Number(value))}
+                  options={Array.from({length:12},(_,index)=>index+1).map(number=>({
+                    value:number,label:number+"x",
+                  }))} ariaLabel="Parcelas"
+                  className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
               </label>
               <label className="min-w-0 space-y-1">
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
