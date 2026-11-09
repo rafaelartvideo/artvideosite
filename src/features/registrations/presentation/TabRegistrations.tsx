@@ -763,12 +763,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    {loading ? <AdminWorkspaceSkeleton pageHeader searchFields={6} columns={8} rows={pageSize} /> : <>
     <PageHeader
       title={platformUsersOnly ? "Usuários" : "Cadastros"}
       subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : `${String(registrationsTotal)} cadastros realizados`}
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
-    {loading ? <AdminWorkspaceSkeleton searchFields={6} columns={8} rows={pageSize} /> : <><AdminSearchPanel title={platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"} headerActions={<>
+<AdminSearchPanel title={platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"} headerActions={<>
       {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
       <AdminSearchSortMenu value={sortOrder} onChange={setSortOrder}
         options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
