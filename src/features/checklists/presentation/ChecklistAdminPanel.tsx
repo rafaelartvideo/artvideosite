@@ -18,7 +18,7 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import type { ChecklistProfileDraftItem, ChecklistProfileDraftStage, ChecklistStageType } from "../domain/checklist";
