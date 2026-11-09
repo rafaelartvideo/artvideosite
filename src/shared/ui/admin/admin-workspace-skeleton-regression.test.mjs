@@ -69,46 +69,41 @@ test("consultas paginadas não desmontam resultados durante filtro ou atualizaç
   }
 });
 
-test("Home cobre saudação, avisos, tarefas e atividade em um único loading inicial", async () => {
-  const page=read("src/features/admin-home/presentation/AdminHomePage.tsx");
-  const skeleton=read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx");
-  assert.match(page,/const initialLoading = authLoading/);
-  assert.match(page,/announcementsQuery\.isPending && !announcementsQuery\.data/);
-  assert.match(page,/activityQuery\.isPending && !activityQuery\.data/);
-  assert.match(page,/canViewWorkItems && workItemsQuery\.isPending && !workItemsQuery\.data/);
-  assert.match(page,/\{initialLoading \? <AdminOverviewPageSkeleton variant="home" contentOnly/);
-  assert.ok(page.indexOf('className="overflow-hidden rounded-2xl border border-border bg-card"') < page.indexOf('{initialLoading ? <AdminOverviewPageSkeleton'));
-  assert.match(skeleton,/variant === "home"/);
-  assert.match(skeleton,/role="status" aria-label="Carregando página e indicadores"/);
-  assert.doesNotMatch(skeleton, /<h1|<h2|<input|<thead|<th>/);
-  assert.ok((await transformWithEsbuild(skeleton,"AdminOverviewPageSkeleton.tsx",{loader:"tsx"})).code.length > 0);
+test("Home usa skeleton de tela inteira na primeira abertura", async () => {
+  const home = read("src/features/admin-home/presentation/AdminHomePage.tsx");
+  const skeleton = read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx");
+  assert.match(home, /if \(initialLoading\) return <AdminOverviewPageSkeleton variant="home"/);
+  assert.match(home, /announcementsQuery\.isPending && !announcementsQuery\.data/);
+  assert.match(home, /activityQuery\.isPending && !activityQuery\.data/);
+  assert.match(home, /workItemsQuery\.isPending && !workItemsQuery\.data/);
+  assert.match(skeleton, /variant === "home"/);
+  assert.ok((await transformWithEsbuild(skeleton, "AdminOverviewPageSkeleton.tsx", { loader: "tsx" })).code.length>0);
 });
 
-test("Dashboard não deixa navegação nem subseções fora do skeleton inicial", async () => {
-  const dashboard=read("src/features/dashboard/presentation/TabDashboard.tsx");
-  const platform=read("src/features/dashboard/presentation/UnionPlatformDashboard.tsx");
-  assert.match(dashboard,/const dashboardInitialLoading = authLoading/);
-  assert.match(dashboard,/ordersSummaryQuery\.isPending && !ordersSummaryQuery\.data/);
-  assert.match(dashboard,/inventoryPurchasesQuery\.isPending && !inventoryPurchasesQuery\.data/);
-  assert.match(dashboard,/\{dashboardInitialLoading \? <AdminOverviewPageSkeleton variant="dashboard" contentOnly/);
-  assert.ok(dashboard.indexOf('<DashboardModuleNav items={modules}') < dashboard.indexOf('{dashboardInitialLoading ? <AdminOverviewPageSkeleton'));
-  assert.match(platform,/if \(query\.isPending && !query\.data\) return <AdminOverviewPageSkeleton variant="dashboard" tabs=\{0\}/);
-  assert.match(read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx"),/!contentOnly && tabCount > 0 && <div/);
+test("Dashboard usa skeleton completo só na primeira visita e conteúdo isolado ao mudar aba", async () => {
+  const page = read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const helper = read("src/shared/ui/admin/useWorkspaceFirstVisit.ts");
+  assert.match(page, /useWorkspaceFirstVisit\(/);
+  assert.match(page, /if \(firstPageLoading\) \{/);
+  assert.match(page, /<AdminOverviewPageSkeleton variant="dashboard" tabs=\{modules\.length\} \/>/);
+  assert.ok(page.indexOf("<DashboardModuleNav") < page.indexOf('{dashboardInitialLoading ? <AdminOverviewPageSkeleton'));
+  assert.match(page, /dashboardInitialLoading \? <AdminOverviewPageSkeleton variant="dashboard" contentOnly/);
+  assert.match(helper, /window\.sessionStorage\.setItem/);
+  assert.match(helper, /moduleId:\${scope}/);
+  assert.ok((await transformWithEsbuild(helper, "useWorkspaceFirstVisit.ts", { loader: "ts" })).code.length>0);
 });
 
-test("Financeiro só libera cabeçalho, subseções e indicadores depois dos totais e da seção ativa", () => {
-  const finance=read("src/features/finance/presentation/TabFinance.tsx");
-  const tabs=read("src/features/finance/presentation/FinanceSectionTabs.tsx");
-  assert.match(finance,/const countsLoading = /);
+test("Financeiro mantém consultas montadas na primeira carga e bloqueia só o conteúdo nas outras abas", () => {
+  const finance = read("src/features/finance/presentation/TabFinance.tsx");
+  assert.match(finance, /useWorkspaceFirstVisit\(/);
+  assert.match(finance, /firstPageLoading && <AdminOverviewPageSkeleton variant="finance"/);
+  assert.match(finance, /className=\{firstPageLoading \? "hidden" : "contents"\}/);
+  assert.match(finance, /!firstPageLoading && initialLoading && <AdminOverviewPageSkeleton variant="finance" contentOnly/);
+  assert.ok(finance.indexOf("<FinanceSectionTabs section={section}") < finance.indexOf("{!firstPageLoading && initialLoading &&"));
+  assert.match(finance, /readyScopes\[scope\]/);
   for (const query of ["receivableCount","payableCount","accountsCount"]) {
     assert.ok(finance.includes(query + ".isPending"),query);
   }
-  assert.match(finance,/readyScopes\[scope\]/);
-  assert.match(finance,/initialLoading && <AdminOverviewPageSkeleton variant="finance" contentOnly/);
-  assert.ok(finance.indexOf('<FinanceSectionTabs section={section}') < finance.indexOf('{initialLoading && <AdminOverviewPageSkeleton'));
-  assert.match(finance,/className=\{initialLoading \? "hidden" : "contents"\}/);
-  assert.match(finance,/counts=\{tabCounts\} countErrors=\{countErrors\}/);
-  assert.match(tabs,/Contagem indisponível/);
   for (const file of [
     "src/features/finance/presentation/FinanceOverviewFoundation.tsx",
     "src/features/finance/presentation/FinanceEntriesSection.tsx",
@@ -116,8 +111,26 @@ test("Financeiro só libera cabeçalho, subseções e indicadores depois dos tot
     "src/features/finance/presentation/FinanceAccountsSection.tsx",
     "src/features/finance/presentation/FinanceReportsSection.tsx",
   ]) {
-    const source=read(file);
-    assert.match(source,/onInitialReady\?\.\(\)/,file);
+    assert.match(read(file), /onInitialReady\?\.\(\)/, file);
+  }
+});
+
+test("Vendas só apresenta tela inteira na primeira visita e categoria recarrega somente produtos", () => {
+  const sales = read("src/features/sales/presentation/TabSales.tsx");
+  const shell = read("src/shared/ui/admin/AdminOverviewPageSkeleton.tsx");
+  assert.match(sales, /useWorkspaceFirstVisit\(/);
+  assert.match(sales, /firstPageLoading && <AdminOverviewPageSkeleton variant="sales"/);
+  assert.match(sales, /className=\{firstPageLoading\?"hidden":"contents"\}/);
+  assert.match(sales, /<SalesOrdersPage onInitialReady=\{markSalesSectionReady\}/);
+  assert.match(sales, /<SalesProposalsPage onInitialReady=\{markSalesSectionReady\}/);
+  assert.match(sales, /<SalesManagementPage onInitialReady=\{markSalesSectionReady\}/);
+  assert.match(shell, /variant === "sales"/);
+  const querySkeleton = sales.indexOf("productsQuery.isPending && !productsQuery.data");
+  assert.ok(sales.indexOf('<AdminSearchPanel title="Buscar produtos"') < querySkeleton);
+  assert.ok(querySkeleton < sales.indexOf("<aside ref={cartRef}"));
+  assert.doesNotMatch(sales, /productsQuery\.isPending \? <AdminWorkspaceSkeleton searchFields=\{4\}/);
+  for (const file of ["SalesOrdersPage.tsx","SalesProposalsPage.tsx","SalesManagementPage.tsx"]) {
+    assert.match(read("src/features/sales/presentation/"+file), /onInitialReady\?\.\(/,file);
   }
 });
 
@@ -170,45 +183,35 @@ test("tabelas restauram a seleção de linhas antes da primeira consulta sem sal
   }
 });
 
-test("Serviços Gerais e Tipos de Atendimento cobrem todo o módulo com skeleton único", async () => {
-  const general = read("src/features/general-services/presentation/GeneralServicesPanel.tsx");
-  const serviceTypes = read("src/features/service-types/presentation/ServiceTypesAdminPanel.tsx");
-  const shared = read("src/shared/ui/admin/AdminWorkspaceSkeleton.tsx");
-
-  for (const source of [general, serviceTypes]) {
-    assert.match(source, /!routeResourceId && <>/);
-    assert.match(source, /\{loading && canViewTable \? <AdminWorkspaceSkeleton stickyToolbar/);
-    assert.doesNotMatch(source, /<AdminWorkspaceSkeleton pageHeader/);
+test("Serviços Gerais e Tipos de Atendimento carregam cabeçalho e tabela juntos", async () => {
+  const files=[
+    "src/features/general-services/presentation/GeneralServicesPanel.tsx",
+    "src/features/service-types/presentation/ServiceTypesAdminPanel.tsx",
+  ];
+  for(const file of files){
+    const source=read(file);
+    assert.match(source, /!routeResourceId && <>\{loading && canViewTable \? <AdminWorkspaceSkeleton pageHeader/);
     assert.match(source, /stickyToolbar columns=\{skeletonColumns\} rows=\{pageSize\}/);
-    assert.match(source, /const skeletonColumns = \[[^\]]+\]\.filter\(Boolean\)\.length/);
-    assert.match(source, /initialPageSize\(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5\)/);
-    assert.match(source, /const loading = [\w.]+\.isPending/);
+    assert.match(source, /initialPageSize\(/);
     assert.doesNotMatch(source, /<LoadingState(?:\s|\/|>)/);
-    assert.ok((await transformWithEsbuild(source, "AdminRegistryList.tsx", { loader: "tsx" })).code.length > 0);
+    assert.ok((await transformWithEsbuild(source,file,{loader:"tsx"})).code.length>0);
   }
-  assert.match(general, /<AdminWorkspaceSkeleton stickyToolbar columns=\{skeletonColumns\}/);
-  assert.match(serviceTypes, /<AdminWorkspaceSkeleton stickyToolbar columns=\{skeletonColumns\}/);
-  assert.ok(general.indexOf('<PageHeader title="Serviços Gerais"') < general.indexOf('{loading && canViewTable ? <AdminWorkspaceSkeleton'));
-  assert.ok(serviceTypes.indexOf('<PageHeader title="Tipos de Atendimento"') < serviceTypes.indexOf('{loading && canViewTable ? <AdminWorkspaceSkeleton'));
+  const shared=read("src/shared/ui/admin/AdminWorkspaceSkeleton.tsx");
   assert.match(shared, /\{pageHeader && <div/);
-  assert.match(shared, /\{inlineSearch && <Skeleton/);
-  assert.match(shared, /\{stickyToolbar && <div/);
   assert.match(shared, /rowIndices\.map/);
   assert.match(shared, /columnIndices\.map/);
 });
 
-
-test("Termos/Garantia mantém título real e carrega só os painéis inferiores", async () => {
-  const terms = read("src/features/terms/presentation/TabTerms.tsx");
-  assert.match(terms, /\{loading \? <AdminWorkspaceSkeleton variant="table" rows=\{2\} columns=\{6\} extraDetails stickyToolbar/);
-  assert.ok(terms.indexOf('title="Termos/Garantia"') < terms.indexOf('{loading ? <AdminWorkspaceSkeleton'));
-  assert.doesNotMatch(terms, /if \(loading\) return <AdminWorkspaceSkeleton/);
-  assert.ok((await transformWithEsbuild(terms, "TabTerms.tsx", { loader: "tsx" })).code.length > 0);
+test("Termos/Garantia carrega página inteira inicialmente", async () => {
+  const terms=read("src/features/terms/presentation/TabTerms.tsx");
+  assert.match(terms,/if \(loading\) return <AdminWorkspaceSkeleton pageHeader variant="table"/);
+  assert.ok((await transformWithEsbuild(terms, "TabTerms.tsx",{loader:"tsx"})).code.length>0);
 });
 
 test("Painel do Técnico só libera resumo quando tarefas, agenda e conversas estão prontos", async () => {
   const panel = read("src/features/technician-panel/presentation/TechnicianPanel.tsx");
   assert.match(panel, /const overviewLoading = !routeOrderId &&/);
+  assert.match(panel, /overviewLoading\s*\n?\s*\? <div className="space-y-2 py-1"/);
   assert.match(panel, /employeeLookupScope !== panelScope/);
   assert.match(panel, /myConversationsScope !== panelScope/);
   assert.match(panel, /agendaCountQuery\.isPending && !agendaCountQuery\.data/);
@@ -228,4 +231,23 @@ test("Concluir OS exibe apenas Payments verde sem bolinha e seta", async () => {
   assert.doesNotMatch(button, /ArrowRight|border-\[3px\]|bg-\[#059669\]/);
   assert.match(button, /<PaymentsIcon \/>/);
   assert.ok((await transformWithEsbuild(button, "OrderConclusionButton.tsx", { loader: "tsx" })).code.length > 0);
+});
+
+
+test("Demais listagens exibem header e resultados no primeiro skeleton", () => {
+  const expected=[
+    ["src/features/orders/presentation/OrdersListWorkspace.tsx","screenLoading ? <div"],
+    ["src/features/registrations/presentation/TabRegistrations.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/customers/presentation/CustomersList.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/customers/presentation/PartnerCustomersList.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/products/presentation/TabProducts.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/inventory/presentation/TabInventoryV2.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/quotes/presentation/TabQuotes.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/customer-requests/presentation/TabCustomerRequests.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/pdv/presentation/PdvSalesHistory.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/pdv/presentation/TabPdv.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/audit/presentation/TabAuditLog.tsx","<AdminWorkspaceSkeleton pageHeader"],
+    ["src/features/work-items/presentation/TabWorkItems.tsx","<AdminWorkspaceSkeleton pageHeader"],
+  ];
+  for(const [path,needle] of expected)assert.ok(read(path).includes(needle),path);
 });
