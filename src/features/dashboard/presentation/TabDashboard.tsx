@@ -1,5 +1,6 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
+import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
@@ -258,7 +259,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
 }
 
 export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
-  const { activeOrganizationId, activeOrganization, hasPermission, loading: authLoading } = useAuth();
+  const { activeOrganizationId, activeOrganization, user, hasPermission, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
@@ -824,7 +825,17 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           || (activeModule === "inventory" && access.inventory && access.inventoryCosts
             && canViewInventoryMovements && inventoryPurchasesQuery.isPending && !inventoryPurchasesQuery.data)
     ));
-  // O cabeçalho, período e submenu permanecem disponíveis durante a carga inicial.
+  const firstPageLoading = useWorkspaceFirstVisit(
+    "dashboard",
+    activeOrganizationId && user?.id ? `${user.id}:${activeOrganizationId}` : "",
+    !dashboardInitialLoading,
+  );
+
+  if (firstPageLoading) {
+    return <AdminOverviewPageSkeleton variant="dashboard" tabs={modules.length} />;
+  }
+
+  // Depois da primeira abertura, só os indicadores abaixo do submenu carregam.
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
