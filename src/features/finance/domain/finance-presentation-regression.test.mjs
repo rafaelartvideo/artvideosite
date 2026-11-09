@@ -297,7 +297,7 @@ test("OS labels use readable numbers throughout Financeiro", () => {
   assert.match(entries, /formatFinanceOriginLabel/);
   assert.match(movement, /formatFinanceOriginLabel/);
   assert.match(settlement, /financeServiceOrderLabel/);
-  assert.match(sourceBlock, /financeServiceOrderLabel/);
+  assert.match(sourceBlock, /FinanceServiceOrderLink/);
 });
 
 test("finance accounts display personalized, accessible four-column cards with real Pix mark", () => {
@@ -392,4 +392,32 @@ test("finance X does not expand the modal to Resumo before closing in A pagar or
   assert.match(entries, /onClose=\{closeEditor\}/);
   assert.match(entries, /onClose=\{\(\) => \{ if \(!finance\.settlementMutation\.isPending/);
   assert.match(entries, /settlementDialogOpen \|\| editingSelectedEntry/);
+});
+
+test("referências de OS no Financeiro abrem detalhes em nova aba sem interferir nas tabelas", () => {
+  const link = source("FinanceServiceOrderLink.tsx");
+  const entries = source("FinanceEntriesSection.tsx");
+  const detail = source("FinanceEntryDetail.tsx");
+  const sourceBlock = source("FinanceEntrySourceBlock.tsx");
+  const settlements = source("FinanceSettlementPanel.tsx");
+  const receipts = source("FinanceReceiptHistoryDialog.tsx");
+  const receiptForm = source("FinanceReceiptDialog.tsx");
+  const movements = source("FinanceMovementsSection.tsx");
+  const repo = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
+
+  assert.match(link, /adminPath\("orders", id\)/);
+  assert.match(link, /target="_blank"/);
+  assert.match(link, /rel="noopener noreferrer"/);
+  assert.match(link, /hasPermission\("orders.view"\)/);
+  assert.match(link, /event.stopPropagation\(\)/);
+  assert.match(entries, /FinanceServiceOrderLink orderId=\{entry.origin_reference\}/);
+  assert.match(detail, /FinanceServiceOrderLink orderId=\{detail.origin_reference\}/);
+  assert.match(sourceBlock, /FinanceServiceOrderLink orderId=\{detail.origin_reference\}/);
+  assert.match(settlements, /FinanceServiceOrderLink orderId=\{detail.origin_reference\}/);
+  assert.match(receipts, /FinanceServiceOrderLink orderId=\{selected.service_order_id\}/);
+  assert.match(receipts, /FinanceServiceOrderLink orderId=\{receipt.service_order_id\}/);
+  assert.match(receiptForm, /FinanceServiceOrderLink orderId=\{selectedOrder.id\}/);
+  assert.match(movements, /FinanceServiceOrderLink orderId=\{item.origin_order_id\}/);
+  assert.match(repo, /origin_order_id: orderIdBySettlement.get\(item.source_id\)/);
+  assert.match(repo, /\.select\("id,origin_type,origin_reference,source_details"\)/);
 });
