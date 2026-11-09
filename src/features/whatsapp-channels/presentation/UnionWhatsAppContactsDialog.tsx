@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
+import {
+  rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
+  VISIBLE_AVATAR_RETRY_MS,
+} from "../domain/visible-avatar-cache.mjs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
@@ -59,6 +63,11 @@ export function UnionWhatsAppContactsDialog({
   const contactListRequestRef=useRef(0);
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
+  const avatarCheckedAtRef=useRef(new Map<string,number>());
+  const avatarScopeGenerationRef=useRef(0);
+  const selectedJidRef=useRef(selected?.chat_jid||"");
+  selectedJidRef.current=selected?.chat_jid||"";
+  const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
   const listScrollRef=useRef<HTMLDivElement|null>(null);
   const [visibleAvatarJids,setVisibleAvatarJids]=useState<string[]>([]);
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
@@ -78,6 +87,24 @@ export function UnionWhatsAppContactsDialog({
   // A tab closure pauses after the request in flight. Only the SHA-256 and
   // acknowledged item count are persisted in sessionStorage, never contacts.
   useEffect(()=>()=>{importControlRef.current.intent="pause";},[]);
+  useEffect(()=>{
+    avatarScopeGenerationRef.current++;
+    avatarCheckedAtRef.current.clear();
+    avatarRequestsRef.current.clear();
+    setListAvatars({});
+  },[organizationId,channelId,accountPhone]);
+  // Refresh only visible contacts when the tab returns or an avatar TTL expires.
+  useEffect(()=>{
+    const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
+    const timer=window.setInterval(wake,5*60*1000);
+    window.addEventListener("focus",wake);
+    document.addEventListener("visibilitychange",wake);
+    return()=>{
+      window.clearInterval(timer);
+      window.removeEventListener("focus",wake);
+      document.removeEventListener("visibilitychange",wake);
+    };
+  },[]);
   useEffect(()=>{
     if(!importing)return;
     const warnIfLeaving=(event:BeforeUnloadEvent)=>{
@@ -122,7 +149,8 @@ export function UnionWhatsAppContactsDialog({
       if(!canceled){
         setAvatar(result.avatar_url||null);
         setAvatarLoading(false);
-        setListAvatars(old=>({...old,[selected!.chat_jid]:result.avatar_url||null}));
+        avatarCheckedAtRef.current.set(selected!.chat_jid,Date.now());
+        setListAvatars(old=>rememberVisibleAvatar(old,selected!.chat_jid,result.avatar_url||null));
       }
     }).catch(()=>{if(!canceled){setAvatar(null);setAvatarLoading(false);}});
     return()=>{canceled=true;};
@@ -143,24 +171,46 @@ export function UnionWhatsAppContactsDialog({
     return()=>observer.disconnect();
   },[contacts,loading]);
   const previewJids=[...new Set([
+    selected?.chat_jid,
     ...contacts.slice(0,3).map(item=>item.chat_jid),
     ...visibleAvatarJids.filter(jid=>contacts.some(item=>item.chat_jid===jid)),
-  ])].join(",");
+  ].filter((jid):jid is string=>Boolean(jid)))].join(",");
   useEffect(()=>{
-    if(!previewJids || loading)return;
-    const toFetch=previewJids.split(",").filter(jid=>jid &&
-      !Object.prototype.hasOwnProperty.call(listAvatars,jid) &&
-      !avatarRequestsRef.current.has(jid))
-      .slice(0,Math.max(0,3-avatarRequestsRef.current.size));
+    if(!previewJids || loading || document.visibilityState==="hidden")return;
+    const now=Date.now();
+    const toFetch=previewJids.split(",").filter(jid=>{
+      if(!jid || avatarRequestsRef.current.has(jid))return false;
+      const checked=avatarCheckedAtRef.current.get(jid);
+      if(!Object.prototype.hasOwnProperty.call(listAvatars,jid) || checked===undefined)return true;
+      return now-checked>=(listAvatars[jid]?VISIBLE_AVATAR_FOUND_TTL_MS:VISIBLE_AVATAR_MISSING_TTL_MS);
+    }).slice(0,Math.max(0,3-avatarRequestsRef.current.size));
+    const generation=avatarScopeGenerationRef.current;
     for(const jid of toFetch){
       avatarRequestsRef.current.add(jid);
       void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
         "contacts_avatar",{chat_jid:jid})
-        .then(result=>setListAvatars(old=>({...old,[jid]:result.avatar_url||null})))
-        .catch(()=>setListAvatars(old=>({...old,[jid]:null})))
-        .finally(()=>avatarRequestsRef.current.delete(jid));
+        .then(result=>{
+          if(avatarScopeGenerationRef.current!==generation)return;
+          const value=result.avatar_url||null;
+          avatarCheckedAtRef.current.set(jid,Date.now());
+          setListAvatars(old=>Object.prototype.hasOwnProperty.call(old,jid)&&old[jid]===value
+            ?old:rememberVisibleAvatar(old,jid,value));
+          if(selectedJidRef.current===jid)setAvatar(value);
+        })
+        .catch(()=>{
+          if(avatarScopeGenerationRef.current!==generation)return;
+          const ttl=listAvatars[jid]?VISIBLE_AVATAR_FOUND_TTL_MS:VISIBLE_AVATAR_MISSING_TTL_MS;
+          avatarCheckedAtRef.current.set(jid,Date.now()-(ttl-VISIBLE_AVATAR_RETRY_MS));
+          setListAvatars(old=>Object.prototype.hasOwnProperty.call(old,jid)
+            ?old:rememberVisibleAvatar(old,jid,null));
+        })
+        .finally(()=>{
+          if(avatarScopeGenerationRef.current!==generation)return;
+          avatarRequestsRef.current.delete(jid);
+          setAvatarRefreshTick(t=>t+1);
+        });
     }
-  },[organizationId,previewJids,listAvatars,loading]);
+  },[organizationId,previewJids,listAvatars,loading,avatarRefreshTick]);
 
   const choose=(contact:UnionWhatsAppContact)=>{
     phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
@@ -504,7 +554,7 @@ export function UnionWhatsAppContactsDialog({
               return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
                 <WhatsAppContactAvatar name={display} src={listAvatars[contact.chat_jid]}
-                  onError={()=>setListAvatars(old=>({...old,[contact.chat_jid]:null}))}/>
+                  onError={()=>{avatarCheckedAtRef.current.set(contact.chat_jid,Date.now());setListAvatars(old=>rememberVisibleAvatar(old,contact.chat_jid,null));}}/>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{display}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
