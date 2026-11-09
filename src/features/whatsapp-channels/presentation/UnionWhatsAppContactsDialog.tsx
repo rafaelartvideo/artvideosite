@@ -64,6 +64,7 @@ export function UnionWhatsAppContactsDialog({
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
   const avatarCheckedAtRef=useRef(new Map<string,number>());
+  const previouslyVisibleJidsRef=useRef(new Set<string>());
   const avatarScopeGenerationRef=useRef(0);
   const selectedJidRef=useRef(selected?.chat_jid||"");
   selectedJidRef.current=selected?.chat_jid||"";
@@ -91,6 +92,7 @@ export function UnionWhatsAppContactsDialog({
     avatarScopeGenerationRef.current++;
     avatarCheckedAtRef.current.clear();
     avatarRequestsRef.current.clear();
+    previouslyVisibleJidsRef.current.clear();
     setListAvatars({});
   },[organizationId,channelId,accountPhone]);
   // Refresh only visible contacts when the tab returns or an avatar TTL expires.
@@ -177,9 +179,20 @@ export function UnionWhatsAppContactsDialog({
     root.querySelectorAll<HTMLElement>("[data-avatar-jid]").forEach(node=>observer.observe(node));
     return()=>observer.disconnect();
   },[contacts,loading]);
+  // When a scrolled-away photo was evicted, allow fetching it again on
+  // re-entry, but not in an endless loop while the same row stays visible.
+  useEffect(()=>{
+    const active=new Set(visibleAvatarJids);
+    for(const jid of active){
+      if(!previouslyVisibleJidsRef.current.has(jid) &&
+         !Object.prototype.hasOwnProperty.call(listAvatars,jid))
+        avatarCheckedAtRef.current.delete(jid);
+    }
+    previouslyVisibleJidsRef.current=active;
+  },[visibleAvatarJids]);
   const previewJids=[...new Set([
     selected?.chat_jid,
-    ...contacts.slice(0,3).map(item=>item.chat_jid),
+    ...(visibleAvatarJids.length===0?contacts.slice(0,3).map(item=>item.chat_jid):[]),
     ...visibleAvatarJids.filter(jid=>contacts.some(item=>item.chat_jid===jid)),
   ].filter((jid):jid is string=>Boolean(jid)))].join(",");
   useEffect(()=>{
@@ -188,7 +201,9 @@ export function UnionWhatsAppContactsDialog({
     const toFetch=previewJids.split(",").filter(jid=>{
       if(!jid || avatarRequestsRef.current.has(jid))return false;
       const checked=avatarCheckedAtRef.current.get(jid);
-      if(!Object.prototype.hasOwnProperty.call(listAvatars,jid) || checked===undefined)return true;
+      if(!Object.prototype.hasOwnProperty.call(listAvatars,jid))
+        return checked===undefined || now-checked>=VISIBLE_AVATAR_RETRY_MS;
+      if(checked===undefined)return true;
       return now-checked>=(listAvatars[jid]?VISIBLE_AVATAR_FOUND_TTL_MS:VISIBLE_AVATAR_MISSING_TTL_MS);
     }).slice(0,Math.max(0,3-avatarRequestsRef.current.size));
     const generation=avatarScopeGenerationRef.current;
