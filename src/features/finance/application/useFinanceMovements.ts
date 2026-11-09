@@ -65,7 +65,8 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
       movementStartAt,
       movementEndAt,
     ),
-    placeholderData: previous => previous,
+    // Não reutilizar movimentações de outra empresa na troca do contexto.
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationKey ? previous : undefined,
   });
 
   const transfersQuery = useQuery({
