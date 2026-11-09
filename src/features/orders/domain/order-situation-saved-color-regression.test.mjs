@@ -56,7 +56,10 @@ test("conclusão usa verde #059669 e cancelamento aplica o estilo 4 de rejeitar 
     ["OrderCancelDialog", dialog],
   ]) assert.ok((await transformWithEsbuild(source, name + ".tsx", { loader: "tsx" })).code);
 
-  assert.match(conclusion, /bg-\[#059669\]/);
+  // O novo botão preserva Payments verde; não usa mais o fundo verde antigo.
+  assert.match(conclusion, /text-\[#059669\]/);
+  assert.match(conclusion, /<PaymentsIcon \/>/);
+  assert.doesNotMatch(conclusion, /ArrowRight|border-\[3px\]/);
   assert.doesNotMatch(conclusion, /bg-\[#B9FC01\]/);
   assert.match(quote, /variant="quaternary"[^>]*onClick=\{\(\)=>openAction\("reject"\)\}/);
   assert.match(details, /variant="quaternary" onClick=\{\(\) => setCancelOpen\(true\)\}/);
