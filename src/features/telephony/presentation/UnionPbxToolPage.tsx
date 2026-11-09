@@ -3,6 +3,7 @@ import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, 
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
 // Primeira etapa: somente a Union World e a extensao 900 (teste de eco).
@@ -442,6 +443,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>
       </section>
 
+      {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
         <p>O ramal 301 recebe chamadas da linha da Union World; ramais gerenciados novos ainda não entram na rota de chamadas externas. Todos podem testar o áudio interno pelo 900. Discagem externa ainda não foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>

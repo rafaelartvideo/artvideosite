@@ -17,9 +17,10 @@
     "test:performance": "node --test src/infrastructure/query/*.test.mjs src/features/notifications/domain/notification-polling-regression.test.mjs src/features/notifications/domain/notification-delivery-permissions.test.mjs src/shared/application/upload-file-optimizer.test.mjs src/shared/application/upload-flows.test.mjs src/shared/application/download-file.test.mjs src/features/admin-shell/domain/admin-routes.test.mjs src/features/documents/domain/order-print-pdf-lifecycle.test.mjs src/features/whatsapp-channels/domain/media-preview-urls.test.mjs",
     "test:products": "node --test src/features/products/domain/*.test.mjs",
     "test:quality": "node --test scripts/quality/*.test.mjs",
-    "test:ci": "npm run test:quality && npm run test:finance && npm run test:regressions && npm run test:sac && npm run test:sales",
+    "test:ci": "npm run test:telephony && npm run test:quality && npm run test:finance && npm run test:regressions && npm run test:sac && npm run test:sales",
     "verify:release": "npm run test:ci && npm run build",
-    "test:sales": "node --test src/features/sales/domain/*.test.mjs"
+    "test:sales": "node --test src/features/sales/domain/*.test.mjs",
+    "test:telephony": "node --test src/features/telephony/domain/*.test.mjs"
   },
   "dependencies": {
     "@popperjs/core": "2.11.8",
