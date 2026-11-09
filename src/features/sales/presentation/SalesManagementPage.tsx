@@ -1,5 +1,5 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownToLine, BarChart3, Edit2, Medal, Plus, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -40,7 +40,7 @@ function downloadCsv(data:SalesManagement){
   }
 }
 
-export function SalesManagementPage(){
+export function SalesManagementPage({ onInitialReady }: { onInitialReady?: (section: "management") => void } = {}){
   const {activeOrganizationId,hasPermission}=useAuth();
   const org=activeOrganizationId||"";
   const client=useQueryClient();
@@ -58,6 +58,10 @@ export function SalesManagementPage(){
     queryFn:()=>getSalesManagement(org,month),
     enabled:Boolean(allowed&&org),staleTime:20_000,
   });
+  useEffect(() => {
+    if (!allowed || !query.isPending) onInitialReady?.("management");
+  }, [allowed, query.isPending, onInitialReady]);
+
   const data=query.data;
   const sellers=data?.sellers||[];
   const maxTrend=Math.max(1,...(data?.trend||[]).map(item=>numeric(item.net)));
