@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
@@ -751,7 +752,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             subtitle={`${inventoryPurchaseSummary.count} entrada${inventoryPurchaseSummary.count === 1 ? "" : "s"} · ${formatCurrency(inventoryPurchaseSummary.total)} · últimos ${periodDays} dias`}
             icon={ShoppingCart}
           >
-            {inventoryPurchasesQuery.isPending ? <LoadingState text="Carregando compras..." /> : inventoryPurchasesQuery.isError ? <DashboardEmpty text="Não foi possível carregar as compras do período." /> : inventoryPurchaseSummary.bySupplier.length ? <CompactList>{inventoryPurchaseSummary.bySupplier.slice(0, 10).map((supplier, index) => <CompactRow key={`${supplier.name}-${index}`} title={supplier.name} subtitle={`${supplier.count} entrada${supplier.count === 1 ? "" : "s"}`} aside={<strong className="text-xs text-[#0d1b2e]">{formatCurrency(supplier.total)}</strong>} />)}</CompactList> : <DashboardEmpty text="Nenhuma compra registrada neste período." />}
+            {inventoryPurchasesQuery.isPending ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : inventoryPurchasesQuery.isError ? <DashboardEmpty text="Não foi possível carregar as compras do período." /> : inventoryPurchaseSummary.bySupplier.length ? <CompactList>{inventoryPurchaseSummary.bySupplier.slice(0, 10).map((supplier, index) => <CompactRow key={`${supplier.name}-${index}`} title={supplier.name} subtitle={`${supplier.count} entrada${supplier.count === 1 ? "" : "s"}`} aside={<strong className="text-xs text-[#0d1b2e]">{formatCurrency(supplier.total)}</strong>} />)}</CompactList> : <DashboardEmpty text="Nenhuma compra registrada neste período." />}
           </DashboardPanel>
         : <DashboardPanel title="Maiores saldos" subtitle="Itens ativos com maior quantidade disponível" icon={Package} onOpen={() => open("inventory")}><CompactList>{topBalances.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className="text-xs font-black text-[#0057e7]">{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!topBalances.length && <DashboardEmpty text="Nenhum item ativo encontrado." />}</CompactList></DashboardPanel>;
       return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
@@ -838,7 +839,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {(activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending) ? <LoadingState text="Carregando indicadores..." /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
+        {(activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending) ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
             <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
