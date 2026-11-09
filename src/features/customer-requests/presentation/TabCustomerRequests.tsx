@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
@@ -229,6 +230,7 @@ export function TabCustomerRequests() {
       subtitle={`${String(overallTotal)} pedidos realizados`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
+    {loading ? <AdminWorkspaceSkeleton searchFields={6} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar pedidos" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
       <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
@@ -313,7 +315,7 @@ export function TabCustomerRequests() {
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {loading ? <LoadingState text="Carregando pedidos..." /> : items.length === 0
+      {items.length === 0
         ? <EmptyState icon={ClipboardList} title="Nenhum pedido encontrado" message={hasFilters ? "Ajuste os filtros para encontrar um pedido." : "Registre o primeiro pedido com o botão Novo."} />
         : <>
           <div className="divide-y divide-border md:hidden">
@@ -363,6 +365,7 @@ export function TabCustomerRequests() {
       <PaginationBar page={page} pageSize={pageSize} totalItems={total}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
     </AdminCard>
+    </>}
 
     <AdminDialog open={open} onClose={closeForm} title="Novo pedido" className="max-w-xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
