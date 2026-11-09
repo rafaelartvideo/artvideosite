@@ -1,3 +1,4 @@
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MapPin, Search, UserPlus } from "lucide-react";
@@ -85,25 +86,25 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
         <label className="space-y-1 text-xs font-semibold">
           <span>{type==="PF"?"Nome completo":"Nome da empresa"} *</span>
           <input value={name} maxLength={180} onChange={e=>setName(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1 text-xs font-semibold">
           <span>{type==="PF"?"CPF":"CNPJ"} *</span>
           <input value={document} inputMode="numeric" maxLength={18}
             onChange={e=>setDocument(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1 text-xs font-semibold">
           <span>WhatsApp com DDD *</span>
           <input value={whatsapp} inputMode="tel" maxLength={20}
             onChange={e=>setWhatsapp(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1 text-xs font-semibold">
           <span>E-mail (opcional)</span>
           <input value={email} type="email" maxLength={160}
             onChange={e=>setEmail(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
       </div>
       <div className="space-y-3 border-t border-border pt-4">
@@ -114,7 +115,7 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
               <input value={address.zip_code||""} inputMode="numeric" maxLength={9}
                 onChange={e=>changeAddress("zip_code",formatZipCode(e.target.value))}
                 onBlur={()=>{if((address.zip_code||"").replace(/\D/g,"").length===8)void lookupCep();}}
-                className="h-10 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm"/>
+                className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}/>
               <button type="button" onClick={()=>void lookupCep()} disabled={cepLoading}
                 aria-label="Consultar CEP" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-lg border border-border">
                 <Search size={16}/>
@@ -123,34 +124,34 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Rua / logradouro *</span>
             <input value={address.street||""} onChange={e=>changeAddress("street",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1 text-xs font-semibold"><span>Número *</span>
             <input value={address.number||""} onChange={e=>changeAddress("number",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Complemento</span>
             <input value={address.complement||""} onChange={e=>changeAddress("complement",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Bairro *</span>
             <input value={address.neighborhood||""} onChange={e=>changeAddress("neighborhood",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Cidade *</span>
             <input value={address.city||""} onChange={e=>changeAddress("city",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Estado (UF) *</span>
             <input value={address.state||""} maxLength={2}
               onChange={e=>changeAddress("state",e.target.value.toUpperCase())}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
           <label className="space-y-1 text-xs font-semibold"><span>Referência</span>
             <input value={address.reference||""} onChange={e=>changeAddress("reference",e.target.value)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+              className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
         </div>
       </div>
