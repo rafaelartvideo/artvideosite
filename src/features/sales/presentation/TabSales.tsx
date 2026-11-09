@@ -1,5 +1,7 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
-import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
+import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -85,7 +87,7 @@ function SalesProductPhoto({
 
 /** Vitrine e venda comercial próprias: PDV não participa da conclusão. */
 export function TabSales() {
-  const { activeOrganizationId, user, hasPermission } = useAuth();
+  const { activeOrganizationId, user, hasPermission, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -214,6 +216,26 @@ export function TabSales() {
   const totalFiltered=Number(productsQuery.data?.total_count||0);
   const totalProducts=Number(categoriesQuery.data?.total_products||0);
   const totalPages=Math.max(1,Math.ceil(totalFiltered/40));
+  // A vitrine e as três subseções são preparadas sem desmontar o cabeçalho.
+  // A primeira entrada completa fica registrada apenas para este usuário/empresa.
+  const [readyViews,setReadyViews]=useState<Record<string,true>>({});
+  const markSalesSectionReady=useCallback((view:"orders"|"proposals"|"management")=>{
+    if(!organizationId)return;
+    const key=`${organizationId}:${view}`;
+    setReadyViews(previous=>previous[key]?previous:{...previous,[key]:true});
+  },[organizationId]);
+  const storefrontReady=!canView || (
+    !categoriesQuery.isPending && (debouncedSearch.trim().length===1 || !productsQuery.isPending)
+  );
+  const sectionReady=currentView==="storefront"
+    ? storefrontReady
+    : Boolean(readyViews[`${organizationId}:${currentView}`]);
+  const firstPageLoading=useWorkspaceFirstVisit(
+    "sales",
+    organizationId&&user?.id?`${user.id}:${organizationId}`:"",
+    !authLoading && sectionReady,
+  );
+
 
   const prepareProduct=async(product:PdvProduct)=>{
     if(preparingProduct)return;
@@ -323,7 +345,10 @@ export function TabSales() {
 
   return <div className="min-w-0 space-y-4 pb-20 md:pb-6">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-
+    {firstPageLoading && <AdminOverviewPageSkeleton variant="sales" salesSection={currentView}
+      tabs={hasPermission("sales.reports.view")?4:3} rows={currentView==="storefront"?12:15} />}
+    {/* Mount active section during first load so its query can signal readiness. */}
+    <div className={firstPageLoading?"hidden":"contents"} aria-hidden={firstPageLoading}>
     <PageHeader title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
     <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0 border-b border-border" role="tablist" aria-label="Seções de Vendas">
       <button type="button" role="tab" aria-selected={currentView === "storefront"}
@@ -353,11 +378,11 @@ export function TabSales() {
       </button>}
     </div>
     {currentView === "orders"
-      ? <SalesOrdersPage onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
+      ? <SalesOrdersPage onInitialReady={markSalesSectionReady} onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
       : currentView === "management"
-      ? <SalesManagementPage />
+      ? <SalesManagementPage onInitialReady={markSalesSectionReady} />
       : currentView === "proposals"
-      ? <SalesProposalsPage />
+      ? <SalesProposalsPage onInitialReady={markSalesSectionReady} />
       : <>
     {proposalIntent && <SalesProposalEditorDialog
       key={"new-proposal:" + organizationId + ":" + (user?.id || "")}
@@ -395,7 +420,7 @@ export function TabSales() {
 
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,350px)]">
       <section className="min-w-0 space-y-3">
-        {canView && productsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={4} columns={9} rows={40} variant={display === "list" ? "table" : "grid"} /> : <>
+        {/* Keep the search, category chips and cart mounted when product results change. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-foreground">
@@ -480,6 +505,9 @@ export function TabSales() {
           message="Solicite acesso ao módulo Vendas ao gestor da empresa." />
           : debouncedSearch.trim().length === 1 ? <p className="p-5 text-sm text-muted-foreground">Digite pelo menos dois caracteres para buscar.</p>
           
+          : productsQuery.isPending && !productsQuery.data
+          ? <AdminWorkspaceSkeleton searchFields={0} columns={display==="list"?6:4}
+              rows={display==="list"?40:12} variant={display==="list"?"table":"grid"} />
           : productsQuery.error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-5 text-sm text-destructive">
             {systemErrorMessage(productsQuery.error, "Não foi possível carregar o catálogo.")}
           </div>
@@ -660,7 +688,6 @@ export function TabSales() {
               onClick={()=>setPage(v=>Math.min(totalPages,v+1))}>Próxima</AdminButton>
           </div>
         </nav>}
-        </>}
       </section>
 
       <aside ref={cartRef} className="hidden min-w-0 rounded-xl border border-border bg-card xl:sticky xl:top-4 xl:block">
@@ -805,5 +832,6 @@ export function TabSales() {
       relatedError={relatedQuery.isError}
     />}
     </>}
+    </div>
   </div>;
 }
