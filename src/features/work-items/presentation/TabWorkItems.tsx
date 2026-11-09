@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
@@ -212,7 +213,7 @@ export function TabWorkItems() {
   const [mobileCriterion, setMobileCriterion] = useState<"query" | "scope" | "kind" | "status">("query");
   const [sort, setSort] = useState<"due" | "newest" | "priority">("due");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const [newKind, setNewKind] = useState<WorkKind>("task");
   const [dialogOpen, setDialogOpen] = useState(false);
