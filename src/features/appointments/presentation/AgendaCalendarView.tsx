@@ -3,7 +3,7 @@ import { useState, type DragEvent } from "react";
 import { CalendarDays } from "lucide-react";
 import { buildAgendaDays, dayKey, type AgendaView, type AppointmentWithRelations, type CalendarEvent } from "../application/agenda-calendar";
 import { cn } from "@/shared/domain/formatters";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AgendaEventCard } from "./AgendaEventCard";
 
