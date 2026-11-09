@@ -22,7 +22,7 @@ type AdminWorkspaceSkeletonProps = {
 
 /**
  * Estado inicial padronizado do CRM. Não mistura headers, labels, inputs ou
- * colunas reais com placeholders. O título da página fica fora do skeleton.
+ * colunas reais com placeholders. O título pode ser incluído pelo pageHeader.
  * Utilize apenas quando a lista ainda não dispõe de dados: não bloquear
  * filtros nem substituir conteúdo em atualizações em segundo plano.
  */
