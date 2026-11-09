@@ -4,7 +4,7 @@ import { AlertTriangle, Banknote, CalendarClock, TrendingDown, TrendingUp, Walle
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryType, FinancialReportFilters, FinanceSection } from "../domain/finance.types";
