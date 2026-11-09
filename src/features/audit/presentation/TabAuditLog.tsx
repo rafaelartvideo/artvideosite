@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import React, { useMemo, useState } from "react";
@@ -585,7 +586,7 @@ function entityLabel(entry: AuditLogEntry) {
 export function TabAuditLog() {
   const { activeOrganizationId } = useAuth();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20));
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [actorUserId, setActorUserId] = useState("");
   const [moduleKey, setModuleKey] = useState("");
