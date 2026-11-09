@@ -43,7 +43,7 @@ function localDateBoundary(value: string, nextDay = false) {
   return new Date(year, month - 1, day + (nextDay ? 1 : 0)).toISOString();
 }
 
-export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
+export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { createSignal?: number; onInitialReady?: () => void } = {}) {
   const { hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
   const canTransfer = hasPermission("finance.transfers.create");
@@ -101,6 +101,11 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
   };
 
   const loading = finance.movementsQuery.isLoading || finance.balancesQuery.isLoading || foundation.accountsQuery.isLoading;
+  useEffect(() => {
+    if (!finance.movementsQuery.isPending && !finance.balancesQuery.isPending && !foundation.accountsQuery.isPending && !finance.transfersQuery.isPending) onInitialReady?.();
+  }, [onInitialReady, finance.movementsQuery.isPending, finance.balancesQuery.isPending, foundation.accountsQuery.isPending, finance.transfersQuery.isPending]);
+
+
   return <div className="space-y-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-semibold text-muted-foreground">{totalMovements} {totalMovements === 1 ? "movimentação registrada" : "movimentações registradas"}</p>
