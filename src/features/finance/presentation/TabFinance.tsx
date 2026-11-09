@@ -181,8 +181,8 @@ export function TabFinance({
       financeColumns={financeColumns} tabs={primarySections.length + (allowedSections.includes("registries") ? 1 : 0)}
       rows={skeletonRows} />}
     {/* The active section stays mounted to resolve its initial queries while the first-page skeleton is visible. */}
-    <div className={firstPageLoading ? "hidden" : "contents"} aria-hidden={firstPageLoading}>
-    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
+    <div className={firstPageLoading ? "hidden" : "min-w-0 space-y-5"} aria-hidden={firstPageLoading}>
+    <PageHeader className="!border-b-0 !pb-0" title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
       actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
         {(canIssueReceipt || canViewReceiptHistory) && <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border admin-action-blue-outline">
           {canIssueReceipt && <button type="button" onClick={() => setReceiptOpen(true)}
@@ -208,7 +208,7 @@ export function TabFinance({
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
-    <div className={initialLoading ? "hidden" : "contents"} aria-hidden={initialLoading}>
+    <div className={initialLoading ? "hidden" : "min-w-0"} aria-hidden={initialLoading}>
     {section === "overview" && <FinanceOverviewFoundation onInitialReady={markSectionReady} onSelectSection={selectSection} onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
     {section === "receivables" && <FinanceEntriesSection onInitialReady={markSectionReady} newEntrySignal={newEntrySignal} entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
     {section === "payables" && <FinanceEntriesSection onInitialReady={markSectionReady} newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
