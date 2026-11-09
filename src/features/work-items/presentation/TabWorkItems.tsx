@@ -335,6 +335,7 @@ export function TabWorkItems() {
   const completionRatio = overview.total ? Math.round(overview.completed / overview.total * 100) : 0;
 
   return <div className="min-w-0 space-y-5">
+{itemQuery.isPending ? <AdminWorkspaceSkeleton pageHeader searchFields={5} columns={6} rows={pageSize} variant={view === "board" ? "cards" : "table"} /> : <>
     <PageHeader title="Compromissos e Tarefas" subtitle="Organize o trabalho, acompanhe promessas e cumpra prazos."
       actions={canCreate ? <BtnPrimary onClick={() => newTask()}>Novo</BtnPrimary> : undefined} />
 
@@ -391,7 +392,6 @@ export function TabWorkItems() {
       </button>; })}
     </div>
 
-{itemQuery.isPending ? <AdminWorkspaceSkeleton searchFields={5} columns={6} rows={pageSize} variant={view === "board" ? "cards" : "table"} /> : <>
     <AdminSearchPanel title="Buscar atividades" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={reset} />}
       <AdminSearchSortMenu value={sort} onChange={setSort} options={[
