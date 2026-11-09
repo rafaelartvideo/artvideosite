@@ -146,7 +146,12 @@ export function TabFinance({
   const scope = `${organizationId}:${section}`;
   const [readyScopes, setReadyScopes] = useState<Record<string, true>>({});
   const markSectionReady = useCallback(() => {
-    setReadyScopes(previous => previous[scope] ? previous : { ...previous, [scope]: true });
+    setReadyScopes(previous => {
+      if (previous[scope]) return previous;
+      const next: Record<string, true> = { ...previous };
+      next[scope] = true;
+      return next;
+    });
   }, [scope]);
   const countsLoading = (hasPermission("finance.receivables.view") && receivableCount.isPending)
     || (hasPermission("finance.payables.view") && payableCount.isPending)
