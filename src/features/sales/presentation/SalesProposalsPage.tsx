@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plus, RefreshCw, ShoppingCart, ChevronRight } from "lucide-react";
+import { ClipboardList, Plus, ShoppingCart, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -56,7 +57,22 @@ export function SalesProposalsPage() {
     queryFn:()=>listSalesProposals(org,{search:searchDebounced,status,page,pageSize}),
     enabled:Boolean(org&&hasPermission("sales.view")),
     staleTime:15_000,refetchOnWindowFocus:true,
+    refetchInterval:30_000, // validade de propostas pode mudar sem update no banco
   });
+  useEffect(()=>{
+    if(!org||!hasPermission("sales.view"))return;
+    const channel=supabase.channel("sales-proposals-live:"+org)
+      .on("postgres_changes",{
+        event:"*",schema:"public",table:"sales_proposals",
+        filter:"organization_id=eq."+org,
+      },()=>{
+        void queryClient.invalidateQueries({queryKey:["sales",org,"proposals"]});
+        void queryClient.invalidateQueries({queryKey:["sales",org,"proposal"]});
+      })
+      .subscribe();
+    return ()=>{void supabase.removeChannel(channel);};
+  },[org,hasPermission,queryClient]);
+
   const proposals=useMemo(()=>{
     const values=[...(proposalsQuery.data?.items||[])];
     return values.sort((a,b)=>{
@@ -85,8 +101,6 @@ export function SalesProposalsPage() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <AdminButton size="sm" variant="secondary" disabled={proposalsQuery.isFetching}
-          onClick={()=>void proposalsQuery.refetch()}><RefreshCw size={15}/> Atualizar</AdminButton>
         {hasPermission("sales.proposals.manage")&&<AdminButton size="sm" onClick={newProposal}>
           <Plus size={15}/> Nova proposta
         </AdminButton>}
