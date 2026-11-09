@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link2, Unlink } from "lucide-react";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
@@ -22,7 +23,7 @@ export function SupplierItemsEditor({
   const [items, setItems] = useState<SupplierInventoryItem[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [loading, setLoading] = useState(Boolean(organizationId));
   const [error, setError] = useState("");
 
