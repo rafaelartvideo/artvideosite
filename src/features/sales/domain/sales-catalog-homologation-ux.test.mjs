@@ -48,7 +48,9 @@ test("Detalhes têm características em três colunas sem linhas de separação 
   assert.match(modal,/AdminIconButton/);
   assert.match(modal,/variant="quaternary"/);
   assert.match(modal,/aria-label="Categoria, marca e condição"/);
-  assert.match(modal,/bg-muted\/20 px-3 py-2\.5/);
+  assert.match(modal,/min-w-0 py-1/);
+  assert.match(modal,/admin-action-blue-outline/);
+  assert.doesNotMatch(modal,/rounded-lg border border-border bg-muted\/20 px-3 py-2\.5/);
   assert.match(modal,/<Trash2 size=\{17\}/);
   assert.match(modal,/text-emerald-700 dark:text-emerald-400/);
   assert.match(modal,/text-primary/);
