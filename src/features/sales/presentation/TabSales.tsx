@@ -1,4 +1,5 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
 import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
@@ -353,33 +354,20 @@ export function TabSales() {
     {/* Mount active section during first load so its query can signal readiness. */}
     <div className={firstPageLoading ? "hidden" : "min-w-0 space-y-5"} aria-hidden={firstPageLoading}>
     <PageHeader className="!border-b-0 !pb-0" title="Vendas" subtitle="Vitrine, propostas comerciais, pedidos e recebimentos integrados ao Financeiro, sem depender do PDV." />
-    <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0" role="tablist" aria-label="Seções de Vendas">
-      <button type="button" role="tab" aria-selected={currentView === "storefront"}
-        onClick={() => {setSelected(null);navigate("/admin/sales" + salesModeSuffix);}}
-        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="storefront"
-          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        <Package size={14} aria-hidden="true"/> Vitrine
-      </button>
-      <button type="button" role="tab" aria-selected={currentView === "proposals"}
-        onClick={() => {setSelected(null);navigate("/admin/sales/proposals" + salesModeSuffix);}}
-        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="proposals"
-          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        <FileText size={14} aria-hidden="true"/> Propostas
-      </button>
-      <button type="button" role="tab" aria-selected={currentView === "orders"}
-        onClick={() => {setSelected(null);navigate("/admin/sales/orders" + salesModeSuffix);}}
-        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " + (currentView==="orders"
-          ? "!border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
-        <ClipboardList size={14} aria-hidden="true"/> Pedidos
-      </button>
-      {hasPermission("sales.reports.view")&&<button type="button" role="tab"
-        aria-selected={currentView === "management"}
-        onClick={() => {setSelected(null);navigate("/admin/sales/management" + salesModeSuffix);}}
-        className={"inline-flex h-11 shrink-0 items-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary " +
-          (currentView==="management"?"!border-primary text-primary":"text-muted-foreground hover:text-foreground")}>
-        <BarChart3 size={14} aria-hidden="true"/> Gestão
-      </button>}
-    </div>
+    <AdminSubsectionTabs
+      value={currentView}
+      ariaLabel="Seções de Vendas"
+      items={[
+        { id: "storefront", label: "Vitrine", Icon: Package },
+        { id: "proposals", label: "Propostas", Icon: FileText },
+        { id: "orders", label: "Pedidos", Icon: ClipboardList },
+        ...(hasPermission("sales.reports.view") ? [{ id: "management", label: "Gestão", Icon: BarChart3 }] : []),
+      ]}
+      onChange={view => {
+        setSelected(null);
+        navigate("/admin/sales" + (view === "storefront" ? "" : "/" + view) + salesModeSuffix);
+      }}
+    />
     {currentView === "orders"
       ? <SalesOrdersPage onInitialReady={markSalesSectionReady} onNewSale={() => navigate("/admin/sales" + salesModeSuffix)} />
       : currentView === "management"
