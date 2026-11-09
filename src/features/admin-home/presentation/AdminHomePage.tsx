@@ -1,4 +1,4 @@
-import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -219,7 +219,7 @@ export function AdminHomePage({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, profile, activeOrganizationId, organizations } = useAuth();
+  const { user, profile, activeOrganizationId, organizations, loading: authLoading } = useAuth();
 
   const activeOrganization = organizations.find(item => item.organization_id === activeOrganizationId) || null;
   const shortcuts = useMemo(
@@ -321,6 +321,16 @@ export function AdminHomePage({
   const unreadCount = activityQuery.data?.unreadCount || 0;
   const userName = profile?.full_name || user?.email?.split("@")[0] || "usuário";
 
+  // Um único skeleton cobre saudação, avisos, tarefas, ações e atividade recente.
+  // Apenas a primeira carga sem dados bloqueia a página; invalidar cache não causa flash.
+  const initialLoading = (!activeOrganizationId && authLoading)
+    || (Boolean(activeOrganizationId) && (
+      (announcementsQuery.isPending && !announcementsQuery.data)
+      || (Boolean(user?.id) && activityQuery.isPending && !activityQuery.data)
+      || (canViewWorkItems && workItemsQuery.isPending && !workItemsQuery.data)
+    ));
+  if (initialLoading) return <AdminOverviewPageSkeleton variant="home" shortcuts={shortcuts.length} />;
+
   return <div className="min-w-0 space-y-5 pb-3">
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="space-y-4 p-5 sm:p-6">
@@ -357,7 +367,7 @@ export function AdminHomePage({
         {isPlatformOperatorOrganization && canAccessTab("announcements") && <AdminButton size="sm" variant="secondary" onClick={() => onNavigate("announcements")}>Gerenciar avisos</AdminButton>}
       </div>
 
-      {announcementsQuery.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={2} /> : announcementsQuery.isError ? (
+      {announcementsQuery.isError ? (
         <AdminCard><AdminCardContent><p className="text-sm text-red-600">{systemErrorMessage(announcementsQuery.error, "Não foi possível carregar os avisos.")}</p></AdminCardContent></AdminCard>
       ) : announcements.length === 0 ? (
         <AdminCard><AdminCardContent className="flex items-center gap-3">
@@ -433,7 +443,7 @@ export function AdminHomePage({
             <div><h2 className="text-sm font-black text-foreground">Atividade recente</h2><p className="mt-0.5 text-xs text-muted-foreground">Últimas movimentações da empresa ativa.</p></div>
           </div>
           <div className="mt-4 divide-y divide-border">
-            {activityQuery.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={3} /> : activity.length === 0 ? (
+            {activity.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma atividade recente.</p>
             ) : activity.map(item => <button
               key={item.id}
