@@ -260,14 +260,19 @@ test("Financeiro e Vendas: submenus sem fundo, alinhados à esquerda e espaçado
   const sales = read("src/features/sales/presentation/TabSales.tsx");
   const layout = read("src/shared/ui/admin/AdminLayout.tsx");
 
-  assert.match(financeTabs, /<nav className="flex w-full min-w-0 max-w-full overflow-x-auto bg-transparent" aria-label="Áreas do financeiro"/);
-  assert.match(financeTabs, /items-center justify-start gap-1/);
-  assert.doesNotMatch(financeTabs, /mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card/);
+  const sharedTabs = read("src/shared/ui/admin/AdminSubsectionTabs.tsx");
+  assert.match(financeTabs, /<AdminSubsectionTabs/);
+  assert.match(sales, /<AdminSubsectionTabs/);
+  assert.match(sharedTabs, /<nav aria-label=\{ariaLabel\} className="w-full min-w-0 border-b border-border"/);
+  assert.match(sharedTabs, /items-center justify-start gap-5 overflow-x-auto/);
+  assert.match(sharedTabs, /\[scrollbar-width:none\]/);
+  assert.match(sharedTabs, /border-b-2 border-transparent bg-transparent/);
+  assert.doesNotMatch(sharedTabs, /rounded-xl border border-border bg-card/);
   assert.match(finance, /<PageHeader className="!border-b-0 !pb-0" title="Financeiro"/);
   assert.match(finance, /className=\{initialLoading \? "hidden" : "min-w-0"\}/);
   assert.match(sales, /<PageHeader className="!border-b-0 !pb-0" title="Vendas"/);
-  assert.match(sales, /flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0" role="tablist"/);
-  assert.doesNotMatch(sales, /gap-x-5 gap-y-0 border-b border-border/);
+  assert.match(sharedTabs, /role="tablist" aria-label=\{ariaLabel\}/);
+  assert.match(sharedTabs, /\[&::-webkit-scrollbar\]:hidden/);
   assert.match(layout, /export function PageHeader\(\{ title, subtitle, eyebrow, actions, className = "" \}/);
   for (const [name, code] of [
     ["FinanceSectionTabs", financeTabs], ["TabFinance", finance], ["TabSales", sales], ["AdminLayout", layout],
