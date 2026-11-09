@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
@@ -1000,7 +1001,7 @@ export function TechnicianPanel() {
       bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-4"
     >
       {agendaModalOpen && <Suspense fallback={<div className="flex min-h-[50dvh] items-center justify-center">
-        <LoadingState text="Carregando agenda..." />
+        <AdminWorkspaceSkeleton variant="grid" rows={7} />
       </div>}>
         <AgendaModalCalendar
           embedded
@@ -1054,7 +1055,7 @@ export function TechnicianPanel() {
           </AdminButton>
         </div>
         {myConversationsLoading && myConversations.length === 0
-          ? <div className="flex min-h-28 justify-center p-4"><LoadingState text="Carregando atendimentos..." /></div>
+          ? <AdminWorkspaceSkeleton variant="cards" rows={4} />
           : myConversations.length === 0
           ? <AdminSectionEmpty compact>Nenhum atendimento em andamento atribuído a você ou compartilhado.</AdminSectionEmpty>
           : <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
