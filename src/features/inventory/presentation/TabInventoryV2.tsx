@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -209,7 +210,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [inventorySort, setInventorySort] = useState<"asc" | "desc">("asc");
   const [mobileFilter, setMobileFilter] = useState<MobileFilter>("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const debouncedNameSearch = useDebouncedValue(nameSearch);
   const debouncedSkuSearch = useDebouncedValue(skuSearch);
   const debouncedAddressSearch = useDebouncedValue(addressSearch);
