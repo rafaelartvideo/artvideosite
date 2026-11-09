@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -655,6 +656,7 @@ export function TabAuditLog() {
         subtitle="Histórico de alterações realizadas nos dados do CRM."
       />
 
+{logsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={7} columns={7} rows={pageSize} /> : <>
       <AdminSearchPanel title="Buscar na auditoria" headerActions={<>
         {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
         <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
@@ -731,9 +733,7 @@ export function TabAuditLog() {
       </AdminSearchPanel>
 
       <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-        {logsQuery.isPending ? (
-          <LoadingState text="Carregando auditoria..." />
-        ) : logsQuery.error ? (
+        {logsQuery.error ? (
           <div className="p-4 text-sm font-semibold text-red-700">
             Não foi possível carregar o histórico de auditoria.
           </div>
@@ -809,6 +809,7 @@ export function TabAuditLog() {
           </>
         )}
       </AdminCard>
+      </>}
 
       <AuditDetailsDialog
         entry={detailQuery.data || null}
