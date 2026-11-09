@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -257,7 +258,7 @@ export function UnionPlatformFinance() {
       actions={canManage && (section === "subscriptions" || section === "plans") ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
     />
 
-    {query.isPending ? <LoadingState text="Carregando financeiro da Union..." /> : query.isError || !data ? (
+    {query.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : query.isError || !data ? (
       <AdminCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <div>
