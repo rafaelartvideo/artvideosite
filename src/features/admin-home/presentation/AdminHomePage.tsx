@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -356,7 +357,7 @@ export function AdminHomePage({
         {isPlatformOperatorOrganization && canAccessTab("announcements") && <AdminButton size="sm" variant="secondary" onClick={() => onNavigate("announcements")}>Gerenciar avisos</AdminButton>}
       </div>
 
-      {announcementsQuery.isPending ? <LoadingState text="Carregando avisos..." /> : announcementsQuery.isError ? (
+      {announcementsQuery.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={2} /> : announcementsQuery.isError ? (
         <AdminCard><AdminCardContent><p className="text-sm text-red-600">{systemErrorMessage(announcementsQuery.error, "Não foi possível carregar os avisos.")}</p></AdminCardContent></AdminCard>
       ) : announcements.length === 0 ? (
         <AdminCard><AdminCardContent className="flex items-center gap-3">
@@ -432,7 +433,7 @@ export function AdminHomePage({
             <div><h2 className="text-sm font-black text-foreground">Atividade recente</h2><p className="mt-0.5 text-xs text-muted-foreground">Últimas movimentações da empresa ativa.</p></div>
           </div>
           <div className="mt-4 divide-y divide-border">
-            {activityQuery.isPending ? <LoadingState text="Carregando atividade..." /> : activity.length === 0 ? (
+            {activityQuery.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={3} /> : activity.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma atividade recente.</p>
             ) : activity.map(item => <button
               key={item.id}
