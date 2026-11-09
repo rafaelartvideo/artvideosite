@@ -209,7 +209,11 @@ test("details use icon actions and history stays inside the same modal", () => {
   assert.match(detail, /ariaLabel=\{tab === "history" \? "Voltar ao resumo" : "Ver histórico"\}/);
   assert.match(detail, /\{tab === "history" && <div/);
   assert.doesNotMatch(detail, /<AdminCard><AdminCardHeader><h3 className="text-sm font-bold text-foreground">Origem/);
-  assert.match(tabs, /className="mx-auto flex w-fit max-w-full justify-center overflow-x-auto"/);
+  const sharedTabs = readFileSync(new URL("../../../shared/ui/admin/AdminSubsectionTabs.tsx", import.meta.url), "utf8");
+  assert.match(tabs, /<AdminSubsectionTabs/);
+  assert.match(sharedTabs, /className="w-full min-w-0 border-b border-border"/);
+  assert.match(sharedTabs, /\[scrollbar-width:none\]/);
+  assert.match(sharedTabs, /h-12 min-h-12/);
   assert.match(detail, /bg-emerald-500\/10/);
   assert.match(detail, /bg-amber-500\/10/);
 });
