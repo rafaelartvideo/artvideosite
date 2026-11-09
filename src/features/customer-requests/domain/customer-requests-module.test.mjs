@@ -36,7 +36,8 @@ test("Skeleton de Pedidos Avulsos só existe na carga inicial sem dados; atualiz
   assert.match(source, /const listQuery = useQuery\(\{/);
   assert.match(source, /placeholderData: \(previousData, previousQuery\) =>/);
   assert.match(source, /previousQuery\?\.queryKey\[2\] === activeOrganizationId/);
-  assert.match(source, /const loading = Boolean\(activeOrganizationId\) && listQuery\.isPending;/);
+  assert.match(source, /\(!activeOrganizationId && authLoading\)/);
+  assert.match(source, /listQuery\.isPending && !listQuery\.data/);
   assert.doesNotMatch(source, /setLoading\(true\)|setItems\(result\.items\)|\[loading, setLoading\]/);
   assert.match(source, /initialPageSize\(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE\)/);
   assert.match(source, /queryClient\.setQueriesData/);
