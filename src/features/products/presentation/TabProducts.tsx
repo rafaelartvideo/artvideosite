@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftRight,
   Edit2,
-  Eye,
   Camera,
   CircleHelp,
   Image as ImageIcon,
@@ -88,7 +87,8 @@ import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/prod
 import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
 import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_VARIATION_ATTRIBUTES, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
-import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
+import { InventoryProductDetailsDialog, type InventoryDetailsView } from "./InventoryProductDetailsDialog";
+import { InventoryProductImageLightbox } from "./InventoryProductImageLightbox";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
@@ -407,6 +407,8 @@ export function TabProducts({
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
+  const [detailsView, setDetailsView] = useState<InventoryDetailsView>("details");
+  const [expandedListImage, setExpandedListImage] = useState<{ mediaId: string; name: string } | null>(null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
   // Cancelar pode desmontar o formulário antes de a URL abandonar /inventory/new.
@@ -801,6 +803,17 @@ export function TabProducts({
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
+  // Links antigos de movimentação/histórico deixam de ser páginas e abrem o modal único.
+  useEffect(() => {
+    if (!routeResourceId || (routeSubpage !== "move" && routeSubpage !== "history") || catalogQuery.isPending) return;
+    const product = products.find((entry: any) => String(entry.inventory?.inventory_item_id || "") === routeResourceId);
+    if (product && (routeSubpage === "move" ? canCreateMovements : canViewMovements)) {
+      setDetailsProductId(String(product.id));
+      setDetailsView(routeSubpage);
+    }
+    onRouteChange?.(null, null);
+  }, [routeResourceId, routeSubpage, catalogQuery.isPending, products, canCreateMovements, canViewMovements, onRouteChange]);
+
   const validate = () => {
     const errors: ProductFieldErrors = {};
     const price = nullableNumber(form.price);
@@ -1166,24 +1179,28 @@ export function TabProducts({
   const openDetails = (product: any) => {
     if (!canViewDetails) return;
     setDetailsProductId(String(product.id));
+    setDetailsView("details");
   };
   const openDetailsById = (id: string) => {
     if (!canViewDetails || !products.some((product: any) => String(product.id) === id)) return;
     setDetailsProductId(id);
+    setDetailsView("details");
   };
   const editFromDetails = (product: any) => {
     setDetailsProductId(null);
     openEditPage(product);
   };
   const moveFromDetails = (product: any) => {
-    setDetailsProductId(null);
-    if (canCreateMovements && product.inventory?.inventory_item_id)
-      onRouteChange?.(String(product.inventory.inventory_item_id), "move");
+    if (canCreateMovements && product.inventory?.inventory_item_id) {
+      setDetailsProductId(String(product.id));
+      setDetailsView("move");
+    }
   };
   const historyFromDetails = (product: any) => {
-    setDetailsProductId(null);
-    if (canViewMovements && product.inventory?.inventory_item_id)
-      onRouteChange?.(String(product.inventory.inventory_item_id), "history");
+    if (canViewMovements && product.inventory?.inventory_item_id) {
+      setDetailsProductId(String(product.id));
+      setDetailsView("history");
+    }
   };
 
   const filtered = products.filter((product: any) => {
@@ -1367,7 +1384,12 @@ export function TabProducts({
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
                     {showProduct && <td>
                       <div className="flex items-center gap-3">
-                        <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
+                        {product.cover_media_id
+                          ? <button type="button" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
+                              onClick={() => setExpandedListImage({ mediaId: String(product.cover_media_id), name: product.name })}>
+                              <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
+                            </button>
+                          : <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />}
                         <div className="min-w-0">
                           {canViewDetails
                             ? <button type="button" onClick={() => openDetails(product)}
@@ -1418,10 +1440,9 @@ export function TabProducts({
                     {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
                     {showActions && <td>
                       <div className="flex items-center justify-end gap-1">
-                        {canViewDetails && <AdminIconButton ariaLabel="Ver detalhes do item" title="Detalhes" onClick={() => openDetails(product)}><Eye size={15}/></AdminIconButton>}
                         {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar item" title="Editar cadastro" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
-                        {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => onRouteChange?.(String(item.inventory_item_id), "history")}><List size={15} /></AdminIconButton>}
-                        {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => onRouteChange?.(String(item.inventory_item_id), "move")}><ArrowLeftRight size={15} /></AdminIconButton>}
+                        {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => historyFromDetails(product)}><List size={15} /></AdminIconButton>}
+                        {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => moveFromDetails(product)}><ArrowLeftRight size={15} /></AdminIconButton>}
                         {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => toggleActive(product)} />}
                       </div>
                     </td>}
@@ -1442,7 +1463,7 @@ export function TabProducts({
       </AdminCard></>)}
     </>}
 
-    {routeResourceId && !drawerOpen && !closingEditorRouteRef.current && (
+    {routeResourceId && routeSubpage !== "move" && routeSubpage !== "history" && !drawerOpen && !closingEditorRouteRef.current && (
       catalogQuery.isError || (routeResourceId !== "new" && !catalogQuery.isPending && !products.some((item: any) => item.id === routeResourceId))
         ? <AdminCard className="p-8">
             <EmptyState
@@ -2341,12 +2362,17 @@ export function TabProducts({
       canViewCosts={canViewCosts}
       canViewSuppliers={canViewSuppliers}
       saleSummary={saleSummaryByItemId.get(String(activeDetailsProduct.inventory?.inventory_item_id || ""))}
-      onClose={() => setDetailsProductId(null)}
+      view={detailsView}
+      onBack={() => setDetailsView("details")}
+      onClose={() => { setDetailsProductId(null); setDetailsView("details"); }}
       onEdit={editFromDetails}
       onMove={moveFromDetails}
       onHistory={historyFromDetails}
       onOpenProduct={openDetailsById}
     />}
+
+    {expandedListImage && <InventoryProductImageLightbox mediaId={expandedListImage.mediaId}
+      name={expandedListImage.name} onClose={() => setExpandedListImage(null)} />}
 
     <AdminDialog
       open={Boolean(masterDataDialog)}
