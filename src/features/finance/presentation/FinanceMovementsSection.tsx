@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -50,7 +51,7 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20));
   const [transferOpen, setTransferOpen] = useState(false);
   useEffect(() => { if (createSignal > 0) setTransferOpen(true); }, [createSignal]);
   const [selectedMovement, setSelectedMovement] = useState<FinancialMovement | null>(null);
