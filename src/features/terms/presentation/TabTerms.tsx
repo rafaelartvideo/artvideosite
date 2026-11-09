@@ -194,6 +194,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   };
 
   if (!canView) return null;
+  if (loading) return <AdminWorkspaceSkeleton pageHeader variant="table" rows={2} columns={6} extraDetails stickyToolbar />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -203,7 +204,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       subtitle="Consulte os termos da Union World e personalize o certificado de garantia da empresa."
     />
 
-    {loading ? <AdminWorkspaceSkeleton variant="table" rows={2} columns={6} extraDetails stickyToolbar /> : <>
 
     <AdminCard>
       <AdminCardHeader>
@@ -338,6 +338,5 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       onClose={() => { if (!saving) setCertificateOpen(false); }}
       onSave={config => void saveCertificate(config)}
     />}
-    </>}
   </div>;
 }
