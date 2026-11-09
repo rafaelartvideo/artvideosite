@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useAuth } from "@/lib/auth";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -9,7 +10,7 @@ export function QueueIntegrationToolPage({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canUpdate = hasPermission("queue.manage");
 
-  if (!activeOrganizationId) return <LoadingState text="Carregando empresa ativa..." />;
+  if (!activeOrganizationId) return <AdminWorkspaceSkeleton variant="details" rows={2} columns={4} />;
 
   return <div className="min-w-0 space-y-5">
     <PageHeader
