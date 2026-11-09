@@ -37,6 +37,7 @@ export function FinanceEntryEditorDialog({
   counterpartyLoading,
   onCounterpartySearchChange,
   categories,
+  defaultCategoryId,
   paymentMethods,
   saving,
   onClose,
@@ -51,6 +52,7 @@ export function FinanceEntryEditorDialog({
   counterpartyLoading: boolean;
   onCounterpartySearchChange: (value: string) => void;
   categories: FinancialCategory[];
+  defaultCategoryId?: string | null;
   paymentMethods: FinancialPaymentMethod[];
   saving: boolean;
   onClose: () => void;
@@ -147,6 +149,17 @@ export function FinanceEntryEditorDialog({
     }
     setFieldErrors({});
   }, [open, initial]);
+
+  // Preenche automaticamente somente novas contas. Nunca sobrescreve a categoria
+  // editada pelo usuário nem uma alocação de conta existente.
+  useEffect(() => {
+    if (!open || initial || !defaultCategoryId) return;
+    const standard = categories.find(item =>
+      item.id === defaultCategoryId && item.is_active &&
+      item.nature === (entryType === "receivable" ? "revenue" : "expense"),
+    );
+    if (standard) setCategoryId(current => current || standard.id);
+  }, [open, initial, defaultCategoryId, categories, entryType]);
 
   useEffect(() => {
     if (!counterpartId || !selectedCounterpart) return;
