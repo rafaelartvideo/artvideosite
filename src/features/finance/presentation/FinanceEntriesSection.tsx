@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -308,6 +309,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   const Icon = isReceivable ? BanknoteArrowUp : BanknoteArrowDown;
   return <div className="space-y-4">
+{finance.entriesQuery.isLoading ? <AdminWorkspaceSkeleton searchFields={8} columns={9} rows={pageSize} /> : <>
     <AdminSearchPanel
       title={isReceivable ? "Buscar contas a receber" : "Buscar contas a pagar"}
       allowOverflow={isReceivable}
@@ -427,7 +429,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
       </div>
     </AdminSearchPanel>
-      {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
+      {finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
           <div className="divide-y divide-border">
             {entries.map(entry => <div key={entry.id}><button type="button" onClick={() => onSelectEntry(entry.id)}
@@ -497,6 +499,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </tbody>
           </table>
         </FinanceTableSurface>
+      </>}
       </>}
 
 
