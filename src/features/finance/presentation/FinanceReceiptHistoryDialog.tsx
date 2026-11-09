@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, History, Printer, Search } from "lucide-react";
@@ -58,7 +59,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
   const [direction, setDirection] = useState<DirectionFilter>("all");
   const [mobileCriterion, setMobileCriterion] = useState<"query" | "direction">("query");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([10, 20, 50], ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [selected, setSelected] = useState<Receipt | null>(null);
 
   useEffect(() => { setPage(1); }, [search, direction, pageSize]);
