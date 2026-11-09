@@ -224,8 +224,11 @@ export function TabSales() {
     const key=`${organizationId}:${view}`;
     setReadyViews(previous=>previous[key]?previous:{...previous,[key]:true});
   },[organizationId]);
+  // Model compatibility and catalog rows settle together to avoid jumping cards.
+  const catalogResultsLoading = (productsQuery.isPending && !productsQuery.data)
+    || (catalogProductIds.length > 0 && deviceModelsQuery.isPending && !deviceModelsQuery.data);
   const storefrontReady=!canView || (
-    !categoriesQuery.isPending && (debouncedSearch.trim().length===1 || !productsQuery.isPending)
+    !categoriesQuery.isPending && (debouncedSearch.trim().length===1 || !catalogResultsLoading)
   );
   const sectionReady=currentView==="storefront"
     ? storefrontReady
@@ -505,9 +508,9 @@ export function TabSales() {
           message="Solicite acesso ao módulo Vendas ao gestor da empresa." />
           : debouncedSearch.trim().length === 1 ? <p className="p-5 text-sm text-muted-foreground">Digite pelo menos dois caracteres para buscar.</p>
           
-          : productsQuery.isPending && !productsQuery.data
+          : catalogResultsLoading
           ? <AdminWorkspaceSkeleton searchFields={0} columns={display==="list"?6:4}
-              rows={display==="list"?40:12} variant={display==="list"?"table":"grid"} />
+              rows={40} variant={display==="list"?"table":"grid"} />
           : productsQuery.error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-5 text-sm text-destructive">
             {systemErrorMessage(productsQuery.error, "Não foi possível carregar o catálogo.")}
           </div>
