@@ -246,11 +246,11 @@ export function TabCustomerRequests() {
   );
 
   return <div className="min-w-0 space-y-5">
+    {loading ? <AdminWorkspaceSkeleton pageHeader searchFields={6} columns={8} rows={pageSize} /> : <>
     <PageHeader title="Pedidos Avulsos"
       subtitle={`${String(overallTotal)} pedidos realizados`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
-    {loading ? <AdminWorkspaceSkeleton searchFields={6} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar pedidos" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
       <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
