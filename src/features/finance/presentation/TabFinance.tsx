@@ -66,6 +66,11 @@ export function TabFinance({
       return count ?? 0;
     },
   });
+  const countErrors: FinanceSection[] = [
+    ...(hasPermission("finance.receivables.view") && receivableCount.isError ? ["receivables" as const] : []),
+    ...(hasPermission("finance.payables.view") && payableCount.isError ? ["payables" as const] : []),
+    ...(hasPermission("finance.accounts.view") && accountsCount.isError ? ["accounts" as const] : []),
+  ];
   const tabCounts: Partial<Record<FinanceSection, number>> = {
     ...(receivableCount.data !== undefined ? { receivables: receivableCount.data } : {}),
     ...(payableCount.data !== undefined ? { payables: payableCount.data } : {}),
@@ -186,7 +191,7 @@ export function TabFinance({
         </button>}
       </div> : undefined} />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection}
-      counts={tabCounts} availableRegistrySections={availableRegistrySections}
+      counts={tabCounts} countErrors={countErrors} availableRegistrySections={availableRegistrySections}
       activeRegistry={registryModal} onOpenRegistry={openRegistryModal} />
     </>}
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
