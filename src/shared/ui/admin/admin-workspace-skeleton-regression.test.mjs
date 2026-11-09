@@ -89,7 +89,7 @@ test("Dashboard usa skeleton completo só na primeira visita e conteúdo isolado
   assert.ok(page.indexOf("<DashboardModuleNav") < page.indexOf('{dashboardInitialLoading ? <AdminOverviewPageSkeleton'));
   assert.match(page, /dashboardInitialLoading \? <AdminOverviewPageSkeleton variant="dashboard" contentOnly/);
   assert.match(helper, /window\.sessionStorage\.setItem/);
-  assert.match(helper, /moduleId:\${scope}/);
+  assert.match(helper, /\$\{moduleId\}:\$\{scope\}/);
   assert.ok((await transformWithEsbuild(helper, "useWorkspaceFirstVisit.ts", { loader: "ts" })).code.length>0);
 });
 
