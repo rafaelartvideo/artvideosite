@@ -1,7 +1,8 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   loadUnionCatalogTemplates, saveUnionCatalogTemplate,
@@ -99,7 +100,7 @@ export function UnionEquipmentTemplates({
     {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
     {!editing && <>
       {canManage && <div className="flex justify-end"><BtnPrimary onClick={startNew}>Novo</BtnPrimary></div>}
-      {loading ? <LoadingState text="Carregando modelos..." /> : rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nenhum template cadastrado.</p> : <div className="overflow-x-auto border border-border"><TopTableScrollbar /><table className="w-full min-w-[440px] text-sm">
+      {loading ? <AdminWorkspaceSkeleton columns={6} rows={5} /> : rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nenhum template cadastrado.</p> : <div className="overflow-x-auto border border-border"><TopTableScrollbar /><table className="w-full min-w-[440px] text-sm">
         <thead className="bg-muted/70 text-muted-foreground"><tr><th className="p-3 text-left">Nome</th><th className="p-3 text-left">Identificador</th><th className="p-3 text-left">Situação</th><th className="p-3 text-right">Ações</th></tr></thead>
         <tbody className="divide-y divide-border">{rows.map(item => <tr key={item.id} className="hover:bg-muted/50"><td className="p-3 font-semibold text-foreground">{"label" in item ? item.label : item.title}</td><td className="p-3 text-muted-foreground">{"field_key" in item ? item.field_key : item.stage_code}</td><td className="p-3">{item.is_active ? "Ativo" : "Inativo"}</td><td className="p-3 text-right">{canManage && <BtnSecondary onClick={() => startEdit(item)}>Editar</BtnSecondary>}</td></tr>)}</tbody>
       </table></div>}
