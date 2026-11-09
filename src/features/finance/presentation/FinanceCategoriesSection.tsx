@@ -81,7 +81,45 @@ export function FinanceCategoriesSection({ createSignal = 0, modalOpen = false, 
 
 
   </div>;
-  const editor = <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /><FSelect label="Natureza" required value={form.nature} options={NATURES} onChange={(event: any) => setForm(current => ({ ...current, nature: event.target.value as FinancialCategoryNature, parent_category_id: "" }))} /></div><div className="grid gap-4 sm:grid-cols-2"><FSelect label="Categoria pai" error={fieldErrors.parent_category_id} value={form.parent_category_id} options={parentOptions} onChange={(event: any) => { setFieldErrors(current => ({ ...current, parent_category_id: undefined })); setForm(current => ({ ...current, parent_category_id: event.target.value })); }} /><FInput label="Grupo DRE" value={form.report_group} onChange={(event: any) => setForm(current => ({ ...current, report_group: event.target.value }))} placeholder="Ex.: Receita de serviços" /></div><FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))} /></div>;
+  const editor = <div className="space-y-5">
+    <p className="text-sm text-muted-foreground">
+      As categorias mais comuns já vêm cadastradas. Crie uma nova apenas quando precisar.
+    </p>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <FInput label="Nome" required error={fieldErrors.name} value={form.name}
+        onChange={(event: any) => {
+          setFieldErrors(current => ({ ...current, name: undefined }));
+          setForm(current => ({ ...current, name: event.target.value }));
+        }} />
+      <FSelect label="Tipo" required value={form.nature} options={NATURES}
+        onChange={(event: any) => setForm(current => ({
+          ...current, nature: event.target.value as FinancialCategoryNature, parent_category_id: "",
+        }))} />
+    </div>
+    <details className="rounded-lg border border-border bg-card px-4 py-3">
+      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+        Opções avançadas (opcional)
+      </summary>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <FSelect label="Categoria pai" error={fieldErrors.parent_category_id}
+          value={form.parent_category_id} options={parentOptions}
+          onChange={(event: any) => {
+            setFieldErrors(current => ({ ...current, parent_category_id: undefined }));
+            setForm(current => ({ ...current, parent_category_id: event.target.value }));
+          }} />
+        <FInput label="Grupo DRE" value={form.report_group}
+          onChange={(event: any) => setForm(current => ({
+            ...current, report_group: event.target.value,
+          }))} placeholder="Ex.: Receita de serviços" />
+        <div className="sm:col-span-2">
+          <FTextarea label="Descrição" value={form.description}
+            onChange={(event: any) => setForm(current => ({
+              ...current, description: event.target.value,
+            }))} />
+        </div>
+      </div>
+    </details>
+  </div>;
   const editorFooter = <div className="flex flex-wrap items-center justify-between gap-2">
     <AdminButton variant="secondary" onClick={close} disabled={finance.saveCategory.isPending}><ArrowLeft size={16} /> Voltar</AdminButton>
     <AdminButton onClick={() => void save()} loading={finance.saveCategory.isPending} loadingText="Salvando...">Salvar categoria</AdminButton>
