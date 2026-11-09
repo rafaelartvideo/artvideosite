@@ -100,6 +100,7 @@ export function PdvSalesHistory({
       sort,
     }),
     enabled: Boolean(organizationId),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationId ? previous : undefined,
   });
 
   const detailQuery = useQuery({
