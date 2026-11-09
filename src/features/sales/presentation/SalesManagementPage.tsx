@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, BarChart3, Medal, Plus, Wallet } from "lucide-react";
+import { ArrowDownToLine, BarChart3, Edit2, Medal, Plus, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardHeader, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { getSalesManagement,saveSalesSellerGoal,
@@ -176,12 +176,20 @@ export function SalesManagementPage(){
             </div>
           </Section>
         </div>
-        <Section title="Vendedores, metas e comissões"
-          description="Comissão estimada; não gera pagamento até aprovação e baixa financeira. A base é definida por vendedor."
-          flush className="[&_th]:md:py-2 [&_td]:md:py-2.5"
-          actions={manage&&<AdminButton variant="secondary" size="sm" onClick={()=>editGoal()}>
-            <Plus size={14}/> Configurar
-          </AdminButton>}>
+        <AdminCard square>
+          <AdminCardHeader>
+            <div className="min-w-0">
+              <h3 className="text-xs font-black uppercase tracking-[0.12em] text-foreground">Vendedores, metas e comissões</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Comissão estimada; não gera pagamento até aprovação e baixa financeira. A base é definida por vendedor.
+              </p>
+            </div>
+            {manage&&<AdminButton variant="secondary" size="sm" onClick={()=>editGoal()}>
+              <Plus size={14}/> Configurar
+            </AdminButton>}
+          </AdminCardHeader>
+        </AdminCard>
+        <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
           <div className="divide-y divide-border lg:hidden">
             {sellers.length===0
               ?<p className="px-4 py-6 text-sm text-muted-foreground">Sem vendedores ativos neste período.</p>
@@ -224,7 +232,7 @@ export function SalesManagementPage(){
             <TopTableScrollbar/>
             <table className="min-w-[900px]">
               <thead>
-                <tr><th className="px-4 py-3">Vendedor</th>
+                <tr><th className="px-4 py-3 text-left">Vendedor</th>
                   <th className="px-4 py-3 text-right">Pedidos</th>
                   <th className="px-4 py-3 text-right">Vendas líquidas</th>
                   <th className="px-4 py-3 text-right">Meta</th>
@@ -247,8 +255,8 @@ export function SalesManagementPage(){
                     </p>
                   </td>
                   {manage&&<td className="px-4 py-3 text-right">
-                    <button type="button" className="font-semibold text-primary"
-                      onClick={()=>editGoal(seller)}>Editar</button>
+                    <AdminIconButton variant="tertiary" ariaLabel={"Editar meta de "+seller.name}
+                      onClick={()=>editGoal(seller)}><Edit2 size={15}/></AdminIconButton>
                   </td>}
                 </tr>)}
               </tbody>
@@ -258,7 +266,7 @@ export function SalesManagementPage(){
             Recebimentos são vinculados ao mês da venda; não representam necessariamente o fluxo de caixa do mês.
             Os valores descontam devoluções recebidas e podem ser recalculados antes do pagamento de comissões.
           </p>
-        </Section>
+        </AdminCard>
         <SalesCommissionsSection organizationId={org} month={month} sellers={sellers} canManage={manage}/>
       </>}
 
