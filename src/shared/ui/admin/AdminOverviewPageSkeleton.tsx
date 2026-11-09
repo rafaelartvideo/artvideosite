@@ -88,7 +88,7 @@ function FinanceTableSkeleton({ rows }: { rows: number }) {
 
 /** Carregamento inicial único, sem títulos, abas, saudação ou contagens reais vazando para a página. */
 export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview" }: Props) {
-  const tabCount = Math.max(1, Math.min(tabs, 12));
+  const tabCount = Math.max(0, Math.min(tabs, 12));
   const rowCount = Math.max(1, Math.min(rows, 100));
   return <section role="status" aria-label="Carregando página e indicadores" aria-busy="true"
     className="min-w-0 space-y-4 pb-3">
@@ -121,12 +121,12 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
         <div className="min-w-0 space-y-2"><Skeleton className="h-7 w-40" /><Skeleton className="h-3 w-72 max-w-full" /></div>
         <div className="flex gap-2"><Skeleton className="h-9 w-24" /><Skeleton className="h-9 w-24" /></div>
       </div>
-      <div className="flex w-full max-w-full gap-3 overflow-hidden rounded-xl bg-card px-3 py-3">
+      {tabCount > 0 && <div className="flex w-full max-w-full gap-3 overflow-hidden rounded-xl bg-card px-3 py-3">
         {Array.from({ length: tabCount }, (_, index) => <div key={index} className="flex shrink-0 items-center gap-2">
           <Skeleton className="h-5 w-5 rounded-md" /><Skeleton className="h-3.5 w-16 sm:w-20" />
           {variant === "finance" && index > 0 && index < 4 && <Skeleton className="h-5 w-7 rounded-full" />}
         </div>)}
-      </div>
+      </div>}
       {variant === "finance" && financeSurface === "table"
         ? <FinanceTableSkeleton rows={rowCount} />
         : variant === "finance" && financeSurface === "reports"
