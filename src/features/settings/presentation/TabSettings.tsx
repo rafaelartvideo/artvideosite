@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { CircleHelp } from "lucide-react";
@@ -142,7 +143,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
   };
 
   if (!canView) return null;
-  if (query.isPending) return <LoadingState />;
+  if (query.isPending) return <AdminWorkspaceSkeleton variant="details" rows={4} columns={4} />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
