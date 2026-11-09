@@ -1253,14 +1253,14 @@ export function TabProducts({
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    {!routeResourceId && <>
+    {!routeResourceId && (loading && canViewTable ? <AdminWorkspaceSkeleton pageHeader searchFields={4} columns={10} rows={pageSize} /> : <>
       <PageHeader
         title="Estoque"
         subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
         actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null}
       />
 
-      {canViewTable && (loading ? <AdminWorkspaceSkeleton searchFields={4} columns={10} rows={pageSize} /> : <><AdminSearchPanel title="Buscar no estoque" headerActions={<>
+      {canViewTable && <><AdminSearchPanel title="Buscar no estoque" headerActions={<>
         {(hasInventoryFilters || inventorySort !== "name_asc") && <AdminSearchClearButton onClick={() => {
           setNameSearch(""); setGtinSearch(""); setCategoryFilter(""); setLocationSearch("");
           setInventorySort("name_asc"); setPage(1);
@@ -1461,8 +1461,8 @@ export function TabProducts({
           onPageChange={nextPage => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
           onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
         />
-      </AdminCard></>)}
-    </>}
+      </AdminCard></>}
+    </>)}
 
     {routeResourceId && routeSubpage !== "move" && routeSubpage !== "history" && !drawerOpen && !closingEditorRouteRef.current && (
       catalogQuery.isError || (routeResourceId !== "new" && !catalogQuery.isPending && !products.some((item: any) => item.id === routeResourceId))
