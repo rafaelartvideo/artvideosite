@@ -50,7 +50,7 @@ function primaryAddressLabel(customer: any) {
 }
 
 export function TabCustomerRequests() {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const canCreate = hasPermission("customer_requests.create");
   const canUpdate = hasPermission("customer_requests.update");
@@ -84,7 +84,10 @@ export function TabCustomerRequests() {
   });
   const items = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
-  const loading = Boolean(activeOrganizationId) && listQuery.isPending;
+  // A autenticação pode resolver a empresa após o primeiro render.
+  // Evita uma tela vazia intermediária e não reativa skeleton durante refetch.
+  const loading = (!activeOrganizationId && authLoading)
+    || (Boolean(activeOrganizationId) && listQuery.isPending && !listQuery.data);
 
   const overallCountQuery = useQuery({
     queryKey: ["customer-requests", "overall-count", activeOrganizationId, version],
