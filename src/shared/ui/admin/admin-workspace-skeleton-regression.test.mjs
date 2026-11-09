@@ -43,6 +43,6 @@ test("busca e resultados principais usam apenas um estado inicial de carregament
    const at=source.indexOf("<AdminWorkspaceSkeleton");
    const search=source.indexOf("<AdminSearchPanel",at);
    assert.ok(at>=0&&search>at,file);
-   assert.match(source.slice(Math.max(at-120,0),at),/\?\s*<AdminWorkspaceSkeleton$/);
+   assert.match(source.slice(Math.max(at-120,0),at),/\?\s*$/);
  }
 });
