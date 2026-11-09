@@ -4,7 +4,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { ArrowLeft, FolderTree, Pencil, Plus } from "lucide-react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
