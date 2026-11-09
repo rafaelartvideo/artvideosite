@@ -1,0 +1,49 @@
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { cn } from "@/shared/domain/formatters";
+
+/** Padrão único de subseções do CRM, baseado no editor de Novo item.
+ * Mantém a divisória inferior sem exibir barra de rolagem horizontal.
+ */
+export const ADMIN_SUBSECTION_TAB_CLASS =
+  "inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
+
+export const ADMIN_SUBSECTION_TAB_ACTIVE_CLASS = "border-primary text-primary";
+
+export type AdminSubsectionItem<T extends string> = {
+  id: T;
+  label: string;
+  Icon?: LucideIcon;
+  count?: number;
+  countUnavailable?: boolean;
+  disabled?: boolean;
+};
+
+export function AdminSubsectionTabs<T extends string>({
+  value, items, onChange, ariaLabel, trailing,
+}: {
+  value: T;
+  items: ReadonlyArray<AdminSubsectionItem<T>>;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  trailing?: ReactNode;
+}) {
+  return <nav aria-label={ariaLabel} className="w-full min-w-0 border-b border-border">
+    <div role="tablist" aria-label={ariaLabel}
+      className="flex min-w-0 items-center justify-start gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {items.map(({ id, label, Icon, count, countUnavailable, disabled }) => {
+        const selected = id === value;
+        return <button key={id} type="button" role="tab" aria-selected={selected}
+          aria-current={selected ? "page" : undefined} disabled={disabled}
+          onClick={() => onChange(id)}
+          className={cn(ADMIN_SUBSECTION_TAB_CLASS, "disabled:cursor-not-allowed disabled:opacity-50", selected && ADMIN_SUBSECTION_TAB_ACTIVE_CLASS)}>
+          {Icon && <Icon size={14} className="shrink-0" aria-hidden="true" />}
+          <span>{label}</span>
+          {typeof count === "number" && <span className={cn("inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{count.toLocaleString("pt-BR")}</span>}
+          {count === undefined && countUnavailable && <span aria-label="Contagem indisponível" title="Não foi possível carregar esta contagem" className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">—</span>}
+        </button>;
+      })}
+      {trailing}
+    </div>
+  </nav>;
+}
