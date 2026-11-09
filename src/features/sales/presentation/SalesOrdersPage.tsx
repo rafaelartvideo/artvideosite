@@ -8,6 +8,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminFieldLabel, AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesOrders, type SalesOrderFilters, type SalesOrderListRow } from "../infrastructure/sales-orders.repository";
@@ -23,13 +24,11 @@ function FilterSelect({
   label: string;value: string;onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
 }) {
-  return <label className="min-w-0 space-y-1.5">
-    <span className="block text-xs font-semibold text-muted-foreground">{label}</span>
-    <select value={value} onChange={event => onChange(event.target.value)}
-      className="h-[42px] w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground outline-none focus:border-primary md:h-9">
-      {options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-  </label>;
+  return <div className="min-w-0">
+    <AdminFieldLabel label={label}/>
+    <AdminSelect value={value} onValueChange={onChange} options={options} ariaLabel={label}
+      className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
+  </div>;
 }
 
 function StatusPill({ text, tone = "neutral" }: {
@@ -190,16 +189,12 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
             {value:"cancelled",label:"Cancelado"},
           ]}/>
         <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 xl:col-span-2">
-          <label className="min-w-0 space-y-1.5">
-            <span className="block text-xs font-semibold text-muted-foreground">Data inicial</span>
-            <input type="date" value={from} onChange={event=>setFilter(setFrom,event.target.value)}
-              className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary md:h-9"/>
-          </label>
-          <label className="min-w-0 space-y-1.5">
-            <span className="block text-xs font-semibold text-muted-foreground">Data final</span>
-            <input type="date" value={to} onChange={event=>setFilter(setTo,event.target.value)}
-              className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-primary md:h-9"/>
-          </label>
+          <FInput label="Data inicial" type="date" value={from}
+            onChange={(event:React.ChangeEvent<HTMLInputElement>)=>setFilter(setFrom,event.target.value)}
+            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
+          <FInput label="Data final" type="date" value={to}
+            onChange={(event:React.ChangeEvent<HTMLInputElement>)=>setFilter(setTo,event.target.value)}
+            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
         </div>
       </div>
       {badPeriod && <p role="alert" className="mt-3 text-xs text-destructive">
