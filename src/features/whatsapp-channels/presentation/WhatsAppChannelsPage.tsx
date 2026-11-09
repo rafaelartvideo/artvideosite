@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingSpinner, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
