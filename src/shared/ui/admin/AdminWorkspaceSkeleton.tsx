@@ -10,6 +10,12 @@ type AdminWorkspaceSkeletonProps = {
   /** Mesmo pageSize já escolhido pelo usuário; não força uma consulta de cinco linhas. */
   rows?: number;
   variant?: AdminWorkspaceSkeletonVariant;
+  /** Exibe também o título/subtítulo da página como skeleton. */
+  pageHeader?: boolean;
+  /** Campo de busca inline na mesma linha do título. */
+  inlineSearch?: boolean;
+  /** Ações inferiores da listagem, sem exibir botões reais durante a primeira carga. */
+  stickyToolbar?: boolean;
   /** Mantém componentes em cache visíveis durante refetch: só montar na carga inicial. */
   className?: string;
 };
@@ -25,6 +31,9 @@ export function AdminWorkspaceSkeleton({
   columns = 7,
   rows = 5,
   variant = "table",
+  pageHeader = false,
+  inlineSearch = false,
+  stickyToolbar = false,
   className = "",
 }: AdminWorkspaceSkeletonProps) {
   const fieldCount = Math.max(0, Math.min(18, Math.floor(searchFields)));
@@ -37,6 +46,13 @@ export function AdminWorkspaceSkeleton({
 
   return <section role="status" aria-label="Carregando conteúdo" aria-busy="true" className={`min-w-0 space-y-5 ${className}`}>
     <span className="sr-only">Carregando conteúdo do módulo...</span>
+    {pageHeader && <div className="flex min-w-0 flex-wrap items-center justify-between gap-3" aria-hidden="true">
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-6 w-52 max-w-full" />
+        <Skeleton className="h-3.5 w-80 max-w-full" />
+      </div>
+      {inlineSearch && <Skeleton className="h-10 w-full rounded-lg sm:w-64" />}
+    </div>}
 
     {fieldCount > 0 && <div className="min-w-0 overflow-hidden bg-card" aria-hidden="true">
       {/* O cabeçalho Buscar inteiro é um único bloco neutro, sem texto por fora. */}
@@ -121,6 +137,10 @@ export function AdminWorkspaceSkeleton({
           </div>)}
         </div>
       </div>)}
+    </div>}
+    {stickyToolbar && <div className="flex flex-wrap items-center justify-end gap-2" aria-hidden="true">
+      <Skeleton className="h-10 w-24 rounded-lg" />
+      <Skeleton className="h-10 w-20 rounded-lg" />
     </div>}
   </section>;
 }
