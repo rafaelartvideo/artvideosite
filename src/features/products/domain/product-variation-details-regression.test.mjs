@@ -21,8 +21,10 @@ test("Estoque utiliza a lista de produtos e abre detalhes ao clicar na linha ou 
   assert.ok(ui.includes("canViewSuppliers={canViewSuppliers}"));
   assert.ok(ui.includes("onOpenProduct={openDetailsById}"));
   assert.ok(ui.includes('closest("button,a,input,select,textarea")'));
-  assert.ok(ui.includes('onRouteChange?.(String(product.inventory.inventory_item_id), "move")'));
-  assert.ok(ui.includes('onRouteChange?.(String(product.inventory.inventory_item_id), "history")'));
+  assert.ok(ui.includes('setDetailsView("move")'));
+  assert.ok(ui.includes('onClick={() => moveFromDetails(product)}'));
+  assert.ok(ui.includes('setDetailsView("history")'));
+  assert.ok(ui.includes('onClick={() => historyFromDetails(product)}'));
 });
 
 test("Modal exibe informações e fotos, mas não vaza custos a quem não tem permissão", async () => {
