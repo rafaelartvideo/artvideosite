@@ -35,10 +35,14 @@ test("Vitrine e detalhes têm TSX válido com carregamento antecipado e localiza
   assert.match(vitrine,/min-w-\[750px\]/);
 });
 
-test("Detalhes têm características em três colunas sem linhas de separação ou descrição",()=>{
+test("Detalhes têm uma divisória antes dos atributos, sem bordas individuais nas características",()=>{
   const modal=read("src/features/sales/presentation/SalesProductDetailsDialog.tsx");
   assert.match(modal,/grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3/);
-  assert.doesNotMatch(modal,/border-t border-border/);
+  // A divisória solicitada pertence à estrutura do modal, não às células de atributos.
+  assert.match(modal,/role="separator" aria-label="Separação entre compra e características" className="border-t border-border"/);
+  const attributeComponent=modal.slice(modal.indexOf("function Attribute("),modal.indexOf("function availableQuantity("));
+  assert.ok(attributeComponent,"Componente Attribute ausente");
+  assert.doesNotMatch(attributeComponent,/border-/);
   assert.doesNotMatch(modal,/>\s*Descrição\s*</);
   assert.match(modal,/stock_location/);
   assert.match(modal,/Localização no estoque/);
