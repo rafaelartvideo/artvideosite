@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
-import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, MoreHorizontal, PackageCheck, RotateCcw, ShoppingBag, Truck, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Clock3, FileText, History, MoreHorizontal, PackageCheck, RotateCcw, ShoppingBag, Truck, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -62,6 +62,7 @@ export function SalesOrderDetailDialog({
   onChanged?: (message: string) => void;
 }) {
   const { hasPermission } = useAuth();
+  const historyRef=useRef<HTMLElement|null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,7 +127,6 @@ export function SalesOrderDetailDialog({
   const canDelivery=Boolean(order?.status==="confirmed"&&hasPermission("sales.delivery.manage"));
   // A visualização do histórico exige apenas sales.view; operações são protegidas no próprio modal.
   const canReturns=Boolean(order?.status==="confirmed"&&order.fulfillment_status!=="pending");
-  const hasMoreActions=canOpenFinance||canDelivery||canReturns||canOfferCancellation;
 
   return <>
     <AdminDialog open onClose={onClose}
@@ -135,14 +135,17 @@ export function SalesOrderDetailDialog({
       className="w-[calc(100vw-1.25rem)] max-w-4xl"
       bodyClassName="max-h-[min(75dvh,800px)] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
-        {hasMoreActions&&<DropdownMenu>
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" aria-label="Mais ações do pedido"
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground outline-none hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-primary">
               <MoreHorizontal size={17}/> Ações
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[210px]">
+          <DropdownMenuContent align="end" side="top" className="z-[360] min-w-[230px] max-h-[min(70dvh,420px)]">
+            <DropdownMenuItem onSelect={()=>historyRef.current?.scrollIntoView({behavior:"smooth",block:"start"})}>
+              <History size={15} className="mr-2"/> Visualizar histórico
+            </DropdownMenuItem>
             {canOpenFinance&&order?.financial_entry_id&&
               <DropdownMenuItem onSelect={()=>openFinance(order.financial_entry_id!)}>
                 <Wallet size={15} className="mr-2"/> Receber no Financeiro
@@ -159,7 +162,7 @@ export function SalesOrderDetailDialog({
               <AlertCircle size={15} className="mr-2"/> Cancelar pedido
             </DropdownMenuItem>}
           </DropdownMenuContent>
-        </DropdownMenu>}
+        </DropdownMenu>
         {order?.status==="confirmed"&&nextStatus&&nextStatus!=="delivered"&&canManage&&
           <AdminButton size="sm"
             disabled={fulfillmentMutation.isPending||cancellationMutation.isPending}
@@ -228,9 +231,6 @@ export function SalesOrderDetailDialog({
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Calendar size={13}/> Vencimento: {formatSalesDueDate(order.due_date)}
                   </p>}
-                {order.financial_entry_id && <p className="break-all text-[11px] text-muted-foreground">
-                  Vinculado ao Financeiro · ID {order.financial_entry_id}
-                </p>}
               </div>
             </div>
 
@@ -330,7 +330,7 @@ export function SalesOrderDetailDialog({
               <p className="text-xs text-muted-foreground">{formatSalesDate(order.cancelled_at)}</p>
             </div>}
 
-            <section className="space-y-2">
+            <section ref={historyRef} className="space-y-2">
               <h3 className="flex items-center gap-2 text-sm font-bold"><Clock3 size={16}/> Histórico</h3>
               <div className="divide-y divide-border rounded-xl border border-border">
                 {order.events.map(event => <div key={event.id} className="flex gap-2.5 px-3 py-3">
