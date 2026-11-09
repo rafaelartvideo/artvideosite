@@ -9,6 +9,7 @@ import { FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FinanceTableSurface } from "./FinanceTableSurface";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 import {
   archiveFinancialAttachment,
@@ -36,7 +37,7 @@ function formatSize(bytes: number | null) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
+export function FinanceDocumentsPanel({ entryId, orderId, orderNumber }: { entryId: string; orderId?: string | null; orderNumber?: unknown }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
@@ -149,7 +150,7 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
               : attachments.map(item => <tr key={item.id} className="transition-colors hover:bg-muted/30">
                 <td className="max-w-[280px] px-4 py-3 font-semibold text-foreground" title={item.file_name}>
                   <span className="block truncate">{item.file_name}</span>
-                  {item.source_media_id && <span className="mt-1 block text-[10px] font-medium text-muted-foreground">Vinculado à OS · arquivo original</span>}
+                  {item.source_media_id && <span className="mt-1 block text-[10px] font-medium text-muted-foreground">Vinculado à {orderId ? <FinanceServiceOrderLink orderId={orderId} number={orderNumber} /> : "OS"} · arquivo original</span>}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{typeLabel(item.attachment_type)}</td>
                 <td className="px-4 py-3 tabular-nums text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</td>
