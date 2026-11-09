@@ -1,3 +1,4 @@
+import { initialPageSize, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -106,9 +107,9 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
   const [templatePage, setTemplatePage] = useState(1);
-  const [templatePageSize, setTemplatePageSize] = useState(5);
+  const [templatePageSize, setTemplatePageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [attachmentPage, setAttachmentPage] = useState(1);
-  const [attachmentPageSize, setAttachmentPageSize] = useState(5);
+  const [attachmentPageSize, setAttachmentPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const errorMessage = templatesLoadError ? systemErrorMessage(templatesLoadError) : "";
   const attachmentErrorMessage = attachmentLoadError ? systemErrorMessage(attachmentLoadError) : "";
   // Query failures use the same global feedback UI as mutation errors.
@@ -214,14 +215,14 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
 
       {canViewTable && (section === "printing" ? <>
         <AdminCard>
-          {loading ? <AdminWorkspaceSkeleton columns={5} rows={5} /> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title="Nenhum modelo configurado" /></div> : <>
+          {loading ? <AdminWorkspaceSkeleton columns={5} rows={templatePageSize} /> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title="Nenhum modelo configurado" /></div> : <>
             <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[760px]"><thead><tr>{showModel && <th className="text-left">Modelo</th>}{showDocumentType && <th className="text-left">Tipo</th>}{showPaper && <th className="text-left">Papel</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTemplates.map(template => <tr key={template.id}>{showModel && <td><p className="font-bold text-[#0d1b2e]">{template.name}</p><p className="text-xs text-[#5a6a82]">{template.description || "Sem descrição"}</p></td>}{showDocumentType && <td className="text-xs text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</td>}{showPaper && <td className="text-xs text-[#5a6a82]">{template.paper_size} · {template.orientation === "landscape" ? "Paisagem" : "Retrato"}</td>}{showStatus && <td><StatusBadge status={template.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar modelo" title="Editar" disabled={openingEditor} onClick={() => openTemplateEditor(template)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={template.is_active} entityLabel="modelo" onClick={() => { void toggleActive(template).then(() => notifyAdmin(template.is_active ? "Modelo desativado." : "Modelo ativado.", "success")).catch(error => notifyAdmin(systemErrorMessage(error, "Não foi possível alterar o modelo."), "error")); }} />}</div></td>}</tr>)}</tbody></table></div>
             <PaginationBar page={safeTemplatePage} pageSize={templatePageSize} totalItems={filteredTemplates.length} onPageChange={setTemplatePage} onPageSizeChange={size => { setTemplatePageSize(size); setTemplatePage(1); }} />
           </>}
         </AdminCard>
       </> : section === "labels" ? <OrderLabelPrintSettings canEdit={canEdit} /> : section === "printers" ? <PrinterSetupPanel /> : <>
         <AdminCard>
-          {attachmentTypesLoading ? <AdminWorkspaceSkeleton columns={4} rows={5} /> : attachmentTypes.length === 0 ? <div className="p-8"><EmptyState icon={Tag} title="Nenhum tipo de anexo" /></div> : <>
+          {attachmentTypesLoading ? <AdminWorkspaceSkeleton columns={4} rows={attachmentPageSize} /> : attachmentTypes.length === 0 ? <div className="p-8"><EmptyState icon={Tag} title="Nenhum tipo de anexo" /></div> : <>
             <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[620px]"><thead><tr>{showAttachmentType && <th className="text-left">Tipo de anexo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedAttachmentTypes.map(type => <tr key={type.id}>{showAttachmentType && <td className="font-bold text-[#0d1b2e]">{type.name}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canEditAttachment && <AdminIconButton ariaLabel="Editar tipo de anexo" title="Editar" onClick={() => openTypeModal(type)}><Edit2 size={14} /></AdminIconButton>}{canDeleteAttachment && <AdminIconButton ariaLabel="Excluir tipo de anexo" title="Excluir" variant="danger" onClick={() => deleteType(type)}><Trash2 size={14} /></AdminIconButton>}{canEditAttachment && <AdminActiveStateButton active={type.is_active} entityLabel="tipo de anexo" onClick={() => { void toggleAttachmentType(type.id, !type.is_active).then(() => notifyAdmin(type.is_active ? "Tipo de anexo desativado." : "Tipo de anexo ativado.", "success")).catch(error => notifyAdmin(systemErrorMessage(error, "Não foi possível alterar o tipo de anexo."), "error")); }} />}</div></td>}</tr>)}</tbody></table></div>
             <PaginationBar page={safeAttachmentPage} pageSize={attachmentPageSize} totalItems={attachmentTypes.length} onPageChange={setAttachmentPage} onPageSizeChange={size => { setAttachmentPageSize(size); setAttachmentPage(1); }} />
           </>}
