@@ -1,7 +1,7 @@
 import { ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, CreditCard, FolderTree, Landmark, LayoutDashboard, List, Settings2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminSubsectionTabs, ADMIN_SUBSECTION_TAB_CLASS, ADMIN_SUBSECTION_TAB_ACTIVE_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
+import { AdminSubsectionTabs, ADMIN_SUBSECTION_TAB_CLASS, ADMIN_SUBSECTION_TAB_ACTIVE_CLASS, ADMIN_SUBSECTION_TAB_INACTIVE_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 
@@ -64,7 +64,7 @@ export function FinanceSectionTabs({
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label="Configurações do financeiro" title="Configurações do financeiro"
             aria-current={isOptionsActive ? "page" : undefined}
-            className={cn(ADMIN_SUBSECTION_TAB_CLASS, isOptionsActive && ADMIN_SUBSECTION_TAB_ACTIVE_CLASS)}>
+            className={cn(ADMIN_SUBSECTION_TAB_CLASS, isOptionsActive ? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS)}>
             <Settings2 size={14} aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>

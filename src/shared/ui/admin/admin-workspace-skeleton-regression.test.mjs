@@ -266,7 +266,11 @@ test("Financeiro e Vendas: submenus sem fundo, alinhados à esquerda e espaçado
   assert.match(sharedTabs, /<nav aria-label=\{ariaLabel\} className="w-full min-w-0 border-b border-border"/);
   assert.match(sharedTabs, /items-center justify-start gap-5 overflow-x-auto/);
   assert.match(sharedTabs, /\[scrollbar-width:none\]/);
-  assert.match(sharedTabs, /border-b-2 border-transparent bg-transparent/);
+  assert.match(sharedTabs, /border-b-\[3px\] bg-transparent/);
+  assert.match(sharedTabs, /ADMIN_SUBSECTION_TAB_ACTIVE_CLASS = "border-primary text-primary"/);
+  assert.match(sharedTabs, /ADMIN_SUBSECTION_TAB_INACTIVE_CLASS = "border-transparent text-muted-foreground"/);
+  assert.match(sharedTabs, /selected \? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS/);
+  assert.match(financeTabs, /isOptionsActive \? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS/);
   assert.doesNotMatch(sharedTabs, /rounded-xl border border-border bg-card/);
   assert.match(finance, /<PageHeader className="!border-b-0 !pb-0" title="Financeiro"/);
   assert.match(finance, /className=\{initialLoading \? "hidden" : "min-w-0"\}/);

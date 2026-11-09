@@ -6,9 +6,10 @@ import { cn } from "@/shared/domain/formatters";
  * Mantém a divisória inferior sem exibir barra de rolagem horizontal.
  */
 export const ADMIN_SUBSECTION_TAB_CLASS =
-  "inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 border-b-2 border-transparent bg-transparent px-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
+  "inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 border-b-[3px] bg-transparent px-1 text-sm font-semibold transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
 
 export const ADMIN_SUBSECTION_TAB_ACTIVE_CLASS = "border-primary text-primary";
+export const ADMIN_SUBSECTION_TAB_INACTIVE_CLASS = "border-transparent text-muted-foreground";
 
 export type AdminSubsectionItem<T extends string> = {
   id: T;
@@ -36,7 +37,7 @@ export function AdminSubsectionTabs<T extends string>({
         return <button key={id} type="button" role="tab" aria-selected={selected}
           aria-current={selected ? "page" : undefined} disabled={disabled}
           onClick={() => onChange(id)}
-          className={cn(ADMIN_SUBSECTION_TAB_CLASS, "disabled:cursor-not-allowed disabled:opacity-50", selected && ADMIN_SUBSECTION_TAB_ACTIVE_CLASS)}>
+          className={cn(ADMIN_SUBSECTION_TAB_CLASS, "disabled:cursor-not-allowed disabled:opacity-50", selected ? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS)}>
           {Icon && <Icon size={14} className="shrink-0" aria-hidden="true" />}
           <span>{label}</span>
           {typeof count === "number" && <span className={cn("inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{count.toLocaleString("pt-BR")}</span>}
