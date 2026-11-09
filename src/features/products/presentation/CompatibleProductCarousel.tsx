@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ChevronLeft, ChevronRight, MapPin, Package, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Package, Plus, Trash2 } from "lucide-react";
 import { Popover,PopoverTrigger,PopoverContent } from "@/shared/ui/primitives/popover";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { productRelationLabel } from "../domain/product-relation-labels";
@@ -32,7 +32,7 @@ function ProductPhoto({ mediaId, name,illustrationUrl }: { mediaId?: string | nu
 
 /** Mesmo carrossel reutilizado no PDV, no orçamento, na OS e em pedidos de peças. */
 export function CompatibleProductCarousel({
-  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos relacionados",salesAppearance=false,
+  products, onPick, sourceName, disabled = false, selectedIds = [], actionLabel = "Adicionar", hideTitle = false, title = "Produtos relacionados",salesAppearance=false, quantitiesById, onRemove,
 }: {
   products: CompatibleProductSuggestion[];
   onPick?: (product: CompatibleProductSuggestion) => void;
@@ -43,6 +43,8 @@ export function CompatibleProductCarousel({
   hideTitle?: boolean;
   title?: string;
   salesAppearance?: boolean;
+  quantitiesById?: Record<string, number>;
+  onRemove?: (productId: string) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   if (!products.length) return null;
@@ -81,10 +83,12 @@ export function CompatibleProductCarousel({
     <div ref={scrollerRef} className="flex min-w-0 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
       role="region" aria-label={`Carrossel horizontal de ${title.toLocaleLowerCase("pt-BR")}`}>
       {products.map(product => {
-        const stock = Number(product.stock ?? 0);
+        const cartQuantity = salesAppearance ? Math.max(0, quantitiesById?.[product.id] || 0) : 0;
+        const stock = Math.max(0, Number(product.stock ?? 0) - cartQuantity);
         const noStock = stock <= 0;
-        const isSelected = selected.has(product.id);
-        const canPick = Boolean(onPick) && !disabled && !noStock && !isSelected;
+        const isSelected = selected.has(product.id) || cartQuantity > 0;
+        const canPick = Boolean(onPick) && !disabled && !noStock && (salesAppearance || !isSelected)
+          && (!salesAppearance || (product.price != null && Number(product.price) > 0));
         return <article key={product.id}
           className="flex w-[min(84vw,298px)] min-w-0 shrink-0 snap-start flex-col justify-between gap-2.5 rounded-xl border border-border bg-card p-3 sm:w-[298px]">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -97,11 +101,12 @@ export function CompatibleProductCarousel({
                 {product.stockLocation&&<Popover>
                   <PopoverTrigger asChild>
                     <button type="button" aria-label={"Localização de "+product.name}
-                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
+                      title={"Ver localização de "+product.name}
+                       className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
                       <MapPin size={14} aria-hidden="true"/>
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-64 space-y-1 p-3">
+                  <PopoverContent align="end" collisionPadding={12} className="z-[180] w-64 max-w-[calc(100vw-2rem)] space-y-1 p-3">
                     <p className="text-xs font-bold">Localização no estoque</p>
                     <p className="break-words text-xs text-foreground">{product.stockLocation}</p>
                   </PopoverContent>
@@ -115,19 +120,27 @@ export function CompatibleProductCarousel({
               </p>
               <p className={cn("mt-0.5 text-[11px] font-semibold",
                 noStock ? "text-red-600 dark:text-red-400" : salesAppearance?"text-primary":"text-emerald-700 dark:text-emerald-300")}>
-                {formatNumber(stock)} {product.unit || "un"} em estoque
+                {formatNumber(stock)} {product.unit || "un"} {salesAppearance?"disponíveis":"em estoque"}
               </p>
             </div>
           </div>
-          {onPick && <button type="button"
-            disabled={!canPick}
-            onClick={() => { if (canPick) onPick(product); }}
-            aria-label={`${actionLabel} ${product.name}`}
-            className={cn("inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-bold transition-colors",
-              canPick ? "border-primary bg-primary/10 text-primary hover:bg-primary/20" : "cursor-not-allowed border-border bg-muted text-muted-foreground")}>
-            <Plus size={14} aria-hidden="true"/>
-            {isSelected ? "Adicionado" : noStock ? "Sem estoque" : actionLabel}
-          </button>}
+          {onPick && <div className="flex items-center gap-2">
+            <button type="button"
+              disabled={!canPick}
+              onClick={() => { if (canPick) onPick(product); }}
+              aria-label={`${actionLabel} ${product.name}`}
+              className={cn("inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-bold transition-colors",
+                canPick ? "border-primary bg-primary/10 text-primary hover:bg-primary/20" : "cursor-not-allowed border-border bg-muted text-muted-foreground")}>
+              <Plus size={14} aria-hidden="true"/>
+              {!salesAppearance&&isSelected ? "Adicionado" : noStock ? "Sem estoque" : actionLabel}
+            </button>
+            {salesAppearance && cartQuantity > 0 && onRemove && <button type="button"
+              onClick={() => onRemove(product.id)}
+              title="Remover do carrinho" aria-label={"Remover "+product.name+" do carrinho"}
+              className="admin-action-red-outline inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+              <Trash2 size={16} aria-hidden="true"/>
+            </button>}
+          </div>}
         </article>;
       })}
     </div>
