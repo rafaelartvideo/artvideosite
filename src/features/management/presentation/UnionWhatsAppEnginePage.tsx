@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, Server, ShieldCheck, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -54,7 +55,7 @@ export function UnionWhatsAppEnginePage({onBack}:{onBack:()=>void}) {
       <div><p className="font-semibold">Uma atualização aqui afeta todas as empresas conectadas à mesma instância.</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">O painel das empresas parceiras não pode modificar o motor. Não faça upgrades em produção sem cópia de segurança, testes de compatibilidade e plano de retorno.</p></div>
     </div>
-    {checking&&!status?<LoadingState text="Verificando motor WhatsApp"/>:null}
+    {checking&&!status?<AdminWorkspaceSkeleton variant="details" rows={2} columns={3} />:null}
     {failure&&<p role="alert" className="text-sm text-destructive">{failure}</p>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Info title="Versão instalada (VPS)" value={bridge?.version||"Não identificada"}
