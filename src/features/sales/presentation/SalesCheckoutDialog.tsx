@@ -1,3 +1,4 @@
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -279,7 +280,7 @@ export function SalesCheckoutDialog({
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={customerSearch} onChange={event => setCustomerSearch(event.target.value)}
                 placeholder="Buscar por nome, CPF ou WhatsApp" aria-label="Pesquisar cliente"
-                className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/>
+                className={INPUT+" h-[42px] pl-9 md:h-9 md:py-1.5 md:text-xs"}/>
             </div>
             <div className="max-h-32 overflow-y-auto rounded-lg border border-border bg-card">
               {customersQuery.isPending ? <LoadingState text="Buscando clientes..."/>
@@ -333,7 +334,7 @@ export function SalesCheckoutDialog({
                     {index === 0 ? "Forma de pagamento" : "Outra forma"}
                   </span>
                   <select value={line.paymentMethodId} onChange={event => updatePayment(line.key, {paymentMethodId:event.target.value})}
-                    className="h-10 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground">
+                    className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}>
                     <option value="">Selecione...</option>
                     {paymentMethods.map(method => <option key={method.id} value={method.id}>
                       {method.name} · {method.account_name}
@@ -345,7 +346,7 @@ export function SalesCheckoutDialog({
                   <input value={line.amountText}
                     inputMode="decimal" placeholder={mode === "full" && paymentLines.length===1 ? moneyText(total) : "0,00"}
                     onChange={event => updatePayment(line.key,{amountText:event.target.value})}
-                    className="h-10 w-full rounded-lg border border-border bg-background px-2 text-right text-xs text-foreground"/>
+                    className={INPUT+" h-[42px] px-2 text-right md:h-9 md:py-1.5 md:text-xs"}/>
                 </label>
                 {index>0 ? <button type="button" onClick={()=>removePayment(line.key)} aria-label="Remover forma de pagamento"
                   className="flex h-10 w-8 items-center justify-center text-destructive"><Trash2 size={15}/></button>
@@ -409,7 +410,7 @@ export function SalesCheckoutDialog({
               <label className="space-y-1">
                 <span className="block text-[11px] font-semibold text-muted-foreground">Parcelas</span>
                 <select value={installmentCount} onChange={event=>setInstallmentCount(Number(event.target.value))}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm">
+                  className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}>
                   {Array.from({length:12},(_,index)=>index+1).map(number=>
                     <option key={number} value={number}>{number}x</option>)}
                 </select>
@@ -420,7 +421,7 @@ export function SalesCheckoutDialog({
                 </span>
                 <input type="date" value={firstDueDate} min={localDate()} max={localDate(365)}
                   onChange={event => setFirstDueDate(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"/>
+                  className={INPUT+" h-[42px] px-2 md:h-9 md:py-1.5 md:text-xs"}/>
               </label>
             </div>
             {futureInstallments.length>0 && <div className="max-h-44 divide-y divide-border overflow-y-auto">
@@ -468,7 +469,7 @@ export function SalesCheckoutDialog({
               <label htmlFor="sales-discount" className="text-sm text-muted-foreground">Desconto (R$)</label>
               <input id="sales-discount" inputMode="decimal" value={discountText} placeholder="0,00"
                 onChange={event=>{setDiscountText(event.target.value);setReceivedConfirmed(false);}}
-                disabled={!canDiscount || Boolean(proposal)} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-right text-sm disabled:opacity-60"/>
+                disabled={!canDiscount || Boolean(proposal)} className={INPUT+" h-9 !w-28 px-2 text-right text-sm"}/>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3">
               <strong>Total</strong>
