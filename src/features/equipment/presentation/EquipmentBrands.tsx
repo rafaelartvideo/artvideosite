@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useState } from "react";
 import { Edit2, Plus, Trash2 } from "lucide-react";
@@ -164,7 +165,7 @@ export function EquipmentBrandsDirectory({ choices, brands, types, search = "", 
   busyBrand?: string | null;
 }) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const equipmentById = new Map(types.map(type => [type.id, type.name]));
   const equipmentNames = (brandName: string) => [...new Set(
     brands.filter(brand => brandKey(brand.name) === brandKey(brandName))
