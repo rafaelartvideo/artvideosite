@@ -6,7 +6,8 @@ import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -105,6 +106,7 @@ export function PartnerCustomersList({
       subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
     />
 
+    {loading ? <AdminWorkspaceSkeleton searchFields={2} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar clientes" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
@@ -139,7 +141,7 @@ export function PartnerCustomersList({
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {loading ? <LoadingState /> : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState icon={Users} title="Nenhum cliente encontrado" message="Ajuste os filtros para localizar o cliente desejado." />
       ) : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
@@ -202,6 +204,7 @@ export function PartnerCustomersList({
         onPageSizeChange={nextPageSize => { onPageSizeChange(nextPageSize); onPageChange(1); }}
       />
     </AdminCard>
+    </>}
   </>;
 }
 
