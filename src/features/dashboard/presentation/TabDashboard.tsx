@@ -824,8 +824,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           || (activeModule === "inventory" && access.inventory && access.inventoryCosts
             && canViewInventoryMovements && inventoryPurchasesQuery.isPending && !inventoryPurchasesQuery.data)
     ));
-  // O período, a navegação de subseções e todos os painéis surgem no mesmo instante.
-  if (dashboardInitialLoading) return <AdminOverviewPageSkeleton variant="dashboard" tabs={modules.length} />;
+  // O cabeçalho, período e submenu permanecem disponíveis durante a carga inicial.
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
@@ -851,7 +850,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {(activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
+        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
             <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
