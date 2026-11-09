@@ -26,9 +26,9 @@ function ImagePreview({ mediaId, name, illustrationUrl, className = "" }: {
 
 function Attribute({ label, value }: { label:string;value:string|null|undefined }) {
   if (!value) return null;
-  return <div className="min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+  return <div className="min-w-0 py-1">
     <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-    <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
+    <p className="mt-0.5 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>;
 }
 
@@ -134,9 +134,9 @@ export function SalesProductDetailsDialog({
         </div>
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap gap-2" aria-label="Categoria, marca e condição">
-            {details.data?.category&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{details.data.category}</span>}
-            {details.data?.brand&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{details.data.brand}</span>}
-            {details.data?.condition&&<span className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{productConditionLabel(details.data.condition)}</span>}
+            {details.data?.category&&<span className="admin-action-blue-outline inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-semibold">{details.data.category}</span>}
+            {details.data?.brand&&<span className="admin-action-blue-outline inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-semibold">{details.data.brand}</span>}
+            {details.data?.condition&&<span className="admin-action-blue-outline inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-semibold">{productConditionLabel(details.data.condition)}</span>}
           </div>
           <div className="space-y-2">
             <h3 className="break-words text-lg font-bold leading-6 text-foreground">{product.name}</h3>
