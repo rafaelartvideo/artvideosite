@@ -77,9 +77,9 @@ def queue_route(queue):
         "[union-fvx-managed]\n"
         "exten => s,1,NoOp(Encaminhamento FVX para fila Union)\n"
         " same => n,GotoIf($[${QUEUE_MEMBER(" + name + ",count)} > 0]?fila:reserva)\n"
-        # Signal early media before Queue(), which may generate ringback RTP.
-        # Progress() sends 183/SDP without answering; Queue(r) provides tone.
-        " same => n(fila),Progress()\n"
+        # Request carrier-generated ringback before Queue(), without answering.
+        # Unnecessary 183/SDP can leave FVX callers in silent early media.
+        " same => n(fila),Ringing()\n"
         " same => n,Queue(" + name + ",r,,," + str(limit) + ")\n"
         " same => n,NoOp(Resultado fila: ${QUEUESTATUS})\n"
         " same => n(reserva),Dial(PJSIP/union-301,25)\n"
