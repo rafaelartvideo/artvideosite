@@ -652,12 +652,12 @@ export function TabAuditLog() {
 
   return (
     <div className="min-w-0 space-y-5">
+{logsQuery.isPending ? <AdminWorkspaceSkeleton pageHeader searchFields={7} columns={7} rows={pageSize} /> : <>
       <PageHeader
         title="Auditoria"
         subtitle="Histórico de alterações realizadas nos dados do CRM."
       />
 
-{logsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={7} columns={7} rows={pageSize} /> : <>
       <AdminSearchPanel title="Buscar na auditoria" headerActions={<>
         {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
         <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
