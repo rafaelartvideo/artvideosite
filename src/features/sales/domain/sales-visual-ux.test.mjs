@@ -56,7 +56,8 @@ test("Busca uniforme e criação direta de proposta preservam ação em uma tela
   }
   assert.match(proposals,/setCreating\(true\)/);
   assert.match(proposals,/creating&&<SalesProposalEditorDialog/);
-  assert.match(tab,/<SalesProposalsPage \/>/);
+  // A navegação agora passa um callback de prontidão para o loading por subseção.
+  assert.match(tab,/<SalesProposalsPage onInitialReady=\{markSalesSectionReady\} \/>/);
 });
 
 test("Checkout e gestão apresentam informações importantes sem rolagem horizontal no celular",()=>{
