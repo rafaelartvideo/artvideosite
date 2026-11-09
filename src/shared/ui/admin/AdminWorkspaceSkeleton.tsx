@@ -16,6 +16,8 @@ type AdminWorkspaceSkeletonProps = {
   inlineSearch?: boolean;
   /** Ações inferiores da listagem, sem exibir botões reais durante a primeira carga. */
   stickyToolbar?: boolean;
+  /** Um segundo painel para configurações de termos/certificado durante a carga. */
+  extraDetails?: boolean;
   /** Mantém componentes em cache visíveis durante refetch: só montar na carga inicial. */
   className?: string;
 };
@@ -34,6 +36,7 @@ export function AdminWorkspaceSkeleton({
   pageHeader = false,
   inlineSearch = false,
   stickyToolbar = false,
+  extraDetails = false,
   className = "",
 }: AdminWorkspaceSkeletonProps) {
   const fieldCount = Math.max(0, Math.min(18, Math.floor(searchFields)));
@@ -137,6 +140,11 @@ export function AdminWorkspaceSkeleton({
           </div>)}
         </div>
       </div>)}
+    </div>}
+    {extraDetails && <div className="space-y-4 rounded-xl bg-card p-4" aria-hidden="true">
+      <Skeleton className="h-4 w-48 max-w-full" />
+      <Skeleton className="h-3 w-80 max-w-full" />
+      <Skeleton className="h-12 w-full rounded-lg" />
     </div>}
     {stickyToolbar && <div className="flex flex-wrap items-center justify-end gap-2" aria-hidden="true">
       <Skeleton className="h-10 w-24 rounded-lg" />
