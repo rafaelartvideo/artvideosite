@@ -1,4 +1,4 @@
-import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -124,6 +124,8 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
     }
   }
 
+  if (query.isPending && !query.data) return <AdminOverviewPageSkeleton variant="dashboard" tabs={0} />;
+
   return <div className="min-w-0 space-y-4 pb-2">
     {selectedMetric && selectionValues && <AdminMetricDetailDialog
       open title={selectionTitles[selectedMetric]} value={selectionValues[selectedMetric]}
@@ -138,7 +140,7 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
       subtitle="Visão geral da operação da Union World, empresas parceiras, monitoramento e assinaturas."
     />
 
-    {query.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : query.isError || !data || !metrics ? (
+    {query.isError || !data || !metrics ? (
       <AdminCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <div>
