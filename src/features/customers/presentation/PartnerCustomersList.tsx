@@ -101,12 +101,12 @@ export function PartnerCustomersList({
   </DropdownMenu>;
 
   return <>
+    {loading ? <AdminWorkspaceSkeleton pageHeader searchFields={2} columns={6} rows={pageSize} /> : <>
     <PageHeader
       title="Clientes"
       subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
     />
 
-    {loading ? <AdminWorkspaceSkeleton searchFields={2} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar clientes" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
