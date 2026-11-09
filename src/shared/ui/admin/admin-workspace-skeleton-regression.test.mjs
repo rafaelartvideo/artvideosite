@@ -166,3 +166,27 @@ test("tabelas restauram a seleção de linhas antes da primeira consulta sem sal
     assert.doesNotMatch(source,/(?:templatePageSize|attachmentPageSize|pageSize)\s*,\s*set(?:Template|Attachment)?PageSize\]\s*=\s*useState\((?:5|10|20)\)/,file);
   }
 });
+
+test("Serviços Gerais e Tipos de Atendimento cobrem todo o módulo com skeleton único", async () => {
+  const general = read("src/features/general-services/presentation/GeneralServicesPanel.tsx");
+  const serviceTypes = read("src/features/service-types/presentation/ServiceTypesAdminPanel.tsx");
+  const shared = read("src/shared/ui/admin/AdminWorkspaceSkeleton.tsx");
+
+  for (const source of [general, serviceTypes]) {
+    assert.match(source, /!routeResourceId && \(loading && canViewTable \? <AdminWorkspaceSkeleton/);
+    assert.match(source, /pageHeader/);
+    assert.match(source, /stickyToolbar columns=\{skeletonColumns\} rows=\{pageSize\}/);
+    assert.match(source, /const skeletonColumns = \[[^\]]+\]\.filter\(Boolean\)\.length/);
+    assert.match(source, /initialPageSize\(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5\)/);
+    assert.match(source, /const loading = [\w.]+\.isPending/);
+    assert.doesNotMatch(source, /<LoadingState(?:\s|\/|>)/);
+    assert.ok((await transformWithEsbuild(source, "AdminRegistryList.tsx", { loader: "tsx" })).code.length > 0);
+  }
+  assert.match(general, /<AdminWorkspaceSkeleton pageHeader inlineSearch stickyToolbar/);
+  assert.match(serviceTypes, /<AdminWorkspaceSkeleton pageHeader stickyToolbar/);
+  assert.match(shared, /\{pageHeader && <div/);
+  assert.match(shared, /\{inlineSearch && <Skeleton/);
+  assert.match(shared, /\{stickyToolbar && <div/);
+  assert.match(shared, /rowIndices\.map/);
+  assert.match(shared, /columnIndices\.map/);
+});
