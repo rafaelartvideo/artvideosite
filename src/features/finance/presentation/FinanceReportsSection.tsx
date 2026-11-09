@@ -14,7 +14,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
