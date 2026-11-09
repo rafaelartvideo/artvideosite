@@ -1,7 +1,8 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { TabRegistrations } from "@/features/registrations/presentation/TabRegistrations";
 import { LegacyTabCustomers } from "./LegacyTabCustomers";
 
@@ -43,7 +44,7 @@ function LegacyCustomerAlias({id,onRouteChange,onOpenOrder}:{
   },[activeOrganizationId,id,onRouteChange]);
   if(resolved)return <TabRegistrations routeResourceId={resolved} onOpenOrder={onOpenOrder}/>;
   return error ? <p className="py-10 text-center text-sm text-destructive" role="alert">{error}</p>
-    : <LoadingState text="Abrindo cadastro do cliente..."/>;
+    : <AdminWorkspaceSkeleton variant="details" rows={3} columns={4} />;
 }
 
 export function TabCustomers({
