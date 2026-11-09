@@ -1,3 +1,4 @@
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CalendarDays, FileText, Plus, Search, Trash2, UserRound } from "lucide-react";
@@ -167,7 +168,7 @@ export function SalesProposalEditorDialog({
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
             <input value={search} onChange={event=>setSearch(event.target.value)}
               placeholder="Pesquisar nome, CPF ou WhatsApp"
-              className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/>
+              className={INPUT+" h-[42px] pl-9 md:h-9 md:py-1.5 md:text-xs"}/>
           </div>
           <div className="max-h-36 overflow-y-auto rounded-lg border border-border">
             {customerQuery.isPending?<LoadingState text="Buscando clientes..."/>:customerQuery.isError
@@ -188,7 +189,7 @@ export function SalesProposalEditorDialog({
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
           <input value={productSearch} onChange={event=>setProductSearch(event.target.value)}
             placeholder="Adicionar produto por nome, SKU ou código"
-            className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/>
+            className={INPUT+" h-[42px] pl-9 md:h-9 md:py-1.5 md:text-xs"}/>
         </div>
         {productDebounced.trim().length>=2 && <div className="max-h-36 overflow-y-auto rounded-lg border border-border">
           {productQuery.isPending?<LoadingState text="Buscando produtos..."/>:productQuery.isError
@@ -213,7 +214,7 @@ export function SalesProposalEditorDialog({
                 <input type="number" min={1} max={9999} step={1} value={line.quantity}
                   onChange={event=>setLines(current=>current.map(item=>item.productId===line.productId
                     ?{...item,quantity:Number(event.target.value)}:item))}
-                  className="h-10 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-right"/>
+                  className={INPUT+" h-[42px] px-2 text-right md:h-9 md:py-1.5 md:text-xs"}/>
               </label>
               <div className="text-right">
                 <p className="text-[11px] text-muted-foreground sm:hidden">Subtotal</p>
@@ -232,13 +233,13 @@ export function SalesProposalEditorDialog({
           <span className="flex items-center gap-1.5 text-xs font-semibold"><CalendarDays size={14}/> Validade da proposta</span>
           <input type="date" value={validUntil} min={localSalesDate()} max={localSalesDate(365)}
             onChange={event=>setValidUntil(event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1.5">
           <span className="block text-xs font-semibold">Desconto (R$)</span>
           <input inputMode="decimal" value={discountInput} placeholder="0,00"
             disabled={!canDiscount} onChange={event=>setDiscountInput(event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"/>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
       </div>
       <label className="block space-y-1.5">
