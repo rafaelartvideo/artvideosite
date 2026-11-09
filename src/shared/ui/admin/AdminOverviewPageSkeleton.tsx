@@ -1,6 +1,6 @@
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 
-type PageVariant = "home" | "dashboard" | "finance";
+type PageVariant = "home" | "dashboard" | "finance" | "sales";
 type FinanceSurface = "overview" | "table" | "accounts" | "reports";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   shortcuts?: number;
   rows?: number;
   financeSurface?: FinanceSurface;
+  salesSection?: "storefront" | "orders" | "proposals" | "management";
   financeColumns?: number;
   /** Preserva cabeçalho/abas reais e anima só a região inferior. */
   contentOnly?: boolean;
@@ -92,14 +93,49 @@ function FinanceTableSkeleton({ rows, columns }: { rows: number; columns: number
 }
 
 /** Carregamento inicial único, sem títulos, abas, saudação ou contagens reais vazando para a página. */
-export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview", financeColumns = 9, contentOnly = false }: Props) {
+export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview", financeColumns = 9, salesSection = "storefront", contentOnly = false }: Props) {
   const tabCount = Math.max(0, Math.min(tabs, 12));
   const rowCount = Math.max(1, Math.min(rows, 100));
   const columnCount = Math.max(1, Math.min(financeColumns, 14));
   return <section role="status" aria-label="Carregando página e indicadores" aria-busy="true"
     className="min-w-0 space-y-4 pb-3">
     <span className="sr-only">Preparando todos os dados da página...</span>
-    {variant === "home" ? <>
+    {variant === "sales" ? <>
+      {!contentOnly && <div className="flex min-w-0 items-center justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-7 w-36" /><Skeleton className="h-3 w-72 max-w-full" /></div>
+      </div>}
+      {!contentOnly && <div className="flex gap-4 overflow-hidden border-b border-border py-3">
+        {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-5 w-20 shrink-0 rounded-sm" />)}
+      </div>}
+      {salesSection === "storefront"
+        ? <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,350px)]">
+            <div className="min-w-0 space-y-4">
+              <div className="flex items-center justify-between gap-3"><Skeleton className="h-5 w-44" /><Skeleton className="h-9 w-20" /></div>
+              <div className="space-y-4 overflow-hidden rounded-xl bg-card">
+                <Skeleton className="h-11 w-full rounded-none" />
+                <div className="space-y-3 p-4"><Skeleton className="h-3 w-36" /><Skeleton className="h-10 w-full" />
+                  <div className="flex gap-2 overflow-hidden">{Array.from({length: 5},(_,i)=><Skeleton key={i} className="h-8 w-24 shrink-0 rounded-full" />)}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+                {Array.from({length: 12},(_,i)=><div key={i} className="space-y-3 rounded-xl bg-card p-3">
+                  <Skeleton className="aspect-[4/3] w-full" />
+                  <Skeleton className="h-4 w-4/5" /><Skeleton className="h-3 w-3/5" />
+                  <Skeleton className="h-5 w-2/3" /><Skeleton className="h-9 w-full" />
+                </div>)}
+              </div>
+            </div>
+            <div className="hidden space-y-4 rounded-xl bg-card p-4 xl:block">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+          </div>
+        : salesSection === "management"
+          ? <><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{Array.from({length:4},(_,i)=><MetricSkeleton key={i}/>)}</div>
+            <div className="grid gap-4 xl:grid-cols-2"><PanelSkeleton chart /><PanelSkeleton /></div></>
+          : <FinanceTableSkeleton rows={rowCount} columns={salesSection === "orders" ? 8 : 6} />}
+    </> : variant === "home" ? <>
       {!contentOnly && <div className="space-y-5 rounded-2xl bg-card p-5 sm:p-6">
         <div className="space-y-3">
           <Skeleton className="h-3 w-14" />
