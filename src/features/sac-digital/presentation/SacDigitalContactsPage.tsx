@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -163,6 +164,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   if (!canView) return <p className="border border-border p-4 text-sm text-muted-foreground">Você não possui acesso aos contatos da SAC Digital.</p>;
 
   return <div className="min-w-0 space-y-4">
+{query.isLoading ? <AdminWorkspaceSkeleton searchFields={1} columns={5} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar contatos" headerActions={<>
       {(search || sort !== "newest") && <AdminSearchClearButton onClick={() => {
         setSearch(""); setTerm(""); setSort("newest"); setPage(1);
@@ -185,8 +187,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
           <p className="text-xl font-black tabular-nums text-foreground">{total.toLocaleString("pt-BR")}</p>
         </div>
       </AdminCardHeader>
-      {query.isLoading ? <div className="p-8"><LoadingState text="Carregando contatos..." /></div>
-        : query.isError ? <AdminCardContent><p role="alert" className="text-sm font-semibold text-red-600">Não foi possível carregar os contatos: {query.error instanceof Error ? query.error.message : "Erro na consulta."}</p></AdminCardContent>
+      {query.isError ? <AdminCardContent><p role="alert" className="text-sm font-semibold text-red-600">Não foi possível carregar os contatos: {query.error instanceof Error ? query.error.message : "Erro na consulta."}</p></AdminCardContent>
         : items.length === 0 ? <AdminCardContent><p className="py-8 text-center text-sm text-muted-foreground">Nenhum contato encontrado.</p></AdminCardContent>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[720px] w-full">
           <thead><tr><th className="text-left">Contato</th><th className="text-left">Telefone</th><th className="text-left">CPF / CNPJ</th><th className="text-left">Cadastro</th><th className="text-right">Operações</th></tr></thead>
@@ -205,6 +206,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       {query.isFetching && !query.isLoading && <p className="px-4 pb-2 text-[11px] text-muted-foreground">Atualizando contatos...</p>}
     </AdminCard>
+    </>}
 
     {selected && <AdminCard square>
       <AdminCardHeader>
