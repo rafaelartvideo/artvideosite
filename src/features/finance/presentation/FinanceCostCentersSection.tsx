@@ -5,7 +5,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
 import { Pencil, Plus, Target } from "lucide-react";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCardToolbar, AdminDialog, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
