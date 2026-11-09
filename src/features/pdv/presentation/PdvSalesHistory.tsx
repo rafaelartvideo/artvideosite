@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
@@ -167,6 +168,7 @@ export function PdvSalesHistory({
       </div>}
     />}
 
+    {salesQuery.isPending ? <AdminWorkspaceSkeleton searchFields={2} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar vendas" headerActions={<>
       {(search || status || sort !== "newest") && <AdminSearchClearButton onClick={() => {
         setSearch(""); setStatus(""); setSort("newest"); setPage(1);
@@ -222,7 +224,7 @@ export function PdvSalesHistory({
     </AdminSearchPanel>
 
     <AdminCard>
-      {salesQuery.isPending ? <LoadingState text="Carregando vendas..." /> : sales.length === 0 ? (
+      {sales.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
           title={debouncedSearch || status ? "Nenhuma venda encontrada" : "Nenhuma venda registrada"}
@@ -276,6 +278,7 @@ export function PdvSalesHistory({
         />
       </>}
     </AdminCard>
+    </>}
 
     <AdminDialog
       open={Boolean(selectedSaleId)}
