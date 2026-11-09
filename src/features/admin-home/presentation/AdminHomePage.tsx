@@ -323,7 +323,7 @@ export function AdminHomePage({
 
   // Um único skeleton cobre saudação, avisos, tarefas, ações e atividade recente.
   // Apenas a primeira carga sem dados bloqueia a página; invalidar cache não causa flash.
-  const initialLoading = (!activeOrganizationId && authLoading)
+  const initialLoading = authLoading
     || (Boolean(activeOrganizationId) && (
       (announcementsQuery.isPending && !announcementsQuery.data)
       || (Boolean(user?.id) && activityQuery.isPending && !activityQuery.data)
