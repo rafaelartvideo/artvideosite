@@ -89,6 +89,7 @@ import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_VA
 import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
 import { InventoryProductDetailsDialog, type InventoryDetailsView } from "./InventoryProductDetailsDialog";
 import { InventoryProductImageLightbox } from "./InventoryProductImageLightbox";
+import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
@@ -408,7 +409,7 @@ export function TabProducts({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
   const [detailsView, setDetailsView] = useState<InventoryDetailsView>("details");
-  const [expandedListImage, setExpandedListImage] = useState<{ mediaId: string; name: string } | null>(null);
+  const [expandedListImage, setExpandedListImage] = useState<{ mediaId?: string | null; src?: string | null; name: string } | null>(null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
   // Cancelar pode desmontar o formulário antes de a URL abandonar /inventory/new.
@@ -1384,9 +1385,9 @@ export function TabProducts({
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
                     {showProduct && <td>
                       <div className="flex items-center gap-3">
-                        {product.cover_media_id
+                        {(product.cover_media_id || salesHomologationImage(product.sku))
                           ? <button type="button" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
-                              onClick={() => setExpandedListImage({ mediaId: String(product.cover_media_id), name: product.name })}>
+                              onClick={() => setExpandedListImage({ mediaId: product.cover_media_id || null, src: salesHomologationImage(product.sku), name: product.name })}>
                               <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
                             </button>
                           : <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />}
@@ -1408,12 +1409,12 @@ export function TabProducts({
                     </td>}
                     {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
                     {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
-                    {showPrice && <td className="font-bold text-[#0d1b2e]">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
+                    {showPrice && <td className="font-bold text-green-600 dark:text-green-400">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
-                      <div className={cn("text-xs font-bold", lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>
+                      <div className="text-xs font-bold text-blue-600 dark:text-blue-400">
                         {formatNumber(stock)} {unit}
                       </div>
-                      <div className="text-[10px] text-[#7a8aa0]">mín. {formatNumber(minStock)} {unit}</div>
+                      <div className={cn("text-[10px]", lowStock ? "text-amber-600" : "text-muted-foreground")}>mín. {formatNumber(minStock)} {unit}{lowStock ? " · estoque baixo" : ""}</div>
                       <div className="mt-1">
                         <InventorySaleWindowBadge
                           summary={saleSummaryByItemId.get(String(item?.inventory_item_id || ""))}
@@ -2371,7 +2372,7 @@ export function TabProducts({
       onOpenProduct={openDetailsById}
     />}
 
-    {expandedListImage && <InventoryProductImageLightbox mediaId={expandedListImage.mediaId}
+    {expandedListImage && <InventoryProductImageLightbox mediaId={expandedListImage.mediaId} src={expandedListImage.src}
       name={expandedListImage.name} onClose={() => setExpandedListImage(null)} />}
 
     <AdminDialog
