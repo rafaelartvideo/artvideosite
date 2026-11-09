@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, CreditCard, Plus, ShoppingBag, Wallet, ChevronRight } from "lucide-react";
@@ -156,6 +157,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
       </AdminCard>)}
     </div>
 
+    {canView && !badPeriod && ordersQuery.isPending ? <AdminWorkspaceSkeleton searchFields={5} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar pedidos"
       headerActions={<>
         {(search||status!=="all"||payment!=="all"||from||to||sort!=="newest")
@@ -205,7 +207,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     {!canView ? <EmptyState icon={ClipboardList} title="Sem permissão para visualizar pedidos"
       message="Solicite acesso ao módulo Vendas."/>
       : badPeriod ? null
-      : ordersQuery.isPending ? <LoadingState text="Carregando pedidos comerciais..."/>
+      
       : ordersQuery.isError ? <div role="alert" className="space-y-3 rounded-xl border border-destructive/20 bg-card p-5">
         <p className="text-sm text-destructive">{systemErrorMessage(ordersQuery.error,"Falha ao carregar pedidos.")}</p>
         <AdminButton variant="secondary" size="sm" onClick={()=>void ordersQuery.refetch()}>Tentar novamente</AdminButton>
@@ -288,6 +290,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           onPageChange={setPage}
           onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
       </AdminCard>}
+    </>}
 
     {selectedId && <SalesOrderDetailDialog
       organizationId={organizationId}
