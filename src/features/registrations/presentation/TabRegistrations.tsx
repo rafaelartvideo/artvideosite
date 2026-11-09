@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { hasCustomerAddressData, normalizeSharedMapUrl, validateCustomerAddress } from "@/lib/address";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -766,7 +767,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : `${String(registrationsTotal)} cadastros realizados`}
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
-    <AdminSearchPanel title={platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"} headerActions={<>
+    {loading ? <AdminWorkspaceSkeleton searchFields={6} columns={8} rows={pageSize} /> : <><AdminSearchPanel title={platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"} headerActions={<>
       {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
       <AdminSearchSortMenu value={sortOrder} onChange={setSortOrder}
         options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
@@ -847,7 +848,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         </div>
     </AdminSearchPanel>
 
-    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{loading ? <LoadingState /> : items.length === 0 ? <EmptyState
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{items.length === 0 ? <EmptyState
       icon={Users}
       title={platformUsersOnly ? "Nenhum usuário encontrado" : "Nenhum cadastro encontrado"}
       message={platformUsersOnly ? "Crie um usuário para dar acesso à Union World." : "Crie um cadastro ou ajuste os filtros."}
@@ -885,6 +886,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         return <tr key={item.id} className="cursor-default" onClick={() => openItem(item)}><td className="font-bold text-foreground"><div className="flex flex-wrap items-center gap-2">{item.name}{item.registration_source === "site" && <span className="rounded-full bg-[#eaf2ff] px-2 py-0.5 text-[10px] font-black text-[#0057e7]">Site</span>}</div></td><td className="text-xs text-muted-foreground">{item.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</td><td><div className="flex flex-wrap gap-1">{activeRegistrationRoles(item).map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-2 py-1 text-[10px] font-black text-[#0057e7]">{roleLabels[role]}</span>)}</div></td><td className="font-mono text-xs text-muted-foreground">{item.document ? item.person_type === "PJ" ? formatCnpj(item.document) : formatCpf(item.document) : "—"}</td><td className="text-xs text-muted-foreground">{formatPhone(item.phone || item.whatsapp) || "—"}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1" onClick={event => event.stopPropagation()}>{canEdit && <AdminIconButton ariaLabel="Editar cadastro" title="Editar cadastro" onClick={() => openEditItem(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleEmployee && <AdminActiveStateButton active={employeeUserActive} entityLabel="usuário" disabled={togglingEmployeeId === item.legacy_employee_id} onClick={() => void toggleEmployeeUser(item)} />}</div></td></tr>;
       })}</tbody></table></div>
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={setPageSize} />
-    </>}</AdminCard>
+    </>}</AdminCard></>}
   </div>;
 }
