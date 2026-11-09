@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, CreditCard, Plus, RefreshCw, ShoppingBag, Wallet, ChevronRight } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, CreditCard, Plus, ShoppingBag, Wallet, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
@@ -62,6 +63,7 @@ function OrderStatuses({ order }: { order: SalesOrderListRow }) {
 export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
   const { activeOrganizationId,hasPermission } = useAuth();
   const organizationId=activeOrganizationId || "";
+  const queryClient=useQueryClient();
   const canView=hasPermission("sales.view");
   const [search,setSearch]=useState("");
   const [debouncedSearch,setDebouncedSearch]=useState("");
@@ -92,8 +94,23 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     enabled:Boolean(organizationId && canView && !badPeriod),
     staleTime:15_000,
     refetchOnWindowFocus:true,
+    refetchInterval:20_000, // segurança caso o status financeiro não dispare evento no pedido
   });
   // A ordenação alternativa se aplica somente aos itens da página carregada.
+  useEffect(()=>{
+    if(!organizationId||!canView)return;
+    const channel=supabase.channel("sales-orders-live:"+organizationId)
+      .on("postgres_changes",{
+        event:"*",schema:"public",table:"sales_orders",
+        filter:"organization_id=eq."+organizationId,
+      },()=>{
+        void queryClient.invalidateQueries({queryKey:["sales",organizationId,"orders"]});
+        void queryClient.invalidateQueries({queryKey:["sales",organizationId,"order"]});
+      })
+      .subscribe();
+    return ()=>{void supabase.removeChannel(channel);};
+  },[organizationId,canView,queryClient]);
+
   const orders=useMemo(()=>{
     const list=[...(ordersQuery.data?.items||[])];
     return list.sort((a,b)=>{
@@ -125,10 +142,6 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <AdminButton variant="secondary" size="sm" disabled={ordersQuery.isFetching}
-          onClick={()=>void ordersQuery.refetch()}>
-          <RefreshCw size={15}/> Atualizar
-        </AdminButton>
         {hasPermission("sales.create") && <AdminButton size="sm" onClick={onNewSale}>
           <Plus size={16}/> Nova venda
         </AdminButton>}
