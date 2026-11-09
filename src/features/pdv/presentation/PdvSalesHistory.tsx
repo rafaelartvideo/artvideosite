@@ -161,6 +161,7 @@ export function PdvSalesHistory({
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+    {salesQuery.isPending ? <AdminWorkspaceSkeleton pageHeader={!embedded} searchFields={2} columns={8} rows={pageSize} /> : <>
     {!embedded && <PageHeader
       title="Vendas do PDV"
       subtitle="Consulte vendas concluídas e canceladas, abra o comprovante e faça estornos quando necessário."
@@ -170,7 +171,6 @@ export function PdvSalesHistory({
       </div>}
     />}
 
-    {salesQuery.isPending ? <AdminWorkspaceSkeleton searchFields={2} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar vendas" headerActions={<>
       {(search || status || sort !== "newest") && <AdminSearchClearButton onClick={() => {
         setSearch(""); setStatus(""); setSort("newest"); setPage(1);
