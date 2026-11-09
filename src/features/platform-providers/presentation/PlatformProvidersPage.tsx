@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, ChevronDown, MapPin, Paperclip, Pencil, Phone, Plus, Search, Trash2, UserRound, Wrench, X } from "lucide-react";
@@ -335,14 +336,10 @@ export function PlatformProvidersPage() {
         ? <AdminButton onClick={() => openServiceModal()}><Plus size={16} /> Novo serviço</AdminButton>
         : <AdminButton onClick={openNew}><Plus size={16} /> Novo prestador</AdminButton>) : undefined} />
 
-    <div className="flex gap-5 border-b border-border" role="tablist" aria-label="Seções de prestadores">
-      {([{ key: "providers", name: "Prestadores" }, { key: "services", name: "Serviços" }] as const).map(item =>
-        <button key={item.key} type="button" role="tab" aria-selected={section === item.key}
-          onClick={() => setSection(item.key)}
-          className={`relative px-1 pb-3 text-sm font-semibold transition-colors ${section === item.key ? "text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
-          {item.name}
-        </button>)}
-    </div>
+    <AdminSubsectionTabs value={section}
+      items={[{ id: "providers" as const, label: "Prestadores", Icon: UserRound },
+        { id: "services" as const, label: "Serviços", Icon: Wrench }]}
+      onChange={setSection} ariaLabel="Seções de prestadores" />
 
     {section === "providers" ? <>
       <ProviderFiltersPanel filters={filters} searchText={searchText}

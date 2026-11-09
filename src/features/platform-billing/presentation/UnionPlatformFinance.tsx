@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useMemo, useState } from "react";
@@ -283,22 +284,15 @@ export function UnionPlatformFinance() {
         </div>)}
       </div>
 
-      <div className="border-b border-border">
-        <div className="flex min-w-0 gap-5 overflow-x-auto">
-          {[
-            { id: "subscriptions" as const, label: "Assinaturas" },
-            { id: "usage" as const, label: "Consumo" },
-            { id: "charges" as const, label: "Cobranças" },
-            { id: "plans" as const, label: "Planos" },
-            { id: "configuration" as const, label: "Configuração" },
-          ].map(item => <button
-            key={item.id}
-            type="button"
-            onClick={() => setSection(item.id)}
-            className={`shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >{item.label}</button>)}
-        </div>
-      </div>
+      <AdminSubsectionTabs value={section}
+        items={[
+          { id: "subscriptions" as const, label: "Assinaturas", Icon: CreditCard },
+          { id: "usage" as const, label: "Consumo", Icon: TrendingUp },
+          { id: "charges" as const, label: "Cobranças", Icon: Banknote },
+          { id: "plans" as const, label: "Planos", Icon: CalendarDays },
+          { id: "configuration" as const, label: "Configuração" },
+        ]}
+        onChange={setSection} ariaLabel="Subseções do financeiro Union" />
 
       {section === "subscriptions" && <AdminCard square>
         <AdminCardHeader>

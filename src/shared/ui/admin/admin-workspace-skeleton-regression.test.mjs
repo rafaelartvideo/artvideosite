@@ -284,3 +284,28 @@ test("Financeiro e Vendas: submenus sem fundo, alinhados à esquerda e espaçado
     assert.ok((await transformWithEsbuild(code, name+".tsx", { loader: "tsx" })).code.length > 0, name);
   }
 });
+
+
+test("subseções de módulos compartilham indicador ativo e navegação sem barra visível", () => {
+  const shared = read("src/shared/ui/admin/AdminSubsectionTabs.tsx");
+  const subnav = read("src/shared/ui/admin/AdminSubnav.tsx");
+  const buttons = read("src/shared/ui/admin/AdminSubsectionButtons.tsx");
+  assert.match(shared, /border-b-\[3px\]/);
+  assert.match(shared, /selected \? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS/);
+  assert.match(shared, /\[scrollbar-width:none\]/);
+  assert.match(subnav, /ADMIN_SUBSECTION_TAB_ACTIVE_CLASS/);
+  assert.match(subnav, /ResizeObserver/);
+  assert.match(buttons, /<AdminSubsectionTabs/);
+  for (const path of [
+    "src/features/dashboard/presentation/DashboardUi.tsx",
+    "src/features/partner-companies/presentation/PartnerCompanyDetails.tsx",
+    "src/features/partner-companies/presentation/PartnerCompanySharedDataSection.tsx",
+    "src/features/settings/presentation/SiteRequestsPage.tsx",
+    "src/features/segments/presentation/UnionCatalogAdminPage.tsx",
+    "src/features/platform-providers/presentation/PlatformProvidersPage.tsx",
+    "src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx",
+    "src/features/platform-billing/presentation/UnionPlatformFinance.tsx",
+    "src/features/platform-billing/presentation/SubscriptionConfiguration.tsx",
+  ]) assert.match(read(path), /<AdminSubsectionTabs/, path);
+  assert.match(read("src/features/equipment/presentation/EquipmentAdminPanel.tsx"), /border-b-\[3px\]/);
+});

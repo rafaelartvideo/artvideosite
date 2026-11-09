@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 
-/** Navegação de subseções no mesmo padrão dos botões de Entrega. */
+/** Mantém os eventos originais e usa o padrão único de subseções. */
 export function AdminSubsectionButtons<T extends string>({
   value, items, onChange, ariaLabel,
 }: {
@@ -9,14 +10,5 @@ export function AdminSubsectionButtons<T extends string>({
   onChange: (id: T) => void;
   ariaLabel: string;
 }) {
-  return <nav aria-label={ariaLabel} className="flex min-w-0 flex-wrap gap-2 border-b border-border pb-3">
-    {items.map(({ id, label, Icon }) => (
-      <button key={id} type="button" onClick={() => onChange(id)}
-        aria-current={value === id ? "page" : undefined}
-        className={"inline-flex min-h-10 items-center gap-2 rounded-md border px-4 py-2.5 text-xs font-bold transition-colors " +
-          (value === id ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted")}>
-        <Icon size={16} className="shrink-0" />{label}
-      </button>
-    ))}
-  </nav>;
+  return <AdminSubsectionTabs value={value} items={items} onChange={onChange} ariaLabel={ariaLabel} />;
 }

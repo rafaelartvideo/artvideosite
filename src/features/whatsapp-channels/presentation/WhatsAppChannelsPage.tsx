@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -362,15 +363,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
 
   return <div className="space-y-5">
     <PageHeader title="Canais de Atendimento" subtitle="Configure o canal e gerencie os números conectados." />
-    <nav aria-label="Subseções de canais de atendimento" className="mr-auto flex w-fit max-w-full justify-start overflow-x-auto">
-      <div className="flex w-max items-center justify-start gap-1">
-        {channelSections.map(item => <button key={item.id} type="button"
-          onClick={() => setSection(item.id)} aria-current={section === item.id ? "page" : undefined}
-          className={`relative inline-flex min-h-11 shrink-0 items-center justify-center bg-transparent px-3 text-xs font-black transition-colors duration-200 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${section === item.id ? "text-primary after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-primary"}`}>
-          {item.label}
-        </button>)}
-      </div>
-    </nav>
+    <AdminSubsectionTabs value={section} items={channelSections}
+      onChange={setSection} ariaLabel="Subseções de canais de atendimento" />
     {loading && (section === "configuration" || section === "connections") ? <AdminWorkspaceSkeleton variant="cards" rows={5} /> : section === "configuration" ?
       <AdminCard>
         <AdminCardContent className="space-y-5">

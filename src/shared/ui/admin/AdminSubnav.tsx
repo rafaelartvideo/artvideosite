@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { cn } from '@/shared/domain/formatters';
+import { useEffect, useRef } from "react";
+import { cn } from "@/shared/domain/formatters";
+import { ADMIN_SUBSECTION_TAB_CLASS, ADMIN_SUBSECTION_TAB_ACTIVE_CLASS, ADMIN_SUBSECTION_TAB_INACTIVE_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
 
-/** Navigation between existing CRM sections, with one scrollable row on mobile. */
+/** Mesmo padrão visual das subseções, preservando a navegação móvel com item ativo visível. */
 export function AdminSubnav<T extends string>({ value, items, onSelect, ariaLabel, className }: {
   value: T;
   items: Array<{ id: T; label: string }>;
@@ -10,33 +11,33 @@ export function AdminSubnav<T extends string>({ value, items, onSelect, ariaLabe
   className?: string;
 }) {
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const button = selectedRef.current;
-    const container = button?.parentElement?.parentElement;
+    const button = selectedRef.current, container = scrollRef.current;
     if (!button || !container) return;
     const reveal = () => {
       if (button.offsetLeft < container.scrollLeft || button.offsetLeft + button.offsetWidth > container.scrollLeft + container.clientWidth) {
-        container.scrollTo({ left: Math.max(0, button.offsetLeft - container.clientWidth / 2 + button.offsetWidth / 2), behavior: 'auto' });
+        container.scrollTo({ left: Math.max(0, button.offsetLeft - container.clientWidth / 2 + button.offsetWidth / 2), behavior: "auto" });
       }
     };
     reveal();
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(reveal);
     observer.observe(container);
     return () => observer.disconnect();
   }, [value]);
-  return <nav aria-label={ariaLabel} className={cn('mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-1.5 shadow-sm', className)}>
-    <div className="relative flex min-w-max items-stretch gap-1">
-      {items.map(item => <button
-        key={item.id}
-        ref={item.id === value ? selectedRef : undefined}
-        type="button"
-        aria-current={item.id === value ? 'page' : undefined}
-        onClick={() => onSelect(item.id)}
-        className={cn('group relative min-h-11 whitespace-nowrap px-4 py-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30', item.id === value ? 'text-primary' : 'text-muted-foreground hover:text-primary')}
-      >
-        {item.label}
-        <span aria-hidden="true" className={cn('absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary transition-transform', item.id === value ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-50')} />
-      </button>)}
+  return <nav aria-label={ariaLabel} className={cn("w-full min-w-0 border-b border-border", className)}>
+    <div ref={scrollRef} role="tablist" aria-label={ariaLabel}
+      className="flex min-w-0 items-center justify-start gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {items.map(item => {
+        const selected = item.id === value;
+        return <button key={item.id} ref={selected ? selectedRef : undefined} type="button"
+          role="tab" aria-selected={selected} aria-current={selected ? "page" : undefined}
+          onClick={() => onSelect(item.id)}
+          className={cn(ADMIN_SUBSECTION_TAB_CLASS, selected ? ADMIN_SUBSECTION_TAB_ACTIVE_CLASS : ADMIN_SUBSECTION_TAB_INACTIVE_CLASS)}>
+          {item.label}
+        </button>;
+      })}
     </div>
   </nav>;
 }

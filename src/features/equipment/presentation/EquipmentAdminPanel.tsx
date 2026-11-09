@@ -532,10 +532,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               else if (id === "fields") openFieldsPage();
               else openBrandsPage();
             }}
-            className={`inline-flex min-h-12 min-w-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-0.5 text-[11px] font-semibold transition-colors min-[390px]:text-xs sm:gap-2 sm:px-1 sm:text-sm ${activeArea === id
+            className={`inline-flex min-h-12 min-w-0 items-center justify-center gap-1 whitespace-nowrap border-b-[3px] px-0.5 text-sm font-semibold transition-colors sm:gap-2 sm:px-1 ${activeArea === id
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            <Icon size={17} className="hidden shrink-0 sm:block" />{label}
+            <Icon size={14} className="hidden shrink-0 sm:block" />{label}
           </button>
         ))}
         </nav>

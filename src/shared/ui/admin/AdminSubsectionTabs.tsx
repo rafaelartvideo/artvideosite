@@ -1,12 +1,11 @@
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { ElementType, ReactNode } from "react";
 import { cn } from "@/shared/domain/formatters";
 
 /** Padrão único de subseções do CRM, baseado no editor de Novo item.
  * Mantém a divisória inferior sem exibir barra de rolagem horizontal.
  */
 export const ADMIN_SUBSECTION_TAB_CLASS =
-  "inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 border-b-[3px] bg-transparent px-1 text-sm font-semibold transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
+  "inline-flex h-12 min-h-12 shrink-0 items-center justify-center gap-2 border-b-[3px] bg-transparent px-1 text-sm whitespace-nowrap font-semibold transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
 
 export const ADMIN_SUBSECTION_TAB_ACTIVE_CLASS = "border-primary text-primary";
 export const ADMIN_SUBSECTION_TAB_INACTIVE_CLASS = "border-transparent text-muted-foreground";
@@ -14,7 +13,7 @@ export const ADMIN_SUBSECTION_TAB_INACTIVE_CLASS = "border-transparent text-mute
 export type AdminSubsectionItem<T extends string> = {
   id: T;
   label: string;
-  Icon?: LucideIcon;
+  Icon?: ElementType;
   count?: number;
   countUnavailable?: boolean;
   disabled?: boolean;

@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
@@ -210,23 +211,15 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Catálogo Inteligente" />
 
-    <nav aria-label="Subseções do catálogo" className="flex min-w-0 gap-1 overflow-x-auto border-b border-border">
-      {tabs.map(tab => <button
-        key={tab.id}
-        type="button"
-        aria-current={section === tab.id ? "page" : undefined}
-        onClick={() => {
-          if (saving || linkBusy) return;
-          if (tab.id === "distribution") {
-            setSection("distribution"); setCreating(false); setSelectedId(null); setError(""); setNotice("");
-          } else selectKind(tab.id);
-        }}
-        className={"shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 " +
-          (section === tab.id
-            ? "border-primary text-primary"
-            : "border-transparent text-muted-foreground hover:border-border hover:text-foreground")}
-      >{tab.label} <span className="ml-1 text-xs opacity-70">({tab.count})</span></button>)}
-    </nav>
+    <AdminSubsectionTabs value={section}
+      items={tabs.map(tab => ({ id: tab.id, label: tab.label, count: tab.count }))}
+      onChange={id => {
+        if (saving || linkBusy) return;
+        if (id === "distribution") {
+          setSection("distribution"); setCreating(false); setSelectedId(null); setError(""); setNotice("");
+        } else selectKind(id);
+      }}
+      ariaLabel="Subseções do catálogo" />
 
     {error && !editorOpen && <p role="alert" className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
     {notice && !editorOpen && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}

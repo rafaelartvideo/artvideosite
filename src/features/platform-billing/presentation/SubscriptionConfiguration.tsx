@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -566,20 +567,13 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
       </AdminCardContent>
     </AdminCard>
 
-    <div className="border-b border-border">
-      <div className="flex gap-5 overflow-x-auto">
-        {[
-          { id: "plans" as const, label: "Planos e limites" },
-          { id: "addons" as const, label: "Add-ons" },
-          { id: "companies" as const, label: "Empresas" },
-        ].map(item => <button
-          key={item.id}
-          type="button"
-          onClick={() => setSection(item.id)}
-          className={"shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors " + (section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-        >{item.label}</button>)}
-      </div>
-    </div>
+    <AdminSubsectionTabs value={section}
+      items={[
+        { id: "plans" as const, label: "Planos e limites", Icon: SlidersHorizontal },
+        { id: "addons" as const, label: "Add-ons", Icon: PackagePlus },
+        { id: "companies" as const, label: "Empresas", Icon: Building2 },
+      ]}
+      onChange={setSection} ariaLabel="Subseções da configuração de assinaturas" />
 
     {section === "plans" && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {financeData.plans.map(plan => {
