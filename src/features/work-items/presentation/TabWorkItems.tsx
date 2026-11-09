@@ -16,7 +16,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadWorkEmployees, loadWorkItems, updateWorkStatus,
   type WorkEmployee, type WorkItem, type WorkKind, type WorkPriority, type WorkStatus,
