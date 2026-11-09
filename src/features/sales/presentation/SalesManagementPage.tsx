@@ -6,6 +6,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardHeader, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { getSalesManagement,saveSalesSellerGoal,
   type SalesManagement,type SalesSellerMetric,
@@ -93,11 +94,11 @@ export function SalesManagementPage(){
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="space-y-1 text-xs font-semibold">
-          <span className="block">Mês de referência</span>
+        <div className="min-w-[165px]">
+          <AdminFieldLabel label="Mês de referência"/>
           <input type="month" value={month} onChange={e=>setMonth(e.target.value)}
-            className="h-10 rounded-lg border border-border bg-background px-3 text-sm"/>
-        </label>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
+        </div>
         {data&&<AdminButton variant="secondary" size="sm"
           onClick={()=>downloadCsv(data)}>
           <ArrowDownToLine size={15}/> Exportar CSV
@@ -285,28 +286,30 @@ export function SalesManagementPage(){
           onClick={()=>{setError(null);saveMutation.mutate();}}>Salvar meta</AdminButton>
       </div>}>
       <div className="space-y-3">
-        <label className="block space-y-1 text-xs font-semibold"><span>Vendedor</span>
-          <select value={editing.seller_id||sellerId} disabled={Boolean(editing.seller_id)}
-            onChange={e=>setSellerId(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
-            {data?.seller_choices?.map(seller=><option key={seller.id} value={seller.id}>{seller.name}</option>)}
-          </select>
-        </label>
-        <label className="block space-y-1 text-xs font-semibold"><span>Meta mensal (R$)</span>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Vendedor"/>
+          <AdminSelect value={editing.seller_id||sellerId} disabled={Boolean(editing.seller_id)}
+            onValueChange={setSellerId} options={(data?.seller_choices||[]).map(seller=>({value:seller.id,label:seller.name}))}
+            className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Meta mensal (R$)"/>
           <input value={target} inputMode="decimal" onChange={e=>setTarget(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
-        </label>
-        <label className="block space-y-1 text-xs font-semibold"><span>Comissão (%)</span>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Comissão (%)"/>
           <input value={rate} inputMode="decimal" onChange={e=>setRate(e.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
-        </label>
-        <label className="block space-y-1 text-xs font-semibold"><span>Base de cálculo</span>
-          <select value={basis} onChange={e=>setBasis(e.target.value as "received"|"confirmed")}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
-            <option value="received">Valores recebidos, líquidos de devoluções</option>
-            <option value="confirmed">Vendas confirmadas, líquidas de devoluções</option>
-          </select>
-        </label>
+            className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Base de cálculo"/>
+          <AdminSelect value={basis} onValueChange={value=>setBasis(value as "received"|"confirmed")}
+            options={[
+              {value:"received",label:"Valores recebidos, líquidos de devoluções"},
+              {value:"confirmed",label:"Vendas confirmadas, líquidas de devoluções"},
+            ]} className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
+        </div>
         {error&&<p role="alert" className="text-xs text-destructive">{error}</p>}
         <p className="text-xs text-muted-foreground">
           A comissão é estimativa gerencial, não uma saída financeira automática.
