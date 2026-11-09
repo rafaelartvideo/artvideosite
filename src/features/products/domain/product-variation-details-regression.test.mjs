@@ -12,7 +12,9 @@ test("Estoque utiliza a lista de produtos e abre detalhes ao clicar na linha ou 
   assert.ok((await transformWithEsbuild(ui,"TabProducts.tsx",{loader:"tsx"})).code);
   assert.ok(ui.includes("openDetails(product)"));
   assert.ok(ui.includes('aria-label={canViewDetails ? `Ver detalhes de ${product.name}` : undefined}'));
-  assert.ok(ui.includes("Ver detalhes do item"));
+  // Os detalhes abrem pela linha/nome. O botão redundante "Ver detalhes do item" foi removido.
+  assert.ok(ui.includes('title={`Ver detalhes de ${product.name}`}'));
+  assert.ok(!ui.includes('ariaLabel="Ver detalhes do item"'));
   assert.ok(ui.includes("<InventoryProductDetailsDialog"));
   assert.ok(ui.includes("canEdit={canEdit && canViewDetails}"));
   assert.ok(ui.includes("canViewCosts={canViewCosts}"));
