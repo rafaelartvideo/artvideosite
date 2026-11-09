@@ -9,6 +9,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesProposals, type SalesProposalDetail, type ProposalStatus } from "../infrastructure/sales-proposals.repository";
@@ -124,13 +125,12 @@ export function SalesProposalsPage() {
         <AdminSearchTextField label="Número, cliente, produto ou SKU"
           value={search} onChange={value=>{setSearch(value);setPage(1);}}
           placeholder="Buscar propostas..."/>
-        <label className="min-w-0 space-y-1.5">
-          <span className="block text-xs font-semibold text-muted-foreground">Situação</span>
-          <select value={status} onChange={event=>{setStatus(event.target.value);setPage(1);}}
-            className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm md:h-9">
-            {options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Situação"/>
+          <AdminSelect value={status} onValueChange={value=>{setStatus(value);setPage(1);}}
+            options={options} ariaLabel="Situação da proposta"
+            className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
+        </div>
       </div>
     </AdminSearchPanel>
 
