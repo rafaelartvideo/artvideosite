@@ -2,8 +2,10 @@
 
 ## Tom de chamada na entrada FVX
 
-O chamador deve ouvir o tom antes de um atendente responder. `Ringing()` na
-rota da fila não garante sozinho esse resultado na operadora. Na VPS Union,
+O chamador deve ouvir o tom antes de um atendente responder. `Queue(r)` já
+envia a indicação de toque; não antecipe `Ringing()` ou `Progress()` na rota,
+pois isso duplica as respostas provisórias. A sinalização sozinha também
+não garante que o tom seja reproduzido pela operadora. Na VPS Union,
 a entrada FVX usa `inband_progress=yes` no endpoint `union-fvx-in`, e o Asterisk
 precisa ter os tons carregados. O arquivo `indications-br.conf` contém as
 definições brasileiras da amostra oficial do Asterisk 22 para servidores sem

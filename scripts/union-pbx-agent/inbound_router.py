@@ -77,10 +77,9 @@ def queue_route(queue):
         "[union-fvx-managed]\n"
         "exten => s,1,NoOp(Encaminhamento FVX para fila Union)\n"
         " same => n,GotoIf($[${QUEUE_MEMBER(" + name + ",count)} > 0]?fila:reserva)\n"
-        # Request carrier-generated ringback before Queue(), without answering.
-        # Unnecessary 183/SDP can leave FVX callers in silent early media.
-        " same => n(fila),Ringing()\n"
-        " same => n,Queue(" + name + ",r,,," + str(limit) + ")\n"
+        # Queue(r) sends its own ringing indication, without answering.
+        # A separate Ringing()/Progress() here duplicates provisional responses.
+        " same => n(fila),Queue(" + name + ",r,,," + str(limit) + ")\n"
         " same => n,NoOp(Resultado fila: ${QUEUESTATUS})\n"
         " same => n(reserva),Dial(PJSIP/union-301,25)\n"
         " same => n,Return()\n"
