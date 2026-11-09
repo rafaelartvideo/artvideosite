@@ -4,7 +4,7 @@ import { ClipboardList, CreditCard, Plus, RefreshCw, ShoppingBag, Wallet, Chevro
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { LoadingState, EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -205,8 +205,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
       : orders.length===0 ? <EmptyState icon={ShoppingBag} title="Nenhum pedido encontrado"
         message={data?.total===0 && !debouncedSearch && status==="all" && payment==="all" && !from && !to
           ? "As vendas confirmadas pela Vitrine aparecerão aqui." : "Tente alterar os filtros da busca."}/>
-      : <Section title="Lista de pedidos" description="Selecione um pedido para visualizar os detalhes." flush
-        className="[&_th]:md:py-2 [&_td]:md:py-2.5">
+      :<AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
         <div className="divide-y divide-border md:hidden">
           {orders.map(order=><button type="button" key={order.id}
             onClick={()=>setSelectedId(order.id)}
@@ -240,11 +239,11 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           <table className="min-w-[840px]">
             <thead>
               <tr>
-                <th className="px-4 py-3">Pedido</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Situações</th>
-                <th className="px-4 py-3">Criado em</th>
-                <th className="px-4 py-3">Vencimento</th>
+                <th className="px-4 py-3 text-left">Pedido</th>
+                <th className="px-4 py-3 text-left">Cliente</th>
+                <th className="px-4 py-3 text-left">Situações</th>
+                <th className="px-4 py-3 text-left">Criado em</th>
+                <th className="px-4 py-3 text-left">Vencimento</th>
                 <th className="px-4 py-3 text-right">Total</th>
               </tr>
             </thead>
@@ -280,7 +279,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           showFilteredTotal
           onPageChange={setPage}
           onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
-      </Section>}
+      </AdminCard>}
 
     {selectedId && <SalesOrderDetailDialog
       organizationId={organizationId}
