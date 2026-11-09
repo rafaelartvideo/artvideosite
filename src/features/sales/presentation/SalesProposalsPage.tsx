@@ -11,7 +11,7 @@ import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { AdminSearchPanel, AdminSearchTextField, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { listSalesProposals, type SalesProposalDetail, type ProposalStatus } from "../infrastructure/sales-proposals.repository";
 import { SalesProposalDetailDialog } from "./SalesProposalDetailDialog";
