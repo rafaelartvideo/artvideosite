@@ -30,7 +30,7 @@ const options: Array<{value:string;label:string}> = [
   ...Object.entries(statuses).map(([value,label])=>({value,label})),
 ];
 
-export function SalesProposalsPage() {
+export function SalesProposalsPage({ onInitialReady }: { onInitialReady?: (section: "proposals") => void } = {}) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const org=activeOrganizationId||"";
   const canView=hasPermission("sales.view");
@@ -77,6 +77,10 @@ export function SalesProposalsPage() {
       .subscribe();
     return ()=>{void supabase.removeChannel(channel);};
   },[org,canView,queryClient]);
+
+  useEffect(() => {
+    if (!canView || !proposalsQuery.isPending) onInitialReady?.("proposals");
+  }, [canView, proposalsQuery.isPending, onInitialReady]);
 
   const proposals=useMemo(()=>{
     const values=[...(proposalsQuery.data?.items||[])];
