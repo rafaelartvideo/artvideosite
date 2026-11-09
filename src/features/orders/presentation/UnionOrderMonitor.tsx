@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
@@ -60,7 +61,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [situationId, setSituationId] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("order");
   const [orderSort, setOrderSort] = useState<OrderSort>("");
 
