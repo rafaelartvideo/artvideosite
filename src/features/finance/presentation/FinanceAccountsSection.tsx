@@ -88,7 +88,7 @@ const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   cash_adjustment: "Ajuste de caixa",
 };
 
-export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
+export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { createSignal?: number; onInitialReady?: () => void } = {}) {
   const { hasPermission, activeOrganizationId, user } = useAuth();
   const finance = useFinanceFoundation();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -201,6 +201,11 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   };
 
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
+  useEffect(() => {
+    if (!finance.accountsQuery.isPending && !money.balancesQuery.isPending && (!cashEnabled || !cash.sessionsQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, finance.accountsQuery.isPending, money.balancesQuery.isPending, cashEnabled, cash.sessionsQuery.isPending]);
+
+
   const cashOperations = (account: FinancialAccount) => {
     if (!cashEnabled || account.account_type !== "cash" || !account.allows_cash_session || !account.is_active) return null;
     if (cash.sessionsQuery.isLoading) return null;
