@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -248,7 +249,7 @@ export function TabCategories({
           { id: "services", label: "Serviços", Icon: Wrench }]}
         onChange={value => { setKind(value); setPage(1); }} />
       {canViewTable && <AdminCard>
-        {loading ? <LoadingState/> : cats.length === 0
+        {loading ? <AdminWorkspaceSkeleton columns={6} rows={5} /> : cats.length === 0
           ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada"
               message={`Crie categorias para organizar os ${label} do site.`}
               onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" />
