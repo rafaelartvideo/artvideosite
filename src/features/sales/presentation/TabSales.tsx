@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchClearButton, AdminSearchSortMenu, AdminSearchPanel, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { SalesProductDetailsDialog } from "./SalesProductDetailsDialog";
@@ -509,7 +509,7 @@ export function TabSales() {
                       {product.price==null?"Sem preço":formatCurrency(product.price)}
                     </p>
                     <p className={"text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
-                      {available>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
+                      {available>0||cartCount>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
                     </p>
                     <div className="flex items-center justify-between gap-2 pt-1">
                       <button type="button" aria-label={favorite?"Remover favorito":"Favoritar produto"}
@@ -518,8 +518,14 @@ export function TabSales() {
                           (favorite?"text-red-500":"text-muted-foreground hover:text-primary")}>
                         <Heart size={17} fill={favorite?"currentColor":"none"}/>
                       </button>
-                      <AdminButton size="sm" disabled={!canAdd}
-                        onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <AdminButton size="sm" disabled={!canAdd}
+                          onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                        {cartCount>0&&<AdminIconButton variant="quaternary" className="h-9 w-9 shrink-0"
+                          ariaLabel={"Remover "+product.name+" do carrinho"} onClick={()=>setQuantity(product.product_id,0)}>
+                          <Trash2 size={15}/>
+                        </AdminIconButton>}
+                      </div>
                     </div>
                   </div>
                 </div>;
@@ -564,7 +570,7 @@ export function TabSales() {
                         {product.price==null?"Sem preço":formatCurrency(product.price)}
                       </td>
                       <td className={"whitespace-nowrap text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
-                        {available>0?formatNumber(available)+" "+(product.unit||"un"):"Sem estoque"}
+                        {available>0||cartCount>0?formatNumber(available)+" "+(product.unit||"un"):"Sem estoque"}
                       </td>
                       <td>
                         <div className="flex items-center justify-end gap-1.5">
@@ -576,6 +582,10 @@ export function TabSales() {
                           </button>
                           <AdminButton size="sm" disabled={!canAdd}
                             onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                          {cartCount>0&&<AdminIconButton variant="quaternary" className="h-9 w-9 shrink-0"
+                            ariaLabel={"Remover "+product.name+" do carrinho"} onClick={()=>setQuantity(product.product_id,0)}>
+                            <Trash2 size={15}/>
+                          </AdminIconButton>}
                         </div>
                       </td>
                     </tr>;
@@ -615,7 +625,7 @@ export function TabSales() {
                     {product.price==null?"Sem preço":formatCurrency(product.price)}
                   </p>
                   <p className={"text-xs font-semibold "+(available>0?"text-primary":"text-destructive")}>
-                    {available>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
+                    {available>0||cartCount>0?formatNumber(available)+" "+(product.unit||"un")+" disponíveis":"Sem estoque"}
                   </p>
                   {deviceModels.length>0&&<p className="line-clamp-2 text-xs leading-4 text-muted-foreground"
                     title={deviceModels.map(model=>model.brand+" "+model.model).join(" · ")}>
@@ -623,9 +633,14 @@ export function TabSales() {
                     {deviceModels[0].brand} {deviceModels[0].model}
                     {deviceModels.length>1?" · +"+(deviceModels.length-1):""}
                   </p>}
-                  <AdminButton size="sm" disabled={!canAdd}
-                    className="mt-auto w-full justify-center"
-                    onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                  <div className="mt-auto flex min-w-0 items-center gap-1.5">
+                    <AdminButton size="sm" disabled={!canAdd} className="min-w-0 flex-1 justify-center"
+                      onClick={()=>addProduct(product)}><Plus size={14}/> Adicionar</AdminButton>
+                    {cartCount>0&&<AdminIconButton variant="quaternary" className="h-9 w-9 shrink-0"
+                      ariaLabel={"Remover "+product.name+" do carrinho"} onClick={()=>setQuantity(product.product_id,0)}>
+                      <Trash2 size={15}/>
+                    </AdminIconButton>}
+                  </div>
                 </div>
               </article>;
             })}
