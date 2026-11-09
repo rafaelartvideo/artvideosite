@@ -125,9 +125,11 @@ test("Vendas só apresenta tela inteira na primeira visita e categoria recarrega
   assert.match(sales, /<SalesProposalsPage onInitialReady=\{markSalesSectionReady\}/);
   assert.match(sales, /<SalesManagementPage onInitialReady=\{markSalesSectionReady\}/);
   assert.match(shell, /variant === "sales"/);
-  const querySkeleton = sales.indexOf("productsQuery.isPending && !productsQuery.data");
+  const querySkeleton = sales.indexOf("          : catalogResultsLoading");
   assert.ok(sales.indexOf('<AdminSearchPanel title="Buscar produtos"') < querySkeleton);
   assert.ok(querySkeleton < sales.indexOf("<aside ref={cartRef}"));
+  assert.match(sales, /catalogProductIds\.length > 0 && deviceModelsQuery\.isPending/);
+  assert.match(sales, /rows=\{40\} variant=\{display===/);
   assert.doesNotMatch(sales, /productsQuery\.isPending \? <AdminWorkspaceSkeleton searchFields=\{4\}/);
   for (const file of ["SalesOrdersPage.tsx","SalesProposalsPage.tsx","SalesManagementPage.tsx"]) {
     assert.match(read("src/features/sales/presentation/"+file), /onInitialReady\?\.\(/,file);
