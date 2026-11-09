@@ -286,7 +286,7 @@ test("Financeiro e Vendas: submenus sem fundo, alinhados à esquerda e espaçado
 });
 
 
-test("subseções de módulos compartilham indicador ativo e navegação sem barra visível", () => {
+test("subseções de módulos compartilham indicador ativo e navegação sem barra visível", async () => {
   const shared = read("src/shared/ui/admin/AdminSubsectionTabs.tsx");
   const subnav = read("src/shared/ui/admin/AdminSubnav.tsx");
   const buttons = read("src/shared/ui/admin/AdminSubsectionButtons.tsx");
@@ -306,6 +306,10 @@ test("subseções de módulos compartilham indicador ativo e navegação sem bar
     "src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx",
     "src/features/platform-billing/presentation/UnionPlatformFinance.tsx",
     "src/features/platform-billing/presentation/SubscriptionConfiguration.tsx",
-  ]) assert.match(read(path), /<AdminSubsectionTabs/, path);
+  ]) {
+    const source = read(path);
+    assert.match(source, /<AdminSubsectionTabs/, path);
+    assert.ok((await transformWithEsbuild(source, path, { loader: "tsx" })).code.length > 0, path);
+  }
   assert.match(read("src/features/equipment/presentation/EquipmentAdminPanel.tsx"), /border-b-\[3px\]/);
 });
