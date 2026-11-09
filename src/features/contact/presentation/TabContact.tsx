@@ -10,7 +10,7 @@ import {
 } from "@/features/settings/presentation/useSiteSettingsQuery";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabContact() {
   const navigate = useNavigate();
