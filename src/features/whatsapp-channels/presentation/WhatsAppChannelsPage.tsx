@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
@@ -370,7 +371,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         </button>)}
       </div>
     </nav>
-    {loading && (section === "configuration" || section === "connections") ? <LoadingState text="Carregando canais..." /> : section === "configuration" ?
+    {loading && (section === "configuration" || section === "connections") ? <AdminWorkspaceSkeleton variant="cards" rows={5} /> : section === "configuration" ?
       <AdminCard>
         <AdminCardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
