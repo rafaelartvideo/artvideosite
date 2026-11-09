@@ -56,12 +56,12 @@ export function SalesProposalsPage() {
   const proposalsQuery=useQuery({
     queryKey:["sales",org,"proposals",searchDebounced,status,page,pageSize],
     queryFn:()=>listSalesProposals(org,{search:searchDebounced,status,page,pageSize}),
-    enabled:Boolean(org&&hasPermission("sales.view")),
+    enabled:Boolean(org&&canView),
     staleTime:15_000,refetchOnWindowFocus:true,
     refetchInterval:30_000, // validade de propostas pode mudar sem update no banco
   });
   useEffect(()=>{
-    if(!org||!hasPermission("sales.view"))return;
+    if(!org||!canView)return;
     const channel=supabase.channel("sales-proposals-live:"+org)
       .on("postgres_changes",{
         event:"*",schema:"public",table:"sales_proposals",
@@ -72,7 +72,7 @@ export function SalesProposalsPage() {
       })
       .subscribe();
     return ()=>{void supabase.removeChannel(channel);};
-  },[org,hasPermission,queryClient]);
+  },[org,canView,queryClient]);
 
   const proposals=useMemo(()=>{
     const values=[...(proposalsQuery.data?.items||[])];
@@ -134,7 +134,7 @@ export function SalesProposalsPage() {
       </div>
     </AdminSearchPanel>
 
-    {!hasPermission("sales.view")?
+    {!canView?
       <EmptyState icon={ClipboardList} title="Acesso indisponível" message="Solicite permissão para consultar Vendas."/>
       :proposalsQuery.isPending?<LoadingState text="Carregando propostas comerciais..."/>
       :proposalsQuery.isError?<div className="space-y-2 rounded-lg border border-destructive/25 p-4">
