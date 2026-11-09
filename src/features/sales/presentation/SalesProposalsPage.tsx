@@ -30,6 +30,7 @@ const options: Array<{value:string;label:string}> = [
 export function SalesProposalsPage() {
   const { activeOrganizationId, hasPermission } = useAuth();
   const org=activeOrganizationId||"";
+  const canView=hasPermission("sales.view");
   const queryClient=useQueryClient();
   const navigate=useNavigate();
   const location=useLocation();
