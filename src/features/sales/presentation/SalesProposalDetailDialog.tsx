@@ -1,4 +1,4 @@
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { INPUT, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardCopy, Clock3, Download, Edit2, FileText, History, Link2, MoreHorizontal, PackageCheck, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
@@ -342,10 +342,9 @@ export function SalesProposalDetailDialog({
             {canReserve&&status==="approved"&&<div className="flex flex-wrap items-end gap-2">
               <label className="space-y-1 text-xs font-semibold">
                 <span className="block">Reservar por</span>
-                <select value={reserveDays} onChange={e=>setReserveDays(Number(e.target.value))}
-                  className={INPUT+" h-9 px-2 text-xs"}>
-                  {[1,3,7,15,30].map(days=><option key={days} value={days}>{days} dias</option>)}
-                </select>
+                <AdminSelect value={reserveDays} onValueChange={value=>setReserveDays(Number(value))}
+                  options={[1,3,7,15,30].map(days=>({value:days,label:days+" dias"}))}
+                  ariaLabel="Reservar por" className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
               </label>
               <AdminButton size="sm" disabled={reservationMutation.isPending}
                 loading={reservationMutation.isPending} onClick={()=>reservationMutation.mutate()}>
