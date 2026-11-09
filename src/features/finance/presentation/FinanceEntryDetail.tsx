@@ -244,7 +244,7 @@ function EntryDetailContent({
       reversePending={reverseSettlementPending}
       error={settlementError} onReverse={onReverseSettlement}
     />}
-    {tab === "documents" && <FinanceDocumentsPanel entryId={detail.id} />}
+    {tab === "documents" && <FinanceDocumentsPanel entryId={detail.id} orderId={detail.origin_type === "service_order" ? detail.origin_reference : null} orderNumber={detail.source_details?.os_number} />}
   </div>;
 }
 
