@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useState, type DragEvent } from "react";
 import { CalendarDays } from "lucide-react";
 import { buildAgendaDays, dayKey, type AgendaView, type AppointmentWithRelations, type CalendarEvent } from "../application/agenda-calendar";
@@ -41,7 +42,7 @@ export function AgendaCalendarView(props: Props) {
     onDrop: (event: DragEvent<HTMLDivElement>) => props.onDropEvent(event.dataTransfer, dayKey(date)),
   });
 
-  if (props.loading) return <LoadingState />;
+  if (props.loading) return <AdminWorkspaceSkeleton variant="grid" rows={7} />;
 
   if (props.view === "agenda") {
     return <AdminCard>
