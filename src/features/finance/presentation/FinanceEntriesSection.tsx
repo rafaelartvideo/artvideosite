@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -100,7 +101,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   };
   const [page, setPage] = useState(1);
   const receivableScrollRef = useRef<HTMLDivElement>(null);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([10, 20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [editorOpen, setEditorOpen] = useState(false);
   const [cancelRecurringEntry, setCancelRecurringEntry] = useState<{ ruleId: string; title: string } | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
