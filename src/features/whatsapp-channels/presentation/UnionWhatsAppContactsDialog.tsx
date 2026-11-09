@@ -162,10 +162,17 @@ export function UnionWhatsAppContactsDialog({
     const root=listScrollRef.current;
     if(!root || loading || !contacts.length)return;
     const observer=new IntersectionObserver(entries=>{
-      const entering=entries.filter(item=>item.isIntersecting)
-        .map(item=>(item.target as HTMLElement).dataset.avatarJid||"")
-        .filter(Boolean);
-      if(entering.length)setVisibleAvatarJids(old=>[...new Set([...old,...entering])]);
+      setVisibleAvatarJids(old=>{
+        const next=new Set(old);
+        for(const item of entries){
+          const jid=(item.target as HTMLElement).dataset.avatarJid||"";
+          if(!jid)continue;
+          if(item.isIntersecting)next.add(jid);
+          else next.delete(jid);
+        }
+        return next.size===old.length && old.every(jid=>next.has(jid))
+          ?old:[...next];
+      });
     },{root,rootMargin:"100px 0px",threshold:0.01});
     root.querySelectorAll<HTMLElement>("[data-avatar-jid]").forEach(node=>observer.observe(node));
     return()=>observer.disconnect();
