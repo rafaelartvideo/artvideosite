@@ -1,4 +1,4 @@
-import { INPUT, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CheckCircle2, ClipboardList, RotateCcw, Wallet } from "lucide-react";
