@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
@@ -389,6 +390,7 @@ export function TabWorkItems() {
       </button>; })}
     </div>
 
+{itemQuery.isPending ? <AdminWorkspaceSkeleton searchFields={5} columns={6} rows={pageSize} variant={view === "board" ? "cards" : "table"} /> : <>
     <AdminSearchPanel title="Buscar atividades" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={reset} />}
       <AdminSearchSortMenu value={sort} onChange={setSort} options={[
@@ -444,8 +446,7 @@ export function TabWorkItems() {
       </div>
     </AdminSearchPanel>
 
-    {itemQuery.isPending && <LoadingState text="Carregando atividades..." />}
-    {!itemQuery.isPending && !itemQuery.isError && <>
+    {!itemQuery.isError && <>
       {view === "overview" && <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
         <AdminCard>
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -556,6 +557,7 @@ export function TabWorkItems() {
       {view === "calendar" && <AdminCard><div className="p-4 sm:p-5">
         <MonthCalendar items={filtered} selectedDate={month} setSelectedDate={setMonth} onOpen={openTask} />
       </div></AdminCard>}
+    </>}
     </>}
 
     <WorkItemDialog key={currentSelected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
