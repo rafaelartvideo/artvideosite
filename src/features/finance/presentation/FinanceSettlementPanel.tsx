@@ -9,6 +9,7 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { financeServiceOrderLabel, formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import type { FinancialEntryDetail } from "../domain/finance.types";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 
 function formatDateTime(value?: string | null) {
   return value ? new Date(value).toLocaleString("pt-BR") : "—";
@@ -84,7 +85,7 @@ export function FinanceSettlementPanel({
                   <p className="text-xs font-medium text-foreground">{detail.counterpart_name_snapshot || "Não informado"}</p>
                   <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{detail.entry_type === "receivable" ? "Conta de destino" : "Conta de origem"}</p>
                   <p className="text-xs font-semibold text-foreground">{item.financial_account_name_snapshot || "Não informada"}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Referência: {originReference}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Referência: {detail.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={detail.origin_reference} number={detail.source_details?.os_number} /> : originReference}</p>
                 </td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums text-foreground">{formatCurrency(item.principal_amount)}</td>
                 <td className="px-4 py-3 text-right">
