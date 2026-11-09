@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Plus, ShoppingCart, ChevronRight } from "lucide-react";
@@ -108,6 +109,7 @@ export function SalesProposalsPage() {
         </AdminButton>}
       </div>
     </div>
+    {canView && proposalsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={2} columns={6} rows={pageSize} /> : <>
 <AdminSearchPanel title="Buscar propostas"
       headerActions={<>
         {(search||status!=="all"||sort!=="newest")&&<AdminSearchClearButton onClick={()=>{
@@ -136,7 +138,7 @@ export function SalesProposalsPage() {
 
     {!canView?
       <EmptyState icon={ClipboardList} title="Acesso indisponível" message="Solicite permissão para consultar Vendas."/>
-      :proposalsQuery.isPending?<LoadingState text="Carregando propostas comerciais..."/>
+      
       :proposalsQuery.isError?<div className="space-y-2 rounded-lg border border-destructive/25 p-4">
         <p className="text-sm text-destructive">{systemErrorMessage(proposalsQuery.error,"Não foi possível carregar as propostas.")}</p>
         <AdminButton size="sm" variant="secondary" onClick={()=>void proposalsQuery.refetch()}>Tentar novamente</AdminButton>
@@ -233,6 +235,7 @@ export function SalesProposalsPage() {
           pageSizeOptions={[10,15,25,50]} defaultPageSize={15}
           storageKey="union-sales-proposals-page-size" showFilteredTotal/>
       </AdminCard>}
+    </>}
 
     {selectedId&&<SalesProposalDetailDialog organizationId={org} id={selectedId}
       onClose={()=>setSelectedId(null)}
