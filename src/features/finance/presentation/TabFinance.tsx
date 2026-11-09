@@ -161,7 +161,7 @@ export function TabFinance({
   const countsLoading = (hasPermission("finance.receivables.view") && receivableCount.isPending)
     || (hasPermission("finance.payables.view") && payableCount.isPending)
     || (hasPermission("finance.accounts.view") && accountsCount.isPending);
-  const initialLoading = (!activeOrganizationId && authLoading)
+  const initialLoading = authLoading
     || (Boolean(activeOrganizationId) && (countsLoading || (primarySections.length > 0 && !readyScopes[scope])));
   const skeletonRows = section === "movements"
     ? initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20)
