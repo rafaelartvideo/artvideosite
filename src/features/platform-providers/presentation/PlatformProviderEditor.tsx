@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { FileText, MapPin, Paperclip, X } from "lucide-react";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -223,7 +224,7 @@ export function PlatformProviderEditor({
             <button type="button" aria-label={"Remover "+file.name}
               onClick={()=>setPendingFiles(current=>current.filter((_,i)=>i!==index))}><X size={14}/></button>
           </div>)}
-          {attachmentsLoading&&<LoadingState text="Carregando anexos"/>}
+          {attachmentsLoading&&<AdminWorkspaceSkeleton variant="cards" rows={3} />}
           {attachments.map(attachment=><div key={attachment.id}
             className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
             <Paperclip size={14} className="shrink-0"/>
