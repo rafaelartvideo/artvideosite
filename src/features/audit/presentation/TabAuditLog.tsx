@@ -613,7 +613,7 @@ export function TabAuditLog() {
     queryKey: ["audit-logs", activeOrganizationId, filters],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listAuditLogs(activeOrganizationId!, filters),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === activeOrganizationId ? previous : undefined,
   });
 
   const actorsQuery = useQuery({
