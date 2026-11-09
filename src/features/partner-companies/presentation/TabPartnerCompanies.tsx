@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -131,7 +132,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
       actions={canCreate ? <BtnPrimary onClick={() => onRouteChange?.("new", null)}><Plus size={15} /> Nova empresa</BtnPrimary> : undefined}
     />
 
-    {companiesQuery.isFetching ? <LoadingState text="Carregando empresas..." /> : companiesQuery.isError ? (
+    {(companiesQuery.isPending && !companiesQuery.data) ? <AdminWorkspaceSkeleton columns={6} rows={5} /> : companiesQuery.isError ? (
       <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Não foi possível carregar as empresas: {(companiesQuery.error as any)?.message || "Erro desconhecido"}</div>
     ) : totalCompanies === 0 ? (
       <EmptyState icon={Building2} title="Nenhuma empresa parceira" message="Cadastre a primeira empresa parceira para iniciar a configuração." />
