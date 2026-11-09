@@ -1,5 +1,5 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { BarChart3, CalendarRange, RefreshCcw, TrendingUp } from "lucide-react";
 import {
   Bar,
@@ -78,7 +78,7 @@ function ReportMetric({ label, value, detail }: { label: string; value: number; 
   </AdminCard>;
 }
 
-export function FinanceReportsSection() {
+export function FinanceReportsSection({ onInitialReady }: { onInitialReady?: () => void } = {}) {
   const { hasPermission } = useAuth();
   const canDre = hasPermission("finance.reports.view") && hasPermission("finance.reports.dre");
   const canCashFlow = hasPermission("finance.reports.view") && hasPermission("finance.reports.cash_flow");
@@ -120,6 +120,11 @@ export function FinanceReportsSection() {
   };
 
   const resetFilters = () => setFilters(currentMonthFilters());
+  useEffect(() => {
+    if (!foundation.accountsQuery.isPending && (tab === "dre" ? !reports.dreQuery.isPending : !reports.cashFlowQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, foundation.accountsQuery.isPending, tab, reports.dreQuery.isPending, reports.cashFlowQuery.isPending]);
+
+
   const activeError = tab === "dre" ? reports.dreQuery.error : reports.cashFlowQuery.error;
   const errorText = activeError instanceof Error ? activeError.message : "";
 
