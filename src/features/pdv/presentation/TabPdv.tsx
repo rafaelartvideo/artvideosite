@@ -300,7 +300,7 @@ export function TabPdv({
   };
 
   if (bootstrapQuery.isPending) {
-    return <div className="space-y-5"><PageHeader title="PDV" subtitle="Venda rápida, caixa e operação de balcão." /><AdminWorkspaceSkeleton variant="details" rows={3} columns={4} /></div>;
+    return <AdminWorkspaceSkeleton pageHeader variant="details" rows={3} columns={4} />;
   }
 
   const cashOptions = (bootstrap?.cash_accounts || []).map(account => ({ value: account.id, label: account.name }));
