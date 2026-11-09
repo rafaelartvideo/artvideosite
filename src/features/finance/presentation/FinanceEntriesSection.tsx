@@ -556,6 +556,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             counterpartyLoading={finance.counterpartiesQuery.isFetching}
             onCounterpartySearchChange={setCounterpartySearch}
             categories={categories}
+            defaultCategoryId={isReceivable ? foundation.settingsQuery.data?.default_receivable_category_id : foundation.settingsQuery.data?.default_payable_category_id}
             paymentMethods={paymentMethods}
             saving={finance.saveMutation.isPending}
             onClose={closeEditor}
@@ -627,6 +628,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       counterpartyLoading={finance.counterpartiesQuery.isFetching}
       onCounterpartySearchChange={setCounterpartySearch}
       categories={categories}
+      defaultCategoryId={isReceivable ? foundation.settingsQuery.data?.default_receivable_category_id : foundation.settingsQuery.data?.default_payable_category_id}
       paymentMethods={paymentMethods}
       saving={finance.saveMutation.isPending}
       onClose={closeEditor}
