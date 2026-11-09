@@ -816,7 +816,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     return <DashboardArea metrics={overviewMetrics} onMetricSelect={showMetric} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
   };
 
-  const dashboardInitialLoading = (!activeOrganizationId && authLoading)
+  const dashboardInitialLoading = authLoading
     || (Boolean(activeOrganizationId) && (
       activeModule === "orders"
         ? (ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
