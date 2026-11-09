@@ -171,7 +171,6 @@ export function TabFinance({
   const financeColumns = section === "movements" ? 7 : section === "accounts" ? 6 : 9;
 
   return <div className="min-w-0 space-y-5">
-    {initialLoading ? <AdminOverviewPageSkeleton variant="finance" financeSurface={financeSurface} financeColumns={financeColumns} tabs={primarySections.length + (allowedSections.includes("registries") ? 1 : 0)} rows={skeletonRows} /> : <>
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
       actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
         {(canIssueReceipt || canViewReceiptHistory) && <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border admin-action-blue-outline">
@@ -194,7 +193,7 @@ export function TabFinance({
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection}
       counts={tabCounts} countErrors={countErrors} availableRegistrySections={availableRegistrySections}
       activeRegistry={registryModal} onOpenRegistry={openRegistryModal} />
-    </>}
+    {initialLoading && <AdminOverviewPageSkeleton variant="finance" contentOnly financeSurface={financeSurface} financeColumns={financeColumns} tabs={primarySections.length + (allowedSections.includes("registries") ? 1 : 0)} rows={skeletonRows} />}
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
