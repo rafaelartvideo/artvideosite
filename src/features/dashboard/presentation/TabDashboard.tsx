@@ -1,4 +1,5 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
@@ -257,7 +258,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
 }
 
 export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
-  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
@@ -815,6 +816,17 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     return <DashboardArea metrics={overviewMetrics} onMetricSelect={showMetric} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
   };
 
+  const dashboardInitialLoading = (!activeOrganizationId && authLoading)
+    || (Boolean(activeOrganizationId) && (
+      activeModule === "orders"
+        ? (ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
+        : (dashboardQuery.isPending && !dashboardQuery.data)
+          || (activeModule === "inventory" && access.inventory && access.inventoryCosts
+            && canViewInventoryMovements && inventoryPurchasesQuery.isPending && !inventoryPurchasesQuery.data)
+    ));
+  // O período, a navegação de subseções e todos os painéis surgem no mesmo instante.
+  if (dashboardInitialLoading) return <AdminOverviewPageSkeleton variant="dashboard" tabs={modules.length} />;
+
   return (
     <div className="min-w-0 space-y-4 pb-2">
       <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil." actions={
@@ -839,7 +851,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {(activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending) ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
+        {(activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
             <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
