@@ -27,7 +27,7 @@ import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   acknowledgeHomeAnnouncement,
   loadHomeAnnouncements,
