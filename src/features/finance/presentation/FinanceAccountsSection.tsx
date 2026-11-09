@@ -156,6 +156,10 @@ export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { c
   const mutationError = finance.saveAccount.error || finance.toggleAccount.error || money.openingBalanceMutation.error;
   const errorMessage = mutationError ? systemErrorMessage(mutationError) : queryError ? systemErrorMessage(queryError) : "";
 
+  useEffect(() => {
+    if (!finance.accountsQuery.isPending && !money.balancesQuery.isPending && (!cashEnabled || !cash.sessionsQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, finance.accountsQuery.isPending, money.balancesQuery.isPending, cashEnabled, cash.sessionsQuery.isPending]);
+
   if (!canView) return <AdminCard className="p-6"><p className="text-sm text-[#5a6a82]">Você não possui permissão para visualizar caixas e contas.</p></AdminCard>;
 
   const openEdit = (account: FinancialAccount) => {
@@ -201,10 +205,6 @@ export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { c
   };
 
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
-  useEffect(() => {
-    if (!finance.accountsQuery.isPending && !money.balancesQuery.isPending && (!cashEnabled || !cash.sessionsQuery.isPending)) onInitialReady?.();
-  }, [onInitialReady, finance.accountsQuery.isPending, money.balancesQuery.isPending, cashEnabled, cash.sessionsQuery.isPending]);
-
 
   const cashOperations = (account: FinancialAccount) => {
     if (!cashEnabled || account.account_type !== "cash" || !account.allows_cash_session || !account.is_active) return null;
