@@ -1,5 +1,25 @@
 # Union PABX — ponte de provisionamento por saída HTTPS
 
+## Tom de chamada na entrada FVX
+
+O chamador deve ouvir o tom antes de um atendente responder. `Ringing()` na
+rota da fila não garante sozinho esse resultado na operadora. Na VPS Union,
+a entrada FVX usa `inband_progress=yes` no endpoint `union-fvx-in`, e o Asterisk
+precisa ter os tons carregados. O arquivo `indications-br.conf` contém as
+definições brasileiras da amostra oficial do Asterisk 22 para servidores sem
+configuração prévia; nunca substitua uma configuração de tons existente sem revisão.
+
+Verifique o valor efetivo com `pjsip show endpoint union-fvx-in` e os tons com
+`indication show br`. O teste real deve confirmar áudio antes do atendimento,
+sem enviar `200 OK` antecipadamente, e voz normal após atender. Não marque
+o teste como aprovado apenas porque a fila tocou ou houve SIP 180/183.
+
+Alterações na entrada ativa exigem autorização, backup, ausência de canais
+ativos e reversão. Preserve o grupo de leitura `asterisk` e as credenciais
+existentes; elas não pertencem ao repositório. Após alterar um arquivo incluído,
+confirme que o valor mudou em memória: uma mensagem de recarga bem-sucedida
+sozinha não prova que a configuração nova foi aplicada.
+
 Este agente permite que a **VPS** obtenha trabalhos assinados a partir do Supabase, crie
 somente **novos endpoints WebRTC da Union** e reporte o resultado. A senha do tronco FVX
 não é lida, copiada ou modificada. O ramal manual `union-301` não é gerenciado aqui.
