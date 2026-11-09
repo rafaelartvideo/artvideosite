@@ -403,6 +403,8 @@ test("referências de OS no Financeiro abrem detalhes em nova aba sem interferir
   const receipts = source("FinanceReceiptHistoryDialog.tsx");
   const receiptForm = source("FinanceReceiptDialog.tsx");
   const movements = source("FinanceMovementsSection.tsx");
+  const accounts = source("FinanceAccountsSection.tsx");
+  const documents = source("FinanceDocumentsPanel.tsx");
   const repo = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
 
   assert.match(link, /adminPath\("orders", id\)/);
@@ -418,6 +420,8 @@ test("referências de OS no Financeiro abrem detalhes em nova aba sem interferir
   assert.match(receipts, /FinanceServiceOrderLink orderId=\{receipt.service_order_id\}/);
   assert.match(receiptForm, /FinanceServiceOrderLink orderId=\{selectedOrder.id\}/);
   assert.match(movements, /FinanceServiceOrderLink orderId=\{item.origin_order_id\}/);
+  assert.match(accounts, /FinanceServiceOrderLink orderId=\{item.origin_order_id\}/);
+  assert.match(documents, /FinanceServiceOrderLink orderId=\{orderId\}/);
   assert.match(repo, /origin_order_id: orderIdBySettlement.get\(item.source_id\)/);
   assert.match(repo, /\.select\("id,origin_type,origin_reference,source_details"\)/);
 });
