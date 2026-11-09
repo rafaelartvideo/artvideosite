@@ -1,4 +1,4 @@
-import { useId, type HTMLInputTypeAttribute, type ReactNode } from "react";
+import { useId, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
 import { Check, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -21,7 +21,7 @@ export function AdminSearchPanel({ title, children, headerActions, allowOverflow
 }
 
 /** Campo de busca compacto padronizado para painéis administrativos. */
-export function AdminSearchTextField({ label, value, onChange, placeholder, inputMode, id, className, inputClassName, type = "search", ariaLabel }: {
+export function AdminSearchTextField({ label, value, onChange, placeholder, inputMode, id, className, inputClassName, type = "search", ariaLabel, onKeyDown }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -32,6 +32,7 @@ export function AdminSearchTextField({ label, value, onChange, placeholder, inpu
   inputClassName?: string;
   type?: HTMLInputTypeAttribute;
   ariaLabel?: string;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }) {
   const generatedId = useId();
   const inputId = id || generatedId;
@@ -40,7 +41,7 @@ export function AdminSearchTextField({ label, value, onChange, placeholder, inpu
     <div className="relative min-w-0">
       <Search size={15} aria-hidden="true"
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input id={inputId} type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)}
+      <input id={inputId} type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} onKeyDown={onKeyDown}
         placeholder={placeholder} aria-label={ariaLabel || (label ? `Buscar por ${label.toLowerCase()}` : "Pesquisar")}
         className={cn(INPUT, "h-[42px] min-h-[42px] w-full min-w-0 pl-9 pr-2 text-sm md:h-9 md:min-h-9 md:py-1.5 md:text-xs", inputClassName)} />
     </div>
