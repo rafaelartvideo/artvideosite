@@ -1,8 +1,9 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, Package, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import {
   listPartnerShares,
   type PartnerShareAccessLevel,
@@ -31,7 +32,7 @@ function ResourceAccessMessage({ access, title }: { access: PartnerShareConfigLe
 }
 
 function SharedTabFallback() {
-  return <div className="rounded-xl border border-[#0d1b2e]/8 bg-white p-8 shadow-sm"><LoadingState text="Carregando módulo compartilhado..." /></div>;
+  return <AdminWorkspaceSkeleton variant="details" rows={3} columns={4} />;
 }
 
 export function PartnerCompanySharedDataSection({ organizationId }: { organizationId: string }) {
@@ -62,7 +63,7 @@ export function PartnerCompanySharedDataSection({ organizationId }: { organizati
     setOrderRouteSubpage(null);
   }, [organizationId, activeTab]);
 
-  if (sharesQuery.isPending) return <LoadingState text="Carregando dados compartilhados..." />;
+  if (sharesQuery.isPending) return <AdminWorkspaceSkeleton variant="cards" rows={4} />;
   if (sharesQuery.isError) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Não foi possível carregar os acessos aos dados: {(sharesQuery.error as any)?.message || "Erro desconhecido"}</div>;
 
   const customersAccess = shareByKey.get("customers") || "none";
