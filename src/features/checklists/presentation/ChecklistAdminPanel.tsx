@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -75,7 +76,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId && routeSubpage === "edit");
 
   const linkedCounts = useMemo(() => {
@@ -165,7 +166,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   };
 
   if (!canView) return null;
-  if (query.isPending) return <AdminWorkspaceSkeleton rows={5} columns={5} />;
+  if (query.isPending) return <AdminWorkspaceSkeleton rows={pageSize} columns={5} />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
