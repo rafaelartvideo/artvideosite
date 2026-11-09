@@ -1,3 +1,4 @@
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardCopy, Clock3, Download, Edit2, FileText, History, Link2, MoreHorizontal, PackageCheck, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
@@ -342,7 +343,7 @@ export function SalesProposalDetailDialog({
               <label className="space-y-1 text-xs font-semibold">
                 <span className="block">Reservar por</span>
                 <select value={reserveDays} onChange={e=>setReserveDays(Number(e.target.value))}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-xs">
+                  className={INPUT+" h-9 px-2 text-xs"}>
                   {[1,3,7,15,30].map(days=><option key={days} value={days}>{days} dias</option>)}
                 </select>
               </label>
