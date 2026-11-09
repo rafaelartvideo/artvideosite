@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -18,6 +18,8 @@ import { FinanceReportsSection } from "./FinanceReportsSection";
 import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
 import { FinanceReceiptHistoryDialog } from "./FinanceReceiptHistoryDialog";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
+import { ADMIN_PAGE_SIZE_STORAGE_KEY, initialPageSize } from "@/shared/domain/pagination-preferences";
 
 export function TabFinance({
   routeResourceId,
@@ -28,7 +30,7 @@ export function TabFinance({
   routeSubpage?: string | null;
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission, activeOrganizationId, loading: authLoading } = useAuth();
   // Contagens leves (HEAD/COUNT), por empresa e permissão: não carrega lançamentos inteiros.
   const organizationId = activeOrganizationId || "";
   const receivableCount = useQuery({
@@ -139,7 +141,26 @@ export function TabFinance({
     : section === "movements" ? hasPermission("finance.transfers.create")
     : false;
 
+  // O Financeiro não libera nenhuma subseção com contagens incompletas.
+  // Cada seção sinaliza quando as consultas necessárias ao primeiro desenho terminam.
+  const scope = `${organizationId}:${section}`;
+  const [readyScopes, setReadyScopes] = useState<Record<string, true>>({});
+  const markSectionReady = useCallback(() => {
+    setReadyScopes(previous => previous[scope] ? previous : { ...previous, [scope]: true });
+  }, [scope]);
+  const countsLoading = (hasPermission("finance.receivables.view") && receivableCount.isPending)
+    || (hasPermission("finance.payables.view") && payableCount.isPending)
+    || (hasPermission("finance.accounts.view") && accountsCount.isPending);
+  const initialLoading = (!activeOrganizationId && authLoading)
+    || (Boolean(activeOrganizationId) && (countsLoading || (primarySections.length > 0 && !readyScopes[scope])));
+  const skeletonRows = section === "movements"
+    ? initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20)
+    : initialPageSize([10, 20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 10);
+  const financeSurface = section === "receivables" || section === "payables" || section === "movements"
+    ? "table" : section === "accounts" ? "accounts" : section === "reports" ? "reports" : "overview";
+
   return <div className="min-w-0 space-y-5">
+    {initialLoading ? <AdminOverviewPageSkeleton variant="finance" financeSurface={financeSurface} tabs={primarySections.length} rows={skeletonRows} /> : <>
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
       actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
         {(canIssueReceipt || canViewReceiptHistory) && <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border admin-action-blue-outline">
@@ -162,15 +183,18 @@ export function TabFinance({
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection}
       counts={tabCounts} availableRegistrySections={availableRegistrySections}
       activeRegistry={registryModal} onOpenRegistry={openRegistryModal} />
+    </>}
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
-    {section === "overview" && <FinanceOverviewFoundation onSelectSection={selectSection} onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
-    {section === "receivables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
-    {section === "payables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
-    {section === "movements" && <FinanceMovementsSection createSignal={newEntrySignal} />}
-    {section === "accounts" && <FinanceAccountsSection createSignal={newEntrySignal} />}
-    {section === "reports" && <FinanceReportsSection />}
+    <div className={initialLoading ? "hidden" : "contents"} aria-hidden={initialLoading}>
+    {section === "overview" && <FinanceOverviewFoundation onInitialReady={markSectionReady} onSelectSection={selectSection} onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
+    {section === "receivables" && <FinanceEntriesSection onInitialReady={markSectionReady} newEntrySignal={newEntrySignal} entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
+    {section === "payables" && <FinanceEntriesSection onInitialReady={markSectionReady} newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
+    {section === "movements" && <FinanceMovementsSection onInitialReady={markSectionReady} createSignal={newEntrySignal} />}
+    {section === "accounts" && <FinanceAccountsSection onInitialReady={markSectionReady} createSignal={newEntrySignal} />}
+    {section === "reports" && <FinanceReportsSection onInitialReady={markSectionReady} />}
+    </div>
     {registryModal === "categories" && availableRegistrySections.includes("categories") &&
       <FinanceCategoriesSection modalOpen onModalClose={closeRegistryModal} />}
     {registryModal === "payment-methods" && availableRegistrySections.includes("payment-methods") &&
