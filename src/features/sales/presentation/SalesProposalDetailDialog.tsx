@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCopy, Clock3, Download, FileText, Link2, PackageCheck, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
+import { ClipboardCopy, Clock3, Download, Edit2, FileText, History, Link2, MoreHorizontal, PackageCheck, ReceiptText, ShoppingCart, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger} from "@/shared/ui/primitives/dropdown-menu";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { changeSalesProposalStatus, createSalesProposalApprovalLink, getSalesProposalDetail,
   type SalesProposalDetail } from "../infrastructure/sales-proposals.repository";
@@ -37,6 +38,7 @@ export function SalesProposalDetailDialog({
   onChanged:(message:string)=>void;
 }) {
   const { hasPermission } = useAuth();
+  const historyRef=useRef<HTMLElement|null>(null);
   const client = useQueryClient();
   const [action,setAction] = useState<ProposalAction|null>(null);
   const [reason,setReason] = useState("");
@@ -184,30 +186,57 @@ export function SalesProposalDetailDialog({
       onClose={onClose}
       className="w-[calc(100vw-1.25rem)] max-w-3xl"
       bodyClassName="max-h-[min(75dvh,760px)] overflow-y-auto"
-      footer={<div className="flex w-full flex-wrap justify-end gap-2">
-        {proposal && canManage && proposal.status==="draft" && <AdminButton size="sm" variant="secondary"
-          onClick={()=>{onEdit(proposal);onClose();}}>Editar</AdminButton>}
-        {proposal && canManage && canReopen && <AdminButton size="sm" variant="secondary"
-          onClick={()=>showAction("draft")}>Reabrir negociação</AdminButton>}
-        {proposal && canManage && status==="sent" && <AdminButton size="sm"
-          variant="secondary" disabled={linkMutation.isPending}
-          loading={linkMutation.isPending} onClick={()=>linkMutation.mutate()}>
-          <Link2 size={15}/> Gerar link de aprovação
-        </AdminButton>}
-        {proposal && canManage && status==="draft" && <AdminButton size="sm"
-          onClick={()=>showAction("sent")}>Marcar como enviada</AdminButton>}
-        {proposal && status==="sent" && canManage && <AdminButton size="sm" variant="secondary"
-          onClick={()=>showAction("rejected")}>Registrar recusa</AdminButton>}
-        {proposal && status==="sent" && canApprove && canManage && <AdminButton size="sm"
-          onClick={()=>showAction("approved")}>Registrar aprovação</AdminButton>}
-        {proposal && status==="approved" && canSell && Number(proposal.discount_amount)>0 && !hasPermission("sales.discount") &&
+      footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
+        {proposal&&<DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <AdminButton size="sm" variant="secondary" ariaLabel="Ações da proposta">
+              <MoreHorizontal size={16}/> Ações
+            </AdminButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="z-[360] max-h-[min(70dvh,460px)] min-w-[230px]">
+            <DropdownMenuItem onSelect={()=>historyRef.current?.scrollIntoView({behavior:"smooth",block:"start"})}>
+              <History size={15} className="mr-2"/> Visualizar histórico
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={pdfBusy} onSelect={()=>void downloadPdf()}>
+              <Download size={15} className="mr-2"/> Baixar PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={()=>void copySummary()}>
+              <ClipboardCopy size={15} className="mr-2"/> Copiar resumo
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={shareWhatsApp}>
+              <Link2 size={15} className="mr-2"/> Compartilhar no WhatsApp
+            </DropdownMenuItem>
+            {canManage&&status==="draft"&&<DropdownMenuItem onSelect={()=>{onEdit(proposal);onClose();}}>
+              <Edit2 size={15} className="mr-2"/> Editar proposta
+            </DropdownMenuItem>}
+            {canManage&&canReopen&&<DropdownMenuItem onSelect={()=>showAction("draft")}>
+              <FileText size={15} className="mr-2"/> Reabrir negociação
+            </DropdownMenuItem>}
+            {canManage&&status==="sent"&&<DropdownMenuItem disabled={linkMutation.isPending}
+              onSelect={()=>linkMutation.mutate()}>
+              <Link2 size={15} className="mr-2"/> Gerar link de aprovação
+            </DropdownMenuItem>}
+            {canManage&&status==="draft"&&<DropdownMenuItem onSelect={()=>showAction("sent")}>
+              <FileText size={15} className="mr-2"/> Marcar como enviada
+            </DropdownMenuItem>}
+            {canManage&&status==="sent"&&<DropdownMenuItem onSelect={()=>showAction("rejected")}>
+              <FileText size={15} className="mr-2"/> Registrar recusa
+            </DropdownMenuItem>}
+            {canManage&&canApprove&&status==="sent"&&<DropdownMenuItem onSelect={()=>showAction("approved")}>
+              <PackageCheck size={15} className="mr-2"/> Registrar aprovação
+            </DropdownMenuItem>}
+            {canManage&&(status==="draft"||status==="sent")&&<DropdownMenuItem
+              variant="destructive" onSelect={()=>showAction("cancelled")}>
+              Cancelar proposta
+            </DropdownMenuItem>}
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {proposal&&status==="approved"&&canSell&&Number(proposal.discount_amount)>0&&!hasPermission("sales.discount")&&
           <p className="max-w-52 text-xs text-muted-foreground">A conversão desta proposta com desconto exige autorização.</p>}
-        {proposal && status==="approved" && canSell && (Number(proposal.discount_amount)===0 || hasPermission("sales.discount")) && <AdminButton size="sm"
-          onClick={()=>{onConvert(proposal);onClose();}}>
-          <ShoppingCart size={15}/> Converter em pedido
-        </AdminButton>}
-        {proposal && canManage && (status==="draft"||status==="sent") && <AdminButton size="sm"
-          variant="danger" onClick={()=>showAction("cancelled")}>Cancelar</AdminButton>}
+        {proposal&&status==="approved"&&canSell&&(Number(proposal.discount_amount)===0||hasPermission("sales.discount"))&&
+          <AdminButton size="sm" onClick={()=>{onConvert(proposal);onClose();}}>
+            <ShoppingCart size={15}/> Converter em pedido
+          </AdminButton>}
         <AdminButton size="sm" variant="secondary" onClick={onClose}>Fechar</AdminButton>
       </div>}>
       {detailQuery.isPending?<div className="py-10"><LoadingState text="Carregando proposta..."/></div>
@@ -332,7 +361,7 @@ export function SalesProposalDetailDialog({
             <p className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
               Pedido gerado com sucesso. Consulte em Vendas → Pedidos.
             </p>}
-          <section className="space-y-2">
+          <section ref={historyRef} className="space-y-2">
             <h3 className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={15}/> Histórico</h3>
             <div className="divide-y divide-border rounded-lg border border-border">
               {proposal.events.map(event=><div key={event.id} className="p-3 text-xs">
