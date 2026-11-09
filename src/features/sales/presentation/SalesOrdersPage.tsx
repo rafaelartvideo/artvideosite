@@ -1,3 +1,4 @@
+import { initialPageSize } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,7 +74,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
   const [to,setTo]=useState("");
   const [page,setPage]=useState(1);
   const [sort,setSort]=useState<"newest"|"oldest"|"highest"|"lowest">("newest");
-  const [pageSize,setPageSize]=useState(15);
+  const [pageSize,setPageSize]=useState(() => initialPageSize([10,15,25,50], "union-sales-order-page-size", 15));
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [toast,setToast]=useState<string|null>(null);
 
@@ -92,6 +93,7 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
     queryKey:["sales",organizationId,"orders",filters],
     queryFn:()=>listSalesOrders(organizationId,filters),
     enabled:Boolean(organizationId && canView && !badPeriod),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationId ? previous : undefined,
     staleTime:15_000,
     refetchOnWindowFocus:true,
     refetchInterval:20_000, // segurança caso o status financeiro não dispare evento no pedido
