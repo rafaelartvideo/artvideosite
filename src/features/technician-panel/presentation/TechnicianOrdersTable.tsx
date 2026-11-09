@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
@@ -103,6 +104,7 @@ export function TechnicianOrdersTable({
   };
 
   return <div className="min-w-0 space-y-4">
+{loading ? <AdminWorkspaceSkeleton searchFields={6} columns={5} rows={pageSize} /> : <>
     <AdminSearchPanel title="Minhas ordens de serviço" headerActions={<>
       {(search || filter !== "all" || sort || dateFrom || dateTo) && <AdminSearchClearButton onClick={() => {
         setSearch(""); setFilter("all"); setSort(""); setDateFrom(""); setDateTo(""); setDraftFrom(""); setDraftTo(""); setPage(1);
@@ -206,8 +208,7 @@ export function TechnicianOrdersTable({
       </div>
     </AdminSearchPanel>
     <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-    {loading ? <LoadingState />
-      : !visible.length ? <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" />
+    {!visible.length ? <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" />
       : <>
         <div className="hidden overflow-x-auto md:block"><TopTableScrollbar />
           <table className="min-w-[880px] text-left">
@@ -246,5 +247,6 @@ export function TechnicianOrdersTable({
     <PaginationBar page={currentPage} pageSize={pageSize} totalItems={rows.length}
       onPageChange={setPage} onPageSizeChange={next => { setPageSize(next); setPage(1); }} />
     </AdminCard>
+    </>}
   </div>;
 }
