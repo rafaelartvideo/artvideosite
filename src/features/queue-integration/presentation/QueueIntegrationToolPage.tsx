@@ -1,7 +1,7 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useAuth } from "@/lib/auth";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { QueueIntegrationSettingsSection } from "./QueueIntegrationSettingsSection";
 
 const UNION_QUEUE_URL = "https://fila.unionworld.com.br";
