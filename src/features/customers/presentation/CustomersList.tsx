@@ -85,13 +85,13 @@ export function CustomersList(props: Props) {
   };
 
   return <>
+    {loading ? <AdminWorkspaceSkeleton pageHeader searchFields={4} columns={6} rows={pageSize} /> : <>
     <PageHeader
       title="Clientes"
       subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
       actions={canCreate ? <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar</AdminButton> : undefined}
     />
 
-    {loading ? <AdminWorkspaceSkeleton searchFields={4} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar clientes" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
