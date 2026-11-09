@@ -76,6 +76,7 @@ export async function listFinancialMovementsPage(
     .filter(item => item.source_type === "settlement" || item.source_type === "settlement_reversal")
     .map(item => item.source_id)));
   const originBySettlement = new Map<string, string>();
+  const orderIdBySettlement = new Map<string, string>();
 
   // A origem real fica no título vinculado à baixa, não no tipo do lançamento bancário.
   // Uma falha na consulta complementar não deve impedir a visualização do extrato.
@@ -90,7 +91,7 @@ export async function listFinancialMovementsPage(
       if (entryIds.length) {
         const { data: entries, error: entriesError } = await supabase
           .from("financial_entries")
-          .select("id,origin_type,source_details")
+          .select("id,origin_type,origin_reference,source_details")
           .eq("organization_id", org)
           .in("id", entryIds);
         if (!entriesError) {
@@ -107,6 +108,9 @@ export async function listFinancialMovementsPage(
               : entry.origin_type === "sales_order" ? "Vendas"
               : "Lançamento financeiro";
             originBySettlement.set(settlement.id, origin);
+            if (entry.origin_type === "service_order" && entry.origin_reference) {
+              orderIdBySettlement.set(settlement.id, entry.origin_reference);
+            }
           }
         }
       }
@@ -116,6 +120,7 @@ export async function listFinancialMovementsPage(
   return {
     items: items.map(item => ({
       ...item,
+      origin_order_id: orderIdBySettlement.get(item.source_id) || null,
       origin_label: originBySettlement.get(item.source_id) || (
         item.source_type === "transfer" || item.source_type === "transfer_reversal" ? "Transferência entre contas"
         : item.source_type === "cash_session" ? "Caixa físico"
