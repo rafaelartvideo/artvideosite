@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -112,6 +113,7 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
 
     
 
+    {loading ? <AdminWorkspaceSkeleton searchFields={3} columns={7} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar movimentações" headerActions={(accountFilter !== "all" || dateFrom || dateTo) ? <AdminSearchClearButton onClick={() => {
       setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
     }} /> : null}>
@@ -129,7 +131,7 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
         }} />
       </div>
     </AdminSearchPanel>
-      {loading ? <div className="p-10"><LoadingState text="Carregando movimentações..." /></div> : movements.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
+      {movements.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
         <div className="grid gap-2 p-3 md:hidden">{movements.map(item => <button type="button" key={item.id} onClick={() => setSelectedMovement(item)} className="w-full rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/60"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{formatFinanceOriginLabel(item.origin_label || "Movimentação financeira")} · {accountById.get(item.financial_account_id)?.name || "Conta"}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></button>)}</div>
         <FinanceTableSurface className="hidden md:block"><table className="min-w-[1100px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Origem</th><th className="text-left">Descrição</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-right">Entrada</th><th className="text-right">Saída</th></tr></thead><tbody>{movements.map(item => <FinanceTableRow key={item.id} label={`Abrir movimentação ${item.description_snapshot}`} onOpen={() => setSelectedMovement(item)}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{formatFinanceOriginLabel(item.origin_label || "Movimentação financeira")}</td><td className="text-xs text-muted-foreground">{item.description_snapshot}</td><td className="text-xs">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-muted-foreground">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-right font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{item.direction === "credit" ? formatCurrency(item.amount) : "—"}</td><td className="text-right font-bold tabular-nums text-red-600 dark:text-red-400">{item.direction === "debit" ? formatCurrency(item.amount) : "—"}</td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>
         <PaginationBar
@@ -142,6 +144,7 @@ export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: n
           pageSizeOptions={[20, 50, 100]}
         />
       </>}
+    </>}
 
     {canTransfer && transfers.length > 0 && <section className="space-y-2 border-t border-border pt-5"><h3 className="text-sm font-bold text-foreground">Transferências</h3>{transfers.slice(0, 20).map(transfer => <div key={transfer.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#0d1b2e]">{accountById.get(transfer.from_account_id)?.name || "Conta"} → {accountById.get(transfer.to_account_id)?.name || "Conta"}</p><p className="mt-1 text-xs text-[#5a6a82]">{formatDateTime(transfer.occurred_at)} · {formatCurrency(transfer.amount)}{transfer.note ? ` · ${transfer.note}` : ""}</p>{transfer.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estornada: {transfer.reversal_reason}</p>}</div>{transfer.transfer_status === "posted" && <AdminButton size="sm" variant="danger" onClick={() => { setReverseTransferId(transfer.id); setReverseReason(""); setReverseReasonError(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}</div>)}</section>}
 
