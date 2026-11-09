@@ -10,6 +10,8 @@ type Props = {
   rows?: number;
   financeSurface?: FinanceSurface;
   financeColumns?: number;
+  /** Preserva cabeçalho/abas reais e anima só a região inferior. */
+  contentOnly?: boolean;
 };
 
 function SectionHeadingSkeleton() {
@@ -90,7 +92,7 @@ function FinanceTableSkeleton({ rows, columns }: { rows: number; columns: number
 }
 
 /** Carregamento inicial único, sem títulos, abas, saudação ou contagens reais vazando para a página. */
-export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview", financeColumns = 9 }: Props) {
+export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, rows = 5, financeSurface = "overview", financeColumns = 9, contentOnly = false }: Props) {
   const tabCount = Math.max(0, Math.min(tabs, 12));
   const rowCount = Math.max(1, Math.min(rows, 100));
   const columnCount = Math.max(1, Math.min(financeColumns, 14));
@@ -98,7 +100,7 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
     className="min-w-0 space-y-4 pb-3">
     <span className="sr-only">Preparando todos os dados da página...</span>
     {variant === "home" ? <>
-      <div className="space-y-5 rounded-2xl bg-card p-5 sm:p-6">
+      {!contentOnly && <div className="space-y-5 rounded-2xl bg-card p-5 sm:p-6">
         <div className="space-y-3">
           <Skeleton className="h-3 w-14" />
           <Skeleton className="h-8 w-64 max-w-[90%]" />
@@ -107,7 +109,7 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
           {Array.from({ length: 5 }, (_, i) => <MetricSkeleton key={i} compact />)}
         </div>
-      </div>
+      </div>}
       <div className="space-y-3"><SectionHeadingSkeleton /><div className="grid gap-3 xl:grid-cols-2"><PanelSkeleton /><PanelSkeleton /></div></div>
       <div className="space-y-3">
         <SectionHeadingSkeleton />
@@ -121,11 +123,11 @@ export function AdminOverviewPageSkeleton({ variant, tabs = 6, shortcuts = 8, ro
       </div>
       <div className="grid gap-4 xl:grid-cols-2"><PanelSkeleton /><PanelSkeleton /></div>
     </> : <>
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+      {!contentOnly && <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 space-y-2"><Skeleton className="h-7 w-40" /><Skeleton className="h-3 w-72 max-w-full" /></div>
         <div className="flex gap-2"><Skeleton className="h-9 w-24" /><Skeleton className="h-9 w-24" /></div>
-      </div>
-      {tabCount > 0 && <div className="flex w-full max-w-full gap-3 overflow-hidden rounded-xl bg-card px-3 py-3">
+      </div>}
+      {!contentOnly && tabCount > 0 && <div className="flex w-full max-w-full gap-3 overflow-hidden rounded-xl bg-card px-3 py-3">
         {Array.from({ length: tabCount }, (_, index) => <div key={index} className="flex shrink-0 items-center gap-2">
           <Skeleton className="h-5 w-5 rounded-md" /><Skeleton className="h-3.5 w-16 sm:w-20" />
           {variant === "finance" && index > 0 && index < 4 && <Skeleton className="h-5 w-7 rounded-full" />}
