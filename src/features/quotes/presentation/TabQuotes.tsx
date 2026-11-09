@@ -1,3 +1,4 @@
+import { initialPageSize, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
@@ -53,7 +54,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const [status,setStatus]=useState("");
   const [sort,setSort]=useState<QuoteSort>("");
   const [page,setPage]=useState(1);
-  const [pageSize,setPageSize]=useState(10);
+  const [pageSize,setPageSize]=useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const readyCustomer=useDebounced(customer);
   const readyDocument=useDebounced(document);
   const readyProtocol=useDebounced(protocol);
@@ -69,6 +70,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const quotesQuery=useQuery({
     queryKey:[...queryKeys.quotes.lists(),org,filters],
     enabled:Boolean(org&&canView),queryFn:()=>listQuotesPage(org,filters),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === org ? previous : undefined,
   });
   const rows=quotesQuery.data?.items||[];
   const total=quotesQuery.data?.total||0;
