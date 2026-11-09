@@ -321,7 +321,7 @@ export function AdminHomePage({
   const unreadCount = activityQuery.data?.unreadCount || 0;
   const userName = profile?.full_name || user?.email?.split("@")[0] || "usuário";
 
-  // Um único skeleton cobre saudação, avisos, tarefas, ações e atividade recente.
+  // A saudação permanece visível. O skeleton ocupa apenas as seções posteriores.
   // Apenas a primeira carga sem dados bloqueia a página; invalidar cache não causa flash.
   const initialLoading = authLoading
     || (Boolean(activeOrganizationId) && (
@@ -329,7 +329,6 @@ export function AdminHomePage({
       || (Boolean(user?.id) && activityQuery.isPending && !activityQuery.data)
       || (canViewWorkItems && workItemsQuery.isPending && !workItemsQuery.data)
     ));
-  if (initialLoading) return <AdminOverviewPageSkeleton variant="home" shortcuts={shortcuts.length} />;
 
   return <div className="min-w-0 space-y-5 pb-3">
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -358,6 +357,7 @@ export function AdminHomePage({
       </div>
     </section>
 
+    {initialLoading ? <AdminOverviewPageSkeleton variant="home" contentOnly shortcuts={shortcuts.length} /> : <>
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -463,5 +463,6 @@ export function AdminHomePage({
         </AdminCardContent>
       </AdminCard>
     </section>
+    </>}
   </div>;
 }
