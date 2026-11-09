@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, CreditCard, Plus, ShoppingBag, Wallet, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -190,10 +190,10 @@ export function SalesOrdersPage({ onNewSale }: { onNewSale: () => void }) {
           ]}/>
         <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 xl:col-span-2">
           <FInput label="Data inicial" type="date" value={from}
-            onChange={(event:React.ChangeEvent<HTMLInputElement>)=>setFilter(setFrom,event.target.value)}
+            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setFrom,event.target.value)}
             className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
           <FInput label="Data final" type="date" value={to}
-            onChange={(event:React.ChangeEvent<HTMLInputElement>)=>setFilter(setTo,event.target.value)}
+            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setTo,event.target.value)}
             className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
         </div>
       </div>
