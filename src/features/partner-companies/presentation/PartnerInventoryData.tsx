@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
@@ -62,7 +63,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
   const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "sku" | "address">("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [detailItem, setDetailItem] = useState<any>(null);
   const [historyItem, setHistoryItem] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
