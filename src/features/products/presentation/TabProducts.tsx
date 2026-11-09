@@ -1387,7 +1387,7 @@ export function TabProducts({
                       <div className="flex items-center gap-3">
                         {(product.cover_media_id || salesHomologationImage(product.sku))
                           ? <button type="button" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
-                              onClick={() => setExpandedListImage({ mediaId: product.cover_media_id || null, src: salesHomologationImage(product.sku), name: product.name })}>
+                              onClick={() => setExpandedListImage({ mediaId: product.cover_media_id || null, src: product.cover_media_id ? null : salesHomologationImage(product.sku), name: product.name })}>
                               <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
                             </button>
                           : <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />}
