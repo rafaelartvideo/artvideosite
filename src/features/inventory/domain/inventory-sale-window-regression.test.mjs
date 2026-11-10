@@ -102,3 +102,27 @@ test("estoque mostra avisos da quantidade certa, inclusive entradas sem prazo re
   assert.match(summary, /get_inventory_sale_batch_summaries_v1/);
   assert.match(summary, /grant execute on function/);
 });
+
+test("movimentação apresenta NCM e prazo por entrada e usa operação atômica com Financeiro", async () => {
+  const ui = read("src/features/inventory/presentation/InventoryMovementFinancePage.tsx");
+  const repo = read("src/features/inventory/infrastructure/inventory-finance.repository.ts");
+  const sql = read("supabase/migrations/20261110140000_inventory_movement_easy_ncm_and_sale_window.sql");
+  const legacy = read("supabase/migrations/20261110143000_inventory_movement_legacy_items_compatibility.sql");
+  assert.ok((await transformWithEsbuild(ui, "InventoryMovementFinancePage.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(repo, "inventory-finance.repository.ts", { loader: "ts" })).code);
+  assert.ok(ui.includes('label="NCM (Mercosul)"'));
+  assert.ok(ui.includes('label="Prazo para vender (dias)"'));
+  assert.ok(ui.includes("Data-limite estimada"));
+  assert.ok(ui.includes("Saldo após movimentação"));
+  assert.ok(ui.includes('aria-pressed={form.type === option.type}'));
+  assert.ok(ui.includes("recordInventoryMovementWithDetails"));
+  assert.ok(!ui.includes("recordInventoryPurchaseWithFinance("));
+  assert.ok(repo.includes('"record_inventory_movement_with_details_v1"'));
+  assert.ok(repo.includes("p_sale_window_days"));
+  assert.ok(repo.includes("p_update_ncm"));
+  assert.ok(sql.includes("private.has_effective_organization_permission(p_organization_id,'inventory.movements.create')"));
+  assert.ok(sql.includes("private.has_effective_organization_permission(p_organization_id,'products.update')"));
+  assert.ok(sql.includes("set_config('app.inventory_sale_window_days'"));
+  assert.ok(sql.includes("ncm_snapshot"));
+  assert.ok(legacy.includes("Itens antigos podem existir sem vínculo"));
+});
