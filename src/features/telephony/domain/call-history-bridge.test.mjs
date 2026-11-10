@@ -56,6 +56,26 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
   };
 }
 
+test('flow commands are opt-in and reports remain signed and bound to organization/version', async () => {
+  const legacy=await bridge();
+  assert.equal((await legacy.send({action:'poll',protocol_version:2})).status,200);
+  assert.equal(legacy.filters.some(item=>item[0]==='pbx_call_flows'),false);
+  const current=await bridge();
+  const response=await current.send({action:'poll',protocol_version:2,features:['flows-v1']});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).flow_jobs,[]);
+  assert.ok(current.filters.some(item=>item[0]==='pbx_call_flows'&&item[1]==='organization_id'&&item[2]===organizationId));
+  const report=await bridge();
+  const flowId=crypto.randomUUID(),version='2026-11-10T20:00:00Z';
+  assert.equal((await report.send({action:'report_flow',id:flowId,version,status:'applied'})).status,200);
+  for(const [field,value] of [['id',flowId],['organization_id',organizationId],['updated_at',version],['provisioning_status','pending']]){
+    assert.ok(report.filters.some(item=>item[0]==='pbx_call_flows'&&item[1]===field&&item[2]===value));
+  }
+  const forged=await bridge();
+  assert.equal((await forged.send({action:'report_flow',id:flowId,version,status:'applied'},true)).status,401);
+  assert.equal(forged.filters.some(item=>item[0]==='pbx_call_flows'),false);
+});
+
 test('histórico passa pela assinatura e usa apenas o agente verificado, ignorando empresa forjada', async () => {
   const b = await bridge();
   const records = [{ event_id: 'sample:1' }];

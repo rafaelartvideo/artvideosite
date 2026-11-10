@@ -60,6 +60,26 @@ class Busy(AgentError):
     pass
 
 
+def runtime_api():
+    # Also works when operator tools load this worker under an isolated module
+    # name, without requiring a second instance or altering global namespaces.
+    from types import SimpleNamespace
+    return SimpleNamespace(**globals())
+
+
+def flow_support():
+    try:
+        import flow_runtime
+        return flow_runtime
+    except ImportError:
+        suffix=uuid.UUID(PROFILE_ID).hex if PROFILE_ID else 'union'
+        if (DIALPLAN_MANAGED.parent/('union-call-flows-'+suffix+'.conf')).exists() or any((STATE_DIR/'flows').glob('*.json')):
+            raise AgentError('Reinstale o pacote completo de fluxos antes de modificar as rotas.') from None
+        # An older partial installation can still serve existing phone features;
+        # it never advertises or receives flow commands.
+        return None
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -319,6 +339,10 @@ def render_internal_routes(overrides=None):
     if QUEUE_TEST_FILE.is_file():
         lines.append(QUEUE_TEST_CONTEXT_INCLUDE + "\n")
         lines.append(QUEUE_TEST_INCLUDE + "\n")
+    flow_runtime=flow_support()
+    if flow_runtime is not None:
+        flow_file,flow_dispatch,flow_include=flow_runtime.attachment(runtime_api())
+        if flow_file.is_file():lines.extend(['include => '+flow_dispatch+'\n',flow_include+'\n'])
     return "".join(lines).encode("utf-8"), sorted(routes)
 
 
@@ -791,6 +815,8 @@ def install_queues():
 
 def apply_queue_job(job,org_id):
     queue_id=validate_queue_job(job,org_id)
+    flow_runtime=flow_support()
+    if flow_runtime is not None:flow_runtime.guard_target_update(runtime_api(),'queue',queue_id,job['enabled'],job['test_extension'])
     validate_queue_member_ownership(job,org_id)
     ensure_queue_control_ready()
     if not (QUEUE_FILE.is_file() and QUEUE_TEST_FILE.is_file()):
@@ -861,6 +887,8 @@ def assert_fvx(previous):
 
 def apply_job(job, org_id):
     job_id = validate_job(job, org_id)
+    flow_runtime=flow_support()
+    if flow_runtime is not None:flow_runtime.guard_target_update(runtime_api(),'extension',job_id,job['desired_enabled'],job['number'])
     endpoint, number = job["endpoint_name"], job["number"]
     if not job['desired_enabled'] and any(queue['enabled'] and any(
             member['endpoint_name']==endpoint for member in queue['members']) for queue in queue_states().values()):
@@ -1062,12 +1090,25 @@ def _verify_loaded_context(context,source,numbers,includes):
     observed=re.findall(r"(?m)^\s*'([^']+)'\s*=>",output)
     if Counter(observed)!=Counter(str(number) for number in numbers):
         raise AgentError('Destinos carregados divergem do perfil.')
-    expected=[]
+    expected=[];current_extension=None;priorities={}
     for line in source.decode().splitlines():
         line=line.strip()
-        if line.startswith('exten =>'):expected.append(line.split(',',2)[2])
-        elif line.startswith('same =>'):expected.append(line.split(',',1)[1])
-    actual=re.findall(r"(?m)^\s*(?:'[^']+'\s*=>\s*)?\d+\.\s+([^\r\n]*?)\s+\[",output)
+        if line.startswith('exten =>'):
+            current_extension,priority,application=line.split('=>',1)[1].strip().split(',',2)
+        elif line.startswith('same =>'):
+            priority,application=line.split('=>',1)[1].strip().split(',',1)
+        else:continue
+        match=re.fullmatch(r'(n|[0-9]+)(?:\(([A-Za-z0-9_-]+)\))?',priority)
+        if not match or current_extension is None:raise AgentError('Prioridade esperada invalida.')
+        number=priorities.get(current_extension,0)+1 if match[1]=='n' else int(match[1])
+        priorities[current_extension]=number
+        expected.append((current_extension,number,match[2] or '',application))
+    actual=[];current_extension=None
+    for line in output.splitlines():
+        match=re.match(r"^\s*(?:'([^']+)'\s*=>\s*)?(?:\[([^\]]+)\]\s*)?([0-9]+)\.\s+(.+?)\s+\[",line)
+        if not match:continue
+        if match[1] is not None:current_extension=match[1]
+        actual.append((current_extension,int(match[3]),match[2] or '',match[4]))
     if Counter(actual)!=Counter(expected):raise AgentError('Aplicacoes carregadas divergem do perfil.')
 
 
@@ -1101,7 +1142,11 @@ def _verify_profile_runtime_locked():
                           (QUEUE_FILE,queues),(QUEUE_TEST_FILE,routes)):
         if path.is_symlink() or not path.is_file() or path.read_bytes()!=expected:
             raise AgentError('Arquivos isolados divergem do estado local.')
-    _verify_loaded_context(DIALPLAN_CONTEXT,internal,numbers+[900],[QUEUE_TEST_CONTEXT])
+    flow_runtime=flow_support()
+    flow_file,flow_dispatch,_=flow_runtime.attachment(runtime_api()) if flow_runtime is not None else (None,None,None)
+    includes=[QUEUE_TEST_CONTEXT]+([flow_dispatch] if flow_file is not None and flow_file.is_file() else [])
+    _verify_loaded_context(DIALPLAN_CONTEXT,internal,numbers+[900],includes)
+    if flow_file is not None and flow_file.is_file():flow_runtime.verify(runtime_api(),PROFILE_ID)
     _verify_loaded_context(QUEUE_TEST_CONTEXT,routes,sorted(queue_numbers),[])
     deadline=time.monotonic()+10
     for path in (STATE_DIR/'extensions').glob('*.json'):
@@ -1140,6 +1185,11 @@ def cycle(dry_run=False):
     protocol, availability_processor = availability_capability()
     capabilities=runtime_capability(protocol)
     if capabilities['protocol_version']==1:availability_processor=None
+    try:
+        from flow_runtime import capability as flow_capability
+        capabilities['features']=flow_capability(runtime_api(),config['organization_id'])
+    except Exception:
+        capabilities['features']=[]
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
@@ -1244,6 +1294,29 @@ def cycle(dry_run=False):
                              lambda records: signed_request({"action": "report_calls", "records": records}))
         except Exception as exc:
             print("Historico adiado: " + type(exc).__name__, file=sys.stderr)
+
+    # Media work runs last so slow downloads cannot delay browser credentials.
+    flow_jobs=payload.get('flow_jobs',[])
+    if not isinstance(flow_jobs,list) or len(flow_jobs)>10:raise AgentError('Resposta de fluxos invalida.')
+    for state in flow_jobs:
+        try:
+            if 'flows-v1' not in capabilities.get('features',[]):raise AgentError('Fluxos indisponiveis neste agente.')
+            if dry_run:
+                print('Previa: fluxo interno pendente; nenhuma configuracao aplicada.')
+                continue
+            from flow_runtime import apply as apply_flow
+            apply_flow(runtime_api(),state,config['organization_id'])
+            status,error='applied',None
+        except Busy:
+            continue
+        except Exception as exc:
+            status,error='failed','Nao foi possivel aplicar o fluxo: '+type(exc).__name__
+        if not dry_run:
+            flow=state.get('flow',{}) if isinstance(state,dict) else {}
+            result=signed_request({'action':'report_flow','id':flow.get('id'),
+                                  'version':flow.get('updated_at'),'status':status,'error':error})
+            if not (result.get('accepted') or result.get('stale')):raise AgentError('Ponte nao confirmou o fluxo.')
+
 
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")

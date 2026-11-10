@@ -15,6 +15,16 @@ def fresh_agent():
 
 
 class AgentProfileTests(unittest.TestCase):
+    def test_loaded_menu_labels_priorities_and_applications_must_match(self):
+        source=b'[own]\nexten => s,1,NoOp(Test)\n same => n(open),Answer()\n same => n,Hangup()\nexten => 1,1,Hangup()\n'
+        output="[ Context 'own' created by 'pbx_config' ]\n  's' => 1. NoOp(Test) [file:1]\n  [open] 2. Answer() [file:2]\n  3. Hangup() [file:3]\n  '1' => 1. Hangup() [file:4]\n"
+        with patch.object(self.agent,'asterisk',return_value=output):
+            self.agent._verify_loaded_context('own',source,['s',1],[])
+        for bad in (output.replace('[open]','[closed]'),output.replace('2. Answer()','7. Answer()'),
+                    output.replace('Answer()','System(bad)')):
+            with patch.object(self.agent,'asterisk',return_value=bad):
+                with self.assertRaises(self.agent.AgentError):self.agent._verify_loaded_context('own',source,['s',1],[])
+
     def setUp(self):
         self.agent=fresh_agent()
         self.org=str(uuid.uuid4())
@@ -203,6 +213,20 @@ class AgentProfileTests(unittest.TestCase):
                  patch.object(self.agent,'encrypt_login_for_browser',return_value=(login_id,'encrypted')) as deliver:
                 self.agent.cycle()
                 deliver.assert_called_once()
+
+    def test_media_download_work_runs_after_secure_browser_login(self):
+        import flow_runtime
+        flow_id=str(uuid.uuid4());login_id=str(uuid.uuid4());order=[]
+        with tempfile.TemporaryDirectory() as directory:
+            config=Path(directory)/'agent.json';config.write_text(json.dumps({'organization_id':self.org}))
+            payload={'login_requests':[{}],'flow_jobs':[{'flow':{'id':flow_id,'updated_at':'2026-11-10T20:00:00Z'}}],'accepted':True}
+            with patch.object(self.agent,'AGENT_CONFIG',config),patch.object(self.agent,'gather_queue_telemetry',return_value=[]),\
+                 patch.object(self.agent,'signed_request',return_value=payload),\
+                 patch.object(flow_runtime,'capability',return_value=['flows-v1']),\
+                 patch.object(self.agent,'encrypt_login_for_browser',side_effect=lambda *args:(order.append('login') or login_id,'encrypted')),\
+                 patch.object(flow_runtime,'apply',side_effect=lambda *args:order.append('media')):
+                self.agent.cycle()
+                self.assertEqual(order,['login','media'])
 
 
 if __name__=='__main__':unittest.main()

@@ -5,6 +5,42 @@ const respond = (data: Record<string, unknown>, status=200) =>
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const decode=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 
+async function loadFlowJobs(admin:ReturnType<typeof createClient>,organizationId:string){
+  const {data:flows,error}=await admin.from('pbx_call_flows')
+    .select('id,organization_id,name,test_extension,enabled,updated_at,config')
+    .eq('organization_id',organizationId).eq('provisioning_status','pending').order('updated_at').limit(2);
+  if(error) throw Error('Flow lookup failed');
+  const result=[];
+  for(const flow of flows||[]){
+    if(!flow.enabled){result.push({flow,extensions:[],queues:[],prompts:[]});continue;}
+    const targets=[flow.config.fallback,flow.config.closed_target,...flow.config.options.map((option:{target:unknown})=>option.target)];
+    const extensionIds=[...new Set(targets.filter(target=>target.kind==='extension').map(target=>target.id))];
+    const queueIds=[...new Set(targets.filter(target=>target.kind==='queue').map(target=>target.id))];
+    const promptIds=[...new Set([flow.config.prompt_id,flow.config.closed_prompt_id].filter(Boolean))];
+    const [extensions,queues,prompts]=await Promise.all([
+      extensionIds.length?admin.from('pbx_extensions').select('id,organization_id,number,endpoint_name,desired_enabled,provisioning_status')
+        .eq('organization_id',organizationId).in('id',extensionIds):Promise.resolve({data:[],error:null}),
+      queueIds.length?admin.from('pbx_queues').select('id,organization_id,test_extension,enabled,provisioning_status')
+        .eq('organization_id',organizationId).in('id',queueIds):Promise.resolve({data:[],error:null}),
+      promptIds.length?admin.from('pbx_audio_prompts').select('id,organization_id,storage_path,sha256,duration_seconds,size_bytes,status')
+        .eq('organization_id',organizationId).in('id',promptIds):Promise.resolve({data:[],error:null}),
+    ]);
+    if(extensions.error||queues.error||prompts.error||extensions.data?.length!==extensionIds.length||
+       queues.data?.length!==queueIds.length||prompts.data?.length!==promptIds.length)throw Error('Flow resources unavailable');
+    const assets=[];
+    for(const prompt of prompts.data||[]){
+      if(prompt.status!=='uploaded'||prompt.storage_path!==`${organizationId}/${prompt.id}.wav`)throw Error('Invalid flow asset');
+      const {data,error:signError}=await admin.storage.from('pbx-audio-prompts').createSignedUrl(prompt.storage_path,120);
+      if(signError||!data?.signedUrl)throw Error('Private flow asset unavailable');
+      assets.push({id:prompt.id,organization_id:organizationId,sha256:prompt.sha256,
+        duration_seconds:Number(prompt.duration_seconds),size_bytes:prompt.size_bytes,url:data.signedUrl});
+    }
+    result.push({flow,extensions:(extensions.data||[]).map(item=>({id:item.id,organization_id:item.organization_id,
+      number:item.number,endpoint:item.endpoint_name,enabled:item.desired_enabled})),queues:queues.data||[],prompts:assets});
+  }
+  return result;
+}
+
 Deno.serve(async request=>{
   if(request.method!=="POST") return respond({error:"Método não permitido"},405);
   if((request.headers.get("content-type")||"").split(";")[0]!=="application/json") return respond({error:"Content-Type inválido"},415);
@@ -177,8 +213,15 @@ Deno.serve(async request=>{
         const {data:availability,error:availabilityError}=await admin.rpc("pbx_poll_queue_availability",{p_agent_id:agent.id});
         if(!availabilityError && Array.isArray(availability) && availability.length<=10) availabilityJobs=availability;
       }
+      let flowJobs:unknown[]=[];
+      if(Array.isArray(body.features)&&body.features.length<=10&&body.features.includes('flows-v1')){
+        // A legacy agent never receives commands for uninstalled media support.
+        // Failure here must not block phone login, queue control or call history.
+        try{flowJobs=await loadFlowJobs(admin,agent.organization_id);}
+        catch{console.error('PBX flow resources unavailable');}
+      }
       return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
-        history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs});
+        history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs});
     }
     if(body.action==="report_availability"){
       if(!Array.isArray(body.results)||body.results.length<1||body.results.length>10)
@@ -202,6 +245,17 @@ Deno.serve(async request=>{
       }
       if(data?.accepted!==true) return respond({error:"Histórico não confirmado"},503);
       return respond({accepted:true,acknowledged:data.acknowledged});
+    }
+    if(body.action==='report_flow'){
+      const flowId=String(body.id||''),version=String(body.version||''),status=String(body.status||'');
+      if(!uuid.test(flowId)||!/^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$/.test(version)||
+         !['applied','failed'].includes(status))return respond({error:'Confirmação de fluxo inválida'},400);
+      const {data,error}=await admin.from('pbx_call_flows').update({provisioning_status:status,
+        last_error:status==='failed'?'A central não conseguiu aplicar este fluxo. Confira avisos e destinos.':null})
+        .eq('id',flowId).eq('organization_id',agent.organization_id).eq('provisioning_status','pending')
+        .eq('updated_at',version).select('id').maybeSingle();
+      if(error)return respond({error:'Fluxo sem confirmação'},503);
+      return respond({accepted:Boolean(data),stale:!data});
     }
     if(body.action==="report_queue"){
       const queueId=String(body.id||""),version=String(body.version||""),status=String(body.status||"");

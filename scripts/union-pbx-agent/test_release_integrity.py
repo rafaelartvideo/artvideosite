@@ -9,14 +9,13 @@ import unittest
 
 
 class ReleaseIntegrityTests(unittest.TestCase):
-    def test_current_installer_pins_exact_complete_runtime_bundle(self):
+    def test_historical_tenant_installer_rejects_a_newer_runtime_bundle(self):
         root=Path(__file__).parent
         installer=(root/'activate-tenant-runtime.sh').read_text().split('(cd "$target"',1)[0]
         pins=dict((name,digest) for digest,name in re.findall(r'^([a-f0-9]{64})  ([a-z_]+\.py)$',installer,re.M))
         self.assertEqual(set(pins),{'agent.py'})
-        for name,digest in pins.items():
-            canonical=(root/name).read_bytes().replace(b'\r\n',b'\n')
-            self.assertEqual(hashlib.sha256(canonical).hexdigest(),digest,name)
+        self.assertEqual(pins['agent.py'],'643e10620fc77a65103e4956b6fba47422f4fed1c8df5c52113f397975a60acd')
+        self.assertNotEqual(hashlib.sha256((root/'agent.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest(),pins['agent.py'])
 
     @unittest.skipUnless(os.name=='posix','Linux service installer')
     def test_stop_failure_after_process_stops_still_restarts_previous_agent(self):
@@ -47,6 +46,11 @@ class ReleaseIntegrityTests(unittest.TestCase):
             unit='union-pbx-agent@.service'
             (stage/unit).write_bytes((root/unit).read_bytes().replace(b'\r\n',b'\n'))
             source=(root/'activate-tenant-runtime.sh').read_text()
+            # This exercises the archived installer's rollback mechanics with
+            # a synthetic staging bundle. Its production hash remains frozen;
+            # current releases use activate-call-flows.sh and its own pin test.
+            source=source.replace('643e10620fc77a65103e4956b6fba47422f4fed1c8df5c52113f397975a60acd',
+                hashlib.sha256((stage/'agent.py').read_bytes()).hexdigest())
             self.assertIn('target=/opt/union-pbx-agent',source)
             source=source.replace('target=/opt/union-pbx-agent','target="'+str(target)+'"')
             source=source.replace('unit_file=/etc/systemd/system/union-pbx-agent@.service','unit_file="'+str(fixture/unit)+'"')

@@ -6,10 +6,12 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
+import { UnionPbxDtmfPad } from "./UnionPbxDtmfPad";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
+import { sendPbxDigit, type PbxDigitSession } from "../application/dtmf";
 import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
@@ -24,7 +26,7 @@ type RegistrationState = "offline" | "connecting" | "registered" | "error";
 type CallState = "idle" | "dialing" | "incoming" | "active";
 type InternalDirectoryEntry = { number: number; endpoint_name: string; display_name: string; desired_enabled: boolean; provisioning_status: string; is_managed: boolean };
 
-type SipSession = CallControlSession & {
+type SipSession = CallControlSession & PbxDigitSession & {
   direction?: string;
   remote_identity?: { uri?: { user?: string } };
   connection?: RTCPeerConnection;
@@ -35,7 +37,7 @@ type SipSession = CallControlSession & {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageFlows, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageFlows?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
   const { activeOrganizationId, organizations } = useAuth();
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
@@ -47,6 +49,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [manualMode, setManualMode] = useState(false);
   const [directory, setDirectory] = useState<InternalDirectoryEntry[]>([]);
   const [testQueues, setTestQueues] = useState<{number:number; name:string}[]>([]);
+  const [testFlows, setTestFlows] = useState<{number:number; name:string}[]>([]);
+  const [testFlowError, setTestFlowError] = useState("");
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [testQueueError, setTestQueueError] = useState("");
@@ -137,12 +141,27 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     return () => { cancelled=true; controller.abort(); };
   },[activeOrganizationId,isPageOpen,directoryRevision]);
 
+  useEffect(() => {
+    const controller=new AbortController();let cancelled=false;
+    setTestFlows([]);setTestFlowError('');
+    if(!activeOrganizationId || !isPageOpen)return()=>{cancelled=true;};
+    void pbxRequest(signal=>supabase.rpc("pbx_available_test_flows",{p_organization_id:activeOrganizationId}).abortSignal(signal),
+      'Consulta dos fluxos de atendimento',{signal:controller.signal})
+      .then(({data,error})=>{
+        if(cancelled)return;
+        if(error){setTestFlowError('Não foi possível consultar os fluxos de atendimento.');return;}
+        setTestFlows(((data||[]) as {test_extension:number;name:string}[]).map(item=>({number:item.test_extension,name:item.name})));
+      }).catch(()=>{if(!cancelled)setTestFlowError('Não foi possível consultar os fluxos de atendimento.');});
+    return()=>{cancelled=true;controller.abort();};
+  },[activeOrganizationId,isPageOpen,directoryRevision]);
+
   const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number;
   const dialableExtensions = directory.filter(item => item.number !== ownNumber && item.endpoint_name !== sipUser);
   const transferExtensions = dialableExtensions.filter(item => String(item.number) !== remoteParty && item.endpoint_name !== remoteParty);
   const dialableNumbers = new Set([
     ...dialableExtensions.map(item=>item.number),
     ...testQueues.map(item=>item.number),
+    ...testFlows.map(item=>item.number),
   ]);
 
   const clearAudio = () => {
@@ -433,6 +452,28 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     }
   };
 
+  const dtmfDisabled = callState !== 'active' || held || holdUncertain || transferUncertain || Boolean(controlBusy)
+    || controlLockRef.current || transferUncertainRef.current || !sessionRef.current?.isEstablished();
+
+  const sendDigit = (digit: string) => {
+    const session = sessionRef.current;
+    if (!session || callState !== 'active' || held || holdUncertain || transferUncertain || controlBusy
+      || controlLockRef.current || transferUncertainRef.current) {
+      setNotice('O teclado fica disponível durante uma chamada ativa, fora da espera e de negociações.');
+      return;
+    }
+    try {
+      if (!session.isEstablished()) {
+        setNotice('Não há chamada ativa para enviar a tecla.');
+        return;
+      }
+      sendPbxDigit(session, digit);
+      setNotice(`Tecla ${digit} enviada à chamada.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Não foi possível enviar a tecla.');
+    }
+  };
+
   const runControl = async (kind: 'hold' | 'transfer') => {
     const session = sessionRef.current;
     const signal = controlAbortRef.current?.signal;
@@ -578,7 +619,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
               ariaLabel="Destino interno ou fila" disabled={directoryLoading || registration !== "registered"}
               options={[{value:'',label:'Selecione um ramal ou fila'},
                 ...dialableExtensions.map(item=>({value:String(item.number),label:`${item.number} · Ramal · ${item.display_name}`})),
-                ...testQueues.map(item=>({value:String(item.number),label:`${item.number} · Fila · ${item.name}`}))]} /></div>
+                ...testQueues.map(item=>({value:String(item.number),label:`${item.number} · Fila · ${item.name}`})),
+                ...testFlows.map(item=>({value:String(item.number),label:`${item.number} · Fluxo · ${item.name}`}))]} /></div>
             <AdminButton variant="primary" type="button" onClick={callInternal}
               disabled={outputPending || registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
               >
@@ -586,9 +628,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             </AdminButton>
           </div>
           <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar."}
+            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || testFlowError || "A lista mostra ramais, filas e fluxos aplicados. A disponibilidade é confirmada ao chamar."}
           </p>
-          {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
+          <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar destinos</AdminButton>
         </div>}
         {allowExternalCalls && callState === "idle" && isPlatformOperatorOrganization && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ligar para telefone" />
@@ -628,14 +670,16 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
         destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
         onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />}
+      {callState === "active" && <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />}
       {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>Use os ramais e as filas listadas para ligações internas e o 900 para testar o áudio. A discagem externa por este telefone ainda não foi habilitada. A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
+        <p>Use os destinos listados para ligações internas e o 900 para testar o áudio. {allowExternalCalls && isPlatformOperatorOrganization ? 'Para telefones externos, informe o DDD e o número no campo acima.' : 'As ligações externas dependem da configuração da sua empresa.'} A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
       <div className="flex flex-wrap gap-4">
         {onManage && <AdminButton variant="ghost" type="button" onClick={onManage} >Gerenciar ramais</AdminButton>}
         {onManageQueues && <AdminButton variant="ghost" type="button" onClick={onManageQueues} >Gerenciar filas</AdminButton>}
+        {onManageFlows && <AdminButton variant="ghost" type="button" onClick={onManageFlows}>URA e horários</AdminButton>}
         {isPlatformOperatorOrganization && onManageInbound && <AdminButton variant="ghost" type="button" onClick={onManageInbound} >Planejar entrada FVX</AdminButton>}
         {onHistory && <AdminButton variant="secondary" onClick={onHistory}>Histórico de ligações</AdminButton>}
         <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para Ferramentas</AdminButton>
@@ -646,7 +690,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       <section
         role={callState === "incoming" ? "alert" : "region"}
         aria-label="Telefone PABX Union"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 right-3 z-[95] space-y-3 rounded-xl border border-border bg-card p-4 text-foreground shadow-[0_15px_50px_rgba(0,0,0,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:w-[350px]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 right-3 z-[95] max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] space-y-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-foreground shadow-[0_15px_50px_rgba(0,0,0,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:w-[350px]"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -665,6 +709,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           <UnionPbxCallActions idPrefix="pbx-floating" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
             onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />
+          <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />
         </>}
         {outputPending && <p role="status" className="text-xs text-muted-foreground">Saída de áudio em confirmação. Aguarde antes de atender.</p>}
         {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}

@@ -46,6 +46,7 @@ não é lida, copiada ou modificada. O ramal manual `union-301` não é gerencia
 ```bash
 sudo install -d -m 0755 /opt/union-pbx-agent
 sudo install -m 0755 agent.py /opt/union-pbx-agent/agent.py
+sudo install -m 0644 call_flows.py flow_runtime.py /opt/union-pbx-agent/
 sudo python3 /opt/union-pbx-agent/agent.py init
 ```
 
