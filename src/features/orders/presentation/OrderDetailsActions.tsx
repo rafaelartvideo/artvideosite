@@ -86,7 +86,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={value => { if (value) onSituationChange(value); }} options={[...(!detail.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
-        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || (detail.completed_at && hasPermission("orders.create")) ) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
+        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || (detail.completed_at && hasPermission("orders.create")) || returnAwaitingDiagnosis) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5 md:w-auto md:flex-wrap md:gap-2" />}
           <OrderReturnActions order={detail} canCreate={hasPermission("orders.create")} />
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
@@ -94,6 +94,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canComplete && <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="quaternary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 !px-0 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
+          {returnAwaitingDiagnosis && <div id={"os-return-diagnosis-toolbar-" + detail.id}
+            className="flex min-w-0 shrink-0 items-center justify-end gap-2" />}
         </div>}
       </div>
     </AdminStickyToolbar>
