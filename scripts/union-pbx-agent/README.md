@@ -423,3 +423,22 @@ valida RLS, membro/organização, revisão substituída, geração, confirmaçã
 e protocolo antigo; todas as alterações fictícias são revertidas. Depois da
 aplicação, testar pausa e retomada de um integrante mantendo outro disponível,
 conferir o estado efetivo no Asterisk e no CRM e restabelecer a disponibilidade.
+
+## Relatório e exportação do histórico
+
+`pbx_call_history_report` é uma função somente de leitura, SECURITY INVOKER,
+com as mesmas políticas RLS do histórico e dos ramais. Usa os filtros da lista,
+inclusive o ramal associado quando o destino técnico está vazio. O resumo conta
+registros/trechos e identificadores vinculados; resposta na sinalização não é
+garantia de atendimento humano. A soma de durações pode conter trechos
+simultâneos e não representa faturamento.
+
+A exportação é integral, com até 2.000 registros por arquivo. Acima do limite,
+nenhuma lista parcial é retornada e a interface pede filtros mais restritos.
+Totais e registros são calculados no mesmo snapshot; a tela adota o resumo da
+exportação confirmada. CSV usa UTF-8 com BOM, separador ponto e vírgula, horários
+normalizados em UTC e proteção contra fórmulas em campos de texto. O download
+é local após uma consulta autorizada; nenhuma mensagem é enviada a terceiros.
+Troca de empresa/filtro e desmontagem cancelam exportações pendentes antes do
+download. O teste `test_call_history_report_database.sql` verifica permissões,
+RLS, filtros, snapshot e limite com dados fictícios integralmente revertidos.

@@ -3,7 +3,12 @@
 export async function downloadRemoteFile(url: string, fileName: string) {
   const response = await fetch(url, { credentials: "omit" });
   if (!response.ok) throw new Error("Não foi possível baixar o arquivo. Tente novamente.");
-  const objectUrl = URL.createObjectURL(await response.blob());
+  downloadBlobFile(await response.blob(), fileName);
+}
+
+/** Download an already-authorized local report using the same cleanup lifecycle. */
+export function downloadBlobFile(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob);
   let anchor: HTMLAnchorElement | null = null;
   try {
     anchor = document.createElement("a");

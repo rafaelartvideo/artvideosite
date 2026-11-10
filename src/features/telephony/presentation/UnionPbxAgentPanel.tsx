@@ -5,6 +5,7 @@ import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton
 import { useEffect, useRef, useState } from "react";
 import { KeyRound, LoaderCircle, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { isAgentHeartbeatFresh } from '../domain/agent-health';
 
 type Agent = {
   id: string;
@@ -27,6 +28,8 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
+  const [now,setNow]=useState(()=>Date.now());
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),15000);return()=>window.clearInterval(timer);},[]);
 
   useEffect(() => { setRegisteredId(null); }, [organizationId]);
 
@@ -95,8 +98,8 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
           <ShieldCheck size={18} className="text-primary" /> Ponte com a VPS
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          A VPS consulta pendências por HTTPS e assina as requisições. A chave privada nunca sai da VPS.
-          Esta integração não altera a linha FVX nem o ramal 301.
+          A central aplica as solicitações autorizadas no CRM e informa o resultado.
+          A chave privada de identificação permanece protegida na VPS.
         </p>
       </div>
       <AdminButton variant="secondary" size="sm" type="button" onClick={() => setReload(key => key + 1)} disabled={busy} >
@@ -110,12 +113,12 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
       : agents.length ? <div className="divide-y divide-border rounded-lg border border-border">
         {agents.map(agent => {
           const seen = agent.last_seen_at ? new Date(agent.last_seen_at) : null;
-          const online = agent.enabled && seen && Date.now() - seen.getTime() < 120000;
+          const online = isAgentHeartbeatFresh(agent.enabled,agent.last_seen_at,now);
           return <div key={agent.id} className="flex flex-wrap items-center gap-3 p-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground">{agent.label}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {agent.enabled ? online ? "Sinal recente da VPS" : "Aguardando sinal da VPS" : "Acesso revogado"}
+                {agent.enabled ? online ? "Sinal recente consultado" : "Leitura antiga · atualize para conferir a VPS" : "Acesso revogado"}
                 {seen && " · última comunicação: " + seen.toLocaleString("pt-BR")}
               </p>
               <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{agent.id}</p>

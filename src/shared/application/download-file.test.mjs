@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+test('generated reports download a local blob without a network request', async t => {
+  const { downloadBlobFile } = await import('./download-file.ts');
+  assert.equal(typeof downloadBlobFile,'function');
+  const previousDocument=globalThis.document;
+  t.after(()=>{globalThis.document=previousDocument;});
+  t.mock.timers.enable({apis:['setTimeout']});
+  const anchor={style:{},click(){},remove(){}};
+  globalThis.document={createElement:()=>anchor,body:{appendChild(){}}};
+  t.mock.method(globalThis,'fetch',()=>assert.fail('local report must not fetch'));
+  let received;
+  t.mock.method(URL,'createObjectURL',blob=>{received=blob;return 'blob:report';});
+  t.mock.method(URL,'revokeObjectURL',()=>{});
+  const blob=new Blob(['CSV']);downloadBlobFile(blob,'report.csv');
+  assert.equal(received,blob);assert.equal(anchor.download,'report.csv');
+  t.mock.timers.tick(2000);
+});
+
 test('cross-origin attachment downloads use a local blob with original bytes and filename', async t => {
   const { downloadRemoteFile } = await import('./download-file.ts');
   const previousDocument = globalThis.document;

@@ -22,24 +22,30 @@ function parseDay(value: string) {
   return date;
 }
 
-// The explicit organization filter is defense in depth; database RLS authorizes it.
-export function queryCallHistory(client: any, organizationId: string | null, filters: HistoryFilters,
-  page: number, pageSize: number, signal: AbortSignal, extensionIds: string[] = []) {
+export function historyFilterValues(organizationId: string | null, filters: HistoryFilters) {
   if (!organizationId || !/^[a-f0-9-]{36}$/i.test(organizationId)) throw new Error('Selecione uma empresa.');
   const start = parseDay(filters.from), end = parseDay(filters.to);
-  if (end < start || end.getTime() - start.getTime() > 92 * 86400000) throw new Error('Use um período de até 93 dias.');
+  const calendarDay=(value:Date)=>Date.UTC(value.getFullYear(),value.getMonth(),value.getDate());
+  if (end < start || calendarDay(end) - calendarDay(start) > 92 * 86400000) throw new Error('Use um período de até 93 dias.');
   end.setDate(end.getDate() + 1);
   if (filters.direction && !Object.hasOwn(directionLabels, filters.direction)) throw new Error('Direção inválida.');
   if (filters.disposition && !Object.hasOwn(dispositionLabels, filters.disposition)) throw new Error('Resultado inválido.');
   const number = filters.number.trim();
   if (!/^[+0-9#]{0,32}$/.test(number)) throw new Error('Pesquise apenas os dígitos do número, + ou #.');
+  return {from:start.toISOString(),to:end.toISOString(),number};
+}
+
+// The explicit organization filter is defense in depth; database RLS authorizes it.
+export function queryCallHistory(client: any, organizationId: string | null, filters: HistoryFilters,
+  page: number, pageSize: number, signal: AbortSignal, extensionIds: string[] = []) {
+  const {from,to,number}=historyFilterValues(organizationId,filters);
   if (extensionIds.length > 1 || extensionIds.some(id => !/^[a-f0-9-]{36}$/i.test(id))) throw new Error('Ramal inválido.');
   if (!Number.isInteger(page) || page < 1 || ![25, 50, 100].includes(pageSize)) throw new Error('Página inválida.');
   let query = client.from('pbx_call_logs').select(
     'id,linked_id,started_at,answered_at,ended_at,source,destination,direction,disposition,duration_seconds,billable_seconds,' +
     'source_extension:pbx_extensions!pbx_call_logs_source_extension_id_fkey(number,display_name),' +
     'destination_extension:pbx_extensions!pbx_call_logs_destination_extension_id_fkey(number,display_name)', { count: 'exact' })
-    .eq('organization_id', organizationId).gte('started_at', start.toISOString()).lt('started_at', end.toISOString());
+    .eq('organization_id', organizationId).gte('started_at', from).lt('started_at', to);
   if (filters.direction) query = query.eq('direction', filters.direction);
   if (filters.disposition) query = query.eq('disposition', filters.disposition);
   if (number) query = query.or([`source.ilike.%${number}%`, `destination.ilike.%${number}%`,
