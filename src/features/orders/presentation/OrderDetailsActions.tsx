@@ -11,7 +11,6 @@ import { cancelServiceOrder } from "../infrastructure/order-cancellation.reposit
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderConclusionButton } from "./OrderConclusionButton";
-import { OrderReturnActions } from "./OrderReturnsPanel";
 
 export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
   detail: any;
@@ -86,9 +85,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={value => { if (value) onSituationChange(value); }} options={[...(!detail.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
-        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || (detail.completed_at && hasPermission("orders.create")) || returnAwaitingDiagnosis) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
+        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || returnAwaitingDiagnosis) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5 md:w-auto md:flex-wrap md:gap-2" />}
-          <OrderReturnActions order={detail} canCreate={hasPermission("orders.create")} />
           {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:hidden" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
           {canComplete && <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />}
