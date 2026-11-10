@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Package } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CalendarClock, Package, Scale } from "lucide-react";
 import { buildInstallments, inventoryPurchaseTotal } from "@/features/finance/domain/finance-integration.mjs";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
+import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { recordInventoryPurchaseWithFinance } from "../infrastructure/inventory-finance.repository";
+import { AdminCard, AdminPage, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { recordInventoryMovementWithDetails, type InventoryPurchaseFinanceResult } from "../infrastructure/inventory-finance.repository";
 import {
   getInventoryItem,
   listInventoryItemSuppliers,
-  recordInventoryMovement,
 } from "../infrastructure/inventory.repository";
 
 type Props = {
@@ -39,6 +39,8 @@ type Form = {
   reason: string;
   notes: string;
   service_order_id: string;
+  ncm: string;
+  sale_window_days: string;
 };
 
 function todayIsoDate() {
@@ -62,6 +64,8 @@ function emptyForm(unit: "un" | "cx" = "un"): Form {
     reason: "",
     notes: "",
     service_order_id: "",
+    ncm: "",
+    sale_window_days: "",
   };
 }
 
@@ -79,6 +83,7 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   const queryClient = useQueryClient();
   const canCreateMovements = hasPermission("inventory.movements.create");
   const canViewCosts = hasPermission("inventory.costs.view");
+  const canEditNcm = hasPermission("products.update");
   const canViewSuppliers = hasPermission("inventory.suppliers.view") || hasPermission("inventory.suppliers.manage");
   const financeEnabled = hasModule("finance");
   const [form, setForm] = useState<Form>(() => emptyForm());
@@ -93,12 +98,20 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
     queryFn: async () => {
       const item = await getInventoryItem(itemId, organizationId, canViewCosts);
       if (!item) throw new Error("O item do estoque não foi encontrado.");
-      const suppliers = canViewSuppliers ? await listInventoryItemSuppliers(itemId, organizationId) : [];
-      return { item, suppliers };
+      const [suppliers, productResult] = await Promise.all([
+        canViewSuppliers ? listInventoryItemSuppliers(itemId, organizationId) : Promise.resolve([]),
+        item.product_id
+          ? supabase.from("products").select("id,ncm,sale_window_days")
+            .eq("organization_id", organizationId).eq("id", item.product_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      if (productResult.error) throw productResult.error;
+      return { item, suppliers, product: productResult.data };
     },
   });
 
   const item = dataQuery.data?.item as any;
+  const productInfo = dataQuery.data?.product as { id: string; ncm: string | null; sale_window_days: number | null } | null | undefined;
   const suppliers = (dataQuery.data?.suppliers || []).filter((supplier: any) => supplier.is_active !== false);
 
   useEffect(() => {
@@ -108,8 +121,13 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   useEffect(() => {
     if (!item || initializedItemId === item.id) return;
     setInitializedItemId(item.id);
-    setForm(current => ({ ...current, input_unit: item.unit === "cx" ? "cx" : "un" }));
-  }, [item, initializedItemId]);
+    setForm(current => ({
+      ...current,
+      input_unit: item.unit === "cx" ? "cx" : "un",
+      ncm: productInfo?.ncm || "",
+      sale_window_days: productInfo?.sale_window_days == null ? "" : String(productInfo.sale_window_days),
+    }));
+  }, [item, initializedItemId, productInfo]);
 
   const quantity = Number(form.quantity || 0);
   const cost = Number(form.input_unit_cost || 0);
@@ -120,9 +138,20 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   const purchaseTotal = useMemo(() => inventoryPurchaseTotal({ quantity, unitCost: cost, discount, freight, otherCosts }), [quantity, cost, discount, freight, otherCosts]);
   const inputUnit = form.type === "adjust" ? (item?.unit === "cx" ? "cx" : "un") : form.input_unit;
   const baseQuantity = inputUnit === "cx" ? quantity * conversionFactor(item) : quantity;
+  const stockUnit = item?.unit === "cx" ? "cx" : "un";
+  const displayFactor = stockUnit === "cx" ? conversionFactor(item) : 1;
+  const currentBase = Number(item?.quantity || 0);
+  const nextBase = form.type === "adjust" ? baseQuantity : form.type === "in" ? currentBase + baseQuantity : currentBase - baseQuantity;
+  const dayCount = form.sale_window_days.trim() ? Number(form.sale_window_days) : null;
+  const validDayCount = dayCount !== null && Number.isInteger(dayCount) && dayCount >= 1 && dayCount <= 3650;
+  const saleDeadline = validDayCount ? new Date(Date.now() + dayCount * 86_400_000).toLocaleDateString("pt-BR") : null;
+  const ncmChanged = form.ncm.trim() !== String(productInfo?.ncm || "").trim();
   const changeType = (type: MovementType) => {
     setFieldErrors({});
-    setForm({ ...emptyForm(item?.unit === "cx" ? "cx" : "un"), type });
+    setForm(current => ({
+      ...emptyForm(item?.unit === "cx" ? "cx" : "un"),
+      type, ncm: current.ncm, sale_window_days: current.sale_window_days,
+    }));
   };
 
   const clearFieldError = (field: keyof Form) => {
@@ -144,11 +173,17 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
         ? "Informe o novo saldo inteiro e não negativo."
         : "Informe uma quantidade inteira maior que zero.";
     }
+    if (movementType === "OUT" && baseQuantity > currentBase) {
+      nextErrors.quantity = "A saída ultrapassa o saldo disponível.";
+    }
     if (movementType === "ADJUST" && !form.reason.trim()) {
       nextErrors.reason = "Informe a justificativa do ajuste de estoque.";
     }
 
     if (movementType === "IN") {
+      if (ncmChanged && !canEditNcm) nextErrors.ncm = "Você não tem permissão para alterar o NCM.";
+      if (ncmChanged && form.ncm.trim() && !/^\d{8}$/.test(form.ncm.trim())) nextErrors.ncm = "O NCM deve ter 8 dígitos.";
+      if (dayCount !== null && !validDayCount) nextErrors.sale_window_days = "Informe entre 1 e 3650 dias ou deixe em branco.";
       if (!Number.isFinite(cost) || cost < 0 || form.input_unit_cost.trim() === "") {
         nextErrors.input_unit_cost = "Informe o valor pago por unidade/caixa nesta entrada.";
       }
@@ -183,20 +218,21 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
           Math.trunc(Number(form.installment_count) || 0),
           form.first_due_date,
         );
-        const result = await recordInventoryPurchaseWithFinance(organizationId, {
-          inventory_item_id: item.id,
-          input_quantity: quantity,
-          input_unit: form.input_unit,
+        const result = await recordInventoryMovementWithDetails(organizationId, {
+          inventory_item_id: item.id, movement_type: "IN",
+          input_quantity: quantity, input_unit: form.input_unit,
           supplier_entity_id: form.supplier_entity_id,
           input_unit_cost: cost,
           purchase_reference: form.purchase_reference.trim() || null,
-          notes: form.notes.trim() || null,
-          discount,
-          freight,
-          other_costs: otherCosts,
-          document_reference: form.purchase_reference.trim() || null,
-          installments,
-        });
+          notes: form.notes.trim() || null, movement_origin: "purchase",
+          ncm: form.ncm.trim() || null, update_ncm: ncmChanged,
+          sale_window_days: dayCount ?? 0,
+          finance_payload: {
+            discount, freight, other_costs: otherCosts,
+            document_reference: form.purchase_reference.trim() || null,
+            installments,
+          },
+        }) as InventoryPurchaseFinanceResult;
         setToast({
           msg: `Compra registrada e enviada ao Financeiro para ${result.required_approvals} ${result.required_approvals === 1 ? "aprovação" : "aprovações"}.`,
           type: "success",
@@ -210,19 +246,20 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
         return;
       }
 
-      await recordInventoryMovement({
-        inventory_item_id: item.id,
-        movement_type: movementType,
-        input_quantity: quantity,
-        input_unit: inputUnit,
+      await recordInventoryMovementWithDetails(organizationId, {
+        inventory_item_id: item.id, movement_type: movementType,
+        input_quantity: quantity, input_unit: inputUnit,
         supplier_entity_id: movementType === "IN" ? (form.supplier_entity_id || null) : null,
         input_unit_cost: movementType === "IN" ? cost : null,
-        purchase_reference: movementType === "IN" ? form.purchase_reference : null,
+        purchase_reference: movementType === "IN" ? form.purchase_reference.trim() || null : null,
         reason: form.reason.trim() || (movementType === "IN" ? "Entrada de compra" : movementType === "OUT" ? "Saída manual" : null),
         service_order_id: form.service_order_id.trim() || null,
         movement_origin: movementType === "IN" ? "purchase" : "manual",
         notes: form.notes.trim() || null,
-      }, organizationId);
+        ncm: movementType === "IN" ? form.ncm.trim() || null : null,
+        update_ncm: movementType === "IN" && ncmChanged,
+        sale_window_days: movementType === "IN" ? (dayCount ?? 0) : null,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
@@ -239,59 +276,142 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   if (dataQuery.isLoading) return <AdminCard className="p-8"><LoadingState text="Carregando item do estoque..." /></AdminCard>;
   if (dataQuery.error || !item) return <AdminCard className="p-6"><EmptyState icon={Package} title="Item não encontrado" message="Não foi possível carregar este item." /></AdminCard>;
 
+
+  const typeOptions = [
+    { type: "in" as const, label: "Entrada", icon: ArrowDownToLine },
+    { type: "out" as const, label: "Saída", icon: ArrowUpFromLine },
+    { type: "adjust" as const, label: "Ajuste", icon: Scale },
+  ];
   const content = <>
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <div className="space-y-5 p-4 sm:p-5">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Quantidade atual</p><p className="mt-1 text-lg font-black">{formatNumber(Number(item.quantity ?? 0))} {unitLabel(item.unit)}</p></AdminCard>
-        <AdminCard className="bg-[#f8fafc] p-4 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Integração financeira</p><p className="mt-1 text-sm font-bold">{financeEnabled ? "Ativa para compras" : "Módulo Financeiro desativado"}</p></AdminCard>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de movimentação</label><AdminSelect value={form.type} onValueChange={value => changeType(value === "out" ? "out" : value === "adjust" ? "adjust" : "in")} options={[{ value: "in", label: "Entrada / Compra" }, { value: "out", label: "Saída" }, { value: "adjust", label: "Ajuste de saldo" }]} ariaLabel="Tipo de movimentação" /></div>
-        {form.type !== "adjust" && <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Unidade da movimentação</label><AdminSelect value={form.input_unit} onValueChange={value => setForm(current => ({ ...current, input_unit: value === "cx" ? "cx" : "un" }))} options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: `Caixa (cx) · ${formatNumber(conversionFactor(item))} un/cx` }]} ariaLabel="Unidade da movimentação" /></div>}
-      </div>
-
-      <FIntegerInput label={form.type === "adjust" ? `Novo saldo (${unitLabel(item.unit)})` : `Quantidade (${inputUnit})`} error={fieldErrors.quantity} value={form.quantity} onChange={(event: any) => { clearFieldError("quantity"); setForm(current => ({ ...current, quantity: event.target.value })); }} />
-      {inputUnit === "cx" && form.quantity !== "" && quantity >= 0 && <AdminCard className="border-blue-100 bg-blue-50 p-3 shadow-none"><p className="text-sm font-black text-blue-800">{formatNumber(quantity)} cx × {formatNumber(conversionFactor(item))} = {formatNumber(baseQuantity)} un</p></AdminCard>}
-
-      {form.type === "in" && <Section title="Compra">
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor {financeEnabled && <span className="font-bold text-red-600 dark:text-red-400">*</span>}</label><AdminSelect value={form.supplier_entity_id} onValueChange={value => { clearFieldError("supplier_entity_id"); setForm(current => ({ ...current, supplier_entity_id: value })); }} options={[{ value: "", label: financeEnabled ? "Selecione" : "Nenhum" }, ...suppliers.map((supplier: any) => ({ value: supplier.id, label: supplier.name }))]} ariaLabel="Fornecedor da entrada" />{fieldErrors.supplier_entity_id && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.supplier_entity_id}</p>}</div>
-            <FCurrencyInput label={`Valor pago por ${form.input_unit} *`} error={fieldErrors.input_unit_cost} value={form.input_unit_cost} onChange={(event: any) => { clearFieldError("input_unit_cost"); setForm(current => ({ ...current, input_unit_cost: event.target.value })); }} />
-            <div className="sm:col-span-2"><FInput label="Documento / referência" value={form.purchase_reference} onChange={(event: any) => setForm(current => ({ ...current, purchase_reference: event.target.value }))} placeholder="NF, pedido, cupom, referência..." /></div>
-          </div>
-
-          {financeEnabled && <div className="space-y-4 border-t border-[#0d1b2e]/8 pt-4">
-            <div><p className="text-xs font-black uppercase tracking-[0.12em] text-[#0d1b2e]">Pré-lançamento financeiro</p><p className="mt-1 text-xs text-[#5a6a82]">Os dados abaixo sobem preenchidos para Contas a Pagar e ainda precisarão ser aprovados no Financeiro.</p></div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <FCurrencyInput label="Desconto" error={fieldErrors.discount} value={form.discount} onChange={(event: any) => { clearFieldError("discount"); setForm(current => ({ ...current, discount: event.target.value })); }} />
-              <FCurrencyInput label="Frete" error={fieldErrors.freight} value={form.freight} onChange={(event: any) => { clearFieldError("freight"); setForm(current => ({ ...current, freight: event.target.value })); }} />
-              <FCurrencyInput label="Outros custos" error={fieldErrors.other_costs} value={form.other_costs} onChange={(event: any) => { clearFieldError("other_costs"); setForm(current => ({ ...current, other_costs: event.target.value })); }} />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FIntegerInput label="Parcelas" error={fieldErrors.installment_count} value={form.installment_count} onChange={(event: any) => { clearFieldError("installment_count"); setForm(current => ({ ...current, installment_count: event.target.value })); }} />
-              <FInput label="Primeiro vencimento" type="date" error={fieldErrors.first_due_date} value={form.first_due_date} onChange={(event: any) => { clearFieldError("first_due_date"); setForm(current => ({ ...current, first_due_date: event.target.value })); }} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Subtotal dos itens</p><p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(purchaseSubtotal)}</p></AdminCard>
-              <AdminCard className="border-blue-100 bg-blue-50 p-3 shadow-none"><p className="text-[10px] font-bold uppercase text-blue-700">Total do Contas a Pagar</p><p className="mt-1 text-base font-black text-blue-900">{formatCurrency(purchaseTotal)}</p></AdminCard>
-            </div>
-          </div>}
-
-          {!financeEnabled && quantity > 0 && form.input_unit_cost !== "" && <AdminCard className="bg-[#f8fafc] p-3 shadow-none"><p className="text-xs text-[#5a6a82]">Total desta entrada</p><p className="mt-1 text-base font-black text-[#0d1b2e]">{formatCurrency(purchaseSubtotal)}</p></AdminCard>}
-          {financeEnabled && !canViewSuppliers && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">Para registrar uma compra integrada, seu perfil também precisa visualizar os fornecedores vinculados ao item.</div>}
+    <div className="space-y-4 p-3 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 p-3">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Saldo atual</p>
+          <p className="mt-1 text-xl font-black tabular-nums text-blue-600">{formatNumber(currentBase / displayFactor)} {stockUnit}</p>
         </div>
-      </Section>}
-
-      <FInput label={form.type === "adjust" ? "Justificativa *" : "Motivo"} error={fieldErrors.reason} value={form.reason} onChange={(event: any) => { clearFieldError("reason"); setForm(current => ({ ...current, reason: event.target.value })); }} placeholder={form.type === "adjust" ? "Explique por que o saldo foi ajustado" : "Opcional"} />
-      <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
-      {form.type !== "in" && <FInput label="OS relacionada (opcional)" value={form.service_order_id} onChange={(event: any) => setForm(current => ({ ...current, service_order_id: event.target.value }))} />}
+        <div className="text-right">
+          <p className="text-xs font-semibold text-muted-foreground">Saldo após movimentação</p>
+          <p className={cn("mt-1 text-xl font-black tabular-nums", !form.quantity.trim() ? "text-muted-foreground" : nextBase < 0 ? "text-destructive" : "text-emerald-600")}>
+            {!form.quantity.trim() ? "—" : formatNumber(nextBase / displayFactor) + " " + stockUnit}
+          </p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-bold text-foreground">Tipo de movimentação</p>
+        <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-border bg-muted/30 p-1">
+          {typeOptions.map(option => <button key={option.type} type="button" disabled={saving}
+            aria-pressed={form.type === option.type} onClick={() => changeType(option.type)}
+            className={cn("flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-bold transition-colors disabled:opacity-50",
+              form.type === option.type ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-card hover:text-foreground")}>
+            <option.icon size={16} /> {option.label}
+          </button>)}
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FIntegerInput label={form.type === "adjust" ? "Novo saldo (" + stockUnit + ")" : "Quantidade (" + inputUnit + ")"}
+          value={form.quantity} error={fieldErrors.quantity}
+          onChange={(event: any) => { clearFieldError("quantity"); setForm(current => ({ ...current, quantity: event.target.value })); }} />
+        {form.type !== "adjust" ? <div>
+          <label className="mb-1.5 block text-[11px] font-bold text-foreground">Unidade</label>
+          <AdminSelect value={form.input_unit} onValueChange={value => setForm(current => ({ ...current, input_unit: value === "cx" ? "cx" : "un" }))}
+            options={[{ value: "un", label: "Unidade (un)" }, { value: "cx", label: "Caixa · " + formatNumber(conversionFactor(item)) + " un" }]} ariaLabel="Unidade da movimentação" />
+        </div> : <p className="flex items-center text-xs text-muted-foreground">O ajuste define o saldo final do item.</p>}
+      </div>
+      {inputUnit === "cx" && form.quantity.trim() !== "" && Number.isFinite(baseQuantity) &&
+        <p className="text-xs font-semibold text-primary">{formatNumber(quantity)} caixa(s) = {formatNumber(baseQuantity)} unidades</p>}
+      {form.type === "in" && <section className="space-y-3 border-t border-border pt-4">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Dados da entrada</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Identifique a compra e informe o prazo de venda desta entrada.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold text-foreground">Fornecedor {financeEnabled ? "*" : "(opcional)"}</label>
+            <AdminSelect value={form.supplier_entity_id} ariaLabel="Fornecedor"
+              onValueChange={value => { clearFieldError("supplier_entity_id"); setForm(current => ({ ...current, supplier_entity_id: value })); }}
+              options={[{ value: "", label: "Selecione um fornecedor" }, ...suppliers.map((supplier: any) => ({ value: supplier.id, label: supplier.name }))]} />
+            {fieldErrors.supplier_entity_id && <p role="alert" className="mt-1 text-xs text-destructive">{fieldErrors.supplier_entity_id}</p>}
+          </div>
+          <FCurrencyInput label={"Custo por " + form.input_unit + " *"} value={form.input_unit_cost} error={fieldErrors.input_unit_cost}
+            onChange={(event: any) => { clearFieldError("input_unit_cost"); setForm(current => ({ ...current, input_unit_cost: event.target.value })); }} />
+          <FInput label="Nota fiscal / referência" value={form.purchase_reference} placeholder="Número da NF-e ou pedido"
+            onChange={(event: any) => setForm(current => ({ ...current, purchase_reference: event.target.value }))} />
+          <FInput label="NCM (Mercosul)" value={form.ncm} placeholder="8 dígitos, opcional"
+            disabled={!canEditNcm} error={fieldErrors.ncm}
+            onChange={(event: any) => { clearFieldError("ncm"); setForm(current => ({ ...current, ncm: String(event.target.value).replace(/\D/g, "").slice(0,8) })); }} />
+        </div>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          NCM é a classificação fiscal do produto, não o número da nota. {canEditNcm ? "Quando alterado, atualiza o cadastro do produto." : "Seu perfil pode consultar, mas não editar."}
+        </p>
+        <div className="grid items-end gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
+          <FIntegerInput label="Prazo para vender (dias)" placeholder="Sem prazo" value={form.sale_window_days}
+            error={fieldErrors.sale_window_days}
+            onChange={(event: any) => { clearFieldError("sale_window_days"); setForm(current => ({ ...current, sale_window_days: event.target.value })); }} />
+          <div className="flex min-h-[42px] items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2">
+            <CalendarClock size={18} className="text-primary" />
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground">Data-limite estimada</p>
+              <p className="text-sm font-bold text-foreground">{saleDeadline || "Sem prazo definido"}</p>
+            </div>
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {productInfo?.sale_window_days ? "Padrão do produto: " + productInfo.sale_window_days + " dias. " : "Produto sem prazo padrão. "}
+          Cada entrada tem seu prazo independente; não é validade nem bloqueio automático de venda.
+        </p>
+      </section>}
+      {form.type === "in" && financeEnabled && <section className="space-y-3 border-t border-border pt-4">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Contas a Pagar</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">O título será criado para aprovação no Financeiro.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FIntegerInput label="Parcelas" value={form.installment_count} error={fieldErrors.installment_count}
+            onChange={(event: any) => { clearFieldError("installment_count"); setForm(current => ({ ...current, installment_count: event.target.value })); }} />
+          <FInput label="Primeiro vencimento" type="date" value={form.first_due_date} error={fieldErrors.first_due_date}
+            onChange={(event: any) => { clearFieldError("first_due_date"); setForm(current => ({ ...current, first_due_date: event.target.value })); }} />
+        </div>
+        <details className="rounded-lg border border-border px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold text-foreground">Desconto, frete e outros custos (opcional)</summary>
+          <div className="grid gap-3 pt-3 sm:grid-cols-3">
+            <FCurrencyInput label="Desconto" value={form.discount} error={fieldErrors.discount}
+              onChange={(event: any) => { clearFieldError("discount"); setForm(current => ({ ...current, discount: event.target.value })); }} />
+            <FCurrencyInput label="Frete" value={form.freight} error={fieldErrors.freight}
+              onChange={(event: any) => { clearFieldError("freight"); setForm(current => ({ ...current, freight: event.target.value })); }} />
+            <FCurrencyInput label="Outros custos" value={form.other_costs} error={fieldErrors.other_costs}
+              onChange={(event: any) => { clearFieldError("other_costs"); setForm(current => ({ ...current, other_costs: event.target.value })); }} />
+          </div>
+        </details>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-primary/5 px-3 py-3">
+          <span className="text-xs text-muted-foreground">Subtotal: {formatCurrency(purchaseSubtotal)}</span>
+          <strong className="text-base text-primary">Total a pagar: {formatCurrency(purchaseTotal)}</strong>
+        </div>
+        {!canViewSuppliers && <p role="alert" className="text-xs font-semibold text-amber-700">É necessário visualizar os fornecedores vinculados para registrar compras integradas.</p>}
+      </section>}
+      {form.type === "in" && !financeEnabled && form.input_unit_cost.trim() && <div className="border-t border-border pt-3 text-sm font-semibold">Total da entrada: {formatCurrency(purchaseSubtotal)}</div>}
+      <section className="space-y-3 border-t border-border pt-4">
+        {form.type === "adjust" && <FInput label="Justificativa do ajuste *" value={form.reason} error={fieldErrors.reason}
+          onChange={(event: any) => { clearFieldError("reason"); setForm(current => ({ ...current, reason: event.target.value })); }}
+          placeholder="Por que o saldo será alterado?" />}
+        <details className="rounded-lg border border-border px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold text-foreground">Informações adicionais (opcional)</summary>
+          <div className="space-y-3 pt-3">
+            {form.type !== "adjust" && <FInput label="Motivo" value={form.reason}
+              onChange={(event: any) => setForm(current => ({ ...current, reason: event.target.value }))} placeholder="Ex.: reposição, consumo interno" />}
+            {form.type !== "in" && <FInput label="ID interno da OS relacionada" value={form.service_order_id}
+              placeholder="Opcional" onChange={(event: any) => setForm(current => ({ ...current, service_order_id: event.target.value }))} />}
+            <FTextarea label="Observações" rows={2} value={form.notes}
+              onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} />
+          </div>
+        </details>
+      </section>
     </div>
-    <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">
-      <BtnSecondary onClick={onClose} disabled={saving}>{embedded ? "Voltar aos detalhes" : "Cancelar"}</BtnSecondary>
-      <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando...">Registrar</BtnPrimary>
+    <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-card/95 px-3 py-3 backdrop-blur sm:px-4">
+      <BtnSecondary onClick={onClose} disabled={saving}>{embedded ? "Voltar" : "Cancelar"}</BtnSecondary>
+      <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando..." disabled={saving || !form.quantity.trim()}>
+        {form.type === "in" ? "Registrar entrada" : form.type === "out" ? "Registrar saída" : "Salvar ajuste"}
+      </BtnPrimary>
     </div>
   </>;
 
