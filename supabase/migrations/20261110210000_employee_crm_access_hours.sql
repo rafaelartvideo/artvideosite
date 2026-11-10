@@ -9,8 +9,8 @@ create table if not exists public.employee_crm_access_hours (
   updated_by uuid,
   updated_at timestamptz not null default now(),
   primary key (organization_id, employee_id),
-  constraint employee_crm_access_hours_employee_fkey foreign key (organization_id, employee_id)
-    references public.employees(organization_id, id) on delete cascade,
+  constraint employee_crm_access_hours_employee_fkey foreign key (employee_id)
+    references public.employees(id) on delete cascade,
   constraint employee_crm_access_hours_timezone_check check (timezone='America/Sao_Paulo')
 );
 create index if not exists employee_crm_access_hours_employee_idx
