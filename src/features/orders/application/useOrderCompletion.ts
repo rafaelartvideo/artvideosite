@@ -188,6 +188,11 @@ export function useOrderCompletion({
         : ""
     : "";
 
+  const coverageFree = Boolean(detail?.return_root_id
+    && (detail?.return_classification === "covered" || detail?.return_classification === "courtesy"));
+  const returnAwaitingClassification = Boolean(detail?.return_root_id
+    && (!detail?.return_classification || detail.return_classification === "analysis"));
+
   const legacyPartsTotal = useMemo(() => usedItems.reduce((total, item) =>
     total + Number(item.total_sale_price ?? Number(item.quantity || 0) * Number(item.unit_sale_price || item.inventory_item?.sale_price || 0)), 0), [usedItems]);
   const partsTotal = commercialPricing ? Number(detail?.parts_total || 0) : legacyPartsTotal;
@@ -198,15 +203,15 @@ export function useOrderCompletion({
   const maxDiscountPercentage = commercialPricing ? 100 : Number(detail?.general_service?.max_discount_percentage || 0);
   const maxDiscountAmount = commercialPricing ? subtotal : Number(detail?.general_service?.max_discount_amount || 0);
   const discountValue = Math.max(0, Number(discount) || 0);
-  const discountAmount = discountMode === "amount"
+  const discountAmount = coverageFree ? subtotal : discountMode === "amount"
     ? discountValue
     : discountBase * discountValue / 100;
-  const discountPercentage = discountMode === "percentage"
+  const discountPercentage = coverageFree ? (subtotal > 0 ? 100 : 0) : discountMode === "percentage"
     ? discountValue
     : discountBase > 0 ? discountAmount * 100 / discountBase : 0;
   const maxDiscount = discountMode === "percentage" ? maxDiscountPercentage : maxDiscountAmount;
-  const discountExceedsMax = discountValue > maxDiscount;
-  const discountExceedsServicePrice = discountAmount > discountBase + 0.009;
+  const discountExceedsMax = !coverageFree && discountValue > maxDiscount;
+  const discountExceedsServicePrice = !coverageFree && discountAmount > discountBase + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   const installmentTotal = useMemo(
@@ -234,8 +239,8 @@ export function useOrderCompletion({
   }, [finalTotal, financeEnabled, open]);
 
   const financeValidationMessage = useMemo(() => {
-    if (financeOptionsError) return `Não foi possível carregar as opções financeiras: ${financeOptionsError}`;
     if (!financeEnabled || finalTotal <= 0) return "";
+    if (financeOptionsError) return `Não foi possível carregar as opções financeiras: ${financeOptionsError}`;
     if (installments.length === 0) return "Adicione ao menos uma parcela.";
     if (installments.some(item => !item.due_date)) return "Informe o vencimento de todas as parcelas.";
     if (installments.some(item => !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0)) return "Todas as parcelas devem ter valor maior que zero.";
@@ -432,6 +437,12 @@ export function useOrderCompletion({
       showToast({ msg: "Esta OS já foi concluída.", type: "error" });
       return;
     }
+    if (target?.return_root_id && (!target?.return_classification || target.return_classification === "analysis")) {
+      showToast({ msg: "Classifique a garantia do retorno antes de abrir a conclusão.", type: "error" });
+      return;
+    }
+    const targetCoverageFree = Boolean(target?.return_root_id
+      && (target.return_classification === "covered" || target.return_classification === "courtesy"));
 
     paymentProofRequestRef.current += 1;
     const requirementRequestId = ++paymentProofRequirementRequestRef.current;
@@ -468,7 +479,7 @@ export function useOrderCompletion({
     const targetDiscountAmount = targetDiscountMode === "amount"
       ? targetDiscountValue
       : targetDiscountBase * targetDiscountValue / 100;
-    const targetFinalTotal = Math.max(0, Math.round((targetSubtotal - targetDiscountAmount) * 100) / 100);
+    const targetFinalTotal = targetCoverageFree ? 0 : Math.max(0, Math.round((targetSubtotal - targetDiscountAmount) * 100) / 100);
 
     setDiscount(String(targetDiscountValue));
     setDiscountModeState(targetDiscountMode);
@@ -485,7 +496,10 @@ export function useOrderCompletion({
     if (organizationId) {
       void loadFinanceOptions(String(organizationId));
       void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
-      if (targetOrderId) {
+      if (targetCoverageFree) {
+        setPaymentProofRequired(false);
+        setPaymentProofRequirementLoading(false);
+      } else if (targetOrderId) {
         void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId);
       } else {
         setPaymentProofRequirementError("Não foi possível identificar a OS.");
@@ -581,8 +595,12 @@ export function useOrderCompletion({
   };
 
   const submit = async () => {
+    if (returnAwaitingClassification) {
+      showToast({ msg: "Classifique a garantia do retorno antes de concluir.", type: "error" });
+      return;
+    }
     if (!detail?.id || completedSuccessfully || discountExceedsMax || discountExceedsServicePrice
-      || Boolean(servicePriceValidationMessage) || financeOptionsLoading || commercialItemsLoading) return;
+      || (!coverageFree && Boolean(servicePriceValidationMessage)) || financeOptionsLoading || commercialItemsLoading) return;
     if (commercialPricing && commercialItemsError) {
       showToast({ msg: "Não foi possível validar Produtos e Serviços da OS: " + commercialItemsError, type: "error" });
       return;
@@ -596,7 +614,7 @@ export function useOrderCompletion({
       showToast({ msg: paymentProofRequirementError || "Verificando a exigência do comprovante de pagamento.", type: "error" });
       return;
     }
-    if (paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder) {
+    if (!coverageFree && paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder) {
       showToast({ msg: "Anexe o comprovante de pagamento antes de concluir a OS.", type: "error" });
       return;
     }
@@ -627,7 +645,7 @@ export function useOrderCompletion({
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
       }
 
-      const priceOverride = commercialPricing ? null : priceAtCompletion ? servicePrice : null;
+      const priceOverride = commercialPricing ? null : priceAtCompletion ? (coverageFree ? 0 : servicePrice) : null;
       const response = financeEnabled
         ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
         : await completeServiceOrder(detail.id, priceOverride, discountMode, discountValue);
@@ -687,6 +705,7 @@ export function useOrderCompletion({
 
   return {
     open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems, commercialPricing,
+    coverageFree, returnAwaitingClassification,
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,

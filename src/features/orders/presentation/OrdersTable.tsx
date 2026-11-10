@@ -65,7 +65,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
   const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
-  const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order);
+  const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order)
+    && (!order.return_root_id || (order.return_classification && order.return_classification !== "analysis"));
   const canEdit = (order: any) => canEditOrder && !order.is_solved && !isCancelled(order);
   const rowNumber = (index: number) => filteredRowNumber({ page: safePage, pageSize, index });
   const availableSituations = (order: any) => getSituations(order.service_type_id, order.situation_id, order.situation);
@@ -239,7 +240,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                       {hasActiveFilters && <span className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] px-1.5 font-mono text-[11px] font-black text-[#0057e7]">{rowNumber(index)}</span>}
-                      <span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex((o.order_status as any)?.name, (o.order_status as any)?.color) }} />
+                      <span aria-label={o.return_root_id ? "Cor de retorno" : `Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex((o.order_status as any)?.name, (o.order_status as any)?.color, Boolean(o.return_root_id)) }} />
                       <div className="min-w-0">
                         {hasPermission("orders.table.os") && <p className="font-mono text-lg font-black text-foreground">OS {o.os_number || "—"}</p>}
                         {hasPermission("orders.table.external_os") && o.external_os_number && <p className="truncate text-sm font-black text-muted-foreground">OS Externa {o.external_os_number}</p>}
@@ -288,7 +289,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
               </tr></thead>
               <tbody>{pagedOrders.map((o, index) => <tr key={o.id} onClick={() => openDetails(o)} className="cursor-default">
                 {hasActiveFilters && <td className="font-mono text-xs font-black text-muted-foreground">{rowNumber(index)}</td>}
-                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={`Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex((o.order_status as any)?.name, (o.order_status as any)?.color) }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-foreground">{o.os_number || "—"}</span>{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
+                {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={o.return_root_id ? "Cor de retorno" : `Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex((o.order_status as any)?.name, (o.order_status as any)?.color, Boolean(o.return_root_id)) }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-foreground">{o.os_number || "—"}</span>{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
                 {hasPermission("orders.table.external_os") && <td className="font-mono text-base font-black text-muted-foreground">{o.external_os_number || "—"}</td>}
                 {hasPermission("orders.table.customer") && <td><p className="text-sm font-semibold text-foreground">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-muted-foreground">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>}
                 {hasPermission("orders.table.service_type") && <td className="text-xs text-muted-foreground">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>}
@@ -311,7 +312,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-[11px] md:py-2 font-semibold text-muted-foreground" aria-label="Legenda dos indicadores da ordem de serviço">
             <span className="font-bold text-foreground">Legenda:</span>
-            {(["Aberta", "Fechada", "Cancelada"] as const).map(status => (
+            {(["Aberta", "Fechada", "Cancelada", "Retorno"] as const).map(status => (
               <span key={status} className="inline-flex items-center gap-1.5">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex(status) }} aria-hidden="true" />
                 {status}

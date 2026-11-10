@@ -55,7 +55,7 @@ test("Usar celular usa UI sem gradiente e indicador verde compartilhado", async 
   assert.match(read(files[2]), /showOnMobile=\{scope === "payment-proof"\}/);
 });
 
-test("retornos usam menu compacto, navegação junto ao número e modal apenas com motivo", async () => {
+test("retornos usam toolbar, navegação junto ao número e modal apenas com motivo", async () => {
   const controls = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
   const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const editor = read("src/features/orders/presentation/OrderInformationSection.tsx");
@@ -64,9 +64,15 @@ test("retornos usam menu compacto, navegação junto ao número e modal apenas c
   assert.ok((await transformWithEsbuild(controls, "OrderReturnsPanel.tsx", { loader: "tsx" })).code);
   assert.ok((await transformWithEsbuild(details, "OrderDetailsPage.tsx", { loader: "tsx" })).code);
   assert.match(details, /<OrderReturnSwitcher order=\{detail\} \/>/);
-  assert.match(details, /<OrderReturnActions/);
+  const toolbar = read("src/features/orders/presentation/OrderDetailsActions.tsx");
+  const completion = read("src/features/orders/application/useOrderCompletion.ts");
+  assert.match(toolbar, /<OrderReturnActions/);
+  assert.match(toolbar, /const returnReady =/);
+  assert.match(completion, /Classifique a garantia do retorno antes de abrir a conclusão/);
+  assert.doesNotMatch(details, /<OrderReturnActions/);
   assert.doesNotMatch(details, /<OrderReturnsPanel/);
-  assert.match(controls, /<MoreHorizontal size=\{19\}/);
+  assert.doesNotMatch(controls, /<MoreHorizontal|<DropdownMenuTrigger/);
+  assert.match(controls, /setCreateOpen\(true\)/);
   assert.match(controls, /Iniciar retorno/);
   assert.match(controls, /Classificar garantia/);
   assert.match(controls, /<ArrowLeftRight size=\{13\}/);

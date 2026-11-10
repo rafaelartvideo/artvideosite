@@ -32,11 +32,14 @@ test("legenda de OS compartilha a cor da barra vertical, sem cores duplicadas", 
   const palette = read("src/features/orders/domain/order-status-palette.ts");
   const tones = read("src/shared/domain/status-tone.ts");
   assert.ok((await transformWithEsbuild(table, "OrdersTable.tsx", { loader: "tsx" })).code);
-  assert.match(table, /\(\["Aberta", "Fechada", "Cancelada"\] as const\)\.map\(status =>/);
+  assert.match(table, /\(\["Aberta", "Fechada", "Cancelada", "Retorno"\] as const\)\.map\(status =>/);
   assert.match(table, /backgroundColor: getOrderStatusHex\(status\)/);
   assert.equal((table.match(/backgroundColor: getOrderStatusHex\(\(o\.order_status as any\)\?\.name/g) || []).length, 2,
     "As barras vertical desktop e mobile devem consumir a mesma paleta da legenda.");
   assert.match(palette, /STATUS_TONE_HEX\[tone\]/);
+  assert.match(palette, /ORDER_RETURN_HEX = "#f97316"/);
+  assert.match(table, /Boolean\(o\.return_root_id\)/);
+  assert.match(palette, /isReturn \|\| String\(status/);
   assert.match(tones, /success: "#059669"/);
   assert.match(tones, /progress: "#3b82f6"/);
   assert.match(tones, /danger: "#dc2626"/);
