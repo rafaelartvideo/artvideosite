@@ -72,3 +72,49 @@ test("salvar cliente não insere vínculo de prestador removido da base dos parc
   assert.match(fix, /where role_input not in \('customer','employee','supplier'\)/);
   assert.match(fix, /if not \(v_has_customer or v_has_employee or v_has_supplier\) then/);
 });
+
+
+test("agenda semanal de acesso permite vários intervalos sem sobreposição e separa expediente técnico", async () => {
+  const domain = read("src/features/registrations/domain/employee-access-hours.ts");
+  const repo = read("src/features/registrations/infrastructure/employee-access-hours.repository.ts");
+  const modal = read("src/features/registrations/presentation/EmployeeAccessHoursDialog.tsx");
+  const editor = read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  const registrations = read("src/features/registrations/presentation/TabRegistrations.tsx");
+  const auth = read("src/lib/auth.tsx");
+  const app = read("src/app/App.tsx");
+  const sql = read("supabase/migrations/20261110210000_employee_crm_access_hours.sql");
+  for (const [path, source] of [
+    ["EmployeeAccessHoursDialog.tsx", modal], ["RegistrationEditor.tsx", editor],
+    ["TabRegistrations.tsx", registrations], ["auth.tsx", auth], ["App.tsx", app],
+  ]) assert.ok((await transformWithEsbuild(source, path, { loader: "tsx" })).code.length > 100, path);
+  assert.ok((await transformWithEsbuild(repo, "employee-access-hours.repository.ts", { loader: "ts" })).code.length > 100);
+  const transformed = await transformWithEsbuild(domain, "employee-access-hours.ts", { loader: "ts" });
+  const logic = await import("data:text/javascript;base64," + Buffer.from(transformed.code).toString("base64"));
+  const empty = logic.emptyEmployeeAccessHours();
+  assert.equal(empty.enabled, false, "escalas não configuradas não bloqueiam funcionários atuais");
+  assert.equal(empty.days.length, 7);
+  const monday = empty.days.find(d => d.weekday === 1);
+  monday.intervals = [{ start: "08:00", end: "12:00" }, { start: "13:00", end: "18:00" }];
+  assert.equal(logic.validateEmployeeAccessHours(empty), null);
+  monday.intervals.push({ start: "11:00", end: "14:00" });
+  assert.match(logic.validateEmployeeAccessHours(empty), /sobrepostos/);
+  monday.intervals.pop();
+  monday.intervals[0].end = "08:00";
+  assert.match(logic.validateEmployeeAccessHours(empty), /início/);
+  assert.equal(logic.nextFreeAccessInterval([{ start: "08:00", end: "12:00" }]).start, "13:00");
+  assert.match(editor, /<CalendarClock size=\{16\}\/> Horários/);
+  assert.match(modal, /Agenda semanal/);
+  assert.match(modal, /Copiar horários de outro funcionário/);
+  assert.match(modal, /variant="secondary" disabled=\{busy\} onClick=\{onClose\}>Voltar/);
+  assert.match(registrations, /stagedAccessHours/);
+  assert.match(registrations, /saveEmployeeAccessHours/);
+  assert.match(auth, /checkMyEmployeeAccessWindow/);
+  assert.match(app, /Fora do horário de acesso/);
+  for (const token of [
+    "employee_crm_access_hours", "validate_employee_crm_access_days",
+    "private.employee_crm_access_now", "private.has_effective_organization_permission",
+    "private.has_organization_permission", "get_employee_crm_access_hours_v1",
+    "save_employee_crm_access_hours_v1", "check_my_employee_crm_access_hours_v1",
+    "list_employee_crm_access_sources_v1", "enable row level security",
+  ]) assert.ok(sql.includes(token), token);
+});
