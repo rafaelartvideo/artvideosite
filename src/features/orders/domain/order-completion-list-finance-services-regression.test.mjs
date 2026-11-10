@@ -34,7 +34,7 @@ test("tela de conclusão espera dados essenciais e mostra certificação na segu
   assert.ok(compiled.code.length > 0);
   assert.match(modal, /const preparingConclusion = preparing \|\| \(/);
   assert.match(modal, /completion\.paymentProofRequirementLoading/);
-  assert.match(modal, /LoadingState text="Preparando conclusão\.\.\."/);
+  assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
   assert.match(modal, /grid min-w-0 items-stretch gap-4 lg:grid-cols-2/);
   assert.match(modal, /<Section title="Produtos e serviços"/);
   assert.match(modal, /<Section title="Certificado de garantia"/);

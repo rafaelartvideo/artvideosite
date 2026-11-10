@@ -1,6 +1,5 @@
 import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileCheck2, MapPin, Package, Phone, Printer, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
@@ -241,20 +240,12 @@ export function OrderCompletionModal({
   // Modal único desde o primeiro clique; mantém a mesma instância durante
   // a hidratação da OS e as consultas da conclusão, sem flash intermediário.
   if (preparingConclusion) {
-    return <AdminDialog open onClose={close} title={`Concluir OS ${detail?.os_number || ""}`}
-      description="Carregando os dados necessários para concluir esta OS."
+    return <AdminDialog open onClose={close}
+      title={`Concluir OS ${detail?.os_number || ""}`}
+      preparing preparingText="Preparando conclusão..."
+      preparingError={preparingError} onRetryPreparing={onRetryPreparing}
       className="max-w-xl">
-      {preparingError ? <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 text-center">
-        <p role="alert" className="text-sm font-semibold text-red-600">
-          Não foi possível preparar a conclusão: {preparingError}
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <AdminButton variant="secondary" onClick={close}>Fechar</AdminButton>
-          {onRetryPreparing && <AdminButton onClick={onRetryPreparing}>Tentar novamente</AdminButton>}
-        </div>
-      </div> : <div className="flex min-h-[300px] items-center justify-center">
-        <LoadingState text="Preparando conclusão..." />
-      </div>}
+      <span className="hidden" />
     </AdminDialog>;
   }
 

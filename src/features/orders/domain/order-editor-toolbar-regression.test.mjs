@@ -126,3 +126,14 @@ test("seletor de OS e retorno destaca qualquer selecionada em azul com sublinhad
   assert.doesNotMatch(switcher, /bg-orange-|text-orange-|bg-\[#0131CD\]/);
   assert.match(switcher, /navigate\(adminPath\("orders", cycle\.id\)\)/);
 });
+
+
+test("retorno aguarda verificação da garantia antes de exibir formulário e rodapé", async () => {
+  const start = read("src/features/orders/presentation/OrderReturnStartDialog.tsx");
+  assert.ok((await transformWithEsbuild(start, "OrderReturnStartDialog.tsx", { loader: "tsx" })).code);
+  assert.match(start, /preparing=\{preparingReturn\}/);
+  assert.match(start, /preparingText="Preparando retorno\.\.\."/);
+  assert.match(start, /checkedOrderId !== orderId/);
+  assert.match(start, /onRetryPreparing/);
+  assert.match(start, /eligibilityRetry/);
+});

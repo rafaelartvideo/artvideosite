@@ -39,6 +39,8 @@ export function OrderReturnStartDialog({
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
+  const [eligibilityRetry, setEligibilityRetry] = useState(0);
+  const [checkedOrderId, setCheckedOrderId] = useState("");
   const orderId = String(order?.id || "");
   const isReopening = mode === "reopen";
 
@@ -46,6 +48,7 @@ export function OrderReturnStartDialog({
     if (!open || !orderId) return;
     if (isReopening) { setLoading(false); setEligibility(null); setReason(""); setError(""); return; }
     let active = true;
+    setCheckedOrderId("");
     setEligibility(null);
     setError("");
     setReason("");
@@ -55,11 +58,12 @@ export function OrderReturnStartDialog({
         if (!active) return;
         if (queryError) throw queryError;
         setEligibility(data as Eligibility);
+        setCheckedOrderId(orderId);
       })
       .catch(cause => { if (active) setError(systemErrorMessage(cause)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, orderId, isReopening]);
+  }, [open, orderId, isReopening, eligibilityRetry]);
 
   if (!open || !order) return null;
 
@@ -98,8 +102,15 @@ export function OrderReturnStartDialog({
     ? "Reabrir OS " + String(order.os_number || "")
     : "Iniciar retorno da OS " + String(order.os_number || "");
 
+  const preparingReturn = !isReopening && (loading || (checkedOrderId !== orderId && !error));
+  const eligibilityError = !isReopening && !eligibility && !loading ? error : null;
+
   return <AdminDialog
     open={open}
+    preparing={preparingReturn}
+    preparingText="Preparando retorno..."
+    preparingError={eligibilityError}
+    onRetryPreparing={() => { setEligibility(null); setError(""); setEligibilityRetry(value => value + 1); }}
     onClose={() => { if (!processing) onClose(); }}
     title={isReopening || expired ? dialogTitle : <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
       <span>{dialogTitle}</span>
@@ -134,7 +145,6 @@ export function OrderReturnStartDialog({
         Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados.
       </p>
     </div>}
-    {loading && <p role="status" className="py-4 text-sm text-muted-foreground">Verificando o certificado de garantia...</p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
       {error}
     </p>}
