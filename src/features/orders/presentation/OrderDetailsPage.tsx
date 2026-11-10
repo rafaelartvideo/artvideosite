@@ -730,7 +730,7 @@ export function OrderDetailsPage(props: Props) {
           onChange={setDetailSection}
           itemBadge={quoteWorkflowEnabled ? null : itemBadge}
           commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"}
-          commercialActionsHostId={!transitionPending && quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-actions-" + detail.id : undefined}
+          commercialActionsHostId={quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-actions-" + detail.id : undefined}
         />}
         {showSwitchLoading
           ? <OrderDetailsContentSkeleton section={detailSection} returnDiagnosis={returnDiagnosisActive} />
