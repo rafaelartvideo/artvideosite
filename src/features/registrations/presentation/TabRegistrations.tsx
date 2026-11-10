@@ -61,6 +61,9 @@ import {
 import { RegistrationContactsPage } from "./RegistrationContactsPage";
 import { RegistrationDetails } from "./RegistrationDetails";
 import { RegistrationEditor } from "./RegistrationEditor";
+import { EmployeeAccessHoursDialog } from "./EmployeeAccessHoursDialog";
+import { saveEmployeeAccessHours } from "../infrastructure/employee-access-hours.repository";
+import type { EmployeeAccessHours } from "../domain/employee-access-hours";
 import { RegistrationRecordsPage } from "./RegistrationRecordsPage";
 
 type Props = {
@@ -281,6 +284,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [accessForm, setAccessForm] = useState<EmployeeAccessFormState>(emptyEmployeeAccessForm());
   const [accessExisting, setAccessExisting] = useState(false);
   const [accessDirty, setAccessDirty] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(false);
+  const [stagedAccessHours, setStagedAccessHours] = useState<EmployeeAccessHours | null>(null);
   const [togglingEmployeeId, setTogglingEmployeeId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const editorBaseHydratedRef = useRef<string | null>(null);
@@ -344,6 +349,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       setAccessForm(emptyEmployeeAccessForm());
       setAccessExisting(false);
       setAccessDirty(false);
+      setHoursOpen(false);
+      setStagedAccessHours(null);
       editorBaseHydratedRef.current = "new";
       editorSupplierHydratedRef.current = "new";
       editorAccessHydratedRef.current = "new";
@@ -360,6 +367,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setAccessForm(emptyEmployeeAccessForm());
     setAccessExisting(Boolean(profileId));
     setAccessDirty(false);
+    setHoursOpen(false);
+    setStagedAccessHours(null);
     editorBaseHydratedRef.current = routeRegistration.id;
     editorSupplierHydratedRef.current = null;
     editorAccessHydratedRef.current = null;
@@ -577,6 +586,22 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
+      if (form.roles.includes("employee") && refreshed.legacy_employee_id && stagedAccessHours) {
+        try {
+          await saveEmployeeAccessHours(activeOrganizationId, refreshed.legacy_employee_id, stagedAccessHours);
+          setStagedAccessHours(null);
+          void queryClient.invalidateQueries({
+            queryKey: ["registrations", "crm-access-hours", activeOrganizationId, refreshed.legacy_employee_id],
+          });
+        } catch (scheduleError) {
+          setSelected(refreshed);
+          setToast({ msg: "Funcionário salvo, mas a agenda de acesso não pôde ser gravada: "
+            + systemErrorMessage(scheduleError), type: "error" });
+          onRouteChange?.(savedId, "edit");
+          return;
+        }
+      }
+
       if (accessDirty || removingEmployeeWithAccess || trackingPromptChanged || inactivitySettingChanged) {
         const refreshedAgain = await getRegistration(activeOrganizationId, savedId);
         if (!refreshedAgain.error && refreshedAgain.data) refreshed = refreshedAgain.data as unknown as Registration;
@@ -656,6 +681,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     onRouteChange?.(item.id, "edit");
   };
   const closeEditor = () => {
+    setHoursOpen(false);
+    setStagedAccessHours(null);
     if (creating || editorOriginRef.current === "list") {
       onRouteChange?.(null, null);
       return;
@@ -720,8 +747,30 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         onSave={() => void save()}
         onClose={closeEditor}
         onToggleRole={toggleRole}
+        onOpenHours={(canViewAccess || canEditAccess || canCreateAccess) ? () => setHoursOpen(true) : undefined}
         employeeOnly={platformUsersOnly}
       />
+      {hoursOpen && activeOrganizationId && form.roles.includes("employee") && <EmployeeAccessHoursDialog
+        organizationId={activeOrganizationId}
+        employeeId={creating ? null : selected?.legacy_employee_id || null}
+        employeeName={selected?.name || form.name || "Funcionário"}
+        stagedHours={stagedAccessHours}
+        canEdit={creating ? canCreateAccess && canEditAccess : canEditAccess}
+        onClose={() => setHoursOpen(false)}
+        onSave={async hours => {
+          if (!activeOrganizationId) throw new Error("Empresa não selecionada.");
+          if (!creating && selected?.legacy_employee_id) {
+            await saveEmployeeAccessHours(activeOrganizationId, selected.legacy_employee_id, hours);
+            void queryClient.invalidateQueries({
+              queryKey: ["registrations", "crm-access-hours", activeOrganizationId, selected.legacy_employee_id],
+            });
+            setToast({ msg: "Horários de acesso atualizados.", type: "success" });
+          } else {
+            setStagedAccessHours(hours);
+            setToast({ msg: "Agenda preparada. Salve o cadastro para gravar os horários.", type: "success" });
+          }
+        }}
+      />}
     </>;
   }
 

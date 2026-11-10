@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router";
-import { Building2, Users, UserRound } from "lucide-react";
+import { Building2, CalendarClock, Users, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -68,6 +68,7 @@ export function RegistrationEditor({
   onSave,
   onClose,
   onToggleRole,
+  onOpenHours,
   employeeOnly = false,
   supplierQuickCreate = false,
   inlineSupplier = false,
@@ -97,6 +98,7 @@ export function RegistrationEditor({
   onSave: () => void;
   onClose: () => void;
   onToggleRole: (role: RegistrationRole) => void;
+  onOpenHours?: () => void;
   employeeOnly?: boolean;
   supplierQuickCreate?: boolean;
   inlineSupplier?: boolean;
@@ -264,6 +266,12 @@ export function RegistrationEditor({
     maxW="max-w-6xl"
   >
     {editorBody}
-    <AdminStickyToolbar className="flex-wrap justify-end gap-2">{editorActions}</AdminStickyToolbar>
+    <AdminStickyToolbar className="flex-wrap justify-end gap-2">
+      {form.roles.includes("employee") && onOpenHours && <AdminButton variant="secondary" disabled={saving}
+        onClick={onOpenHours} className="mr-auto">
+        <CalendarClock size={16}/> Horários
+      </AdminButton>}
+      {editorActions}
+    </AdminStickyToolbar>
   </AdminPage>;
 }
