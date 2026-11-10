@@ -99,7 +99,8 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
   const canCancelPermission = hasPermission("orders.cancel");
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
   const canCancel = (order: any) => canCancelPermission && !order.completed_at && !isCancelled(order);
-  const canDrag = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
+  const canDrag = (order: any) => canChangeSituation && !isOrderSituationLocked(order)
+    && (!order.return_root_id || order.return_classification !== "analysis");
   return <>
     <div className="mb-3 min-w-0 border-b border-border">
       <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
