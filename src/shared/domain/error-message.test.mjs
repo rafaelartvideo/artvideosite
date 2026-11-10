@@ -18,6 +18,8 @@ test("maps forbidden responses to the standard permission feedback", () => {
 test("preserves explicit business-state errors instead of reporting missing permissions", () => {
   const reason = "Esta OS está solucionada e somente situação, cancelamento ou a conclusão financeira podem ser alterados.";
   assert.equal(systemErrorMessage({ code: "42501", message: reason }), reason);
+  const completionRule = "A conclusão só pode alterar os campos financeiros da OS.";
+  assert.equal(systemErrorMessage({ code: "42501", message: completionRule }), completionRule);
   const denied = "Você não possui permissão para editar o diagnóstico desta OS.";
   assert.equal(systemErrorMessage({ code: "42501", message: denied }), denied);
   assert.equal(systemErrorMessage({ code: "42501", message: "permission denied for table service_orders" }),
