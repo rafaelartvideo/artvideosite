@@ -41,15 +41,6 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
         <span className={`text-[10px] font-semibold ${completion.paymentProofRequired ? "text-destructive" : "text-muted-foreground"}`}>
           {completion.paymentProofRequired ? "(obrigatório)" : "(opcional)"}
         </span>
-        {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
-          <OrderChecklistMobileBridge
-            orderId={completion.paymentProofOrderId}
-            osNumber={completion.paymentProofOsNumber}
-            scope="payment-proof"
-            disabled={saving || completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder}
-            onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
-          />
-        )}
       </div>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
         {completion.paymentProofRequired
@@ -75,15 +66,26 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
       <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden"
         aria-label="Fotografar comprovante"
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
-      <div className="flex min-w-0 gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <button type="button" disabled={saving} onClick={() => cameraInputRef.current?.click()}
-          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50">
+          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:hidden">
           <Camera size={16} /> Tirar foto
         </button>
         <button type="button" disabled={saving} onClick={() => fileInputRef.current?.click()}
-          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50">
+          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:flex-none md:px-4">
           <Upload size={16} /> Selecionar arquivo
         </button>
+        {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
+          <div className="hidden md:block">
+            <OrderChecklistMobileBridge
+              orderId={completion.paymentProofOrderId}
+              osNumber={completion.paymentProofOsNumber}
+              scope="payment-proof"
+              disabled={saving || completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder}
+              onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
+            />
+          </div>
+        )}
       </div>
       {file && <div className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/20 bg-card p-2.5">
         {previewUrl ? <img src={previewUrl} alt="Prévia do comprovante selecionado" className="h-14 w-14 shrink-0 rounded-md object-cover" />
@@ -134,7 +136,7 @@ export function OrderCompletionPaymentSection({
           <div>
             <p className="text-sm font-black text-foreground">Parcelas e formas</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Divida o total, informe os vencimentos e marque somente o que já foi recebido.
+              Informe as parcelas e marque os valores relatados como recebidos. A baixa será confirmada no Financeiro.
             </p>
           </div>
 
@@ -231,7 +233,7 @@ export function OrderCompletionPaymentSection({
             <div className="divide-y divide-border">
               {completion.installments.map((installment, index) => (
                 <div key={installment.id} className="min-w-0 bg-card px-3 py-3 sm:px-4">
-                  <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(120px,0.75fr)_minmax(145px,0.8fr)_minmax(200px,1.15fr)_88px_minmax(145px,0.8fr)_36px] xl:items-end">
+                  <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(120px,0.75fr)_minmax(145px,0.8fr)_minmax(200px,1.15fr)_88px_minmax(145px,0.8fr)_42px] xl:items-end">
                     <FCurrencyInput
                       label={`Valor${completion.installments.length > 1 ? ` · ${index + 1}ª` : ""}`}
                       value={installment.amount}
@@ -256,7 +258,7 @@ export function OrderCompletionPaymentSection({
                     />
 
                     <div className="min-w-0">
-                      <p className="mb-1.5 text-[11px] font-bold text-foreground">Recebido</p>
+                      <p className="mb-1.5 text-[11px] font-bold text-foreground">Recebido*</p>
                       <button
                         type="button"
                         role="checkbox"
@@ -296,6 +298,7 @@ export function OrderCompletionPaymentSection({
                         ariaLabel="Remover parcela"
                         title="Remover parcela"
                         variant="danger"
+                        className="!h-[42px] !w-[42px] shrink-0"
                         disabled={saving || completion.installments.length <= 1}
                         onClick={() => completion.removeInstallment(installment.id)}
                       >
@@ -315,12 +318,13 @@ export function OrderCompletionPaymentSection({
                 Diferença: <strong>{formatCurrency(Math.abs(completion.installmentDifference))}</strong>
               </span>
               <span className="text-emerald-700">
-                Recebido: <strong>{formatCurrency(completion.totalPaidNow)}</strong>
+                Informado recebido*: <strong>{formatCurrency(completion.totalPaidNow)}</strong>
               </span>
               <span className="text-amber-700">
-                Em aberto: <strong>{formatCurrency(completion.openAmount)}</strong>
+                Não informado: <strong>{formatCurrency(completion.openAmount)}</strong>
               </span>
             </div>
+            <p className="px-4 py-2 text-[11px] text-muted-foreground">* Marcação informativa: todas as parcelas aguardam confirmação da baixa no Financeiro, inclusive as marcadas como recebidas.</p>
           </div>
         )}
 

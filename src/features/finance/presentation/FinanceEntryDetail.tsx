@@ -14,6 +14,7 @@ import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
 import { financialDueUrgency } from "../domain/finance-due-urgency.mjs";
+import { getOrderReportedReceipts } from "../domain/finance-reported-receipts";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -68,6 +69,7 @@ function EntryDetailContent({
     ? 0
     : detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
   const methods = [...new Set(detail.settlements.filter(item => item.settlement_status !== "reversed").map(item => item.payment_method_name_snapshot).filter(Boolean))];
+  const reportedReceipts = getOrderReportedReceipts(detail.source_details);
   const plannedMethods = (Array.isArray(detail.source_details?.payment_plan) ? detail.source_details.payment_plan : []) as Array<{payment_method_id:string;amount:number}>;
   const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
@@ -191,7 +193,10 @@ function EntryDetailContent({
         <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
             <tbody>{detail.installments.map(item => <Fragment key={item.id}>
-              <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+              <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}
+                {reportedReceipts.some(receipt => receipt.installment_number === item.installment_number) && <span className="mt-1 block text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                  {Number(item.settled_amount) + 0.005 >= Number(item.original_amount) ? "Informado na OS · baixa confirmada" : "Informado como recebido na OS · aguardando baixa"}
+                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
                 {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                   type="button" disabled={forecastBusy} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
