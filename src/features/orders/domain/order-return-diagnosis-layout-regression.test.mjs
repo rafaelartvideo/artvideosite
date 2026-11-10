@@ -16,6 +16,19 @@ test("modal fora da garantia possui aviso acessível de alto contraste e exclama
   assert.match(dialog, /dark:text-slate-200/);
 });
 
+test("validade da garantia acompanha o título Iniciar retorno em azul primário, sem texto duplicado", async () => {
+  const dialog = read("src/features/orders/presentation/OrderReturnStartDialog.tsx");
+  const layout = read("src/shared/ui/admin/AdminLayout.tsx");
+  assert.ok((await transformWithEsbuild(dialog, "OrderReturnStartDialog.tsx", { loader: "tsx" })).code);
+  assert.match(dialog, /title=\{isReopening \|\| expired \? dialogTitle : <span className="inline-flex flex-wrap items-baseline/);
+  assert.match(dialog, /!loading && eligibility\?\.eligible && eligibility\.warranty_expires_at/);
+  assert.match(dialog, /className="text-sm font-semibold text-primary"/);
+  assert.match(dialog, /minimizedTitle=\{dialogTitle\}/);
+  assert.match(layout, /minimizedTitle: minimizedTitleOverride/);
+  assert.match(layout, /const minimizedTitle = minimizedTitleOverride/);
+  assert.equal((dialog.match(/Garantia válida até/g) || []).length, 1);
+});
+
 test("diagnóstico reutiliza a seção completa de equipamento como primeira seção", async () => {
   const detail = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const content = read("src/features/orders/presentation/OrderDetailsContent.tsx");

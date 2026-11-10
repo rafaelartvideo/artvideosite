@@ -94,11 +94,20 @@ export function OrderReturnStartDialog({
 
   const expired = eligibility && !eligibility.eligible
     && ["expired", "no_certificate", "not_started", "not_quote", "warranty_disabled"].includes(eligibility.reason);
+  const dialogTitle = isReopening || expired
+    ? "Reabrir OS " + String(order.os_number || "")
+    : "Iniciar retorno da OS " + String(order.os_number || "");
 
   return <AdminDialog
     open={open}
     onClose={() => { if (!processing) onClose(); }}
-    title={isReopening ? "Reabrir OS " + String(order.os_number || "") : expired ? "Reabrir OS " + String(order.os_number || "") : "Iniciar retorno da OS " + String(order.os_number || "")}
+    title={isReopening || expired ? dialogTitle : <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      <span>{dialogTitle}</span>
+      {!loading && eligibility?.eligible && eligibility.warranty_expires_at && <span className="text-sm font-semibold text-primary">
+        Garantia válida até {formatWarrantyDate(eligibility.warranty_expires_at)}.
+      </span>}
+    </span>}
+    minimizedTitle={dialogTitle}
     className="max-w-lg"
     footer={<div className="flex w-full flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose} disabled={processing}>Voltar</BtnSecondary>
@@ -130,9 +139,6 @@ export function OrderReturnStartDialog({
       {error}
     </p>}
     {!isReopening && !loading && eligibility?.eligible && <div className="space-y-4">
-      <p className="text-xs font-semibold text-emerald-700">
-        Garantia válida até {formatWarrantyDate(eligibility.warranty_expires_at)}.
-      </p>
       <label className="block">
         <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
           Motivo do retorno <span className="text-red-600" aria-hidden="true">*</span>

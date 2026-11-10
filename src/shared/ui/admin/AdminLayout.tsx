@@ -306,6 +306,7 @@ export function AdminDialog({
   bodyClassName,
   bodyRef,
   minimizable = true,
+  minimizedTitle: minimizedTitleOverride,
   minimizedDescription,
   closable = true,
   hideHeader = false,
@@ -321,11 +322,12 @@ export function AdminDialog({
   bodyClassName?: string;
   bodyRef?: React.Ref<HTMLDivElement>;
   minimizable?: boolean;
+  minimizedTitle?: string;
   minimizedDescription?: React.ReactNode;
   closable?: boolean;
   hideHeader?: boolean;
 }) {
-  const minimizedTitle = typeof title === "string" ? title : "Janela administrativa";
+  const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
 
