@@ -503,3 +503,45 @@ reinicia somente `union-pbx-agent`. Não instala/habilita a unidade por perfil,
 não modifica rotas e não recarrega o Asterisk. A aprovação de atualização do
 worker não autoriza admitir empresas ou configurar seus troncos. Conferir o
 heartbeat assinado após aplicar. Se falhar, o script restaura o worker anterior.
+
+`local_queue_reload.py` prepara o cliente do futuro recarregamento isolado.
+Ele ainda não é chamado pelo agente e não habilita a AMI. Conecta somente em
+127.0.0.1:5038, exige credencial própria em arquivo root 0600 sem symlink,
+autentica sem eventos e envia uma única QueueReload com fila exata e
+Members/Parameters=yes, Rules=no. Confirma o ActionID e limita tempo/tamanho
+das respostas. Não aceita configuração de host, ações arbitrárias ou comandos
+de chamada. Nenhuma credencial SIP/FVX é utilizada para essa interface.
+A integração e a ativação local exigem outro pacote revisado e autorizado.
+
+### Ativação explícita da interface local
+
+`manager_bootstrap.py` é esse preparo de ativação, separado do agente. Sem
+argumentos retorna apenas uma prévia. `--apply` exige também
+`--acknowledge-local-manager-activation` e a aprovação do proprietário.
+O caso aceito é o auditado: AMI desativada, porta5038 livre e ausência tanto de
+`/etc/asterisk/manager.conf` como da credencial privada. Arquivos existentes,
+inclusive symlinks, bloqueiam a operação e nunca são substituídos.
+
+O ativador exige root, lock comum e ausência de chamadas antes de criar os
+arquivos e antes de recarregar somente a configuração do manager. O segredo
+novo é gerado na VPS, não é mostrado e não reutiliza credenciais SIP/FVX.
+`manager.conf` fica root:asterisk0640; o JSON privado, root0600. O listener é
+127.0.0.1:5038, com ACL somente127.0.0.1, interface HTTP desativada e permissões
+read/write=none. Confere o estado do manager, o endereço real pelo `ss` e a
+autenticação. A QueueReload tem privilégio NONE no Asterisk22.11 auditado;
+o login continua obrigatório. Não são concedidas permissões de chamada,
+comando CLI ou leitura de eventos.
+
+Essa ativação não aplica QueueReload, não habilita perfis/empresas e não altera
+filas, troncos ou dialplan. Não reinicia Asterisk nem agente. Em falha, grava
+explicitamente enabled=no, recarrega só o manager e confirma que a porta fechou
+antes de remover os arquivos criados. Se não consegue confirmar a reversão,
+mantém os arquivos privados de recuperação e encerra com erro crítico. Não
+remover o JSON manualmente antes de desativar e conferir a interface.
+
+Os testes do ativador usam arquivos temporários e simulam apenas essa interface;
+não comprovam carregamento/autenticação na central real. Essa verificação fica
+para a execução autorizada do pacote do commit revisado. Referências:
+[AMI v2](https://docs.asterisk.org/Configuration/Interfaces/Asterisk-Manager-Interface-AMI/AMI-v2-Specification/),
+[configuração oficial22](https://github.com/asterisk/asterisk/blob/22/configs/samples/manager.conf.sample)
+e [QueueReload22](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Actions/QueueReload/).
