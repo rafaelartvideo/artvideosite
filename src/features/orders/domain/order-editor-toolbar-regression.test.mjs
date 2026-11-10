@@ -139,3 +139,18 @@ test("retorno aguarda verificação da garantia antes de exibir formulário e ro
   assert.match(start, /onRetryPreparing/);
   assert.match(start, /eligibilityRetry/);
 });
+
+
+test("menu de reabrir orçamento alinha com abas sem empurrar a barra para baixo", async () => {
+  const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
+  const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  for (const [name, source] of [["OrderDetailSectionTabs.tsx", tabs], ["OrderQuoteWorkspace.tsx", quote]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
+  assert.match(tabs, /flex h-11 min-w-0 items-stretch gap-5 overflow-x-auto/);
+  assert.equal((tabs.match(/h-full shrink-0 gap-2 px-1 py-0 text-xs/g) || []).length, 2);
+  assert.match(tabs, /inline-flex h-8 shrink-0 items-center justify-center self-center/);
+  assert.match(quote, /inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md/);
+  assert.match(quote, /<MoreVertical size=\{18\}/);
+  assert.match(quote, /Reabrir orçamento/);
+});

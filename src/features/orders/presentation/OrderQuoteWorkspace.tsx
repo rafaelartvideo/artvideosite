@@ -347,7 +347,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label="Ações do orçamento" title="Ações do orçamento" disabled={busy}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50">
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50">
             <MoreVertical size={18} aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
