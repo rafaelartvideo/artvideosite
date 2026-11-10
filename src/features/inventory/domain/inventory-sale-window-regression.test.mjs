@@ -114,7 +114,7 @@ test("movimentação apresenta NCM e prazo por entrada e usa operação atômica
   assert.ok(ui.includes('<AdminFieldLabel label="Prazo para vender"'));
   assert.ok(ui.includes('label="Outro prazo (dias)"'));
   assert.ok(ui.includes("Data-limite estimada"));
-  assert.ok(ui.includes("Saldo após movimentação"));
+  assert.ok(ui.includes("Após movimentação"));
   assert.ok(ui.includes('aria-pressed={form.type === option.type}'));
   assert.ok(ui.includes("recordInventoryMovementWithDetails"));
   assert.ok(!ui.includes("recordInventoryPurchaseWithFinance("));
