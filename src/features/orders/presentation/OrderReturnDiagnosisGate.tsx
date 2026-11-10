@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, CircleHelp } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { supabase } from "@/lib/supabase";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -124,12 +125,18 @@ export function OrderReturnDiagnosisGate({
                   </span>
                   {option.label}
                 </button>
-                {checked && <span className={"min-w-0 text-xs font-medium leading-5 " +
-                  (option.value === "same_part"
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-orange-700 dark:text-orange-300")}>
-                  {option.description}
-                </span>}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label={`Ajuda sobre ${option.label}`}
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                      <CircleHelp size={15} aria-hidden="true" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" sideOffset={6}
+                    className="z-[350] w-72 max-w-[calc(100vw-2rem)] text-xs leading-relaxed text-popover-foreground">
+                    {option.description}
+                  </PopoverContent>
+                </Popover>
               </div>;
             })}
           </div>
