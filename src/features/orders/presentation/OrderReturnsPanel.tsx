@@ -1,15 +1,14 @@
 import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ArrowLeftRight, ArrowUpRight, MoreHorizontal, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeftRight, RotateCcw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { cn } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
 const CLASSIFICATIONS = [
   { value: "analysis", label: "Garantia em análise" },
@@ -64,7 +63,7 @@ export function OrderReturnSwitcher({ order }: { order: any }) {
     {chain.map((cycle, index) => <Fragment key={cycle.id}>
       {index > 0 && <ArrowLeftRight size={13} aria-hidden="true" className="shrink-0 text-muted-foreground/60" />}
       {cycle.id === order?.id
-        ? <span aria-current="page" className="inline-flex min-h-8 items-center rounded-md bg-[#0131CD]/10 px-2.5 py-1 text-base font-black text-[#0131CD] sm:text-lg">
+        ? <span aria-current="page" className={cn("inline-flex min-h-8 items-center rounded-md px-2.5 py-1 text-base font-black sm:text-lg", cycle.return_root_id ? "bg-orange-500/10 text-orange-600" : "bg-[#0131CD]/10 text-[#0131CD]")}>
             {index === 0 ? "OS " + cycle.os_number : cycle.os_number}
           </span>
         : <button type="button" onClick={() => navigate(adminPath("orders", cycle.id))}
@@ -76,7 +75,7 @@ export function OrderReturnSwitcher({ order }: { order: any }) {
   </nav>;
 }
 
-/** Somente menu de três pontos e modais sob demanda, sem seção adicional no detalhe. */
+/** Ações diretas na toolbar; modais abertos somente sob demanda. */
 export function OrderReturnActions({ order, canCreate, canEdit, onClassificationChange }: {
   order: any;
   canCreate: boolean;
@@ -152,34 +151,24 @@ export function OrderReturnActions({ order, canCreate, canEdit, onClassification
   };
 
   return <>
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" title="Ações da OS" aria-label="Ações da OS"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0131CD]">
-          <MoreHorizontal size={19} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
-        {canStartReturn && <DropdownMenuItem onSelect={() => {
-          setReason(""); setCreateOpen(true);
-        }} className="flex cursor-pointer items-center gap-2 text-sm">
-          <RotateCcw size={15} /> Iniciar retorno
-        </DropdownMenuItem>}
-        {activeReturn && activeReturn.id !== order.id && <DropdownMenuItem
-          onSelect={() => navigate(adminPath("orders", activeReturn.id))}
-          className="flex cursor-pointer items-center gap-2 text-sm">
-          <ArrowUpRight size={15} /> Abrir {activeReturn.os_number}
-        </DropdownMenuItem>}
-        {canClassify && <DropdownMenuItem onSelect={() => {
+    {canStartReturn && <BtnPrimary onClick={() => { setReason(""); setCreateOpen(true); }}
+      className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
+      <RotateCcw size={15} /> Iniciar retorno
+    </BtnPrimary>}
+    {canClassify && (order.return_classification === "analysis"
+      ? <BtnPrimary onClick={() => {
           setClassification(String(order.return_classification || "analysis"));
           setClassificationOpen(true);
-        }} className="flex cursor-pointer items-center gap-2 text-sm">
+        }} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
           <ShieldCheck size={15} /> Classificar garantia
-        </DropdownMenuItem>}
-        {canOfferReturn && query.isError && <DropdownMenuItem disabled>Não foi possível carregar os retornos</DropdownMenuItem>}
-        {canOfferReturn && query.isLoading && <DropdownMenuItem disabled>Carregando...</DropdownMenuItem>}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </BtnPrimary>
+      : <AdminButton variant="secondary" onClick={() => {
+          setClassification(String(order.return_classification || "analysis"));
+          setClassificationOpen(true);
+        }} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
+          <ShieldCheck size={15} /> Revisar garantia
+        </AdminButton>)}
+    {canOfferReturn && query.isError && <span className="text-xs text-red-600">Não foi possível consultar os retornos.</span>}
 
     <AdminDialog open={createOpen} onClose={() => { if (!creating) setCreateOpen(false); }}
       title={"Iniciar retorno da OS " + String(order.os_number || "")}
