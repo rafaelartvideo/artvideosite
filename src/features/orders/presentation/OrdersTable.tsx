@@ -65,7 +65,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const safePage = page;
   const openDetails = (order: any) => { if (canOpenDetails) onOpen(order); };
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
-  const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
+  const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order)
+    && (!order.return_root_id || order.return_classification !== "analysis");
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order)
     && (!order.return_root_id || (order.return_classification && order.return_classification !== "analysis"));
