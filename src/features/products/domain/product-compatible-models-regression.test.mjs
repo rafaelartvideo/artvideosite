@@ -82,3 +82,35 @@ test("Vitrine consulta detalhes comerciais sem expor custos", () => {
   assert.match(sql,/gallery_media_ids/);
   assert.doesNotMatch(sql,/average_cost|purchase_price|internal_notes/);
 });
+
+test("configurações do estoque são persistidas por empresa e alimentam os seletores do cadastro", async () => {
+  const sql = read("supabase/migrations/20261110190000_inventory_catalog_taxonomy.sql");
+  const repo = read("src/features/products/infrastructure/inventory-catalog-settings.repository.ts");
+  const dialog = read("src/features/products/presentation/InventoryCatalogSettingsDialog.tsx");
+  const page = read("src/features/products/presentation/TabProducts.tsx");
+  const editor = read("src/features/products/presentation/ProductCompatibleModelsEditor.tsx");
+  const productRepo = read("src/features/products/infrastructure/products.repository.ts");
+  for (const [name, source, loader] of [
+    ["InventoryCatalogSettingsDialog.tsx", dialog, "tsx"],
+    ["TabProducts.tsx", page, "tsx"],
+    ["ProductCompatibleModelsEditor.tsx", editor, "tsx"],
+    ["inventory-catalog-settings.repository.ts", repo, "ts"],
+    ["products.repository.ts", productRepo, "ts"],
+  ]) assert.ok((await transformWithEsbuild(source, name, { loader })).code);
+  for (const item of ["public.product_subcategories", "public.inventory_device_types",
+    "public.inventory_device_brands", "products_subcategory_org_fk",
+    "enable row level security", "save_inventory_item_unified_v7"]) assert.ok(sql.includes(item), item);
+  assert.ok(repo.includes("organization_id"));
+  assert.ok(dialog.includes("Configurações do Estoque"));
+  assert.ok(dialog.includes("Subcategorias"));
+  assert.ok(dialog.includes("Marcas de aparelho"));
+  assert.ok(page.includes('label="Subcategoria"'));
+  assert.ok(page.includes('subcategory_id: form.subcategory_id || null'));
+  assert.ok(page.includes("InventoryCatalogSettingsDialog"));
+  assert.ok(page.includes("deviceTypes={catalogSettings?.deviceTypes || []}"));
+  assert.ok(page.includes("deviceBrands={catalogSettings?.deviceBrands || []}"));
+  assert.ok(page.includes("Ajuda sobre códigos relacionados"));
+  assert.ok(editor.includes('dropdownClassName="!max-h-[176px]"'));
+  assert.ok(!editor.includes("Informe os aparelhos nos quais"));
+  assert.ok(productRepo.includes('save_inventory_item_unified_v7'));
+});

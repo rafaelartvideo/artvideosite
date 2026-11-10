@@ -78,6 +78,6 @@ test("cadastro rápido preserva rodapé do modal e tipo de pessoa fora de seçã
   assert.ok(editor.includes('supplierQuickCreate\n        ? personTypeButtons'));
   assert.ok(editor.includes('if (supplierQuickCreate) return <AdminDialog'));
   assert.ok(editor.includes('inlineFooterTarget && createPortal'));
-  assert.ok(editor.includes('variant="quaternary"'));
+  assert.ok(editor.includes('variant={inlineSupplier ? "secondary" : "quaternary"}'));
   assert.ok(quick.includes('inlineFooterTarget={footerTarget}'));
 });

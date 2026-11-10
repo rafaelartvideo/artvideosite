@@ -171,6 +171,6 @@ test("rodapé fixo padrão e opções individuais com borda não causam segunda 
   assert.match(modal, /bg-primary text-primary-foreground/);
   assert.match(registration, /supplierQuickCreate\s*\? personTypeButtons/);
   assert.match(registration, /inlineFooterTarget && createPortal/);
-  assert.match(registration, /variant="quaternary"/);
+  assert.match(registration, /variant=\{inlineSupplier \? "secondary" : "quaternary"\}/);
   assert.match(parent, /ref=\{setMovementFooterTarget\}/);
 });

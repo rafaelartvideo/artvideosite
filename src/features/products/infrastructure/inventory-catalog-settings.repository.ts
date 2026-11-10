@@ -59,19 +59,21 @@ export async function createInventoryCatalogOption(
   if (kind === "subcategory" && !categoryId) throw new Error("Escolha a categoria da subcategoria.");
 
   const table = tables[kind];
-  const existing = await supabase.from(table).select("id,name,is_active")
-    .eq("organization_id", organizationId)
-    .ilike("name", trimmed)
-    .maybeSingle();
-  // Subcategorias permitem o mesmo nome em categorias distintas: consulte o par.
-  if (existing.error && kind !== "subcategory") throw existing.error;
-  if (kind !== "subcategory" && existing.data?.id) {
-    if (existing.data.is_active === false) {
-      const { error } = await supabase.from(table).update({ is_active: true })
-        .eq("organization_id", organizationId).eq("id", existing.data.id);
-      if (error) throw error;
+  if (kind !== "subcategory") {
+    const { data: existing, error: existingError } = await supabase.from(table)
+      .select("id,name,is_active")
+      .eq("organization_id", organizationId)
+      .ilike("name", trimmed)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing?.id) {
+      if (existing.is_active === false) {
+        const { error } = await supabase.from(table).update({ is_active: true })
+          .eq("organization_id", organizationId).eq("id", existing.id);
+        if (error) throw error;
+      }
+      return { id: String(existing.id), name: String(existing.name), is_active: true };
     }
-    return { id: String(existing.data.id), name: String(existing.data.name), is_active: true };
   }
   if (kind === "subcategory") {
     const { data: sub, error: subError } = await supabase.from(table)
