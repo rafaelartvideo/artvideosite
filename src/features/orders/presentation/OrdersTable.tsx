@@ -298,11 +298,11 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 {hasPermission("orders.table.os") && <th className="w-36 text-left">OS</th>}
                 {hasPermission("orders.table.external_os") && <th className="w-32 text-left">OS Externa</th>}
                 {hasPermission("orders.table.customer") && <th className="text-left">Cliente</th>}
-                {hasPermission("orders.table.service_type") && <th className="w-40 text-left">Tipo de atendimento</th>}
+                {hasPermission("orders.table.service_type") && <th className="w-28 text-left">Tipo de atendimento</th>}
                 {hasPermission("orders.table.equipment") && <th className="w-40 text-left">Equipamento</th>}
-                <th className="w-36 text-left">Data de abertura</th>
-                {hasPermission("orders.table.scheduled_at") && <th className="w-36 text-left">Data de agendamento</th>}
-                {canViewSituation && <th className="w-44 text-left">Situação</th>}
+                <th className="w-32 text-left">Data de abertura</th>
+                {hasPermission("orders.table.scheduled_at") && <th className="w-32 text-left">Agendamento</th>}
+                {canViewSituation && <th className="w-60 min-w-[235px] text-left">Situação</th>}
                 {hasPermission("orders.table.actions") && <th className="w-28 text-right">Ações</th>}
               </tr></thead>
               <tbody>{pagedOrders.map((o, index) => <tr key={o.id} onClick={() => openDetails(o)} className="cursor-default">
@@ -310,16 +310,18 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 {hasPermission("orders.table.os") && <td><div className="flex items-center gap-2"><span aria-label={o.return_root_id ? "Cor de retorno" : `Cor do status ${(o.order_status as any)?.name || "Sem status"}`} className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex((o.order_status as any)?.name, (o.order_status as any)?.color, Boolean(o.return_root_id)) }} /><div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="font-mono text-base font-black text-foreground">{o.os_number || "—"}</span>{o.cannot_be_solved && !isCancelled(o) && <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⚠ Não solucionável</span>}</div></div></td>}
                 {hasPermission("orders.table.external_os") && <td className="font-mono text-base font-black text-muted-foreground">{o.external_os_number || "—"}</td>}
                 {hasPermission("orders.table.customer") && <td><p className="text-sm font-semibold text-foreground">{(o.customer as any)?.full_name || "—"}</p><p className="text-[11px] text-muted-foreground">{formatPhone((o.customer as any)?.whatsapp || (o.customer as any)?.phone)}</p></td>}
-                {hasPermission("orders.table.service_type") && <td className="text-xs text-muted-foreground">{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</td>}
+                {hasPermission("orders.table.service_type") && <td className="max-w-[130px] text-xs text-muted-foreground"><span className="block truncate" title={(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}>{(o.service_type as any)?.title || (o.general_service as any)?.name || (o.service as any)?.title || "—"}</span></td>}
                 {hasPermission("orders.table.equipment") && <td className="text-xs text-muted-foreground">{equipmentSummary(o)}</td>}
                 <td className="text-xs text-muted-foreground">{o.created_at ? fmtDate(o.created_at, true) : "—"}</td>
                 {hasPermission("orders.table.scheduled_at") && <td className="text-xs text-muted-foreground">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>}
-                {canViewSituation && <td>{(o.situation as any)?.name
-                  ? <div className="flex min-w-0 items-center gap-1">
-                      <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                {canViewSituation && <td className="w-60 min-w-[235px]">{(o.situation as any)?.name
+                  ? <div className="flex min-w-0 items-center gap-1.5">
+                      <div className="orders-situation-clamp min-w-0 flex-1" title={(o.situation as any).name}>
+                        <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                      </div>
                       {situationHistoryButton(o)}
                     </div>
-                  : <span className="text-xs text-muted-foreground">—</span>}</td>}
+                  : <span className="text-xs text-muted-foreground">—</span>}</td>
                 {hasPermission("orders.table.actions") && <td><div onClick={event => event.stopPropagation()} className="flex items-center justify-end gap-2">
                   {canComplete(o) && <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />}
                   {quickActions(o)}

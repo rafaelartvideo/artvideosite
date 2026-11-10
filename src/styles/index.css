@@ -1256,3 +1256,22 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 .admin-crm svg.lucide-search.pointer-events-none {
   color: var(--muted-foreground) !important;
 }
+
+/* Situações na tabela de OS: texto à esquerda e duas linhas no máximo. */
+.admin-crm .orders-situation-clamp > span {
+  display: -webkit-box;
+  max-width: 100%;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+  line-height: 1rem;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.admin-crm .orders-situation-clamp > span > span {
+  white-space: normal;
+  text-overflow: clip;
+}

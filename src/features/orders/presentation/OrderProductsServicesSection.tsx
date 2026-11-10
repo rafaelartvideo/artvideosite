@@ -497,6 +497,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
     setProductPrice(option.price == null ? "" : String(option.price));
     setProductQuantity("1");
     setProductSearchOpen(false);
+    setProductSearching(false);
   };
 
   const selectService = (option: OrderCatalogOption) => {
@@ -510,6 +511,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
     setServiceScheduleDraft(null);
     setServiceTechnicianIds([]);
     setServiceSearchOpen(false);
+    setServiceSearching(false);
   };
 
   const addProduct = async () => {
@@ -1014,12 +1016,14 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={productSearch}
-                onFocus={() => setProductSearchOpen(true)}
-                onBlur={() => window.setTimeout(() => setProductSearchOpen(false), 120)}
+                onFocus={() => { setProductSearchOpen(true); if (!selectedProduct) setProductSearching(true); }}
+                onBlur={() => window.setTimeout(() => { setProductSearchOpen(false); setProductSearching(false); }, 120)}
                 onChange={event => {
                   setProductSearch(event.target.value);
                   setSelectedProduct(null);
                   setProductSearchOpen(true);
+                  setProductSearching(true);
+                  setProductOptions([]);
                 }}
                 placeholder="Busque no estoque por nome ou SKU"
                 className={cn(INPUT, "pl-9")}
@@ -1096,19 +1100,19 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
               <input
                 value={serviceSearch}
                 onFocus={() => { setServiceSearchOpen(true); if (!selectedService) setServiceSearching(true); }}
-                onBlur={() => window.setTimeout(() => setServiceSearchOpen(false), 120)}
+                onBlur={() => window.setTimeout(() => { setServiceSearchOpen(false); setServiceSearching(false); }, 120)}
                 onChange={event => {
                   setServiceSearch(event.target.value);
                   setSelectedService(null);
                   setServiceSearchOpen(true);
                   setServiceSearching(true);
+                  setServiceOptions([]);
                 }}
                 placeholder={order?.equipment_type_id ? "Buscar serviços deste equipamento" : "Busque no catálogo de serviços"}
-                className={cn(INPUT, "pl-9 pr-10")}
+                className={cn(INPUT, "pl-9")}
                 aria-label="Buscar serviço"
                 aria-expanded={serviceSearchOpen && !selectedService}
               />
-              {serviceSearching && serviceSearchOpen && !selectedService && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"><LoadingSpinner size="sm" /></span>}
               <CatalogResults
               open={serviceSearchOpen && !selectedService}
               fourRows
@@ -1201,7 +1205,7 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
                   : !serviceTechnicianIds.length))}
               loading={mutating}
               onClick={() => void addService()}
-              className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-auto sm:px-3"
+              className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-[130px] sm:px-3"
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
           {selectedService && <p className="text-[10px] leading-relaxed text-muted-foreground">
@@ -1213,8 +1217,9 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
           </p>}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
-            <p className="text-[10px] leading-relaxed text-muted-foreground">Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.</p>
-            <AdminButton variant="secondary" disabled={mutating} onClick={openNewCustomService} className="h-10 shrink-0 px-4"><Plus size={15} /> Avulso</AdminButton>
+            <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-muted-foreground">Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.</p>
+            <span className="h-8 w-px shrink-0 bg-border" aria-hidden="true" />
+            <AdminButton variant="tertiary" disabled={mutating} onClick={openNewCustomService} className="h-[42px] w-[130px] shrink-0 justify-center px-3"><Plus size={15} /> Avulso</AdminButton>
           </div>
         </div>
       </Section>

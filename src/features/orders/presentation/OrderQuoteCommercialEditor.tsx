@@ -4,7 +4,7 @@ import { Pencil, Pin, Plus, Search, Trash2 } from "lucide-react";
 import { AdminButton, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FCurrencyInput, FInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
-import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { CatalogResults, NumberStepper } from "./OrderCommercialControls";
 import { searchOrderProducts, searchOrderServices, listOrderRelatedProducts, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
@@ -73,6 +73,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
     setPrice(category === "service" ? String(option.price ?? 0) : option.price == null ? "" : String(option.price));
     setQuantity("1");
     setSearchOpen(false);
+    setSearching(false);
   };
   const add = () => {
     if (!selected) return;
@@ -85,7 +86,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
       return;
     }
     onAdd(selected, positiveInteger(quantity), nonNegativeNumber(price));
-    setSelected(null); setSearch(""); setPrice(""); setQuantity("1"); setSearchOpen(false);
+    setSelected(null); setSearch(""); setPrice(""); setQuantity("1"); setSearchOpen(false); setSearching(false);
     notifyAdmin(category === "product" ? "Produto adicionado ao orçamento." : "Serviço adicionado ao orçamento.", "success");
   };
 
@@ -102,15 +103,13 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
           <input value={search}
             disabled={disabled}
-            onFocus={() => { setSearchOpen(true); if (isService && !selected) setSearching(true); }}
-            onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
-            onChange={event => { setSearch(event.target.value); setSelected(null); setSearchOpen(true); if (isService) setSearching(true); }}
+            onFocus={() => { setSearchOpen(true); if (!selected) setSearching(true); }}
+            onBlur={() => window.setTimeout(() => { setSearchOpen(false); setSearching(false); }, 120)}
+            onChange={event => { setSearch(event.target.value); setSelected(null); setSearchOpen(true); setSearching(true); setOptions([]); }}
             placeholder={isService ? "Busque no catálogo de serviços" : "Busque no estoque por nome ou SKU"}
-            className={cn(INPUT,"pl-9",isService&&"pr-10")}
+            className={cn(INPUT,"pl-9")}
             aria-label={isService ? "Buscar serviço" : "Buscar produto"}
             aria-expanded={searchOpen && !selected}/>
-          {isService && searching && searchOpen && !selected && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-            <LoadingSpinner size="sm"/></span>}
           <CatalogResults
             open={searchOpen && !selected}
             fourRows={isService}
@@ -133,7 +132,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
             onChange={(event:any) => setPrice(event.target.value)}
             disabled={!selected || disabled || Boolean(fixedPrice)}/>
         </div>
-        <BtnPrimary className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-auto sm:px-3"
+        <BtnPrimary className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-[130px] sm:px-3"
           disabled={!selected || disabled || price.trim() === ""}
           onClick={add}><Plus size={15}/> Adicionar</BtnPrimary>
       </div>
@@ -162,10 +161,11 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
         Estoque atual: {selected.stock ?? 0} {selected.unit}. Produto previsto no orçamento, sem reserva nem baixa do estoque. A disponibilidade pode mudar até a aprovação.
       </p>)}
       {isService && !disabled && <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
-        <p className="text-[10px] leading-relaxed text-muted-foreground">
+        <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-muted-foreground">
           Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.
         </p>
-        <AdminButton variant="secondary" onClick={onCustomClick} className="h-10 shrink-0 px-4">
+        <span className="h-8 w-px shrink-0 bg-border" aria-hidden="true" />
+        <AdminButton variant="tertiary" onClick={onCustomClick} className="h-[42px] w-[130px] shrink-0 justify-center px-3">
           <Plus size={15}/> Avulso
         </AdminButton>
       </div>}
