@@ -83,7 +83,7 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   const queryClient = useQueryClient();
   const canCreateMovements = hasPermission("inventory.movements.create");
   const canViewCosts = hasPermission("inventory.costs.view");
-  const canEditNcm = hasPermission("products.update");
+  const canEditProductNcm = hasPermission("products.update");
   const canViewSuppliers = hasPermission("inventory.suppliers.view") || hasPermission("inventory.suppliers.manage");
   const financeEnabled = hasModule("finance");
   const [form, setForm] = useState<Form>(() => emptyForm());
@@ -111,6 +111,7 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
   });
 
   const item = dataQuery.data?.item as any;
+  const canEditNcm = canEditProductNcm || Boolean(item && !item.product_id);
   const productInfo = dataQuery.data?.product as { id: string; ncm: string | null; sale_window_days: number | null } | null | undefined;
   const suppliers = (dataQuery.data?.suppliers || []).filter((supplier: any) => supplier.is_active !== false);
 
