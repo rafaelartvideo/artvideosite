@@ -25,7 +25,8 @@ a entrada FVX automaticamente e não habilita gravação de conversas.
 
 - Suíte CI e compilações completas de CRM e site aprovadas localmente.
 - 100 testes focados de telefonia/qualidade e 151 testes Python no Linux
-  aprovados, incluindo a prioridade de entrega de credenciais antes de mídia.
+  aprovados, como root e como usuário sem privilégios, incluindo a prioridade
+  de entrega de credenciais antes de mídia.
 - PostgreSQL 14 descartável: migrações históricas e novas políticas/RPCs
   passaram com papéis autenticado/serviço, negativas entre empresas, canários
   estrangeiros, uploads incompletos, MIME/tamanho inválidos, dependências e
@@ -58,3 +59,23 @@ e o teclado ainda precisam de aceite em um navegador real do operador. A
 interface não oferece gravação de conversa nesta etapa. Troncos externos de
 parceiros, política de gravação e contingência operacional continuam na missão
 geral. O tom intermitente FVX permanece adiado conforme decisão do proprietário.
+
+## Aplicação em produção
+
+- Migração `20261110202521` aplicada isoladamente pela CLI oficial, sem seeds,
+  papéis ou alterações de segredos. Bucket conferido como privado e limitado
+  a 1 MB. A guarda de revisão monotônica está presente no banco real.
+- Edge `union-pbx-agent` versão 8 ativa, preservando a autenticação Ed25519.
+- Agente atualizado com backup
+  `/root/union-pbx-call-flows-backup-9foh2_el`, sem recarga do Asterisk.
+  Serviço ativo, zero reinícios por falha, capacidade `flows-v1` conferida.
+- Um fluxo temporário direto, no número interno 9910, foi entregue pelo poll
+  assinado e confirmado `applied` sem erro. Depois foi desativado pelo mesmo
+  caminho, confirmado novamente e removido do banco. Nenhuma ligação foi
+  originada nesse ensaio de integração; os avisos foram testados separadamente
+  no ensaio sintético descrito acima.
+- O primeiro workflow foi bloqueado por dois testes de transação que tentavam
+  executar `chown` para root no runner sem privilégios. A simulação agora
+  verifica explicitamente proprietário/grupo pedidos, preservando os testes
+  reais de escrita e reversão. Fixtures de dialplan usam somente caminhos
+  temporários, inclusive quando executadas na própria VPS como usuário comum.

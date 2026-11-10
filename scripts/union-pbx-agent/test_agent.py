@@ -80,7 +80,8 @@ class AgentSafetyTests(unittest.TestCase):
                 "password":"securePassword_"+"b"*40,
             }
             (root/"extensions"/(extension_id+".json")).write_text(json.dumps(state))
-            with patch.object(agent,"STATE_DIR",root),patch.object(agent,"QUEUE_TEST_FILE",root/"absent-queue-routes.conf"):
+            with patch.object(agent,"STATE_DIR",root),patch.object(agent,"QUEUE_TEST_FILE",root/"absent-queue-routes.conf"),\
+                 patch.object(agent,"DIALPLAN_MANAGED",root/'managed.conf'):
                 output,numbers=agent.render_internal_routes()
                 self.assertEqual(numbers,[301,302])
                 content=output.decode()

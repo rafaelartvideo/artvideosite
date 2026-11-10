@@ -174,7 +174,8 @@ class AgentProfileTests(unittest.TestCase):
                     'id':identity,'organization_id':org,'endpoint':endpoints[index],
                     'number':301,'enabled':True,'password':'validPassword_'+'x'*40,
                 }))
-                with patch.object(module,'STATE_DIR',root),patch.object(module,'QUEUE_TEST_FILE',root/'absent-queue-routes.conf'):
+                with patch.object(module,'STATE_DIR',root),patch.object(module,'QUEUE_TEST_FILE',root/'absent-queue-routes.conf'),\
+                     patch.object(module,'DIALPLAN_MANAGED',root/'managed.conf'):
                     text,numbers=module.render_internal_routes()
                 self.assertEqual(numbers,[301]);text=text.decode();rendered.append(text)
                 self.assertIn('Dial(PJSIP/'+endpoints[index]+',25)',text)

@@ -92,6 +92,14 @@ class FlowTransactionTests(unittest.TestCase):
             state={'flow':flow,'extensions':[],'queues':[],'prompts':[]}
             stack.enter_context(patch.object(agent,'operation_lock',return_value=nullcontext()))
             stack.enter_context(patch.object(agent.grp,'getgrnam',return_value=SimpleNamespace(gr_gid=os.getgid())))
+            def ownership_boundary(path,uid,gid):
+                # The real worker runs as root. A CI fixture validates the
+                # requested ownership without asking an unprivileged runner
+                # to transfer a temporary file to uid 0.
+                self.assertIn(uid,(0,os.getuid()))
+                self.assertEqual(gid,os.getgid())
+                self.assertTrue(Path(path).is_file())
+            chown=stack.enter_context(patch.object(agent.os,'chown',side_effect=ownership_boundary))
             cli=stack.enter_context(patch.object(agent,'asterisk',return_value=''))
             stack.enter_context(patch.object(agent,'assert_fvx'))
             idle=stack.enter_context(patch.object(agent,'assert_no_calls',side_effect=agent.Busy('active') if failure=='busy' else None))
@@ -102,12 +110,14 @@ class FlowTransactionTests(unittest.TestCase):
                 self.assertFalse(runtime.paths(agent)[0].exists())
                 self.assertFalse((agent.STATE_DIR/'flows'/(flow['id']+'.json')).exists())
                 if failure=='busy':cli.assert_not_called();verify.assert_not_called()
+                else:self.assertTrue(any(call.args[1]==0 for call in chown.call_args_list))
             else:
                 runtime.apply(agent,state,org)
                 self.assertIn(b'Goto(uwf-',runtime.paths(agent)[0].read_bytes())
                 self.assertIn(b'include => uwfl-',agent.DIALPLAN_MANAGED.read_bytes())
                 self.assertEqual(runtime.states(agent)[flow['id']],state)
                 verify.assert_called_once();self.assertGreaterEqual(idle.call_count,2)
+                self.assertTrue(any(call.args[1]==0 for call in chown.call_args_list))
 
     def test_success_adds_exact_internal_dispatch_and_state(self):self.exercise()
     def test_verification_failure_restores_all_previous_files(self):self.exercise('verify')
