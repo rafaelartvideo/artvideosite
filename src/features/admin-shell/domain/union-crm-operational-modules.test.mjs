@@ -83,7 +83,7 @@ test("a ponte assinada do PABX não exige portas públicas, credenciais FVX ou s
   assert.match(edge, /\.lt\("last_sequence",seq\)/);
   assert.match(edge, /\.eq\("organization_id",agent\.organization_id\)/);
   assert.match(worker, /assert_no_calls\(\)/);
-  assert.match(worker, /context=union-internal/);
+  assert.match(worker, /context=DIALPLAN_CONTEXT if PROFILE_ID is not None else 'union-internal'/);
   assert.match(worker, /module reload res_pjsip\.so/);
   assert.doesNotMatch(worker, /extensions\.d\/union-fvx\.conf/);
   assert.doesNotMatch(panel, /SUPABASE_SERVICE_ROLE_KEY|password=|private\.pem/);

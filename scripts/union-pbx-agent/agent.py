@@ -14,6 +14,7 @@ import time
 import urllib.request
 import urllib.error
 import uuid
+from contextlib import contextmanager
 
 URL = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-pbx-agent"
 CONFIG_DIR = Path("/etc/union-pbx-agent")
@@ -46,12 +47,66 @@ SEQUENCE_FILE = STATE_DIR / "sequence"
 ENDPOINT_RE = re.compile(r"^uw-[a-f0-9]{32}$")
 PASSWORD_RE = re.compile(r"^[A-Za-z0-9_-]{35,100}$")
 REVISION_RE = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$")
+PROFILE_ID = None
+OPERATION_LOCK = Path('/var/lib/union-pbx-agent/asterisk-config.lock')
+BACKUP_DIR = Path('/var/lib/union-pbx-agent/config-backups')
 
 class AgentError(Exception):
     pass
 
 class Busy(AgentError):
     pass
+
+
+@contextmanager
+def operation_lock():
+    from process_lock import exclusive, LockBusy
+    try:
+        with exclusive(OPERATION_LOCK):
+            yield
+    except LockBusy as exc:
+        raise Busy(str(exc)) from None
+
+
+def guarded_reload(command_name):
+    assert_no_calls()
+    return asterisk(command_name)
+
+
+def select_profile(profile_id):
+    global PROFILE_ID,CONFIG_DIR,STATE_DIR,MASTER_FILE,INCLUDE,PRIVATE_KEY,PUBLIC_KEY,AGENT_CONFIG,SEQUENCE_FILE
+    global DIALPLAN_MANAGED,DIALPLAN_FILE_INCLUDE,DIALPLAN_CONTEXT,DIALPLAN_CONTEXT_INCLUDE
+    global QUEUE_FILE,QUEUE_MAIN_INCLUDE,QUEUE_TEST_FILE,QUEUE_TEST_INCLUDE,QUEUE_TEST_CONTEXT,QUEUE_TEST_CONTEXT_INCLUDE,QUEUE_STATE_DIR
+    if PROFILE_ID is not None and profile_id!=PROFILE_ID:
+        raise AgentError('Um processo nao pode trocar de perfil de organizacao.')
+    try:
+        from tenant_profile import profile_paths
+        profile=profile_paths(profile_id)
+    except (ValueError,ImportError):
+        raise AgentError('Modulo ou identidade do perfil indisponivel.') from None
+    PROFILE_ID=profile.organization_id
+    CONFIG_DIR,STATE_DIR=profile.config_dir,profile.state_dir
+    MASTER_FILE,INCLUDE=profile.master_file,profile.pjsip_include
+    PRIVATE_KEY,PUBLIC_KEY=CONFIG_DIR/'private.pem',CONFIG_DIR/'public.key'
+    AGENT_CONFIG,SEQUENCE_FILE=CONFIG_DIR/'agent.json',STATE_DIR/'sequence'
+    DIALPLAN_MANAGED,DIALPLAN_FILE_INCLUDE=profile.dialplan_file,profile.dialplan_include
+    DIALPLAN_CONTEXT=profile.context
+    DIALPLAN_CONTEXT_INCLUDE='include => '+profile.context
+    QUEUE_FILE,QUEUE_MAIN_INCLUDE=profile.queue_file,profile.queue_include
+    QUEUE_TEST_FILE,QUEUE_TEST_INCLUDE=profile.queue_routes_file,profile.queue_routes_include
+    QUEUE_TEST_CONTEXT=profile.queue_context
+    QUEUE_TEST_CONTEXT_INCLUDE='include => '+profile.queue_context
+    QUEUE_STATE_DIR=STATE_DIR/'queues'
+
+
+def validate_profile_config(config):
+    if not isinstance(config,dict) or (PROFILE_ID is not None and config.get('organization_id')!=PROFILE_ID):
+        raise AgentError('A configuracao nao pertence ao perfil selecionado.')
+
+
+def validate_local_owner(state):
+    if PROFILE_ID is not None and state.get('organization_id')!=PROFILE_ID:
+        raise AgentError('Estado local de outra organizacao bloqueado neste perfil.')
 
 def require_root():
     if os.geteuid() != 0:
@@ -106,7 +161,7 @@ def init():
         write_atomic(MASTER_FILE, b"; Union PABX managed endpoints - empty until provisioned.\n", 0o640, asterisk_group)
     existing = PJSIP_FILE.read_text()
     if INCLUDE not in existing.splitlines():
-        backup = Path("/root") / ("pjsip.conf.antes-union-agent-" + time.strftime("%Y%m%d-%H%M%S"))
+        backup = Path("/root") / ("pjsip.conf.antes-union-agent-" + time.strftime("%Y%m%d-%H%M%S")+'-'+secrets.token_hex(4))
         write_atomic(backup, existing.encode(), 0o600)
         with PJSIP_FILE.open("a") as stream:
             stream.write(("\n" if not existing.endswith("\n") else "") + "\n" + INCLUDE + "\n")
@@ -116,6 +171,7 @@ def init():
 
 def configure(agent_id, organization_id):
     require_root()
+    validate_profile_config({'organization_id':organization_id})
     if not PRIVATE_KEY.exists():
         raise AgentError("Execute init antes de configurar.")
     for field in (agent_id, organization_id):
@@ -131,6 +187,7 @@ def signed_request(body):
     if not AGENT_CONFIG.exists() or not PRIVATE_KEY.exists():
         raise AgentError("Agente não configurado. Use init e configure.")
     config = json.loads(AGENT_CONFIG.read_text())
+    validate_profile_config(config)
     sequence = int(SEQUENCE_FILE.read_text()) if SEQUENCE_FILE.exists() else 0
     sequence += 1
     write_atomic(SEQUENCE_FILE, str(sequence).encode())
@@ -164,16 +221,19 @@ def signed_request(body):
 
 def sip_conf(endpoint, number, password):
     auth = endpoint + "-auth"
+    context=DIALPLAN_CONTEXT if PROFILE_ID is not None else 'union-internal'
+    transfer=('set_var=TRANSFER_CONTEXT='+context+'\n') if PROFILE_ID is not None else ''
     return (f"[{endpoint}]\n"
         "type=aor\nmax_contacts=1\nremove_existing=yes\nqualify_frequency=30\n\n"
         f"[{auth}]\ntype=auth\nauth_type=userpass\nusername={endpoint}\npassword={password}\n\n"
         f"[{endpoint}]\ntype=endpoint\ntransport=transport-ws\n"
-        f"aors={endpoint}\nauth={auth}\ncontext=union-internal\n"
+        f"aors={endpoint}\nauth={auth}\ncontext={context}\n"+transfer+
         "disallow=all\nallow=alaw,ulaw\nwebrtc=yes\ndirect_media=no\n"
         "force_rport=yes\nrewrite_contact=yes\nrtp_symmetric=yes\n"
         f"callerid=Ramal {number} <{number}>\n\n")
 
 def validate_job(job, org_id):
+    validate_profile_config({'organization_id':org_id})
     job_id = str(uuid.UUID(str(job["id"])))
     if job_id != job["id"] or job.get("organization_id") != org_id:
         raise AgentError("Identidade de organização ou trabalho inválida.")
@@ -193,6 +253,7 @@ def render_master(overrides=None):
         if not re.fullmatch(r"[a-f0-9-]{36}\.json", path.name):
             raise AgentError("Nome de arquivo de estado inesperado.")
         state = json.loads(path.read_text())
+        validate_local_owner(state)
         endpoint = state["endpoint"]
         if not ENDPOINT_RE.fullmatch(endpoint) or not PASSWORD_RE.fullmatch(state["password"]):
             raise AgentError("Estado local inválido, nenhuma configuração será recarregada.")
@@ -201,6 +262,7 @@ def render_master(overrides=None):
         states[endpoint] = state
     if overrides:
         for state in overrides:
+            validate_local_owner(state)
             states[state["endpoint"]] = state
     parts = ["; Union-managed WebRTC endpoints. Never edit this file manually.\n"]
     for endpoint, state in sorted(states.items()):
@@ -213,6 +275,7 @@ def render_internal_routes(overrides=None):
     states = {}
     for path in (STATE_DIR / "extensions").glob("*.json"):
         state = json.loads(path.read_text())
+        validate_local_owner(state)
         extension_id = str(uuid.UUID(str(state["id"])))
         if path.stem != extension_id:
             raise AgentError("Arquivo de ramal sem identidade correspondente.")
@@ -223,15 +286,16 @@ def render_internal_routes(overrides=None):
         states[state["endpoint"]] = state
     if overrides:
         for state in overrides:
+            validate_local_owner(state)
             if not ENDPOINT_RE.fullmatch(str(state.get("endpoint", ""))):
                 raise AgentError("Sobrescrita de endpoint invalida.")
             states[state["endpoint"]] = state
-    routes = {301: "union-301"}  # Ramal manual preservado. Nunca altera suas credenciais.
+    routes = {} if PROFILE_ID is not None else {301: "union-301"}
     for endpoint, state in sorted(states.items()):
         if not state.get("enabled"):
             continue
         number = state.get("number")
-        if type(number) is not int or number < 100 or number > 9999 or number in (301, 900):
+        if type(number) is not int or number < 100 or number > 9999 or number==900 or (number==301 and PROFILE_ID is None):
             raise AgentError("Numero de ramal reservado ou invalido.")
         if number in routes:
             raise AgentError("Numero de ramal duplicado no dialplan.")
@@ -243,6 +307,8 @@ def render_internal_routes(overrides=None):
     for number, endpoint in sorted(routes.items()):
         lines.append(f"exten => {number},1,Dial(PJSIP/{endpoint},25)\n")
         lines.append(" same => n,Hangup()\n")
+    if PROFILE_ID is not None:
+        lines.extend(['exten => 900,1,Answer()\n',' same => n,Echo()\n',' same => n,Hangup()\n'])
     # O roteamento de filas é opcional e nunca altera o contexto de entrada FVX.
     if QUEUE_TEST_FILE.is_file():
         lines.append(QUEUE_TEST_CONTEXT_INCLUDE + "\n")
@@ -252,6 +318,8 @@ def render_internal_routes(overrides=None):
 
 def install_internal_routes():
     """One-time opt-in setup for internal routing; does not change the FVX inbound context."""
+    if PROFILE_ID is not None:
+        return install_profile_routes()
     require_root()
     if not all(path.is_file() for path in (DIALPLAN_MAIN,DIALPLAN_BROWSER,MASTER_FILE)):
         raise AgentError("Arquivos esperados do Asterisk nao foram encontrados.")
@@ -289,7 +357,7 @@ def install_internal_routes():
             write_atomic(DIALPLAN_MAIN,main_text.encode(),main_stat.st_mode & 0o777,main_stat.st_gid)
         if browser_text.encode() != browser_before:
             write_atomic(DIALPLAN_BROWSER,browser_text.encode(),browser_stat.st_mode & 0o777,browser_stat.st_gid)
-        result=asterisk("dialplan reload")
+        result=guarded_reload("dialplan reload")
         if "reloaded" not in result.lower():
             raise AgentError("Asterisk nao confirmou a recarga do dialplan.")
         detail=asterisk("dialplan show " + DIALPLAN_CONTEXT)
@@ -308,7 +376,7 @@ def install_internal_routes():
         else:
             DIALPLAN_MANAGED.unlink(missing_ok=True)
         try:
-            asterisk("dialplan reload")
+            guarded_reload("dialplan reload")
         except Exception:
             print("CRITICO: nao foi possivel validar rollback do dialplan.",file=sys.stderr)
         raise
@@ -324,6 +392,8 @@ def validate_queue_job(job, org_id):
     """Whitelist all values before touching any Asterisk configuration file."""
     if not isinstance(job, dict):
         raise AgentError("Trabalho de fila invalido.")
+    if PROFILE_ID is not None and org_id!=PROFILE_ID:
+        raise AgentError('Fila de outra organizacao bloqueada neste perfil.')
     queue_id = str(uuid.UUID(str(job["id"])))
     if queue_id != job["id"] or job.get("organization_id") != org_id:
         raise AgentError("Fila pertence a outra organizacao.")
@@ -357,6 +427,8 @@ def validate_queue_job(job, org_id):
         number = member.get("number")
         endpoint = member.get("endpoint_name")
         position = member.get("position")
+        if PROFILE_ID is not None and endpoint=='union-301':
+            raise AgentError('O ramal manual Union nao pertence a este perfil.')
         if type(number) is not int or not 100 <= number <= 9999 or number==900:
             raise AgentError("Numero de participante invalido.")
         if not (endpoint=="union-301" and number==301 or
@@ -383,11 +455,13 @@ def queue_states(overrides=None):
             if not re.fullmatch(r"[a-f0-9-]{36}\.json",path.name):
                 raise AgentError("Arquivo de estado de fila inesperado.")
             state=json.loads(path.read_text())
+            validate_local_owner(state)
             queue_id=validate_queue_job(state,state.get("organization_id"))
             if path.stem != queue_id:
                 raise AgentError("Estado de fila com identidade divergente.")
             data[queue_id]=state
     for state in overrides or []:
+        validate_local_owner(state)
         queue_id=validate_queue_job(state,state.get("organization_id"))
         data[queue_id]=state
     return data
@@ -436,11 +510,24 @@ def render_queue_configs(overrides=None):
     return "".join(queue_lines).encode(), "".join(dial_lines).encode(), active_names, used_numbers
 
 
+def reload_queue_definitions(names):
+    if PROFILE_ID is None:
+        queue_result=guarded_reload('module reload app_queue.so')
+        if 'reloaded successfully' not in queue_result.lower():
+            raise AgentError('O Asterisk nao confirmou a recarga do modulo de filas.')
+        return
+    # CLI `all` also reloads global rules. Separate parameters/members commands
+    # cannot safely substitute for a combined QueueReload action. Until a local
+    # scoped AMI integration is installed and validated, fail closed for profiles.
+    own_names=set(names)|{queue_identity(identity) for identity in queue_states()}
+    if own_names:
+        raise Busy('Filas de perfis aguardam integracao local de recarga isolada validada.')
+
+
 def _check_queue_reload(names,numbers,old_fvx):
-    queue_result=asterisk("module reload app_queue.so")
-    if "reloaded successfully" not in queue_result.lower():
-        raise AgentError("O Asterisk nao confirmou a recarga do modulo de filas.")
-    dial_result=asterisk("dialplan reload")
+    assert_no_calls()
+    reload_queue_definitions(names)
+    dial_result=guarded_reload("dialplan reload")
     if "reloaded" not in dial_result.lower():
         raise AgentError("A recarga do dialplan de filas nao foi confirmada.")
     output=asterisk("dialplan show "+QUEUE_TEST_CONTEXT)
@@ -469,8 +556,76 @@ def module_is_running(module_list, module_name):
     return False
 
 
+def install_profile_routes():
+    """Operator-only bootstrap. Never edits the legacy browser/inbound context."""
+    require_root()
+    if PROFILE_ID is None:
+        raise AgentError('Selecione um perfil de organizacao.')
+    if not all(path.is_file() for path in (MASTER_FILE,DIALPLAN_MAIN,QUEUE_MAIN)):
+        raise AgentError('Execute init e confira os arquivos principais antes do bootstrap.')
+    if not PJSIP_FILE.is_file() or INCLUDE not in PJSIP_FILE.read_text().splitlines():
+        raise AgentError('A inclusao PJSIP exata do perfil nao foi preparada pelo init.')
+    assert_no_calls()
+    previous_fvx=asterisk('pjsip show registrations')
+    queues,routes,names,numbers=render_queue_configs()
+    if queue_states():
+        raise Busy('Bootstrap de perfis com filas aguarda recarga isolada validada.')
+    # Queue routes must already be included while rendering the internal context.
+    internal,extension_numbers=render_internal_routes()
+    if QUEUE_TEST_INCLUDE not in internal.decode().splitlines():
+        internal+=(QUEUE_TEST_CONTEXT_INCLUDE+'\n'+QUEUE_TEST_INCLUDE+'\n').encode()
+    snapshots={}
+    paths=(DIALPLAN_MAIN,QUEUE_MAIN,DIALPLAN_MANAGED,QUEUE_FILE,QUEUE_TEST_FILE)
+    backup=BACKUP_DIR/(PROFILE_ID+'-'+time.strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(4))
+    BACKUP_DIR.mkdir(parents=True,exist_ok=True,mode=0o700)
+    backup.mkdir(mode=0o700)
+    group=grp.getgrnam('asterisk').gr_gid
+    for index,path in enumerate(paths):
+        if path.is_file():
+            stat=path.stat()
+            snapshots[path]=(path.read_bytes(),stat.st_mode & 0o777,stat.st_gid)
+            write_atomic(backup/(str(index)+'-'+path.name),snapshots[path][0])
+        else:
+            snapshots[path]=None
+    write_atomic(backup/'manifest.json',json_bytes({str(path):state is not None for path,state in snapshots.items()}))
+    try:
+        write_atomic(QUEUE_FILE,queues,0o640,group)
+        write_atomic(QUEUE_TEST_FILE,routes,0o640,group)
+        write_atomic(DIALPLAN_MANAGED,internal,0o640,group)
+        for path,include in ((DIALPLAN_MAIN,DIALPLAN_FILE_INCLUDE),(QUEUE_MAIN,QUEUE_MAIN_INCLUDE)):
+            old,mode,gid=snapshots[path]
+            text=old.decode()
+            if include not in text.splitlines():
+                text+=('' if text.endswith('\n') else '\n')+'\n'+include+'\n'
+                write_atomic(path,text.encode(),mode,gid)
+        assert_no_calls()
+        result=guarded_reload('module reload res_pjsip.so')
+        if 'reloaded successfully' not in result.lower():
+            raise AgentError('Recarga PJSIP do perfil nao confirmada.')
+        _check_queue_reload(names,numbers,previous_fvx)
+        detail=asterisk('dialplan show '+DIALPLAN_CONTEXT)
+        for number in extension_numbers+[900]:
+            if not re.search(r"(?m)^\s*'?"+str(number)+r"'?\s*=>",detail):
+                raise AgentError('Rota isolada nao apareceu no contexto do perfil.')
+    except Exception:
+        for path,state in snapshots.items():
+            if state is None:path.unlink(missing_ok=True)
+            else:write_atomic(path,*state)
+        try:
+            assert_no_calls()
+            guarded_reload('module reload res_pjsip.so')
+            reload_queue_definitions(names)
+            guarded_reload('dialplan reload')
+        except Exception:
+            print('CRITICO: arquivos restaurados; recarga de reversao nao confirmada. Revise apos liberar chamadas.',file=sys.stderr)
+        raise
+    print('Contexto interno e filas preparados para o perfil '+PROFILE_ID+'. Backup: '+str(backup))
+
+
 def install_queues():
     """Optional one-time queue setup. Inbound FVX remains exactly as configured."""
+    if PROFILE_ID is not None:
+        return install_profile_routes()
     require_root()
     missing=[str(path) for path in (QUEUE_MAIN,DIALPLAN_MANAGED,MASTER_FILE)
              if not path.is_file()]
@@ -528,8 +683,8 @@ def install_queues():
         else:
             QUEUE_TEST_FILE.unlink(missing_ok=True)
         try:
-            asterisk("module reload app_queue.so")
-            asterisk("dialplan reload")
+            reload_queue_definitions(names)
+            guarded_reload("dialplan reload")
         except Exception:
             print("CRITICO: confirme o rollback do modulo de filas.",file=sys.stderr)
         raise
@@ -538,6 +693,8 @@ def install_queues():
 
 def apply_queue_job(job,org_id):
     queue_id=validate_queue_job(job,org_id)
+    if PROFILE_ID is not None:
+        raise Busy('Provisionamento de filas isoladas aguarda integracao local validada.')
     if not (QUEUE_FILE.is_file() and QUEUE_TEST_FILE.is_file()):
         raise Busy("Aguardando habilitacao das filas com o comando queues-init.")
     assert_no_calls()
@@ -572,8 +729,9 @@ def apply_queue_job(job,org_id):
         write_atomic(QUEUE_TEST_FILE,old_routes,0o640,group)
         write_atomic(DIALPLAN_MANAGED,old_dialplan,old_stat.st_mode & 0o777,old_stat.st_gid)
         try:
-            asterisk("module reload app_queue.so")
-            asterisk("dialplan reload")
+            assert_no_calls()
+            reload_queue_definitions(names)
+            guarded_reload("dialplan reload")
         except Exception:
             print("CRITICO: nao foi possivel confirmar rollback da fila.",file=sys.stderr)
         raise
@@ -630,7 +788,7 @@ def apply_job(job, org_id):
         write_atomic(MASTER_FILE, proposed, 0o640, group)
         if proposed_routes is not None:
             write_atomic(DIALPLAN_MANAGED,proposed_routes,0o640,group)
-        result = asterisk("module reload res_pjsip.so")
+        result = guarded_reload("module reload res_pjsip.so")
         if "reloaded successfully" not in result.lower():
             raise AgentError("Asterisk não confirmou o reload.")
         detail = asterisk("pjsip show endpoint " + endpoint)
@@ -638,7 +796,7 @@ def apply_job(job, org_id):
         if present != state["enabled"]:
             raise AgentError("Estado do endpoint não corresponde ao solicitado.")
         if proposed_routes is not None:
-            output=asterisk("dialplan reload")
+            output=guarded_reload("dialplan reload")
             if "reloaded" not in output.lower():
                 raise AgentError("Falha na recarga do dialplan interno.")
             detail=asterisk("dialplan show " + DIALPLAN_CONTEXT)
@@ -655,11 +813,11 @@ def apply_job(job, org_id):
         if old_dialplan is not None:
             write_atomic(DIALPLAN_MANAGED,old_dialplan,0o640,group)
             try:
-                asterisk("dialplan reload")
+                guarded_reload("dialplan reload")
             except Exception:
                 print("CRITICO: falha no rollback do dialplan.",file=sys.stderr)
         try:
-            asterisk("module reload res_pjsip.so")
+            guarded_reload("module reload res_pjsip.so")
         except Exception:
             print("CRÍTICO: falha na recarga de rollback; revise Asterisk manualmente.", file=sys.stderr)
         raise
@@ -793,6 +951,7 @@ def availability_capability():
 
 def cycle(dry_run=False):
     config = json.loads(AGENT_CONFIG.read_text())
+    validate_profile_config(config)
     try:
         telemetry = [] if dry_run else gather_queue_telemetry()
     except Exception as exc:
@@ -818,11 +977,12 @@ def cycle(dry_run=False):
             if dry_run:
                 print(f"Prévia: ramal {job['number']}, ativar={job['desired_enabled']}, endpoint={job['endpoint_name']}")
                 continue
-            apply_job(job, config["organization_id"])
+            with operation_lock():
+                apply_job(job, config["organization_id"])
             status, error = "applied", None
         except Busy as exc:
             print(str(exc))
-            return
+            continue
         except Exception as exc:
             status, error = "failed", str(exc)[:220]
             print("Falha no provisionamento: " + error, file=sys.stderr)
@@ -841,7 +1001,8 @@ def cycle(dry_run=False):
                 print("Previa: fila interna "+
                   str(queue["test_extension"])+" com "+str(len(queue["members"]))+" ramais.")
                 continue
-            apply_queue_job(queue,config["organization_id"])
+            with operation_lock():
+                apply_queue_job(queue,config["organization_id"])
             status,error="applied",None
         except Busy as exc:
             print(str(exc))
@@ -881,7 +1042,8 @@ def cycle(dry_run=False):
         try:
             availability_jobs = payload.get("availability_jobs", [])
             if availability_jobs and availability_processor is not None:
-                results = availability_processor(availability_jobs, config["organization_id"], queue_states())
+                with operation_lock():
+                    results = availability_processor(availability_jobs, config["organization_id"], queue_states())
                 if results:
                     signed_request({"action":"report_availability", "results":results})
         except Exception as exc:
@@ -904,6 +1066,7 @@ def cycle(dry_run=False):
 
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")
+    parser.add_argument('--profile',help='UUID da organizacao; omitir somente para o perfil legado Union')
     actions=parser.add_subparsers(dest="action",required=True)
     actions.add_parser("init")
     actions.add_parser("public-key")
@@ -917,25 +1080,28 @@ def main():
     actions.add_parser("run")
     args=parser.parse_args()
     try:
-        if args.action=="init":
-            init()
-        elif args.action=="public-key":
+        if args.profile is not None:
+            select_profile(args.profile)
+        if args.action=="public-key":
             print(PUBLIC_KEY.read_text().strip())
-        elif args.action=="internal-routes":
-            install_internal_routes()
-        elif args.action=="queues-init":
-            install_queues()
-        elif args.action=="configure":
-            configure(args.agent_id,args.organization_id)
-        elif args.action=="once":
-            cycle(args.dry_run)
-        elif args.action=="run":
-            while True:
-                try:
-                    cycle()
-                except Exception as exc:
-                    print("Agente: " + str(exc),file=sys.stderr,flush=True)
-                time.sleep(30)
+        else:
+            require_root()
+            from process_lock import exclusive
+            with exclusive(STATE_DIR/'instance.lock'):
+                if args.action in ('init','internal-routes','queues-init'):
+                    with operation_lock():
+                        {'init':init,'internal-routes':install_internal_routes,'queues-init':install_queues}[args.action]()
+                elif args.action=="configure":
+                    configure(args.agent_id,args.organization_id)
+                elif args.action=="once":
+                    cycle(args.dry_run)
+                elif args.action=="run":
+                    while True:
+                        try:
+                            cycle()
+                        except Exception as exc:
+                            print("Agente: " + str(exc),file=sys.stderr,flush=True)
+                        time.sleep(30)
     except Exception as exc:
         print("Erro: " + str(exc),file=sys.stderr)
         return 1

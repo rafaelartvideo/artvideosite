@@ -1,0 +1,26 @@
+[Unit]
+Description=Union PABX isolated organization agent %i
+After=network-online.target asterisk.service
+Wants=network-online.target
+Requires=asterisk.service
+ConditionPathExists=/etc/union-pbx-agent/tenants/%i/agent.json
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /opt/union-pbx-agent/agent.py --profile %i run
+WorkingDirectory=/opt/union-pbx-agent
+Restart=on-failure
+RestartSec=15
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/asterisk/pjsip.d /etc/asterisk/extensions.d /etc/asterisk/queues.d /var/lib/union-pbx-agent
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

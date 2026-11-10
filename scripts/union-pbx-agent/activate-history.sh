@@ -16,6 +16,7 @@ expected=ff23b111e35a46c7089e35578790cd0786efb1bd77cf1abceb74a70b022d08e6
 [[ ! -e "$cdr" && ! -e "$custom" && ! -e "$helper" ]] || { echo 'Configuracao CDR existente; reconciliar antes de aplicar.' >&2; exit 2; }
 [[ ! -e /var/log/asterisk/cdr-custom/union-calls.csv ]] || { echo 'Arquivo de historico existente; preservar e revisar.' >&2; exit 2; }
 for file in agent.py call_history.py cdr.conf cdr_custom.conf; do [[ -f "$stage/$file" && ! -L "$stage/$file" ]] || exit 2; done
+[[ "$(sha256sum "$stage/agent.py" | cut -d' ' -f1)" == 1298c565168393fa8049636598585b842b85747cdb1b3c06e01109799d12c450 ]] || { echo 'Instalador historico: use os artefatos revisados de dcf457c0f.' >&2; exit 2; }
 python3 -m py_compile "$stage/agent.py" "$stage/call_history.py"
 systemctl is-active --quiet asterisk
 systemctl is-active --quiet union-pbx-agent

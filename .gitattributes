@@ -1,1 +1,3 @@
 scripts/union-pbx-agent/*.sh text eol=lf
+scripts/union-pbx-agent/*.py text eol=lf
+scripts/union-pbx-agent/*.service text eol=lf

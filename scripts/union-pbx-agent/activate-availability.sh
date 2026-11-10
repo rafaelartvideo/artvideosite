@@ -10,6 +10,7 @@ expected=1298c565168393fa8049636598585b842b85747cdb1b3c06e01109799d12c450
 [[ "$(sha256sum "$agent" | cut -d' ' -f1)" == "$expected" ]] || { echo 'Agente mudou; reconciliar antes de aplicar.' >&2; exit 2; }
 [[ ! -e "$helper" ]] || { echo 'Modulo de disponibilidade ja existe; revisar antes de aplicar.' >&2; exit 2; }
 for file in agent.py queue_availability.py; do [[ -f "$stage/$file" && ! -L "$stage/$file" ]] || exit 2; done
+[[ "$(sha256sum "$stage/agent.py" | cut -d' ' -f1)" == dadc633172990625c8e87e7076bf74bd0d8502ab55aafab51bf7bee755869fc1 ]] || { echo 'Instalador historico: use os artefatos revisados de a7799180d.' >&2; exit 2; }
 python3 -m py_compile "$stage/agent.py" "$stage/queue_availability.py"
 python3 - "$stage" <<'PY'
 import importlib.util,sys

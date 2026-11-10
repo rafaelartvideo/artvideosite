@@ -442,3 +442,64 @@ normalizados em UTC e proteção contra fórmulas em campos de texto. O download
 Troca de empresa/filtro e desmontagem cancelam exportações pendentes antes do
 download. O teste `test_call_history_report_database.sql` verifica permissões,
 RLS, filtros, snapshot e limite com dados fictícios integralmente revertidos.
+
+## Preparação de perfis na mesma VPS
+
+`tenant_profile.py` gera namespaces pelo UUID canônico da organização. Cada
+perfil usa sua própria chave, configuração, sequência assinada, cursor de
+histórico e estado. Seus endpoints entram no contexto `uwi-<UUID sem hífens>`;
+transferências usam esse mesmo contexto. Ramais com o mesmo número em empresas
+diferentes apontam para endpoints distintos. O ramal manual `union-301` nunca
+é herdado por um perfil. O eco 900 e os números exatos de filas são locais;
+nenhum padrão de saída pública é acrescentado.
+
+Esta preparação **não libera parceiros no CRM ou no banco** e não comprova
+isolamento operacional por si só. A autorização atual de plataforma permanece.
+O agente ainda anuncia protocolo 1/2; não há sinalização de capacidade
+multiempresa confirmada. A admissão exige uma etapa posterior de validação e
+autorização com a central, os troncos e o backend.
+
+Para um operador, após revisão/aprovação da janela, a sequência preparada é:
+
+```sh
+python3 /opt/union-pbx-agent/agent.py --profile UUID_ORGANIZACAO init
+python3 /opt/union-pbx-agent/agent.py --profile UUID_ORGANIZACAO configure UUID_AGENTE UUID_ORGANIZACAO
+python3 /opt/union-pbx-agent/agent.py --profile UUID_ORGANIZACAO internal-routes
+python3 /opt/union-pbx-agent/agent.py --profile UUID_ORGANIZACAO once --dry-run
+```
+
+`init` prepara o include PJSIP sem recarregar. `internal-routes` (ou `queues-init`)
+prepara os arquivos próprios, inclui-os nos arquivos principais, cria backup
+protegido em `/var/lib/union-pbx-agent/config-backups` e valida a recarga sem
+editar o contexto legado de navegador ou a entrada FVX. Em falha restaura os
+arquivos. Se surgir uma chamada durante a operação, a recarga de reversão pode
+ser adiada: a mensagem crítica exige conferência do operador antes de continuar.
+
+Instalar `agent.py`, `tenant_profile.py`, `process_lock.py`, `call_history.py` e
+`queue_availability.py` juntos. Antes de habilitar a unidade
+`union-pbx-agent@UUID.service`, atualizar também o agente legado para a versão
+com locks; versões antigas não cooperam com a exclusão entre processos.
+Todos os processos usam um lock por perfil para impedir sequências concorrentes
+e um lock comum durante alterações na central. A espera por rede e a entrega
+criptografada ao navegador ficam fora do lock comum. Uma configuração adiada
+por chamada ativa não impede essa entrega.
+
+O provisionamento de filas em perfis permanece bloqueado. `queue reload all`
+também recarrega regras globais, e dois comandos CLI separados de parâmetros e
+integrantes não fornecem a mesma operação atômica. A próxima etapa exige
+integração AMI local `QueueReload`, com fila exata, Members/Parameters=yes e
+Rules=no, seguida de validação real controlada. Sem ela, o agente adia o trabalho
+sem escrever arquivos. O bootstrap permite somente perfis sem filas cadastradas.
+O modo legado é preservado quando `--profile` é omitido. Os instaladores
+históricos `activate-history.sh` e `activate-availability.sh` aceitam somente
+os artefatos das respectivas versões auditadas; não servem para esta atualização.
+Não habilitar unidades de outras empresas nem migrar a Union sem o pacote
+de ativação/reversão e a validação operacional posterior.
+
+`activate-profile-foundation.sh` atualiza somente o worker legado auditado
+`a7799180d`, após aprovação explícita. Confere os hashes do pacote completo,
+preserva chaves/estado/módulos de histórico e disponibilidade, faz backup e
+reinicia somente `union-pbx-agent`. Não instala/habilita a unidade por perfil,
+não modifica rotas e não recarrega o Asterisk. A aprovação de atualização do
+worker não autoriza admitir empresas ou configurar seus troncos. Conferir o
+heartbeat assinado após aplicar. Se falhar, o script restaura o worker anterior.
