@@ -20,7 +20,8 @@ test("atributos e códigos relacionados seguem Section do CRM", async () => {
   assert.ok(relations.includes('{variantOptions.length}/{MAX_VARIATION_ATTRIBUTES} atributos'));
   assert.ok(relations.includes('actions={<span className="whitespace-nowrap text-sm font-extrabold text-foreground">'));
   assert.ok(relations.includes('<ProductVariationMatrix'));
-  assert.ok(relations.includes('<Section title="Códigos relacionados"'));
+  assert.ok(relations.includes('Códigos relacionados'));
+  assert.ok(relations.includes('aria-label="Ajuda sobre códigos relacionados"'));
   assert.ok(relations.includes('actions={<AdminButton'));
   assert.ok(relations.includes('Adicionar código'));
   assert.ok(relations.includes('form.related_codes.map((item, index)'));
