@@ -39,7 +39,7 @@ test("diagnóstico obriga definir mesma ou outra peça antes de liberar o atendi
   assert.match(detail, /<OrderReturnDiagnosisGate/);
   assert.match(detail, /setDetailSection\(kind === "different_part" \? "products-services" : "details"\)/);
   assert.match(detail, /const returnRequiresQuote =/);
-  assert.match(footer, /!returnAwaitingDiagnosis && quoteExecutionAllowed/);
+  assert.match(footer, /quoteExecutionAllowed && !returnAwaitingDiagnosis/);
 });
 
 test("banco valida garantia, clona contexto e exige aprovação para peça diferente", () => {
