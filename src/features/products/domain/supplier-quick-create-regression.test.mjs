@@ -70,3 +70,14 @@ test("aba Fornecedores mantém conteúdo durante atualizações para evitar pisc
   assert.ok(code.includes('setAvailable(result.items)'));
   assert.ok(code.includes('if (!cancelled) setLoading(false)'));
 });
+
+test("cadastro rápido preserva rodapé do modal e tipo de pessoa fora de seção", async () => {
+  const editor = read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  const quick = read("src/features/registrations/presentation/SupplierQuickCreateDialog.tsx");
+  assert.ok((await transformWithEsbuild(editor, "RegistrationEditor.tsx", { loader: "tsx" })).code);
+  assert.ok(editor.includes('supplierQuickCreate\n        ? personTypeButtons'));
+  assert.ok(editor.includes('if (supplierQuickCreate) return <AdminDialog'));
+  assert.ok(editor.includes('inlineFooterTarget && createPortal'));
+  assert.ok(editor.includes('variant="quaternary"'));
+  assert.ok(quick.includes('inlineFooterTarget={footerTarget}'));
+});

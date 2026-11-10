@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleHelp, Minus, Package, Plus, Scale } from "lucide-react";
 import { buildInstallments, inventoryPurchaseTotal } from "@/features/finance/domain/finance-integration.mjs";
@@ -9,7 +10,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminFieldLabel, AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminPage, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/primitives/popover";
 import { SupplierQuickCreateDialog } from "@/features/registrations/presentation/SupplierQuickCreateDialog";
 import { recordInventoryMovementWithDetails, type InventoryPurchaseFinanceResult } from "../infrastructure/inventory-finance.repository";
@@ -26,6 +27,7 @@ type Props = {
   embedded?: boolean;
   backToDetails?: boolean;
   onSupplierEditorChange?: (active: boolean) => void;
+  footerTarget?: HTMLElement | null;
 };
 
 type MovementType = "in" | "out" | "adjust";
@@ -79,7 +81,7 @@ function conversionFactor(item: any) {
   return Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
 }
 
-export function InventoryMovementFinancePage({ itemId, onClose, embedded = false, backToDetails = false, onSupplierEditorChange }: Props) {
+export function InventoryMovementFinancePage({ itemId, onClose, embedded = false, backToDetails = false, onSupplierEditorChange, footerTarget = null }: Props) {
   const { activeOrganizationId, hasPermission, hasModule } = useAuth();
   const organizationId = activeOrganizationId || "";
   const queryClient = useQueryClient();
@@ -319,9 +321,18 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
     { type: "out" as const, label: "Saída", icon: ArrowUpFromLine },
     { type: "adjust" as const, label: "Ajuste", icon: Scale },
   ];
+  const movementActions = <>
+    <AdminButton variant="quaternary" onClick={onClose} disabled={saving || linkingSupplier}>
+      {backToDetails ? "Voltar" : "Cancelar"}
+    </AdminButton>
+    <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando..."
+      disabled={saving || linkingSupplier || !form.quantity.trim()}>
+      {form.type === "in" ? "Registrar entrada" : form.type === "out" ? "Registrar saída" : "Salvar ajuste"}
+    </BtnPrimary>
+  </>;
   const content = <>
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {creatingSupplier && <SupplierQuickCreateDialog organizationId={organizationId} inline
+    {creatingSupplier && <SupplierQuickCreateDialog organizationId={organizationId} inline footerTarget={footerTarget}
       onClose={leaveSupplierCreation} onCreated={handleSupplierCreated} />}
     {!creatingSupplier && <>
       <div className="space-y-4 p-3 sm:p-4">
@@ -339,11 +350,11 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
         </div>
         <div className="space-y-2">
           <AdminFieldLabel label="Tipo de movimentação" />
-          <div className="grid grid-cols-3 gap-2 border-b border-border" role="group" aria-label="Tipo de movimentação">
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Tipo de movimentação">
             {typeOptions.map(option => <button key={option.type} type="button" disabled={saving}
               aria-pressed={form.type === option.type} onClick={() => changeType(option.type)}
-              className={cn("flex min-h-10 items-center justify-center gap-1.5 border-b-2 border-transparent px-2 text-xs font-bold transition-colors disabled:opacity-50 sm:text-sm",
-                form.type === option.type ? "border-primary text-primary" : "text-muted-foreground hover:text-foreground")}>
+              className={cn("flex min-h-10 items-center justify-center gap-1.5 rounded-lg border bg-card px-2 text-xs font-bold transition-colors disabled:opacity-50 sm:text-sm",
+                form.type === option.type ? "border-primary/50 text-primary" : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground")}>
               <option.icon size={16} aria-hidden="true" /> {option.label}
             </button>)}
           </div>
@@ -392,7 +403,7 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
                 </div>
                 {canAddSupplier && <button type="button" title="Cadastrar fornecedor" aria-label="Cadastrar fornecedor"
                   disabled={saving || linkingSupplier} onClick={openSupplierCreation}
-                  className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-card text-primary hover:bg-primary/5 disabled:opacity-50">
+                  className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                   <Plus size={19} />
                 </button>}
               </div>
@@ -472,12 +483,8 @@ export function InventoryMovementFinancePage({ itemId, onClose, embedded = false
           </div>
         </details>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t border-border px-3 py-3 sm:px-4">
-        <BtnSecondary onClick={onClose} disabled={saving || linkingSupplier}>{backToDetails ? "Voltar" : "Cancelar"}</BtnSecondary>
-        <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Registrando..." disabled={saving || linkingSupplier || !form.quantity.trim()}>
-          {form.type === "in" ? "Registrar entrada" : form.type === "out" ? "Registrar saída" : "Salvar ajuste"}
-        </BtnPrimary>
-      </div>
+      {footerTarget ? createPortal(<div className="flex w-full justify-end gap-2">{movementActions}</div>, footerTarget)
+        : !embedded && <div className="flex flex-wrap justify-end gap-2 border-t border-border px-3 py-3 sm:px-4">{movementActions}</div>}
     </>}
   </>;
 

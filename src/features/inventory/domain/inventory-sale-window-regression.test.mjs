@@ -146,10 +146,31 @@ test("movimentação reutiliza seções do CRM, quantidade com mais/menos e cada
   assert.ok(movement.includes('<SupplierQuickCreateDialog organizationId={organizationId} inline'));
   assert.ok(movement.includes('setSaleWindowMode'));
   assert.ok(movement.includes('Data-limite estimada:'));
-  assert.ok(movement.includes('className="flex flex-wrap justify-end gap-2 border-t'));
+  assert.ok(movement.includes('createPortal(<div className="flex w-full justify-end gap-2">{movementActions}</div>, footerTarget)'));
   assert.ok(!movement.includes('className="sticky bottom-0'));
   assert.ok(quick.includes('inlineSupplier={inline}'));
+  assert.ok(quick.includes('inlineFooterTarget={footerTarget}'));
+  assert.ok(registration.includes('supplierQuickCreate && inlineSupplier'));
+  assert.ok(registration.includes('inlineFooterTarget && createPortal'));
+  assert.ok(details.includes('ref={setMovementFooterTarget}'));
   assert.ok(registration.includes('supplierQuickCreate && inlineSupplier'));
   assert.ok(details.includes('backToDetails ? "Voltar" : "Cancelar"'));
   assert.ok(products.includes('setDetailsBackAvailable(detailsView === "details"'));
+});
+
+test("rodapé fixo padrão e opções individuais com borda não causam segunda janela", async () => {
+  const modal = read("src/features/inventory/presentation/InventoryMovementFinancePage.tsx");
+  const parent = read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const registration = read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  assert.ok((await transformWithEsbuild(modal, "InventoryMovementFinancePage.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(parent, "InventoryProductDetailsDialog.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(registration, "RegistrationEditor.tsx", { loader: "tsx" })).code);
+  assert.match(modal, /footerTarget \? createPortal/);
+  assert.match(modal, /variant="quaternary"/);
+  assert.match(modal, /rounded-lg border bg-card px-2 text-xs/);
+  assert.match(modal, /bg-primary text-primary-foreground/);
+  assert.match(registration, /supplierQuickCreate\s*\? personTypeButtons/);
+  assert.match(registration, /inlineFooterTarget && createPortal/);
+  assert.match(registration, /variant="quaternary"/);
+  assert.match(parent, /ref=\{setMovementFooterTarget\}/);
 });

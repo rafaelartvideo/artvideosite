@@ -26,12 +26,13 @@ import { RegistrationEditor } from "./RegistrationEditor";
 /** Cadastro rápido, com o MESMO formulário e consultas do módulo Cadastros.
  * O vínculo Fornecedor é implícito; nenhum outro tipo de cadastro é selecionado. */
 export function SupplierQuickCreateDialog({
-  organizationId, onClose, onCreated, inline = false,
+  organizationId, onClose, onCreated, inline = false, footerTarget = null,
 }: {
   organizationId: string;
   onClose: () => void;
   onCreated: (supplier: InventorySupplier) => void;
   inline?: boolean;
+  footerTarget?: HTMLElement | null;
 }) {
   const [form, setForm] = useState<RegistrationFormState>(() => ({
     ...emptyRegistrationForm(), roles: ["supplier"], person_type: "PJ",
@@ -125,6 +126,7 @@ export function SupplierQuickCreateDialog({
       creating
       supplierQuickCreate
       inlineSupplier={inline}
+      inlineFooterTarget={footerTarget}
       form={form}
       setForm={setForm}
       addresses={addresses}

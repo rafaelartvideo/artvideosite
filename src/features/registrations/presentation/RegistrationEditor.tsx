@@ -1,9 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router";
 import { Building2, Users, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
-import { AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import {
   FBrazilianDateInput,
   FCnpjInput,
@@ -70,6 +71,7 @@ export function RegistrationEditor({
   employeeOnly = false,
   supplierQuickCreate = false,
   inlineSupplier = false,
+  inlineFooterTarget = null,
 }: {
   creating: boolean;
   form: RegistrationFormState;
@@ -98,6 +100,7 @@ export function RegistrationEditor({
   employeeOnly?: boolean;
   supplierQuickCreate?: boolean;
   inlineSupplier?: boolean;
+  inlineFooterTarget?: HTMLElement | null;
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
   const location = useLocation();
@@ -107,18 +110,20 @@ export function RegistrationEditor({
   const canManageEmployeeSignature = hasPermission("registrations.employee_signature.manage");
   const fieldTrackingAvailable = hasModule("field_tracking");
 
-  const editorBody = <>
-    <div className="space-y-5 p-4 sm:p-5">
-      {!employeeOnly && (
-        <Section title={supplierQuickCreate ? "Tipo de pessoa" : "Tipo e vínculos"}>
-          <div className="grid gap-3 sm:grid-cols-2">
+  const personTypeButtons = <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
               <div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF, nascimento e contatos.</div>
             </button>
             <button type="button" disabled={form.roles.includes("employee") || !canModify} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
               <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
             </button>
-          </div>
+  </div>;
+
+  const editorBody = <>
+    <div className="space-y-5 p-4 sm:p-5">
+      {!employeeOnly && (supplierQuickCreate
+        ? personTypeButtons
+        : <Section title="Tipo e vínculos">{personTypeButtons}
           {!supplierQuickCreate && <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
@@ -225,11 +230,18 @@ export function RegistrationEditor({
   </>;
 
   const editorActions = <>
-    <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+    {supplierQuickCreate
+      ? <AdminButton variant="quaternary" onClick={onClose} disabled={saving}>
+          {inlineSupplier ? "Voltar" : "Cancelar"}
+        </AdminButton>
+      : <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>}
     <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
   </>;
 
-  if (supplierQuickCreate && inlineSupplier) return <div className="space-y-1" aria-label="Cadastro de fornecedor no modal atual">{editorBody}<div className="flex justify-end gap-2 border-t border-border px-4 py-3">{editorActions}</div></div>;
+  if (supplierQuickCreate && inlineSupplier) return <div className="space-y-1" aria-label="Cadastro de fornecedor no modal atual">
+    {editorBody}
+    {inlineFooterTarget && createPortal(<div className="flex w-full justify-end gap-2">{editorActions}</div>, inlineFooterTarget)}
+  </div>;
 
   if (supplierQuickCreate) return <AdminDialog
     open
@@ -238,7 +250,7 @@ export function RegistrationEditor({
     description="Preencha CPF ou CNPJ, consulte os dados e conclua o cadastro."
     className="w-[min(96vw,960px)] !max-w-[960px]"
     bodyClassName="min-h-0 overflow-y-auto"
-    footer={<div className="flex w-full justify-end gap-2 px-4 py-3">{editorActions}</div>}
+    footer={<div className="flex w-full justify-end gap-2">{editorActions}</div>}
   >{editorBody}</AdminDialog>;
 
   return <AdminPage
