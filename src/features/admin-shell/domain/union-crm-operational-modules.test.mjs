@@ -97,7 +97,7 @@ test("PABX vinculado ao funcionário usa segredo efêmero e preserva ramal 301",
   const edge=read("supabase/functions/union-pbx-agent/index.ts");
   const agent=read("scripts/union-pbx-agent/agent.py");
   assert.match(screen,/useState\(SIP_USER\)/);
-  assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId\)/);
+  assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId, controller.signal\)/);
   assert.match(screen,/acquireManagedPbxCredentials\(/);
   assert.match(screen,/startSip\(SIP_USER,password,generation\)/);
   assert.match(screen,/Conectar meu ramal/);

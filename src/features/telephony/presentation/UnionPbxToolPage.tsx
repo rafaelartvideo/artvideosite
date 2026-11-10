@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug } from "lucide-react";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
+import { UnionPbxCallActions } from "./UnionPbxCallActions";
+import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
+import { pbxRequest } from "../application/pbx-request";
+import { bindRemoteAudio } from "../application/remote-audio";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
 // Primeira etapa: somente a Union World e a extensao 900 (teste de eco).
@@ -14,9 +18,9 @@ const SIP_WSS = `wss://${SIP_HOST}/ws`;
 
 type RegistrationState = "offline" | "connecting" | "registered" | "error";
 type CallState = "idle" | "dialing" | "incoming" | "active";
-type InternalDirectoryEntry = { number: number; display_name: string; desired_enabled: boolean; provisioning_status: string };
+type InternalDirectoryEntry = { number: number; endpoint_name: string; display_name: string; desired_enabled: boolean; provisioning_status: string };
 
-type SipSession = {
+type SipSession = CallControlSession & {
   direction?: string;
   remote_identity?: { uri?: { user?: string } };
   connection?: RTCPeerConnection;
@@ -33,11 +37,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [sipUser, setSipUser] = useState(SIP_USER);
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
   const [checkingManaged, setCheckingManaged] = useState(false);
+  const [managedLookupError, setManagedLookupError] = useState("");
+  const [directoryRevision, setDirectoryRevision] = useState(0);
   const [manualMode, setManualMode] = useState(false);
   const [directory, setDirectory] = useState<InternalDirectoryEntry[]>([]);
   const [testQueues, setTestQueues] = useState<{number:number; name:string}[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
+  const [testQueueError, setTestQueueError] = useState("");
   const [dialTarget, setDialTarget] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
@@ -45,34 +52,51 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [muted, setMuted] = useState(false);
   const [notice, setNotice] = useState("Conecte o ramal para iniciar o teste de audio.");
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [held, setHeld] = useState(false);
+  const [holdUncertain, setHoldUncertain] = useState(false);
+  const [transferUncertain, setTransferUncertain] = useState(false);
+  const [controlBusy, setControlBusy] = useState<'hold' | 'transfer' | null>(null);
+  const [transferDestination, setTransferDestination] = useState("");
 
   const uaRef = useRef<any>(null);
   const sessionRef = useRef<SipSession | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const generationRef = useRef(0);
+  const controlAbortRef = useRef<AbortController | null>(null);
+  const controlLockRef = useRef(false);
+  const transferUncertainRef = useRef(false);
+  const credentialAbortRef = useRef<AbortController | null>(null);
+  const registrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!isPageOpen || !activeOrganizationId) return () => { cancelled = true; };
+    const controller = new AbortController();
+    if (!isPageOpen || !activeOrganizationId) { setCheckingManaged(false); return () => { cancelled = true; }; }
     setCheckingManaged(true);
-    void findMyManagedPbxExtension(activeOrganizationId)
+    setManagedLookupError("");
+    void findMyManagedPbxExtension(activeOrganizationId, controller.signal)
       .then(extension => { if (!cancelled) setManagedExtension(extension); })
-      .catch(() => { if (!cancelled) setManagedExtension(null); })
+      .catch(error => { if (!cancelled) {
+        setManagedExtension(null);
+        setManagedLookupError(error instanceof Error ? error.message : 'Falha na consulta do ramal vinculado.');
+      } })
       .finally(() => { if (!cancelled) setCheckingManaged(false); });
-    return () => { cancelled = true; };
-  }, [activeOrganizationId,isPageOpen]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [activeOrganizationId,isPageOpen,directoryRevision]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!activeOrganizationId || !isPageOpen) return () => { cancelled = true; };
+    const controller = new AbortController();
+    if (!activeOrganizationId || !isPageOpen) { setDirectoryLoading(false); return () => { cancelled = true; }; }
     setDirectoryLoading(true);
     setDirectoryError("");
     setDirectory([]);
-    void supabase.from("pbx_extensions")
-      .select("number,display_name,desired_enabled,provisioning_status")
+    void pbxRequest(signal => supabase.from("pbx_extensions")
+      .select("number,endpoint_name,display_name,desired_enabled,provisioning_status")
       .eq("organization_id",activeOrganizationId)
       .order("number")
       .limit(100)
+      .abortSignal(signal), 'Consulta dos ramais internos', { signal: controller.signal })
       .then(({data,error}) => {
         if (cancelled) return;
         if (error) setDirectoryError("Não foi possível carregar os ramais internos.");
@@ -80,26 +104,32 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           item.desired_enabled && (item.provisioning_status === "applied" || item.provisioning_status === "manual")
         ));
       })
+      .catch(error => { if (!cancelled) setDirectoryError(error instanceof Error ? error.message : 'Falha na consulta dos ramais internos.'); })
       .finally(() => { if (!cancelled) setDirectoryLoading(false); });
-    return () => { cancelled = true; };
-  }, [activeOrganizationId,isPageOpen]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [activeOrganizationId,isPageOpen,directoryRevision]);
 
   useEffect(() => {
     let cancelled=false;
+    const controller = new AbortController();
     setTestQueues([]);
+    setTestQueueError("");
     if(!activeOrganizationId || !isPageOpen) return () => { cancelled=true; };
-    void supabase.rpc("pbx_available_test_queues",{p_organization_id:activeOrganizationId})
+    void pbxRequest(signal => supabase.rpc("pbx_available_test_queues",{p_organization_id:activeOrganizationId}).abortSignal(signal),
+      'Consulta das filas', { signal: controller.signal })
       .then(({data,error})=>{
-        if(cancelled || error) return;
+        if(cancelled) return;
+        if(error) { setTestQueueError('Não foi possível consultar as filas da empresa.'); return; }
         setTestQueues(((data||[]) as {test_extension:number;name:string}[]).map(item=>({
           number:item.test_extension,name:item.name,
         })));
-      });
-    return () => { cancelled=true; };
-  },[activeOrganizationId,isPageOpen]);
+      }).catch(error => { if (!cancelled) setTestQueueError(error instanceof Error ? error.message : 'Falha na consulta das filas.'); });
+    return () => { cancelled=true; controller.abort(); };
+  },[activeOrganizationId,isPageOpen,directoryRevision]);
 
   const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number;
-  const dialableExtensions = directory.filter(item => item.number !== ownNumber);
+  const dialableExtensions = directory.filter(item => item.number !== ownNumber && item.endpoint_name !== sipUser);
+  const transferExtensions = dialableExtensions.filter(item => String(item.number) !== remoteParty && item.endpoint_name !== remoteParty);
   const dialableNumbers = new Set([
     ...dialableExtensions.map(item=>item.number),
     ...testQueues.map(item=>item.number),
@@ -116,6 +146,18 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   const stop = () => {
     generationRef.current += 1;
+    credentialAbortRef.current?.abort();
+    credentialAbortRef.current = null;
+    if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
+    registrationTimerRef.current = null;
+    controlAbortRef.current?.abort();
+    controlAbortRef.current = null;
+    controlLockRef.current = false;
+    transferUncertainRef.current = false;
+    setTransferUncertain(false);
+    setHoldUncertain(false);
+    setControlBusy(null);
+    setHeld(false);
     try { sessionRef.current?.terminate(); } catch { /* chamada ja encerrada */ }
     sessionRef.current = null;
     try { uaRef.current?.stop(); } catch { /* websocket ja desconectado */ }
@@ -132,6 +174,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   useEffect(() => () => {
     generationRef.current += 1;
+    credentialAbortRef.current?.abort();
+    if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
+    controlAbortRef.current?.abort();
     try { sessionRef.current?.terminate(); } catch { /* liberacao */ }
     try { uaRef.current?.stop(); } catch { /* liberacao */ }
     const audio = remoteAudioRef.current;
@@ -139,20 +184,11 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   }, []);
 
   const attachMedia = (session: SipSession, generation: number) => {
-    const bindPeer = (pc: RTCPeerConnection) => {
-      pc.addEventListener("track", event => {
-        if (generationRef.current !== generation) return;
-        const element = remoteAudioRef.current;
-        if (!element) return;
-        element.srcObject = event.streams[0] || new MediaStream([event.track]);
-        void element.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
-      });
-    };
-
-    session.on("peerconnection", ({ peerconnection }: { peerconnection?: RTCPeerConnection }) => {
-      if (peerconnection) bindPeer(peerconnection);
+    bindRemoteAudio(session, {
+      isCurrent: () => generationRef.current === generation && sessionRef.current === session,
+      getAudio: () => remoteAudioRef.current,
+      onBlocked: setAudioBlocked,
     });
-    if (session.connection) bindPeer(session.connection);
   };
 
   const startSip = async (username: string, secret: string, generation: number) => {
@@ -167,7 +203,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     setNotice("Conectando ao PABX Union...");
     try {
       // Carregado somente ao abrir o telefone: nao pesa no restante do CRM.
-      const module = await import("jssip");
+      const module = await pbxRequest(() => import("jssip"), 'Carregamento do telefone');
       if (generation !== generationRef.current) return;
       const JsSIP = (module as any).default || module;
       const ua = new JsSIP.UA({
@@ -182,14 +218,24 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       uaRef.current = ua;
       setPassword(""); // O segredo fica apenas na instancia SIP enquanto conectada.
 
-      const isCurrent = () => generationRef.current === generation;
+      const isCurrent = () => generationRef.current === generation && uaRef.current === ua;
+      let transportConnected = false;
+      ua.on('connected', () => {
+        if (!isCurrent()) return;
+        transportConnected = true;
+        if (!sessionRef.current?.isEstablished()) setNotice('Conexão segura aberta. Aguardando o registro SIP...');
+      });
       ua.on("registered", () => {
         if (!isCurrent()) return;
+        if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
+        registrationTimerRef.current = null;
         setRegistration("registered");
         setNotice("Ramal conectado. Ligue para 900 para testar o audio.");
       });
       ua.on("registrationFailed", () => {
         if (!isCurrent()) return;
+        if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
+        registrationTimerRef.current = null;
         setRegistration("error");
         setNotice("O Asterisk recusou o registro. Confira a senha do ramal na VPS.");
       });
@@ -208,6 +254,15 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           return;
         }
         sessionRef.current = session;
+        controlAbortRef.current?.abort();
+        controlAbortRef.current = new AbortController();
+        controlLockRef.current = false;
+        transferUncertainRef.current = false;
+        setTransferUncertain(false);
+        setHoldUncertain(false);
+        setControlBusy(null);
+        setHeld(false);
+        setTransferDestination("");
         setRemoteParty(session.remote_identity?.uri?.user || "Chamada");
         setMuted(false);
         setCallState(session.direction === "incoming" ? "incoming" : "dialing");
@@ -219,6 +274,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         });
         const finish = (failed: boolean) => {
           if (!isCurrent() || sessionRef.current !== session) return;
+          controlAbortRef.current?.abort();
+          controlAbortRef.current = null;
+          controlLockRef.current = false;
+          transferUncertainRef.current = false;
+          setTransferUncertain(false);
+          setHoldUncertain(false);
+          setControlBusy(null);
+          setHeld(false);
           sessionRef.current = null;
           setCallState("idle");
           setRemoteParty("");
@@ -229,11 +292,25 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         session.on("ended", () => finish(false));
         session.on("failed", () => finish(true));
       });
+      registrationTimerRef.current = setTimeout(() => {
+        if (!isCurrent() || ua.isRegistered?.()) return;
+        registrationTimerRef.current = null;
+        if (!sessionRef.current?.isEstablished()) {
+          uaRef.current = null;
+          try { ua.stop(); } catch { /* conexão já encerrada */ }
+        }
+        setRegistration('error');
+        setNotice(transportConnected
+          ? 'Registro SIP: o PABX não confirmou o ramal em 25 segundos. Verifique o ramal e tente novamente.'
+          : 'Conexão segura: o WebSocket do PABX não ficou disponível em 25 segundos. Verifique a rede e tente novamente.');
+      }, 25_000);
       ua.start();
-    } catch {
+    } catch (error) {
       if (generation !== generationRef.current) return;
+      if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
+      registrationTimerRef.current = null;
       setRegistration("error");
-      setNotice("Nao foi possivel iniciar o telefone. Desconecte e tente novamente.");
+      setNotice(error instanceof Error ? `Inicialização do telefone: ${error.message}` : 'Não foi possível iniciar o telefone. Desconecte e tente novamente.');
     }
   };
 
@@ -249,13 +326,17 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     if (uaRef.current || registration === "connecting" || !activeOrganizationId ||
         !managedExtension || managedExtension.provisioning_status !== "applied") return;
     const generation=++generationRef.current;
+    credentialAbortRef.current?.abort();
+    const controller = new AbortController();
+    credentialAbortRef.current = controller;
     setRegistration("connecting");
     setNotice("Solicitando acesso criptografado ao seu ramal...");
     try {
       const sip=await acquireManagedPbxCredentials(
         activeOrganizationId,
         () => generationRef.current !== generation,
-        message => { if (generationRef.current === generation) setNotice(message); }
+        message => { if (generationRef.current === generation) setNotice(message); },
+        controller.signal,
       );
       if(generationRef.current !== generation) return;
       await startSip(sip.username,sip.password,generation);
@@ -263,6 +344,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       if(generationRef.current !== generation) return;
       setRegistration("error");
       setNotice(error instanceof Error?error.message:"Não foi possível conectar o ramal.");
+    } finally {
+      if (credentialAbortRef.current === controller) credentialAbortRef.current = null;
     }
   };
 
@@ -321,6 +404,60 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     }
   };
 
+  const runControl = async (kind: 'hold' | 'transfer') => {
+    const session = sessionRef.current;
+    const signal = controlAbortRef.current?.signal;
+    if (!session || !signal || callState !== 'active' || controlLockRef.current) return;
+    if (kind === 'transfer' && transferUncertainRef.current) return;
+    const generation = generationRef.current;
+    const isCurrent = () => sessionRef.current === session && generationRef.current === generation && !signal.aborted;
+    controlLockRef.current = true;
+    setControlBusy(kind);
+    try {
+      if (kind === 'hold') {
+        const nextHeld = !held;
+        setNotice(nextHeld ? 'Solicitando espera...' : 'Solicitando retomada...');
+        await holdCall(session, nextHeld, { signal });
+        if (!isCurrent()) return;
+        setHeld(nextHeld);
+        setHoldUncertain(false);
+        setNotice(nextHeld ? 'Chamada em espera.' : 'Chamada retomada.');
+      } else {
+        const destination = transferDestination;
+        setNotice('Solicitando transferência para o ramal ' + destination + '...');
+        await transferCall(session, destination, new Set(transferExtensions.map(item => String(item.number))), {
+          signal,
+          onProgress: stage => { if (isCurrent()) setNotice(stage === 'ringing'
+            ? 'Aguardando atendimento do ramal ' + destination + '...'
+            : 'O PABX recebeu a transferência. Aguardando confirmação do destino...'); },
+        });
+        if (!isCurrent()) return;
+        try {
+          // Only a successful final NOTIFY permits releasing our original leg.
+          session.terminate();
+          setNotice('Transferência concluída para o ramal ' + destination + '.');
+        } catch {
+          setNotice('Transferência confirmada. Use Desligar para encerrar este trecho se ele continuar ativo.');
+        }
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        if (error instanceof Error && error.name === 'CallControlTimeoutError') {
+          if (kind === 'transfer') {
+            transferUncertainRef.current = true;
+            setTransferUncertain(true);
+          } else {
+            setHeld(Boolean(session.isOnHold?.().local));
+            setHoldUncertain(true);
+          }
+        }
+        setNotice(error instanceof Error ? error.message : 'Não foi possível concluir a operação.');
+      }
+    } finally {
+      if (isCurrent()) { controlLockRef.current = false; setControlBusy(null); }
+    }
+  };
+
   return <>
     {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
     <div className={isPageOpen ? "min-w-0 space-y-5" : "hidden"} aria-hidden={!isPageOpen}>
@@ -339,6 +476,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>
 
         {registration === "offline" && <div className="mt-5 space-y-3">
+          {managedLookupError && <div role="alert" className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
+            <p>{managedLookupError}</p>
+            <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Tentar consultar novamente</AdminButton>
+          </div>}
           {managedExtension && !manualMode && (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-foreground">Meu ramal {managedExtension.number} · {managedExtension.display_name}</p>
@@ -420,8 +561,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais" : directoryError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
+            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
           </p>
+          {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
           {callState === "idle" && <button type="button" disabled={registration !== "registered"} onClick={callEcho}
@@ -443,6 +585,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>
       </section>
 
+      {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
+        destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
+        onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />}
       {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
@@ -474,6 +619,12 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           </button>
         </div>
         {callState !== "idle" && <p className="truncate text-sm font-semibold">{remoteParty || "Chamada"}</p>}
+        {callState === "active" && <>
+          <p role="status" className="text-xs leading-5 text-muted-foreground">{notice}</p>
+          <UnionPbxCallActions idPrefix="pbx-floating" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
+            destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
+            onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />
+        </>}
         {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}
         <div className="flex flex-wrap items-center gap-2">
           {callState === "incoming" && (
