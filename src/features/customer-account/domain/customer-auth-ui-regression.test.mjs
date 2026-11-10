@@ -154,7 +154,7 @@ test("inatividade de 20 minutos e saída para admin são exclusivas do CRM", () 
 
   assert.match(policy, /INACTIVITY_TIMEOUT_MS = 20 \* 60 \* 1000/);
   assert.match(auth, /if \(scope !== "crm" \|\| !session\?\.user \|\| loading\) return;/);
-  assert.match(auth, /if \(scope !== "crm" \|\| !session\?\.user\?\.id \|\| !organizationId\) return;/);
+  assert.match(auth, /if \(scope !== "crm" \|\| !session\?\.user\?\.id \|\| !organizationId \|\| !accessWindow\?\.allowed\) return;/);
   assert.match(auth, /if \(scope === "customer"\) \{\s*\/\/ Logout público[\s\S]*?supabase\.auth\.signOut\(\{ scope: "local" \}\);\s*return;/);
   assert.match(auth, /window\.location\.replace\("\/admin"\)/);
 });
