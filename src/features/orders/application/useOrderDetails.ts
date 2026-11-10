@@ -27,6 +27,7 @@ export function useOrderDetails({
   const [detailSolutionImages, setDetailSolutionImages] = useState<OrderImage[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [hydratedOrderId, setHydratedOrderId] = useState<string | null>(null);
+  const [lastHydratedOrderId, setLastHydratedOrderId] = useState<string | null>(null);
   const selectedOrderBelongsToOrganization = Boolean(
     selectedOrder?.id &&
     organizationId &&
@@ -140,6 +141,7 @@ export function useOrderDetails({
     replaceOrderImages(orderImages);
     setDetail({ ...selectedOrder, ...(currentOrder || {}), technical_values: technicalValues });
     setHydratedOrderId(selectedOrder.id);
+    setLastHydratedOrderId(selectedOrder.id);
     if (loadPartRequestsEnabled) void loadPartRequests(selectedOrder.id);
   }, [detailQuery.data, selectedOrderBelongsToOrganization, loadPartRequestsEnabled, loadPartRequests]);
 
@@ -167,6 +169,7 @@ export function useOrderDetails({
     setDetail(null);
     setSelectedOrder(null);
     setHydratedOrderId(null);
+    setLastHydratedOrderId(null);
     clearPartRequests?.();
   };
 
@@ -178,6 +181,9 @@ export function useOrderDetails({
     detailReady: selectedOrderBelongsToOrganization && hydratedOrderId === selectedOrder?.id && detailQuery.isSuccess && !detailQuery.isFetching && Boolean(detailQuery.data),
     // Permanece pronto durante refetch em segundo plano; evita remontar a tela e piscar o skeleton.
     detailHydrated: selectedOrderBelongsToOrganization && hydratedOrderId === selectedOrder?.id && Boolean(detailQuery.data),
+    // Após a primeira OS completa, novas rotas reutilizam o cabeçalho e
+    // mostram skeleton apenas na área de conteúdo enquanto hidratam.
+    hadHydratedOrder: Boolean(lastHydratedOrderId),
     detailLoadError: selectedOrderBelongsToOrganization ? detailQuery.error : null,
     retryDetailLoad: () => detailQuery.refetch(),
     detailHistory,

@@ -770,7 +770,9 @@ export function TabOrders({
   const detailPageVisible = Boolean(detail && !completionFromListId && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId));
   // A troca entre OS original e retorno usa a mesma página já montada.
   // O skeleton de página inteira fica reservado à primeira abertura.
-  const switchingRoutedOrder = Boolean(detailPageVisible && initialOrderId && detail?.id !== initialOrderId);
+  const switchingRoutedOrder = Boolean(detailPageVisible && initialOrderId
+    && (detail?.id !== initialOrderId
+      || (detailsController.hadHydratedOrder && !detailsController.detailHydrated)));
   const detailHasError = detailPageVisible && !detailsController.detailHydrated && Boolean(detailsController.detailLoadError);
   const detailIsLoading = routedDetailLoading || (detailPageVisible && !detailsController.detailHydrated && !detailHasError && !switchingRoutedOrder);
 

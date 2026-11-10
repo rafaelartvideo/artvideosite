@@ -5,7 +5,7 @@ import { CheckCircle2, CircleHelp } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { supabase } from "@/lib/supabase";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
@@ -39,6 +39,7 @@ export function OrderReturnDiagnosisGate({
   const [damageKind, setDamageKind] = useState<DamageKind | "">("");
   const [footerHost, setFooterHost] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function OrderReturnDiagnosisGate({
     setSolution(String(order.solution || ""));
     setDamageKind("");
     setError("");
+    setConfirmationOpen(false);
   }, [order.id]);
 
   // Mesmo host sticky utilizado pelo fluxo de aprovação de orçamento.
@@ -58,7 +60,7 @@ export function OrderReturnDiagnosisGate({
     && diagnosis.trim().length >= 5 && solution.trim().length >= 5;
 
   const confirm = async () => {
-    if (busy || !canClassify) return;
+    if (busy || !confirmationOpen || !canClassify) return;
     if (!damageKind || diagnosis.trim().length < 5 || solution.trim().length < 5) {
       setError("Informe diagnóstico, solução proposta e se o defeito é na mesma peça ou em outra.");
       return;
@@ -77,8 +79,11 @@ export function OrderReturnDiagnosisGate({
       if (data !== (damageKind === "same_part" ? "covered" : "unrelated")) {
         throw new Error("Classificação inesperada no registro do diagnóstico.");
       }
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setConfirmationOpen(false);
       onClassified(damageKind, diagnosis.trim(), solution.trim());
+      // A tela ativa busca imediatamente a OS persistida; outras consultas da
+      // listagem ficam obsoletas, sem gerar um segundo refetch simultâneo.
+      void queryClient.invalidateQueries({ queryKey: ["orders"], refetchType: "none" });
       notifyAdmin(damageKind === "same_part"
         ? "Garantia procedente. Atendimento liberado sem orçamento e sem cobrança."
         : "Defeito em outra peça. Prepare o orçamento para aprovação.", "success");
@@ -117,7 +122,7 @@ export function OrderReturnDiagnosisGate({
                   role="radio"
                   aria-checked={checked}
                   disabled={busy || !canClassify}
-                  onClick={() => setDamageKind(option.value)}
+                  onClick={() => { setDamageKind(option.value); setError(""); }}
                   className="inline-flex shrink-0 items-center gap-2 rounded-md py-1 text-sm font-semibold text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span aria-hidden="true" className={"relative inline-flex h-[22px] w-10 shrink-0 items-center rounded-full transition-colors " + (checked ? "bg-primary" : "bg-[#cbd0d7] dark:bg-slate-600")}>
@@ -145,11 +150,41 @@ export function OrderReturnDiagnosisGate({
       </div>
     </Section>
     {footerHost && createPortal(
-      <BtnPrimary onClick={() => void confirm()} disabled={!canConfirm} loading={busy}
-        loadingText="Confirmando..." className="h-10 min-w-28 gap-2 px-4">
+      <BtnPrimary onClick={() => { setError(""); setConfirmationOpen(true); }} disabled={!canConfirm}
+        className="h-10 min-w-28 gap-2 px-4">
         <CheckCircle2 size={17} /> Confirmar
       </BtnPrimary>,
       footerHost,
     )}
+    <AdminDialog
+      open={confirmationOpen}
+      onClose={() => { if (!busy) { setConfirmationOpen(false); setError(""); } }}
+      title={damageKind === "same_part" ? "Confirmar garantia procedente" : "Confirmar outro defeito"}
+      description="Confira a classificação antes de liberar a próxima etapa do atendimento."
+      className="max-w-md"
+      footer={<div className="flex w-full flex-wrap justify-end gap-2">
+        <BtnSecondary disabled={busy} onClick={() => { setConfirmationOpen(false); setError(""); }}>
+          Cancelar
+        </BtnSecondary>
+        <BtnPrimary disabled={!canConfirm} loading={busy} loadingText="Confirmando..."
+          onClick={() => void confirm()}>
+          <CheckCircle2 size={16} /> Confirmar
+        </BtnPrimary>
+      </div>}
+    >
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-foreground">
+          {damageKind === "same_part"
+            ? "Deseja confirmar que o defeito é na mesma peça?"
+            : "Deseja confirmar que o defeito é em outra peça?"}
+        </p>
+        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-6 text-foreground">
+          {damageKind === "same_part"
+            ? "Garantia procedente: o atendimento será liberado sem cobrança e sem aprovação de um novo orçamento."
+            : "Novo defeito: será necessário encaminhar um orçamento e aguardar aprovação antes da execução."}
+        </div>
+        {error && <p role="alert" className="text-sm font-semibold text-red-600 dark:text-red-400">{error}</p>}
+      </div>
+    </AdminDialog>
   </>;
 }

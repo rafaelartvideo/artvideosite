@@ -180,6 +180,33 @@ export function OrderDetailsSkeleton({ onClose }: { onClose: () => void }) {
   </AdminPage>;
 }
 
+/** Somente o conteúdo abaixo das abas, para troca de OS sem remontar cabeçalho. */
+export function OrderDetailsContentSkeleton({
+  section = "details", returnDiagnosis = false,
+}: {
+  section?: "details" | "products-services";
+  returnDiagnosis?: boolean;
+}) {
+  return <div role="status" aria-label="Carregando conteúdo da OS" aria-busy="true"
+    className="min-h-[340px] space-y-4" data-order-switch-skeleton="true">
+    <span className="sr-only">Preparando conteúdo da OS selecionada...</span>
+    {section === "products-services" && !returnDiagnosis
+      ? <>
+          <SectionSkeleton lines={4} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SectionSkeleton lines={3} /><SectionSkeleton lines={3} />
+          </div>
+        </>
+      : <>
+          <SectionSkeleton lines={returnDiagnosis ? 4 : 3} />
+          <SectionSkeleton lines={returnDiagnosis ? 4 : 3} />
+          {!returnDiagnosis && <div className="grid gap-4 lg:grid-cols-2">
+            <SectionSkeleton lines={2} /><SectionSkeleton lines={2} />
+          </div>}
+        </>}
+  </div>;
+}
+
 export function OrderEditorSkeleton() {
   return <div role="status" aria-label="Carregando formulário da OS" aria-busy="true" className="space-y-5">
     <span className="sr-only">Carregando formulário da ordem de serviço...</span>
