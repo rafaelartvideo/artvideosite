@@ -30,22 +30,11 @@ declare
   -- Declarar que houve recebimento na OS não representa liquidação de caixa.
   -- Clientes antigos que enviem "payments" passam pela mesma conferência manual.
   v_reported_receipts jsonb := coalesce(p_finance_payload->'reported_receipts',p_finance_payload->'payments','[]'::jsonb);
-  v_payments jsonb := '[]'::jsonb;
   v_entry_id uuid;
   v_payment jsonb;
-  v_installment public.financial_installments%rowtype;
-  v_method public.financial_payment_methods%rowtype;
-  v_account public.financial_accounts%rowtype;
   v_installment_number integer;
   v_principal numeric(14,2);
-  v_paid_total numeric(14,2) := 0;
-  v_fee numeric(14,2);
-  v_net numeric(14,2);
-  v_expected timestamptz;
   v_occurred timestamptz;
-  v_settlement_status text;
-  v_settlement_id uuid;
-  v_settlement_ids jsonb := '[]'::jsonb;
   v_customer_name text;
   v_customer_document text;
 begin
@@ -242,8 +231,8 @@ begin
     if coalesce(v_principal,0)<=0 or coalesce(v_installment_number,0)<1 or v_occurred is null
        or not exists (
          select 1 from jsonb_array_elements(v_installments) part
-         where (part->>'installment_number')::integer=v_installment_number
-           and round((part->>'amount')::numeric,2)=v_principal
+         where (part.value->>'installment_number')::integer=v_installment_number
+           and round((part.value->>'amount')::numeric,2)=v_principal
        ) then
       raise exception 'Recebimento informado não corresponde à parcela e à data cadastradas.' using errcode='22023';
     end if;
@@ -304,118 +293,7 @@ begin
       v_user_id
     );
 
-    for v_payment in select value from jsonb_array_elements(v_payments) loop
-      begin
-        v_principal:=round((v_payment->>'principal_amount')::numeric,2);
-        v_installment_number:=coalesce((v_payment->>'installment_number')::integer,1);
-        v_occurred:=coalesce(nullif(v_payment->>'occurred_at','')::timestamptz,v_completed_at);
-      exception when others then
-        raise exception 'Há pagamento imediato com dados inválidos.' using errcode='22023';
-      end;
-
-      if v_principal<=0 then
-        raise exception 'Pagamento imediato deve ser maior que zero.' using errcode='22023';
-      end if;
-
-      select * into v_installment
-      from public.financial_installments i
-      where i.organization_id=v_order.organization_id
-        and i.financial_entry_id=v_entry_id
-        and i.installment_number=v_installment_number
-      for update;
-
-      if not found then
-        raise exception 'Parcela indicada no pagamento imediato não existe.' using errcode='22023';
-      end if;
-      if round(v_installment.settled_amount+v_principal,2)>v_installment.original_amount then
-        raise exception 'Pagamentos imediatos excedem o valor da parcela.' using errcode='22023';
-      end if;
-
-      select * into v_method
-      from public.financial_payment_methods m
-      where m.organization_id=v_order.organization_id
-        and m.id=nullif(v_payment->>'payment_method_id','')::uuid
-        and m.is_active=true;
-      if not found then
-        raise exception 'Forma de pagamento inválida ou inativa.' using errcode='23503';
-      end if;
-
-      select * into v_account
-      from public.financial_accounts a
-      where a.organization_id=v_order.organization_id
-        and a.id=nullif(v_payment->>'financial_account_id','')::uuid
-        and a.is_active=true;
-      if not found then
-        raise exception 'Conta financeira inválida ou inativa.' using errcode='23503';
-      end if;
-
-      v_fee:=round(v_principal*v_method.percentage_fee/100+v_method.fixed_fee,2);
-      if v_fee>v_principal then
-        raise exception 'A taxa da forma de pagamento excede o pagamento.' using errcode='22023';
-      end if;
-      v_net:=round(v_principal-v_fee,2);
-      v_expected:=v_occurred;
-      v_settlement_status:='posted';
-
-      insert into public.financial_settlements(
-        organization_id,financial_entry_id,financial_installment_id,entry_type,
-        payment_method_id,payment_method_name_snapshot,
-        financial_account_id,financial_account_name_snapshot,
-        principal_amount,interest_amount,penalty_amount,other_additions,
-        discount_amount,gross_amount,percentage_fee_snapshot,fixed_fee_snapshot,
-        fee_amount,net_amount,occurred_at,expected_settlement_at,
-        settlement_status,posted_at,created_by
-      ) values (
-        v_order.organization_id,v_entry_id,v_installment.id,'receivable',
-        v_method.id,v_method.name,v_account.id,v_account.name,
-        v_principal,0,0,0,0,v_principal,
-        v_method.percentage_fee,v_method.fixed_fee,
-        v_fee,v_net,v_occurred,v_expected,v_settlement_status,
-        case when v_settlement_status='posted' then v_occurred else null end,
-        v_user_id
-      ) returning id into v_settlement_id;
-
-      update public.financial_installments
-      set settled_amount=round(settled_amount+v_principal,2),
-          settled_at=case
-            when round(settled_amount+v_principal,2)>=original_amount then v_occurred
-            else null
-          end
-      where id=v_installment.id
-        and organization_id=v_order.organization_id;
-
-      if v_settlement_status='posted' then
-        perform private.finance_post_settlement_movements(v_settlement_id,v_occurred,v_user_id);
-      end if;
-
-      insert into public.financial_events(
-        organization_id,financial_entry_id,event_type,event_data,created_by
-      )
-      values(
-        v_order.organization_id,
-        v_entry_id,
-        'settlement_registered',
-        jsonb_build_object(
-          'settlement_id',v_settlement_id,
-          'principal_amount',v_principal,
-          'gross_amount',v_principal,
-          'fee_amount',v_fee,
-          'net_amount',v_net,
-          'status',v_settlement_status,
-          'source','service_order_completion'
-        ),
-        v_user_id
-      );
-
-      v_paid_total:=round(v_paid_total+v_principal,2);
-      v_settlement_ids:=v_settlement_ids||jsonb_build_array(v_settlement_id);
-    end loop;
-
-    if v_paid_total>v_final_total then
-      raise exception 'Pagamentos imediatos excedem o valor final da OS.' using errcode='22023';
-    end if;
-  elsif jsonb_array_length(v_payments)>0 then
-    raise exception 'Uma OS com valor final zero não pode receber pagamentos.' using errcode='22023';
+    -- Recebimento relatado não gera baixa ou movimento financeiro aqui.
   end if;
 
   perform set_config('app.complete_service_order','true',true);
@@ -446,9 +324,9 @@ begin
     'discount_amount',v_discount_amount,
     'final_total',v_final_total,
     'financial_entry_id',v_entry_id,
-    'settlement_ids',v_settlement_ids,
-    'received_now',v_paid_total,
-    'open_amount',greatest(round(v_final_total-v_paid_total,2),0)
+    'settlement_ids','[]'::jsonb,
+    'received_now',0,
+    'open_amount',v_final_total
   );
 end;
 $function$;
