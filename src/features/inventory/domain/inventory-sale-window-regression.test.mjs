@@ -111,7 +111,8 @@ test("movimentação apresenta NCM e prazo por entrada e usa operação atômica
   assert.ok((await transformWithEsbuild(ui, "InventoryMovementFinancePage.tsx", { loader: "tsx" })).code);
   assert.ok((await transformWithEsbuild(repo, "inventory-finance.repository.ts", { loader: "ts" })).code);
   assert.ok(ui.includes('label="NCM (Mercosul)"'));
-  assert.ok(ui.includes('label="Prazo para vender (dias)"'));
+  assert.ok(ui.includes('<AdminFieldLabel label="Prazo para vender"'));
+  assert.ok(ui.includes('label="Outro prazo (dias)"'));
   assert.ok(ui.includes("Data-limite estimada"));
   assert.ok(ui.includes("Saldo após movimentação"));
   assert.ok(ui.includes('aria-pressed={form.type === option.type}'));
