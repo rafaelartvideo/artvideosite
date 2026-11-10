@@ -115,3 +115,22 @@ test("modal de preparação é usado em estoque, comercial, financeiro e operaç
     assert.match(contents, /preparingText="Preparando /);
   }
 });
+
+
+test("Financeiro aguarda dados de extratos, contas e recibos na primeira abertura", () => {
+  const paths = [
+    "src/features/finance/presentation/FinanceEntriesSection.tsx",
+    "src/features/finance/presentation/FinanceAccountsSection.tsx",
+    "src/features/finance/presentation/FinanceReceiptHistoryDialog.tsx",
+  ];
+  for (const path of paths) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /preparing=\{/);
+    assert.match(source, /preparingText="Preparando /);
+    assert.match(source, /onRetryPreparing=\{/);
+  }
+  const entries = readFileSync(paths[0], "utf8");
+  const accounts = readFileSync(paths[1], "utf8");
+  assert.match(entries, /preparingKey=\{selectedEntryId\}/);
+  assert.match(accounts, /preparingKey=\{selectedAccount.id\}/);
+});

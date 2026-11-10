@@ -330,6 +330,11 @@ export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { c
 
     {selectedAccount && <AdminDialog
       open
+      preparing={statementLoading}
+      preparingKey={selectedAccount.id}
+      preparingText="Preparando extrato da conta..."
+      preparingError={money.movementsQuery.isError ? systemErrorMessage(money.movementsQuery.error, "Não foi possível carregar o extrato.") : null}
+      onRetryPreparing={() => { void money.movementsQuery.refetch(); }}
       onClose={() => setSelectedAccountId(null)}
       title="Detalhes da conta"
       description={selectedAccount.name + " · " + typeLabel(selectedAccount.account_type)}

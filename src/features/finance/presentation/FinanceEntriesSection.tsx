@@ -533,6 +533,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
     {selectedEntryId && <AdminDialog
       open
+      preparing={finance.detailQuery.isPending}
+      preparingKey={selectedEntryId}
+      preparingText="Preparando lançamento financeiro..."
+      preparingError={finance.detailQuery.isError ? systemErrorMessage(finance.detailQuery.error, "Não foi possível carregar o lançamento.") : null}
+      onRetryPreparing={() => { void finance.detailQuery.refetch(); }}
       onClose={closeSelectedEntry}
       title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}

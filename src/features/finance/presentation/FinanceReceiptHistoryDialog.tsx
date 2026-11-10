@@ -128,6 +128,10 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
   ];
 
   return <AdminDialog open={open} onClose={close}
+    preparing={open && !selected && history.isPending}
+    preparingText="Preparando histórico de recibos..."
+    preparingError={open && !selected && history.isError ? systemErrorMessage(history.error, "Não foi possível carregar os recibos.") : null}
+    onRetryPreparing={() => { void history.refetch(); }}
     title={selected ? receiptLabel(selected.receipt_number) : "Histórico de recibos"}
     description={selected ? "Documento emitido · somente leitura" : "Consulte e reimprima recibos já emitidos, sem gerar um novo documento."}
     className="max-w-5xl" bodyClassName="p-4 md:p-5"
