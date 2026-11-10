@@ -5,7 +5,7 @@ import { transformWithEsbuild } from "vite";
 
 const read = file => readFileSync(file,"utf8");
 
-test("Reabrir OS existe nos três pontos da lista, nunca na toolbar", async () => {
+test("Iniciar retorno e Reabrir OS existem somente nos três pontos da lista, nunca na toolbar", async () => {
   const table=read("src/features/orders/presentation/OrdersTable.tsx");
   const actions=read("src/features/orders/presentation/OrderDetailsActions.tsx");
   const panel=read("src/features/orders/presentation/OrderReturnsPanel.tsx");
@@ -15,9 +15,8 @@ test("Reabrir OS existe nos três pontos da lista, nunca na toolbar", async () =
   assert.match(table,/canReopenOrReturn && <DropdownMenuItem onSelect=\{\(\) => setReturnTarget\(order\)\}/);
   assert.match(table,/canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
   assert.match(table,/mode=\{returnTarget \? returnMode\(returnTarget\) : "reopen"\}/);
-  assert.match(actions,/<OrderReturnActions order=\{detail\}/);
-  assert.match(panel,/if \(!canStartReturn\) return null/);
-  assert.match(panel,/<RotateCcw size=\{15\} \/> Iniciar retorno/);
+  assert.doesNotMatch(actions,/OrderReturnActions|Iniciar retorno|Reabrir OS/);
+  assert.doesNotMatch(panel,/OrderReturnActions|Iniciar retorno|Reabrir OS/);
   assert.doesNotMatch(panel,/const label = canStartReturn/);
   assert.doesNotMatch(panel,/mode=\{canStartReturn \? "return" : "reopen"\}/);
 });
