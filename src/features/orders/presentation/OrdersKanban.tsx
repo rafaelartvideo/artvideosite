@@ -214,7 +214,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
                 {order.cannot_be_solved && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
 
                 {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
-                  {canEdit && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary"><Edit2 size={13} /> Editar</button>}
+                  {canEdit && !order.return_root_id && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary"><Edit2 size={13} /> Editar</button>}
                   {canCancel(order) && <AdminButton variant="quaternary" size="sm" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => setCancelTarget(order)} className="min-h-9 gap-1"><Ban size={13} /> Cancelar</AdminButton>}
                 </div>}
               </div>;
