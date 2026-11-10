@@ -191,8 +191,8 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
               >
                 <div className="flex min-w-0 items-center gap-2">
                   {draggable && <GripVertical size={14} className="hidden shrink-0 text-[#5a6a82]/60 md:block" />}
-                  <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-primary">{order.os_number || "—"}</span>
+                  <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} isReturn={Boolean(order.return_root_id)} />
+                  <span className={cn("min-w-0 flex-1 truncate font-mono text-xs font-black", order.return_root_id ? "text-orange-600" : "text-primary")}>{order.os_number || "—"}</span>
                   {orderStatus?.name && <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${getOrderStatusBadgeClass(orderStatus.name)}`}>{orderStatus.name}</span>}
                 </div>
 
