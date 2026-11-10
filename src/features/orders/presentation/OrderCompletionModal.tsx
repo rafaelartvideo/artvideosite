@@ -303,7 +303,7 @@ export function OrderCompletionModal({
     </AdminDialog>;
   }
 
-  const completionBlocked = completion.discountExceedsMax
+  const completionBlocked = completion.returnAwaitingClassification || completion.discountExceedsMax
     || completion.discountExceedsServicePrice
     || Boolean(completion.servicePriceValidationMessage)
     || Boolean(completion.financeValidationMessage)
@@ -391,7 +391,7 @@ export function OrderCompletionModal({
             </div>
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">
-                {completion.discountMode === "percentage"
+                {completion.coverageFree ? "Cobertura integral da garantia / cortesia" : completion.discountMode === "percentage"
                   ? `Desconto (${formatNumber(completion.discountValue, { maximumFractionDigits: 2 })}%)`
                   : "Desconto"}
               </span>
@@ -405,6 +405,9 @@ export function OrderCompletionModal({
         </div>
       </Section>
 
+      {completion.returnAwaitingClassification && <p role="alert" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
+        Classifique a garantia do retorno antes de concluir.
+      </p>}
       <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
         <Section title="Produtos e serviços"
           className="flex h-[360px] min-h-0 flex-col"
@@ -472,9 +475,13 @@ export function OrderCompletionModal({
           </div>
         </Section>
       </div>
-      <Section title="Pagamento">
-        <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
-      </Section>
+      {completion.coverageFree
+        ? <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
+            Atendimento coberto: valor a pagar R$ 0,00. Não serão gerados recebimentos nem exigido comprovante de pagamento.
+          </p>
+        : <Section title="Pagamento">
+            <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
+          </Section>}
     </div>
   </AdminDialog>;
 }
