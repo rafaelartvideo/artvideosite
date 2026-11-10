@@ -69,7 +69,11 @@ export function OrderReturnStartDialog({
 
   const process = async (kind: "return" | "new") => {
     if (loading || processing || (!eligibility && !isReopening)) return;
-    if (kind === "return" && (!eligibility?.eligible || reason.trim().length < 5)) return;
+    if (reason.trim().length < 5) {
+      setError("Informe o motivo do retorno com pelo menos 5 caracteres.");
+      return;
+    }
+    if (kind === "return" && !eligibility?.eligible) return;
     if (kind === "new" && !isReopening && eligibility?.eligible) return;
     setProcessing(true);
     setError("");
@@ -78,7 +82,9 @@ export function OrderReturnStartDialog({
         ? await supabase.rpc("create_service_order_return_v1", {
             p_order_id: orderId, p_reason: reason.trim(), p_classification: "analysis",
           })
-        : await supabase.rpc("reopen_service_order_as_new_v1", { p_order_id: orderId });
+        : await supabase.rpc("reopen_service_order_as_new_v2", {
+            p_order_id: orderId, p_reason: reason.trim(),
+          });
       if (actionError) throw actionError;
       const newId = String(data || "");
       if (!newId) throw new Error("A nova OS não retornou identificador.");
@@ -122,16 +128,16 @@ export function OrderReturnStartDialog({
     minimizedTitle={dialogTitle}
     className="max-w-lg"
     footer={<div className="flex w-full flex-wrap justify-end gap-2">
-      <BtnSecondary onClick={onClose} disabled={processing}>Voltar</BtnSecondary>
-      {isReopening && <BtnPrimary disabled={processing || loading} onClick={() => void process("new")}>
-        <RotateCcw size={15} /> {processing ? "Reabrindo..." : "Confirmar reabertura"}
+      <BtnSecondary onClick={onClose} disabled={processing}>{isReopening || expired ? "Cancelar" : "Voltar"}</BtnSecondary>
+      {isReopening && <BtnPrimary disabled={processing || loading || reason.trim().length < 5} onClick={() => void process("new")}>
+        <RotateCcw size={15} /> {processing ? "Reabrindo..." : "Confirmar"}
       </BtnPrimary>}
       {!isReopening && eligibility?.eligible && <BtnPrimary disabled={processing || loading || reason.trim().length < 5}
         onClick={() => void process("return")}>
         <RotateCcw size={15} /> {processing ? "Criando retorno..." : "Confirmar retorno"}
       </BtnPrimary>}
-      {!isReopening && expired && <BtnPrimary disabled={processing || loading} onClick={() => void process("new")}>
-        {processing ? "Reabrindo OS..." : "Reabrir OS"}
+      {!isReopening && expired && <BtnPrimary disabled={processing || loading || reason.trim().length < 5} onClick={() => void process("new")}>
+        {processing ? "Reabrindo OS..." : "Confirmar"}
       </BtnPrimary>}
       {!isReopening && eligibility?.reason === "active_return" && eligibility.active_order_id &&
         <BtnPrimary onClick={() => { onClose(); navigate(adminPath("orders", eligibility.active_order_id!)); }}>
@@ -139,17 +145,13 @@ export function OrderReturnStartDialog({
         </BtnPrimary>}
     </div>}
   >
-    {isReopening && <div className="space-y-3 py-2">
-      <p className="text-sm font-semibold text-foreground">Será criada uma nova ordem de serviço com um novo número.</p>
-      <p className="text-sm leading-6 text-muted-foreground">
-        Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados.
-        Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados.
-      </p>
-    </div>}
+    {isReopening && <p className="text-sm font-semibold text-foreground">
+      Será criada uma nova ordem de serviço com um novo número.
+    </p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
       {error}
     </p>}
-    {!isReopening && !loading && eligibility?.eligible && <div className="space-y-4">
+    {(isReopening || (!loading && (eligibility?.eligible || expired))) && <div className="space-y-4">
       <label className="block">
         <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
           Motivo do retorno <span className="text-red-600" aria-hidden="true">*</span>
