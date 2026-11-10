@@ -33,7 +33,7 @@ export function AdminSubsectionTabs<T extends string>({
 }) {
   return <nav aria-label={ariaLabel} className="w-full min-w-0 border-b border-border">
     <div role="tablist" aria-label={ariaLabel}
-      className={cn("flex min-w-0 items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", centered ? "justify-start sm:justify-center" : "justify-start")}>
+      className={cn("flex min-w-0 items-center justify-start gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", centered && "sm:justify-center")}>
       {items.map(({ id, label, Icon, count, countUnavailable, countTone, disabled }) => {
         const selected = id === value;
         return <button key={id} type="button" role="tab" aria-selected={selected}
