@@ -409,6 +409,7 @@ export function TabProducts({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
   const [detailsView, setDetailsView] = useState<InventoryDetailsView>("details");
+  const [detailsBackAvailable, setDetailsBackAvailable] = useState(false);
   const [expandedListImage, setExpandedListImage] = useState<{ mediaId?: string | null; src?: string | null; name: string } | null>(null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
@@ -810,6 +811,7 @@ export function TabProducts({
     const product = products.find((entry: any) => String(entry.inventory?.inventory_item_id || "") === routeResourceId);
     if (product && (routeSubpage === "move" ? canCreateMovements : canViewMovements)) {
       setDetailsProductId(String(product.id));
+      setDetailsBackAvailable(false);
       setDetailsView(routeSubpage);
     }
     onRouteChange?.(null, null);
@@ -1180,11 +1182,13 @@ export function TabProducts({
   const openDetails = (product: any) => {
     if (!canViewDetails) return;
     setDetailsProductId(String(product.id));
+    setDetailsBackAvailable(false);
     setDetailsView("details");
   };
   const openDetailsById = (id: string) => {
     if (!canViewDetails || !products.some((product: any) => String(product.id) === id)) return;
     setDetailsProductId(id);
+    setDetailsBackAvailable(false);
     setDetailsView("details");
   };
   const editFromDetails = (product: any) => {
@@ -1193,12 +1197,14 @@ export function TabProducts({
   };
   const moveFromDetails = (product: any) => {
     if (canCreateMovements && product.inventory?.inventory_item_id) {
+      setDetailsBackAvailable(detailsView === "details" && detailsProductId === String(product.id));
       setDetailsProductId(String(product.id));
       setDetailsView("move");
     }
   };
   const historyFromDetails = (product: any) => {
     if (canViewMovements && product.inventory?.inventory_item_id) {
+      setDetailsBackAvailable(detailsView === "details" && detailsProductId === String(product.id));
       setDetailsProductId(String(product.id));
       setDetailsView("history");
     }
@@ -2364,7 +2370,8 @@ export function TabProducts({
       canViewSuppliers={canViewSuppliers}
       saleSummary={saleSummaryByItemId.get(String(activeDetailsProduct.inventory?.inventory_item_id || ""))}
       view={detailsView}
-      onBack={() => setDetailsView("details")}
+      backToDetails={detailsBackAvailable}
+      onBack={() => { setDetailsBackAvailable(false); setDetailsView("details"); }}
       onClose={() => { setDetailsProductId(null); setDetailsView("details"); }}
       onEdit={editFromDetails}
       onMove={moveFromDetails}

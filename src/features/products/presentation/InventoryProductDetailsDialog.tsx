@@ -32,6 +32,7 @@ type Props = {
   canViewSuppliers: boolean;
   saleSummary?: InventorySaleSummary;
   view: InventoryDetailsView;
+  backToDetails?: boolean;
   onBack: () => void;
   onClose: () => void;
   onEdit: (product: any) => void;
@@ -49,8 +50,9 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 
 export function InventoryProductDetailsDialog({
   product, organizationId, canEdit, canMove, canHistory, canViewCosts,
-  canViewSuppliers, saleSummary, view, onBack, onClose, onEdit, onMove, onHistory, onOpenProduct,
+  canViewSuppliers, saleSummary, view, backToDetails = false, onBack, onClose, onEdit, onMove, onHistory, onOpenProduct,
 }: Props) {
+  const [supplierEditorOpen, setSupplierEditorOpen] = useState(false);
   const id = product?.id as string | undefined;
   const inventory = product?.inventory;
   const unit = inventory?.unit === "cx" ? "cx" : "un";
@@ -138,7 +140,7 @@ export function InventoryProductDetailsDialog({
   return <><AdminDialog
     open
     onClose={onClose}
-    title={view === "move" ? "Movimentação do estoque" : view === "history" ? "Histórico do estoque" : "Detalhes do item"}
+    title={supplierEditorOpen && view === "move" ? "Novo fornecedor" : view === "move" ? "Movimentação do estoque" : view === "history" ? "Histórico do estoque" : "Detalhes do item"}
     description={product.name}
     className="w-[min(96vw,850px)] max-w-4xl"
     bodyClassName="space-y-5 p-3 sm:p-5"
@@ -152,12 +154,12 @@ export function InventoryProductDetailsDialog({
       {canEdit && <AdminButton size="sm" onClick={() => onEdit(product)}><Edit2 size={15} /> Editar</AdminButton>}
       <AdminButton size="sm" variant="secondary" onClick={onClose}>Fechar</AdminButton>
     </div> : view === "history" ? <div className="flex justify-end gap-2">
-      <AdminButton variant="secondary" size="sm" onClick={onBack}>Voltar aos detalhes</AdminButton>
-      <AdminButton variant="secondary" size="sm" onClick={onClose}>Fechar</AdminButton>
+      <AdminButton variant="secondary" size="sm" onClick={backToDetails ? onBack : onClose}>{backToDetails ? "Voltar" : "Cancelar"}</AdminButton>
     </div> : undefined}
   >
     {view === "move" ? (canMove && inventory?.inventory_item_id
-      ? <InventoryMovementFinancePage key={String(inventory.inventory_item_id)} embedded itemId={String(inventory.inventory_item_id)} onClose={onBack}/>
+      ? <InventoryMovementFinancePage key={String(inventory.inventory_item_id)} embedded itemId={String(inventory.inventory_item_id)}
+          backToDetails={backToDetails} onSupplierEditorChange={setSupplierEditorOpen} onClose={backToDetails ? onBack : onClose}/>
       : <p className="text-sm text-muted-foreground">Movimentação indisponível para este item.</p>)
     : view === "history" ? (canHistory && inventory?.inventory_item_id
       ? <InventoryMovementHistory key={String(inventory.inventory_item_id)} itemId={String(inventory.inventory_item_id)} organizationId={organizationId}

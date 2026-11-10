@@ -126,3 +126,29 @@ test("movimentação apresenta NCM e prazo por entrada e usa operação atômica
   assert.ok(sql.includes("ncm_snapshot"));
   assert.ok(legacy.includes("Itens antigos podem existir sem vínculo"));
 });
+
+test("movimentação reutiliza seções do CRM, quantidade com mais/menos e cadastro de fornecedor no mesmo modal", async () => {
+  const movement = read("src/features/inventory/presentation/InventoryMovementFinancePage.tsx");
+  const details = read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const products = read("src/features/products/presentation/TabProducts.tsx");
+  const quick = read("src/features/registrations/presentation/SupplierQuickCreateDialog.tsx");
+  const registration = read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  for (const [name, source] of [["InventoryMovementFinancePage.tsx",movement],["InventoryProductDetailsDialog.tsx",details],["TabProducts.tsx",products],["SupplierQuickCreateDialog.tsx",quick],["RegistrationEditor.tsx",registration]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
+  assert.ok(movement.includes('aria-label="Diminuir quantidade"'));
+  assert.ok(movement.includes('aria-label="Aumentar quantidade"'));
+  assert.ok(movement.includes('<Section title="Dados da entrada"'));
+  assert.ok(movement.includes('<Section title="Contas a Pagar"'));
+  assert.ok(movement.includes('<AdminFieldLabel label="Fornecedor" required={financeEnabled}'));
+  assert.ok(movement.includes('onClick={openSupplierCreation}'));
+  assert.ok(movement.includes('<SupplierQuickCreateDialog organizationId={organizationId} inline'));
+  assert.ok(movement.includes('setSaleWindowMode'));
+  assert.ok(movement.includes('Data-limite estimada:'));
+  assert.ok(movement.includes('className="flex flex-wrap justify-end gap-2 border-t'));
+  assert.ok(!movement.includes('className="sticky bottom-0'));
+  assert.ok(quick.includes('inlineSupplier={inline}'));
+  assert.ok(registration.includes('supplierQuickCreate && inlineSupplier'));
+  assert.ok(details.includes('backToDetails ? "Voltar" : "Cancelar"'));
+  assert.ok(products.includes('setDetailsBackAvailable(detailsView === "details"'));
+});
