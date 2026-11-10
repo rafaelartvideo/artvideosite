@@ -213,6 +213,9 @@ begin
 
   -- Guardar relatos por parcela para conferência financeira posterior, sem inserção
   -- em financial_settlements, financial_movements ou alteração de settled_amount.
+  if v_final_total <= 0 and jsonb_array_length(v_reported_receipts) > 0 then
+    raise exception 'Uma OS de valor zero não pode ter recebimento informado.' using errcode='22023';
+  end if;
   if jsonb_array_length(v_reported_receipts)>jsonb_array_length(v_installments) then
     raise exception 'Há recebimentos informados para parcelas inexistentes.' using errcode='22023';
   end if;
