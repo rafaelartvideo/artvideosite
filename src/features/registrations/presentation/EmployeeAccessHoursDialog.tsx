@@ -52,7 +52,7 @@ export function EmployeeAccessHoursDialog({ organizationId, entityId, employeeNa
     setInfo("");
   };
   const setEnabled = (weekday: WeekdayNumber, enabled: boolean) =>
-    replaceDay(weekday, enabled ? [{ start: "08:00", end: "18:00" }] : []);
+    replaceDay(weekday, enabled ? [{ start: "08:00", end: "12:00" }] : []);
   const add = (weekday: WeekdayNumber) => {
     const next = nextFreeAccessInterval(intervalsFor(weekday));
     if (!next) { setError("Não foi possível encontrar outro horário livre neste dia."); return; }
