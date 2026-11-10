@@ -37,7 +37,7 @@ test("diagnóstico reutiliza a seção completa de equipamento como primeira se�
   assert.match(detail, /!returnDiagnosisActive && \(detail\.situation as any\)\?\.name/);
 });
 
-test("escolha do defeito fica inline com botões de confirmação e feedback contextual", async () => {
+test("cada opção de peça mantém sua descrição somente na interrogação de ajuda", async () => {
   const gate = read("src/features/orders/presentation/OrderReturnDiagnosisGate.tsx");
   assert.ok((await transformWithEsbuild(gate, "OrderReturnDiagnosisGate.tsx", { loader: "tsx" })).code);
   assert.match(gate, /Qual peça apresentou o defeito\?/);
@@ -47,6 +47,12 @@ test("escolha do defeito fica inline com botões de confirmação e feedback con
   assert.match(gate, /relative inline-flex h-\[22px\] w-10/);
   assert.match(gate, /Coberto pela garantia. O fluxo de aprovação do orçamento será dispensado./);
   assert.match(gate, /Novo defeito. Será necessário enviar um orçamento e aguardar aprovação antes de executar./);
+  assert.match(gate, /<PopoverTrigger asChild>/);
+  assert.match(gate, /<CircleHelp size=\{15\} aria-hidden="true" \/>/);
+  assert.match(gate, /aria-label=\{`Ajuda sobre \$\{option\.label\}`\}/);
+  assert.match(gate, /<PopoverContent align="start" side="top" sideOffset=\{6\}/);
+  assert.match(gate, /\{option\.description\}/);
+  assert.doesNotMatch(gate, /\{checked && <span/);
   assert.doesNotMatch(gate, /AdminSegmentedControl|<ShieldCheck|<Wrench/);
   assert.doesNotMatch(gate, /<AdminButton/);
 });
