@@ -22,9 +22,10 @@ def read_fifo(path,result):
 
 @unittest.skipUnless(os.name=='posix','The PBX agent runtime is Linux')
 class LocalQueueReloadTests(unittest.TestCase):
-    def exchange(self, queue, reject=None, wrong_id=False):
+    def exchange(self, queue, reject=None, wrong_id=False,before_reload=None,expect_error=False):
         client,server=socket.socketpair()
         packets=[]
+        self.last_packets=packets
         errors=[]
         def manager():
             try:
@@ -50,8 +51,8 @@ class LocalQueueReloadTests(unittest.TestCase):
         try:
             with patch.object(ami,'load_credentials',return_value=('union_agent','x'*64)),\
                  patch.object(ami.socket,'create_connection',return_value=client) as connect:
-                operation=ami.check_ready if queue is None else lambda:ami.reload_queue(queue)
-                if reject or wrong_id:
+                operation=ami.check_ready if queue is None else lambda:ami.reload_queue(queue,before_reload=before_reload)
+                if reject or wrong_id or expect_error:
                     with self.assertRaises(ami.ManagerError):operation()
                 else:operation()
                 connect.assert_called_once_with(('127.0.0.1',5038),timeout=2)
@@ -79,6 +80,13 @@ class LocalQueueReloadTests(unittest.TestCase):
     def test_readiness_only_authenticates_and_logs_off(self):
         packets=self.exchange(None)
         self.assertEqual([packet['Action'] for packet in packets],['Login','Logoff'])
+
+    def test_live_call_guard_runs_after_login_and_prevents_the_reload_action(self):
+        def guard():
+            self.assertEqual([packet['Action'] for packet in self.last_packets],['Login'])
+            raise ami.ManagerError('active calls')
+        packets=self.exchange('uwq-'+'a'*32,before_reload=guard,expect_error=True)
+        self.assertEqual([packet['Action'] for packet in packets],['Login'])
 
     def test_reload_rejection_is_not_reported_as_success(self):
         packets=self.exchange('uwq-'+'a'*32,reject='QueueReload')

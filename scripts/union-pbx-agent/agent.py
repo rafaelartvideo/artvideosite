@@ -50,6 +50,8 @@ REVISION_RE = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$")
 PROFILE_ID = None
 OPERATION_LOCK = Path('/var/lib/union-pbx-agent/asterisk-config.lock')
 BACKUP_DIR = Path('/var/lib/union-pbx-agent/config-backups')
+LOCAL_MANAGER_CONFIG = Path('/etc/union-pbx-agent/local-manager.json')
+TENANT_CONFIG_ROOT = Path('/etc/union-pbx-agent/tenants')
 
 class AgentError(Exception):
     pass
@@ -510,23 +512,111 @@ def render_queue_configs(overrides=None):
     return "".join(queue_lines).encode(), "".join(dial_lines).encode(), active_names, used_numbers
 
 
-def reload_queue_definitions(names):
-    if PROFILE_ID is None:
-        queue_result=guarded_reload('module reload app_queue.so')
-        if 'reloaded successfully' not in queue_result.lower():
-            raise AgentError('O Asterisk nao confirmou a recarga do modulo de filas.')
+def validate_queue_member_ownership(job,org_id):
+    validate_queue_job(job,org_id)
+    if not job['enabled']:
         return
-    # CLI `all` also reloads global rules. Separate parameters/members commands
-    # cannot safely substitute for a combined QueueReload action. Until a local
-    # scoped AMI integration is installed and validated, fail closed for profiles.
-    own_names=set(names)|{queue_identity(identity) for identity in queue_states()}
-    if own_names:
-        raise Busy('Filas de perfis aguardam integracao local de recarga isolada validada.')
+    owned={}
+    for path in (STATE_DIR/'extensions').glob('*.json'):
+        try:
+            state=json.loads(path.read_text())
+            if not isinstance(state,dict):raise ValueError()
+            identity=str(uuid.UUID(state['id']))
+            if identity!=state['id'] or path.stem!=identity:raise ValueError()
+        except (OSError,ValueError,KeyError,TypeError,AttributeError):
+            raise AgentError('Estado local do ramal indisponivel ou invalido.') from None
+        if state.get('organization_id')!=org_id:
+            raise AgentError('Estado local de outra organizacao bloqueado na fila.')
+        endpoint=state.get('endpoint')
+        if not isinstance(endpoint,str) or not ENDPOINT_RE.fullmatch(endpoint) or endpoint in owned:
+            raise AgentError('Identidade local de ramal invalida ou duplicada.')
+        owned[endpoint]=state
+    for member in job['members']:
+        endpoint,number=member['endpoint_name'],member['number']
+        if PROFILE_ID is None and endpoint=='union-301' and number==301:
+            continue
+        state=owned.get(endpoint)
+        if (not state or state.get('enabled') is not True or type(state.get('number')) is not int or
+                state['number']!=number or not PASSWORD_RE.fullmatch(str(state.get('password','')))):
+            raise AgentError('Integrante nao corresponde a um ramal provisionado desta organizacao.')
 
 
-def _check_queue_reload(names,numbers,old_fvx):
+def isolated_queue_mode():
+    configured=LOCAL_MANAGER_CONFIG.exists() or LOCAL_MANAGER_CONFIG.is_symlink()
+    if not configured and (PROFILE_ID is not None or any(TENANT_CONFIG_ROOT.glob('*/agent.json'))):
+        raise Busy('Recarga global bloqueada: perfis exigem controle local de filas configurado.')
+    return configured
+
+
+def ensure_queue_control_ready():
+    if isolated_queue_mode():
+        try:
+            import local_queue_reload as manager
+        except ImportError:
+            raise Busy('Modulo do controle local de filas indisponivel.') from None
+        try:
+            manager.check_ready()
+        except manager.ManagerError:
+            raise Busy('Aguardando autenticacao do controle local de filas.') from None
+
+
+def reload_queue_definitions(names,changed_queue=None):
+    # Empty profile bootstrap creates a context, not a queue. Never issue a
+    # reload with an empty queue argument or loop over every configured queue.
+    if PROFILE_ID is not None and changed_queue is None and not names and not queue_states():
+        return
+    if isolated_queue_mode():
+        if changed_queue is None:
+            raise Busy('A recarga isolada exige uma unica fila validada.')
+        queue_id=validate_queue_job(changed_queue,changed_queue.get('organization_id'))
+        validate_queue_member_ownership(changed_queue,changed_queue.get('organization_id'))
+        try:
+            import local_queue_reload as manager
+        except ImportError:
+            raise Busy('Modulo do controle local de filas indisponivel.') from None
+        try:
+            assert_no_calls()
+            manager.reload_queue(queue_identity(queue_id),before_reload=assert_no_calls)
+        except manager.ManagerError:
+            raise Busy('Nao foi possivel confirmar a recarga local da fila.') from None
+        return
+    # Compatibility is allowed only before any tenant profile is configured.
+    queue_result=guarded_reload('module reload app_queue.so')
+    if 'reloaded successfully' not in queue_result.lower():
+        raise AgentError('O Asterisk nao confirmou a recarga do modulo de filas.')
+
+
+def verify_queue_members(job,output):
+    queue_id=validate_queue_job(job,job.get('organization_id'))
+    name=queue_identity(queue_id)
+    text=strip_ansi(output)
+    if not job['enabled']:
+        if not re.search(r'(?m)^No such queue:\s*'+re.escape(name)+r'\.\s*$',text):
+            raise AgentError('A fila desativada ainda existe ou nao foi possivel confirmar sua ausencia.')
+        return
+    header=r'(?m)^'+re.escape(name)+r" has \d+ calls?\b.*\bin '"+re.escape(job['strategy'])+r"' strategy\b"
+    if not re.search(header,text):
+        raise AgentError('Fila ou estrategia nao confirmada no Asterisk.')
+    expected={'PJSIP/'+member['endpoint_name'] for member in job['members']}
+    observed=[]
+    in_members=False
+    for line in text.splitlines():
+        if line.strip()=='Members:':
+            in_members=True;continue
+        if not in_members:continue
+        if line.strip() in ('No Callers','Callers:'):break
+        if not line.strip():continue
+        match=re.search(r'\((PJSIP/[A-Za-z0-9_-]+)\)',line)
+        if not match:
+            raise AgentError('Integrante inesperado na fila aplicada.')
+        observed.append(match.group(1))
+    if len(observed)!=len(set(observed)) or set(observed)!=expected:
+        raise AgentError('Integrantes aplicados divergem da fila desta organizacao.')
+
+
+def _check_queue_reload(names,numbers,old_fvx,changed_queue=None):
     assert_no_calls()
-    reload_queue_definitions(names)
+    reload_queue_definitions(names,changed_queue=changed_queue)
     dial_result=guarded_reload("dialplan reload")
     if "reloaded" not in dial_result.lower():
         raise AgentError("A recarga do dialplan de filas nao foi confirmada.")
@@ -534,16 +624,18 @@ def _check_queue_reload(names,numbers,old_fvx):
     for number in numbers:
         if not re.search(r"(?m)^\s*'?" + str(number) + r"'?\s*=>",output):
             raise AgentError("Numero de teste da fila nao apareceu no Asterisk.")
+    states=queue_states()
+    states_by_name={queue_identity(identity):state for identity,state in states.items()}
     for name in names:
         detail=asterisk("queue show "+name)
-        if name not in detail or "has " not in detail:
-            raise AgentError("Fila nao foi carregada pelo Asterisk.")
+        if name not in states_by_name:
+            raise AgentError('Fila sem estado local validado.')
+        verify_queue_members(states_by_name[name],detail)
     # Confirm disabled queues were actually removed from the Asterisk registry.
-    for queue_id,state in queue_states().items():
+    for queue_id,state in states.items():
         if not state["enabled"]:
             old=asterisk("queue show "+queue_identity(queue_id))
-            if queue_identity(queue_id) in old and "has " in old:
-                raise AgentError("Fila desativada ainda presente no Asterisk.")
+            verify_queue_members(state,old)
     assert_fvx(old_fvx)
 
 
@@ -627,6 +719,8 @@ def install_queues():
     if PROFILE_ID is not None:
         return install_profile_routes()
     require_root()
+    if isolated_queue_mode():
+        raise Busy('queues-init legado nao se aplica apos configurar o controle local; gerencie uma fila por vez.')
     missing=[str(path) for path in (QUEUE_MAIN,DIALPLAN_MANAGED,MASTER_FILE)
              if not path.is_file()]
     if missing:
@@ -693,8 +787,8 @@ def install_queues():
 
 def apply_queue_job(job,org_id):
     queue_id=validate_queue_job(job,org_id)
-    if PROFILE_ID is not None:
-        raise Busy('Provisionamento de filas isoladas aguarda integracao local validada.')
+    validate_queue_member_ownership(job,org_id)
+    ensure_queue_control_ready()
     if not (QUEUE_FILE.is_file() and QUEUE_TEST_FILE.is_file()):
         raise Busy("Aguardando habilitacao das filas com o comando queues-init.")
     assert_no_calls()
@@ -719,7 +813,7 @@ def apply_queue_job(job,org_id):
         # Existing 301/302 routes are regenerated unchanged, with a queue-test include.
         dialplan,_=render_internal_routes()
         write_atomic(DIALPLAN_MANAGED,dialplan,old_stat.st_mode & 0o777,old_stat.st_gid)
-        _check_queue_reload(names,numbers,old_fvx)
+        _check_queue_reload(names,numbers,old_fvx,changed_queue=job)
     except Exception:
         if old_state is None:
             state_file.unlink(missing_ok=True)
@@ -730,8 +824,10 @@ def apply_queue_job(job,org_id):
         write_atomic(DIALPLAN_MANAGED,old_dialplan,old_stat.st_mode & 0o777,old_stat.st_gid)
         try:
             assert_no_calls()
-            reload_queue_definitions(names)
+            reload_queue_definitions(names,changed_queue=job)
             guarded_reload("dialplan reload")
+            restored=json.loads(old_state) if old_state is not None else {**job,'enabled':False}
+            verify_queue_members(restored,asterisk('queue show '+queue_identity(queue_id)))
         except Exception:
             print("CRITICO: nao foi possivel confirmar rollback da fila.",file=sys.stderr)
         raise

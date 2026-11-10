@@ -9,11 +9,11 @@ import unittest
 
 
 class ReleaseIntegrityTests(unittest.TestCase):
-    def test_foundation_installer_pins_exact_complete_runtime_bundle(self):
+    def test_current_installer_pins_exact_complete_runtime_bundle(self):
         root=Path(__file__).parent
-        installer=(root/'activate-profile-foundation.sh').read_text()
+        installer=(root/'activate-isolated-queues.sh').read_text().split('(cd "$target"',1)[0]
         pins=dict((name,digest) for digest,name in re.findall(r'^([a-f0-9]{64})  ([a-z_]+\.py)$',installer,re.M))
-        self.assertEqual(set(pins),{'agent.py','process_lock.py','tenant_profile.py'})
+        self.assertEqual(set(pins),{'agent.py','local_queue_reload.py'})
         for name,digest in pins.items():
             canonical=(root/name).read_bytes().replace(b'\r\n',b'\n')
             self.assertEqual(hashlib.sha256(canonical).hexdigest(),digest,name)
@@ -37,25 +37,28 @@ class ReleaseIntegrityTests(unittest.TestCase):
             for folder in (stage,target,binary):folder.mkdir()
             original=b'# previous reviewed worker\n'
             (target/'agent.py').write_bytes(original)
-            for name in ('queue_availability.py','call_history.py'):
+            for name in ('queue_availability.py','call_history.py','process_lock.py','tenant_profile.py'):
                 (target/name).write_bytes((root/name).read_bytes())
                 # A poisoned staging helper must never shadow the preserved module.
-                (stage/name).write_text("raise RuntimeError('wrong module origin')\n")
-            for name in ('agent.py','process_lock.py','tenant_profile.py'):
+                if name in ('queue_availability.py','call_history.py'):
+                    (stage/name).write_text("raise RuntimeError('wrong module origin')\n")
+            for name in ('agent.py','local_queue_reload.py'):
                 (stage/name).write_bytes((root/name).read_bytes().replace(b'\r\n',b'\n'))
-            source=(root/'activate-profile-foundation.sh').read_text()
+            source=(root/'activate-isolated-queues.sh').read_text()
             self.assertIn('target=/opt/union-pbx-agent',source)
             source=source.replace('target=/opt/union-pbx-agent','target="'+str(target)+'"')
-            source=source.replace('/root/union-pbx-profile-foundation-backup-',str(fixture/'backup-'))
-            source=source.replace('dadc633172990625c8e87e7076bf74bd0d8502ab55aafab51bf7bee755869fc1',hashlib.sha256(original).hexdigest())
-            script=stage/'activate-profile-foundation.sh';script.write_text(source)
+            source=source.replace('/root/union-pbx-isolated-queues-backup-',str(fixture/'backup-'))
+            source=source.replace('b807dec29556be122a2c45f9d08e38501611a798f3cb2e85a8513be64d4b93ba',hashlib.sha256(original).hexdigest())
+            private=fixture/'manager.json';private.write_text('{}')
+            source=source.replace('/etc/union-pbx-agent/local-manager.json',str(private))
+            script=stage/'activate-isolated-queues.sh';script.write_text(source)
             (fixture/'active').touch()
             shims={
                 'id':'#!/bin/sh\necho 0\n',
                 'asterisk':"#!/bin/sh\n[ \"$*\" = '-rx core show channels count' ] || exit 99\nprintf '0 active channels\\n'\n",
                 'install':'''#!/bin/sh
 [ "$1" = -o ] && [ "$2" = root ] && [ "$3" = -g ] && [ "$4" = root ] && [ "$5" = -m ] || exit 99
-if [ "$FAIL_INSTALL" = 1 ] && [ "$8" = "$FAKE_TARGET/tenant_profile.py" ]; then touch "$FAKE_STATE/install-failed"; exit 1; fi
+if [ "$FAIL_INSTALL" = 1 ] && [ "$8" = "$FAKE_TARGET/agent.py" ]; then touch "$FAKE_STATE/install-failed"; exit 1; fi
 # Preserve mode and paths, without requiring root ownership in the CI fixture.
 exec /usr/bin/install -m "$6" "$7" "$8"
 ''',
@@ -72,20 +75,19 @@ esac
                 path=binary/name;path.write_text(content);path.chmod(0o755)
             env={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],'FAKE_STATE':str(fixture),
                  'FAIL_STOP':str(int(fail_stop)),'FAIL_INSTALL':str(int(fail_install)),'FAKE_TARGET':str(target)}
-            result=subprocess.run(['bash',str(script),'--acknowledge-profile-foundation-update'],
+            result=subprocess.run(['bash',str(script),'--acknowledge-isolated-queue-update'],
                                   env=env,capture_output=True,timeout=20)
             self.assertTrue((fixture/'active').exists(),result.stderr.decode())
             if fail_stop or fail_install:
                 self.assertNotEqual(result.returncode,0)
                 self.assertTrue((fixture/('failed-once' if fail_stop else 'install-failed')).exists(),result.stderr.decode())
                 self.assertEqual((target/'agent.py').read_bytes(),original)
-                self.assertFalse((target/'process_lock.py').exists())
-                self.assertFalse((target/'tenant_profile.py').exists())
+                self.assertFalse((target/'local_queue_reload.py').exists())
             else:
                 self.assertEqual(result.returncode,0,result.stderr.decode())
-                for name in ('agent.py','process_lock.py','tenant_profile.py'):
+                for name in ('agent.py','local_queue_reload.py'):
                     self.assertEqual((target/name).read_bytes(),(stage/name).read_bytes())
-            for name in ('queue_availability.py','call_history.py'):
+            for name in ('queue_availability.py','call_history.py','process_lock.py','tenant_profile.py'):
                 self.assertEqual((target/name).read_bytes(),(root/name).read_bytes())
 
 

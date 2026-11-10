@@ -18,6 +18,11 @@ class AgentProfileTests(unittest.TestCase):
     def setUp(self):
         self.agent=fresh_agent()
         self.org=str(uuid.uuid4())
+        self.runtime=tempfile.TemporaryDirectory()
+        self.addCleanup(self.runtime.cleanup)
+        for name,filename in (('LOCAL_MANAGER_CONFIG','absent-manager.json'),('TENANT_CONFIG_ROOT','tenants')):
+            replacement=patch.object(self.agent,name,Path(self.runtime.name)/filename)
+            replacement.start();self.addCleanup(replacement.stop)
 
     def test_profile_binds_private_config_state_and_sip_context(self):
         self.agent.select_profile(self.org)

@@ -476,7 +476,7 @@ arquivos. Se surgir uma chamada durante a operação, a recarga de reversão pod
 ser adiada: a mensagem crítica exige conferência do operador antes de continuar.
 
 Instalar `agent.py`, `tenant_profile.py`, `process_lock.py`, `call_history.py` e
-`queue_availability.py` juntos. Antes de habilitar a unidade
+`queue_availability.py` e `local_queue_reload.py` juntos. Antes de habilitar a unidade
 `union-pbx-agent@UUID.service`, atualizar também o agente legado para a versão
 com locks; versões antigas não cooperam com a exclusão entre processos.
 Todos os processos usam um lock por perfil para impedir sequências concorrentes
@@ -484,14 +484,25 @@ e um lock comum durante alterações na central. A espera por rede e a entrega
 criptografada ao navegador ficam fora do lock comum. Uma configuração adiada
 por chamada ativa não impede essa entrega.
 
-O provisionamento de filas em perfis permanece bloqueado. `queue reload all`
+`queue reload all`
 também recarrega regras globais, e dois comandos CLI separados de parâmetros e
-integrantes não fornecem a mesma operação atômica. A próxima etapa exige
-integração AMI local `QueueReload`, com fila exata, Members/Parameters=yes e
-Rules=no, seguida de validação real controlada. Sem ela, o agente adia o trabalho
-sem escrever arquivos. O bootstrap permite somente perfis sem filas cadastradas.
+integrantes não fornecem a mesma operação atômica. O agente usa a integração
+AMI local `QueueReload`, com uma fila exata por trabalho, Members/Parameters=yes
+e Rules=no. Autentica antes de escrever os arquivos e repete a guarda de chamadas
+depois do login, imediatamente antes da ação. Sem a integração pronta, adia o
+trabalho. O bootstrap permite somente perfis sem filas cadastradas.
+Cada participante precisa corresponder ao endpoint, número e estado habilitado
+de um ramal local da mesma organização; UUID do cadastro e UUID do endpoint
+continuam independentes. Depois da recarga confere estratégia e conjunto exato
+de integrantes na CLI, recusando participantes ausentes, duplicados ou externos.
+O agente legado também usa esse controle quando a credencial local existe.
+O fallback global só é permitido antes de configurar qualquer perfil por empresa.
+`queues-init` legado é um bootstrap anterior à interface local; depois da AMI
+configurada ele é recusado antes de consultar o motor ou escrever arquivos.
+Atualizações passam a ser individuais por fila.
 O modo legado é preservado quando `--profile` é omitido. Os instaladores
-históricos `activate-history.sh` e `activate-availability.sh` aceitam somente
+históricos `activate-history.sh`, `activate-availability.sh` e
+`activate-profile-foundation.sh` aceitam somente
 os artefatos das respectivas versões auditadas; não servem para esta atualização.
 Não habilitar unidades de outras empresas nem migrar a Union sem o pacote
 de ativação/reversão e a validação operacional posterior.
@@ -504,14 +515,23 @@ não modifica rotas e não recarrega o Asterisk. A aprovação de atualização 
 worker não autoriza admitir empresas ou configurar seus troncos. Conferir o
 heartbeat assinado após aplicar. Se falhar, o script restaura o worker anterior.
 
-`local_queue_reload.py` prepara o cliente do futuro recarregamento isolado.
-Ele ainda não é chamado pelo agente e não habilita a AMI. Conecta somente em
+`local_queue_reload.py` é o cliente do recarregamento isolado.
+Ele não habilita a AMI. Conecta somente em
 127.0.0.1:5038, exige credencial própria em arquivo root 0600 sem symlink,
 autentica sem eventos e envia uma única QueueReload com fila exata e
 Members/Parameters=yes, Rules=no. Confirma o ActionID e limita tempo/tamanho
 das respostas. Não aceita configuração de host, ações arbitrárias ou comandos
 de chamada. Nenhuma credencial SIP/FVX é utilizada para essa interface.
-A integração e a ativação local exigem outro pacote revisado e autorizado.
+A instalação e a ativação local exigem o pacote revisado e autorizado.
+
+`activate-isolated-queues.sh` atualiza somente o agente da preparação anterior
+(SHA b807dec...), preservando os módulos e as configurações existentes. Verifica
+os hashes dos dois arquivos novos e dos helpers preservados, faz backup e
+reinicia apenas o agente, com bloqueio de chamadas e reversão. Não faz uma
+QueueReload nem instala perfis. O instalador exige a credencial local já
+preparada. Conferir autenticação, heartbeat e ausência de alterações nos arquivos
+do Asterisk após aplicar. A admissão de parceiros continua bloqueada até a
+validação operacional de dois perfis e a etapa de autorização/protocolo no banco.
 
 ### Ativação explícita da interface local
 

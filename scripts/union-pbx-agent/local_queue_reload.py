@@ -98,7 +98,7 @@ class _Session:
         raise ManagerError('Confirmacao AMI local nao recebida.')
 
 
-def _perform(queue=None):
+def _perform(queue=None,before_reload=None):
     username,secret=load_credentials()
     try:
         deadline=time.monotonic()+5
@@ -106,6 +106,7 @@ def _perform(queue=None):
             session=_Session(connection,deadline)
             session.request({'Action':'Login','Username':username,'Secret':secret,'Events':'off'})
             if queue is not None:
+                if before_reload is not None:before_reload()
                 session.request({'Action':'QueueReload','Queue':queue,'Members':'yes','Parameters':'yes','Rules':'no'})
             try:
                 session.send({'Action':'Logoff'})
@@ -123,7 +124,9 @@ def check_ready():
     _perform()
 
 
-def reload_queue(queue):
+def reload_queue(queue,before_reload=None):
     if not isinstance(queue,str) or not QUEUE.fullmatch(queue):
         raise ManagerError('Uma fila gerenciada exata e obrigatoria.')
-    _perform(queue)
+    if before_reload is not None and not callable(before_reload):
+        raise ManagerError('Guarda da recarga local invalida.')
+    _perform(queue,before_reload)
