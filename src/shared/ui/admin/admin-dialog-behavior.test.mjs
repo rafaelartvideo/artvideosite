@@ -65,7 +65,8 @@ test("AdminDialog unifica preparação, retry e conteúdo com animação sem fli
   const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
   assert.match(layout, /preparing = false,/);
   assert.match(layout, /preparingText = "Preparando informações\.\.\."/);
-  assert.match(layout, /const showPreparation = preparing \|\| Boolean\(preparingError\)/);
+  assert.match(layout, /const showPreparation = !preparationRef.current.ready && \(preparing \|\| Boolean\(preparingError\)\)/);
+  assert.match(layout, /preparationRef.current.key !== preparingKey/);
   assert.match(layout, /data-admin-dialog-preparing="true"/);
   assert.match(layout, /data-admin-dialog-ready="true"/);
   assert.match(layout, /!showPreparation && footer/);

@@ -311,6 +311,7 @@ export function AdminDialog({
   closable = true,
   hideHeader = false,
   preparing = false,
+  preparingKey,
   preparingText = "Preparando informações...",
   preparingError,
   onRetryPreparing,
@@ -332,11 +333,22 @@ export function AdminDialog({
   hideHeader?: boolean;
   /** Exibe preparação apenas se há dependência de consulta real. */
   preparing?: boolean;
+  /** Identifica o registro para repetir a preparação apenas ao trocar de entidade. */
+  preparingKey?: string | number | null;
   preparingText?: string;
   preparingError?: string | null;
   onRetryPreparing?: () => void;
 }) {
-  const showPreparation = preparing || Boolean(preparingError);
+  // Não esconder o modal novamente em refetch de filtros após a primeira abertura.
+  // Ao trocar para outra entidade, começa um novo ciclo de preparação.
+  const preparationRef = React.useRef<{ key: string | number | null | undefined; ready: boolean }>({
+    key: preparingKey, ready: false,
+  });
+  if (!open || preparationRef.current.key !== preparingKey) {
+    preparationRef.current = { key: preparingKey, ready: false };
+  }
+  if (open && !preparing && !preparingError) preparationRef.current.ready = true;
+  const showPreparation = !preparationRef.current.ready && (preparing || Boolean(preparingError));
   const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
