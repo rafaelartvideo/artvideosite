@@ -80,10 +80,14 @@ export function OrderReturnActions({ order, canCreate }: {
 }) {
   const [open, setOpen] = useState(false);
   if (!canCreate || !order?.completed_at || order?.cancelled_at) return null;
+  const serviceType = order?.service_type as { quote_workflow_enabled?: boolean; generates_warranty?: boolean } | undefined;
+  const canStartReturn = serviceType?.quote_workflow_enabled === true && serviceType?.generates_warranty === true;
+  const label = canStartReturn ? "Iniciar retorno" : "Reabrir OS";
   return <>
     <BtnPrimary onClick={() => setOpen(true)} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
-      <RotateCcw size={15} /> Iniciar retorno
+      <RotateCcw size={15} /> {label}
     </BtnPrimary>
-    <OrderReturnStartDialog order={order} open={open} onClose={() => setOpen(false)} />
+    <OrderReturnStartDialog order={order} open={open} onClose={() => setOpen(false)}
+      mode={canStartReturn ? "return" : "reopen"} />
   </>;
 }
