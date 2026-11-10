@@ -49,7 +49,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const canChangeSituation = !quoteMode && !returnAwaitingDiagnosis && hasPermission("orders.situation.change") && !isOrderSituationLocked(detail);
   const canEdit = hasPermission("orders.edit");
   const canRequestParts = !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
-  const canResolve = !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
+  const canResolve = !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
   const canComplete = !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.complete") && detail.is_solved && returnReady && !detail.completed_at && !cancelled;
   const canEditOrder = !quoteMode && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
