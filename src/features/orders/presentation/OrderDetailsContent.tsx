@@ -102,6 +102,8 @@ export function OrderDetailsContent({
 }) {
   const fmtDate = formatDate;
   const stateLabel = formatState;
+  const isReturnOrder = Boolean(detail.return_root_id);
+  const reportedProblem = isReturnOrder ? (detail.return_reason || detail.customer_notes) : detail.customer_notes;
   const getSlaForOrder = getSla;
   void getSlaForOrder;
   const customer = detail.customer as any;
@@ -192,18 +194,6 @@ export function OrderDetailsContent({
         </Section>
       )}
 
-      {hasPermission("orders.section.address") && (
-        <Section title="Dados de endereço">
-          <div className="grid sm:grid-cols-2 gap-3">
-            {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map((key) => {
-              const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" };
-              const address = ((detail.customer as any)?.addresses || []).find((item: Address) => item.is_default) || (detail.customer as any)?.addresses?.[0];
-              return address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null;
-            })}
-          </div>
-        </Section>
-      )}
-
       <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
         orderImages={orderImages} onViewImage={onViewImage} />
 
@@ -240,12 +230,14 @@ export function OrderDetailsContent({
         <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.internal_notes}</p></Section>
       )}
 
-      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
-        {detail.customer_notes && hasPermission("orders.section.problem") && (
-        <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.customer_notes}</p></Section>
-      )}
+      <div className={isReturnOrder ? "grid min-w-0 gap-4" : "grid min-w-0 items-stretch gap-4 lg:grid-cols-2"}>
+        {reportedProblem && hasPermission("orders.section.problem") && (
+          <Section title={isReturnOrder ? "Motivo do retorno" : "Descrição do problema"}>
+            <p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{reportedProblem}</p>
+          </Section>
+        )}
 
-      {hasPermission("orders.section.service_location") && (
+      {!isReturnOrder && hasPermission("orders.section.service_location") && (
         <Section title="Local do atendimento">
           <div className="grid gap-3 sm:grid-cols-2">
             <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />

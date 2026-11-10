@@ -93,7 +93,7 @@ export function OrderReturnDiagnosisGate({
     <Section title="Diagnóstico do retorno">
       <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Relato do cliente: <span className="font-semibold text-foreground">{order.return_reason || "Não informado"}</span>
+          Motivo do retorno: <span className="font-semibold text-foreground">{order.return_reason || "Não informado"}</span>
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <FTextarea label="Diagnóstico" required value={diagnosis} rows={4} maxLength={400}

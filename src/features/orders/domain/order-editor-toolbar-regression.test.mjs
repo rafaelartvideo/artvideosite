@@ -87,3 +87,20 @@ test("retornos usam toolbar, navegação junto ao número e modal apenas com mot
   assert.match(migration, /new.priority := 'urgente'/);
   assert.match(migration, /where return_root_id is not null/);
 });
+
+test("detalhes não repetem endereço e retorno usa o motivo informado na abertura", async () => {
+  const details = read("src/features/orders/presentation/OrderDetailsContent.tsx");
+  const gate = read("src/features/orders/presentation/OrderReturnDiagnosisGate.tsx");
+  const summary = read("src/features/orders/presentation/OrderSolutionSummary.tsx");
+  for (const [name, source] of [["OrderDetailsContent.tsx", details], ["OrderReturnDiagnosisGate.tsx", gate], ["OrderSolutionSummary.tsx", summary]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
+  assert.doesNotMatch(details, /<Section title="Dados de endereço">/);
+  assert.match(details, /const isReturnOrder = Boolean\(detail\.return_root_id\)/);
+  assert.match(details, /detail\.return_reason \|\| detail\.customer_notes/);
+  assert.match(details, /isReturnOrder \? "Motivo do retorno" : "Descrição do problema"/);
+  assert.match(details, /!isReturnOrder && hasPermission\("orders\.section\.service_location"\)/);
+  assert.match(gate, /Motivo do retorno: <span/);
+  assert.doesNotMatch(summary, /Descrição do problema/);
+  assert.match(details, /<Section title="Local do atendimento">/);
+});
