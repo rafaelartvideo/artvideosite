@@ -650,27 +650,39 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           Habilitar audio da chamada
         </AdminButton>}
 
-        {callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
-          <AdminFieldLabel label="Ligações internas e filas" />
+        {callState === "idle" && allowExternalCalls && isPlatformOperatorOrganization && <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-1" role="group" aria-label="Tipo de ligação">
+          <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
+            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</button>
+          <button type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
+            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</button>
+        </div>}
+        {callState === "idle" && (dialMode === "internal" || !allowExternalCalls || !isPlatformOperatorOrganization) && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+          <AdminFieldLabel label="Ramal, fila ou URA" />
+          <div className="relative">
+            <FInput type="tel" inputMode="numeric" aria-label="Discar ramal, fila ou fluxo" value={dialTarget}
+              maxLength={6} placeholder="Digite o número" onChange={event => setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6))}/>
+            <button type="button" aria-label="Apagar último dígito" onClick={() => setDialTarget(value => value.slice(0,-1))}
+              disabled={!dialTarget} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-30"><Delete size={17}/></button>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1"><AdminSelect value={dialTarget} onValueChange={setDialTarget}
+            <div className="min-w-0 flex-1"><AdminSelect value={dialableNumbers.has(Number(dialTarget)) ? dialTarget : ""} onValueChange={setDialTarget}
               ariaLabel="Destino interno ou fila" disabled={directoryLoading || registration !== "registered"}
               options={[{value:'',label:'Selecione um ramal ou fila'},
                 ...dialableExtensions.map(item=>({value:String(item.number),label:`${item.number} · Ramal · ${item.display_name}`})),
                 ...testQueues.map(item=>({value:String(item.number),label:`${item.number} · Fila · ${item.name}`})),
                 ...testFlows.map(item=>({value:String(item.number),label:`${item.number} · Fluxo · ${item.name}`}))]} /></div>
             <AdminButton variant="primary" type="button" onClick={callInternal}
-              disabled={outputPending || registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
+              disabled={!registeredAndIdle || !internalDestinationReady}
               >
               <Phone size={16}/> Ligar
             </AdminButton>
           </div>
           <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || testFlowError || "A lista mostra ramais, filas e fluxos aplicados. A disponibilidade é confirmada ao chamar."}
+            {directoryLoading ? "Carregando ramais..." : directoryError || testQueueError || testFlowError || (dialTarget && !internalDestinationReady ? "Destino não autorizado. Escolha um destino cadastrado ou disque 900." : "Disponibilidade confirmada somente ao realizar a chamada.")}
           </p>
-          <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar destinos</AdminButton>
+          <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}><RefreshCw size={15}/> Atualizar destinos</AdminButton>
         </div>}
-        {allowExternalCalls && callState === "idle" && isPlatformOperatorOrganization && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+        {allowExternalCalls && callState === "idle" && isPlatformOperatorOrganization && dialMode === "external" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ligar para telefone" />
           <div className="flex items-center gap-2">
             <FInput type="tel" inputMode="tel" autoComplete="off" aria-label="Telefone com DDD"
@@ -684,6 +696,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           <p className="text-xs text-muted-foreground">Fixos e celulares do Brasil. Cobrança conforme o plano FVX.</p>
           {externalTarget && !normalizeNationalDestination(externalTarget) &&
             <p role="status" className="text-xs text-muted-foreground">Informe um telefone válido com DDD, sem zero ou código de operadora.</p>}
+        </div>}
+        {callState === "idle" && <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
+          <UnionPbxDtmfPad disabled={false} title="Teclado de discagem" allowSymbols={false}
+            onDigit={digit => {
+              if (dialMode === "external" && allowExternalCalls && isPlatformOperatorOrganization)
+                setExternalTarget(value => (value.replace(/\D/g, "") + digit).slice(0,11));
+              else setDialTarget(value => (value + digit).slice(0,6));
+            }}/>
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
           {callState === "idle" && <AdminButton variant="primary" size="lg" type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}
