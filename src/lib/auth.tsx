@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
+import { checkMyEmployeeAccessWindow, type MyEmployeeAccessWindow } from "@/features/registrations/infrastructure/employee-access-hours.repository";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
@@ -33,6 +34,7 @@ interface AuthContextValue {
   activeOrganizationId: string | null;
   enabledModules: string[];
   accessError: string | null;
+  accessWindow: MyEmployeeAccessWindow | null;
   pendingTerms: PendingOrganizationTerm[];
   hasPermission: (permissionKey: string) => boolean;
   hasModule: (moduleKey: string) => boolean;
@@ -55,6 +57,7 @@ const AuthContext = createContext<AuthContextValue>({
   activeOrganizationId: null,
   enabledModules: [],
   accessError: null,
+  accessWindow: null,
   pendingTerms: [],
   hasPermission: () => false,
   hasModule: () => false,
@@ -76,6 +79,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   const [organizations, setOrganizations] = useState<OrganizationAccess[]>([]);
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [accessWindow, setAccessWindow] = useState<MyEmployeeAccessWindow | null>(null);
   const [pendingTerms, setPendingTerms] = useState<PendingOrganizationTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(8);
@@ -335,6 +339,49 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     };
   }, [scope, session?.user.id, loading, activeOrganization?.organization_id, employee?.is_active, employee?.disable_inactivity_logout]);
 
+  // Respeita mudanças de expediente durante uma sessão já aberta.
+  // A validação é feita no relógio do banco, nunca no horário alterável do navegador.
+  useEffect(() => {
+    const organizationId = activeOrganization?.organization_id;
+    if (scope !== "crm" || !session?.user?.id || !organizationId || loading) return;
+    let disposed = false;
+    let inFlight = false;
+    let previousAllowed = accessWindow?.allowed ?? true;
+    const checkWindow = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const status = await checkMyEmployeeAccessWindow(organizationId);
+        if (disposed || activeOrganizationIdRef.current !== organizationId) return;
+        setAccessWindow(status);
+        if (!status.allowed) setPermissions([]);
+        if (!previousAllowed && status.allowed) {
+          accessLoadingKeyRef.current = null;
+          void loadAccess(session.user.id, organizationId);
+        }
+        previousAllowed = status.allowed;
+      } catch (error) {
+        if (disposed) return;
+        console.warn("[ACESSO] Falha na verificação de horários:", error);
+        setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
+        setAccessWindow({ allowed: false, restricted: true, timezone: "America/Sao_Paulo" });
+        setPermissions([]);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onFocus = () => { if (document.visibilityState === "visible") void checkWindow(); };
+    const timer = window.setInterval(() => void checkWindow(), 30_000);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [scope, session?.user?.id, activeOrganization?.organization_id, loading]);
+
   function cancelScheduledAccessLoad() {
     if (deferredAccessTimerRef.current === null) return;
     window.clearTimeout(deferredAccessTimerRef.current);
@@ -366,6 +413,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     setActiveOrganizationState(null);
     setPendingTerms([]);
     setAccessError(null);
+    setAccessWindow(null);
 
     if (notifyOrganizationChange) {
       // Mesmo sem empresa selecionada, um logout deve descartar os caches
@@ -387,6 +435,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     setOrganizations([]);
     setActiveOrganizationState(null);
     setPendingTerms([]);
+    setAccessWindow(null);
     if (previousOrganizationId) {
       // Falha de acesso também encerra o escopo dos dados da empresa anterior.
       dispatchCompatibleEvent(
@@ -467,6 +516,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       setPermissions([]);
       setActiveOrganizationState(null);
       setPendingTerms([]);
+      setAccessWindow(null);
       activeOrganizationIdRef.current = null;
       setLoadingProgress(100);
       setLoading(false);
@@ -495,13 +545,27 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         : organization,
     );
 
+    let resolvedWindow: MyEmployeeAccessWindow;
+    try {
+      resolvedWindow = await checkMyEmployeeAccessWindow(resolvedOrganization.organization_id);
+    } catch (scheduleError) {
+      if (requestId !== accessRequestRef.current) return;
+      console.error("Access schedule validation error:", scheduleError);
+      clearResolvedAccess();
+      setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
+      setLoading(false);
+      return;
+    }
+    if (requestId !== accessRequestRef.current) return;
+
     const previousOrganizationId = activeOrganizationIdRef.current;
     activeOrganizationIdRef.current = resolvedOrganization.organization_id;
     setOrganizations(resolvedOrganizations);
     setActiveOrganizationState(resolvedOrganization);
     setEmployee(access.employee ?? null);
     setRole(access.role ?? null);
-    setPermissions(permissionKeys.map(key => ({ key })));
+    setAccessWindow(resolvedWindow);
+    setPermissions(resolvedWindow.allowed ? permissionKeys.map(key => ({ key })) : []);
     setPendingTerms(pendingTermsFromAccess);
     setAccessError(null);
     persistActiveOrganization(userId, resolvedOrganization.organization_id);
@@ -589,6 +653,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       activeOrganizationId: activeOrganization?.organization_id ?? null,
       enabledModules: activeOrganization?.enabled_modules ?? [],
       accessError,
+      accessWindow,
       pendingTerms,
       hasPermission,
       hasModule,

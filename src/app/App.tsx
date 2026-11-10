@@ -333,6 +333,7 @@ function AdminEntry() {
     activeOrganization,
     organizations,
     accessError,
+    accessWindow,
     pendingTerms,
     refreshAccess,
     signOut,
@@ -394,6 +395,16 @@ function AdminEntry() {
         onSignOut={signOut}
       />
     );
+  }
+
+  if (activeOrganization && accessWindow && !accessWindow.allowed) {
+    return <AdminAccessMessage
+      title="Fora do horário de acesso"
+      message="O acesso à empresa está permitido apenas nos dias e intervalos definidos pelo gestor. Horário de referência: Brasília. Você pode consultar sua escala com o responsável."
+      userEmail={session.user.email}
+      onRetry={refreshAccess}
+      onSignOut={signOut}
+    />;
   }
 
   if (!activeOrganization) {
