@@ -13,7 +13,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { CheckCircle2, ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
+import { ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -31,6 +31,7 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { OrderSituationRecordsPage } from "./OrderSituationRecordsPage";
 import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
+import { OrderLifecycleTag } from "./OrderLifecycleTag";
 import { OrderSolutionRecordsPage } from "./OrderSolutionRecordsPage";
 import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
@@ -626,7 +627,7 @@ export function OrderDetailsPage(props: Props) {
     {visible && !routedSubpageOpen && !solutionRecordsOpen && <AdminPage open onClose={closePage} smoothMotion={false} breadcrumb="Ordens de Serviço" title={detail.os_number || "OS"} titleVariant="order-number" maxW="max-w-[1440px]">
       <div className="space-y-5 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2"><OrderReturnSwitcher order={detail} /><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{!returnDiagnosisActive && (detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{quoteWorkflowEnabled && quoteState?.orderId === detail.id && <OrderQuoteStatusBadge status={quoteState.status} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>}</div>
+          <div className="flex flex-wrap items-center gap-2"><OrderReturnSwitcher order={detail} /><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{!returnDiagnosisActive && (detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{quoteWorkflowEnabled && quoteState?.orderId === detail.id && <OrderQuoteStatusBadge status={quoteState.status} />}{detail.completed_at ? <OrderLifecycleTag status="completed" /> : detail.is_solved ? <OrderLifecycleTag status="solved" /> : null}</div>
           <div className="flex w-full min-w-0 flex-col gap-2 border-t border-border pt-3 sm:w-auto sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0 md:flex-row md:flex-wrap md:items-center">
             <div className="flex w-full min-w-0 flex-nowrap gap-2 md:w-auto md:flex-wrap">
               {canPrintDocuments && <div className="min-w-0 flex-1 md:flex-none"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" collisionPadding={12} className="w-[calc(100vw-2rem)] max-w-[23rem] min-w-0 overflow-x-hidden"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex min-w-0 cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">Etiqueta</span><span className="block truncate text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{detail.completed_at && <DropdownMenuItem onSelect={event => { event.preventDefault(); void printWarranty(); }}

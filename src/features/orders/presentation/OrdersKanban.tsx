@@ -1,5 +1,4 @@
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
-import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { getOrderStatusBadgeClass } from "../domain/order-status-palette";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
@@ -9,6 +8,7 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
+import { OrderLifecycleTag } from "./OrderLifecycleTag";
 
 export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
   filteredOrders: any[];
@@ -210,7 +210,9 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
                     : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
-                {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
+                {!isCancelled(order) && (order.completed_at
+                  ? <OrderLifecycleTag status="completed" className="mt-2" />
+                  : order.is_solved ? <OrderLifecycleTag status="solved" className="mt-2" /> : null)}
                 {order.cannot_be_solved && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
 
                 {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>

@@ -9,6 +9,13 @@ import {
 type ToastMessage = { msg: string; type: "success" | "error" };
 type ProfileOption = { id: string; full_name?: string | null };
 
+// Notas geradas pela conciliação de orçamentos pertencem à auditoria
+// financeira, não aos registros escritos manualmente pela equipe.
+function isAutomaticQuoteApprovalNote(content: unknown): boolean {
+  return typeof content === "string"
+    && /^Orçamento versão \\d+ aprovado\\. Conciliação: [\\s\\S]+\\. Total anterior: R\\$ /.test(content.trim());
+}
+
 export function useOrderHistory({
   orderId,
   userId,
@@ -76,7 +83,7 @@ export function useOrderHistory({
         createdAt: item.created_at,
       };
     });
-    const written = (notesQuery.data || []).map((item: any) => ({
+    const written = (notesQuery.data || []).filter((item: any) => !isAutomaticQuoteApprovalNote(item.content)).map((item: any) => ({
       id: `note-${item.id}`,
       type: "note" as const,
       authorId: item.author_id,
@@ -107,7 +114,7 @@ export function useOrderHistory({
   return {
     modalOpen, setModalOpen, text, setText,
     userFilter, setUserFilter, dateFilter, setDateFilter, sort, setSort,
-    entries, authorOptions, total: statusHistory.length + (notesQuery.data?.length || 0),
+    entries, authorOptions, total: statusHistory.length + (notesQuery.data || []).filter((item: any) => !isAutomaticQuoteApprovalNote(item.content)).length,
     loading: notesQuery.isLoading, saving: createMutation.isPending,
     submit: () => createMutation.mutate(), resetPageState,
     clearFilters: () => { setUserFilter(""); setDateFilter(""); setSort("desc"); },
