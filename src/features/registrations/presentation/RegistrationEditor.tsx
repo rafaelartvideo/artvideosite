@@ -69,6 +69,7 @@ export function RegistrationEditor({
   onToggleRole,
   employeeOnly = false,
   supplierQuickCreate = false,
+  inlineSupplier = false,
 }: {
   creating: boolean;
   form: RegistrationFormState;
@@ -96,6 +97,7 @@ export function RegistrationEditor({
   onToggleRole: (role: RegistrationRole) => void;
   employeeOnly?: boolean;
   supplierQuickCreate?: boolean;
+  inlineSupplier?: boolean;
 }) {
   const canShowAccess = showAccess ?? (accessExisting || canModifyAccess);
   const location = useLocation();
@@ -226,6 +228,8 @@ export function RegistrationEditor({
     <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
     <BtnPrimary disabled={!canModify} onClick={onSave} loading={saving} loadingText="Salvando...">{creating ? "Criar" : "Salvar alterações"}</BtnPrimary>
   </>;
+
+  if (supplierQuickCreate && inlineSupplier) return <div className="space-y-1" aria-label="Cadastro de fornecedor no modal atual">{editorBody}<div className="flex justify-end gap-2 border-t border-border px-4 py-3">{editorActions}</div></div>;
 
   if (supplierQuickCreate) return <AdminDialog
     open
