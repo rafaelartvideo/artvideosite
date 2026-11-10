@@ -67,6 +67,10 @@ class AgentProfileTests(unittest.TestCase):
         stack.enter_context(patch.object(self.agent,'QUEUE_STATE_DIR',root/'state'/'queues'))
         stack.enter_context(patch.object(self.agent,'BACKUP_DIR',root/'backups'))
         stack.enter_context(patch.object(self.agent,'require_root'))
+        # Mock the VPS-only Asterisk group and root ownership in this isolated fixture.
+        stack.enter_context(patch.object(self.agent.grp,'getgrnam',
+            return_value=self.agent.grp.getgrgid(self.agent.os.getgid())))
+        stack.enter_context(patch.object(self.agent.os,'chown'))
         stack.enter_context(patch.object(self.agent,'assert_no_calls'))
         stack.enter_context(patch.object(self.agent,'assert_fvx'))
         for name in ('DIALPLAN_MAIN','QUEUE_MAIN','DIALPLAN_BROWSER'):
@@ -130,6 +134,9 @@ class AgentProfileTests(unittest.TestCase):
                 stack.enter_context(patch.object(self.agent,name,path))
             stack.enter_context(patch.object(self.agent,'QUEUE_STATE_DIR',root/'queues'))
             stack.enter_context(patch.object(self.agent,'STATE_DIR',root/'state'))
+            stack.enter_context(patch.object(self.agent.grp,'getgrnam',
+                return_value=self.agent.grp.getgrgid(self.agent.os.getgid())))
+            stack.enter_context(patch.object(self.agent.os,'chown'))
             stack.enter_context(patch.object(self.agent,'assert_no_calls',side_effect=[None,self.agent.Busy('active')]))
             stack.enter_context(patch.object(self.agent,'_check_queue_reload',side_effect=self.agent.Busy('active')))
             cli=stack.enter_context(patch.object(self.agent,'asterisk',return_value=''))
