@@ -25,11 +25,12 @@ function formatWarrantyDate(value?: string) {
 }
 
 export function OrderReturnStartDialog({
-  order, open, onClose,
+  order, open, onClose, mode = "return",
 }: {
   order: any | null;
   open: boolean;
   onClose: () => void;
+  mode?: "return" | "reopen";
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -39,9 +40,11 @@ export function OrderReturnStartDialog({
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
   const orderId = String(order?.id || "");
+  const isReopening = mode === "reopen";
 
   useEffect(() => {
     if (!open || !orderId) return;
+    if (isReopening) { setLoading(false); setEligibility(null); setReason(""); setError(""); return; }
     let active = true;
     setEligibility(null);
     setError("");
@@ -56,14 +59,14 @@ export function OrderReturnStartDialog({
       .catch(cause => { if (active) setError(systemErrorMessage(cause)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [open, orderId]);
+  }, [open, orderId, isReopening]);
 
   if (!open || !order) return null;
 
   const process = async (kind: "return" | "new") => {
-    if (loading || processing || !eligibility) return;
-    if (kind === "return" && (!eligibility.eligible || reason.trim().length < 5)) return;
-    if (kind === "new" && eligibility.eligible) return;
+    if (loading || processing || (!eligibility && !isReopening)) return;
+    if (kind === "return" && (!eligibility?.eligible || reason.trim().length < 5)) return;
+    if (kind === "new" && !isReopening && eligibility?.eligible) return;
     setProcessing(true);
     setError("");
     try {
@@ -71,7 +74,7 @@ export function OrderReturnStartDialog({
         ? await supabase.rpc("create_service_order_return_v1", {
             p_order_id: orderId, p_reason: reason.trim(), p_classification: "analysis",
           })
-        : await supabase.rpc("create_service_order_from_expired_warranty_v1", { p_order_id: orderId });
+        : await supabase.rpc("reopen_service_order_as_new_v1", { p_order_id: orderId });
       if (actionError) throw actionError;
       const newId = String(data || "");
       if (!newId) throw new Error("A nova OS não retornou identificador.");
@@ -79,7 +82,7 @@ export function OrderReturnStartDialog({
       void queryClient.invalidateQueries({ queryKey: ["order-return-chain"] });
       notifyAdmin(kind === "return"
         ? "Retorno iniciado. Registre o diagnóstico antes de continuar."
-        : "Nova OS criada com numeração independente.", "success");
+        : "OS reaberta como novo atendimento, com numeração independente.", "success");
       onClose();
       navigate(adminPath("orders", newId));
     } catch (cause) {
@@ -95,28 +98,38 @@ export function OrderReturnStartDialog({
   return <AdminDialog
     open={open}
     onClose={() => { if (!processing) onClose(); }}
-    title={expired ? "Garantia fora do prazo" : "Iniciar retorno da OS " + String(order.os_number || "")}
+    title={isReopening ? "Reabrir OS " + String(order.os_number || "") : expired ? "Garantia fora do prazo" : "Iniciar retorno da OS " + String(order.os_number || "")}
     className="max-w-lg"
     footer={<div className="flex w-full flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose} disabled={processing}>Voltar</BtnSecondary>
-      {eligibility?.eligible && <BtnPrimary disabled={processing || loading || reason.trim().length < 5}
+      {isReopening && <BtnPrimary disabled={processing || loading} onClick={() => void process("new")}>
+        <RotateCcw size={15} /> {processing ? "Reabrindo..." : "Confirmar reabertura"}
+      </BtnPrimary>}
+      {!isReopening && eligibility?.eligible && <BtnPrimary disabled={processing || loading || reason.trim().length < 5}
         onClick={() => void process("return")}>
         <RotateCcw size={15} /> {processing ? "Criando retorno..." : "Confirmar retorno"}
       </BtnPrimary>}
-      {expired && <BtnPrimary disabled={processing || loading} onClick={() => void process("new")}>
-        {processing ? "Criando nova OS..." : "Criar nova OS"}
+      {!isReopening && expired && <BtnPrimary disabled={processing || loading} onClick={() => void process("new")}>
+        {processing ? "Reabrindo OS..." : "Reabrir OS"}
       </BtnPrimary>}
-      {eligibility?.reason === "active_return" && eligibility.active_order_id &&
+      {!isReopening && eligibility?.reason === "active_return" && eligibility.active_order_id &&
         <BtnPrimary onClick={() => { onClose(); navigate(adminPath("orders", eligibility.active_order_id!)); }}>
           Abrir retorno existente <ArrowUpRight size={15} />
         </BtnPrimary>}
     </div>}
   >
+    {isReopening && <div className="space-y-3 py-2">
+      <p className="text-sm font-semibold text-foreground">Será criada uma nova ordem de serviço com um novo número.</p>
+      <p className="text-sm leading-6 text-muted-foreground">
+        Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados.
+        Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados.
+      </p>
+    </div>}
     {loading && <p role="status" className="py-4 text-sm text-muted-foreground">Verificando o certificado de garantia...</p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
       {error}
     </p>}
-    {!loading && eligibility?.eligible && <div className="space-y-4">
+    {!isReopening && !loading && eligibility?.eligible && <div className="space-y-4">
       <p className="text-xs font-semibold text-emerald-700">
         Garantia válida até {formatWarrantyDate(eligibility.warranty_expires_at)}.
       </p>
@@ -132,7 +145,7 @@ export function OrderReturnStartDialog({
         />
       </label>
     </div>}
-    {!loading && expired && <div className="space-y-3">
+    {!isReopening && !loading && expired && <div className="space-y-3">
       <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-400/70 bg-amber-50 px-4 py-3.5 text-amber-950 shadow-sm dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-950 dark:bg-amber-400/20 dark:text-amber-200" aria-hidden="true">
           <CircleAlert size={19} strokeWidth={2.5} />
@@ -146,13 +159,13 @@ export function OrderReturnStartDialog({
         </p>
       </div>
       <p className="text-sm leading-6 text-foreground/90 dark:text-slate-200">
-        É possível criar uma nova OS com outro número, aproveitando os dados do cliente, equipamento, informações e fotos da anterior. Pagamentos e aprovações não serão replicados.
+        Você pode reabrir o atendimento com outro número, aproveitando os dados do cliente, equipamento e fotos. Valores, pagamentos e aprovações anteriores não serão replicados.
       </p>
     </div>}
-    {!loading && eligibility?.reason === "active_return" && <p className="text-sm text-foreground">
+    {!isReopening && !loading && eligibility?.reason === "active_return" && <p className="text-sm text-foreground">
       Esta OS já possui um retorno em andamento.
     </p>}
-    {!loading && eligibility?.reason === "not_closed" && <p className="text-sm text-foreground">
+    {!isReopening && !loading && eligibility?.reason === "not_closed" && <p className="text-sm text-foreground">
       A OS precisa estar concluída para iniciar um retorno.
     </p>}
   </AdminDialog>;
