@@ -63,9 +63,9 @@ test("falha ao preparar a conclusão mostra erro e permite tentar novamente sem 
   const details = read("src/features/orders/application/useOrderDetails.ts");
   assert.match(tab, /detailsController\.detailLoadError/);
   const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
-  assert.match(modal, /Não foi possível preparar a conclusão/);
+  assert.match(modal, /preparingError=\{preparingError\}/);
   assert.match(tab, /onRetryCompletionPreparation=\{\(\) => void detailsController\.retryDetailLoad\(\)\}/);
-  assert.match(modal, />Tentar novamente<\/AdminButton>/);
+  assert.match(modal, /onRetryPreparing=\{onRetryPreparing\}/);
   assert.match(details, /detailLoadError: selectedOrderBelongsToOrganization \? detailQuery\.error : null/);
   assert.match(details, /retryDetailLoad: \(\) => detailQuery\.refetch\(\)/);
 });
@@ -86,8 +86,8 @@ test("um único diálogo mantém Preparando conclusão sem remount ou segunda te
   assert.match(modal, /if \(\(!completion\.open && !preparing\) \|\| \(!detail && !preparing\)\) return null;/);
   assert.match(modal, /const preparingConclusion = preparing \|\|/);
   assert.match(modal, /if \(preparingConclusion\) \{/);
-  assert.match(modal, /preparingError \? <div/);
-  assert.match(modal, /<LoadingState text="Preparando conclusão\.\.\." \/>/);
+  assert.match(modal, /preparingError=\{preparingError\}/);
+  assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
 });
 
 test("produtos e serviços mantêm uma divisória e altura idêntica à garantia", async () => {
