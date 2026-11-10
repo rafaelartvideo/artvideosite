@@ -36,6 +36,7 @@ import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
+import { OrderReturnsPanel } from "./OrderReturnsPanel";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
@@ -670,6 +671,13 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
+        <OrderReturnsPanel
+          order={detail}
+          canCreate={!monitorView && hasPermission("orders.create")}
+          canEdit={!monitorView && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+          onClassificationChange={value => details.setDetail((current: any) =>
+            current?.id === detail.id ? { ...current, return_classification: value } : current)}
+        />
         <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"} />
         {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
@@ -682,7 +690,7 @@ export function OrderDetailsPage(props: Props) {
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
-          canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
+          canEdit={!monitorView && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           onOverviewChange={handleItemsOverviewChange}
