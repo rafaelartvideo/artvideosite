@@ -25,12 +25,20 @@ export type OrderCompletionFinanceOptions = {
 
 export type OrderCompletionFinancePayload = {
   installments: Array<{ installment_number: number; due_date: string; amount: number }>;
-  payments: Array<{
+  // A conclusão da OS apenas informa recebimentos. Nunca realiza baixas financeiras.
+  payments: [];
+  reported_receipts: Array<{
     installment_number: number;
     principal_amount: number;
     payment_method_id: string;
     financial_account_id: string;
-    occurred_at?: string | null;
+    occurred_at: string | null;
+  }>;
+  payment_plan: Array<{ payment_method_id: string; amount: number }>;
+  payment_preferences: Array<{
+    installment_number: number;
+    payment_method_id: string;
+    financial_account_id: string;
   }>;
 };
 
