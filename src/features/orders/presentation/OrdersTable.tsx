@@ -321,7 +321,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                       </div>
                       {situationHistoryButton(o)}
                     </div>
-                  : <span className="text-xs text-muted-foreground">—</span>}</td>
+                  : <span className="text-xs text-muted-foreground">—</span>}</td>}
                 {hasPermission("orders.table.actions") && <td><div onClick={event => event.stopPropagation()} className="flex items-center justify-end gap-2">
                   {canComplete(o) && <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />}
                   {quickActions(o)}
