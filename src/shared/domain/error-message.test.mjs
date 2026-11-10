@@ -15,6 +15,17 @@ test("maps forbidden responses to the standard permission feedback", () => {
   assert.equal(systemErrorMessage({ status: 403, message: "Forbidden" }), "Você não possui permissão para realizar esta ação nesta empresa.");
 });
 
+test("preserves explicit business-state errors instead of reporting missing permissions", () => {
+  const reason = "Esta OS está solucionada e somente situação, cancelamento ou a conclusão financeira podem ser alterados.";
+  assert.equal(systemErrorMessage({ code: "42501", message: reason }), reason);
+  const completionRule = "A conclusão só pode alterar os campos financeiros da OS.";
+  assert.equal(systemErrorMessage({ code: "42501", message: completionRule }), completionRule);
+  const denied = "Você não possui permissão para editar o diagnóstico desta OS.";
+  assert.equal(systemErrorMessage({ code: "42501", message: denied }), denied);
+  assert.equal(systemErrorMessage({ code: "42501", message: "permission denied for table service_orders" }),
+    "Você não possui permissão para realizar esta ação nesta empresa.");
+});
+
 test("strips internal error prefixes while preserving useful messages", () => {
   assert.equal(systemErrorMessage("invalid_auth: Falha ao autenticar."), "Falha ao autenticar.");
   assert.equal(systemErrorMessage("operator_profile_incompatible: A SAC não aceitou a conta."), "A SAC não aceitou a conta.");
