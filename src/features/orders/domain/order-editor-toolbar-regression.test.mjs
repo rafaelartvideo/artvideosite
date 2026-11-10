@@ -54,3 +54,29 @@ test("Usar celular usa UI sem gradiente e indicador verde compartilhado", async 
   for (const file of files) assert.match(read(file), /<AdminUseMobileButton/);
   assert.match(read(files[2]), /showOnMobile=\{scope === "payment-proof"\}/);
 });
+
+test("retornos usam menu compacto, navegação junto ao número e modal apenas com motivo", async () => {
+  const controls = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const editor = read("src/features/orders/presentation/OrderInformationSection.tsx");
+  const migration = read("supabase/migrations/20261110123500_force_return_urgent_priority.sql");
+
+  assert.ok((await transformWithEsbuild(controls, "OrderReturnsPanel.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(details, "OrderDetailsPage.tsx", { loader: "tsx" })).code);
+  assert.match(details, /<OrderReturnSwitcher order=\{detail\} \/>/);
+  assert.match(details, /<OrderReturnActions/);
+  assert.doesNotMatch(details, /<OrderReturnsPanel/);
+  assert.match(controls, /<MoreHorizontal size=\{19\}/);
+  assert.match(controls, /Iniciar retorno/);
+  assert.match(controls, /Classificar garantia/);
+  assert.match(controls, /<ArrowLeftRight size=\{13\}/);
+  assert.match(controls, /Motivo do retorno <span className="text-red-600"/);
+  assert.match(controls, /p_classification: "analysis"/);
+  assert.doesNotMatch(controls, /Atendimentos e retornos|Relato na nova entrada|Serviços e peças anteriores \(somente leitura\)/);
+  assert.doesNotMatch(controls, /Uma nova etapa será criada|Os serviços antigos não serão copiados/);
+  assert.doesNotMatch(controls, /Classificação inicial/);
+  assert.match(editor, /value=\{editingOS\?\.return_root_id \? "urgente" : form.priority\}/);
+  assert.match(editor, /disabled=\{Boolean\(editingOS\?\.return_root_id\)\}/);
+  assert.match(migration, /new.priority := 'urgente'/);
+  assert.match(migration, /where return_root_id is not null/);
+});
