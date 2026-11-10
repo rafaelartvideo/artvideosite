@@ -1,14 +1,12 @@
 import { Fragment, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ArrowLeftRight, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeftRight, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { OrderReturnStartDialog } from "./OrderReturnStartDialog";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { cn } from "@/shared/domain/formatters";
-import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 
 const CLASSIFICATIONS = [
   { value: "analysis", label: "Garantia em análise" },
@@ -75,134 +73,17 @@ export function OrderReturnSwitcher({ order }: { order: any }) {
   </nav>;
 }
 
-/** Ações diretas na toolbar; modais abertos somente sob demanda. */
-export function OrderReturnActions({ order, canCreate, canEdit, onClassificationChange }: {
+/** Abertura sempre pela checagem do certificado, na toolbar inferior. */
+export function OrderReturnActions({ order, canCreate }: {
   order: any;
   canCreate: boolean;
-  canEdit: boolean;
-  onClassificationChange?: (value: string) => void;
 }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { query, chain, organizationId, rootId } = useOrderReturnChain(order);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [classificationOpen, setClassificationOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [classification, setClassification] = useState("analysis");
-  const [creating, setCreating] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const isReturn = Boolean(order?.return_root_id);
-  const activeReturn = chain.find(item => item.return_sequence > 0 && !item.completed_at && !item.cancelled_at);
-  const canOfferReturn = canCreate && Boolean(order?.completed_at) && !order?.cancelled_at;
-  const canStartReturn = canOfferReturn && !activeReturn && !query.isLoading && !query.isError;
-  const canClassify = isReturn && canEdit && !order?.completed_at && !order?.cancelled_at;
-  const showMenu = canOfferReturn || canClassify;
-
-  if (!showMenu) return null;
-
-  const createReturn = async () => {
-    if (creating || reason.trim().length < 5) return;
-    setCreating(true);
-    try {
-      const { data, error } = await supabase.rpc("create_service_order_return_v1", {
-        p_order_id: order.id,
-        p_reason: reason.trim(),
-        p_classification: "analysis",
-      });
-      if (error) throw error;
-      const newOrderId = String(data || "");
-      if (!newOrderId) throw new Error("Não foi possível identificar o retorno criado.");
-      setCreateOpen(false);
-      setReason("");
-      notifyAdmin("Retorno criado com prioridade Urgente.", "success");
-      void queryClient.invalidateQueries({ queryKey: ["order-return-chain", organizationId, rootId] });
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
-      navigate(adminPath("orders", newOrderId));
-    } catch (error) {
-      notifyAdmin("Não foi possível iniciar o retorno: " + systemErrorMessage(error), "error");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const saveClassification = async () => {
-    if (!canClassify || updating) return;
-    if (classification === order.return_classification) {
-      setClassificationOpen(false);
-      return;
-    }
-    setUpdating(true);
-    try {
-      const { data, error } = await supabase.from("service_orders")
-        .update({ return_classification: classification })
-        .eq("id", order.id).eq("organization_id", organizationId)
-        .is("completed_at", null).is("cancelled_at", null)
-        .select("id").single();
-      if (error || !data) throw error || new Error("Não foi possível atualizar o retorno.");
-      onClassificationChange?.(classification);
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
-      setClassificationOpen(false);
-      notifyAdmin("Garantia classificada.", "success");
-    } catch (error) {
-      notifyAdmin("Não foi possível classificar a garantia: " + systemErrorMessage(error), "error");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
+  const [open, setOpen] = useState(false);
+  if (!canCreate || !order?.completed_at || order?.cancelled_at) return null;
   return <>
-    {canStartReturn && <BtnPrimary onClick={() => { setReason(""); setCreateOpen(true); }}
-      className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
+    <BtnPrimary onClick={() => setOpen(true)} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
       <RotateCcw size={15} /> Iniciar retorno
-    </BtnPrimary>}
-    {canClassify && (order.return_classification === "analysis"
-      ? <BtnPrimary onClick={() => {
-          setClassification(String(order.return_classification || "analysis"));
-          setClassificationOpen(true);
-        }} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
-          <ShieldCheck size={15} /> Classificar garantia
-        </BtnPrimary>
-      : <AdminButton variant="secondary" onClick={() => {
-          setClassification(String(order.return_classification || "analysis"));
-          setClassificationOpen(true);
-        }} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
-          <ShieldCheck size={15} /> Revisar garantia
-        </AdminButton>)}
-    {canOfferReturn && query.isError && <span className="text-xs text-red-600">Não foi possível consultar os retornos.</span>}
-
-    <AdminDialog open={createOpen} onClose={() => { if (!creating) setCreateOpen(false); }}
-      title={"Iniciar retorno da OS " + String(order.os_number || "")}
-      className="max-w-lg"
-      footer={<div className="flex w-full flex-col-reverse justify-end gap-2 sm:flex-row">
-        <BtnSecondary disabled={creating} onClick={() => setCreateOpen(false)}>Voltar</BtnSecondary>
-        <BtnPrimary disabled={creating || reason.trim().length < 5} onClick={() => { void createReturn(); }}>
-          <RotateCcw size={15} /> {creating ? "Criando retorno..." : "Confirmar retorno"}
-        </BtnPrimary>
-      </div>}>
-      <label className="block">
-        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-          Motivo do retorno <span className="text-red-600" aria-hidden="true">*</span>
-        </span>
-        <textarea value={reason} onChange={event => setReason(event.target.value)}
-          rows={4} maxLength={2000} minLength={5} required disabled={creating}
-          placeholder="Descreva o motivo do retorno..."
-          className={cn(INPUT, "min-h-28 h-auto resize-y text-sm")} />
-      </label>
-    </AdminDialog>
-
-    <AdminDialog open={classificationOpen} onClose={() => { if (!updating) setClassificationOpen(false); }}
-      title="Classificar garantia"
-      className="max-w-md"
-      footer={<div className="flex w-full flex-col-reverse justify-end gap-2 sm:flex-row">
-        <BtnSecondary disabled={updating} onClick={() => setClassificationOpen(false)}>Voltar</BtnSecondary>
-        <BtnPrimary disabled={updating} onClick={() => { void saveClassification(); }}>
-          {updating ? "Salvando..." : "Salvar"}
-        </BtnPrimary>
-      </div>}>
-      <AdminSelect value={classification} disabled={updating}
-        ariaLabel="Classificação da garantia" onValueChange={setClassification}
-        options={CLASSIFICATIONS.map(item => ({ value: item.value, label: item.label }))}
-        className="w-full text-sm" />
-    </AdminDialog>
+    </BtnPrimary>
+    <OrderReturnStartDialog order={order} open={open} onClose={() => setOpen(false)} />
   </>;
 }
