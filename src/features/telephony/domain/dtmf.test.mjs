@@ -139,3 +139,17 @@ test('handler real do telefone impede DTMF em espera, incerteza, negociação e 
   execute({ ...normal, sendPbxDigit: () => { throw new Error('Teclado indisponível.'); } });
   assert.equal(notices.at(-1), 'Teclado indisponível.');
 });
+
+test('discador numérico mantém 12 posições mas impede símbolos antes da ligação', async () => {
+  const { UnionPbxDtmfPad } = await loadPad();
+  const entered = [];
+  const buttons = findButtons(UnionPbxDtmfPad({
+    disabled: false, title: 'Teclado de discagem', allowSymbols: false,
+    onDigit: digit => entered.push(digit),
+  }));
+  assert.equal(buttons.length, 12);
+  assert.equal(buttons[9].props.disabled, true);
+  assert.equal(buttons[11].props.disabled, true);
+  buttons[0].props.onClick(); buttons[9].props.onClick(); buttons[10].props.onClick();
+  assert.deepEqual(entered, ['1', '0']);
+});
