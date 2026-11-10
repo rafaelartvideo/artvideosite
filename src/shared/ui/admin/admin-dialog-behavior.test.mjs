@@ -59,3 +59,18 @@ test("CRM dialogs use fade only, avoiding the competing zoom/slide/size animatio
   assert.doesNotMatch(layout, /transition-\[max-width,height\]/);
   assert.match(editor, /fullPage=\{Boolean\(editingOS\)\} smoothMotion=\{false\}/);
 });
+
+
+test("AdminDialog unifica preparação, retry e conteúdo com animação sem flicker de footer", () => {
+  const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
+  assert.match(layout, /preparing = false,/);
+  assert.match(layout, /preparingText = "Preparando informações\.\.\."/);
+  assert.match(layout, /const showPreparation = preparing \|\| Boolean\(preparingError\)/);
+  assert.match(layout, /data-admin-dialog-preparing="true"/);
+  assert.match(layout, /data-admin-dialog-ready="true"/);
+  assert.match(layout, /!showPreparation && footer/);
+  assert.match(layout, /onRetryPreparing && <BtnPrimary/);
+  assert.match(layout, /<div hidden aria-hidden="true">\{children\}<\/div>/);
+  assert.match(layout, /motion-reduce:animate-none/);
+  assert.doesNotMatch(layout, /transition-\[max-width,height\]/);
+});

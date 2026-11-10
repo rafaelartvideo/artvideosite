@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ArrowLeft, MoreVertical, Pause, Play, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import { preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
@@ -310,6 +310,10 @@ export function AdminDialog({
   minimizedDescription,
   closable = true,
   hideHeader = false,
+  preparing = false,
+  preparingText = "Preparando informações...",
+  preparingError,
+  onRetryPreparing,
 }: {
   open: boolean;
   onClose: () => void;
@@ -326,7 +330,13 @@ export function AdminDialog({
   minimizedDescription?: React.ReactNode;
   closable?: boolean;
   hideHeader?: boolean;
+  /** Exibe preparação apenas se há dependência de consulta real. */
+  preparing?: boolean;
+  preparingText?: string;
+  preparingError?: string | null;
+  onRetryPreparing?: () => void;
 }) {
+  const showPreparation = preparing || Boolean(preparingError);
   const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
@@ -356,7 +366,7 @@ export function AdminDialog({
     <DialogContent
       showClose={false}
       showMinimizeControl={false}
-      minimizable={minimizable}
+      minimizable={!showPreparation && minimizable}
       minimizedTitle={minimizedTitle}
       minimizedDescription={effectiveMinimizedDescription}
       overlayClassName="admin-dialog-overlay"
@@ -369,10 +379,12 @@ export function AdminDialog({
       } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
-        className,
+        showPreparation ? "w-[min(25rem,calc(100vw-1.5rem))] max-w-[25rem]" : className,
       )}
     >
-      {hideHeader
+      {showPreparation
+        ? <DialogTitle className="sr-only">{typeof title === "string" ? title : "Preparando janela"}</DialogTitle>
+        : hideHeader
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
         : (title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
@@ -385,14 +397,41 @@ export function AdminDialog({
           {closable && <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>}
         </div>
       </div>}
-      {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
-      <div ref={bodyRef} className={cn(
-         "min-h-0 min-w-0 flex-1 overflow-y-auto p-5",
-         // Um LoadingState como conteúdo principal ocupa o centro real do modal.
-         "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
-         bodyClassName,
-       )}>{children}</div>
-      {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
+      {(showPreparation || !description) && <DialogDescription className="sr-only">
+        {showPreparation ? preparingText : `Conteúdo e ações da janela ${minimizedTitle}.`}
+      </DialogDescription>}
+      {showPreparation
+        ? <div data-admin-dialog-preparing="true" className="min-w-0 px-6 py-8">
+            <div role={preparingError ? "alert" : "status"} aria-live="polite" aria-busy={!preparingError}
+              className="flex flex-col items-center gap-4 text-center">
+              <span aria-hidden="true" className={cn(
+                "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl",
+                preparingError ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary",
+              )}>
+                {preparingError
+                  ? <AlertCircle size={29} />
+                  : <LoaderCircle size={30} className="animate-spin motion-reduce:animate-none" />}
+              </span>
+              <div className="min-w-0 space-y-1.5">
+                <p className="text-sm font-bold text-foreground">{preparingError ? "Não foi possível carregar" : preparingText}</p>
+                {preparingError
+                  ? <p className="break-words text-xs leading-relaxed text-destructive">{preparingError}</p>
+                  : <p className="text-xs leading-relaxed text-muted-foreground">Carregando os dados necessários.</p>}
+              </div>
+              <div className="flex w-full flex-wrap items-center justify-center gap-2">
+                {closable && <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>}
+                {preparingError && onRetryPreparing && <BtnPrimary onClick={onRetryPreparing}>Tentar novamente</BtnPrimary>}
+              </div>
+            </div>
+            {/* Permite que consultas de componentes filhos sejam iniciadas sem mostrar um formulário incompleto. */}
+            <div hidden aria-hidden="true">{children}</div>
+          </div>
+        : <div ref={bodyRef} data-admin-dialog-ready="true" className={cn(
+            "min-h-0 min-w-0 flex-1 overflow-y-auto p-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none",
+            "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
+            bodyClassName,
+          )}>{children}</div>}
+      {!showPreparation && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>
     </DialogContent>
   </Dialog>;
 }
