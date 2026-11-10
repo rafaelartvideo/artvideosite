@@ -78,7 +78,7 @@ export const listServiceOrderUsedItems = (serviceOrderId: string) =>
 export const getServiceOrderResolutionState = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("is_solved,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason,order_rules_snapshot,custom_field_values")
+    .select("is_solved,return_root_id,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason,order_rules_snapshot,custom_field_values")
     .eq("id", serviceOrderId)
     .maybeSingle();
 
