@@ -73,7 +73,7 @@ export function OrderReturnSwitcher({ order }: { order: any }) {
   </nav>;
 }
 
-/** Abertura sempre pela checagem do certificado, na toolbar inferior. */
+/** Iniciar retorno de OS com orçamento e garantia, na toolbar. Reabrir OS: menu da lista. */
 export function OrderReturnActions({ order, canCreate }: {
   order: any;
   canCreate: boolean;
@@ -82,12 +82,14 @@ export function OrderReturnActions({ order, canCreate }: {
   if (!canCreate || !order?.completed_at || order?.cancelled_at) return null;
   const serviceType = order?.service_type as { quote_workflow_enabled?: boolean; generates_warranty?: boolean } | undefined;
   const canStartReturn = serviceType?.quote_workflow_enabled === true && serviceType?.generates_warranty === true;
-  const label = canStartReturn ? "Iniciar retorno" : "Reabrir OS";
+  // Reabrir OS fica exclusivamente nos três pontos da lista; a toolbar mantém
+  // somente o fluxo de retorno dos atendimentos de orçamento com garantia.
+  if (!canStartReturn) return null;
   return <>
     <BtnPrimary onClick={() => setOpen(true)} className="h-10 gap-2 px-3 text-xs font-bold md:px-4">
-      <RotateCcw size={15} /> {label}
+      <RotateCcw size={15} /> Iniciar retorno
     </BtnPrimary>
     <OrderReturnStartDialog order={order} open={open} onClose={() => setOpen(false)}
-      mode={canStartReturn ? "return" : "reopen"} />
+      mode="return" />
   </>;
 }
