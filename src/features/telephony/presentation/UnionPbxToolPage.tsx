@@ -568,9 +568,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     </div>
 
     <div className="w-full min-w-0 space-y-4">
-      <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
-        onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
-      {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio. Ligar e atender ficam bloqueados até terminar.</p>}
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 space-y-4">
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -631,8 +630,13 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>}
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-live="polite">
-        <div className="flex flex-col items-center gap-3 rounded-lg bg-muted/40 p-5 text-center">
+      <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
+        onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
+      {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio. Ligar e atender ficam bloqueados até terminar.</p>}
+        </div>
+        <div className="min-w-0 space-y-4">
+      <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-live="polite" aria-label="Discador e chamada atual">
+        <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-lg bg-muted/30 p-5 text-center">
           <Headphones className="text-primary" size={30} />
           <p className="text-lg font-semibold text-foreground">{callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligacao" : callState === "dialing" ? "Chamando" : "Teste de audio"}</p>
           <p className="text-sm text-muted-foreground">{callState === "idle" ? "Teste o áudio no 900 ou ligue para outro ramal da Union." : remoteParty}</p>
