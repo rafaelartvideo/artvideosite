@@ -565,3 +565,18 @@ para a execução autorizada do pacote do commit revisado. Referências:
 [AMI v2](https://docs.asterisk.org/Configuration/Interfaces/Asterisk-Manager-Interface-AMI/AMI-v2-Specification/),
 [configuração oficial22](https://github.com/asterisk/asterisk/blob/22/configs/samples/manager.conf.sample)
 e [QueueReload22](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/AMI_Actions/QueueReload/).
+
+### Discador nacional da Union
+
+`outbound_router.py` prepara a saída FVX para os endpoints existentes de 301 e
+302. Sem argumentos, mostra apenas uma prévia. A ativação exige
+`--apply --acknowledge-national-fvx-outbound`, aprovação da saída tarifável e
+ausência de chamadas. Faz backup privado, preserva proprietário e permissões,
+recarrega somente o dialplan e verifica as rotas internas e o registro FVX.
+Não origina chamadas nem altera senhas, troncos, entrada, filas ou perfis parceiros.
+Uma falha restaura os arquivos originais, inclusive após escrita parcial.
+
+O CRM aceita fixos e celulares brasileiros com DDD, com ou sem +55. O servidor
+valida novamente o destino e a identidade autenticada do endpoint por
+`CHANNEL(endpoint)`; não confia no identificador de chamada informado pelo cliente.
+Novos ramais e empresas exigem uma autorização de saída própria, separada.

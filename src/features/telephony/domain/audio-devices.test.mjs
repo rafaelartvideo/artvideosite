@@ -63,7 +63,8 @@ test('seletores usam componentes compartilhados, travam durante chamada e alimen
   const ui = readFileSync(path, 'utf8');
   for (const item of ['AdminSelect', 'AdminButton', 'locked', 'AbortController', 'pbxRequest']) assert.ok(ui.includes(item), item);
   const phone = readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx', 'utf8');
-  assert.equal((phone.match(/mediaConstraints: microphoneConstraints\(microphoneId\)/g) || []).length, 3);
+  // Echo, internal dialing, external dialing and answering must use the selected microphone.
+  assert.equal((phone.match(/mediaConstraints: microphoneConstraints\(microphoneId\)/g) || []).length, 4);
   assert.ok(phone.includes('locked={callState !== "idle"}'));
   assert.ok(phone.includes('getAudio={() => remoteAudioRef.current}'));
 });

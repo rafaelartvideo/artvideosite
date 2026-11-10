@@ -8,6 +8,7 @@ import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import { microphoneConstraints } from "../application/audio-devices";
+import { normalizeNationalDestination } from "../application/outbound-dialing";
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
 import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
@@ -34,7 +35,7 @@ type SipSession = CallControlSession & {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageInbound, onHistory, isPageOpen }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
   const { activeOrganizationId } = useAuth();
   const [password, setPassword] = useState("");
   const [sipUser, setSipUser] = useState(SIP_USER);
@@ -49,6 +50,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [directoryError, setDirectoryError] = useState("");
   const [testQueueError, setTestQueueError] = useState("");
   const [dialTarget, setDialTarget] = useState("");
+  const [externalTarget, setExternalTarget] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
@@ -386,6 +388,21 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     }
   };
 
+  const callExternal = () => {
+    const destination = normalizeNationalDestination(externalTarget);
+    if (!allowExternalCalls || !destination || outputPendingRef.current ||
+        registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
+    setNotice("Chamando " + externalTarget + " pela FVX...");
+    try {
+      uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
+        mediaConstraints: microphoneConstraints(microphoneId),
+        pcConfig: { iceServers: [] },
+      });
+    } catch {
+      setNotice("Não foi possível iniciar a ligação. Confira o ramal e o microfone.");
+    }
+  };
+
   const answer = () => {
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de atender.'); return; }
     if (callState !== "incoming" || !sessionRef.current) return;
@@ -564,9 +581,24 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             </AdminButton>
           </div>
           <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
+            {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar."}
           </p>
           {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
+        </div>}
+        {allowExternalCalls && callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+          <AdminFieldLabel label="Ligar para telefone" />
+          <div className="flex items-center gap-2">
+            <FInput type="tel" inputMode="tel" autoComplete="off" aria-label="Telefone com DDD"
+              placeholder="DDD + número" value={externalTarget} maxLength={32}
+              onChange={event => setExternalTarget(event.target.value)} />
+            <AdminButton variant="primary" type="button" onClick={callExternal}
+              disabled={outputPending || registration !== "registered" || !normalizeNationalDestination(externalTarget)}>
+              <Phone size={16} /> Ligar
+            </AdminButton>
+          </div>
+          <p className="text-xs text-muted-foreground">Fixos e celulares do Brasil. Cobrança conforme o plano FVX.</p>
+          {externalTarget && !normalizeNationalDestination(externalTarget) &&
+            <p role="status" className="text-xs text-muted-foreground">Informe um telefone válido com DDD, sem zero ou código de operadora.</p>}
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
           {callState === "idle" && <AdminButton variant="primary" size="lg" type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}

@@ -642,6 +642,7 @@ export function AdminDashboard({
         {canAccessPbxTool && user?.id && activeOrganizationId && (
           <Suspense fallback={null}>
             <UnionPbxToolPage
+              allowExternalCalls={isPlatformOperatorOrganization}
               key={`${user.id}:${activeOrganizationId}`}
               isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null}
               onOpen={() => navigateAdmin("tools", "union-pbx")}
