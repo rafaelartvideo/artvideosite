@@ -86,7 +86,7 @@ export function OrderReturnDiagnosisGate({
               { value: "same_part", label: "Mesma peça (garantia)" },
               { value: "different_part", label: "Outra peça (novo orçamento)" },
             ]}
-            className="w-full sm:w-fit"
+            className="w-full grid-cols-2"
           />
           {damageKind === "same_part" && <p className="mt-3 flex items-center gap-2 text-sm text-emerald-700">
             <ShieldCheck size={16} /> Coberto pela garantia. O fluxo de aprovação do orçamento será dispensado.
