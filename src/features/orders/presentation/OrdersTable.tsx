@@ -70,7 +70,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order)
     && (!order.return_root_id || (order.return_classification && order.return_classification !== "analysis"));
-  const canEdit = (order: any) => canEditOrder && !order.is_solved && !isCancelled(order);
+  const canEdit = (order: any) => canEditOrder && !order.return_root_id && !order.is_solved && !isCancelled(order);
   const rowNumber = (index: number) => filteredRowNumber({ page: safePage, pageSize, index });
   const availableSituations = (order: any) => getSituations(order.service_type_id, order.situation_id, order.situation);
 
@@ -124,8 +124,10 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     const situations = availableSituations(order);
     const editable = canEdit(order);
     const allowSituationChange = canChangeOrderSituation(order);
-    const canStartReturn = hasPermission("orders.create") && Boolean(order.completed_at) && !isCancelled(order);
-    const hasAnyAction = canPrint || allowSituationChange || editable || canStartReturn;
+    const canReopenOrReturn = hasPermission("orders.create") && Boolean(order.completed_at) && !isCancelled(order);
+    const serviceType = order.service_type as { quote_workflow_enabled?: boolean; generates_warranty?: boolean } | null;
+    const canStartReturn = serviceType?.quote_workflow_enabled === true && serviceType?.generates_warranty === true;
+    const hasAnyAction = canPrint || allowSituationChange || editable || canReopenOrReturn;
 
     return <DropdownMenu onOpenChange={open => { if (!open) setExpandedSituationOrderId(null); }}>
       <DropdownMenuTrigger asChild>
@@ -143,8 +145,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           {printingOrderId === order.id ? "Preparando A4..." : "Imprimir A4"}
         </DropdownMenuItem>}
 
-        {canStartReturn && <DropdownMenuItem onSelect={() => setReturnTarget(order)} className="gap-2 font-semibold">
-          <RotateCcw size={15} /> Iniciar retorno
+        {canReopenOrReturn && <DropdownMenuItem onSelect={() => setReturnTarget(order)} className="gap-2 font-semibold">
+          <RotateCcw size={15} /> {canStartReturn ? "Iniciar retorno" : "Reabrir OS"}
         </DropdownMenuItem>}
         {canPrint && (allowSituationChange || editable) && <DropdownMenuSeparator />}
 
@@ -234,6 +236,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     </AdminDialog>
 
     <OrderReturnStartDialog order={returnTarget} open={Boolean(returnTarget)}
+      mode={(returnTarget?.service_type as any)?.quote_workflow_enabled === true
+        && (returnTarget?.service_type as any)?.generates_warranty === true ? "return" : "reopen"}
       onClose={() => setReturnTarget(null)} />
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
