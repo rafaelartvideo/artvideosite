@@ -194,6 +194,24 @@ export function OrderDetailsContent({
         </Section>
       )}
 
+      {/* A seção de endereço da OS comum é independente do local do atendimento.
+          A ordem de retorno mantém o layout próprio do diagnóstico. */}
+      {!isReturnOrder && hasPermission("orders.section.address") && (
+        <Section title="Dados de endereço">
+          {customerAddress ? <div className="grid gap-3 sm:grid-cols-2">
+            {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => {
+              const labels: Record<string, string> = {
+                zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento",
+                neighborhood: "Bairro", city: "Cidade", state: "Estado",
+              };
+              return customerAddress[key]
+                ? <InfoRow key={key} label={labels[key]} value={customerAddress[key]} />
+                : null;
+            })}
+          </div> : <AdminSectionEmpty compact>Nenhum endereço cadastrado para este cliente.</AdminSectionEmpty>}
+        </Section>
+      )}
+
       <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
         orderImages={orderImages} onViewImage={onViewImage} />
 
