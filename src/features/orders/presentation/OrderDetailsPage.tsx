@@ -126,6 +126,18 @@ export function OrderDetailsPage(props: Props) {
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
+  const [showDelayedSwitchLoading, setShowDelayedSwitchLoading] = useState(false);
+  // Trocas rápidas em cache não exibem spinner/overlay: evita uma piscada
+  // desnecessária antes de os detalhes da próxima OS estarem prontos.
+  useEffect(() => {
+    if (!transitionPending) {
+      setShowDelayedSwitchLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowDelayedSwitchLoading(true), 180);
+    return () => window.clearTimeout(timer);
+  }, [transitionPending]);
+  const showSwitchLoading = transitionPending && showDelayedSwitchLoading;
   const [itemsOverview, setItemsOverview] = useState<{ total: number; pending: number; inProgress: number; completed: number } | null>(null);
   // Identidade estável: ao atualizar o badge, a aba Produtos e Serviços não
   // deve interpretar o callback como uma nova solicitação de carregamento.
@@ -804,10 +816,10 @@ export function OrderDetailsPage(props: Props) {
       />}
       <div
         data-order-switch-overlay="true"
-        aria-hidden={!transitionPending}
-        className={`absolute inset-0 z-30 flex items-center justify-center bg-background/65 transition-opacity duration-150 ease-out motion-reduce:transition-none ${transitionPending ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+        aria-hidden={!showSwitchLoading}
+        className={`absolute inset-0 z-30 flex items-center justify-center bg-background/65 transition-opacity duration-150 ease-out motion-reduce:transition-none ${transitionPending ? "pointer-events-auto" : "pointer-events-none"} ${showSwitchLoading ? "opacity-100" : "opacity-0"}`}
       >
-        {transitionPending && <span role="status" aria-label="Preparando OS selecionada" className="text-primary">
+        {showSwitchLoading && <span role="status" aria-label="Preparando OS selecionada" className="text-primary">
           <LoaderCircle size={24} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
         </span>}
       </div>

@@ -219,6 +219,8 @@ test("OS original e retorno trocam sem remontar página ou piscar o skeleton", a
   assert.match(tab, /transitionPending=\{switchingRoutedOrder\}/);
   assert.match(page, /data-order-switch-overlay="true"/);
   assert.match(page, /transition-opacity duration-150/);
+  assert.match(page, /showDelayedSwitchLoading/);
+  assert.match(page, /setTimeout\(\(\) => setShowDelayedSwitchLoading\(true\), 180\)/);
   assert.match(switcher, /queryClient\.prefetchQuery/);
   assert.match(switcher, /tabular-nums/);
   assert.doesNotMatch(skeleton, /title="Carregando OS"/);
