@@ -600,7 +600,7 @@ export function useOrderCompletion({
       return;
     }
     if (!detail?.id || completedSuccessfully || discountExceedsMax || discountExceedsServicePrice
-      || Boolean(servicePriceValidationMessage) || financeOptionsLoading || commercialItemsLoading) return;
+      || (!coverageFree && Boolean(servicePriceValidationMessage)) || financeOptionsLoading || commercialItemsLoading) return;
     if (commercialPricing && commercialItemsError) {
       showToast({ msg: "Não foi possível validar Produtos e Serviços da OS: " + commercialItemsError, type: "error" });
       return;
