@@ -29,7 +29,7 @@ test("validade da garantia acompanha o título Iniciar retorno em azul primário
   assert.equal((dialog.match(/Garantia válida até/g) || []).length, 1);
 });
 
-test("diagnóstico reutiliza a seção completa de equipamento como primeira seção", async () => {
+test("diagnóstico mostra Cliente com ações normais antes da seção completa de Equipamento", async () => {
   const detail = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const content = read("src/features/orders/presentation/OrderDetailsContent.tsx");
   assert.ok((await transformWithEsbuild(detail, "OrderDetailsPage.tsx", { loader: "tsx" })).code);
@@ -40,11 +40,26 @@ test("diagnóstico reutiliza a seção completa de equipamento como primeira se�
   assert.match(content, /<OrderImageDownloadMenu images=\{labelImages\}/);
   assert.match(content, /<OrderImageDownloadMenu images=\{equipmentImages\}/);
   assert.match(content, /<OrderEquipmentDetailsSection detail=\{detail\} hasPermission=\{hasPermission\}/);
+  assert.match(content, /export function OrderCustomerDetailsSection/);
+  assert.match(content, /hasPermission\("orders\.section\.customer"\)/);
+  assert.match(content, /<Section\s+title="Cliente"/);
   const conditionalStart = detail.indexOf(": returnDiagnosisActive\n");
+  const customerPosition = detail.indexOf("<OrderCustomerDetailsSection", conditionalStart);
   const equipmentPosition = detail.indexOf("<OrderEquipmentDetailsSection detail={detail}", conditionalStart);
   const gatePosition = detail.indexOf("<OrderReturnDiagnosisGate", conditionalStart);
-  assert.ok(conditionalStart >= 0 && equipmentPosition > conditionalStart && gatePosition > equipmentPosition,
-    "equipamento vem antes do diagnóstico no fluxo de retorno");
+  assert.ok(conditionalStart >= 0 && customerPosition > conditionalStart
+    && equipmentPosition > customerPosition && gatePosition > equipmentPosition,
+    "cliente com ações primeiro, depois equipamento, depois diagnóstico");
+  assert.match(detail, /onSendSignature=\{!monitorView && hasPermission\("documents\.signatures\.send"\)/);
+  assert.match(detail, /onWhatsApp=\{!monitorView && canSendSac/);
+  assert.match(content, /aria-label="Enviar documento para assinatura"/);
+  assert.match(content, /aria-label="Abrir endereço no mapa"/);
+  assert.match(content, /aria-label="Ligar para o cliente"/);
+  assert.match(content, /aria-label="Enviar WhatsApp pelo SAC Digital"/);
+  assert.equal((content.match(/title="Cliente"/g) || []).length, 1,
+    "uma única implementação compartilhada de Cliente");
+  const skeleton = read("src/features/orders/presentation/OrdersSkeletons.tsx");
+  assert.match(skeleton, /returnDiagnosis && <SectionSkeleton lines=\{3\} \/>/);
   assert.match(detail, /!returnDiagnosisActive && canOpenDocumentsPage/);
   assert.match(detail, /!returnDiagnosisActive && hasPermission\("orders\.section\.parts"\)/);
   assert.match(detail, /!returnDiagnosisActive && \(detail\.situation as any\)\?\.name/);

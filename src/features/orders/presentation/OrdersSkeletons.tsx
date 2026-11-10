@@ -198,6 +198,7 @@ export function OrderDetailsContentSkeleton({
           </div>
         </>
       : <>
+          {returnDiagnosis && <SectionSkeleton lines={3} />}
           <SectionSkeleton lines={returnDiagnosis ? 4 : 3} />
           <SectionSkeleton lines={returnDiagnosis ? 4 : 3} />
           {!returnDiagnosis && <div className="grid gap-4 lg:grid-cols-2">

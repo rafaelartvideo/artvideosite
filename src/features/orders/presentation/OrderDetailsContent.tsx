@@ -75,37 +75,15 @@ export function OrderEquipmentDetailsSection({
   ) : null;
 }
 
-export function OrderDetailsContent({
-  detail,
-  formatDate,
-  formatState,
-  getSla,
-  hasPermission,
-  orderImages,
-  onViewImage,
-  onWhatsApp,
-  onSendSignature,
+/** Seção Cliente única: mesmas informações e ações nos detalhes comuns e no diagnóstico do retorno. */
+export function OrderCustomerDetailsSection({
+  detail, hasPermission, onWhatsApp, onSendSignature,
 }: {
   detail: any;
-  formatDate: (value?: string | null, time?: boolean) => string;
-  formatState: (state: unknown) => string;
-  getSla: (
-    serviceTypeId?: string,
-    situationId?: string,
-    relatedSituation?: any,
-  ) => { hours: number; isDefault: boolean } | null;
   hasPermission: (permission: string) => boolean;
-  orderImages: OrderImage[];
-  onViewImage: (image: OrderImage) => void;
   onWhatsApp?: () => void;
   onSendSignature?: () => void;
 }) {
-  const fmtDate = formatDate;
-  const stateLabel = formatState;
-  const isReturnOrder = Boolean(detail.return_root_id);
-  const reportedProblem = isReturnOrder ? (detail.return_reason || detail.customer_notes) : detail.customer_notes;
-  const getSlaForOrder = getSla;
-  void getSlaForOrder;
   const customer = detail.customer as any;
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
@@ -113,10 +91,7 @@ export function OrderDetailsContent({
   const customerMapUrl = getAddressMapUrl(customerAddress);
   const contactActionClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold normal-case tracking-normal transition-colors sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2.5 sm:py-1.5";
   const actionLabelClass = "hidden sm:inline";
-
-  return (
-    <>
-      {hasPermission("orders.section.customer") && (
+  return hasPermission("orders.section.customer") ? (
         <Section
           title="Cliente"
           actions={<>
@@ -192,7 +167,47 @@ export function OrderDetailsContent({
             <InfoRow label="E-mail" value={(detail.customer as any)?.email} />
           </div>
         </Section>
-      )}
+  ) : null;
+}
+
+export function OrderDetailsContent({
+  detail,
+  formatDate,
+  formatState,
+  getSla,
+  hasPermission,
+  orderImages,
+  onViewImage,
+  onWhatsApp,
+  onSendSignature,
+}: {
+  detail: any;
+  formatDate: (value?: string | null, time?: boolean) => string;
+  formatState: (state: unknown) => string;
+  getSla: (
+    serviceTypeId?: string,
+    situationId?: string,
+    relatedSituation?: any,
+  ) => { hours: number; isDefault: boolean } | null;
+  hasPermission: (permission: string) => boolean;
+  orderImages: OrderImage[];
+  onViewImage: (image: OrderImage) => void;
+  onWhatsApp?: () => void;
+  onSendSignature?: () => void;
+}) {
+  const fmtDate = formatDate;
+  const stateLabel = formatState;
+  const isReturnOrder = Boolean(detail.return_root_id);
+  const reportedProblem = isReturnOrder ? (detail.return_reason || detail.customer_notes) : detail.customer_notes;
+  const getSlaForOrder = getSla;
+  void getSlaForOrder;
+  const customer = detail.customer as any;
+  const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
+
+  return (
+    <>
+      <OrderCustomerDetailsSection detail={detail} hasPermission={hasPermission}
+        onWhatsApp={onWhatsApp} onSendSignature={onSendSignature} />
 
       {/* A seção de endereço da OS comum é independente do local do atendimento.
           A ordem de retorno mantém o layout próprio do diagnóstico. */}
