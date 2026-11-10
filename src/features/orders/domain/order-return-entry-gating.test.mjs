@@ -24,7 +24,8 @@ test("o retorno nos três pontos e na toolbar consulta o certificado primeiro", 
   assert.match(dialog, /mode\?: "return" \| "reopen"/);
   assert.match(table, /canReopenOrReturn/);
   assert.match(table, /canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
-  assert.match(actions, /const label = canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
+  assert.match(actions, /if \(!canStartReturn\) return null/);
+  assert.match(actions, /<RotateCcw size=\{15\} \/> Iniciar retorno/);
   assert.doesNotMatch(actions, /Classificar garantia|<MoreHorizontal/);
 });
 
