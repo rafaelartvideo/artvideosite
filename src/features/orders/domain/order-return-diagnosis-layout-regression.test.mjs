@@ -40,7 +40,7 @@ test("diagnóstico reutiliza a seção completa de equipamento como primeira se�
   assert.match(content, /<OrderImageDownloadMenu images=\{labelImages\}/);
   assert.match(content, /<OrderImageDownloadMenu images=\{equipmentImages\}/);
   assert.match(content, /<OrderEquipmentDetailsSection detail=\{detail\} hasPermission=\{hasPermission\}/);
-  const conditionalStart = detail.indexOf("{returnDiagnosisActive\n");
+  const conditionalStart = detail.indexOf(": returnDiagnosisActive\n");
   const equipmentPosition = detail.indexOf("<OrderEquipmentDetailsSection detail={detail}", conditionalStart);
   const gatePosition = detail.indexOf("<OrderReturnDiagnosisGate", conditionalStart);
   assert.ok(conditionalStart >= 0 && equipmentPosition > conditionalStart && gatePosition > equipmentPosition,
@@ -76,7 +76,10 @@ test("Confirmar aparece somente na toolbar sticky e mantém a validação dos tr
   const detail = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   assert.ok((await transformWithEsbuild(actions, "OrderDetailsActions.tsx", { loader: "tsx" })).code);
   assert.match(gate, /footerHost && createPortal\(/);
-  assert.match(gate, /<BtnPrimary onClick=\{\(\) => void confirm\(\)\} disabled=\{!canConfirm\}/);
+  assert.match(gate, /setConfirmationOpen\(true\)/);
+  assert.match(gate, /<AdminDialog/);
+  assert.match(gate, /open=\{confirmationOpen\}/);
+  assert.match(gate, /<BtnPrimary disabled=\{!canConfirm\} loading=\{busy\}/);
   assert.match(gate, /<CheckCircle2 size=\{17\} \/> Confirmar/);
   assert.match(gate, /diagnosis\.trim\(\)\.length >= 5 && solution\.trim\(\)\.length >= 5/);
   assert.match(gate, /Boolean\(damageKind\)/);
