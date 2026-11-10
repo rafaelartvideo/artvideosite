@@ -5,6 +5,8 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
+import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
+import { microphoneConstraints } from "../application/audio-devices";
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
 import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
@@ -50,6 +52,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
   const [muted, setMuted] = useState(false);
+  const [microphoneId, setMicrophoneId] = useState("");
+  const [outputPending, setOutputPending] = useState(false);
+  const outputPendingRef = useRef(false);
   const [notice, setNotice] = useState("Conecte o ramal para iniciar o teste de audio.");
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [held, setHeld] = useState(false);
@@ -350,11 +355,12 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   };
 
   const callEcho = () => {
+    if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     if (registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando extensao de teste 900...");
     try {
       uaRef.current.call(`sip:900@${SIP_HOST}`, {
-        mediaConstraints: { audio: true, video: false },
+        mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
@@ -363,6 +369,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   };
 
   const callInternal = () => {
+    if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     const destination = Number(dialTarget);
     if (!dialTarget || !Number.isInteger(destination) ||
         !dialableNumbers.has(destination) ||
@@ -370,7 +377,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     setNotice("Chamando destino interno " + destination + "...");
     try {
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
-        mediaConstraints: { audio: true, video: false },
+        mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
@@ -379,9 +386,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   };
 
   const answer = () => {
+    if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de atender.'); return; }
     if (callState !== "incoming" || !sessionRef.current) return;
     try {
-      sessionRef.current.answer({ mediaConstraints: { audio: true, video: false } });
+      sessionRef.current.answer({ mediaConstraints: microphoneConstraints(microphoneId) });
       setNotice("Atendendo chamada...");
     } catch {
       setNotice("Nao foi possivel atender. Verifique o microfone.");
@@ -464,6 +472,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     <PageHeader title="PABX Union" subtitle="Telefone WebRTC da Union World. Continue conectado enquanto navega pelo CRM." />
 
     <div className="mx-auto w-full max-w-2xl space-y-4">
+      <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
+        onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
+      {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio. Ligar e atender ficam bloqueados até terminar.</p>}
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -555,7 +566,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
               ))}
             </select>
             <button type="button" onClick={callInternal}
-              disabled={registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
+              disabled={outputPending || registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
               <Phone size={16}/> Ligar
             </button>
@@ -566,11 +577,11 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
-          {callState === "idle" && <button type="button" disabled={registration !== "registered"} onClick={callEcho}
+          {callState === "idle" && <button type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}
             className="flex h-11 items-center gap-2 rounded-lg bg-[#0057e7] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
             <Phone size={17} /> Testar ramal 900
           </button>}
-          {callState === "incoming" && <button type="button" onClick={answer}
+          {callState === "incoming" && <button type="button" onClick={answer} disabled={outputPending}
             className="flex h-11 items-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white">
             <PhoneIncoming size={17} /> Atender
           </button>}
@@ -626,10 +637,11 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
             onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />
         </>}
+        {outputPending && <p role="status" className="text-xs text-muted-foreground">Saída de áudio em confirmação. Aguarde antes de atender.</p>}
         {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}
         <div className="flex flex-wrap items-center gap-2">
           {callState === "incoming" && (
-            <button type="button" onClick={answer} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white">
+            <button type="button" onClick={answer} disabled={outputPending} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50">
               <PhoneIncoming size={16} /> Atender
             </button>
           )}

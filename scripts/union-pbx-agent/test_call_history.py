@@ -28,7 +28,8 @@ class CallHistoryTests(unittest.TestCase):
     def test_cdr_template_preserves_endpoint_hyphens_and_exact_schema(self):
         import re
         template = Path(__file__).with_name("cdr_custom.conf").read_text()
-        self.assertIn(r"FILTER(0-9A-Za-z_./\\-,", template)
+        self.assertIn("${CSV_QUOTE(${CDR(channel)})}", template)
+        self.assertIn("${CSV_QUOTE(${CDR(dstchannel)})}", template)
         mapping = next(line for line in template.splitlines() if line.startswith("union-calls.csv =>"))
         self.assertEqual(re.findall(r"CDR\((\w+)(?:,u)?\)", mapping), list(history.FIELDS))
         self.assertNotIn("MixMonitor", template)
