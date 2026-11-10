@@ -170,6 +170,8 @@ export function useOrderCompletion({
   const [certificateError, setCertificateError] = useState("");
   const [certificateBusy, setCertificateBusy] = useState(false);
 
+  const generatesWarranty = Boolean(detail?.service_type?.quote_workflow_enabled === true
+    && detail?.service_type?.generates_warranty === true);
   const financeEnabled = financeOptions.finance_enabled;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
   const priceAtCompletion = !commercialPricing && Boolean(detail?.general_service?.price_at_completion);
@@ -495,7 +497,7 @@ export function useOrderCompletion({
     const organizationId = target?.organization_id || detail?.organization_id;
     if (organizationId) {
       void loadFinanceOptions(String(organizationId));
-      void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
+      if (generatesWarranty) void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
       if (targetCoverageFree) {
         setPaymentProofRequired(false);
         setPaymentProofRequirementLoading(false);
@@ -606,7 +608,7 @@ export function useOrderCompletion({
       return;
     }
     if (financeValidationMessage) { showToast({ msg: financeValidationMessage, type: "error" }); return; }
-    if (warrantyLoading || warrantyError) {
+    if (generatesWarranty && (warrantyLoading || warrantyError)) {
       showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
       return;
     }
@@ -655,16 +657,18 @@ export function useOrderCompletion({
       setDetail((current: any) => ({ ...current, ...financial }));
       setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial } : order));
       setCompletedSuccessfully(true);
-      setCertificateBusy(true);
-      setCertificateError("");
-      try {
-        const certificate = await issueWarrantyCertificate(
-          String(detail.organization_id), String(detail.id), warrantyOptionId || null,
-        );
-        setIssuedCertificate(certificate);
-      } catch (certificateFailure) {
-        setCertificateError(formatError(certificateFailure));
-      } finally { setCertificateBusy(false); }
+      if (generatesWarranty) {
+        setCertificateBusy(true);
+        setCertificateError("");
+        try {
+          const certificate = await issueWarrantyCertificate(
+            String(detail.organization_id), String(detail.id), warrantyOptionId || null,
+          );
+          setIssuedCertificate(certificate);
+        } catch (certificateFailure) {
+          setCertificateError(formatError(certificateFailure));
+        } finally { setCertificateBusy(false); }
+      }
       void reloadOrders().catch(error => {
         console.warn("[OS] Falha ao atualizar a lista após conclusão:", error);
       });
@@ -677,7 +681,7 @@ export function useOrderCompletion({
   };
 
   const retryCertificate = async () => {
-    if (!completedSuccessfully || certificateBusy || !detail?.id) return;
+    if (!generatesWarranty || !completedSuccessfully || certificateBusy || !detail?.id) return;
     setCertificateBusy(true);
     setCertificateError("");
     try {
@@ -705,6 +709,7 @@ export function useOrderCompletion({
 
   return {
     open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems, commercialPricing,
+    generatesWarranty,
     coverageFree, returnAwaitingClassification,
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
