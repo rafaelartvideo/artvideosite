@@ -30,6 +30,10 @@ export function SalesPaymentTermsDialog({organizationId,onClose}:{
     onError:e=>setError(systemErrorMessage(e,"Não foi possível salvar a condição de pagamento.")),
   });
   return <AdminDialog open onClose={()=>!mutation.isPending&&onClose()}
+    preparing={query.isPending}
+    preparingText="Preparando condições de pagamento..."
+    preparingError={query.isError ? systemErrorMessage(query.error, "Não foi possível carregar as condições de pagamento.") : null}
+    onRetryPreparing={() => { void query.refetch(); }}
     title="Condições de pagamento"
     description="Padronize prazos usados pela equipe, evitando preencher parcelas e vencimentos repetidamente."
     className="w-[calc(100vw-1.25rem)] max-w-xl"

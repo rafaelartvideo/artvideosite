@@ -116,6 +116,10 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
   };
 
   return <><AdminDialog open onClose={()=>!busy&&onClose()}
+    preparing={returnsQuery.isPending}
+    preparingText="Preparando trocas e devoluções..."
+    preparingError={returnsQuery.isError ? systemErrorMessage(returnsQuery.error, "Não foi possível carregar as devoluções.") : null}
+    onRetryPreparing={() => { void returnsQuery.refetch(); }}
     title={"Trocas e devoluções · Pedido #"+order.order_number}
     description="Acompanhe solicitações, aprovações, devoluções e reembolsos sem criar movimentações fictícias."
     className="w-[calc(100vw-1.25rem)] max-w-3xl"

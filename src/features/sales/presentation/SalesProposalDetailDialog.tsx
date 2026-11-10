@@ -183,6 +183,10 @@ export function SalesProposalDetailDialog({
 
   return <>
     <AdminDialog open title={"Proposta #"+(proposal?.proposal_number||"…")}
+      preparing={detailQuery.isPending || reservationsQuery.isPending}
+      preparingText="Preparando proposta comercial..."
+      preparingError={detailQuery.isError ? systemErrorMessage(detailQuery.error, "Não foi possível carregar a proposta.") : null}
+      onRetryPreparing={() => { void detailQuery.refetch(); void reservationsQuery.refetch(); }}
       description="Itens, negociação, histórico e conversão em pedido"
       onClose={onClose}
       className="w-[calc(100vw-1.25rem)] max-w-3xl"

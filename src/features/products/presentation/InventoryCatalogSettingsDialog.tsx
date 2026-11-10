@@ -92,6 +92,10 @@ export function InventoryCatalogSettingsDialog({
 
   return <AdminDialog
     open
+    preparing={query.isPending}
+    preparingText="Preparando configurações do estoque..."
+    preparingError={query.isError ? systemErrorMessage(query.error, "Não foi possível carregar as configurações do estoque.") : null}
+    onRetryPreparing={() => { void query.refetch(); }}
     onClose={() => { if (!saving) onClose(); }}
     title="Configurações do Estoque"
     description="Organize os cadastros da empresa usados na identificação e compatibilidade dos produtos."

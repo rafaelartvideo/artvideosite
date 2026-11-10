@@ -100,6 +100,10 @@ export function SalesDeliveryDialog({
   const canComplete=recipient.trim().length>=3&&
     (method==="delivery" ? Boolean(proofFile || proofNotes.trim().length>=10) : /^[0-9]{6}$/.test(enteredPin));
   return <AdminDialog open onClose={close}
+    preparing={query.isPending}
+    preparingText="Preparando entrega ou retirada..."
+    preparingError={query.isError ? systemErrorMessage(query.error, "Não foi possível carregar a entrega.") : null}
+    onRetryPreparing={() => { void query.refetch(); }}
     title={finished?"Comprovante da entrega":"Entrega ou retirada"}
     description="Configure o pedido e registre quem recebeu, com segurança."
     className="w-[calc(100vw-1.25rem)] max-w-2xl"
