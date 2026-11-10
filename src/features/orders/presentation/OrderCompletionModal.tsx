@@ -271,13 +271,13 @@ export function OrderCompletionModal({
       className="max-w-xl"
       footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
         <BtnSecondary onClick={close} disabled={saving || completion.certificateBusy}>Fechar</BtnSecondary>
-        {completion.issuedCertificate ? <BtnPrimary onClick={() => void completion.printCertificate()}
+        {completion.generatesWarranty && (completion.issuedCertificate ? <BtnPrimary onClick={() => void completion.printCertificate()}
           disabled={completion.certificateBusy} loading={completion.certificateBusy} loadingText="Preparando...">
           <Printer size={15} /> Imprimir certificado
         </BtnPrimary> : <BtnPrimary onClick={() => void completion.retryCertificate()}
           disabled={completion.certificateBusy} loading={completion.certificateBusy} loadingText="Gerando...">
           <FileCheck2 size={15} /> Tentar gerar certificado
-        </BtnPrimary>}
+        </BtnPrimary>)}
       </div>}
     >
       <div className="space-y-4 py-3">
@@ -286,7 +286,7 @@ export function OrderCompletionModal({
           <div><p className="text-sm font-bold text-foreground">Ordem de serviço concluída</p>
             <p className="text-xs text-muted-foreground">{customerName(customer)} · OS {detail.os_number}</p></div>
         </div>
-        {completion.issuedCertificate ? <div className="rounded-xl border border-border p-4">
+        {completion.generatesWarranty && (completion.issuedCertificate ? <div className="rounded-xl border border-border p-4">
           <p className="text-sm font-bold text-foreground">Certificado de garantia gerado automaticamente</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {completion.issuedCertificate.warranty_option_label} · {completion.issuedCertificate.warranty_days} dias ·
@@ -296,7 +296,7 @@ export function OrderCompletionModal({
         </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
           <p className="text-sm font-bold text-foreground">{completion.certificateBusy ? "Gerando certificado..." : "A OS foi concluída, mas o certificado não pôde ser emitido."}</p>
           {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
-        </div>}
+        </div>)}
         {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
       </div>
@@ -309,8 +309,8 @@ export function OrderCompletionModal({
     || Boolean(completion.financeValidationMessage)
     || completion.financeOptionsLoading
     || completion.commercialItemsLoading
-    || completion.warrantyLoading
-    || Boolean(completion.warrantyError)
+    || (completion.generatesWarranty && completion.warrantyLoading)
+    || (completion.generatesWarranty && Boolean(completion.warrantyError))
     || (completion.commercialPricing && Boolean(completion.commercialItemsError))
     || completion.paymentProofRequirementLoading
     || Boolean(completion.paymentProofRequirementError)
@@ -408,7 +408,7 @@ export function OrderCompletionModal({
       {completion.returnAwaitingClassification && <p role="alert" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
         Classifique a garantia do retorno antes de concluir.
       </p>}
-      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
+      <div className={completion.generatesWarranty ? "grid min-w-0 items-stretch gap-4 lg:grid-cols-2" : "grid min-w-0 items-stretch gap-4"}>
         <Section title="Produtos e serviços"
           className="flex h-[360px] min-h-0 flex-col"
           contentClassName="min-h-0 flex-1 overflow-y-auto">
@@ -458,7 +458,7 @@ export function OrderCompletionModal({
           </div>
         </Section>
 
-        <Section title="Certificado de garantia"
+        {completion.generatesWarranty && <Section title="Certificado de garantia"
           className="flex h-[360px] min-h-0 flex-col"
           contentClassName="min-h-0 flex-1 overflow-y-auto">
           <div className="space-y-3">
@@ -473,7 +473,7 @@ export function OrderCompletionModal({
               onChange={(event: any) => completion.setWarrantyOptionId(event.target.value)} />
             {completion.warrantyError && <p role="alert" className="text-sm font-semibold text-red-600">{completion.warrantyError}</p>}
           </div>
-        </Section>
+        </Section>}
       </div>
       {completion.coverageFree
         ? <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
