@@ -15,6 +15,22 @@ agent = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agent)
 
 class AgentSafetyTests(unittest.TestCase):
+    def test_atomic_config_replacement_preserves_existing_owner(self):
+        import os
+        with tempfile.TemporaryDirectory() as folder:
+            target=Path(folder)/'asterisk.conf';target.write_bytes(b'; original\n')
+            original_stat=Path.stat
+            def stat(path,*args,**kwargs):
+                result=original_stat(path,*args,**kwargs)
+                if Path(path)==target:
+                    values=list(result);values[4]=4242
+                    return os.stat_result(values)
+                return result
+            with patch.object(Path,'stat',new=stat),patch.object(agent.os,'chown',create=True) as chown:
+                agent.write_atomic(target,b'; updated\n',0o600,17)
+                self.assertEqual(chown.call_args.args[1:],(4242,17))
+            self.assertEqual(target.read_bytes(),b'; updated\n')
+
     def test_missing_availability_module_does_not_advertise_unsupported_commands(self):
         with patch.dict('sys.modules', {'queue_availability': None}):
             protocol, processor = agent.availability_capability()

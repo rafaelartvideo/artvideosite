@@ -580,3 +580,37 @@ O CRM aceita fixos e celulares brasileiros com DDD, com ou sem +55. O servidor
 valida novamente o destino e a identidade autenticada do endpoint por
 `CHANNEL(endpoint)`; não confia no identificador de chamada informado pelo cliente.
 Novos ramais e empresas exigem uma autorização de saída própria, separada.
+
+### Admissão de empresas na VPS compartilhada
+
+O perfil legado Union continua no protocolo 2. Um processo selecionado com
+`--profile UUID` anuncia protocolo 3 somente depois de conferir o controle local
+de filas, os arquivos gerados, os destinos e aplicações carregados e o contexto de
+cada endpoint e transferência. Uma falha bloqueia novos comandos e credenciais;
+não altera uma chamada em andamento. O servidor renova a capacidade por 95
+segundos somente no poll assinado, após a proteção contra repetição.
+
+O módulo e as permissões da empresa permitem cadastrar ramais e filas offline.
+Para iniciar a operação, o operador da VPS prepara `init`, autoriza a chave
+pública no CRM, executa `configure` e `internal-routes` usando SEMPRE o mesmo
+`--profile UUID`, e ativa a unidade `union-pbx-agent@UUID`. Cada perfil usa seus
+próprios arquivos, estado, chave, cursor, contexts e números internos. A ativação
+não compartilha a FVX nem libera saída externa para parceiros.
+
+`activate-tenant-runtime.sh --acknowledge-tenant-runtime-update` atualiza somente
+o agente legado revisado, preserva os auxiliares instalados e instala o template
+de serviço se ele estiver ausente. Não inicia perfis. Exige zero canais e possui
+backup e reversão. Não recarrega o Asterisk nem altera rotas.
+
+`isolation_audit.py` oferece prévia e exige `--apply
+--acknowledge-isolation-audit` para o ensaio temporário. Aceita
+`--runtime-directory` para validar o pacote revisado antes de instalar o agente.
+O ensaio usa dois perfis, ambos com ramal 301 e fila 850, verifica a recarga de
+uma fila preservando a pausa da outra e restaura a configuração original. Não
+origina chamadas nem cria registros no banco. Em interrupção, seguir o comando
+completo de recuperação exibido, preservando o diário privado de escrita.
+
+Remova um ramal das filas ativas antes de desativá-lo. Uma solicitação já em
+trânsito aguarda a reconciliação da fila, sem bloquear a admissão do perfil.
+Revogar a ponte bloqueia alterações e novas credenciais; desativar a telefonia
+dos ramais instalados é uma operação separada.

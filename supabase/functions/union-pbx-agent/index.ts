@@ -37,10 +37,20 @@ Deno.serve(async request=>{
       if(!body||typeof body!=="object"||Array.isArray(body)) throw Error();
     } catch {return respond({error:"JSON inválido"},400)}
     const {data:advanced,error:advanceError}=await admin.from("pbx_agents")
-      .update({last_sequence:seq,last_seen_at:new Date().toISOString(),
-        ...(body.action==="poll"?{protocol_version:body.protocol_version===2?2:1}:{})})
+      .update({last_sequence:seq,last_seen_at:new Date().toISOString()})
       .eq("id",agent.id).eq("enabled",true).lt("last_sequence",seq).select("id").maybeSingle();
     if(advanceError||!advanced) return respond({error:"Requisição repetida ou agente revogado"},409);
+    // Admission is service-only and runs AFTER Ed25519 verification and the
+    // atomic replay barrier. Generic reports never refresh capability freshness.
+    const {data:admission,error:admissionError}=await admin.rpc("pbx_admit_agent_request",{
+      p_agent_id:agent.id,p_sequence:seq,p_action:typeof body.action==="string"?body.action:"",
+      p_protocol_version:typeof body.protocol_version==="number"&&Number.isInteger(body.protocol_version)?body.protocol_version:null,
+      p_profile_id:typeof body.profile_id==="string"?body.profile_id:null,
+      p_profile_context:typeof body.profile_context==="string"?body.profile_context:null,
+    });
+    if(admissionError) return respond({error:"Não foi possível validar a capacidade do agente"},503);
+    if(admission?.allowed!==true) return respond({error:"Agente sem capacidade de operação para esta empresa"},403);
+    const isPlatform=admission.is_platform===true;
     if(body.action==="poll"){
       // Telemetria enviada no mesmo ciclo assinado, sem conexao adicional
       // e sem bloquear ramais ou a entrega de credenciais em caso de falha.
@@ -98,11 +108,12 @@ Deno.serve(async request=>{
       const expiredAt=new Date().toISOString();
       const {error:cleanupError}=await admin.from("pbx_browser_login_requests")
         .update({status:"failed",encrypted_secret:null})
+        .eq("organization_id",agent.organization_id)
         .eq("status","ready").lt("expires_at",expiredAt);
       if(cleanupError) return respond({error:"Falha na limpeza de credenciais expiradas"},503);
       // Remove registros antigos; mantém apenas evidências recentes sem senha.
       const retention=new Date(Date.now()-24*3600*1000).toISOString();
-      await admin.from("pbx_browser_login_requests").delete().lt("created_at",retention);
+      await admin.from("pbx_browser_login_requests").delete().eq("organization_id",agent.organization_id).lt("created_at",retention);
       const {data,error}=await admin.from("pbx_extensions")
         .select("id,organization_id,number,endpoint_name,desired_enabled,updated_at")
         .eq("organization_id",agent.organization_id).eq("is_managed",true)
@@ -111,6 +122,7 @@ Deno.serve(async request=>{
       const {data:loginRequests,error:loginError}=await admin.from("pbx_browser_login_requests")
         .select("id,organization_id,extension_id,public_key_base64,expires_at")
         .eq("organization_id",agent.organization_id)
+        .eq("agent_id",agent.id)
         .eq("status","pending")
         .gt("expires_at",new Date().toISOString())
         .order("created_at")
@@ -147,8 +159,9 @@ Deno.serve(async request=>{
       const [extensionHistory,trunkHistory]=await Promise.all([
         admin.from("pbx_extensions").select("endpoint_name")
           .eq("organization_id",agent.organization_id).limit(1001).abortSignal(historySignal),
-        admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
-          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal),
+        isPlatform?admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
+          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal)
+          :Promise.resolve({data:[],error:null}),
       ]);
       const {data:ownedExtensions,error:extensionHistoryError}=extensionHistory;
       const {data:ownedTrunks,error:trunkHistoryError}=trunkHistory;
@@ -160,7 +173,7 @@ Deno.serve(async request=>{
         }
       }
       let availabilityJobs:unknown[]=[];
-      if(body.protocol_version===2){
+      if(body.protocol_version===2||body.protocol_version===3){
         const {data:availability,error:availabilityError}=await admin.rpc("pbx_poll_queue_availability",{p_agent_id:agent.id});
         if(!availabilityError && Array.isArray(availability) && availability.length<=10) availabilityJobs=availability;
       }
@@ -211,6 +224,7 @@ Deno.serve(async request=>{
       const {data,error}=await admin.from("pbx_browser_login_requests")
         .update({status:"ready",encrypted_secret:ciphertext,fulfilled_at:new Date().toISOString()})
         .eq("id",requestId).eq("organization_id",agent.organization_id)
+        .eq("agent_id",agent.id)
         .eq("status","pending").gt("expires_at",new Date().toISOString())
         .select("id").maybeSingle();
       if(error) return respond({error:"Não foi possível entregar a credencial criptografada"},503);

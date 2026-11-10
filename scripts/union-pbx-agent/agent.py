@@ -131,7 +131,10 @@ def write_atomic(path, content, mode=0o600, gid=None):
             stream.flush()
             os.fsync(stream.fileno())
         if gid is not None:
-            os.chown(temporary, 0, gid)
+            # Main files may be 0600 owned by the Asterisk service account.
+            # Preserve their owner before rename so reload can still read them.
+            owner=path.stat().st_uid if path.exists() else 0
+            os.chown(temporary, owner, gid)
         os.chmod(temporary, mode)
         os.replace(temporary, path)
     finally:
@@ -160,7 +163,8 @@ def init():
     write_atomic(PUBLIC_KEY, (public + "\n").encode())
     asterisk_group = grp.getgrnam("asterisk").gr_gid
     if not MASTER_FILE.exists():
-        write_atomic(MASTER_FILE, b"; Union PABX managed endpoints - empty until provisioned.\n", 0o640, asterisk_group)
+        initial=render_master() if PROFILE_ID is not None else b"; Union PABX managed endpoints - empty until provisioned.\n"
+        write_atomic(MASTER_FILE, initial, 0o640, asterisk_group)
     existing = PJSIP_FILE.read_text()
     if INCLUDE not in existing.splitlines():
         backup = Path("/root") / ("pjsip.conf.antes-union-agent-" + time.strftime("%Y%m%d-%H%M%S")+'-'+secrets.token_hex(4))
@@ -243,7 +247,7 @@ def validate_job(job, org_id):
     if not isinstance(endpoint, str) or not ENDPOINT_RE.fullmatch(endpoint):
         raise AgentError("Endpoint inválido. Nada será aplicado.")
     number = job.get("number")
-    if type(number) is not int or not (100 <= number <= 9999):
+    if type(number) is not int or not (100 <= number <= 9999) or 850 <= number <= 900:
         raise AgentError("Numeração de ramal inválida.")
     if type(job.get("desired_enabled")) is not bool or not REVISION_RE.fullmatch(str(job.get("updated_at", ""))):
         raise AgentError("Estado ou revisão de ramal inválidos.")
@@ -297,7 +301,7 @@ def render_internal_routes(overrides=None):
         if not state.get("enabled"):
             continue
         number = state.get("number")
-        if type(number) is not int or number < 100 or number > 9999 or number==900 or (number==301 and PROFILE_ID is None):
+        if type(number) is not int or number < 100 or number > 9999 or 850 <= number <= 900 or (number==301 and PROFILE_ID is None):
             raise AgentError("Numero de ramal reservado ou invalido.")
         if number in routes:
             raise AgentError("Numero de ramal duplicado no dialplan.")
@@ -431,7 +435,7 @@ def validate_queue_job(job, org_id):
         position = member.get("position")
         if PROFILE_ID is not None and endpoint=='union-301':
             raise AgentError('O ramal manual Union nao pertence a este perfil.')
-        if type(number) is not int or not 100 <= number <= 9999 or number==900:
+        if type(number) is not int or not 100 <= number <= 9999 or 850 <= number <= 900:
             raise AgentError("Numero de participante invalido.")
         if not (endpoint=="union-301" and number==301 or
                 isinstance(endpoint,str) and ENDPOINT_RE.fullmatch(endpoint)):
@@ -858,6 +862,9 @@ def assert_fvx(previous):
 def apply_job(job, org_id):
     job_id = validate_job(job, org_id)
     endpoint, number = job["endpoint_name"], job["number"]
+    if not job['desired_enabled'] and any(queue['enabled'] and any(
+            member['endpoint_name']==endpoint for member in queue['members']) for queue in queue_states().values()):
+        raise Busy('Remova o ramal das filas ativas antes de desativar; aguardando reconciliacao da fila.')
     state_path = STATE_DIR / "extensions" / (job_id + ".json")
     old_state = state_path.read_bytes() if state_path.exists() else None
     old_master = MASTER_FILE.read_bytes()
@@ -1045,6 +1052,82 @@ def availability_capability():
         return 1, None
 
 
+def _verify_loaded_context(context,source,numbers,includes):
+    from collections import Counter
+    output=strip_ansi(asterisk('dialplan show '+context))
+    if not re.search(r"\[ Context '"+re.escape(context)+r"' created by 'pbx_config' \]",output):
+        raise AgentError('Contexto isolado nao carregado.')
+    actual_includes=re.findall(r"(?m)^\s*Include\s*=>\s*'([^']+)'",output)
+    if Counter(actual_includes)!=Counter(includes):raise AgentError('Inclusoes de contexto nao isoladas.')
+    observed=re.findall(r"(?m)^\s*'([^']+)'\s*=>",output)
+    if Counter(observed)!=Counter(str(number) for number in numbers):
+        raise AgentError('Destinos carregados divergem do perfil.')
+    expected=[]
+    for line in source.decode().splitlines():
+        line=line.strip()
+        if line.startswith('exten =>'):expected.append(line.split(',',2)[2])
+        elif line.startswith('same =>'):expected.append(line.split(',',1)[1])
+    actual=re.findall(r"(?m)^\s*(?:'[^']+'\s*=>\s*)?\d+\.\s+([^\r\n]*?)\s+\[",output)
+    if Counter(actual)!=Counter(expected):raise AgentError('Aplicacoes carregadas divergem do perfil.')
+
+
+def verify_profile_runtime():
+    """Read the files AND the running engine before advertising tenant commands."""
+    with operation_lock():
+        _verify_profile_runtime_locked()
+
+
+def endpoint_matches_profile(detail):
+    detail=strip_ansi(detail)
+    contexts=re.findall(r'(?m)^\s*context\s*:\s*([^\s]+)\s*$',detail)
+    # Sorcery may expand set_var into its individual field names in CLI output.
+    transfers=re.findall(r'(?m)^\s*TRANSFER_CONTEXT\s*:\s*([^\s]+)\s*$',detail)
+    for value in re.findall(r'(?m)^\s*set_var\s*:\s*([^\r\n]*)$',detail):
+        transfers.extend(item.strip().split('=',1)[1] for item in value.split(',')
+                         if item.strip().startswith('TRANSFER_CONTEXT='))
+    return contexts==[DIALPLAN_CONTEXT] and transfers==[DIALPLAN_CONTEXT]
+
+
+def _verify_profile_runtime_locked():
+    """Caller holds the global operation lock, including the operator audit."""
+    if PROFILE_ID is None:raise AgentError('A verificacao exige perfil isolado.')
+    ensure_queue_control_ready()
+    for path,include in ((PJSIP_FILE,INCLUDE),(DIALPLAN_MAIN,DIALPLAN_FILE_INCLUDE),(QUEUE_MAIN,QUEUE_MAIN_INCLUDE)):
+        if path.is_symlink() or not path.is_file() or path.read_text().splitlines().count(include)!=1:
+            raise AgentError('Inclusao exata do perfil nao confirmada.')
+    queues,routes,_,queue_numbers=render_queue_configs()
+    internal,numbers=render_internal_routes()
+    for path,expected in ((MASTER_FILE,render_master()),(DIALPLAN_MANAGED,internal),
+                          (QUEUE_FILE,queues),(QUEUE_TEST_FILE,routes)):
+        if path.is_symlink() or not path.is_file() or path.read_bytes()!=expected:
+            raise AgentError('Arquivos isolados divergem do estado local.')
+    _verify_loaded_context(DIALPLAN_CONTEXT,internal,numbers+[900],[QUEUE_TEST_CONTEXT])
+    _verify_loaded_context(QUEUE_TEST_CONTEXT,routes,sorted(queue_numbers),[])
+    deadline=time.monotonic()+10
+    for path in (STATE_DIR/'extensions').glob('*.json'):
+        if time.monotonic()>deadline:raise Busy('Validacao do perfil excedeu o prazo.')
+        state=json.loads(path.read_text())
+        if not state['enabled']:continue
+        detail=strip_ansi(asterisk('pjsip show endpoint '+state['endpoint']))
+        if not endpoint_matches_profile(detail):
+            raise AgentError('Endpoint ou transferencia fora do contexto isolado.')
+    for identity,queue in queue_states().items():
+        if time.monotonic()>deadline:raise Busy('Validacao do perfil excedeu o prazo.')
+        validate_queue_member_ownership(queue,PROFILE_ID)
+        verify_queue_members(queue,asterisk('queue show '+queue_identity(identity)))
+
+
+def runtime_capability(protocol):
+    if PROFILE_ID is None:return {'protocol_version':protocol}
+    if protocol!=2:return {'protocol_version':1}
+    try:
+        verify_profile_runtime()
+    except Exception as exc:
+        print('Admissao isolada indisponivel: '+type(exc).__name__,file=sys.stderr)
+        return {'protocol_version':1}
+    return {'protocol_version':3,'profile_id':PROFILE_ID,'profile_context':DIALPLAN_CONTEXT}
+
+
 def cycle(dry_run=False):
     config = json.loads(AGENT_CONFIG.read_text())
     validate_profile_config(config)
@@ -1055,7 +1138,9 @@ def cycle(dry_run=False):
         print("Telemetria indisponivel: "+type(exc).__name__, file=sys.stderr)
         telemetry = []
     protocol, availability_processor = availability_capability()
-    payload = signed_request({"action":"poll", "telemetry": telemetry, "protocol_version":protocol})
+    capabilities=runtime_capability(protocol)
+    if capabilities['protocol_version']==1:availability_processor=None
+    payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")

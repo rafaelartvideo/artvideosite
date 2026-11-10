@@ -61,7 +61,8 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
     const scope = new AbortController(); requestScope.current = scope;
     return () => scope.abort();
   }, []);
-  const { activeOrganizationId, hasPermission }=useAuth();
+  const { activeOrganizationId, hasPermission, organizations }=useAuth();
+  const isPlatformOperatorOrganization=organizations.find(item=>item.organization_id===activeOrganizationId)?.is_platform_operator===true;
   const canManage=hasPermission("pbx.manage");
   const [queues,setQueues]=useState<PbxQueue[]>([]);
   const [members,setMembers]=useState<PbxMember[]>([]);
@@ -233,7 +234,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
           <p className="text-sm font-semibold text-foreground">Ativação controlada</p>
           <p className="text-xs leading-5 text-muted-foreground">
             A fila será cadastrada e sincronizada com o Asterisk. Os testes usam números internos de 850 a 899.
-            O número (11) 4290-1575 continua direcionado ao atendimento existente até uma ativação separada.
+            {isPlatformOperatorOrganization ? "O número (11) 4290-1575 continua direcionado ao atendimento existente até uma ativação separada." : "As filas pertencem somente à sua empresa. A linha de entrada exige uma configuração separada."}
           </p>
         </div>
       </div>

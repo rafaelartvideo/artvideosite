@@ -22,7 +22,7 @@ const SIP_WSS = `wss://${SIP_HOST}/ws`;
 
 type RegistrationState = "offline" | "connecting" | "registered" | "error";
 type CallState = "idle" | "dialing" | "incoming" | "active";
-type InternalDirectoryEntry = { number: number; endpoint_name: string; display_name: string; desired_enabled: boolean; provisioning_status: string };
+type InternalDirectoryEntry = { number: number; endpoint_name: string; display_name: string; desired_enabled: boolean; provisioning_status: string; is_managed: boolean };
 
 type SipSession = CallControlSession & {
   direction?: string;
@@ -36,9 +36,10 @@ type SipSession = CallControlSession & {
 };
 
 export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, organizations } = useAuth();
+  const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
-  const [sipUser, setSipUser] = useState(SIP_USER);
+  const [sipUser, setSipUser] = useState(isPlatformOperatorOrganization ? SIP_USER : "");
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
   const [checkingManaged, setCheckingManaged] = useState(false);
   const [managedLookupError, setManagedLookupError] = useState("");
@@ -100,7 +101,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     setDirectoryError("");
     setDirectory([]);
     void pbxRequest(signal => supabase.from("pbx_extensions")
-      .select("number,endpoint_name,display_name,desired_enabled,provisioning_status")
+      .select("number,endpoint_name,display_name,desired_enabled,provisioning_status,is_managed")
       .eq("organization_id",activeOrganizationId)
       .order("number")
       .limit(100)
@@ -109,7 +110,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         if (cancelled) return;
         if (error) setDirectoryError("Não foi possível carregar os ramais internos.");
         else setDirectory(((data || []) as InternalDirectoryEntry[]).filter(item =>
-          item.desired_enabled && (item.provisioning_status === "applied" || item.provisioning_status === "manual")
+          item.desired_enabled && (item.provisioning_status === "applied" || item.provisioning_status === "manual") &&
+          (isPlatformOperatorOrganization || item.is_managed && item.endpoint_name !== SIP_USER)
         ));
       })
       .catch(error => { if (!cancelled) setDirectoryError(error instanceof Error ? error.message : 'Falha na consulta dos ramais internos.'); })
@@ -176,7 +178,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     setCallState("idle");
     setRegistration("offline");
     setPassword("");
-    setSipUser(SIP_USER);
+    setSipUser(isPlatformOperatorOrganization ? SIP_USER : "");
     setNotice("Ramal desconectado.");
   };
 
@@ -324,6 +326,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
 
   const connect = () => {
+    if (!isPlatformOperatorOrganization) return;
     if (uaRef.current || registration === "connecting") return;
     if (!password.trim()) { setNotice("Informe a senha SIP exclusiva do ramal union-301."); return; }
     const generation = ++generationRef.current;
@@ -390,7 +393,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   const callExternal = () => {
     const destination = normalizeNationalDestination(externalTarget);
-    if (!allowExternalCalls || !destination || outputPendingRef.current ||
+    if (!allowExternalCalls || !destination || !isPlatformOperatorOrganization || outputPendingRef.current ||
         registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando " + externalTarget + " pela FVX...");
     try {
@@ -487,7 +490,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   return <>
     {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
     <div className={isPageOpen ? "min-w-0 space-y-5" : "hidden"} aria-hidden={!isPageOpen}>
-    <PageHeader title="PABX Union" subtitle="Telefone WebRTC da Union World. Continue conectado enquanto navega pelo CRM." />
+    <PageHeader title="PABX Union" subtitle="Telefonia da sua empresa. Continue conectado enquanto navega pelo CRM." />
 
     <div className="mx-auto w-full max-w-2xl space-y-4">
       <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
@@ -496,8 +499,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Linha Union World</h2>
-            <p className="mt-1 text-sm text-muted-foreground">(11) 4290-1575 · Ramal {sipUser}</p>
+            <h2 className="text-base font-semibold text-foreground">{isPlatformOperatorOrganization ? "Linha Union World" : "Telefonia interna"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{isPlatformOperatorOrganization ? "(11) 4290-1575 · " : ""}{sipUser ? `Ramal ${sipUser}` : "Seu ramal individual"}</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registration === "registered" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : registration === "connecting" ? "bg-blue-500/10 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}>
             {registration === "registered" ? "Conectado" : registration === "connecting" ? "Conectando" : registration === "error" ? "Falha na conexao" : "Desconectado"}
@@ -522,11 +525,13 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
                 >
                 <Phone size={16} /> Conectar meu ramal {managedExtension.number}
               </AdminButton>
-              <AdminButton variant="ghost" type="button" onClick={() => setManualMode(true)}
-                >Usar o ramal manual 301</AdminButton>
+              {isPlatformOperatorOrganization && <AdminButton variant="ghost" type="button" onClick={() => setManualMode(true)}
+                >Usar o ramal manual 301</AdminButton>}
             </div>
           )}
-          {(!managedExtension || manualMode) && <>
+          {!isPlatformOperatorOrganization && !managedExtension && !checkingManaged && !managedLookupError &&
+            <p className="text-sm text-muted-foreground">Nenhum ramal vinculado ao seu usuário. Peça ao administrador para cadastrar e vincular seu ramal.</p>}
+          {isPlatformOperatorOrganization && (!managedExtension || manualMode) && <>
           {checkingManaged && <p className="text-xs text-muted-foreground">Verificando ramal vinculado...</p>}
           <label htmlFor="union-sip-password" className="block text-sm font-medium text-foreground">Senha SIP do ramal {SIP_USER}</label>
           <FInput id="union-sip-password" type="password" value={password} onChange={event => setPassword(event.target.value)}
@@ -585,7 +590,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           </p>
           {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
         </div>}
-        {allowExternalCalls && callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+        {allowExternalCalls && callState === "idle" && isPlatformOperatorOrganization && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ligar para telefone" />
           <div className="flex items-center gap-2">
             <FInput type="tel" inputMode="tel" autoComplete="off" aria-label="Telefone com DDD"
@@ -631,7 +636,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       <div className="flex flex-wrap gap-4">
         {onManage && <AdminButton variant="ghost" type="button" onClick={onManage} >Gerenciar ramais</AdminButton>}
         {onManageQueues && <AdminButton variant="ghost" type="button" onClick={onManageQueues} >Gerenciar filas</AdminButton>}
-        {onManageInbound && <AdminButton variant="ghost" type="button" onClick={onManageInbound} >Planejar entrada FVX</AdminButton>}
+        {isPlatformOperatorOrganization && onManageInbound && <AdminButton variant="ghost" type="button" onClick={onManageInbound} >Planejar entrada FVX</AdminButton>}
         {onHistory && <AdminButton variant="secondary" onClick={onHistory}>Histórico de ligações</AdminButton>}
         <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para Ferramentas</AdminButton>
       </div>

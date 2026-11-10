@@ -14,7 +14,8 @@ type Agent = {
   last_seen_at: string | null;
 };
 
-export function UnionPbxAgentPanel({ organizationId }: { organizationId: string }) {
+export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { organizationId: string; legacyProfile?: boolean }) {
+  const profileOption = legacyProfile ? "" : `--profile ${organizationId} `;
   const requestScope = useRef(new AbortController());
   useEffect(() => {
     const scope = new AbortController(); requestScope.current = scope;
@@ -122,6 +123,7 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
                 {seen && " · última comunicação: " + seen.toLocaleString("pt-BR")}
               </p>
               <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{agent.id}</p>
+              {!agent.enabled && <p className="mt-1 text-xs text-muted-foreground">Novas alterações e credenciais estão bloqueadas. A telefonia dos ramais já instalados exige uma desativação separada.</p>}
             </div>
             {agent.enabled && <AdminButton variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void revoke(agent)} >
               <Unplug size={14}/> Revogar
@@ -134,13 +136,18 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
       <p className="text-sm font-semibold text-foreground">Agente registrado no CRM</p>
       <p className="text-xs text-muted-foreground">Copie o ID e a organização abaixo para configurar o serviço na VPS.</p>
       <code className="block break-all rounded bg-background p-2 text-xs text-foreground">{registeredId}</code>
-      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py configure {registeredId} {organizationId}</code>
+      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py {profileOption}configure {registeredId} {organizationId}</code>
+      {!legacyProfile && <>
+        <p className="text-xs text-muted-foreground">O operador da VPS compartilhada deve concluir a implantação deste perfil antes de conectar os ramais.</p>
+        <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py {profileOption}internal-routes</code>
+        <code className="block break-all rounded bg-background p-2 text-xs text-foreground">systemctl enable --now union-pbx-agent@{organizationId}</code>
+      </>}
     </div>}
 
     {!agents.some(agent => agent.enabled) && <div className="space-y-3 border-t border-border pt-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><KeyRound size={16} /> Autorizar uma VPS</h3>
       <p className="text-xs leading-5 text-muted-foreground">
-        Na VPS, execute <code>python3 /opt/union-pbx-agent/agent.py init</code> e cole abaixo
+        Na VPS, execute <code>python3 /opt/union-pbx-agent/agent.py {profileOption}init</code> e cole abaixo
         apenas a chave pública gerada. Não envie arquivos de chave privada.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">

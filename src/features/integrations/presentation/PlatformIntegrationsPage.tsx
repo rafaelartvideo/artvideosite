@@ -12,7 +12,7 @@ const INTEGRATIONS = [
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
   { key: "whatsapp", title: "WhatsApp · WuzAPI", category: "Comunicação", description: "Motor de mensagens da Union; cada empresa utiliza uma sessão isolada.", icon: MessageCircle, ready: true },
   { key: "sac_digital", title: "SAC Digital", category: "Atendimento", description: "Integração do SAC Digital com canais, webhooks e atendimento.", icon: Headphones, ready: true },
-  { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Motor da Union ativo; provisionamento para empresas parceiras ainda em preparação.", icon: Phone, ready: false },
+  { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Ramais e filas de telefonia interna com isolamento por empresa.", icon: Phone, ready: true },
   { key: "queue", title: "Union Senhas", category: "Atendimento", description: "Integração da fila eletrônica aos atendimentos e ordens de serviço.", icon: Ticket, ready: true },
   { key: "ai", title: "Union IA", category: "Inteligência artificial", description: "Recursos de IA disponibilizados pela plataforma conforme o plano.", icon: WandSparkles, ready: true },
 ] as const;
@@ -153,7 +153,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
         <CircleAlert size={17} className="mt-0.5 shrink-0"/>
         Disponibilizar a OLX não conecta nenhuma conta e não publica anúncios. A API permanece desativada até a homologação e autorização oficial.
       </p>}
-      {selected === "pbx" && <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><CircleAlert size={17} className="mt-0.5 shrink-0"/> O PABX ainda é exclusivo da Union. A disponibilização para parceiras ficará bloqueada até existir provisionamento individual de troncos e ramais SIP.</p>}
+      {selected === "pbx" && <p className="mt-3 text-xs leading-5 text-muted-foreground">A liberação do módulo permite configurar a telefonia interna da empresa. A implantação e o registro individual precisam ser concluídos antes de conectar os ramais. A linha e os troncos da Union não são compartilhados.</p>}
       <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
         <LockKeyhole size={16} className="shrink-0"/> Este painel controla o módulo liberado para a empresa. Credenciais, sessões e dados operacionais permanecem isolados por organização. Não há compartilhamento de tokens.
       </p>
@@ -171,7 +171,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
           : companies.length === 0 ? <p className="p-5 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
           : companies.map(company => {
             const enabled = assigned[company.id] === true;
-            const disabled = !canManage || selected === "pbx" || !availableKeys.includes(selected) || savingId !== null || company.status !== "active";
+            const disabled = !canManage || !availableKeys.includes(selected) || savingId !== null || company.status !== "active";
             return <div key={company.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 sm:px-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{company.name}</p>

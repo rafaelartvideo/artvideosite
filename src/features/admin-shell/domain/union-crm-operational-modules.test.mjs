@@ -36,7 +36,7 @@ test("o menu das empresas parceiras não é alterado pelo filtro exclusivo da Un
 test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou usuario", async () => {
   const app = read("src/app/Admin.tsx");
   const phone = read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
-  assert.match(app, /const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission\("pbx.view"\)/);
+  assert.match(app, /const canAccessPbxTool = \(isPlatformOperatorOrganization \|\| hasModule\("pbx"\)\) && hasPermission\("pbx.view"\)/);
   assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?route\.subpage === "ramais"/);
   const workspaceEnd = app.indexOf("</RetainedAdminWorkspace>");
   const phoneMount = app.indexOf("<UnionPbxToolPage", workspaceEnd);
@@ -96,7 +96,8 @@ test("PABX vinculado ao funcionário usa segredo efêmero e preserva ramal 301",
   const handoff=read("src/features/telephony/application/managed-browser-credentials.ts");
   const edge=read("supabase/functions/union-pbx-agent/index.ts");
   const agent=read("scripts/union-pbx-agent/agent.py");
-  assert.match(screen,/useState\(SIP_USER\)/);
+  assert.match(screen,/useState\(isPlatformOperatorOrganization \? SIP_USER : ""\)/);
+  assert.match(screen,/if \(!isPlatformOperatorOrganization\) return;/);
   assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId, controller.signal\)/);
   assert.match(screen,/acquireManagedPbxCredentials\(/);
   assert.match(screen,/startSip\(SIP_USER,password,generation\)/);
@@ -137,7 +138,7 @@ test("PABX chama somente numeros internos cadastrados, sem alterar discagem exte
 });
 
 
-test("PABX Union: filas somente na organização plataforma e nunca redirecionam FVX automaticamente",async()=>{
+test("PABX Union: filas da empresa nunca redirecionam FVX automaticamente",async()=>{
   const app=read("src/app/Admin.tsx");
   const page=read("src/features/telephony/presentation/UnionPbxQueuesPage.tsx");
   const phone=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
@@ -176,7 +177,8 @@ test('monitoramento PBX usa uma assinatura realtime por empresa e telemetria ass
   assert.ok(live.includes('removeChannel(channel)'));
   assert.ok(live.includes('ACTIVE_WINDOW_MS = 95_000'));
   assert.ok(agent.includes('def gather_queue_telemetry()'));
-  assert.ok(agent.includes('signed_request({"action":"poll", "telemetry": telemetry, "protocol_version":protocol})'));
+  assert.ok(agent.includes('capabilities=runtime_capability(protocol)'));
+  assert.ok(agent.includes('signed_request({"action":"poll", "telemetry": telemetry, **capabilities})'));
   assert.ok(agent.includes('protocol, availability_processor = availability_capability()'));
   assert.ok(edge.includes('telemetry.length <= 10'));
   assert.ok(edge.includes('agent.organization_id'));
@@ -193,7 +195,7 @@ test("entrada FVX: planejar destino sem acionar Asterisk ou publicar troca autom
   const agent=read("scripts/union-pbx-agent/agent.py");
   const edge=read("supabase/functions/union-pbx-agent/index.ts");
   assert.match(app,/route.subpage === "entrada"/);
-  assert.match(app,/canManagePbxTool \? <UnionPbxInboundPage/);
+  assert.match(app,/canManagePbxTool && isPlatformOperatorOrganization \? <UnionPbxInboundPage/);
   assert.match(app,/onManageInbound=\{canManagePbxTool/);
   assert.match(phone,/Planejar entrada FVX/);
   assert.match(page,/hasPermission\("pbx.manage"\)/);

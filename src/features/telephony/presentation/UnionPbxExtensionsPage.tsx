@@ -38,7 +38,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     const scope = new AbortController(); requestScope.current = scope;
     return () => scope.abort();
   }, []);
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, organizations } = useAuth();
+  const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const canManage = hasPermission("pbx.manage");
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
@@ -121,8 +122,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
   async function save() {
     if (!activeOrganizationId || !canManage || saving) return;
     const number = Number(form.number);
-    if (!editingId && (!Number.isInteger(number) || number < 100 || number > 9999)) {
-      setError("Informe um número de ramal de 100 a 9999.");
+    if (!editingId && (!Number.isInteger(number) || number < 100 || number > 9999 || (number >= 850 && number <= 899) || number === 900)) {
+      setError("Informe um número de 100 a 9999. Os números de 850 a 899 e 900 são reservados para filas e teste de áudio.");
       return;
     }
     if (form.display_name.trim().length < 2 || form.display_name.trim().length > 80) {
@@ -194,8 +195,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
         <div>
           <p className="text-sm font-semibold text-foreground">Gerenciamento seguro</p>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-            O ramal 301 existente continuará funcionando sem alterações. Os novos ramais são apenas cadastrados;
-            a ativação no Asterisk depende da instalação da ponte de provisionamento na VPS.
+            {isPlatformOperatorOrganization ? "O ramal 301 existente permanece protegido. " : "Os ramais pertencem somente à sua empresa. "}
+            O cadastro e o vínculo ao funcionário podem ser feitos antes da ativação. Acompanhe a confirmação da central na lista.
             Nenhuma senha SIP nem credencial da FVX é armazenada nesta tela.
           </p>
         </div>
@@ -210,7 +211,7 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
       </div>
     </div>
 
-    {canManage && activeOrganizationId && <UnionPbxAgentPanel organizationId={activeOrganizationId} />}
+    {canManage && activeOrganizationId && <UnionPbxAgentPanel organizationId={activeOrganizationId} legacyProfile={isPlatformOperatorOrganization} />}
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     {message && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{message}</p>}

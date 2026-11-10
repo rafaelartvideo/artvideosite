@@ -368,8 +368,7 @@ export function AdminDashboard({
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
-  // Primeiro softphone pertence exclusivamente a Union World; empresas parceiras exigirao provisionamento individual.
-  const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission("pbx.view");
+  const canAccessPbxTool = (isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view");
   const canManagePbxTool = canAccessPbxTool && hasPermission("pbx.manage");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
@@ -455,7 +454,7 @@ export function AdminDashboard({
         : route.subpage === "filas"
           ? canManagePbxTool ? <UnionPbxQueuesPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
           : route.subpage === "entrada"
-            ? canManagePbxTool ? <UnionPbxInboundPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+            ? canManagePbxTool && isPlatformOperatorOrganization ? <UnionPbxInboundPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
             : route.subpage === "historico"
               ? <UnionPbxHistoryPage key={activeOrganizationId || 'no-organization'} onBack={() => navigateAdmin("tools", "union-pbx")} />
               : null /* Telefone persistente montado fora das rotas. */
@@ -648,7 +647,7 @@ export function AdminDashboard({
               onOpen={() => navigateAdmin("tools", "union-pbx")}
               onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
               onManageQueues={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "filas") : undefined}
-              onManageInbound={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "entrada") : undefined}
+              onManageInbound={canManagePbxTool && isPlatformOperatorOrganization ? () => navigateAdmin("tools", "union-pbx", "entrada") : undefined}
               onHistory={() => navigateAdmin("tools", "union-pbx", "historico")}
               onBack={() => navigateAdmin("tools")}
             />
