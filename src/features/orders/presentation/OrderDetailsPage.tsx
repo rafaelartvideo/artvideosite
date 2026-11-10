@@ -37,6 +37,7 @@ import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { OrderReturnSwitcher } from "./OrderReturnsPanel";
+import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
@@ -199,10 +200,15 @@ export function OrderDetailsPage(props: Props) {
   const { statuses, situations } = workspace;
   // A rota já conhece o tipo da OS: não aguarde a carga ampla das
   // referências para reconhecer o orçamento e iniciar a consulta da proposta.
+  // Retorno em outra peca usa o mesmo fluxo de orcamento e aprovacao,
+  // independentemente de a OS original ter tipo de atendimento com orcamento.
+  const returnRequiresQuote = Boolean(detail?.return_root_id &&
+    ["unrelated", "not_covered"].includes(String(detail?.return_classification || "")));
   const quoteWorkflowEnabled = Boolean(!monitorView && detail?.service_type_id &&
-    ((detail.service_type as any)?.quote_workflow_enabled === true ||
-      workspace.serviceTypes.some((type: any) =>
-        type.id === detail.service_type_id && type.quote_workflow_enabled === true)));
+    (returnRequiresQuote || (!detail?.return_root_id &&
+      ((detail.service_type as any)?.quote_workflow_enabled === true ||
+        workspace.serviceTypes.some((type: any) =>
+          type.id === detail.service_type_id && type.quote_workflow_enabled === true)))));
   // A OS comum mantém suas ações. No fluxo de orçamento, só há execução
   // (solicitar peças / solucionar) quando a proposta vinculada for aprovada.
   const [quoteState, setQuoteState] = useState<{ orderId: string; status: OrderQuoteStatus } | null>(null);
@@ -671,6 +677,18 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
+        {detail.return_root_id && detail.return_classification === "analysis"
+          ? <OrderReturnDiagnosisGate
+              order={detail}
+              canClassify={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+              onClassified={(kind, diagnosis, solution) => {
+                details.setDetail((current: any) => current?.id === detail.id
+                  ? { ...current, diagnosis, solution, return_classification: kind === "same_part" ? "covered" : "unrelated" }
+                  : current);
+                setDetailSection(kind === "different_part" ? "products-services" : "details");
+              }}
+            />
+          : <>
         <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"} />
         {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
@@ -705,6 +723,7 @@ export function OrderDetailsPage(props: Props) {
           <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
           <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={!monitorView && hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />
         </>}
+        </>}
       </div>
       {monitorView ? <AdminStickyToolbar className="justify-between">
         <BtnSecondary onClick={closePage}>Voltar</BtnSecondary>
@@ -737,8 +756,6 @@ export function OrderDetailsPage(props: Props) {
         onResolve={() => openSolveOrder(detail)}
         onComplete={openCompletion}
         onEdit={() => { void openEdit(detail); }}
-        onReturnClassificationChange={value => details.setDetail((current: any) =>
-          current?.id === detail.id ? { ...current, return_classification: value } : current)}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
         quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed ? "os-quote-toolbar-" + detail.id : undefined}
