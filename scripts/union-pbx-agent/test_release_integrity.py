@@ -55,7 +55,8 @@ class ReleaseIntegrityTests(unittest.TestCase):
                 'asterisk':"#!/bin/sh\n[ \"$*\" = '-rx core show channels count' ] || exit 99\nprintf '0 active channels\\n'\n",
                 'install':'''#!/bin/sh
 if [ "$FAIL_INSTALL" = 1 ] && [ "$8" = "$FAKE_TARGET/tenant_profile.py" ]; then touch "$FAKE_STATE/install-failed"; exit 1; fi
-exec /usr/bin/install "$@"
+# Preserve mode and paths, without requiring root ownership in the CI fixture.
+exec /usr/bin/install -m "$6" "$7" "$8"
 ''',
                 'systemctl':'''#!/bin/sh
 case "$1" in
