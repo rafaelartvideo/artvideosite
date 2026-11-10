@@ -11,12 +11,14 @@ export function OrderDetailSectionTabs({
   onChange,
   itemBadge,
   commercialLabel = "Produtos e Serviços",
+  commercialActionsHostId,
   compactMobile = false,
 }: {
   value: OrderDetailTab;
   onChange: (next: OrderDetailTab) => void;
   itemBadge?: { label: string; style: string } | null;
   commercialLabel?: string;
+  commercialActionsHostId?: string;
   compactMobile?: boolean;
 }) {
   const indicatorId = useId();
@@ -31,6 +33,7 @@ export function OrderDetailSectionTabs({
           transition={{ type: "spring", stiffness: 440, damping: 38 }}
           className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-primary" />}
       </button>
+      <div className="flex min-w-0 items-center gap-1">
       <button type="button" onClick={() => onChange("products-services")}
         aria-pressed={value === "products-services"}
         className={"relative flex min-w-0 items-center border-b-2 border-transparent font-bold transition-colors " + (compactMobile ? "min-h-12 justify-center gap-1 px-0.5 py-2 text-[11px] leading-tight sm:min-h-0 sm:justify-start sm:gap-2 sm:px-1 sm:pb-3 sm:pt-1 sm:text-xs " : "shrink-0 gap-2 px-1 pb-3 pt-1 text-xs ") + (value === "products-services" ? "text-primary" : "text-muted-foreground hover:text-foreground")}>
@@ -41,6 +44,8 @@ export function OrderDetailSectionTabs({
           transition={{ type: "spring", stiffness: 440, damping: 38 }}
           className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-primary" />}
       </button>
+      {commercialActionsHostId && <span id={commercialActionsHostId} className="inline-flex shrink-0 items-center" />}
+      </div>
     </div>
   </div>;
 }

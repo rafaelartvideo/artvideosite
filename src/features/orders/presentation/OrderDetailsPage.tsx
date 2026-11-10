@@ -703,7 +703,8 @@ export function OrderDetailsPage(props: Props) {
               />
             </>
           : <>
-        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"} />
+        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"}
+          commercialActionsHostId={quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-actions-" + detail.id : undefined} />
         {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
@@ -712,6 +713,7 @@ export function OrderDetailsPage(props: Props) {
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           onOverviewChange={handleItemsOverviewChange}
           footerHostId={"os-quote-toolbar-" + detail.id}
+          actionsHostId={"os-quote-actions-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}

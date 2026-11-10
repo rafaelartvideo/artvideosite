@@ -997,10 +997,8 @@ export function OrderProductsServicesSection({ order, canEdit, commercialLocked 
   };
 
   return <div className="space-y-4">
-    {!commercialEditable && <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-      {commercialLocked
-        ? "Orçamento aprovado: itens e valores só podem ser alterados após reabrir o orçamento com justificativa."
-        : order?.completed_at
+    {!commercialEditable && !commercialLocked && <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      {order?.completed_at
         ? "Esta OS está concluída. Produtos, serviços e desconto estão bloqueados para edição."
         : order?.cancelled_at
           ? "Esta OS está cancelada. Produtos, serviços e desconto estão bloqueados para edição."

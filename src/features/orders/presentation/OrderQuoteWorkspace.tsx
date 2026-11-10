@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ArrowRight, CheckCircle2, History, RotateCcw, XCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, RotateCcw, XCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -88,10 +89,11 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,onStatusChange}:{
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
   onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
   footerHostId:string;
+  actionsHostId?:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
   const queryClient = useQueryClient();
@@ -109,6 +111,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
   const [busy,setBusy]=useState(false);
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
+  const [actionsHost,setActionsHost]=useState<HTMLElement|null>(null);
   const [confirmationAction,setConfirmationAction]=useState<QuoteAction|null>(null);
   const [modalFeedback,setModalFeedback]=useState<ModalFeedback|null>(null);
   const [executionItems,setExecutionItems]=useState<OrderCommercialItem[]>([]);
@@ -121,6 +124,9 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     setFooterHost(document.getElementById(footerHostId));
   },[footerHostId,orderId]);
+  useEffect(()=>{
+    setActionsHost(actionsHostId ? document.getElementById(actionsHostId) : null);
+  },[actionsHostId,orderId]);
   useEffect(()=>()=>{approvalLookupId.current += 1;},[]);
 
   useEffect(()=>{
@@ -291,19 +297,10 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </Section>
     {editable && <UnionQuoteAiUsage organizationId={org}/>}
     {proposal?.status==="approved"
-      ? <section aria-label="Produtos e serviços da OS" className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
-            <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Produtos e serviços da OS</h3>
-            {canEdit && !order.completed_at && !order.cancelled_at && !order.is_solved &&
-              <AdminButton variant="tertiary" onClick={()=>openAction("reopen")} disabled={busy}>
-                <RotateCcw size={15}/> Reabrir orçamento
-              </AdminButton>}
-          </div>
-          <OrderProductsServicesSection
-            order={order} canEdit={canEdit} commercialLocked formatCurrency={formatCurrency}
-            onPricingChange={onPricingChange} onOverviewChange={onOverviewChange}
-          />
-        </section>
+      ? <OrderProductsServicesSection
+          order={order} canEdit={canEdit} commercialLocked formatCurrency={formatCurrency}
+          onPricingChange={onPricingChange} onOverviewChange={onOverviewChange}
+        />
       : <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>}
 
     <OrderQuotePhotosSection organizationId={org} orderId={orderId}
@@ -346,6 +343,20 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </Section>}
     <OrderQuoteComments organizationId={org} orderId={orderId} canComment={canEdit && !busy} />
     </div>
+    {actionsHost && proposal?.status==="approved" && canEdit && !order.completed_at && !order.cancelled_at && !order.is_solved && createPortal(
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" aria-label="Ações do orçamento" title="Ações do orçamento" disabled={busy}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50">
+            <MoreVertical size={18} aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem disabled={busy} onSelect={()=>openAction("reopen")} className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+            <RotateCcw size={15} aria-hidden="true" /> Reabrir orçamento
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,actionsHost)}
     {footerHost && proposal?.status!=="approved" && createPortal(<>
       {editable && <BtnPrimary disabled={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
         onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}

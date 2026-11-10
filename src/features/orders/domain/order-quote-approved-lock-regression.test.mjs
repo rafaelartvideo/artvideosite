@@ -19,12 +19,28 @@ test("OS aprovada bloqueia edição comercial, sem desativar tarefas e agendamen
   assert.match(execution, /if \(!commercialEditable \|\| !order\?\.id \|\| discountSaveRevision === 0\) return/);
   assert.match(execution, /if \(!schedulingItem \|\| !editable \|\| scheduleSaving\) return/);
   assert.match(quote, /order=\{order\} canEdit=\{canEdit\} commercialLocked formatCurrency=\{formatCurrency\}/);
+  assert.match(execution, /!commercialEditable && !commercialLocked/);
+  assert.doesNotMatch(execution, /Orçamento aprovado: itens e valores só podem ser alterados/);
+});
+
+test("menu de ações aparece ao lado da aba Orçamento só quando há aprovação", () => {
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
+  const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  assert.match(details, /commercialActionsHostId=\{quoteWorkflowEnabled && detailSection === "products-services"/);
+  assert.match(details, /actionsHostId=\{"os-quote-actions-" \+ detail.id\}/);
+  assert.match(tabs, /id=\{commercialActionsHostId\}/);
+  assert.match(quote, /actionsHost && proposal\?\.status==="approved"/);
+  assert.match(quote, /createPortal\(/);
 });
 
 test("reabertura exige motivo, gera nova versão e nova aprovação", async () => {
   const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
   const repository = read("src/features/orders/infrastructure/order-quote.repository.ts");
-  assert.match(quote, /onClick=\{\(\)=>openAction\("reopen"\)\}/);
+  assert.match(quote, /onSelect=\{\(\)=>openAction\("reopen"\)\}/);
+  assert.match(quote, /<MoreVertical size=\{18\}/);
+  assert.match(quote, /aria-label="Ações do orçamento"/);
+  assert.doesNotMatch(quote, /Produtos e serviços da OS/);
   assert.match(quote, /Justificativa para reabrir o orçamento/);
   assert.match(quote, /reason\.trim\(\)\.length<5/);
   assert.match(quote, /reopenApprovedOrderQuote\(org,orderId,reason\)/);
