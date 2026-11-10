@@ -108,6 +108,7 @@ export function OrderReturnStartDialog({
   return <AdminDialog
     open={open}
     preparing={preparingReturn}
+    preparingKey={orderId}
     preparingText="Preparando retorno..."
     preparingError={eligibilityError}
     onRetryPreparing={() => { setEligibility(null); setError(""); setEligibilityRetry(value => value + 1); }}

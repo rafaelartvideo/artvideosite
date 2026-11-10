@@ -61,21 +61,25 @@ test("CRM dialogs use fade only, avoiding the competing zoom/slide/size animatio
 });
 
 
-test("AdminDialog unifica preparação, retry e conteúdo com animação sem flicker de footer", () => {
+test("um único modal mantém o cabeçalho e expande o próprio conteúdo após o carregamento", () => {
   const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
-  assert.match(layout, /preparing = false,/);
-  assert.match(layout, /preparingText = "Preparando informações\.\.\."/);
-  assert.match(layout, /const showPreparation = !preparationRef.current.ready && \(preparing \|\| Boolean\(preparingError\)\)/);
-  assert.match(layout, /preparationRef.current.key !== preparingKey/);
-  assert.match(layout, /data-admin-dialog-preparing="true"/);
-  assert.match(layout, /data-admin-dialog-ready="true"/);
-  assert.match(layout, /!showPreparation && footer/);
-  assert.match(layout, /onRetryPreparing && <BtnPrimary/);
-  assert.match(layout, /<div hidden aria-hidden="true">\{children\}<\/div>/);
-  assert.match(layout, /motion-reduce:animate-none/);
-  assert.doesNotMatch(layout, /transition-\[max-width,height\]/);
+  const component = layout.split("export function AdminDialog({")[1].split("export function AdminPage(")[0];
+  assert.equal((component.match(/<DialogContent\b/g) || []).length, 1);
+  assert.equal((component.match(/<Dialog open=\{open\}/g) || []).length, 1);
+  assert.match(component, /ref=\{contentRef\}/);
+  assert.match(component, /node\.animate\(\[/);
+  assert.match(component, /preparedSizeRef\.current/);
+  assert.match(component, /height: .*before\.height/);
+  assert.match(component, /height: .*after\.height/);
+  assert.match(component, /prefers-reduced-motion: reduce/);
+  assert.match(component, /data-admin-dialog-preparing=\{showPreparation/);
+  assert.match(component, /data-admin-dialog-ready=\{!showPreparation/);
+  assert.match(component, /<DialogTitle className="break-words/);
+  assert.match(component, /showPreparation \? "hidden" : "contents"/);
+  assert.match(component, /!showPreparation && footer/);
+  assert.match(component, /onRetryPreparing && <BtnPrimary/);
+  assert.doesNotMatch(component, /h-16 w-16 shrink-0 items-center justify-center rounded-2xl/);
 });
-
 
 test("modais de dados somente revelam formulários e ações depois da preparação real", () => {
   const sources = [

@@ -352,6 +352,41 @@ export function AdminDialog({
   const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const preparedSizeRef = React.useRef<{ width: number; height: number } | null>(null);
+  const resizeAnimationRef = React.useRef<Animation | null>(null);
+
+  // Uma única instância do DialogContent: enquanto prepara, guarda seu tamanho
+  // real; quando os dados ficam prontos, anima até o tamanho final do conteúdo.
+  React.useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!open || !node) {
+      resizeAnimationRef.current?.cancel();
+      resizeAnimationRef.current = null;
+      preparedSizeRef.current = null;
+      return;
+    }
+    if (showPreparation) {
+      resizeAnimationRef.current?.cancel();
+      resizeAnimationRef.current = null;
+      const bounds = node.getBoundingClientRect();
+      preparedSizeRef.current = { width: bounds.width, height: bounds.height };
+      return;
+    }
+    const before = preparedSizeRef.current;
+    if (!before) return;
+    preparedSizeRef.current = null;
+    if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const after = node.getBoundingClientRect();
+    if (!before.width || !before.height || (before.width === after.width && before.height === after.height)) return;
+    resizeAnimationRef.current?.cancel();
+    resizeAnimationRef.current = node.animate([
+      { width: `${before.width}px`, height: `${before.height}px` },
+      { width: `${after.width}px`, height: `${after.height}px` },
+    ], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+  }, [open, showPreparation, preparingKey]);
+
+  React.useEffect(() => () => resizeAnimationRef.current?.cancel(), []);
 
   React.useEffect(() => {
     if (!open) return;
@@ -376,27 +411,27 @@ export function AdminDialog({
 
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent
+      ref={contentRef}
       showClose={false}
       showMinimizeControl={false}
-      minimizable={!showPreparation && minimizable}
+      minimizable={minimizable}
       minimizedTitle={minimizedTitle}
       minimizedDescription={effectiveMinimizedDescription}
       overlayClassName="admin-dialog-overlay"
       onPointerDownOutside={preventAdminDialogOutsideInteraction}
       onInteractOutside={preventAdminDialogOutsideInteraction}
       data-admin-dialog-content="true"
+      data-admin-dialog-state={showPreparation ? "preparing" : "ready"}
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
       } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
-        showPreparation ? "w-[min(25rem,calc(100vw-1.5rem))] max-w-[25rem]" : className,
+        showPreparation ? "w-[min(32rem,calc(100vw-1.5rem))] max-w-xl" : className,
       )}
     >
-      {showPreparation
-        ? <DialogTitle className="sr-only">{typeof title === "string" ? title : "Preparando janela"}</DialogTitle>
-        : hideHeader
+      {hideHeader
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
         : (title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
@@ -404,45 +439,44 @@ export function AdminDialog({
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {headerActions}
+          {!showPreparation && headerActions}
           {minimizable && <DialogMinimizeButton title={minimizedTitle} description={effectiveMinimizedDescription} />}
           {closable && <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>}
         </div>
       </div>}
-      {(showPreparation || !description) && <DialogDescription className="sr-only">
-        {showPreparation ? preparingText : `Conteúdo e ações da janela ${minimizedTitle}.`}
-      </DialogDescription>}
-      {showPreparation
-        ? <div data-admin-dialog-preparing="true" className="min-w-0 px-6 py-8">
-            <div role={preparingError ? "alert" : "status"} aria-live="polite" aria-busy={!preparingError}
-              className="flex flex-col items-center gap-4 text-center">
-              <span aria-hidden="true" className={cn(
-                "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl",
-                preparingError ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary",
-              )}>
-                {preparingError
-                  ? <AlertCircle size={29} />
-                  : <LoaderCircle size={30} className="animate-spin motion-reduce:animate-none" />}
-              </span>
-              <div className="min-w-0 space-y-1.5">
-                <p className="text-sm font-bold text-foreground">{preparingError ? "Não foi possível carregar" : preparingText}</p>
-                {preparingError
-                  ? <p className="break-words text-xs leading-relaxed text-destructive">{preparingError}</p>
-                  : <p className="text-xs leading-relaxed text-muted-foreground">Carregando os dados necessários.</p>}
-              </div>
-              <div className="flex w-full flex-wrap items-center justify-center gap-2">
-                {closable && <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>}
-                {preparingError && onRetryPreparing && <BtnPrimary onClick={onRetryPreparing}>Tentar novamente</BtnPrimary>}
-              </div>
-            </div>
-            {/* Permite que consultas de componentes filhos sejam iniciadas sem mostrar um formulário incompleto. */}
-            <div hidden aria-hidden="true">{children}</div>
-          </div>
-        : <div ref={bodyRef} data-admin-dialog-ready="true" className={cn(
-            "min-h-0 min-w-0 flex-1 overflow-y-auto p-5 animate-in fade-in-0 duration-200 motion-reduce:animate-none",
-            "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
-            bodyClassName,
-          )}>{children}</div>}
+      {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
+      <div
+        ref={bodyRef}
+        data-admin-dialog-preparing={showPreparation ? "true" : undefined}
+        data-admin-dialog-ready={!showPreparation ? "true" : undefined}
+        className={cn(
+          "min-h-0 min-w-0 flex-1 overflow-y-auto p-5",
+          "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
+          !showPreparation && bodyClassName,
+        )}
+      >
+        {showPreparation && <div
+          role={preparingError ? "alert" : "status"}
+          aria-live="polite"
+          aria-busy={!preparingError}
+          className="flex min-h-[260px] flex-col items-center justify-center gap-3 px-3 py-6 text-center"
+        >
+          {preparingError
+            ? <>
+                <AlertCircle size={23} className="text-destructive" aria-hidden="true" />
+                <p className="text-sm font-semibold text-destructive">{preparingError}</p>
+                {onRetryPreparing && <BtnPrimary onClick={onRetryPreparing}>Tentar novamente</BtnPrimary>}
+              </>
+            : <>
+                <p className="text-sm font-semibold text-muted-foreground">{preparingText}</p>
+                <LoaderCircle size={24} className="animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" />
+              </>}
+        </div>}
+        {/* Não remonta os filhos: consultas e formulários permanecem na mesma árvore. */}
+        <div className={showPreparation ? "hidden" : "contents"} aria-hidden={showPreparation ? true : undefined}>
+          {children}
+        </div>
+      </div>
       {!showPreparation && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
