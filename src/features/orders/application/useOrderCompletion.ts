@@ -242,8 +242,6 @@ export function useOrderCompletion({
     if (Math.abs(installmentDifference) > 0.009) return "A soma das parcelas precisa ser igual ao valor final da OS.";
     const receivedWithoutMethod = installments.find(item => item.received && !item.payment_method_id);
     if (receivedWithoutMethod) return "Selecione a forma de recebimento das parcelas marcadas como recebidas.";
-    const receivedWithoutAccount = installments.find(item => item.received && !item.financial_account_id);
-    if (receivedWithoutAccount) return "Não há conta financeira definida para uma parcela recebida.";
     const receivedWithoutDate = installments.find(item => item.received && !item.received_at);
     if (receivedWithoutDate) return "Informe a data de recebimento das parcelas recebidas.";
     return "";
@@ -551,7 +549,7 @@ export function useOrderCompletion({
   };
 
   const buildFinancePayload = () => {
-    if (!financeEnabled || finalTotal <= 0) return { installments: [], payments: [] };
+    if (!financeEnabled || finalTotal <= 0) return { installments: [], payments: [] as [], reported_receipts: [], payment_plan: [], payment_preferences: [] };
 
     const installmentPayload = installments.map((item, index) => ({
       installment_number: index + 1,
@@ -559,7 +557,7 @@ export function useOrderCompletion({
       amount: Math.round(Number(item.amount || 0) * 100) / 100,
     }));
 
-    const payments = installments.flatMap((item, index) => {
+    const reported_receipts = installments.flatMap((item, index) => {
       if (!item.received) return [];
       return [{
         installment_number: index + 1,
@@ -569,8 +567,17 @@ export function useOrderCompletion({
         occurred_at: item.received_at ? new Date(`${item.received_at}T12:00:00`).toISOString() : null,
       }];
     });
+    const payment_plan = installments.filter(item => item.payment_method_id).map(item => ({
+      payment_method_id: item.payment_method_id,
+      amount: Math.round(Number(item.amount || 0) * 100) / 100,
+    }));
+    const payment_preferences = installments.map((item, index) => ({
+      installment_number: index + 1,
+      payment_method_id: item.payment_method_id,
+      financial_account_id: item.financial_account_id,
+    }));
 
-    return { installments: installmentPayload, payments };
+    return { installments: installmentPayload, payments: [] as [], reported_receipts, payment_plan, payment_preferences };
   };
 
   const submit = async () => {
