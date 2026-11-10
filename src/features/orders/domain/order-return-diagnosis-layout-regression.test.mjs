@@ -41,17 +41,17 @@ test("diagnóstico mostra Cliente com ações normais antes da seção completa 
   assert.match(content, /<OrderImageDownloadMenu images=\{equipmentImages\}/);
   assert.match(content, /<OrderEquipmentDetailsSection detail=\{detail\} hasPermission=\{hasPermission\}/);
   assert.match(content, /export function OrderCustomerDetailsSection/);
-  assert.match(content, /hasPermission\\("orders\\.section\\.customer"\\)/);
-  assert.match(content, /<Section\\s+title="Cliente"/);
-  const conditionalStart = detail.indexOf(": returnDiagnosisActive\\n");
+  assert.match(content, /hasPermission\("orders\.section\.customer"\)/);
+  assert.match(content, /<Section\s+title="Cliente"/);
+  const conditionalStart = detail.indexOf(": returnDiagnosisActive\n");
   const customerPosition = detail.indexOf("<OrderCustomerDetailsSection", conditionalStart);
   const equipmentPosition = detail.indexOf("<OrderEquipmentDetailsSection detail={detail}", conditionalStart);
   const gatePosition = detail.indexOf("<OrderReturnDiagnosisGate", conditionalStart);
   assert.ok(conditionalStart >= 0 && customerPosition > conditionalStart
     && equipmentPosition > customerPosition && gatePosition > equipmentPosition,
     "cliente com ações primeiro, depois equipamento, depois diagnóstico");
-  assert.match(detail, /onSendSignature=\\{!monitorView && hasPermission\\("documents\\.signatures\\.send"\\)/);
-  assert.match(detail, /onWhatsApp=\\{!monitorView && canSendSac/);
+  assert.match(detail, /onSendSignature=\{!monitorView && hasPermission\("documents\.signatures\.send"\)/);
+  assert.match(detail, /onWhatsApp=\{!monitorView && canSendSac/);
   assert.match(content, /aria-label="Enviar documento para assinatura"/);
   assert.match(content, /aria-label="Abrir endereço no mapa"/);
   assert.match(content, /aria-label="Ligar para o cliente"/);
