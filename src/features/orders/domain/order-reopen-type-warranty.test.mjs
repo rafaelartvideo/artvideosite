@@ -26,7 +26,9 @@ test("Reabrir OS cria um novo número com dados e fotos, sem fluxo de retorno", 
   assert.match(start,/reopen_service_order_as_new_v1/);
   assert.match(start,/mode\?: "return" \| "reopen"/);
   assert.match(start,/Confirmar reabertura/);
-  assert.match(panel,/const label = canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
+  assert.match(panel,/if \(!canStartReturn\) return null/);
+  assert.match(panel,/<RotateCcw size=\{15\} \/> Iniciar retorno/);
+  assert.doesNotMatch(panel, /const label = canStartReturn/);
   assert.match(table,/canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
   assert.match(migration,/FUNCTION public\.reopen_service_order_as_new_v1/);
   assert.match(migration,/v_source\.customer_id/);
