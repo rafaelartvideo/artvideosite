@@ -1,5 +1,7 @@
 import { STATUS_TONE_CLASSES, STATUS_TONE_HEX } from "@/shared/domain/status-tone";
 
+export const ORDER_RETURN_HEX = "#f97316";
+
 /** Status geral da OS tem cores próprias, independentes dos estados de tarefas. */
 export function getOrderStatusTone(status?: string | null): "success" | "progress" | "danger" | "neutral" {
   const normalized = String(status || "").trim().toLocaleLowerCase("pt-BR")
@@ -14,7 +16,8 @@ export function getOrderStatusBadgeClass(status?: string | null) {
   return STATUS_TONE_CLASSES[getOrderStatusTone(status)].badge;
 }
 
-export function getOrderStatusHex(status?: string | null, configuredColor?: string | null) {
+export function getOrderStatusHex(status?: string | null, configuredColor?: string | null, isReturn = false) {
+  if (isReturn || String(status || "").trim().toLocaleLowerCase("pt-BR") === "retorno") return ORDER_RETURN_HEX;
   const tone = getOrderStatusTone(status);
   return tone === "neutral" ? (configuredColor || STATUS_TONE_HEX.neutral) : STATUS_TONE_HEX[tone];
 }
