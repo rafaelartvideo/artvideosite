@@ -54,6 +54,7 @@ class ReleaseIntegrityTests(unittest.TestCase):
                 'id':'#!/bin/sh\necho 0\n',
                 'asterisk':"#!/bin/sh\n[ \"$*\" = '-rx core show channels count' ] || exit 99\nprintf '0 active channels\\n'\n",
                 'install':'''#!/bin/sh
+[ "$1" = -o ] && [ "$2" = root ] && [ "$3" = -g ] && [ "$4" = root ] && [ "$5" = -m ] || exit 99
 if [ "$FAIL_INSTALL" = 1 ] && [ "$8" = "$FAKE_TARGET/tenant_profile.py" ]; then touch "$FAKE_STATE/install-failed"; exit 1; fi
 # Preserve mode and paths, without requiring root ownership in the CI fixture.
 exec /usr/bin/install -m "$6" "$7" "$8"
