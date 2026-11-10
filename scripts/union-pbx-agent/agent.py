@@ -865,6 +865,21 @@ def cycle(dry_run=False):
             # Do not include any credentials in diagnostic logs.
             print("Entrega criptografada adiada: " + type(exc).__name__, file=sys.stderr)
 
+    # Optional metadata delivery runs after all phone operations. No CDR backend
+    # means no work, and a failure does not block provisioning or secure logins.
+    if not dry_run:
+        try:
+            endpoints = payload.get("history_endpoints")
+            if (isinstance(endpoints, list) and 0 < len(endpoints) <= 1200 and
+                    all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value)
+                        for value in endpoints)):
+                from call_history import sync_history
+                sync_history(Path("/var/log/asterisk/cdr-custom/union-calls.csv"),
+                             STATE_DIR / "call-history-cursor.json", set(endpoints),
+                             lambda records: signed_request({"action": "report_calls", "records": records}))
+        except Exception as exc:
+            print("Historico adiado: " + type(exc).__name__, file=sys.stderr)
+
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")
     actions=parser.add_subparsers(dest="action",required=True)

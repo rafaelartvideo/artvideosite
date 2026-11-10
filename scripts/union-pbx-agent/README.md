@@ -332,3 +332,57 @@ o destino planejado; não envia comando para mudar a FVX.
 Quando autorizado, a operação deverá ser feita por uma pessoa com acesso root
 na VPS, em duas etapas separadas: primeiro apenas preservar o 301 através de
 uma subrotina controlada, e só depois ativar a fila externa com teste real.
+
+## Histórico assinado de chamadas (metadados)
+
+O histórico usa `pbx_call_logs`, separado da integração `uniq_calls`. A migração
+`20261110010215_pbx_signed_call_history_foundation.sql` registra a propriedade
+dos endpoints FVX já existentes, sem alterar credenciais ou rotas. O navegador
+tem somente SELECT protegido por organização e `pbx.view`; a ingestão é permitida
+apenas ao serviço, após a assinatura Ed25519 do agente. A organização e a direção
+são derivadas no banco. Não habilita telefonia em empresas parceiras antes da
+separação dos contexts e dos troncos de cada empresa.
+
+`call_history.py` deve ser instalado ao lado de `agent.py`. No final de cada ciclo,
+o agente envia até dez pernas de chamadas, usando os endpoints autorizados pelo
+backend. Falhas não impedem o provisionamento nem a entrega de credenciais.
+Chamadas de endpoints desconhecidos ou com uma perna de outra empresa não saem
+da VPS. O cursor só avança após confirmação; a chave agente/evento impede
+duplicação quando uma resposta se perde. O identificador vinculado agrupa pernas,
+não é uma contagem de conversas distintas. O histórico não é fonte de faturamento.
+
+Os modelos `cdr.conf` e `cdr_custom.conf` são **opt-in**. Sua ativação requer
+aprovação do proprietário, zero canais ativos, backup do agente/configuração e
+reversão preparada. Não sobrescrever um CDR já configurado sem reconciliar seus
+destinos. Recarregar apenas `cdr` e carregar `cdr_custom.so`; não reiniciar o
+Asterisk nem recarregar PJSIP/dialplan para ativar este histórico. O agente precisa
+ser reiniciado após a instalação dos dois arquivos Python. A unidade existente
+permite ler `/var/log/asterisk` e escrever o cursor em `/var/lib/union-pbx-agent`.
+
+`activate-history.sh` prepara a aplicação única para a VPS auditada: exige a opção
+`--acknowledge-history-activation`, confere o hash do agente anterior, recusa CDR
+ou helper já existentes, bloqueia chamadas ativas, faz backup root e tenta
+restaurar o estado anterior se a ativação falhar. **Preparar/copiar o script não
+é aprovação para executá-lo.** Não usar em outro servidor sem nova auditoria.
+
+Não são gravados áudio, nome de chamador, argumentos de aplicações, userfield,
+cabeçalhos SIP ou segredos. A pasta `cdr-custom` deve pertencer a `asterisk`, modo
+0750; os arquivos devem ter acesso restrito. Não adicionar gravação de voz ou
+exclusão automática de dados nesta implantação. A política de retenção precisa
+ser definida antes de habilitar limpeza automática. Monitorar espaço em disco.
+Não apagar arquivos rotacionados que ainda contenham dados não confirmados.
+
+Rotação suportada: rename numerado `.1`, `.2`, etc., sem compressão enquanto
+estiver pendente, seguido de reabertura do backend. `copytruncate` não garante
+ausência de perda durante a própria rotação e deve ser evitado. Arquivo pendente
+ausente ou cursor corrompido interrompe somente a coleta e exige diagnóstico.
+
+Validação: `python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'`.
+`test_call_history_database.sql` testa ingestão, duplicação, endpoint registrado de
+outra empresa, direção e RLS em transação com rollback de todos os dados fictícios.
+Após a ativação, validar chamadas reais internas e entrada FVX; dados anteriores
+à ativação não estão disponíveis retroativamente. A interface fica em
+Ferramentas → PABX → Histórico de ligações e mantém o telefone montado.
+
+Referências de formato e opções: [CDR Asterisk 22](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Functions/CDR/)
+e [backend customizado oficial](https://github.com/asterisk/asterisk/blob/22/configs/samples/cdr_custom.conf.sample).

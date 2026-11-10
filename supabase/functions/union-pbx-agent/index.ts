@@ -140,7 +140,40 @@ Deno.serve(async request=>{
           })),
         }));
       }
-      return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs});
+      // A missing history registry must never block provisioning or phone login.
+      const historyEndpoints = new Set<string>();
+      const historySignal=AbortSignal.timeout(2000);
+      const [extensionHistory,trunkHistory]=await Promise.all([
+        admin.from("pbx_extensions").select("endpoint_name")
+          .eq("organization_id",agent.organization_id).limit(1001).abortSignal(historySignal),
+        admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
+          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal),
+      ]);
+      const {data:ownedExtensions,error:extensionHistoryError}=extensionHistory;
+      const {data:ownedTrunks,error:trunkHistoryError}=trunkHistory;
+      if(!extensionHistoryError && !trunkHistoryError &&
+         (ownedExtensions?.length||0)<=1000 && (ownedTrunks?.length||0)<=100){
+        for(const extension of ownedExtensions||[]) historyEndpoints.add(extension.endpoint_name);
+        for(const trunk of ownedTrunks||[]){
+          historyEndpoints.add(trunk.inbound_endpoint); historyEndpoints.add(trunk.outbound_endpoint);
+        }
+      }
+      return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
+        history_endpoints: [...historyEndpoints]});
+    }
+    if(body.action==="report_calls"){
+      if(!Array.isArray(body.records)||body.records.length<1||body.records.length>10)
+        return respond({error:"Lote de chamadas inválido"},400);
+      const {data,error}=await admin.rpc("pbx_ingest_call_records",{
+        p_agent_id:agent.id,p_records:body.records,
+      });
+      if(error){
+        // Do not log callers, destinations or raw database error messages.
+        console.error("PBX call metadata rejected",error.code);
+        return respond({error:"Histórico não confirmado"},["23514","22007","22008","22P02"].includes(error.code)?400:503);
+      }
+      if(data?.accepted!==true) return respond({error:"Histórico não confirmado"},503);
+      return respond({accepted:true,acknowledged:data.acknowledged});
     }
     if(body.action==="report_queue"){
       const queueId=String(body.id||""),version=String(body.version||""),status=String(body.status||"");
