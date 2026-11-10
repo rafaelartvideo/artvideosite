@@ -162,7 +162,7 @@ function SectionSkeleton({ lines = 3 }: { lines?: number }) {
 
 export function OrderDetailsSkeleton({ onClose }: { onClose: () => void }) {
   return <AdminPage open onClose={onClose} smoothMotion={false} breadcrumb="Ordens de Serviço"
-    title="Carregando OS" maxW="max-w-[1440px]">
+    title="Detalhes da OS" maxW="max-w-[1440px]">
     <div role="status" aria-label="Carregando detalhes da OS" aria-busy="true" className="space-y-5 p-5">
       <span className="sr-only">Carregando detalhes da ordem de serviço...</span>
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">

@@ -147,7 +147,9 @@ export function useOrderDetails({
     if (!organizationId || order?.organization_id !== organizationId) return;
     setHydratedOrderId(null);
     setSelectedOrder(order);
-    setDetail(order);
+    // Ao alternar OS original e retorno, mantém a página anterior montada
+    // até receber o workspace completo da nova OS (sem preview incompleto).
+    setDetail((current: any) => current?.id && current.id !== order.id ? current : order);
   };
 
   const openFreshDetail = (order: any) => {

@@ -763,8 +763,11 @@ export function TabOrders({
   );
 
   const detailPageVisible = Boolean(detail && !completionFromListId && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId));
+  // A troca entre OS original e retorno usa a mesma página já montada.
+  // O skeleton de página inteira fica reservado à primeira abertura.
+  const switchingRoutedOrder = Boolean(detailPageVisible && initialOrderId && detail?.id !== initialOrderId);
   const detailHasError = detailPageVisible && !detailsController.detailHydrated && Boolean(detailsController.detailLoadError);
-  const detailIsLoading = routedDetailLoading || (detailPageVisible && !detailsController.detailHydrated && !detailHasError);
+  const detailIsLoading = routedDetailLoading || (detailPageVisible && !detailsController.detailHydrated && !detailHasError && !switchingRoutedOrder);
 
   return (
     <div className="space-y-5">
@@ -820,6 +823,7 @@ export function TabOrders({
       {!detailIsLoading && !detailHasError && <OrderDetailsPage
         // Não mantenha a OS anterior renderizada enquanto a rota já aponta para a lista.
         visible={detailPageVisible}
+        transitionPending={switchingRoutedOrder}
         initialSection={detailInitialSection}
         userId={user?.id}
         profileName={profile?.full_name}

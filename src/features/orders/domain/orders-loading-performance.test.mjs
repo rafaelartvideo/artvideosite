@@ -199,3 +199,27 @@ test("Kanban da OS compila TSX e exibe somente situações vinculadas ao atendim
   assert.doesNotMatch(list, /useInfiniteQuery|unassignedQuery/);
   assert.match(list, /onServiceTypeChange=\{changeKanbanServiceType\}/);
 });
+
+
+test("OS original e retorno trocam sem remontar página ou piscar o skeleton", async () => {
+  const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
+  const switcher = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
+  const hook = read("src/features/orders/application/useOrderDetails.ts");
+  const page = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const tab = read("src/features/orders/presentation/TabOrders.tsx");
+  const skeleton = read("src/features/orders/presentation/OrdersSkeletons.tsx");
+  for (const [name, source] of [["OrderDetailSectionTabs.tsx", tabs], ["OrderReturnsPanel.tsx", switcher], ["useOrderDetails.ts", hook], ["OrderDetailsPage.tsx", page], ["TabOrders.tsx", tab], ["OrdersSkeletons.tsx", skeleton]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
+  assert.doesNotMatch(tabs, /layoutId=|motion\.span|type: "spring"/);
+  assert.match(tabs, /border-primary text-primary/);
+  assert.match(hook, /setDetail\(\(current: any\) => current\?\.id && current\.id !== order\.id \? current : order\)/);
+  assert.match(tab, /const switchingRoutedOrder = Boolean\(detailPageVisible && initialOrderId && detail\?\.id !== initialOrderId\)/);
+  assert.match(tab, /!detailHasError && !switchingRoutedOrder/);
+  assert.match(tab, /transitionPending=\{switchingRoutedOrder\}/);
+  assert.match(page, /data-order-switch-overlay="true"/);
+  assert.match(page, /transition-opacity duration-150/);
+  assert.match(switcher, /queryClient\.prefetchQuery/);
+  assert.match(switcher, /tabular-nums/);
+  assert.doesNotMatch(skeleton, /title="Carregando OS"/);
+});

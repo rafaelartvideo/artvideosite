@@ -13,7 +13,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
+import { ChevronDown, Download, FileText, LoaderCircle, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -72,6 +72,7 @@ type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-recor
 
 type Props = {
   visible: boolean;
+  transitionPending?: boolean;
   initialSection?: "details" | "products-services";
   userId?: string;
   profileName?: string | null;
@@ -110,7 +111,7 @@ type Props = {
 export function OrderDetailsPage(props: Props) {
   const navigate = useNavigate();
   const {
-    visible, initialSection = "details", userId, profileName, workspace, details, history, documents, routeSubpage, onOpenSubpage, onCloseSubpage, images, partRequests,
+    visible, transitionPending = false, initialSection = "details", userId, profileName, workspace, details, history, documents, routeSubpage, onOpenSubpage, onCloseSubpage, images, partRequests,
     resolution, completion, mutations, hasPermission, usedItemsTotal: detailUsedItemsTotal,
     formatDate: fmtDate, formatState: stateLabel, formatSolvedAt,
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
@@ -801,6 +802,15 @@ export function OrderDetailsPage(props: Props) {
         quoteExecutionAllowed={quoteExecutionAllowed}
         quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed ? "os-quote-toolbar-" + detail.id : undefined}
       />}
+      <div
+        data-order-switch-overlay="true"
+        aria-hidden={!transitionPending}
+        className={`absolute inset-0 z-30 flex items-center justify-center bg-background/65 transition-opacity duration-150 ease-out motion-reduce:transition-none ${transitionPending ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+      >
+        {transitionPending && <span role="status" aria-label="Preparando OS selecionada" className="text-primary">
+          <LoaderCircle size={24} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        </span>}
+      </div>
     </AdminPage>}
   </>;
 }
