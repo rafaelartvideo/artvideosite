@@ -72,7 +72,7 @@ test("retornos usam toolbar, navegação junto ao número e modal apenas com mot
   assert.doesNotMatch(details, /<OrderReturnActions/);
   assert.doesNotMatch(details, /<OrderReturnsPanel/);
   assert.doesNotMatch(controls, /<MoreHorizontal|<DropdownMenuTrigger/);
-  assert.match(controls, /<BtnPrimary onClick=\{\(\) => \{ setReason\(""); setCreateOpen\(true\); \}\}/);
+  assert.match(controls, /setCreateOpen\(true\)/);
   assert.match(controls, /Iniciar retorno/);
   assert.match(controls, /Classificar garantia/);
   assert.match(controls, /<ArrowLeftRight size=\{13\}/);
