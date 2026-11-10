@@ -498,7 +498,11 @@ export function TabOrders({
       queryFn: () => getServiceOrderForRoute(routeOrganizationId, initialOrderId),
     }).then(order => {
         if (!order) {
-          if (!cancelled) setToast({ msg: "A OS solicitada não foi encontrada.", type: "error" });
+          if (!cancelled) {
+            setToast({ msg: "A OS solicitada não foi encontrada.", type: "error" });
+            // Numa troca entre OS, desfaz a rota inválida mantendo a OS anterior.
+            if (detail?.id && detail.id !== initialOrderId) onOrderRouteChange?.(detail.id, null);
+          }
           return;
         }
         openRoutedOrder(order);
@@ -506,6 +510,7 @@ export function TabOrders({
       .catch(error => {
         if (!cancelled) {
           setToast({ msg: `Erro ao carregar OS: ${systemErrorMessage(error)}`, type: "error" });
+          if (detail?.id && detail.id !== initialOrderId) onOrderRouteChange?.(detail.id, null);
         }
       });
 
