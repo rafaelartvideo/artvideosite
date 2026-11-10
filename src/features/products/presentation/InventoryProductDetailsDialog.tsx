@@ -17,7 +17,8 @@ import type { InventorySaleSummary } from "@/features/inventory/infrastructure/i
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { InventoryMovementFinancePage } from "@/features/inventory/presentation/InventoryMovementFinancePage";
 import { InventoryMovementHistory } from "@/features/inventory/presentation/InventoryMovementHistory";
-import { InventoryProductImageLightbox } from "./InventoryProductImageLightbox";
+import { InventoryProductImageLightbox, type InventoryProductPhoto } from "./InventoryProductImageLightbox";
+import { listProductVariationOptions, listProductVariations } from "../infrastructure/product-variations.repository";
 
 export type InventoryDetailsView = "details" | "move" | "history";
 
@@ -58,7 +59,7 @@ export function InventoryProductDetailsDialog({
   const minimum = Number(inventory?.min_quantity || 0) / (unit === "cx" ? factor : 1);
   const { url: coverUrl } = useMediaUrl(product?.cover_media_id || null);
   const carouselRef = useRef<HTMLDivElement>(null);
-  const [expandedImage, setExpandedImage] = useState<{ mediaId?: string | null; src?: string | null; name: string } | null>(null);
+  const [expandedImage, setExpandedImage] = useState<(InventoryProductPhoto & { photos?: InventoryProductPhoto[]; startIndex?: number }) | null>(null);
   const coverIllustration = salesHomologationImage(product?.sku);
 
   const relatedCodes = useQuery({
@@ -85,6 +86,18 @@ export function InventoryProductDetailsDialog({
     enabled: Boolean(product && organizationId && id),
     staleTime: 30_000,
   });
+  const variantOptions = useQuery({
+    queryKey: ["products", "variation-options-detail", organizationId, id],
+    queryFn: () => listProductVariationOptions(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 30_000,
+  });
+  const variationFamily = useQuery({
+    queryKey: ["products", "variation-family", organizationId, id],
+    queryFn: () => listProductVariations(organizationId, id!),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 20_000,
+  });
   const suppliers = useQuery({
     queryKey: ["products", "suppliers-detail", organizationId, inventory?.inventory_item_id],
     queryFn: () => listInventoryItemSuppliers(String(inventory.inventory_item_id), organizationId),
@@ -92,6 +105,30 @@ export function InventoryProductDetailsDialog({
     staleTime: 30_000,
   });
   if (!product) return null;
+
+  const photos: InventoryProductPhoto[] = [];
+  if (coverUrl || coverIllustration) photos.push({
+    mediaId: product.cover_media_id || null,
+    src: coverUrl || coverIllustration || null,
+    name: product.name,
+  });
+  for (const image of gallery.data || []) {
+    if (!image.public_url || photos.some(photo => photo.mediaId && photo.mediaId === image.media_id)) continue;
+    photos.push({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name });
+  }
+
+  const childVariation = variationFamily.data?.find(item => item.product_id === id && !item.is_parent);
+  const childAttributes = childVariation?.variation_label?.split(/\\s*·\\s*/).map(part => {
+    const separator = part.indexOf(":");
+    return separator > 0
+      ? { name: part.slice(0, separator).trim(), value: part.slice(separator + 1).trim(), otherValues: [] as string[] }
+      : { name: "Variação", value: part.trim(), otherValues: [] as string[] };
+  }).filter(attribute => attribute.name && attribute.value) || [];
+  const mainAttributes = (variantOptions.data || []).map(option => {
+    const values = option.values.split(/[;,\\n]/).map(value => value.trim()).filter(Boolean);
+    return { name: option.name.trim(), value: values[0] || "", otherValues: values.slice(1) };
+  }).filter(attribute => attribute.name && attribute.value);
+  const attributes = childVariation ? childAttributes : mainAttributes;
 
   const location = [inventory?.storage_shelf ? `Estante ${inventory.storage_shelf}` : "",
     inventory?.storage_level ? `Prateleira ${inventory.storage_level}` : "",
@@ -129,7 +166,7 @@ export function InventoryProductDetailsDialog({
     : <>
     <section className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start" aria-label="Resumo do item">
       <button type="button" disabled={!(coverUrl || coverIllustration)}
-        onClick={() => setExpandedImage({ mediaId: product.cover_media_id, src: coverUrl || coverIllustration, name: product.name })}
+        onClick={() => setExpandedImage({ mediaId: product.cover_media_id, src: coverUrl || coverIllustration, name: product.name, photos, startIndex: 0 })}
         title="Ampliar foto do produto" aria-label="Ampliar foto do produto"
         className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 disabled:cursor-default">
         {(coverUrl || coverIllustration) ? <img src={coverUrl || coverIllustration || ""} alt={product.name} className="h-full w-full object-contain"/>
@@ -191,11 +228,28 @@ export function InventoryProductDetailsDialog({
       </div>}
     </section>
 
+    {(variantOptions.isPending || variationFamily.isPending || variantOptions.isError || variationFamily.isError || attributes.length > 0) && <section className="space-y-2.5 border-t border-border pt-4" aria-label="Atributos do produto">
+      <h4 className="text-sm font-bold text-foreground">Atributos do produto</h4>
+      {variantOptions.isPending || variationFamily.isPending
+        ? <p className="text-xs text-muted-foreground">Carregando atributos...</p>
+        : attributes.length > 0
+          ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {attributes.map((attribute, index) => <Detail key={attribute.name + "-" + index} label={attribute.name}
+                value={<>
+                  <span>{attribute.value}</span>
+                  {attribute.otherValues.length > 0 && <p className="mt-1 text-[11px] font-normal text-muted-foreground">
+                    Outras opções: {attribute.otherValues.join(", ")}
+                  </p>}
+                </>} />)}
+            </div>
+          : <p role="alert" className="text-xs text-destructive">Não foi possível consultar os atributos deste produto.</p>}
+    </section>}
+
     {gallery.data && gallery.data.length > 0 && <section className="space-y-2">
       <h4 className="text-sm font-bold text-foreground">Fotos do produto</h4>
       <div className="flex flex-wrap gap-2">
         {gallery.data.map(image => <button key={image.media_id} type="button"
-          onClick={() => setExpandedImage({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name })}
+          onClick={() => setExpandedImage({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name, photos, startIndex: Math.max(0, photos.findIndex(photo => photo.mediaId === image.media_id)) })}
           title="Ampliar foto" aria-label={`Ampliar foto de ${product.name}`}
           className="h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted/20 focus-visible:outline-2 focus-visible:outline-primary">
           <img src={image.public_url} alt={image.alt_text || product.name} loading="lazy"
@@ -285,6 +339,6 @@ export function InventoryProductDetailsDialog({
     </section>}
     </>}
   </AdminDialog>
-  {expandedImage && <InventoryProductImageLightbox {...expandedImage} onClose={() => setExpandedImage(null)} />}
+  {expandedImage && <InventoryProductImageLightbox key={expandedImage.mediaId || expandedImage.src || expandedImage.name} {...expandedImage} onClose={() => setExpandedImage(null)} />}
   </>;
 }
