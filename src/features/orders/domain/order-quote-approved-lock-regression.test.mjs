@@ -23,6 +23,17 @@ test("OS aprovada bloqueia edição comercial, sem desativar tarefas e agendamen
   assert.doesNotMatch(execution, /Orçamento aprovado: itens e valores só podem ser alterados/);
 });
 
+test("tag orçamento aprovado some após solucionar ou concluir, sem alterar aprovação", async () => {
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const quoteBadge = read("src/features/orders/presentation/OrderQuoteStatusBadge.tsx");
+  assert.ok((await transformWithEsbuild(details, "OrderDetailsPage.tsx", { loader: "tsx" })).code);
+  assert.match(details, /const showQuoteStatusBadge = quoteWorkflowEnabled && quoteState\?\.orderId === detail\?\.id/);
+  assert.match(details, /!\(quoteState\.status === "approved" && \(detail\?\.is_solved \|\| detail\?\.completed_at\)\)/);
+  assert.match(details, /showQuoteStatusBadge && <OrderQuoteStatusBadge status=\{quoteState!\.status\}/);
+  assert.match(details, /const quoteExecutionAllowed = !quoteWorkflowEnabled/);
+  assert.match(quoteBadge, /approved: \{ label: "Aprovado"/);
+});
+
 test("menu de ações aparece ao lado da aba Orçamento só quando há aprovação", () => {
   const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
