@@ -19,7 +19,7 @@ test("retorno e reabertura ficam somente nos três pontos e consultam o certific
   assert.doesNotMatch(actions, /OrderReturnActions|Iniciar retorno|Reabrir OS/);
   assert.match(dialog, /check_service_order_return_eligibility_v1/);
   assert.match(dialog, /reopen_service_order_as_new_v1/);
-  assert.match(dialog, /Garantia fora do prazo/);
+  assert.match(dialog, /Garantia válida até/);
   assert.match(dialog, /Reabrir OS/);
   assert.match(dialog, /mode\?: "return" \| "reopen"/);
   assert.match(table, /canReopenOrReturn/);
