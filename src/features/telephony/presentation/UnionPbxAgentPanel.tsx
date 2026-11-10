@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { pbxRequest, pbxOperationError } from "../application/pbx-request";
+import { AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { useEffect, useRef, useState } from "react";
 import { KeyRound, LoaderCircle, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { isAgentHeartbeatFresh } from '../domain/agent-health';
 
 type Agent = {
   id: string;
@@ -10,6 +15,11 @@ type Agent = {
 };
 
 export function UnionPbxAgentPanel({ organizationId }: { organizationId: string }) {
+  const requestScope = useRef(new AbortController());
+  useEffect(() => {
+    const scope = new AbortController(); requestScope.current = scope;
+    return () => scope.abort();
+  }, []);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [label, setLabel] = useState("VPS principal Union");
   const [publicKey, setPublicKey] = useState("");
@@ -18,6 +28,8 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
+  const [now,setNow]=useState(()=>Date.now());
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),15000);return()=>window.clearInterval(timer);},[]);
 
   useEffect(() => { setRegisteredId(null); }, [organizationId]);
 
@@ -27,9 +39,9 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
     setError("");
     setAgents([]);
     void (async () => {
-      const { data, error } = await supabase.rpc("pbx_list_agents", {
+      const { data, error } = await pbxRequest(signal => supabase.rpc("pbx_list_agents", {
         p_organization_id: organizationId,
-      });
+      }).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
       if (cancelled) return;
       setLoading(false);
       if (error) setError("Falha ao consultar a ponte: " + error.message);
@@ -50,11 +62,11 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
     }
     setError("");
     setBusy(true);
-    const { data, error } = await supabase.rpc("pbx_register_agent", {
+    const { data, error } = await pbxRequest(signal => supabase.rpc("pbx_register_agent", {
       p_organization_id: organizationId,
       p_label: label.trim(),
       p_public_key: publicKey.trim(),
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setBusy(false);
     if (error) {
       setError(error.message);
@@ -70,10 +82,10 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
     if (!window.confirm("Revogar o agente " + agent.label + "? A VPS não receberá novos pedidos de ramais. As chamadas atuais continuarão funcionando.")) return;
     setBusy(true);
     setError("");
-    const { error } = await supabase.rpc("pbx_disable_agent", {
+    const { error } = await pbxRequest(signal => supabase.rpc("pbx_disable_agent", {
       p_organization_id: organizationId,
       p_agent_id: agent.id,
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setBusy(false);
     if (error) setError(error.message);
     else setReload(key => key + 1);
@@ -86,37 +98,37 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
           <ShieldCheck size={18} className="text-primary" /> Ponte com a VPS
         </h2>
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          A VPS consulta pendências por HTTPS e assina as requisições. A chave privada nunca sai da VPS.
-          Esta integração não altera a linha FVX nem o ramal 301.
+          A central aplica as solicitações autorizadas no CRM e informa o resultado.
+          A chave privada de identificação permanece protegida na VPS.
         </p>
       </div>
-      <button type="button" onClick={() => setReload(key => key + 1)} disabled={busy} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+      <AdminButton variant="secondary" size="sm" type="button" onClick={() => setReload(key => key + 1)} disabled={busy} >
         <RefreshCw size={14} /> Atualizar
-      </button>
+      </AdminButton>
     </div>
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
 
-    {loading ? <p className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle size={16} className="animate-spin"/> Consultando agentes</p>
+    {loading ? <AdminWorkspaceSkeleton variant="cards" rows={1} />
       : agents.length ? <div className="divide-y divide-border rounded-lg border border-border">
         {agents.map(agent => {
           const seen = agent.last_seen_at ? new Date(agent.last_seen_at) : null;
-          const online = agent.enabled && seen && Date.now() - seen.getTime() < 120000;
+          const online = isAgentHeartbeatFresh(agent.enabled,agent.last_seen_at,now);
           return <div key={agent.id} className="flex flex-wrap items-center gap-3 p-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground">{agent.label}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {agent.enabled ? online ? "Sinal recente da VPS" : "Aguardando sinal da VPS" : "Acesso revogado"}
+                {agent.enabled ? online ? "Sinal recente consultado" : "Leitura antiga · atualize para conferir a VPS" : "Acesso revogado"}
                 {seen && " · última comunicação: " + seen.toLocaleString("pt-BR")}
               </p>
               <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{agent.id}</p>
             </div>
-            {agent.enabled && <button type="button" disabled={busy} onClick={() => void revoke(agent)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+            {agent.enabled && <AdminButton variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void revoke(agent)} >
               <Unplug size={14}/> Revogar
-            </button>}
+            </AdminButton>}
           </div>;
         })}
-      </div> : <p className="text-xs text-muted-foreground">Nenhuma VPS autorizada para receber alterações de ramais.</p>}
+      </div> : <AdminSectionEmpty compact>Nenhuma VPS autorizada para receber alterações de ramais.</AdminSectionEmpty>}
 
     {registeredId && <div className="space-y-1 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
       <p className="text-sm font-semibold text-foreground">Agente registrado no CRM</p>
@@ -133,19 +145,19 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-semibold text-foreground">Nome do agente
-          <input value={label} onChange={e => setLabel(e.target.value)} maxLength={80}
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"/>
+          <FInput value={label} onChange={e => setLabel(e.target.value)} maxLength={80}
+            />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Chave pública Ed25519
-          <input value={publicKey} onChange={e => setPublicKey(e.target.value)} maxLength={44}
+          <FInput value={publicKey} onChange={e => setPublicKey(e.target.value)} maxLength={44}
             spellCheck={false} autoComplete="off" placeholder="44 caracteres em Base64"
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 font-mono text-xs text-foreground"/>
+            />
         </label>
       </div>
-      <button type="button" onClick={() => void register()} disabled={busy || !publicKey.trim()}
-        className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:opacity-50">
+      <AdminButton variant="primary" type="button" onClick={() => void register()} disabled={busy || !publicKey.trim()}
+        >
         {busy ? <LoaderCircle size={16} className="animate-spin" /> : <ShieldCheck size={16}/>} Autorizar agente
-      </button>
+      </AdminButton>
     </div>}
   </section>;
 }

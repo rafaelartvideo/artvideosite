@@ -1,13 +1,21 @@
-import { useEffect, useState } from "react";
+import { pbxRequest, pbxOperationError } from "../application/pbx-request";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, LoaderCircle, PhoneIncoming, ShieldCheck, Save, Info } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 
 type QueueChoice = {id:string;name:string;test_extension:number;enabled:boolean;provisioning_status:string};
 type RoutePlan = {organization_id:string;destination_type:"direct_301"|"queue";queue_id:string|null;updated_at:string};
 
 export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
+  const requestScope = useRef(new AbortController());
+  useEffect(() => {
+    const scope = new AbortController(); requestScope.current = scope;
+    return () => scope.abort();
+  }, []);
   const {activeOrganizationId,hasPermission}=useAuth();
   const canManage=hasPermission("pbx.manage");
   const [loading,setLoading]=useState(true);
@@ -28,13 +36,13 @@ export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
       return ()=>{cancelled=true;};
     }
     void Promise.all([
-      supabase.from("pbx_queues")
+      pbxRequest(signal => supabase.from("pbx_queues")
         .select("id,name,test_extension,enabled,provisioning_status")
         .eq("organization_id",activeOrganizationId).eq("enabled",true)
-        .eq("provisioning_status","applied").order("test_extension").limit(50),
-      supabase.from("pbx_inbound_route_plans")
+        .eq("provisioning_status","applied").order("test_extension").limit(50).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError),
+      pbxRequest(signal => supabase.from("pbx_inbound_route_plans")
         .select("organization_id,destination_type,queue_id,updated_at")
-        .eq("organization_id",activeOrganizationId).maybeSingle(),
+        .eq("organization_id",activeOrganizationId).maybeSingle().abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError),
     ]).then(([queues,plans])=>{
       if(cancelled) return;
       if(queues.error||plans.error) {
@@ -67,11 +75,11 @@ export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
       return;
     }
     setSaving(true);setError("");setNotice("");
-    const {error:saveError}=await supabase.rpc("pbx_save_inbound_route_plan",{
+    const {error:saveError}=await pbxRequest(signal => supabase.rpc("pbx_save_inbound_route_plan",{
       p_organization_id:activeOrganizationId,
       p_destination_type:target,
       p_queue_id:target==="queue"?queueId:null,
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if(saveError) {
       setError(saveError.message);
@@ -93,11 +101,10 @@ export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
       <div className="flex items-start gap-3">
         <PhoneIncoming size={22} className="mt-0.5 shrink-0 text-primary"/>
         <div className="space-y-1">
-          <h2 className="text-sm font-semibold text-foreground">Roteamento identificado no Asterisk</h2>
+          <h2 className="text-sm font-semibold text-foreground">Planejamento da linha FVX</h2>
           <p className="text-sm text-muted-foreground">
-            Contexto <strong className="text-foreground">union-entrada</strong>, com ligação direta para
-            <strong className="text-foreground"> ramal 301</strong> (25 segundos).
-            A rota foi confirmada na VPS antes desta etapa; o CRM ainda não altera essa configuração.
+            Número principal <strong className="text-foreground">(11) 4290-1575</strong>.
+            Escolha o destino proposto e salve o planejamento. A aplicação em produção exige validação separada.
           </p>
         </div>
       </div>
@@ -114,7 +121,7 @@ export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
 
     <section className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5">
       <h2 className="text-base font-semibold text-foreground">Destino planejado</h2>
-      {loading?<p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/> Carregando destinos</p>:
+      {loading?<AdminWorkspaceSkeleton variant="cards" rows={2} />:
       <>
         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3">
           <input type="radio" name="pbx-inbound-destination" checked={target==="direct_301"}
@@ -133,30 +140,26 @@ export function UnionPbxInboundPage({onBack}:{onBack:()=>void}) {
             <span className="block text-xs text-muted-foreground">
               Futuramente, as ligações serão direcionadas para a fila selecionada, após ativação controlada na VPS.
             </span>
-            <select value={queueId} onChange={e=>setQueueId(e.target.value)}
-              onClick={e=>e.stopPropagation()}
-              disabled={!options.length} aria-label="Fila de destino planejada"
-              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground">
-              {!options.length&&<option value="">Nenhuma fila ativa aplicada</option>}
-              {options.map(q=><option value={q.id} key={q.id}>{q.test_extension} · {q.name}</option>)}
-            </select>
+            <AdminSelect value={queueId} onValueChange={value=>{setTarget('queue');setQueueId(value);}}
+              disabled={!options.length} ariaLabel="Fila de destino planejada"
+              options={options.length ? options.map(q=>({value:q.id,label:`${q.test_extension} · ${q.name}`})) : [{value:'',label:'Nenhuma fila ativa aplicada'}]} />
           </span>
         </label>
         {plan&&<p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Info size={15}/> Último planejamento registrado: {new Date(plan.updated_at).toLocaleString("pt-BR")}
         </p>}
         {canManage&&<div className="flex justify-end">
-          <button type="button" onClick={()=>void save()}
+          <AdminButton variant="primary" type="button" onClick={()=>void save()}
             disabled={saving||(target==="queue"&&!options.length)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+            >
             {saving?<LoaderCircle size={16} className="animate-spin"/>:<Save size={16}/>}
             Salvar planejamento
-          </button>
+          </AdminButton>
         </div>}
       </>}
     </section>
-    <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
+    <AdminButton variant="ghost" type="button" onClick={onBack} >
       <ArrowLeft size={16}/> Voltar ao telefone
-    </button>
+    </AdminButton>
   </div>;
 }

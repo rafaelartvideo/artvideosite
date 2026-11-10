@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +17,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadWorkEmployees, loadWorkItems, updateWorkStatus,
   type WorkEmployee, type WorkItem, type WorkKind, type WorkPriority, type WorkStatus,
@@ -211,7 +213,7 @@ export function TabWorkItems() {
   const [mobileCriterion, setMobileCriterion] = useState<"query" | "scope" | "kind" | "status">("query");
   const [sort, setSort] = useState<"due" | "newest" | "priority">("due");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const [newKind, setNewKind] = useState<WorkKind>("task");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -333,6 +335,7 @@ export function TabWorkItems() {
   const completionRatio = overview.total ? Math.round(overview.completed / overview.total * 100) : 0;
 
   return <div className="min-w-0 space-y-5">
+{itemQuery.isPending ? <AdminWorkspaceSkeleton pageHeader searchFields={5} columns={6} rows={pageSize} variant={view === "board" ? "cards" : "table"} /> : <>
     <PageHeader title="Compromissos e Tarefas" subtitle="Organize o trabalho, acompanhe promessas e cumpra prazos."
       actions={canCreate ? <BtnPrimary onClick={() => newTask()}>Novo</BtnPrimary> : undefined} />
 
@@ -444,8 +447,7 @@ export function TabWorkItems() {
       </div>
     </AdminSearchPanel>
 
-    {itemQuery.isPending && <LoadingState text="Carregando atividades..." />}
-    {!itemQuery.isPending && !itemQuery.isError && <>
+    {!itemQuery.isError && <>
       {view === "overview" && <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
         <AdminCard>
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -556,6 +558,7 @@ export function TabWorkItems() {
       {view === "calendar" && <AdminCard><div className="p-4 sm:p-5">
         <MonthCalendar items={filtered} selectedDate={month} setSelectedDate={setMonth} onOpen={openTask} />
       </div></AdminCard>}
+    </>}
     </>}
 
     <WorkItemDialog key={currentSelected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}

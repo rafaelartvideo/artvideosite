@@ -12,15 +12,19 @@ test("Estoque utiliza a lista de produtos e abre detalhes ao clicar na linha ou 
   assert.ok((await transformWithEsbuild(ui,"TabProducts.tsx",{loader:"tsx"})).code);
   assert.ok(ui.includes("openDetails(product)"));
   assert.ok(ui.includes('aria-label={canViewDetails ? `Ver detalhes de ${product.name}` : undefined}'));
-  assert.ok(ui.includes("Ver detalhes do item"));
+  // Os detalhes abrem pela linha/nome. O botão redundante "Ver detalhes do item" foi removido.
+  assert.ok(ui.includes('title={`Ver detalhes de ${product.name}`}'));
+  assert.ok(!ui.includes('ariaLabel="Ver detalhes do item"'));
   assert.ok(ui.includes("<InventoryProductDetailsDialog"));
   assert.ok(ui.includes("canEdit={canEdit && canViewDetails}"));
   assert.ok(ui.includes("canViewCosts={canViewCosts}"));
   assert.ok(ui.includes("canViewSuppliers={canViewSuppliers}"));
   assert.ok(ui.includes("onOpenProduct={openDetailsById}"));
   assert.ok(ui.includes('closest("button,a,input,select,textarea")'));
-  assert.ok(ui.includes('onRouteChange?.(String(product.inventory.inventory_item_id), "move")'));
-  assert.ok(ui.includes('onRouteChange?.(String(product.inventory.inventory_item_id), "history")'));
+  assert.ok(ui.includes('setDetailsView("move")'));
+  assert.ok(ui.includes('onClick={() => moveFromDetails(product)}'));
+  assert.ok(ui.includes('setDetailsView("history")'));
+  assert.ok(ui.includes('onClick={() => historyFromDetails(product)}'));
 });
 
 test("Modal exibe informações e fotos, mas não vaza custos a quem não tem permissão", async () => {
@@ -76,25 +80,18 @@ test("Migração garante que cada variação pertence a um só principal e a mes
   assert.ok(!sql.includes("update public.products"));
 });
 
-test("Estoque apresenta atributos cadastrados e amplia fotos na lista e nos detalhes", async () => {
+test("Estoque mostra atributos reais e permite ampliar fotos sem abrir o item", async () => {
   const catalog = read("src/features/products/presentation/TabProducts.tsx");
   const details = read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
   const lightbox = read("src/features/products/presentation/InventoryProductImageLightbox.tsx");
-  for (const [name, source] of [
-    ["TabProducts.tsx", catalog],
-    ["InventoryProductDetailsDialog.tsx", details],
-    ["InventoryProductImageLightbox.tsx", lightbox],
-  ]) assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
-
+  for (const [name, source] of [["TabProducts.tsx", catalog], ["InventoryProductDetailsDialog.tsx", details], ["InventoryProductImageLightbox.tsx", lightbox]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
   assert.ok(details.includes("listProductVariationOptions(organizationId, id!)"));
   assert.ok(details.includes("listProductVariations(organizationId, id!)"));
   assert.ok(details.includes("Atributos do produto"));
   assert.ok(details.includes("Outras opções:"));
-  assert.ok(details.includes("setActivePhotoIndex(0)"));
-  assert.ok(details.includes("photos.findIndex(photo => photo.mediaId === image.media_id)"));
-  assert.ok(details.includes("<InventoryProductImageLightbox"));
-  assert.ok(catalog.includes("setPreviewProductPhoto({ mediaId:"));
-  assert.ok(catalog.includes("<InventoryProductImageLightbox"));
+  assert.ok(details.includes("photos.findIndex"));
   assert.ok(catalog.includes("event.stopPropagation()"));
   assert.ok(lightbox.includes('aria-label="Foto anterior"'));
   assert.ok(lightbox.includes('aria-label="Próxima foto"'));

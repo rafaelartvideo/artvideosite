@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, createVisiblePolling, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
@@ -1962,7 +1963,7 @@ export function SacDigitalToolPage({
     return () => window.cancelAnimationFrame(frame);
   }, [selectedProtocolId, canComposeSelected, moduleSection]);
 
-  if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
+  if (!activeOrganizationId || loading) return <AdminWorkspaceSkeleton variant="details" rows={4} columns={4} />;
 
   return <div className="min-w-0 space-y-3">
     <SacDigitalNewConversationDialog

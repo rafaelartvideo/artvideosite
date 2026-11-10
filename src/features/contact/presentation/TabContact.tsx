@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -9,7 +10,7 @@ import {
 } from "@/features/settings/presentation/useSiteSettingsQuery";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 
 export function TabContact() {
   const navigate = useNavigate();
@@ -103,7 +104,7 @@ export function TabContact() {
       subtitle="Configure os canais, endereço e horários exibidos no site público."
     />
 
-    {settingsQuery.isPending ? <LoadingState /> : <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+    {settingsQuery.isPending ? <AdminWorkspaceSkeleton variant="details" rows={2} columns={4} /> : <div className="grid min-w-0 gap-4 xl:grid-cols-2">
       <Section title="Canais de contato">
         <div className="grid gap-4 sm:grid-cols-2">
           <FPhoneInput label="Telefone" copyFromWhatsapp={settings.whatsapp || ""} onCopyWhatsapp={phone => updateSetting("phone", phone)} value={settings.phone || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("phone", event.target.value)} />

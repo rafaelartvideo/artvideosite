@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { useMemo, useState, useEffect } from "react";
 import { BarChart3, CalendarRange, RefreshCcw, TrendingUp } from "lucide-react";
 import {
   Bar,
@@ -13,7 +14,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
@@ -77,7 +78,7 @@ function ReportMetric({ label, value, detail }: { label: string; value: number; 
   </AdminCard>;
 }
 
-export function FinanceReportsSection() {
+export function FinanceReportsSection({ onInitialReady }: { onInitialReady?: () => void } = {}) {
   const { hasPermission } = useAuth();
   const canDre = hasPermission("finance.reports.view") && hasPermission("finance.reports.dre");
   const canCashFlow = hasPermission("finance.reports.view") && hasPermission("finance.reports.cash_flow");
@@ -119,6 +120,11 @@ export function FinanceReportsSection() {
   };
 
   const resetFilters = () => setFilters(currentMonthFilters());
+  useEffect(() => {
+    if (!foundation.accountsQuery.isPending && (tab === "dre" ? !reports.dreQuery.isPending : !reports.cashFlowQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, foundation.accountsQuery.isPending, tab, reports.dreQuery.isPending, reports.cashFlowQuery.isPending]);
+
+
   const activeError = tab === "dre" ? reports.dreQuery.error : reports.cashFlowQuery.error;
   const errorText = activeError instanceof Error ? activeError.message : "";
 
@@ -169,7 +175,7 @@ export function FinanceReportsSection() {
     {errorText && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
 
     {tab === "dre" && canDre && <>
-      {reports.dreQuery.isLoading ? <AdminCard className="p-10"><LoadingState text="Carregando DRE..." /></AdminCard> : !dre ? null : <>
+      {reports.dreQuery.isLoading ? <AdminWorkspaceSkeleton variant="table" rows={5} columns={6} /> : !dre ? null : <>
         <div className="grid gap-3 sm:grid-cols-3">
           <ReportMetric label="Receitas" value={dre.totals.revenue} detail="Receitas aprovadas pela competência." />
           <ReportMetric label="Despesas" value={dre.totals.expense} detail="Despesas aprovadas pela competência." />
@@ -219,7 +225,7 @@ export function FinanceReportsSection() {
     </>}
 
     {tab === "cash-flow" && canCashFlow && <>
-      {reports.cashFlowQuery.isLoading ? <AdminCard className="p-10"><LoadingState text="Carregando Fluxo de Caixa..." /></AdminCard> : !cashFlow ? null : <>
+      {reports.cashFlowQuery.isLoading ? <AdminWorkspaceSkeleton variant="table" rows={5} columns={6} /> : !cashFlow ? null : <>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <ReportMetric label="Previsto — entradas" value={cashFlow.totals.forecast_in} detail="Recebimentos e repasses previstos." />
           <ReportMetric label="Previsto — saídas" value={cashFlow.totals.forecast_out} detail="Pagamentos previstos." />

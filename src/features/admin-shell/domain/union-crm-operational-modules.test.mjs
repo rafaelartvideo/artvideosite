@@ -97,7 +97,7 @@ test("PABX vinculado ao funcionário usa segredo efêmero e preserva ramal 301",
   const edge=read("supabase/functions/union-pbx-agent/index.ts");
   const agent=read("scripts/union-pbx-agent/agent.py");
   assert.match(screen,/useState\(SIP_USER\)/);
-  assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId\)/);
+  assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId, controller.signal\)/);
   assert.match(screen,/acquireManagedPbxCredentials\(/);
   assert.match(screen,/startSip\(SIP_USER,password,generation\)/);
   assert.match(screen,/Conectar meu ramal/);
@@ -176,7 +176,8 @@ test('monitoramento PBX usa uma assinatura realtime por empresa e telemetria ass
   assert.ok(live.includes('removeChannel(channel)'));
   assert.ok(live.includes('ACTIVE_WINDOW_MS = 95_000'));
   assert.ok(agent.includes('def gather_queue_telemetry()'));
-  assert.ok(agent.includes('signed_request({"action":"poll", "telemetry": telemetry})'));
+  assert.ok(agent.includes('signed_request({"action":"poll", "telemetry": telemetry, "protocol_version":protocol})'));
+  assert.ok(agent.includes('protocol, availability_processor = availability_capability()'));
   assert.ok(edge.includes('telemetry.length <= 10'));
   assert.ok(edge.includes('agent.organization_id'));
   assert.ok(!live.includes('SUPABASE_SERVICE_ROLE_KEY'));

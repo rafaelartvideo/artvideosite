@@ -1,24 +1,41 @@
 import type { ReactNode } from "react";
+import { Plus } from "lucide-react";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 
 export function OrderFormActions({
   saving,
   canSave,
+  editing,
   onCancel,
   onSave,
-  leftActions,
+  rightActions,
 }: {
   saving: boolean;
   canSave: boolean;
+  editing: boolean;
   onCancel: () => void;
   onSave: () => Promise<unknown>;
-  leftActions?: ReactNode;
+  rightActions?: ReactNode;
 }) {
   return (
-    <AdminStickyToolbar className="flex-row items-center justify-between gap-2 sm:gap-3">
-      {leftActions && <div className="hidden min-w-0 items-center md:flex md:mr-auto">{leftActions}</div>}
-      <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">Voltar</BtnSecondary>
-      {canSave && <BtnPrimary className="ml-auto shrink-0" onClick={() => onSave()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+    <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">
+      <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">
+        Voltar
+      </BtnSecondary>
+      <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2">
+        {rightActions}
+        {canSave && (
+          <BtnPrimary
+            className="shrink-0"
+            onClick={() => onSave()}
+            loading={saving}
+            loadingText={editing ? "Salvando..." : "Criando..."}
+          >
+            <span>{editing ? "Salvar" : "Criar"}</span>
+            {!editing && <Plus size={16} aria-hidden="true" className="shrink-0" />}
+          </BtnPrimary>
+        )}
+      </div>
     </AdminStickyToolbar>
   );
 }

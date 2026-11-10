@@ -1,3 +1,6 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { Skeleton } from "@/shared/ui/primitives/skeleton";
+import { initialPageSize, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
@@ -105,6 +108,9 @@ export function TechnicianPanel() {
   const [items, setItems] = useState<TechnicianTask[]>(() =>
     queryClient.getQueryData<TechnicianTask[]>(technicianTasksKey) || []);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+  const [employeeLookupScope, setEmployeeLookupScope] = useState("");
+  const [initialTableSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
+  const panelScope = activeOrganizationId && user?.id ? `${activeOrganizationId}:${user.id}` : "";
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [summaryFilter, setSummaryFilter] = useState<TechnicianSummaryFilter | null>(null);
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
@@ -149,7 +155,7 @@ export function TechnicianPanel() {
       timestampFrom: agendaCountWindow.timestampFrom,
       timestampToExclusive: agendaCountWindow.timestampToExclusive,
     }),
-    enabled: !routeOrderId && canViewAgenda && Boolean(activeOrganizationId && user?.id && myEmployeeId),
+    enabled: !routeOrderId && canViewAgenda && Boolean(activeOrganizationId && user?.id && myEmployeeId && employeeLookupScope === panelScope),
     staleTime: 60_000,
     retry: 1,
   });
@@ -174,6 +180,7 @@ export function TechnicianPanel() {
     last_protocol_number:number|null;unread_count:number;last_message_at:string|null;
   }>>([]);
   const [myConversationsLoading,setMyConversationsLoading] = useState(false);
+  const [myConversationsScope,setMyConversationsScope] = useState("");
   const refreshConversations=useCallback(async()=>{
     if(!activeOrganizationId||!user?.id||!canViewWhatsApp){setMyConversations([]);return;}
     try{
@@ -202,7 +209,7 @@ export function TechnicianPanel() {
       setMyConversations([...all.values()].sort((a,b)=>
         Date.parse(b.last_message_at||"")-Date.parse(a.last_message_at||"")).slice(0,50));
     }catch{setMyConversations([]);}
-    finally{setMyConversationsLoading(false);}
+    finally{setMyConversationsLoading(false);setMyConversationsScope(activeOrganizationId && user?.id ? `${activeOrganizationId}:${user.id}` : "");}
   },[activeOrganizationId,user?.id,canViewWhatsApp]);
   useEffect(()=>{
     if(!canViewWhatsApp)return;
@@ -223,10 +230,18 @@ export function TechnicianPanel() {
   useEffect(() => {
     let cancelled = false;
     setMyEmployeeId(null);
+    setEmployeeLookupScope("");
     if (!activeOrganizationId || !user?.id) return;
+    const scope = `${activeOrganizationId}:${user.id}`;
     void supabase.from("employees").select("id").eq("organization_id", activeOrganizationId)
       .eq("profile_id", user.id).eq("is_active", true).maybeSingle()
-      .then(({ data, error }) => { if (!cancelled && !error) setMyEmployeeId(data?.id || null); });
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setMyEmployeeId(error ? null : (data?.id || null));
+        setEmployeeLookupScope(scope);
+      }, () => {
+        if (!cancelled) { setMyEmployeeId(null); setEmployeeLookupScope(scope); }
+      });
     return () => { cancelled = true; };
   }, [activeOrganizationId, user?.id]);
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
@@ -675,14 +690,54 @@ export function TechnicianPanel() {
     </div>;
   };
 
+  // Carregamento inicial único: tarefas, contagem de agenda e conversas precisam
+  // estar prontas antes de mostrar qualquer cartão numérico. Refetch preserva a tela.
+  const overviewLoading = !routeOrderId && (
+    loading
+    || (Boolean(panelScope) && canViewAgenda && (
+      employeeLookupScope !== panelScope
+      || (Boolean(myEmployeeId) && agendaCountQuery.isPending && !agendaCountQuery.data)
+    ))
+    || (Boolean(panelScope) && canViewWhatsApp && myConversationsScope !== panelScope)
+  );
+
   return <div className="mx-auto max-w-6xl space-y-4">
-    {!routeOrderId && <PageHeader title="Painel do Técnico"
-      subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
-        <WifiOff size={16} /> Sem internet
-      </span> : undefined} />}
+    {!routeOrderId && (overviewLoading
+      ? <div className="space-y-2 py-1" aria-hidden="true">
+          <Skeleton className="h-7 w-48 max-w-full" />
+          <Skeleton className="h-3.5 w-72 max-w-full" />
+        </div>
+      : <PageHeader title="Painel do Técnico"
+          subtitle="Ordens de serviço e atividades atribuídas a você."
+          actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+            <WifiOff size={16} /> Sem internet
+          </span> : undefined} />)}
 
     {!routeOrderId ? <>
+      {overviewLoading ? <div className="space-y-4">
+        {(canViewAgenda || canViewWhatsApp) && <div className={`grid gap-2 sm:gap-4 ${canViewAgenda && canViewWhatsApp ? "grid-cols-2" : "grid-cols-1"}`}>
+          {Array.from({ length: Number(canViewAgenda) + Number(canViewWhatsApp) }, (_, index) =>
+            <div key={index} className="flex h-[76px] flex-col items-center justify-center gap-3 rounded-xl bg-card p-3">
+              <Skeleton className="h-3.5 w-28 max-w-full" />
+              <Skeleton className="h-6 w-10 rounded-full" />
+            </div>)}
+        </div>}
+        <div className="space-y-3">
+          <Skeleton className="h-3.5 w-40" />
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            {Array.from({ length: 2 }, (_, index) => <div key={index} className="flex h-[104px] flex-col items-center justify-center gap-3 rounded-xl bg-card">
+              <Skeleton className="h-3.5 w-24" /><Skeleton className="h-7 w-12" />
+            </div>)}
+          </div>
+          <Skeleton className="h-3.5 w-36" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex h-[104px] flex-col items-center justify-center gap-3 rounded-xl bg-card">
+              <Skeleton className="h-3.5 w-4/5 max-w-24" /><Skeleton className="h-7 w-12" />
+            </div>)}
+          </div>
+        </div>
+        <AdminWorkspaceSkeleton searchFields={6} columns={5} rows={initialTableSize} />
+      </div> : <>
       {(canViewAgenda || canViewWhatsApp) && <div className={`grid w-full min-w-0 gap-2 sm:gap-4 ${canViewAgenda && canViewWhatsApp ? "grid-cols-2" : "grid-cols-1"}`}>
         {canViewAgenda && <AdminButton variant="secondary" size="sm"
           className="!flex !h-[76px] !w-full !flex-col !gap-2 !px-2"
@@ -758,7 +813,8 @@ export function TechnicianPanel() {
           </div>
         </div>
       </div>
-      <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
+      <TechnicianOrdersTable orders={assignedOrders} loading={false} onOpen={openService} />
+      </>}
     </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading
       ? <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 text-center">
           <p className="text-sm text-destructive">{orderLoadError}</p>
@@ -1000,7 +1056,7 @@ export function TechnicianPanel() {
       bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-4"
     >
       {agendaModalOpen && <Suspense fallback={<div className="flex min-h-[50dvh] items-center justify-center">
-        <LoadingState text="Carregando agenda..." />
+        <AdminWorkspaceSkeleton variant="grid" rows={7} />
       </div>}>
         <AgendaModalCalendar
           embedded
@@ -1054,7 +1110,7 @@ export function TechnicianPanel() {
           </AdminButton>
         </div>
         {myConversationsLoading && myConversations.length === 0
-          ? <div className="flex min-h-28 justify-center p-4"><LoadingState text="Carregando atendimentos..." /></div>
+          ? <AdminWorkspaceSkeleton variant="cards" rows={4} />
           : myConversations.length === 0
           ? <AdminSectionEmpty compact>Nenhum atendimento em andamento atribuído a você ou compartilhado.</AdminSectionEmpty>
           : <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">

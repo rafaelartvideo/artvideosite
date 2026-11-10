@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useState } from "react";
 import { Eye, Pencil } from "lucide-react";
@@ -15,7 +16,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   listOrganizationTerms,
@@ -193,7 +194,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   };
 
   if (!canView) return null;
-  if (loading) return <LoadingState text="Carregando termos e garantias..." />;
+  if (loading) return <AdminWorkspaceSkeleton pageHeader variant="table" rows={2} columns={6} extraDetails stickyToolbar />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -202,6 +203,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       title="Termos/Garantia"
       subtitle="Consulte os termos da Union World e personalize o certificado de garantia da empresa."
     />
+
 
     <AdminCard>
       <AdminCardHeader>

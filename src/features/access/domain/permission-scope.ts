@@ -41,6 +41,7 @@ const OPERATION_MODULES = [
   "employees",
   "company_settings",
   "finance",
+  "sales",
   "pdv",
 ] as const;
 const TOOL_MODULES = ["field_tracking", "queue", "pbx", "marketplace", "ai", "sac_digital"] as const;
@@ -86,6 +87,7 @@ function requiredModuleKeys(key: string): readonly string[] | null {
   if (key.startsWith("technician_panel.")) return ["orders"];
   if (key.startsWith("field_tracking.")) return ["field_tracking"];
   if (key.startsWith("inventory.") || key.startsWith("products.")) return ["inventory", "products"];
+  if (key.startsWith("sales.")) return ["sales"];
   if (key.startsWith("pdv.")) return ["pdv"];
   if (key.startsWith("finance.")) return ["finance"];
   if (key.startsWith("equipment.")) return ["equipment"];

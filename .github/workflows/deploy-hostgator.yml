@@ -18,6 +18,10 @@ jobs:
   gate:
     name: Select latest commit
     runs-on: ubuntu-latest
+    # Cancel only obsolete debounce gates, never an FTPS publication in progress.
+    concurrency:
+      group: deploy-hostgator-gate
+      cancel-in-progress: true
     outputs:
       deploy: ${{ steps.latest.outputs.deploy }}
     steps:

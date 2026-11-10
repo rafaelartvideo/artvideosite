@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link2, Plus, Search, Trash2 } from "lucide-react";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -46,7 +47,7 @@ export function InventorySuppliersEditor({
   const [totalItems, setTotalItems] = useState(0);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const debouncedSearch = useDebouncedValue(search);
   const selectedIds = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);

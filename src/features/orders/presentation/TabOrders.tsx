@@ -41,9 +41,10 @@ import { QueueOsCodeDialog } from "@/features/queue-integration/presentation/Que
 import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPage";
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
+import { OrderDetailsSkeleton, OrderEditorSkeleton } from "@/features/orders/presentation/OrdersSkeletons";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
+import { AdminButton, AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
@@ -761,6 +762,10 @@ export function TabOrders({
     && closingRouteRef.current !== initialOrderId
   );
 
+  const detailPageVisible = Boolean(detail && !completionFromListId && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId));
+  const detailHasError = detailPageVisible && !detailsController.detailHydrated && Boolean(detailsController.detailLoadError);
+  const detailIsLoading = routedDetailLoading || (detailPageVisible && !detailsController.detailHydrated && !detailHasError);
+
   return (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} persistent={toast.type === "error"} onRetry={toast.msg.startsWith("Erro ao carregar dados da OS") ? workspaceBase.retryLoadWorkspace : undefined} onClose={() => setToast(null)} />}
@@ -775,15 +780,19 @@ export function TabOrders({
         onCancel={cancelQueueGate}
       />}
 
-      {routedDetailLoading && <LoadingState text="Carregando OS..." />}
+      {detailIsLoading && <OrderDetailsSkeleton onClose={closeRoutedPage} />}
+      {detailHasError && <AdminPage open onClose={closeRoutedPage} breadcrumb="Ordens de Serviço" title="Não foi possível carregar a OS" maxW="max-w-2xl" smoothMotion={false}>
+        <div role="alert" className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">{systemErrorMessage(detailsController.detailLoadError, "Não foi possível consultar os dados desta OS.")}</p>
+          <AdminButton variant="tertiary" onClick={() => { void detailsController.retryDetailLoad(); }}>Tentar novamente</AdminButton>
+        </div>
+      </AdminPage>}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
           breadcrumb="Ordens de Serviço" title="Editar OS"
           subtitle="Carregando os dados para edição">
-          <div className="flex min-h-[50vh] items-center justify-center px-5">
-            <LoadingState text="Carregando dados da OS..." />
-          </div>
+          <div className="p-5"><OrderEditorSkeleton /></div>
         </AdminPage>
       )}
 
@@ -808,9 +817,9 @@ export function TabOrders({
         equipmentSummary={equipmentSummary}
       />
 
-      <OrderDetailsPage
+      {!detailIsLoading && !detailHasError && <OrderDetailsPage
         // Não mantenha a OS anterior renderizada enquanto a rota já aponta para a lista.
-        visible={Boolean(detail && !completionFromListId && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId))}
+        visible={detailPageVisible}
         initialSection={detailInitialSection}
         userId={user?.id}
         profileName={profile?.full_name}
@@ -838,7 +847,7 @@ export function TabOrders({
         onClose={closeRoutedPage}
         monitorView={monitorView}
         monitorContact={monitorContact}
-      />
+      />}
 
       {!scopedReadOnly && <OrderEditorPage
         visible={editingContentReady}

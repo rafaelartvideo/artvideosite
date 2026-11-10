@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
@@ -14,7 +15,7 @@ import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons
 import { SiteContactFields, siteContactGroups } from "./SiteContactFields";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 
 type Field = { key: string; label: string; placeholder?: string; type?: "text" | "color" | "textarea" };
 
@@ -343,7 +344,7 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
       }))}
       onChange={value => { setEditor(null); setSection(value); }} />
 
-    {settingsQuery.isPending ? <LoadingState /> : settingsQuery.isError
+    {settingsQuery.isPending ? <AdminWorkspaceSkeleton variant="details" rows={3} columns={4} /> : settingsQuery.isError
       ? <Section title="Falha ao carregar dados">
           <AdminButton variant="secondary" onClick={() => void settingsQuery.refetch()}>Tentar novamente</AdminButton>
         </Section>
@@ -414,7 +415,7 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
                 placeholder="Buscar serviço" aria-label="Buscar serviço" className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs outline-none focus:border-primary"/>
             </div>
           </div>
-          {servicesLoading ? <LoadingState /> : <div className="max-h-96 divide-y divide-border overflow-y-auto">
+          {servicesLoading ? <AdminWorkspaceSkeleton variant="cards" rows={4} /> : <div className="max-h-96 divide-y divide-border overflow-y-auto">
             {filteredServices.map(service => <div key={service.id} className="flex items-center justify-between gap-3 py-2">
               <span className="min-w-0 truncate text-sm font-medium text-foreground">{service.title}</span>
               <AdminButton size="sm" variant="secondary" onClick={() => setEditor("service:" + service.id)}><Pencil size={14}/> Editar</AdminButton>

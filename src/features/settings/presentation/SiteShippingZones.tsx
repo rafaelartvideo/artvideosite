@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -13,7 +15,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, FInput, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { ConfirmDialog, EmptyState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 type ShippingZone = {
   id: string;
@@ -87,7 +89,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [error, setError] = useState("");
 
   const refresh = useCallback(async (showLoading = false) => {
@@ -231,6 +233,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
   };
 
   return <div className="min-w-0 space-y-4">
+    {loading ? <AdminWorkspaceSkeleton searchFields={4} columns={6} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar áreas de entrega" headerActions={<>
       {(search || statusFilter !== "all" || sortOrder !== "asc") && <AdminSearchClearButton onClick={resetFilters} />}
       <AdminSearchSortMenu value={sortOrder} onChange={value => { setSortOrder(value); setPage(1); }}
@@ -275,8 +278,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
         <span>{error}</span>
         <AdminButton size="sm" variant="secondary" onClick={() => void refresh(true)}>Tentar novamente</AdminButton>
       </div>}
-      {loading ? <LoadingState text="Carregando áreas de entrega..." /> :
-        rows.length === 0 ? <EmptyState icon={MapPin}
+      {rows.length === 0 ? <EmptyState icon={MapPin}
           title={items.length === 0 ? "Nenhuma área de entrega cadastrada" : "Nenhuma regra encontrada"}
           message={items.length === 0 ? "Cadastre os CEPs e faixas atendidos para disponibilizar a entrega na loja." : "Altere os filtros para encontrar outras regras."} /> :
         <div className="min-w-0 overflow-x-auto"><TopTableScrollbar />
@@ -312,9 +314,10 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
             </tr>)}</tbody>
           </table>
         </div>}
-      {!loading && <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
+      {<PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />}
     </AdminCard>
+    </>}
 
     <AdminStickyToolbar className="mt-4 justify-between">
       <BtnSecondary onClick={onBack} disabled={saving}>Voltar</BtnSecondary>

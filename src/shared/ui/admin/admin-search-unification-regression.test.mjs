@@ -58,3 +58,34 @@ test("finance, Artvideo store, inventory and partner search keep shared visual s
   assert.match(read("src/features/orders/presentation/OrdersFilters.tsx"), /function OrderDateRangeField/);
   assert.match(read("src/features/orders/presentation/OrdersFilters.tsx"), /function OrderNumbersField/);
 });
+
+test("search actions use one clear-all icon and the requested Material glyphs", () => {
+  const shared = read("src/shared/ui/admin/AdminSearchPanel.tsx");
+  const os = read("src/features/orders/presentation/OrdersFilters.tsx");
+  const history = read("src/features/orders/presentation/OrderHistoryPage.tsx");
+  const historyState = read("src/features/orders/application/useOrderHistory.ts");
+  const sales = read("src/features/sales/presentation/TabSales.tsx");
+  const records = read("src/features/registrations/presentation/RegistrationRecordsPage.tsx");
+
+  assert.match(shared, /M3,18V16H9v2H3/);
+  assert.match(shared, /delete_sweep/);
+  assert.match(shared, /aria-label={label} title={label}/);
+  assert.match(shared, /rounded-none border-0 bg-transparent p-0 shadow-none/);
+  assert.doesNotMatch(shared, /rounded-full border/);
+  assert.doesNotMatch(shared, /ArrowUpDown|ArrowUpNarrowWide|ArrowDownWideNarrow|Eraser/);
+  assert.doesNotMatch(shared, /<span className="hidden sm:inline">{label}<\/span>/);
+
+  const osHeader = os.split('return <AdminSearchPanel title="Buscar OS"')[1]?.split("<AdminMobileSearchSwitch")[0] || "";
+  assert.equal((osHeader.match(/<AdminSearchClearButton/g) || []).length, 1);
+  assert.doesNotMatch(osHeader, /Limpar Estados|Limpar Cidades/);
+  assert.match(osHeader, /<AdminSearchSortMenu/);
+
+  for (const source of [history, sales, records]) {
+    assert.match(source, /<AdminSearchSortMenu/);
+    assert.match(source, /<AdminSearchClearButton/);
+    assert.doesNotMatch(source, /<SortAsc|<SortDesc|<FilterX/);
+  }
+  assert.match(historyState, /setDateFilter\(""\); setSort\("desc"\)/);
+  assert.match(sales, /setOnlyAvailable\(false\)/);
+  assert.match(sales, /setOnlyFavorites\(false\)/);
+});

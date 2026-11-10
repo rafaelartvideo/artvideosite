@@ -13,6 +13,7 @@ const mainDescriptions: Record<string, string> = {
   fieldTracking: "Acompanhe técnicos, veículos e dispositivos em campo.",
   inventory: "Gerencie produtos, estoque, movimentações e cadastros relacionados.",
   pdv: "Teste vendas rápidas, caixa e pagamentos no PDV.",
+  sales: "Vitrine, pedidos comerciais, financeiro e separação de entregas sem depender do PDV.",
   finance: "Acesse contas, lançamentos, recebimentos e rotinas financeiras.",
 };
 
@@ -26,6 +27,7 @@ const crmMainIds = new Set([
   "agenda",
   "fieldTracking",
   "inventory",
+  "sales",
   "pdv",
   "finance",
 ]);

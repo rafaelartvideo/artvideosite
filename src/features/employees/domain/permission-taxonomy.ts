@@ -12,7 +12,7 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço", technician_panel: "Painel do Técnico",
-  customers: "Cadastros", customer_requests: "Pedidos Avulsos", registrations: "Cadastros", agenda: "Agenda", work_items: "Compromissos e Tarefas", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
+  customers: "Cadastros", customer_requests: "Pedidos Avulsos", registrations: "Cadastros", agenda: "Agenda", work_items: "Compromissos e Tarefas", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", sales: "Vendas", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", terms: "Termos/Garantia", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas Parceiras",
@@ -81,6 +81,7 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
 
 export function permissionModuleName(permission: PermissionRecord) {
   const key = String(permission.key || "");
+  if (key.startsWith("notifications.")) return "Notificações";
   if (key === "organizations.audit.view") return "Auditoria";
   if (key.startsWith("orders.monitor.")) return "Monitoramento de OS";
   if (key.startsWith("customer_requests.")) return "Pedidos Avulsos";
@@ -97,6 +98,17 @@ export function permissionModuleName(permission: PermissionRecord) {
 export function permissionSectionName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const module = key.split(".")[0];
+  if (key.startsWith("notifications.")) {
+    const scope = key.split(".")[1];
+    const labels: Record<string, string> = {
+      personal: "Avisos pessoais", orders: "Ordens de Serviço",
+      technician: "Painel do Técnico", customers: "Cadastros",
+      quotes: "Orçamentos", agenda: "Agenda", work_items: "Tarefas",
+      inventory: "Estoque", pdv: "PDV", finance: "Financeiro",
+      site: "Site e Loja", admin: "Administração",
+    };
+    return labels[scope] || "Acesso à central";
+  }
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
   if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
@@ -343,6 +355,14 @@ export function permissionDependencies(key: string) {
   if (key === "whatsapp.inbox.menu.view") return ["whatsapp.inbox.view"];
   if (key === "platform.catalog.view") return ["tools.view"];
   if (key === "platform.catalog.manage") return ["platform.catalog.view", "tools.view"];
+  if (key.startsWith("notifications.")) {
+    if (key === "notifications.view") return [];
+    if (key === "notifications.personal.view") return ["notifications.view"];
+    if (key === "notifications.personal.receive") return ["notifications.personal.view", "notifications.view"];
+    if (key.endsWith(".view")) return ["notifications.view"];
+    if (key.endsWith(".receive")) return [key.slice(0, -".receive".length) + ".view", "notifications.view"];
+    return [];
+  }
   if (key === "organizations.audit.view") return [];
   const dependencies = new Set(EXPLICIT_DEPENDENCIES[key] || []);
   const module = key.split(".")[0];

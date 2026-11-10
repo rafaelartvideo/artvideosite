@@ -34,6 +34,8 @@ import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback
 import { FCurrencyInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { CompatibleProductCarousel } from "@/features/products/presentation/CompatibleProductCarousel";
+import { CompatibleDeviceModelsList } from "@/features/products/presentation/CompatibleDeviceModelsList";
+import { listCompatibleModelsForProducts, type CompatibleDeviceModel } from "@/features/products/infrastructure/product-compatible-models.repository";
 import { productRelationLabel } from "@/features/products/domain/product-relation-labels";
 import {
   finalizePdvSale,
@@ -201,6 +203,23 @@ export function PdvSaleWorkspace({
     () => (productsQuery.data || []).map(product => product.product_id),
     [productsQuery.data],
   );
+  const compatibleModelsQuery = useQuery({
+    queryKey: ["products", "device-compatible-models", "pdv", organizationId, foundProductIds.join(",")],
+    queryFn: () => listCompatibleModelsForProducts(organizationId, foundProductIds),
+    enabled: Boolean(organizationId && canSell && foundProductIds.length),
+    staleTime: 30_000,
+  });
+  const modelsByProduct = useMemo(() => {
+    const result = new Map<string, CompatibleDeviceModel[]>();
+    for (const model of compatibleModelsQuery.data || []) {
+      if (!model.product_id) continue;
+      const previous = result.get(model.product_id) || [];
+      previous.push(model);
+      result.set(model.product_id, previous);
+    }
+    return result;
+  }, [compatibleModelsQuery.data]);
+
   const relatedQuery = useQuery({
     queryKey: ["pdv", "related-products", organizationId, debouncedSearch, foundProductIds.join(",")],
     queryFn: () => listPdvRelatedProducts(organizationId, foundProductIds),
@@ -773,6 +792,7 @@ export function PdvSaleWorkspace({
               const available = availableQuantity(product);
               const noStock = available <= 0;
               const relatedProducts = relatedByProduct.get(product.product_id) || [];
+              const compatibleModels = modelsByProduct.get(product.product_id) || [];
               const relationFromAnotherResult = (relatedQuery.data || []).find(item => item.product_id === product.product_id);
               const identifiedType = relationFromAnotherResult?.relation_type
                 || (relatedProducts.some(item => item.relation_type === "variation") ? "parent" : null);
@@ -798,6 +818,9 @@ export function PdvSaleWorkspace({
                 </div>
                 <Plus size={15} className="shrink-0 text-primary" />
               </button>
+              {compatibleModels.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/10 px-3 py-2">
+                <CompatibleDeviceModelsList models={compatibleModels} compact />
+              </div>}
               {relatedProducts.length > 0 && <div className="min-w-0 border-t border-border/50 bg-muted/20 p-3">
                 <CompatibleProductCarousel
                   title="Produtos relacionados"

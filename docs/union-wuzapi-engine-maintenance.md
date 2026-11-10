@@ -51,3 +51,14 @@ Não deixar o painel prometer atualização/rollback que ainda não foi executad
 - A versão instalada só é exibida se o contêiner informa tag semver via relatório local atualizado.
 - Em ponte antiga ou ausente, exibir "Não confirmada" (não alegar que a VPS caiu).
 - Verificar novas versões não dispara `restart`, `logout`, `disconnect` nem troca de imagem.
+
+## Cache de fotos do WhatsApp (09/11/2026)
+
+A importação Excel/CSV de até 50 mil contatos grava **somente nome e telefone**. Não baixa imagens de perfil. A agenda consulta miniaturas dos itens visíveis e o atendimento prioriza a conversa aberta e as primeiras 12 conversas da lista, com até três buscas paralelas por tela.
+
+- Ponte Node: cache temporário LRU limitado a **24 MiB estimados** e **512 entradas**, o que for atingido primeiro. Estimativa conservadora baseada no comprimento das strings; não representa toda a memória do processo. Fotos presentes expiram após 60 minutos, ausência/privacidade após 15 minutos. Solicitações simultâneas ao mesmo contato compartilham uma única consulta. Downloads de avatares HTTPS respeitam teto de 200 kB durante a leitura em streaming, mesmo sem `Content-Length`.
+- Navegador: cache volátil por tela limitado a **8 MiB estimados** e **96 entradas**. A interface revalida apenas fotos **exibidas** com TTL expirado; verifica ao retornar à aba e a cada cinco minutos quando visível. Falhas transitórias mantêm a foto antiga e tentam novamente depois de cinco minutos. Não há sincronização em massa de imagens nem gravação de avatares no PostgreSQL/Storage da Union WhatsApp.
+- Trocar a foto ou alterar a privacidade no WhatsApp **não produz atualização imediata garantida**: a foto será renovada no próximo carregamento visível após o TTL. A disponibilidade depende das permissões de privacidade e do serviço WhatsApp.
+- **Implantação:** alterações do frontend e do código de `server.mjs` estão no GitHub. O frontend segue o fluxo habitual de publicação; **a ponte na VPS exige implantação separada** com backup do `server.mjs`, `node --check` e reinício **somente** de `union-wuzapi-bridge`. Não reiniciar o contêiner WuzAPI e não alterar sessões ou banco de dados.
+- **Verificação após publicação:** abrir contato sem foto (iniciais), abrir contato com foto, alternar telas e empresas, deixar a aba aberta além do TTL para confirmar renovação, testar fallback de CDN e medir RSS da ponte sob consultas concorrentes. Os testes de código não substituem validação ponta a ponta na VPS.
+

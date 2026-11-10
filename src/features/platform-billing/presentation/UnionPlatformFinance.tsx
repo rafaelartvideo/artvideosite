@@ -1,3 +1,5 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +17,7 @@ import {
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { SubscriptionConfiguration } from "./SubscriptionConfiguration";
 import { UnionSubscriptionUsageOverview } from "./UnionSubscriptionUsageOverview";
 import {
@@ -257,7 +259,7 @@ export function UnionPlatformFinance() {
       actions={canManage && (section === "subscriptions" || section === "plans") ? <AdminButton onClick={section === "plans" ? openNewPlan : openNewSubscription}><Plus size={15} /> {section === "plans" ? "Novo plano" : "Nova assinatura"}</AdminButton> : undefined}
     />
 
-    {query.isPending ? <LoadingState text="Carregando financeiro da Union..." /> : query.isError || !data ? (
+    {query.isPending ? <AdminWorkspaceSkeleton variant="cards" rows={6} /> : query.isError || !data ? (
       <AdminCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <div>
@@ -282,22 +284,15 @@ export function UnionPlatformFinance() {
         </div>)}
       </div>
 
-      <div className="border-b border-border">
-        <div className="flex min-w-0 gap-5 overflow-x-auto">
-          {[
-            { id: "subscriptions" as const, label: "Assinaturas" },
-            { id: "usage" as const, label: "Consumo" },
-            { id: "charges" as const, label: "Cobranças" },
-            { id: "plans" as const, label: "Planos" },
-            { id: "configuration" as const, label: "Configuração" },
-          ].map(item => <button
-            key={item.id}
-            type="button"
-            onClick={() => setSection(item.id)}
-            className={`shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >{item.label}</button>)}
-        </div>
-      </div>
+      <AdminSubsectionTabs value={section}
+        items={[
+          { id: "subscriptions" as const, label: "Assinaturas", Icon: CreditCard },
+          { id: "usage" as const, label: "Consumo", Icon: TrendingUp },
+          { id: "charges" as const, label: "Cobranças", Icon: Banknote },
+          { id: "plans" as const, label: "Planos", Icon: CalendarDays },
+          { id: "configuration" as const, label: "Configuração" },
+        ]}
+        onChange={setSection} ariaLabel="Subseções do financeiro Union" />
 
       {section === "subscriptions" && <AdminCard square>
         <AdminCardHeader>

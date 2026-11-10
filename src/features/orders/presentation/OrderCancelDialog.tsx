@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
 
@@ -34,14 +34,15 @@ export function OrderCancelDialog({
     className="max-w-lg"
     footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary disabled={loading} onClick={onClose}>Voltar</BtnSecondary>
-      <BtnPrimary
+      <AdminButton
+        variant="quaternary"
         disabled={loading || !valid}
-        aria-busy={loading || undefined}
+        loading={loading}
+        loadingText="Cancelando..."
         onClick={() => void onConfirm(reason.trim())}
-        className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
       >
-        {loading ? "Cancelando..." : "Confirmar cancelamento"}
-      </BtnPrimary>
+        Confirmar cancelamento
+      </AdminButton>
     </div>}
   >
     <div className="space-y-4">

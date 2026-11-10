@@ -45,12 +45,12 @@ export function useAdminNotifications(
   const notificationsQuery = useQuery({
     queryKey,
     enabled,
-    queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50),
+    queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50, normalizedUserId!),
     // O canal Realtime entrega novidades imediatamente. A verificação
     // periódica é só contingência para eventos perdidos/reconexão.
     // Não consulte novamente a cada troca de módulo ou foco da janela.
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: query => query.state.status === "error" ? 120_000 : 60_000,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -59,26 +59,74 @@ export function useAdminNotifications(
     setLiveQueue([]);
     if (!normalizedOrganizationId || !normalizedUserId) return;
 
-    return subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
-      onNotification: notification => {
-        queryClient.setQueryData<AdminNotificationsBootstrap>(
-          queryKey,
-          current => ({
-            items: [
-              notification,
-              ...(current?.items || []).filter(item => item.id !== notification.id),
-            ].slice(0, 50),
-            unreadCount: (current?.unreadCount || 0) + 1,
-          }),
+    let disposed = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let stateRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconcileAfter = 0;
+    let lastErrorLogAt = 0;
+    const pendingIds = new Set<number>();
+
+    // Um evento Realtime nao prova que o usuario pode RECEBER o alerta.
+    // Consulta a caixa com as permissoes do servidor antes de exibir popup
+    // e consolida bursts de INSERT em uma unica consulta.
+    const flushNotifications = async () => {
+      refreshTimer = null;
+      if (disposed || pendingIds.size === 0) return;
+      // Back off all Realtime bursts after a failed request. Do not replay
+      // invalidations immediately, which would start another expensive RPC.
+      if (Date.now() < reconcileAfter) {
+        refreshTimer = setTimeout(() => void flushNotifications(), reconcileAfter - Date.now());
+        return;
+      }
+      const received = new Set(pendingIds);
+      pendingIds.clear();
+      try {
+        const snapshot = await loadAdminNotifications(normalizedOrganizationId, 50, normalizedUserId);
+        if (disposed) return;
+        reconcileAfter = 0;
+        queryClient.setQueryData<AdminNotificationsBootstrap>(queryKey, snapshot);
+        snapshot.items.filter(item =>
+          received.has(item.id) && item.delivery_allowed === true && !item.read_at,
+        ).reverse().forEach(enqueueLiveNotification);
+      } catch (error) {
+        if (disposed) return;
+        received.forEach(id => pendingIds.add(id));
+        reconcileAfter = Date.now() + 30_000;
+        // One diagnostic per minute, never one per notification.
+        if (Date.now() - lastErrorLogAt >= 60_000) {
+          console.warn("[notifications] Inbox unavailable; scheduling a delayed reconciliation", error);
+          lastErrorLogAt = Date.now();
+        }
+      }
+      if (!disposed && pendingIds.size > 0 && refreshTimer === null) {
+        refreshTimer = setTimeout(
+          () => void flushNotifications(),
+          Math.max(1_000, reconcileAfter - Date.now()),
         );
-        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
-        enqueueLiveNotification(notification);
+      }
+    };
+
+    const unsubscribe = subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
+      onNotification: notification => {
+        // The home page uses the same React Query key. Flush once instead of
+        // invalidating it separately for every inserted notification.
+        if (pendingIds.size < 200) pendingIds.add(notification.id);
+        if (refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 1_000);
       },
       onStateChange: () => {
-        void queryClient.invalidateQueries({ queryKey });
-        void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
+        if (stateRefreshTimer !== null) return;
+        stateRefreshTimer = setTimeout(() => {
+          stateRefreshTimer = null;
+          if (!disposed) void queryClient.invalidateQueries({ queryKey });
+        }, 1_000);
       },
     });
+    return () => {
+      disposed = true;
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      if (stateRefreshTimer !== null) clearTimeout(stateRefreshTimer);
+      unsubscribe();
+    };
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
 
   // The realtime INSERT can be missed if the page was closed, switched tabs,
@@ -90,7 +138,7 @@ export function useAdminNotifications(
     const since = Date.now() - 24 * 60 * 60_000;
     const recentReminders = (notificationsQuery.data?.items || [])
       .filter(item => isWorkReminder(item)
-        && !item.read_at && new Date(item.created_at).getTime() >= since)
+        && item.delivery_allowed === true && !item.read_at && new Date(item.created_at).getTime() >= since)
       .slice(0, 15);
     if (recentReminders.length === 0) return;
     setLiveQueue(current => {
@@ -117,7 +165,7 @@ export function useAdminNotifications(
         items: (current?.items || []).map(item =>
           item.id === notification.id ? { ...item, read_at: readAt } : item,
         ),
-        unreadCount: Math.max(0, (current?.unreadCount || 0) - 1),
+        unreadCount: Math.max(0, (current?.unreadCount || 0) - (notification.delivery_allowed === false ? 0 : 1)),
       }),
     );
 
@@ -160,7 +208,7 @@ export function useAdminNotifications(
         const item = (current?.items || []).find(entry => entry.id === notification.id);
         return {
           items: (current?.items || []).filter(entry => entry.id !== notification.id),
-          unreadCount: Math.max(0, (current?.unreadCount || 0) - (item && !item.read_at ? 1 : 0)),
+          unreadCount: Math.max(0, (current?.unreadCount || 0) - (item && item.delivery_allowed !== false && !item.read_at ? 1 : 0)),
         };
       },
     );

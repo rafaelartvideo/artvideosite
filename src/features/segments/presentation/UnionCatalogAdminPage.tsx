@@ -1,3 +1,6 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -6,7 +9,7 @@ import { UnionEquipmentTemplates } from "./UnionEquipmentTemplates";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCardToolbar, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadUnionCatalogAdmin, loadUnionCatalogDistribution, saveUnionCatalogItem, setUnionCatalogLink,
   type UnionCatalogData, type UnionCatalogDistribution, type UnionCatalogKind,
@@ -61,7 +64,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const [kind, setKind] = useState<UnionCatalogKind>("segment");
   const [section, setSection] = useState<UnionCatalogKind | "distribution">("segment");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CatalogForm>(EMPTY_FORM);
@@ -208,23 +211,15 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Catálogo Inteligente" />
 
-    <nav aria-label="Subseções do catálogo" className="flex min-w-0 gap-1 overflow-x-auto border-b border-border">
-      {tabs.map(tab => <button
-        key={tab.id}
-        type="button"
-        aria-current={section === tab.id ? "page" : undefined}
-        onClick={() => {
-          if (saving || linkBusy) return;
-          if (tab.id === "distribution") {
-            setSection("distribution"); setCreating(false); setSelectedId(null); setError(""); setNotice("");
-          } else selectKind(tab.id);
-        }}
-        className={"shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 " +
-          (section === tab.id
-            ? "border-primary text-primary"
-            : "border-transparent text-muted-foreground hover:border-border hover:text-foreground")}
-      >{tab.label} <span className="ml-1 text-xs opacity-70">({tab.count})</span></button>)}
-    </nav>
+    <AdminSubsectionTabs value={section}
+      items={tabs.map(tab => ({ id: tab.id, label: tab.label, count: tab.count }))}
+      onChange={id => {
+        if (saving || linkBusy) return;
+        if (id === "distribution") {
+          setSection("distribution"); setCreating(false); setSelectedId(null); setError(""); setNotice("");
+        } else selectKind(id);
+      }}
+      ariaLabel="Subseções do catálogo" />
 
     {error && !editorOpen && <p role="alert" className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
     {notice && !editorOpen && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
@@ -242,7 +237,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
           {visible.length} de {currentTotal} registros
         </span>
       </AdminCardToolbar>
-      {loading ? <LoadingState text="Carregando catálogo..." /> : visible.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={pageSize} columns={5} /> : visible.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhum cadastro encontrado.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[660px]">
           <thead><tr>
@@ -277,7 +272,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       <AdminCardToolbar className="sm:justify-end">
         <span className="text-xs font-semibold text-muted-foreground">{distribution?.companies.length ?? 0} empresas</span>
       </AdminCardToolbar>
-      {loading ? <LoadingState text="Carregando distribuição..." /> : !distribution || distribution.companies.length === 0
+      {loading ? <AdminWorkspaceSkeleton rows={pageSize} columns={6} /> : !distribution || distribution.companies.length === 0
         ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
         : <div className="overflow-x-auto"><TopTableScrollbar /><table className="min-w-[580px]">
           <thead><tr>

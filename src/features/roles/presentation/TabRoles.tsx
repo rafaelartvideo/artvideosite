@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
@@ -80,7 +82,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [form, setForm] = useState<FormState>(emptyForm());
   const [nameError, setNameError] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId);
@@ -338,7 +340,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     />
 
     {canViewTable && <AdminCard>
-      {loading ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." /> : <>
+      {loading ? <AdminWorkspaceSkeleton columns={5} rows={pageSize} /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." /> : <>
         <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[720px]">
             <thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Vinculados</th><th className="text-left">Status</th></tr></thead>

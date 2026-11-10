@@ -1,7 +1,8 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
@@ -11,6 +12,7 @@ import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, initialPageSize } from "@/shared/domain/pagination-preferences";
 import { EmptyState, InlineLoading, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { getCustomer } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
@@ -48,7 +50,8 @@ function primaryAddressLabel(customer: any) {
 }
 
 export function TabCustomerRequests() {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const canCreate = hasPermission("customer_requests.create");
   const canUpdate = hasPermission("customer_requests.update");
   const [status, setStatus] = useState<RequestStatus | "all">("all");
@@ -60,10 +63,32 @@ export function TabCustomerRequests() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [debouncedCustomerFilter, setDebouncedCustomerFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE));
   const [version, setVersion] = useState(0);
-  const [items, setItems] = useState<CustomerRequest[]>([]);
-  const [total, setTotal] = useState(0);
+  // Uma só fonte de dados: o skeleton é exclusivo da primeira consulta sem cache.
+  // Refetch, filtros, paginação e mutações preservam a lista até chegar a resposta.
+  const listQueryKey = [
+    "customer-requests", "list", activeOrganizationId, status, kind, sort,
+    page, pageSize, debouncedSearch, debouncedCustomerFilter, version,
+  ] as const;
+  const listQuery = useQuery({
+    queryKey: listQueryKey,
+    enabled: Boolean(activeOrganizationId),
+    queryFn: () => listCustomerRequests({
+      organizationId: activeOrganizationId!, status, kind, sort, page, pageSize,
+      search: debouncedSearch, customerSearch: debouncedCustomerFilter,
+    }),
+    staleTime: 20_000,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[2] === activeOrganizationId ? previousData : undefined,
+  });
+  const items = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+  // A autenticação pode resolver a empresa após o primeiro render.
+  // Evita uma tela vazia intermediária e não reativa skeleton durante refetch.
+  const loading = (!activeOrganizationId && authLoading)
+    || (Boolean(activeOrganizationId) && listQuery.isPending && !listQuery.data);
+
   const overallCountQuery = useQuery({
     queryKey: ["customer-requests", "overall-count", activeOrganizationId, version],
     enabled: Boolean(activeOrganizationId),
@@ -74,7 +99,12 @@ export function TabCustomerRequests() {
     staleTime: 30_000,
   });
   const overallTotal = overallCountQuery.data?.total ?? total;
-  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!listQuery.error) return;
+    notifyAdmin(listQuery.error instanceof Error ? listQuery.error.message : "Não foi possível carregar os pedidos.", "error");
+  }, [listQuery.errorUpdatedAt]);
+
   const [updating, setUpdating] = useState(false);
   const [open, setOpen] = useState(false);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
@@ -99,21 +129,6 @@ export function TabCustomerRequests() {
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [search, customerFilter]);
-
-  useEffect(() => {
-    if (!activeOrganizationId) { setItems([]); setTotal(0); setLoading(false); return; }
-    let alive = true;
-    setLoading(true);
-    void listCustomerRequests({
-      organizationId: activeOrganizationId, status, kind, sort, page, pageSize,
-      search: debouncedSearch, customerSearch: debouncedCustomerFilter,
-    }).then(result => {
-      if (alive) { setItems(result.items); setTotal(result.total); }
-    }).catch(error => {
-      if (alive) { setItems([]); setTotal(0); notifyAdmin(error instanceof Error ? error.message : "Não foi possível carregar os pedidos.", "error"); }
-    }).finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [activeOrganizationId, status, kind, sort, page, pageSize, debouncedSearch, debouncedCustomerFilter, version]);
 
   useEffect(() => {
     if (!open || selectedCustomer || !activeOrganizationId || customerSearch.trim().length < 2 || quickCustomerOpen) {
@@ -166,7 +181,13 @@ export function TabCustomerRequests() {
     try {
       await updateCustomerRequestStatus(activeOrganizationId, request.id, next);
       setDetail(current => current?.id === request.id ? { ...current, status: next } : current);
-      setItems(current => current.map(item => item.id === request.id ? { ...item, status: next } : item));
+      queryClient.setQueriesData<{ items: CustomerRequest[]; total: number }>(
+        { queryKey: ["customer-requests", "list", activeOrganizationId] },
+        current => current ? {
+          ...current,
+          items: current.items.map(item => item.id === request.id ? { ...item, status: next } : item),
+        } : current,
+      );
       setVersion(current => current + 1);
       notifyAdmin("Situação atualizada.", "success");
     } catch (error) {
@@ -225,6 +246,7 @@ export function TabCustomerRequests() {
   );
 
   return <div className="min-w-0 space-y-5">
+    {loading ? <AdminWorkspaceSkeleton pageHeader searchFields={6} columns={8} rows={pageSize} /> : <>
     <PageHeader title="Pedidos Avulsos"
       subtitle={`${String(overallTotal)} pedidos realizados`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
@@ -313,7 +335,12 @@ export function TabCustomerRequests() {
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {loading ? <LoadingState text="Carregando pedidos..." /> : items.length === 0
+      {listQuery.isError && !listQuery.data
+        ? <div role="alert" className="space-y-3 p-4 text-sm text-destructive">
+            <p>Não foi possível carregar os pedidos.</p>
+            <AdminButton variant="secondary" size="sm" onClick={() => void listQuery.refetch()}>Tentar novamente</AdminButton>
+          </div>
+        : items.length === 0
         ? <EmptyState icon={ClipboardList} title="Nenhum pedido encontrado" message={hasFilters ? "Ajuste os filtros para encontrar um pedido." : "Registre o primeiro pedido com o botão Novo."} />
         : <>
           <div className="divide-y divide-border md:hidden">
@@ -363,6 +390,7 @@ export function TabCustomerRequests() {
       <PaginationBar page={page} pageSize={pageSize} totalItems={total}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
     </AdminCard>
+    </>}
 
     <AdminDialog open={open} onClose={closeForm} title="Novo pedido" className="max-w-xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

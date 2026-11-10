@@ -1,10 +1,11 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Boxes, CreditCard, FileImage, HardDrive, MapPinned, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminCard, AdminCardContent, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+
 import { loadOrganizationPlanUsage } from "../infrastructure/subscription-usage.repository";
 
 const statusLabels: Record<string, string> = {
@@ -116,7 +117,7 @@ export function PlanUsagePage() {
     return <AdminCard><AdminCardContent className="p-6 text-sm text-muted-foreground">Selecione uma empresa para visualizar o plano.</AdminCardContent></AdminCard>;
   }
 
-  if (query.isPending) return <LoadingState text="Carregando plano e uso..." />;
+  if (query.isPending) return <AdminWorkspaceSkeleton variant="cards" rows={5} />;
 
   if (query.isError || !query.data) {
     return <AdminCard><AdminCardContent className="p-6">

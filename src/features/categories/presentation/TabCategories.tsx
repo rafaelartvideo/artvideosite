@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -102,7 +104,7 @@ export function TabCategories({
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
 
   const products = productQuery.data ?? [];
   const services = serviceQuery.data ?? [];
@@ -248,7 +250,7 @@ export function TabCategories({
           { id: "services", label: "Serviços", Icon: Wrench }]}
         onChange={value => { setKind(value); setPage(1); }} />
       {canViewTable && <AdminCard>
-        {loading ? <LoadingState/> : cats.length === 0
+        {loading ? <AdminWorkspaceSkeleton columns={6} rows={pageSize} /> : cats.length === 0
           ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada"
               message={`Crie categorias para organizar os ${label} do site.`}
               onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" />

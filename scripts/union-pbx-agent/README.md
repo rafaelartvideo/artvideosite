@@ -1,5 +1,27 @@
 # Union PABX — ponte de provisionamento por saída HTTPS
 
+## Tom de chamada na entrada FVX
+
+O chamador deve ouvir o tom antes de um atendente responder. `Queue(r)` já
+envia a indicação de toque; não antecipe `Ringing()` ou `Progress()` na rota,
+pois isso duplica as respostas provisórias. A sinalização sozinha também
+não garante que o tom seja reproduzido pela operadora. Na VPS Union,
+a entrada FVX usa `inband_progress=yes` no endpoint `union-fvx-in`, e o Asterisk
+precisa ter os tons carregados. O arquivo `indications-br.conf` contém as
+definições brasileiras da amostra oficial do Asterisk 22 para servidores sem
+configuração prévia; nunca substitua uma configuração de tons existente sem revisão.
+
+Verifique o valor efetivo com `pjsip show endpoint union-fvx-in` e os tons com
+`indication show br`. O teste real deve confirmar áudio antes do atendimento,
+sem enviar `200 OK` antecipadamente, e voz normal após atender. Não marque
+o teste como aprovado apenas porque a fila tocou ou houve SIP 180/183.
+
+Alterações na entrada ativa exigem autorização, backup, ausência de canais
+ativos e reversão. Preserve o grupo de leitura `asterisk` e as credenciais
+existentes; elas não pertencem ao repositório. Após alterar um arquivo incluído,
+confirme que o valor mudou em memória: uma mensagem de recarga bem-sucedida
+sozinha não prova que a configuração nova foi aplicada.
+
 Este agente permite que a **VPS** obtenha trabalhos assinados a partir do Supabase, crie
 somente **novos endpoints WebRTC da Union** e reporte o resultado. A senha do tronco FVX
 não é lida, copiada ou modificada. O ramal manual `union-301` não é gerenciado aqui.
@@ -310,3 +332,113 @@ o destino planejado; não envia comando para mudar a FVX.
 Quando autorizado, a operação deverá ser feita por uma pessoa com acesso root
 na VPS, em duas etapas separadas: primeiro apenas preservar o 301 através de
 uma subrotina controlada, e só depois ativar a fila externa com teste real.
+
+## Histórico assinado de chamadas (metadados)
+
+O histórico usa `pbx_call_logs`, separado da integração `uniq_calls`. A migração
+`20261110010215_pbx_signed_call_history_foundation.sql` registra a propriedade
+dos endpoints FVX já existentes, sem alterar credenciais ou rotas. O navegador
+tem somente SELECT protegido por organização e `pbx.view`; a ingestão é permitida
+apenas ao serviço, após a assinatura Ed25519 do agente. A organização e a direção
+são derivadas no banco. Não habilita telefonia em empresas parceiras antes da
+separação dos contexts e dos troncos de cada empresa.
+
+`call_history.py` deve ser instalado ao lado de `agent.py`. No final de cada ciclo,
+o agente envia até dez pernas de chamadas, usando os endpoints autorizados pelo
+backend. Falhas não impedem o provisionamento nem a entrega de credenciais.
+Chamadas de endpoints desconhecidos ou com uma perna de outra empresa não saem
+da VPS. O cursor só avança após confirmação; a chave agente/evento impede
+duplicação quando uma resposta se perde. O identificador vinculado agrupa pernas,
+não é uma contagem de conversas distintas. O histórico não é fonte de faturamento.
+
+Os modelos `cdr.conf` e `cdr_custom.conf` são **opt-in**. Sua ativação requer
+aprovação do proprietário, zero canais ativos, backup do agente/configuração e
+reversão preparada. Não sobrescrever um CDR já configurado sem reconciliar seus
+destinos. Recarregar apenas `cdr` e carregar `cdr_custom.so`; não reiniciar o
+Asterisk nem recarregar PJSIP/dialplan para ativar este histórico. O agente precisa
+ser reiniciado após a instalação dos dois arquivos Python. A unidade existente
+permite ler `/var/log/asterisk` e escrever o cursor em `/var/lib/union-pbx-agent`.
+
+`activate-history.sh` prepara a aplicação única para a VPS auditada: exige a opção
+`--acknowledge-history-activation`, confere o hash do agente anterior, recusa CDR
+ou helper já existentes, bloqueia chamadas ativas, faz backup root e tenta
+restaurar o estado anterior se a ativação falhar. **Preparar/copiar o script não
+é aprovação para executá-lo.** Não usar em outro servidor sem nova auditoria.
+
+Não são gravados áudio, nome de chamador, argumentos de aplicações, userfield,
+cabeçalhos SIP ou segredos. A pasta `cdr-custom` deve pertencer a `asterisk`, modo
+0750; os arquivos devem ter acesso restrito. Não adicionar gravação de voz ou
+exclusão automática de dados nesta implantação. A política de retenção precisa
+ser definida antes de habilitar limpeza automática. Monitorar espaço em disco.
+Não apagar arquivos rotacionados que ainda contenham dados não confirmados.
+
+Rotação suportada: rename numerado `.1`, `.2`, etc., sem compressão enquanto
+estiver pendente, seguido de reabertura do backend. `copytruncate` não garante
+ausência de perda durante a própria rotação e deve ser evitado. Arquivo pendente
+ausente ou cursor corrompido interrompe somente a coleta e exige diagnóstico.
+
+Validação: `python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'`.
+`test_call_history_database.sql` testa ingestão, duplicação, endpoint registrado de
+outra empresa, direção e RLS em transação com rollback de todos os dados fictícios.
+Após a ativação, validar chamadas reais internas e entrada FVX; dados anteriores
+à ativação não estão disponíveis retroativamente. A interface fica em
+Ferramentas → PABX → Histórico de ligações e mantém o telefone montado.
+
+Referências de formato e opções: [CDR Asterisk 22](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Functions/CDR/)
+e [backend customizado oficial](https://github.com/asterisk/asterisk/blob/22/configs/samples/cdr_custom.conf.sample).
+
+## Pausa por integrante da fila
+
+O protocolo 2 adiciona `queue_availability.py`, instalado ao lado de `agent.py`.
+Sem esse módulo importável, o agente anuncia protocolo 1 e mantém as demais
+operações. O backend registra a capacidade a cada poll; um rollback volta a
+bloquear os controles. A tela exige `pbx.manage`, leitura recente da fila e um
+agente compatível com comunicação nos últimos 95 segundos.
+
+As migrações `20261110015339_pbx_queue_member_availability_controls.sql` e
+`20261110021308_pbx_queue_control_generation_order.sql` guardam o estado desejado
+e a confirmação separadamente. Não criam pausas por padrão. O RPC verifica
+organização, permissão, integrante ativo e fila aplicada. A revisão UUID impede
+confirmar uma solicitação substituída; o contador sequencial ordena solicitações
+na interface mesmo quando transações têm horários iguais ou fora de ordem.
+
+O agente reconcilia até dez integrantes por ciclo, com limite de tempo. Verifica
+o endpoint e número no estado local da fila da própria organização. O UUID do
+cadastro e o UUID do nome do endpoint são independentes e não são derivados um
+do outro. Todo comando CLI inclui a fila exata; nunca pausa em todas as filas.
+O estado é consultado após a ação. Falhas não são reportadas como aplicação, nem
+incluem a saída bruta do comando. Não recarrega módulos, dialplan ou PJSIP e não
+derruba uma conversa em andamento. Pausa é diferente de registro SIP e de mudo.
+
+`activate-availability.sh` é a atualização única para o agente auditado que já
+possui histórico. Exige `--acknowledge-availability-activation`, hash anterior
+confirmado, diretório de staging revisado, ausência de chamadas e aprovação do
+proprietário. Faz backup, instala agente/módulo e reinicia somente o agente.
+Não envia qualquer solicitação de pausa. Sua reversão automática mantém o
+histórico e restaura o agente anterior se houver falha local.
+
+Antes de aplicar: testes Python e de banco, backup e janela autorizada. O arquivo
+`test_queue_availability_database.sql` usa o papel authenticated de verdade,
+valida RLS, membro/organização, revisão substituída, geração, confirmação repetida
+e protocolo antigo; todas as alterações fictícias são revertidas. Depois da
+aplicação, testar pausa e retomada de um integrante mantendo outro disponível,
+conferir o estado efetivo no Asterisk e no CRM e restabelecer a disponibilidade.
+
+## Relatório e exportação do histórico
+
+`pbx_call_history_report` é uma função somente de leitura, SECURITY INVOKER,
+com as mesmas políticas RLS do histórico e dos ramais. Usa os filtros da lista,
+inclusive o ramal associado quando o destino técnico está vazio. O resumo conta
+registros/trechos e identificadores vinculados; resposta na sinalização não é
+garantia de atendimento humano. A soma de durações pode conter trechos
+simultâneos e não representa faturamento.
+
+A exportação é integral, com até 2.000 registros por arquivo. Acima do limite,
+nenhuma lista parcial é retornada e a interface pede filtros mais restritos.
+Totais e registros são calculados no mesmo snapshot; a tela adota o resumo da
+exportação confirmada. CSV usa UTF-8 com BOM, separador ponto e vírgula, horários
+normalizados em UTC e proteção contra fórmulas em campos de texto. O download
+é local após uma consulta autorizada; nenhuma mensagem é enviada a terceiros.
+Troca de empresa/filtro e desmontagem cancelam exportações pendentes antes do
+download. O teste `test_call_history_report_database.sql` verifica permissões,
+RLS, filtros, snapshot e limite com dados fictícios integralmente revertidos.

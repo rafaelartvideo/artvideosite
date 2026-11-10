@@ -10,6 +10,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/p
 import { cn, formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { printGeneralFinancialReceipt, type GeneralReceiptA4 } from "@/features/pdv/domain/pdv-a4-receipt";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 
 type ReceiptDirection = "received" | "paid";
 type RegistrationKind = "customer" | "employee";
@@ -17,6 +18,7 @@ type Registration = { id: string; name: string; document: string | null; legacyC
 type ReceiptItem = { id: number; description: string; quantity: string; unit_price: string };
 type ItemErrors = { description?: string; quantity?: string; unit_price?: string };
 type FieldErrors = { registration?: string; order?: string; direction?: string; reason?: string; details?: string; paymentMethod?: string; notes?: string; items?: string; general?: string };
+
 type OrderRecord = { id: string; os_number: string };
 
 let itemSequence = 0;
@@ -294,7 +296,7 @@ export function FinanceReceiptDialog({ open, onClose }: { open: boolean; onClose
             <AdminFieldLabel label="OS vinculada (opcional)" />
             {selectedOrder ? (
               <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-                <span className="text-sm font-semibold text-primary">OS {selectedOrder.os_number}</span>
+                <FinanceServiceOrderLink orderId={selectedOrder.id} number={selectedOrder.os_number} className="text-sm font-semibold" />
                 <AdminButton size="sm" variant="secondary" disabled={saving} onClick={clearOrder}>Trocar</AdminButton>
               </div>
             ) : (

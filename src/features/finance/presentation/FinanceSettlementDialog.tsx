@@ -5,6 +5,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { ArrowLeft, CheckCircle2, Pencil } from "lucide-react";
+import { getOrderReportedReceipts } from "../domain/finance-reported-receipts";
 import {
   paymentMethodFee,
   settlementCashAmount,
@@ -17,6 +18,13 @@ import type {
   FinancialPaymentMethod,
   FinancialSettlementDraft,
 } from "../domain/finance.types";
+
+function localDateTimeFromIso(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 function localDateTimeInput() {
   const now = new Date();
@@ -53,6 +61,7 @@ export function FinanceSettlementDialog({
   );
   const activeMethods = paymentMethods.filter(item => item.is_active);
   const activeAccounts = accounts.filter(item => item.is_active);
+  const reportedReceipts = useMemo(() => getOrderReportedReceipts(detail.source_details), [detail.source_details]);
   const [installmentId, setInstallmentId] = useState("");
   const [settlementScope, setSettlementScope] = useState<"installment" | "all">("installment");
   const allRemaining = openInstallments.reduce((sum, item) => sum + Number(item.original_amount) - Number(item.settled_amount), 0);
@@ -71,6 +80,7 @@ export function FinanceSettlementDialog({
   const forecastSavingRef = useRef(false);
   const forecastBusy = forecastSaving || forecastPending;
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
+  const selectedReportedReceipt = reportedReceipts.find(item => item.installment_number === selectedInstallment?.installment_number) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
   const remaining = settlementScope === "all"
     ? allRemaining
@@ -90,7 +100,8 @@ export function FinanceSettlementDialog({
 
   useEffect(() => {
     if (!open) return;
-    const firstInstallment = openInstallments[0] || null;
+    const firstInstallment = openInstallments.find(item => reportedReceipts.some(receipt => receipt.installment_number === item.installment_number)) || openInstallments[0] || null;
+    const report = reportedReceipts.find(item => item.installment_number === firstInstallment?.installment_number);
     const planned = Array.isArray(detail.source_details?.payment_plan)
       ? detail.source_details.payment_plan as Array<{payment_method_id:string;amount:number}> : [];
     const nextPlanned = planned.find(part => {
@@ -101,17 +112,21 @@ export function FinanceSettlementDialog({
     const alreadyUsed = nextPlanned ? detail.settlements.filter(item => item.settlement_status !== "reversed" && item.payment_method_id === nextPlanned.payment_method_id)
       .reduce((sum,item)=>sum+Number(item.principal_amount||0),0) : 0;
     const plannedRemainder = nextPlanned ? Math.max(0,Number(nextPlanned.amount)-alreadyUsed) : 0;
-    const firstMethod = activeMethods.find(item => item.id === nextPlanned?.payment_method_id) || activeMethods[0] || null;
+    const firstMethod = activeMethods.find(item => item.id === report?.payment_method_id)
+      || activeMethods.find(item => item.id === nextPlanned?.payment_method_id) || activeMethods[0] || null;
     setSettlementScope("installment");
     setInstallmentId(firstInstallment?.id || "");
-    setPrincipal(firstInstallment ? String(Math.round(Math.min(Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount), plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount))*100)/100) : "");
+    setPrincipal(firstInstallment ? String(Math.round(Math.min(
+      Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount),
+      report?.principal_amount || plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount),
+    ) * 100) / 100) : "");
     setInterest("0");
     setPenalty("0");
     setAdditions("0");
     setDiscount("0");
     setMethodId(firstMethod?.id || "");
-    setAccountId(firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
-    setOccurredAt(localDateTimeInput());
+    setAccountId(activeAccounts.find(item => item.id === report?.financial_account_id)?.id || firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
+    setOccurredAt(localDateTimeFromIso(report?.occurred_at) || localDateTimeInput());
     setFieldErrors({});
     setForecastEdit(null);
     setForecastError("");
@@ -119,7 +134,10 @@ export function FinanceSettlementDialog({
 
   useEffect(() => {
     if (!selectedMethod) return;
-    if (selectedMethod.default_financial_account_id && activeAccounts.some(item => item.id === selectedMethod.default_financial_account_id)) {
+    const reportedAccountId = reportedReceipts.find(item => item.installment_number === selectedInstallment?.installment_number && item.payment_method_id === selectedMethod.id)?.financial_account_id;
+    if (reportedAccountId && activeAccounts.some(item => item.id === reportedAccountId)) {
+      setAccountId(reportedAccountId);
+    } else if (selectedMethod.default_financial_account_id && activeAccounts.some(item => item.id === selectedMethod.default_financial_account_id)) {
       setAccountId(selectedMethod.default_financial_account_id);
     }
   }, [methodId]);
@@ -129,7 +147,19 @@ export function FinanceSettlementDialog({
     setForecastEdit(null);
     setForecastError("");
     const installment = openInstallments.find(item => item.id === id);
-    if (installment) setPrincipal(String(Number(installment.original_amount) - Number(installment.settled_amount)));
+    if (installment) {
+      setPrincipal(String(Number(installment.original_amount) - Number(installment.settled_amount)));
+      const report = reportedReceipts.find(item => item.installment_number === installment.installment_number);
+      const preferences = Array.isArray(detail.source_details?.payment_preferences)
+        ? detail.source_details.payment_preferences as Array<{ installment_number: number; payment_method_id: string; financial_account_id: string }>
+        : [];
+      const preference = preferences.find(item => item.installment_number === installment.installment_number);
+      const preferredMethodId = report?.payment_method_id || preference?.payment_method_id;
+      const preferredAccountId = report?.financial_account_id || preference?.financial_account_id;
+      if (preferredMethodId && activeMethods.some(item => item.id === preferredMethodId)) setMethodId(preferredMethodId);
+      if (preferredAccountId && activeAccounts.some(item => item.id === preferredAccountId)) setAccountId(preferredAccountId);
+      setOccurredAt(localDateTimeFromIso(report?.occurred_at) || localDateTimeInput());
+    }
   };
 
   const canAdjustSelected = detail.entry_type === "payable" && canAdjustInstallment
@@ -202,6 +232,9 @@ export function FinanceSettlementDialog({
   // Fluxo embutido no Extrato: o título já está no cabeçalho do modal principal.
   return <section aria-label="Baixa financeira" className="min-w-0 space-y-5">
     <div className="space-y-5">
+      {selectedReportedReceipt && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+        A parcela {selectedInstallment?.installment_number} foi marcada como recebida na OS{selectedReportedReceipt.occurred_at ? ` em ${new Date(selectedReportedReceipt.occurred_at).toLocaleDateString("pt-BR")}` : ""}. Ainda não houve baixa financeira. Confira os dados e confirme somente após verificar o recebimento.
+      </p>}
       {detail.entry_type === "receivable" && openInstallments.length > 1 && <FSelect
         label="Modo de recebimento"
         value={settlementScope}

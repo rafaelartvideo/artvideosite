@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -33,7 +35,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const isPlatformOrganization = activeOrganization?.is_platform_operator === true;
   const canCreate = hasPermission("organizations.create");
   const canEdit = hasPermission("organizations.edit");
@@ -131,7 +133,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
       actions={canCreate ? <BtnPrimary onClick={() => onRouteChange?.("new", null)}><Plus size={15} /> Nova empresa</BtnPrimary> : undefined}
     />
 
-    {companiesQuery.isFetching ? <LoadingState text="Carregando empresas..." /> : companiesQuery.isError ? (
+    {(companiesQuery.isPending && !companiesQuery.data) ? <AdminWorkspaceSkeleton columns={6} rows={pageSize} /> : companiesQuery.isError ? (
       <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">Não foi possível carregar as empresas: {(companiesQuery.error as any)?.message || "Erro desconhecido"}</div>
     ) : totalCompanies === 0 ? (
       <EmptyState icon={Building2} title="Nenhuma empresa parceira" message="Cadastre a primeira empresa parceira para iniciar a configuração." />

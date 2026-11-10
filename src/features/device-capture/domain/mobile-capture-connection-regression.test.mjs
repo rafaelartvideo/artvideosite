@@ -61,11 +61,15 @@ test("todos os modais Usar celular fecham ao conectar, bolinha verde pulsante e 
     "src/features/orders/presentation/OrderMobileEditBridge.tsx",
     "src/features/checklists/presentation/OrderChecklistMobileBridge.tsx",
   ];
+  const mobileButton = read("src/shared/ui/admin/AdminUseMobileButton.tsx");
+  assert.ok((await transformWithEsbuild(mobileButton, "AdminUseMobileButton.tsx", { loader: "tsx" })).code);
+  assert.ok(mobileButton.includes('animate-ping rounded-full bg-emerald-300'));
+  assert.ok(mobileButton.includes('border-primary/30'));
   for (const file of files) {
     const source = read(file);
     assert.ok((await transformWithEsbuild(source, file, { loader: "tsx" })).code, file);
     assert.ok(source.includes('if (value && !errorRef.current) setOpen(false)'), file);
-    assert.ok(source.includes('animate-ping rounded-full bg-emerald-300'), file);
+    assert.ok(source.includes('<AdminUseMobileButton'), file);
     assert.ok(source.includes('loading={ending} loadingText="Encerrando..."'), file);
     assert.ok(source.includes("setOpen(true);") && source.includes("setError(closeError instanceof Error"), file);
     const codeRow = source.indexOf('border-[#0057e7]/20 bg-[#eef5ff]');

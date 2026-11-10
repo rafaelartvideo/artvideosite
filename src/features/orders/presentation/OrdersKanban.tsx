@@ -6,6 +6,7 @@ import type React from "react";
 import { Ban, Edit2, GripVertical } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
 
@@ -213,7 +214,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
 
                 {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   {canEdit && !order.is_solved && !isCancelled(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => onEdit(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary"><Edit2 size={13} /> Editar</button>}
-                  {canCancel(order) && <button type="button" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => setCancelTarget(order)} className="flex min-h-9 cursor-default items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50"><Ban size={13} /> Cancelar</button>}
+                  {canCancel(order) && <AdminButton variant="quaternary" size="sm" draggable={false} onDragStart={event => event.preventDefault()} onClick={() => setCancelTarget(order)} className="min-h-9 gap-1"><Ban size={13} /> Cancelar</AdminButton>}
                 </div>}
               </div>;
             })}

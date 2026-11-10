@@ -1,9 +1,10 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { ArrowLeft, FolderTree, Pencil, Plus } from "lucide-react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
@@ -76,11 +77,49 @@ export function FinanceCategoriesSection({ createSignal = 0, modalOpen = false, 
 
     </div>
       {queryError && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{systemErrorMessage(queryError, "Não foi possível carregar as categorias.")}</div>}
-      {finance.categoriesQuery.isLoading ? <div className="p-8"><LoadingState /></div> : categories.length === 0 ? <div className="p-8"><EmptyState icon={FolderTree} title="Nenhuma categoria financeira" /></div> : <FinanceTableSurface><table className="min-w-[720px]"><thead><tr><th className="text-left">Categoria</th><th className="text-left">Natureza</th><th className="text-left">Grupo DRE</th><th className="text-left">Categoria pai</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{categories.map(category => <FinanceTableRow key={category.id} label={`Editar categoria ${category.name}`} onOpen={() => edit(category)}><td><p className="font-bold text-[#0d1b2e]">{category.name}</p>{category.description && <p className="text-xs text-[#5a6a82]">{category.description}</p>}</td><td className="text-xs font-semibold text-[#5a6a82]">{category.nature === "revenue" ? "Receita" : "Despesa"}</td><td className="text-xs text-[#5a6a82]">{category.report_group || "—"}</td><td className="text-xs text-[#5a6a82]">{parentName(category.parent_category_id)}</td><td><StatusBadge status={category.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1"><AdminIconButton ariaLabel="Editar categoria" onClick={() => edit(category)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={category.is_active} entityLabel="categoria" onClick={() => void finance.toggleCategory.mutateAsync({ id: category.id, isActive: !category.is_active })} /></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>}
+      {finance.categoriesQuery.isLoading ? <AdminWorkspaceSkeleton rows={5} columns={5} /> : categories.length === 0 ? <div className="p-8"><EmptyState icon={FolderTree} title="Nenhuma categoria financeira" /></div> : <FinanceTableSurface><table className="min-w-[720px]"><thead><tr><th className="text-left">Categoria</th><th className="text-left">Natureza</th><th className="text-left">Grupo DRE</th><th className="text-left">Categoria pai</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{categories.map(category => <FinanceTableRow key={category.id} label={`Editar categoria ${category.name}`} onOpen={() => edit(category)}><td><p className="font-bold text-[#0d1b2e]">{category.name}</p>{category.description && <p className="text-xs text-[#5a6a82]">{category.description}</p>}</td><td className="text-xs font-semibold text-[#5a6a82]">{category.nature === "revenue" ? "Receita" : "Despesa"}</td><td className="text-xs text-[#5a6a82]">{category.report_group || "—"}</td><td className="text-xs text-[#5a6a82]">{parentName(category.parent_category_id)}</td><td><StatusBadge status={category.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1"><AdminIconButton ariaLabel="Editar categoria" onClick={() => edit(category)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={category.is_active} entityLabel="categoria" onClick={() => void finance.toggleCategory.mutateAsync({ id: category.id, isActive: !category.is_active })} /></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>}
 
 
   </div>;
-  const editor = <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /><FSelect label="Natureza" required value={form.nature} options={NATURES} onChange={(event: any) => setForm(current => ({ ...current, nature: event.target.value as FinancialCategoryNature, parent_category_id: "" }))} /></div><div className="grid gap-4 sm:grid-cols-2"><FSelect label="Categoria pai" error={fieldErrors.parent_category_id} value={form.parent_category_id} options={parentOptions} onChange={(event: any) => { setFieldErrors(current => ({ ...current, parent_category_id: undefined })); setForm(current => ({ ...current, parent_category_id: event.target.value })); }} /><FInput label="Grupo DRE" value={form.report_group} onChange={(event: any) => setForm(current => ({ ...current, report_group: event.target.value }))} placeholder="Ex.: Receita de serviços" /></div><FTextarea label="Descrição" value={form.description} onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))} /></div>;
+  const editor = <div className="space-y-5">
+    <p className="text-sm text-muted-foreground">
+      As categorias mais comuns já vêm cadastradas. Crie uma nova apenas quando precisar.
+    </p>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <FInput label="Nome" required error={fieldErrors.name} value={form.name}
+        onChange={(event: any) => {
+          setFieldErrors(current => ({ ...current, name: undefined }));
+          setForm(current => ({ ...current, name: event.target.value }));
+        }} />
+      <FSelect label="Tipo" required value={form.nature} options={NATURES}
+        onChange={(event: any) => setForm(current => ({
+          ...current, nature: event.target.value as FinancialCategoryNature, parent_category_id: "",
+        }))} />
+    </div>
+    <details className="rounded-lg border border-border bg-card px-4 py-3">
+      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+        Opções avançadas (opcional)
+      </summary>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <FSelect label="Categoria pai" error={fieldErrors.parent_category_id}
+          value={form.parent_category_id} options={parentOptions}
+          onChange={(event: any) => {
+            setFieldErrors(current => ({ ...current, parent_category_id: undefined }));
+            setForm(current => ({ ...current, parent_category_id: event.target.value }));
+          }} />
+        <FInput label="Grupo DRE" value={form.report_group}
+          onChange={(event: any) => setForm(current => ({
+            ...current, report_group: event.target.value,
+          }))} placeholder="Ex.: Receita de serviços" />
+        <div className="sm:col-span-2">
+          <FTextarea label="Descrição" value={form.description}
+            onChange={(event: any) => setForm(current => ({
+              ...current, description: event.target.value,
+            }))} />
+        </div>
+      </div>
+    </details>
+  </div>;
   const editorFooter = <div className="flex flex-wrap items-center justify-between gap-2">
     <AdminButton variant="secondary" onClick={close} disabled={finance.saveCategory.isPending}><ArrowLeft size={16} /> Voltar</AdminButton>
     <AdminButton onClick={() => void save()} loading={finance.saveCategory.isPending} loadingText="Salvando...">Salvar categoria</AdminButton>

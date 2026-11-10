@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
@@ -15,6 +16,7 @@ import { FinanceCashActionDialog, type FinanceCashAction } from "./FinanceCashSe
 import { useFinanceCash } from "../application/useFinanceCash";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { FinanceOpeningBalanceDialog } from "./FinanceOpeningBalanceDialog";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 import { parsePinnedFinanceAccounts, prioritizePinnedFinanceAccounts } from "../domain/finance-account-cards.mjs";
 
 const ACCOUNT_TYPES: { value: FinancialAccountType; label: string }[] = [
@@ -87,7 +89,7 @@ const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   cash_adjustment: "Ajuste de caixa",
 };
 
-export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
+export function FinanceAccountsSection({ createSignal = 0, onInitialReady }: { createSignal?: number; onInitialReady?: () => void } = {}) {
   const { hasPermission, activeOrganizationId, user } = useAuth();
   const finance = useFinanceFoundation();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -155,6 +157,10 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   const mutationError = finance.saveAccount.error || finance.toggleAccount.error || money.openingBalanceMutation.error;
   const errorMessage = mutationError ? systemErrorMessage(mutationError) : queryError ? systemErrorMessage(queryError) : "";
 
+  useEffect(() => {
+    if (!finance.accountsQuery.isPending && !money.balancesQuery.isPending && (!cashEnabled || !cash.sessionsQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, finance.accountsQuery.isPending, money.balancesQuery.isPending, cashEnabled, cash.sessionsQuery.isPending]);
+
   if (!canView) return <AdminCard className="p-6"><p className="text-sm text-[#5a6a82]">Você não possui permissão para visualizar caixas e contas.</p></AdminCard>;
 
   const openEdit = (account: FinancialAccount) => {
@@ -200,6 +206,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   };
 
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
+
   const cashOperations = (account: FinancialAccount) => {
     if (!cashEnabled || account.account_type !== "cash" || !account.allows_cash_session || !account.is_active) return null;
     if (cash.sessionsQuery.isLoading) return null;
@@ -256,7 +263,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
     </div>
 
     {errorMessage && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{errorMessage}</div>}
-    {loading ? <div className="p-8"><LoadingState text="Carregando contas e caixas" /></div> : accounts.length === 0
+    {loading ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : accounts.length === 0
       ? <div className="p-8"><EmptyState icon={Landmark} title="Nenhuma conta financeira" /></div>
       : <section aria-label="Contas e caixas" className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {orderedAccounts.map(account => {
@@ -361,7 +368,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
                     <tbody>{statement.items.map(item => <tr key={item.id} className="h-[54px] border-t border-border/70">
                       <td className="whitespace-nowrap text-xs text-muted-foreground">{new Date(item.occurred_at).toLocaleString("pt-BR")}</td>
                       <td className="whitespace-nowrap text-xs font-semibold text-foreground">{MOVEMENT_LABELS[item.movement_type] || item.movement_type}</td>
-                      <td className="max-w-[220px] truncate text-xs text-muted-foreground" title={item.description_snapshot}>{item.description_snapshot || "—"}</td>
+                      <td className="max-w-[220px] text-xs text-muted-foreground"><div className="truncate" title={item.description_snapshot}>{item.description_snapshot || "—"}</div>{item.origin_order_id && <div className="mt-1"><FinanceServiceOrderLink orderId={item.origin_order_id} label={item.origin_label || "Ordem de Serviço"} /></div>}</td>
                       <td className={`text-right text-xs font-bold tabular-nums ${item.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                         <span className="inline-flex items-center justify-end gap-1">{item.direction === "credit" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{item.direction === "credit" ? "+" : "−"} {formatCurrency(item.amount)}</span>
                       </td>

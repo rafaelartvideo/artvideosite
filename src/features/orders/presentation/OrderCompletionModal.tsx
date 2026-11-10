@@ -18,6 +18,7 @@ import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-c
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { OrderCompletionPaymentSection } from "./OrderCompletionPaymentSection";
+import { OrderConclusionButton } from "./OrderConclusionButton";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
 function customerAddress(customer: any): Address | null {
@@ -327,14 +328,12 @@ export function OrderCompletionModal({
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
       <BtnSecondary onClick={close} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary
+      <OrderConclusionButton
+        label="Concluir OS"
         onClick={() => void completion.submit()}
         disabled={completionBlocked}
         loading={saving}
-        loadingText="Concluindo..."
-      >
-        Concluir
-      </BtnPrimary>
+      />
     </div>}
   >
     <div className="min-w-0 space-y-5">

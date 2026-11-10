@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -5,7 +6,7 @@ import { CalendarClock, Pencil, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
@@ -182,7 +183,7 @@ export function FinanceRecurringSection({ createSignal = 0, dialogOnly = false, 
       <p className="text-sm font-semibold text-muted-foreground">{rules.length} {rules.length === 1 ? "recorrência cadastrada" : "recorrências cadastradas"}</p>
 
     </div>
-      {recurring.rulesQuery.isLoading ? <div className="p-10"><LoadingState text="Carregando recorrências..." /></div> : recurring.rulesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{recurring.rulesQuery.error instanceof Error ? recurring.rulesQuery.error.message : "Não foi possível carregar as recorrências."}</div> : rules.length === 0 ? <div className="p-10"><EmptyState icon={CalendarClock} title="Nenhuma recorrência cadastrada" /></div> : <FinanceTableSurface>
+      {recurring.rulesQuery.isLoading ? <AdminWorkspaceSkeleton rows={5} columns={7} /> : recurring.rulesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{recurring.rulesQuery.error instanceof Error ? recurring.rulesQuery.error.message : "Não foi possível carregar as recorrências."}</div> : rules.length === 0 ? <div className="p-10"><EmptyState icon={CalendarClock} title="Nenhuma recorrência cadastrada" /></div> : <FinanceTableSurface>
         <table className="min-w-[980px]">
           <thead><tr><th className="text-left">Origem</th><th className="text-left">Tipo</th><th className="text-left">Periodicidade</th><th className="text-left">Próxima</th><th className="text-right">Valor</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
           <tbody>{rules.map(rule => <FinanceTableRow key={rule.id} label={`Abrir recorrência ${rule.description}`} onOpen={canManage ? () => edit(rule) : undefined}>

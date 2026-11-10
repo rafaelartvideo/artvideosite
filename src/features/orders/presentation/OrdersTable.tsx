@@ -1,4 +1,7 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
+import { OrdersTableSkeleton } from "./OrdersSkeletons";
+import { OrderConclusionButton } from "./OrderConclusionButton";
+import { Skeleton } from "@/shared/ui/primitives/skeleton";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
@@ -224,9 +227,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
-        <div className="min-h-[300px] flex items-center justify-center">
-          <LoadingState text="Carregando ordens" />
-        </div>
+        <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
       ) : (
@@ -265,7 +266,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                   {hasPermission("orders.table.equipment") && <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Equipamento</p><p className="truncate font-medium text-muted-foreground">{equipmentSummary(o) || "—"}</p></div>}
                 </div>
                 {hasPermission("orders.table.actions") && canComplete(o) && <div onClick={event => event.stopPropagation()} className="flex justify-end border-t border-border pt-3">
-                  <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} title="Concluir OS" className="h-9 shrink-0 px-2.5"><span>Concluir</span></AdminButton>
+                  <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />
                 </div>}
               </article>
             ))}
@@ -301,7 +302,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                     </div>
                   : <span className="text-xs text-muted-foreground">—</span>}</td>}
                 {hasPermission("orders.table.actions") && <td><div onClick={event => event.stopPropagation()} className="flex items-center justify-end gap-2">
-                  {canComplete(o) && <AdminButton variant="primary" size="sm" onClick={event => { event.stopPropagation(); onComplete(o); }}>Concluir</AdminButton>}
+                  {canComplete(o) && <OrderConclusionButton compact label="Concluir" onClick={event => { event.stopPropagation(); onComplete(o); }} aria-label={`Concluir OS ${o.os_number || ""}`} />}
                   {quickActions(o)}
                 </div></td>}
               </tr>)}</tbody>
@@ -310,14 +311,17 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-[11px] md:py-2 font-semibold text-muted-foreground" aria-label="Legenda dos indicadores da ordem de serviço">
             <span className="font-bold text-foreground">Legenda:</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#16a34a]" aria-hidden="true" />Aberta</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#0057e7]" aria-hidden="true" />Fechada</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[#dc2626]" aria-hidden="true" />Cancelada</span>
+            {(["Aberta", "Fechada", "Cancelada"] as const).map(status => (
+              <span key={status} className="inline-flex items-center gap-1.5">
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: getOrderStatusHex(status) }} aria-hidden="true" />
+                {status}
+              </span>
+            ))}
             {hasActiveFilters && <span className="inline-flex items-center border-l border-border pl-4 font-normal text-[#0057e7]">Total do filtro: {totalItems} OS</span>}
           </div>
         </>
       )}
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />
+      {loading ? <div role="status" aria-label="Carregando paginação" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3"><Skeleton className="h-4 w-32 motion-reduce:animate-none" /><div className="flex gap-2"><Skeleton className="h-9 w-24 motion-reduce:animate-none" /><Skeleton className="h-9 w-24 motion-reduce:animate-none" /></div></div> : <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={nextPage => onPageChange(Math.max(1, Math.min(nextPage, totalPages)))} onPageSizeChange={onPageSizeChange} />}
     </AdminCard>
   </>;
 }

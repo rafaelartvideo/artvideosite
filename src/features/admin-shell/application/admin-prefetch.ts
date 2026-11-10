@@ -11,6 +11,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   agenda: () => import("@/features/appointments/presentation/TabAgenda"),
   workItems: () => import("@/features/work-items/presentation/TabWorkItems"),
   inventory: () => import("@/features/inventory/presentation/TabInventory"),
+  sales: () => import("@/features/sales/presentation/TabSales"),
   pdv: () => import("@/features/pdv/presentation/TabPdv"),
   finance: () => import("@/features/finance/presentation/TabFinance"),
   quotes: () => import("@/features/quotes/presentation/TabQuotes"),

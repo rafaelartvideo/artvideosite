@@ -1,3 +1,4 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -20,6 +21,7 @@ import {
 } from "../infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
@@ -208,7 +210,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [inventorySort, setInventorySort] = useState<"asc" | "desc">("asc");
   const [mobileFilter, setMobileFilter] = useState<MobileFilter>("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const debouncedNameSearch = useDebouncedValue(nameSearch);
   const debouncedSkuSearch = useDebouncedValue(skuSearch);
   const debouncedAddressSearch = useDebouncedValue(addressSearch);
@@ -238,7 +240,9 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       sort: inventorySort,
     }),
     enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewMovements || canCreateMovements)),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === activeOrganizationId && previousQuery?.queryKey[3] === (canViewCosts ? "costs" : "safe")
+        ? previous : undefined,
   });
   const saleSummaryQuery = useQuery({
     queryKey: [...queryKeys.inventory.all, "sale-summary", activeOrganizationId],
@@ -574,10 +578,10 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   return <div className="min-w-0 space-y-5 md:space-y-3 [&>header]:md:pb-3">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    {!routeResourceId && <>
+    {!routeResourceId && (itemsQuery.isPending && canViewTable ? <AdminWorkspaceSkeleton pageHeader searchFields={4} columns={8} rows={pageSize} /> : <>
       <PageHeader title="Estoque" subtitle="Controle de itens, fornecedores, custos e movimentações do almoxarifado" actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null} />
 
-      {canViewTable && <AdminSearchPanel title="Buscar estoque" headerActions={<>
+      {canViewTable && <><AdminSearchPanel title="Buscar estoque" headerActions={<>
         {hasFilters && <AdminSearchClearButton onClick={clearFilters} />}
         <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
           options={[{ value: "asc", label: "Nome A–Z" }, { value: "desc", label: "Nome Z–A" }]} />
@@ -594,9 +598,9 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           <SearchField label="SKU" value={skuSearch} onChange={setSkuSearch} placeholder="Digite o SKU" />
           <SearchField label="Endereço" value={addressSearch} onChange={setAddressSearch} placeholder="Estante, prateleira ou compartimento" />
         </div>
-      </AdminSearchPanel>}
+      </AdminSearchPanel>
 
-      {canViewTable && <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{itemsQuery.isPending ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Package} title={totalItems === 0 && !hasFilters ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={totalItems === 0 && !hasFilters ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
+      <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">{items.length === 0 ? <EmptyState icon={Package} title={totalItems === 0 && !hasFilters ? "Nenhum item em estoque" : "Nenhum item encontrado"} message={totalItems === 0 && !hasFilters ? "Cadastre um item para começar a controlar o inventário." : "Ajuste os filtros para encontrar a peça."} /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">{pagedItems.map((item: any) => {
           const quantity = Number(item.quantity ?? 0);
           const minQuantity = Number(item.min_quantity ?? 0);
@@ -616,8 +620,8 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           return <tr key={item.id}>{showName && <td><div className="font-semibold text-[#0d1b2e]">{item.name}</div><div className="mt-1"><InventorySaleWindowBadge summary={saleSummaryByItemId.get(String(item.id))} unit={item.unit === "cx" ? "cx" : "un"} factor={item.unit === "cx" ? conversionFactor(item) : 1}/></div>{item.description && <div className="max-w-sm text-[11px] text-[#5a6a82]">{item.description}</div>}</td>}{showSku && <td className="font-mono text-xs text-[#5a6a82]">{item.sku || "—"}</td>}<td className="max-w-[220px] text-xs text-[#5a6a82]">{storageAddress(item) || "—"}</td>{showUnit && <td className="text-xs text-[#5a6a82]">{unitLabel(item.unit)}{conversionFactor(item) > 1 && <div className="text-[10px]">{formatNumber(conversionFactor(item))} un/cx</div>}</td>}{showQuantity && <td className={cn("font-bold", quantity === 0 ? "text-red-700" : quantity <= minQuantity ? "text-amber-700" : "text-[#0d1b2e]")}>{formatNumber(quantity)}{item.unit === "cx" && <div className="text-[10px] font-normal text-[#5a6a82]">{formatNumber(equivalentUnits(quantity, item))} un</div>}</td>}{showMinQuantity && <td className="text-xs text-[#5a6a82]">{formatNumber(minQuantity)}</td>}{showPurchasePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.purchase_price)}</td>}{canViewCosts && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.average_cost)}</td>}{canViewCosts && <td className="text-xs font-semibold text-[#0d1b2e]">{formatCurrency(item.stock_value)}</td>}{showSalePrice && <td className="text-xs text-[#5a6a82]">{formatCurrency(item.sale_price)}</td>}{showStatus && <td><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", item.is_active !== false ? "bg-green-100 text-green-700" : "bg-[#f5f7fa] text-[#5a6a82]")}>{item.is_active !== false ? "Ativo" : "Inativo"}</span></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar" onClick={() => openEditPage(item)}><Edit2 size={14} /></AdminIconButton>}{canViewMovements && <AdminIconButton ariaLabel="Histórico" onClick={() => openHistoryPage(item)}><List size={14} /></AdminIconButton>}{canCreateMovements && <AdminIconButton ariaLabel="Movimentar" onClick={() => openMovementPage(item)}><ArrowLeftRight size={14} /></AdminIconButton>}{canToggleActive && !item.product_id && <AdminActiveStateButton active={item.is_active !== false} entityLabel="item" onClick={() => void toggleActive(item)} iconSize={14} />}</div></td>}</tr>;
         })}</tbody></table></div>
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
-      </>}</AdminCard>}
-    </>}
+      </>}</AdminCard></>}
+    </>)}
 
     {routeResourceId && !routePageReady && <AdminCard className="p-8"><LoadingState /></AdminCard>}
 

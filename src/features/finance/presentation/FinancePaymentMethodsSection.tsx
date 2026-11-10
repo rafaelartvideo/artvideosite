@@ -1,9 +1,10 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CreditCard, Pencil, Plus } from "lucide-react";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
@@ -65,7 +66,7 @@ export function FinancePaymentMethodsSection({ createSignal = 0, modalOpen = fal
 
     </div>
       {queryError && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{systemErrorMessage(queryError, "Não foi possível carregar as formas de pagamento.")}</div>}
-      {finance.paymentMethodsQuery.isLoading ? <div className="p-8"><LoadingState /></div> : methods.length === 0 ? <div className="p-8"><EmptyState icon={CreditCard} title="Nenhuma forma de pagamento" /></div> : <FinanceTableSurface><table className="min-w-[700px]"><thead><tr><th className="text-left">Forma</th><th className="text-left">Tipo</th><th className="text-left">Taxas</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{methods.map(item => <FinanceTableRow key={item.id} label={`Editar forma de pagamento ${item.name}`} onOpen={() => edit(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{typeLabel(item.method_type)}</td><td className="text-xs text-[#5a6a82]">{Number(item.percentage_fee).toLocaleString("pt-BR")} % + {Number(item.fixed_fee).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1"><AdminIconButton ariaLabel="Editar forma de pagamento" onClick={() => edit(item)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={item.is_active} entityLabel="forma de pagamento" onClick={() => void finance.togglePaymentMethod.mutateAsync({ id: item.id, isActive: !item.is_active })} /></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>}
+      {finance.paymentMethodsQuery.isLoading ? <AdminWorkspaceSkeleton rows={5} columns={5} /> : methods.length === 0 ? <div className="p-8"><EmptyState icon={CreditCard} title="Nenhuma forma de pagamento" /></div> : <FinanceTableSurface><table className="min-w-[700px]"><thead><tr><th className="text-left">Forma</th><th className="text-left">Tipo</th><th className="text-left">Taxas</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead><tbody>{methods.map(item => <FinanceTableRow key={item.id} label={`Editar forma de pagamento ${item.name}`} onOpen={() => edit(item)}><td className="font-bold text-[#0d1b2e]">{item.name}</td><td className="text-xs text-[#5a6a82]">{typeLabel(item.method_type)}</td><td className="text-xs text-[#5a6a82]">{Number(item.percentage_fee).toLocaleString("pt-BR")} % + {Number(item.fixed_fee).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td><td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td><td><div className="flex justify-end gap-1"><AdminIconButton ariaLabel="Editar forma de pagamento" onClick={() => edit(item)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={item.is_active} entityLabel="forma de pagamento" onClick={() => void finance.togglePaymentMethod.mutateAsync({ id: item.id, isActive: !item.is_active })} /></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>}
 
 
   </div>;

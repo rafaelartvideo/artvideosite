@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +26,8 @@ import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
 import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
 import { formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
+import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
+import { getOrderReportedReceipts } from "../domain/finance-reported-receipts";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
 function formatDate(value?: string | null) {
@@ -61,6 +65,8 @@ function originText(entry: FinancialEntry) {
   }
   if (entry.origin_type === "inventory_purchase") return "Compra de estoque";
   if (entry.origin_type === "recurring") return "Recorrência";
+  if (entry.origin_type === "pdv_sale") return "PDV";
+  if (entry.origin_type === "sales_order") return "Vendas";
   return "Outra origem";
 }
 
@@ -73,7 +79,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
   return debounced;
 }
 
-export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry, newEntrySignal = 0 }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void; newEntrySignal?: number }) {
+export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry, newEntrySignal = 0, onInitialReady }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void; newEntrySignal?: number; onInitialReady?: () => void }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const foundation = useFinanceFoundation();
   const [operationalFilter, setOperationalFilter] = useState("pending");
@@ -97,7 +103,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   };
   const [page, setPage] = useState(1);
   const receivableScrollRef = useRef<HTMLDivElement>(null);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([10, 20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [editorOpen, setEditorOpen] = useState(false);
   const [cancelRecurringEntry, setCancelRecurringEntry] = useState<{ ruleId: string; title: string } | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -210,6 +216,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const recurringById = useMemo(() => new Map((recurring.rulesQuery.data || []).map(rule => [rule.id, rule])), [recurring.rulesQuery.data]);
   const recurringRuleFor = (entry: FinancialEntry) => recurringById.get(sourceValue(entry, "recurring_rule_id"));
   const isRecurringCancelled = (entry: FinancialEntry) => Boolean(sourceValue(entry, "recurring_cancelled_at")) || Boolean(recurringRuleFor(entry)?.cancelled_at);
+  const receiptBadge = (entry: FinancialEntry) => {
+    if (entry.origin_type !== "service_order" || ["settled", "cancelled"].includes(entry.operational_status || "")) return null;
+    const count = getOrderReportedReceipts(entry.source_details).length;
+    return count ? <Badge tone="blue">{count} parcela{count === 1 ? "" : "s"} informada{count === 1 ? "" : "s"} como recebida{count === 1 ? "" : "s"} na OS</Badge> : null;
+  };
   const recurringBadge = (entry: FinancialEntry) => {
     if (entry.origin_type !== "recurring") return null;
     if (isRecurringCancelled(entry)) return <Badge tone="danger">Assinatura cancelada</Badge>;
@@ -291,6 +302,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     await finance.detailQuery.refetch();
   };
 
+  useEffect(() => {
+    if (!finance.entriesQuery.isPending && !foundation.accountsQuery.isPending && (entryType !== "receivable" || !creatorsQuery.isPending) && (entryType === "receivable" || !recurring.rulesQuery.isFetching)) onInitialReady?.();
+  }, [onInitialReady, finance.entriesQuery.isPending, foundation.accountsQuery.isPending, creatorsQuery.isPending, recurring.rulesQuery.isFetching, entryType]);
+
   const pagination = <PaginationBar
     page={page} pageSize={pageSize} totalItems={totalItems}
     onPageChange={setPage} onPageSizeChange={setPageSize}
@@ -306,6 +321,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   const Icon = isReceivable ? BanknoteArrowUp : BanknoteArrowDown;
   return <div className="space-y-4">
+{finance.entriesQuery.isLoading ? <AdminWorkspaceSkeleton searchFields={8} columns={9} rows={pageSize} /> : <>
     <AdminSearchPanel
       title={isReceivable ? "Buscar contas a receber" : "Buscar contas a pagar"}
       allowOverflow={isReceivable}
@@ -425,13 +441,16 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
       </div>
     </AdminSearchPanel>
-      {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
+      {finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
           <div className="divide-y divide-border">
-            {entries.map(entry => <div key={entry.id}><button type="button" onClick={() => onSelectEntry(entry.id)}
-              className="block w-full p-4 text-left transition-colors hover:bg-muted/50">
+            {entries.map(entry => <div key={entry.id}><div role="button" tabIndex={0}
+              aria-label={`Abrir ${entry.description}`}
+              onClick={event => { if (!(event.target instanceof Element && event.target.closest("a, button"))) onSelectEntry(entry.id); }}
+              onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectEntry(entry.id); } }}
+              className="block w-full cursor-pointer p-4 text-left transition-colors hover:bg-muted/50">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p>
+                <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : entry.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={entry.origin_reference} number={sourceValue(entry, "os_number")} label={originText(entry)} /> : originText(entry)}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{entry.counterpart_name_snapshot || "Sem contraparte"} · {formatFinancialDocument(entry.counterpart_document_snapshot)}</p></div>
                 <p className="shrink-0 text-sm font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</p>
               </div>
@@ -442,9 +461,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}
+                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{receiptBadge(entry)}{recurringBadge(entry)}
               </div>
-            </button>
+            </div>
             <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
               <DropdownMenu><DropdownMenuTrigger asChild>
                 <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><MoreVertical size={18}/></button>
@@ -474,14 +493,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </tr></thead>
             <tbody>{entries.map((entry: FinancialEntry) =>
               <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}>
-                <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p>{entry.origin_type === "recurring" && <p className="mt-1 text-[11px] text-muted-foreground">Assinatura / recorrência</p>}</td>
+                <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : entry.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={entry.origin_reference} number={sourceValue(entry, "os_number")} label={originText(entry)} /> : originText(entry)}</p>{entry.origin_type === "recurring" && <p className="mt-1 text-[11px] text-muted-foreground">Assinatura / recorrência</p>}</td>
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
                 <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
                  {!isReceivable && <td className={`text-right font-semibold tabular-nums ${["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
-                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}</div></td>
+                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{receiptBadge(entry)}{recurringBadge(entry)}</div></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
@@ -495,6 +514,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </tbody>
           </table>
         </FinanceTableSurface>
+      </>}
       </>}
 
 
@@ -542,6 +562,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             counterpartyLoading={finance.counterpartiesQuery.isFetching}
             onCounterpartySearchChange={setCounterpartySearch}
             categories={categories}
+            defaultCategoryId={isReceivable ? foundation.settingsQuery.data?.default_receivable_category_id : foundation.settingsQuery.data?.default_payable_category_id}
             paymentMethods={paymentMethods}
             saving={finance.saveMutation.isPending}
             onClose={closeEditor}
@@ -613,6 +634,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       counterpartyLoading={finance.counterpartiesQuery.isFetching}
       onCounterpartySearchChange={setCounterpartySearch}
       categories={categories}
+      defaultCategoryId={isReceivable ? foundation.settingsQuery.data?.default_receivable_category_id : foundation.settingsQuery.data?.default_payable_category_id}
       paymentMethods={paymentMethods}
       saving={finance.saveMutation.isPending}
       onClose={closeEditor}

@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
@@ -5,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftRight,
   Edit2,
-  Eye,
   Camera,
   CircleHelp,
   Image as ImageIcon,
@@ -75,14 +76,20 @@ import {
 import { InventorySuppliersEditor } from "@/features/inventory/presentation/InventorySuppliersEditor";
 import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptureBridge";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
+import { ProductCompatibleModelsEditor } from "./ProductCompatibleModelsEditor";
+import {
+  getProductCompatibleModels, replaceProductCompatibleModels,
+  type CompatibleDeviceModel,
+} from "../infrastructure/product-compatible-models.repository";
 import { DEFAULT_RELATED_CODE_TYPE, RELATED_CODE_TYPE_OPTIONS, productRelationLabel } from "../domain/product-relation-labels";
 import { ProductVariationsEditor } from "./ProductVariationsEditor";
 import { PRODUCT_CONDITION_OPTIONS, type ProductCondition } from "../domain/product-condition";
 import { ProductIdentifiersEditor, PRODUCT_IDENTIFIER_OPTIONS, visibleProductIdentifierKinds, type ProductIdentifierKind } from "./ProductIdentifiersEditor";
 import { ProductVariationMatrix, buildVariantMatrix, validVariantOptions, MAX_VARIATION_ATTRIBUTES, MAX_ADDITIONAL_VARIATIONS, type VariantOption, type VariantMatrixRow } from "./ProductVariationMatrix";
 import { createProductVariationCombinations, listProductVariationOptions, replaceProductVariationOptions } from "../infrastructure/product-variations.repository";
-import { InventoryProductDetailsDialog } from "./InventoryProductDetailsDialog";
+import { InventoryProductDetailsDialog, type InventoryDetailsView } from "./InventoryProductDetailsDialog";
 import { InventoryProductImageLightbox } from "./InventoryProductImageLightbox";
+import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
 import { listInventorySaleSummaries } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import {
@@ -401,8 +408,8 @@ export function TabProducts({
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
-  const [previewProductPhoto, setPreviewProductPhoto] = useState<{ mediaId: string; name: string } | null>(null);
-  const { url: previewProductPhotoUrl } = useMediaUrl(previewProductPhoto?.mediaId || null);
+  const [detailsView, setDetailsView] = useState<InventoryDetailsView>("details");
+  const [expandedListImage, setExpandedListImage] = useState<{ mediaId?: string | null; src?: string | null; name: string } | null>(null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
   // Cancelar pode desmontar o formulário antes de a URL abandonar /inventory/new.
@@ -434,12 +441,17 @@ export function TabProducts({
   const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc" | "newest">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "gtin" | "category" | "location">("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState<ProductForm>(() => emptyForm());
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [relatedCodesLoaded, setRelatedCodesLoaded] = useState(true);
   const relatedCodesRequestRef = useRef(0);
+  const [compatibleModels, setCompatibleModels] = useState<CompatibleDeviceModel[]>([]);
+  const [compatibleModelsLoaded, setCompatibleModelsLoaded] = useState(true);
+  const [compatibleModelsInherited, setCompatibleModelsInherited] = useState(false);
+  const [compatibleModelsParentId, setCompatibleModelsParentId] = useState<string | null>(null);
+  const compatibleModelsRequestRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
@@ -563,6 +575,11 @@ export function TabProducts({
     setMobileScanTarget("barcode");
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
+    compatibleModelsRequestRef.current += 1;
+    setCompatibleModels([]);
+    setCompatibleModelsLoaded(true);
+    setCompatibleModelsInherited(false);
+    setCompatibleModelsParentId(null);
     setEditItem(null);
     setLinkedSuppliers([]);
     setGalleryMedia([]);
@@ -678,6 +695,25 @@ export function TabProducts({
           setToast({ msg: "Não foi possível carregar os códigos relacionados: " + systemErrorMessage(error), type: "error" });
         });
     }
+    const modelRequest = ++compatibleModelsRequestRef.current;
+    setCompatibleModels([]);
+    setCompatibleModelsLoaded(false);
+    setCompatibleModelsInherited(false);
+    setCompatibleModelsParentId(null);
+    if (activeOrganizationId) {
+      void getProductCompatibleModels(activeOrganizationId, product.id)
+        .then(data => {
+          if (modelRequest !== compatibleModelsRequestRef.current) return;
+          setCompatibleModels(data.models);
+          setCompatibleModelsInherited(data.inherited);
+          setCompatibleModelsParentId(data.parent_product_id);
+          setCompatibleModelsLoaded(true);
+        })
+        .catch(error => {
+          if (modelRequest !== compatibleModelsRequestRef.current) return;
+          setToast({ msg: "Não foi possível carregar modelos compatíveis: " + systemErrorMessage(error), type: "error" });
+        });
+    }
     setLinkedSuppliers([]);
     setGalleryMedia([]);
     if (canViewSuppliers && inventory?.inventory_item_id && activeOrganizationId) {
@@ -768,6 +804,17 @@ export function TabProducts({
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
+  // Links antigos de movimentação/histórico deixam de ser páginas e abrem o modal único.
+  useEffect(() => {
+    if (!routeResourceId || (routeSubpage !== "move" && routeSubpage !== "history") || catalogQuery.isPending) return;
+    const product = products.find((entry: any) => String(entry.inventory?.inventory_item_id || "") === routeResourceId);
+    if (product && (routeSubpage === "move" ? canCreateMovements : canViewMovements)) {
+      setDetailsProductId(String(product.id));
+      setDetailsView(routeSubpage);
+    }
+    onRouteChange?.(null, null);
+  }, [routeResourceId, routeSubpage, catalogQuery.isPending, products, canCreateMovements, canViewMovements, onRouteChange]);
+
   const validate = () => {
     const errors: ProductFieldErrors = {};
     const price = nullableNumber(form.price);
@@ -804,6 +851,11 @@ export function TabProducts({
     }
 
     const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
+    if (!compatibleModelsLoaded) {
+      setEditorTab("relationships");
+      setToast({ msg: "Aguarde a consulta dos modelos compatíveis antes de salvar.", type: "error" });
+      return false;
+    }
     if (!relatedCodesLoaded) {
       setEditorTab("relationships");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
@@ -989,6 +1041,21 @@ export function TabProducts({
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
       try {
+        await replaceProductCompatibleModels(activeOrganizationId, savedProductId,
+          compatibleModels, compatibleModelsInherited);
+      } catch (compatibilityError) {
+        setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+        onRouteChange?.(savedProductId, "edit");
+        setEditorTab("relationships");
+        setToast({ msg: "Produto salvo, mas não foi possível registrar os modelos compatíveis: "
+          + systemErrorMessage(compatibilityError) + ". Corrija e salve novamente.", type: "error" });
+        void refresh();
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["products", "device-compatible-models"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["pdv"] });
+      try {
         await replaceRelatedProductCodes(activeOrganizationId, savedProductId, validateTypedRelatedCodes(form.related_codes, form.manufacturer_code).codes);
       } catch (codeError) {
         // O produto já foi gravado. Manter o ID e abrir para edição evita cadastro
@@ -1113,24 +1180,28 @@ export function TabProducts({
   const openDetails = (product: any) => {
     if (!canViewDetails) return;
     setDetailsProductId(String(product.id));
+    setDetailsView("details");
   };
   const openDetailsById = (id: string) => {
     if (!canViewDetails || !products.some((product: any) => String(product.id) === id)) return;
     setDetailsProductId(id);
+    setDetailsView("details");
   };
   const editFromDetails = (product: any) => {
     setDetailsProductId(null);
     openEditPage(product);
   };
   const moveFromDetails = (product: any) => {
-    setDetailsProductId(null);
-    if (canCreateMovements && product.inventory?.inventory_item_id)
-      onRouteChange?.(String(product.inventory.inventory_item_id), "move");
+    if (canCreateMovements && product.inventory?.inventory_item_id) {
+      setDetailsProductId(String(product.id));
+      setDetailsView("move");
+    }
   };
   const historyFromDetails = (product: any) => {
-    setDetailsProductId(null);
-    if (canViewMovements && product.inventory?.inventory_item_id)
-      onRouteChange?.(String(product.inventory.inventory_item_id), "history");
+    if (canViewMovements && product.inventory?.inventory_item_id) {
+      setDetailsProductId(String(product.id));
+      setDetailsView("history");
+    }
   };
 
   const filtered = products.filter((product: any) => {
@@ -1182,14 +1253,14 @@ export function TabProducts({
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    {!routeResourceId && <>
+    {!routeResourceId && (loading && canViewTable ? <AdminWorkspaceSkeleton pageHeader searchFields={4} columns={10} rows={pageSize} /> : <>
       <PageHeader
         title="Estoque"
         subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
         actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null}
       />
 
-      {canViewTable && <AdminSearchPanel title="Buscar no estoque" headerActions={<>
+      {canViewTable && <><AdminSearchPanel title="Buscar no estoque" headerActions={<>
         {(hasInventoryFilters || inventorySort !== "name_asc") && <AdminSearchClearButton onClick={() => {
           setNameSearch(""); setGtinSearch(""); setCategoryFilter(""); setLocationSearch("");
           setInventorySort("name_asc"); setPage(1);
@@ -1263,10 +1334,10 @@ export function TabProducts({
             placeholder="Estante, nível ou compartimento"
           />
         </div>
-      </AdminSearchPanel>}
+      </AdminSearchPanel>
 
-      {canViewTable && <AdminCard>
-        {loading ? <LoadingState /> : filtered.length === 0 ? (
+      <AdminCard>
+        {filtered.length === 0 ? (
           <EmptyState
             icon={Package}
             title={hasInventoryFilters ? "Nenhum resultado" : "Nenhum item cadastrado"}
@@ -1314,18 +1385,12 @@ export function TabProducts({
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
                     {showProduct && <td>
                       <div className="flex items-center gap-3">
-                        {product.cover_media_id
-                          ? <button type="button"
-                              title={`Ampliar foto de ${product.name}`}
-                              aria-label={`Ampliar foto de ${product.name}`}
-                              className="shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
-                              onClick={event => {
-                                event.stopPropagation();
-                                setPreviewProductPhoto({ mediaId: String(product.cover_media_id), name: product.name });
-                              }}>
-                              <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} />
+                        {(product.cover_media_id || salesHomologationImage(product.sku))
+                          ? <button type="button" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
+                              onClick={event => { event.stopPropagation(); setExpandedListImage({ mediaId: product.cover_media_id || null, src: product.cover_media_id ? null : salesHomologationImage(product.sku), name: product.name }); }}>
+                              <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
                             </button>
-                          : <ProductAdminThumb mediaId={null} name={product.name} />}
+                          : <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />}
                         <div className="min-w-0">
                           {canViewDetails
                             ? <button type="button" onClick={() => openDetails(product)}
@@ -1344,12 +1409,12 @@ export function TabProducts({
                     </td>}
                     {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
                     {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
-                    {showPrice && <td className="font-bold text-[#0d1b2e]">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
+                    {showPrice && <td className="font-bold text-green-600 dark:text-green-400">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
-                      <div className={cn("text-xs font-bold", lowStock ? "text-amber-700" : "text-[#0d1b2e]")}>
+                      <div className="text-xs font-bold text-blue-600 dark:text-blue-400">
                         {formatNumber(stock)} {unit}
                       </div>
-                      <div className="text-[10px] text-[#7a8aa0]">mín. {formatNumber(minStock)} {unit}</div>
+                      <div className={cn("text-[10px]", lowStock ? "text-amber-600" : "text-muted-foreground")}>mín. {formatNumber(minStock)} {unit}{lowStock ? " · estoque baixo" : ""}</div>
                       <div className="mt-1">
                         <InventorySaleWindowBadge
                           summary={saleSummaryByItemId.get(String(item?.inventory_item_id || ""))}
@@ -1376,10 +1441,9 @@ export function TabProducts({
                     {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
                     {showActions && <td>
                       <div className="flex items-center justify-end gap-1">
-                        {canViewDetails && <AdminIconButton ariaLabel="Ver detalhes do item" title="Detalhes" onClick={() => openDetails(product)}><Eye size={15}/></AdminIconButton>}
                         {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar item" title="Editar cadastro" onClick={() => openEditPage(product)}><Edit2 size={15} /></AdminIconButton>}
-                        {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => onRouteChange?.(String(item.inventory_item_id), "history")}><List size={15} /></AdminIconButton>}
-                        {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => onRouteChange?.(String(item.inventory_item_id), "move")}><ArrowLeftRight size={15} /></AdminIconButton>}
+                        {canViewMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Histórico do estoque" title="Histórico" onClick={() => historyFromDetails(product)}><List size={15} /></AdminIconButton>}
+                        {canCreateMovements && item?.inventory_item_id && <AdminIconButton ariaLabel="Movimentar estoque" title="Movimentar" onClick={() => moveFromDetails(product)}><ArrowLeftRight size={15} /></AdminIconButton>}
                         {canToggleActive && <AdminActiveStateButton active={product.is_active} entityLabel="item" onClick={() => toggleActive(product)} />}
                       </div>
                     </td>}
@@ -1397,10 +1461,10 @@ export function TabProducts({
           onPageChange={nextPage => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
           onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
         />
-      </AdminCard>}
-    </>}
+      </AdminCard></>}
+    </>)}
 
-    {routeResourceId && !drawerOpen && !closingEditorRouteRef.current && (
+    {routeResourceId && routeSubpage !== "move" && routeSubpage !== "history" && !drawerOpen && !closingEditorRouteRef.current && (
       catalogQuery.isError || (routeResourceId !== "new" && !catalogQuery.isPending && !products.some((item: any) => item.id === routeResourceId))
         ? <AdminCard className="p-8">
             <EmptyState
@@ -1741,6 +1805,19 @@ export function TabProducts({
                 />
               </div>}
               </div>
+            </Section>
+            <Section title="Modelos de aparelhos compatíveis"
+              description="Vincule os modelos dos aparelhos atendidos por este produto. Variações podem herdar os modelos do produto principal ou ter uma lista própria.">
+              <ProductCompatibleModelsEditor
+                key={editItem?.id || "new"}
+                models={compatibleModels}
+                onChange={setCompatibleModels}
+                inherited={compatibleModelsInherited}
+                onInheritedChange={setCompatibleModelsInherited}
+                parentProductId={compatibleModelsParentId}
+                disabled={saving}
+                loaded={compatibleModelsLoaded}
+              />
             </Section>
             <Section title="Códigos relacionados"
               description="O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código."
@@ -2277,14 +2354,7 @@ export function TabProducts({
       </AdminStickyToolbar>
     </AdminPage>
 
-    {previewProductPhoto && previewProductPhotoUrl && <InventoryProductImageLightbox
-      photos={[{ mediaId: previewProductPhoto.mediaId, url: previewProductPhotoUrl, alt: previewProductPhoto.name }]}
-      index={0} onIndexChange={() => undefined}
-      onClose={() => setPreviewProductPhoto(null)}
-    />}
-
     {activeDetailsProduct && activeOrganizationId && <InventoryProductDetailsDialog
-      key={String(activeDetailsProduct.id)}
       product={activeDetailsProduct}
       organizationId={activeOrganizationId}
       canEdit={canEdit && canViewDetails}
@@ -2293,12 +2363,17 @@ export function TabProducts({
       canViewCosts={canViewCosts}
       canViewSuppliers={canViewSuppliers}
       saleSummary={saleSummaryByItemId.get(String(activeDetailsProduct.inventory?.inventory_item_id || ""))}
-      onClose={() => setDetailsProductId(null)}
+      view={detailsView}
+      onBack={() => setDetailsView("details")}
+      onClose={() => { setDetailsProductId(null); setDetailsView("details"); }}
       onEdit={editFromDetails}
       onMove={moveFromDetails}
       onHistory={historyFromDetails}
       onOpenProduct={openDetailsById}
     />}
+
+    {expandedListImage && <InventoryProductImageLightbox mediaId={expandedListImage.mediaId} src={expandedListImage.src}
+      name={expandedListImage.name} onClose={() => setExpandedListImage(null)} />}
 
     <AdminDialog
       open={Boolean(masterDataDialog)}

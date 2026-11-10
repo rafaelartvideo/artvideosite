@@ -55,7 +55,7 @@ export function AdminSidebar({
     if (tab === "management") return isPlatformOperatorOrganization && (hasPermission("platform.management.view") || hasPermission("platform.management.manage"));
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
-    if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv"].includes(tab)) return false;
+    if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv", "sales"].includes(tab)) return false;
     if (tab === "partnerCompanies" && !isPlatformOperatorOrganization) return false;
     if (tab === "serviceProviders") return isPlatformOperatorOrganization && hasPermission("platform.providers.view");
     if (tab === "orders" && isPlatformOperatorOrganization) return hasPermission("orders.monitor.view");
@@ -115,7 +115,7 @@ export function AdminSidebar({
     && !(isPlatformOperatorOrganization && ["technicianPanel", "customerRequests"].includes(item.id)),
   );
   const commercialItems = visibleMainItems.filter(item =>
-    !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),
+    !isPlatformOperatorOrganization && ["inventory", "sales", "pdv", "finance"].includes(item.id),
   );
   const administrationItems = visibleMainItems.filter(item =>
     isPlatformOperatorOrganization

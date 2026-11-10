@@ -20,7 +20,8 @@ test("Cancelar cannot re-open Novo item or flash loading while the old route is 
   assert.match(editor, /const closeEditorRoute = \(\) => \{\s*closingEditorRouteRef\.current = Boolean\(onRouteChange\)/);
   assert.match(editor, /const closeEditor = \(\) => \{\s*if \(saving \|\| galleryUploading\) return;\s*closeEditorRoute\(\)/);
   assert.match(editor, /if \(closingEditorRouteRef\.current\) return;\s*pendingEditorRouteRef\.current = false;/);
-  assert.match(editor, /routeResourceId && !drawerOpen && !closingEditorRouteRef\.current/);
+  // A nova tela ignora rotas de movimentação/histórico antes de decidir abrir o editor.
+  assert.match(editor, /routeResourceId && routeSubpage !== "move" && routeSubpage !== "history" && !drawerOpen && !closingEditorRouteRef\.current/);
   assert.match(editor, /const openNewPage = \(\) => \{[\s\S]*?closingEditorRouteRef\.current = false;/);
   assert.match(editor, /const openEditPage = \(item: any\) => \{[\s\S]*?closingEditorRouteRef\.current = false;/);
 });

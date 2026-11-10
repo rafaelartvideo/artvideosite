@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { ClipboardList, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -88,18 +89,9 @@ export function SiteRequestsPage({
     <PageHeader title="Solicitações"
       subtitle="Acompanhe os orçamentos solicitados e os pedidos realizados pelo site da Artvideo."
       actions={<AdminButton variant="secondary" onClick={() => onNavigate("site")}>Voltar</AdminButton>} />
-    <nav aria-label="Subseções de solicitações" className="flex min-w-0 flex-wrap items-center gap-5 border-b border-border">
-      {sections.map(({ id, label, total, Icon }) => (
-        <button type="button" key={id}
-          aria-current={activeSection === id ? "page" : undefined}
-          onClick={() => onSelectSection(id)}
-          className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeSection === id
-            ? "border-primary text-primary"
-            : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-          <Icon size={17} className="shrink-0" />{label} ({total})
-        </button>
-      ))}
-    </nav>
+    <AdminSubsectionTabs value={activeSection}
+      items={sections.map(item => ({ id: item.id, label: item.label + " (" + item.total + ")", Icon: item.Icon }))}
+      onChange={onSelectSection} ariaLabel="Subseções de solicitações" />
     {activeSection === "orcamentos"
       ? <TabQuotes embedded routeResourceId={null}
           onRouteChange={onQuoteRouteChange} onNavigate={onNavigate} />

@@ -1,3 +1,5 @@
+import { initialPageSize, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -10,7 +12,7 @@ import { AdminCard,AdminRowActionsTrigger,PageHeader } from "@/shared/ui/admin/A
 import { AdminSearchPanel,AdminSearchClearButton,AdminSearchSortMenu,AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain/formatters";
-import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminFieldLabel,AdminSelect,INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
@@ -52,7 +54,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const [status,setStatus]=useState("");
   const [sort,setSort]=useState<QuoteSort>("");
   const [page,setPage]=useState(1);
-  const [pageSize,setPageSize]=useState(10);
+  const [pageSize,setPageSize]=useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const readyCustomer=useDebounced(customer);
   const readyDocument=useDebounced(document);
   const readyProtocol=useDebounced(protocol);
@@ -68,6 +70,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const quotesQuery=useQuery({
     queryKey:[...queryKeys.quotes.lists(),org,filters],
     enabled:Boolean(org&&canView),queryFn:()=>listQuotesPage(org,filters),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === org ? previous : undefined,
   });
   const rows=quotesQuery.data?.items||[];
   const total=quotesQuery.data?.total||0;
@@ -92,8 +95,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
     </DropdownMenuContent>
   </DropdownMenu>;
   return <div className="min-w-0 space-y-5">
+    {canView && quotesQuery.isPending ? <AdminWorkspaceSkeleton pageHeader={!embedded} searchFields={4} columns={7} rows={pageSize} /> : <>
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
-    {canView&&<AdminSearchPanel title="Buscar orçamentos" headerActions={<>
+    {canView&&<><AdminSearchPanel title="Buscar orçamentos" headerActions={<>
       {hasAdjustments&&<AdminSearchClearButton onClick={clear}/>}
       <AdminSearchSortMenu value={sort} onChange={v=>setSort(v as QuoteSort)}
         options={[{value:"",label:"Mais recentes"},{value:"asc",label:"Protocolo crescente"},{value:"desc",label:"Protocolo decrescente"}]}/>
@@ -123,9 +127,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
             options={[{value:"",label:"Todas"},...(statusesQuery.data||[]).map(s=>({value:s.id,label:s.name}))]}
             ariaLabel="Filtrar por situação"/></div>
       </div>
-    </AdminSearchPanel>}
-    {canView&&<AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {quotesQuery.isPending?<LoadingState/>:quotesQuery.isError?
+    </AdminSearchPanel>
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
+      {quotesQuery.isError?
         <p role="alert" className="p-5 text-sm text-destructive">Não foi possível carregar os orçamentos.</p>:
        !rows.length?<EmptyState icon={FileText} title="Nenhum orçamento encontrado" message="Ajuste os filtros ou aguarde novas solicitações."/>:
        <>
@@ -188,6 +192,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
        </>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={total} showFilteredTotal={hasActiveFilters}
         onPageChange={setPage} onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
-    </AdminCard>}
+    </AdminCard></>}
+    </>}
   </div>;
 }

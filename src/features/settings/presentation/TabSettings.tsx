@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { CircleHelp } from "lucide-react";
@@ -5,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
 import { AdminSegmentedControl, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { formatCnpj, formatCpf, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
@@ -142,7 +143,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
   };
 
   if (!canView) return null;
-  if (query.isPending) return <LoadingState />;
+  if (query.isPending) return <AdminWorkspaceSkeleton variant="details" rows={4} columns={4} />;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

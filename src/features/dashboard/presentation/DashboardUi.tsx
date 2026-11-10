@@ -1,3 +1,4 @@
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { useState, type ElementType, type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import {
@@ -30,41 +31,15 @@ export type DashboardSlaChartPoint = {
 export type DashboardMetricTone = "blue" | "green" | "amber" | "red" | "purple" | "slate";
 
 export function DashboardModuleNav({
-  items,
-  value,
-  onChange,
+  items, value, onChange,
 }: {
   items: Array<{ id: DashboardModule; label: string; icon: ElementType }>;
   value: DashboardModule;
   onChange: (module: DashboardModule) => void;
 }) {
-  return (
-    <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do dashboard">
-      <div className="flex w-max items-center justify-center gap-1">
-        {items.map(item => {
-          const Icon = item.icon;
-          const selected = item.id === value;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-current={selected ? "page" : undefined}
-              onClick={() => onChange(item.id)}
-              className={cn(
-                "relative inline-flex min-h-11 shrink-0 cursor-default items-center justify-center gap-2 bg-transparent px-3 text-xs font-black transition-colors duration-200 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-                selected
-                  ? "text-primary after:scale-x-100"
-                  : "text-muted-foreground after:scale-x-0 hover:text-primary",
-              )}
-            >
-              <Icon size={15} />
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
+  return <AdminSubsectionTabs
+    value={value} items={items.map(item => ({ id: item.id, label: item.label, Icon: item.icon }))}
+    onChange={onChange} ariaLabel="Áreas do dashboard" />;
 }
 
 export function DashboardMetricCard({

@@ -41,7 +41,8 @@ test("filtros paginados, cards, seleção alfabética com marcados no topo e nov
   const batchEditor = read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
   assert.match(batchEditor, /Adicionar outra subcategoria/);
   assert.match(batchEditor, /Adicionar outro serviço/);
-  assert.match(ui, /setSection\(item.key\)/);
+  assert.match(ui, /<AdminSubsectionTabs value=\{section\}/);
+  assert.match(ui, /onChange=\{setSection\}/);
   assert.match(repository, /list_platform_service_providers/);
   assert.match(migration, /p_service_id uuid/);
   assert.match(migration, /p_state text/);

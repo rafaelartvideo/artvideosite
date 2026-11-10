@@ -23,7 +23,8 @@ import { AdminSectionEmpty,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { OrderDocumentsSkeleton } from "./OrdersSkeletons";
 import { downloadRemoteFile } from "@/shared/application/download-file";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
@@ -379,7 +380,7 @@ export function OrderDocumentsPage({
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
 
           {activeTab !== "solution" && activeTab !== "checklist" && activeTab !== "signatures" && controller.loading ? (
-            <LoadingState text="Carregando documentos..." />
+            <OrderDocumentsSkeleton />
           ) : activeTab === "situations" ? (
             controller.flowSituations.length === 0 ? (
               <p className="py-8 text-center text-sm text-[#5a6a82]">Este tipo de atendimento não possui situações configuradas.</p>

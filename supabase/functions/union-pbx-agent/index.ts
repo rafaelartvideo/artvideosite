@@ -31,15 +31,16 @@ Deno.serve(async request=>{
     const signedText=time+"\n"+seqRaw+"\n"+raw;
     const verified=await crypto.subtle.verify("Ed25519",publicKey,decode(signature) as BufferSource,new TextEncoder().encode(signedText));
     if(!verified) return respond({error:"Assinatura inválida"},401);
-    const {data:advanced,error:advanceError}=await admin.from("pbx_agents")
-      .update({last_sequence:seq,last_seen_at:new Date().toISOString()})
-      .eq("id",agent.id).eq("enabled",true).lt("last_sequence",seq).select("id").maybeSingle();
-    if(advanceError||!advanced) return respond({error:"Requisição repetida ou agente revogado"},409);
     let body:Record<string,unknown>;
     try {
       body=JSON.parse(raw);
       if(!body||typeof body!=="object"||Array.isArray(body)) throw Error();
     } catch {return respond({error:"JSON inválido"},400)}
+    const {data:advanced,error:advanceError}=await admin.from("pbx_agents")
+      .update({last_sequence:seq,last_seen_at:new Date().toISOString(),
+        ...(body.action==="poll"?{protocol_version:body.protocol_version===2?2:1}:{})})
+      .eq("id",agent.id).eq("enabled",true).lt("last_sequence",seq).select("id").maybeSingle();
+    if(advanceError||!advanced) return respond({error:"Requisição repetida ou agente revogado"},409);
     if(body.action==="poll"){
       // Telemetria enviada no mesmo ciclo assinado, sem conexao adicional
       // e sem bloquear ramais ou a entrega de credenciais em caso de falha.
@@ -140,7 +141,54 @@ Deno.serve(async request=>{
           })),
         }));
       }
-      return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs});
+      // A missing history registry must never block provisioning or phone login.
+      const historyEndpoints = new Set<string>();
+      const historySignal=AbortSignal.timeout(2000);
+      const [extensionHistory,trunkHistory]=await Promise.all([
+        admin.from("pbx_extensions").select("endpoint_name")
+          .eq("organization_id",agent.organization_id).limit(1001).abortSignal(historySignal),
+        admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
+          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal),
+      ]);
+      const {data:ownedExtensions,error:extensionHistoryError}=extensionHistory;
+      const {data:ownedTrunks,error:trunkHistoryError}=trunkHistory;
+      if(!extensionHistoryError && !trunkHistoryError &&
+         (ownedExtensions?.length||0)<=1000 && (ownedTrunks?.length||0)<=100){
+        for(const extension of ownedExtensions||[]) historyEndpoints.add(extension.endpoint_name);
+        for(const trunk of ownedTrunks||[]){
+          historyEndpoints.add(trunk.inbound_endpoint); historyEndpoints.add(trunk.outbound_endpoint);
+        }
+      }
+      let availabilityJobs:unknown[]=[];
+      if(body.protocol_version===2){
+        const {data:availability,error:availabilityError}=await admin.rpc("pbx_poll_queue_availability",{p_agent_id:agent.id});
+        if(!availabilityError && Array.isArray(availability) && availability.length<=10) availabilityJobs=availability;
+      }
+      return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
+        history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs});
+    }
+    if(body.action==="report_availability"){
+      if(!Array.isArray(body.results)||body.results.length<1||body.results.length>10)
+        return respond({error:"Lote de disponibilidade inválido"},400);
+      const {data,error}=await admin.rpc("pbx_report_queue_availability",{
+        p_agent_id:agent.id,p_results:body.results,
+      });
+      if(error || data?.accepted!==true) return respond({error:"Disponibilidade não confirmada"},503);
+      return respond({accepted:true,acknowledged:data.acknowledged});
+    }
+    if(body.action==="report_calls"){
+      if(!Array.isArray(body.records)||body.records.length<1||body.records.length>10)
+        return respond({error:"Lote de chamadas inválido"},400);
+      const {data,error}=await admin.rpc("pbx_ingest_call_records",{
+        p_agent_id:agent.id,p_records:body.records,
+      });
+      if(error){
+        // Do not log callers, destinations or raw database error messages.
+        console.error("PBX call metadata rejected",error.code);
+        return respond({error:"Histórico não confirmado"},["23514","22007","22008","22P02"].includes(error.code)?400:503);
+      }
+      if(data?.accepted!==true) return respond({error:"Histórico não confirmado"},503);
+      return respond({accepted:true,acknowledged:data.acknowledged});
     }
     if(body.action==="report_queue"){
       const queueId=String(body.id||""),version=String(body.version||""),status=String(body.status||"");

@@ -18,7 +18,9 @@ test("Concluir pela lista preserva a rota e carrega o detalhe real antes de abri
   assert.doesNotMatch(onList, /openRoutedDetail\(|onOrderRouteChange\(/);
   assert.match(list, /detail\?\.id !== completionFromListId\) return/);
   assert.match(list, /completionController\.openCompletion\(detail\)/);
-  assert.match(list, /visible=\{Boolean\(detail && !completionFromListId/);
+  assert.match(list, /const detailPageVisible = Boolean\(detail && !completionFromListId/);
+  assert.match(list, /<OrderDetailsPage[\s\S]*?visible=\{detailPageVisible\}/);
+  assert.match(list, /<OrdersListWorkspace[\s\S]*?visible=\{[^\n]*Boolean\(completionFromListId\)/);
   assert.doesNotMatch(list, /\{completionFromListId && !completionFromListStarted && <AdminDialog/);
   assert.match(list, /completionPreparing=\{Boolean\(completionFromListId && !completionFromListReady\)\}/);
   assert.match(list, /completionFromListReady, setCompletionFromListReady/);

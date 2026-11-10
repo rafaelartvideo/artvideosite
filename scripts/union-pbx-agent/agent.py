@@ -782,6 +782,15 @@ def gather_queue_telemetry():
     return result
 
 
+def availability_capability():
+    try:
+        from queue_availability import process_jobs
+        return 2, process_jobs
+    except Exception:
+        # Partial installation must not advertise commands it cannot execute.
+        return 1, None
+
+
 def cycle(dry_run=False):
     config = json.loads(AGENT_CONFIG.read_text())
     try:
@@ -790,7 +799,8 @@ def cycle(dry_run=False):
         # Failed telemetry must never block provisioning or browser login.
         print("Telemetria indisponivel: "+type(exc).__name__, file=sys.stderr)
         telemetry = []
-    payload = signed_request({"action":"poll", "telemetry": telemetry})
+    protocol, availability_processor = availability_capability()
+    payload = signed_request({"action":"poll", "telemetry": telemetry, "protocol_version":protocol})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
@@ -864,6 +874,33 @@ def cycle(dry_run=False):
         except Exception as exc:
             # Do not include any credentials in diagnostic logs.
             print("Entrega criptografada adiada: " + type(exc).__name__, file=sys.stderr)
+
+    # Availability is opt-in and runs after provisioning and secure logins. No
+    # global queue commands and no reload are needed to pause one exact member.
+    if not dry_run:
+        try:
+            availability_jobs = payload.get("availability_jobs", [])
+            if availability_jobs and availability_processor is not None:
+                results = availability_processor(availability_jobs, config["organization_id"], queue_states())
+                if results:
+                    signed_request({"action":"report_availability", "results":results})
+        except Exception as exc:
+            print("Disponibilidade adiada: " + type(exc).__name__, file=sys.stderr)
+
+    # Optional metadata delivery runs after all phone operations. No CDR backend
+    # means no work, and a failure does not block provisioning or secure logins.
+    if not dry_run:
+        try:
+            endpoints = payload.get("history_endpoints")
+            if (isinstance(endpoints, list) and 0 < len(endpoints) <= 1200 and
+                    all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value)
+                        for value in endpoints)):
+                from call_history import sync_history
+                sync_history(Path("/var/log/asterisk/cdr-custom/union-calls.csv"),
+                             STATE_DIR / "call-history-cursor.json", set(endpoints),
+                             lambda records: signed_request({"action": "report_calls", "records": records}))
+        except Exception as exc:
+            print("Historico adiado: " + type(exc).__name__, file=sys.stderr)
 
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")

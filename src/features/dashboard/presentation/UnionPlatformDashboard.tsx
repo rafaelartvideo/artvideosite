@@ -1,3 +1,4 @@
+import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -17,7 +18,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminMetricDetailDialog, type AdminMetricDetailRow } from "@/shared/ui/admin/AdminMetricDetailDialog";
 import { loadUnionPlatformDashboard, loadUnionPlatformFinance } from "@/features/platform-billing/infrastructure/platform-billing.repository";
 
@@ -123,6 +124,8 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
     }
   }
 
+  if (query.isPending && !query.data) return <AdminOverviewPageSkeleton variant="dashboard" tabs={0} />;
+
   return <div className="min-w-0 space-y-4 pb-2">
     {selectedMetric && selectionValues && <AdminMetricDetailDialog
       open title={selectionTitles[selectedMetric]} value={selectionValues[selectedMetric]}
@@ -137,7 +140,7 @@ export function UnionPlatformDashboard({ onNavigate }: Props) {
       subtitle="Visão geral da operação da Union World, empresas parceiras, monitoramento e assinaturas."
     />
 
-    {query.isPending ? <LoadingState text="Carregando indicadores da Union..." /> : query.isError || !data || !metrics ? (
+    {query.isError || !data || !metrics ? (
       <AdminCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <div>

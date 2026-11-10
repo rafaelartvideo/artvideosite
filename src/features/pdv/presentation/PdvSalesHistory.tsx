@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
@@ -79,7 +81,7 @@ export function PdvSalesHistory({
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [mobileSearchField, setMobileSearchField] = useState<"query" | "status">("query");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -99,6 +101,7 @@ export function PdvSalesHistory({
       sort,
     }),
     enabled: Boolean(organizationId),
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === organizationId ? previous : undefined,
   });
 
   const detailQuery = useQuery({
@@ -158,6 +161,7 @@ export function PdvSalesHistory({
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+    {salesQuery.isPending ? <AdminWorkspaceSkeleton pageHeader={!embedded} searchFields={2} columns={8} rows={pageSize} /> : <>
     {!embedded && <PageHeader
       title="Vendas do PDV"
       subtitle="Consulte vendas concluídas e canceladas, abra o comprovante e faça estornos quando necessário."
@@ -222,7 +226,7 @@ export function PdvSalesHistory({
     </AdminSearchPanel>
 
     <AdminCard>
-      {salesQuery.isPending ? <LoadingState text="Carregando vendas..." /> : sales.length === 0 ? (
+      {sales.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
           title={debouncedSearch || status ? "Nenhuma venda encontrada" : "Nenhuma venda registrada"}
@@ -276,6 +280,7 @@ export function PdvSalesHistory({
         />
       </>}
     </AdminCard>
+    </>}
 
     <AdminDialog
       open={Boolean(selectedSaleId)}

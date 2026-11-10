@@ -1,4 +1,5 @@
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -115,7 +116,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
     </div>
 
     {errorText && !open && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
-    {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : <FinanceTableSurface>
+    {query.isLoading ? <AdminWorkspaceSkeleton columns={7} rows={5} /> : <FinanceTableSurface>
         <table className="w-full min-w-[700px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>

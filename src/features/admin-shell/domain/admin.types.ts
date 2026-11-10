@@ -1,6 +1,6 @@
 export type AdminTab =
   | "home" | "dashboard" | "services" | "categories" | "products" | "brands" | "siteSettings" | "siteDelivery" | "sitePayments" | "siteStoreOrders" | "siteRequests"
-  | "equipment" | "checklists" | "generalServices" | "serviceTypes" | "inventory" | "pdv" | "finance" | "nfse" | "situations" | "orderStatuses"
+  | "equipment" | "checklists" | "generalServices" | "serviceTypes" | "inventory" | "sales" | "pdv" | "finance" | "nfse" | "situations" | "orderStatuses"
   | "crm" | "management" | "announcements" | "quotes" | "orders" | "customerRequests" | "technicianPanel" | "agenda" | "workItems" | "fieldTracking" | "customers" | "documents" | "site" | "operation" | "tools" | "roles" | "partnerCompanies" | "serviceProviders" | "audit" | "settings" | "integrations" | "terms" | "contact" | "planUsage";
 
 export type AdminPageState = {

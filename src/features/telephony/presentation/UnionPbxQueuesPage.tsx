@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { FInput, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { pbxRequest, pbxOperationError } from "../application/pbx-request";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { Headphones, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader, AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { QueueLiveDetails, usePbxQueueLive } from "./UnionPbxQueueLiveStatus";
+import { UnionPbxMemberAvailability } from './UnionPbxMemberAvailability';
 
 type PbxQueue = {
   id: string;
@@ -40,7 +44,6 @@ const emptyForm:QueueForm = {
   id:null, name:"", testExtension:"850",strategy:"ringall",
   ringSeconds:"20",maxWaitSeconds:"120",enabled:true,extensionIds:[],
 };
-const fieldClass = "h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary disabled:opacity-60";
 const strategyLabels:Record<PbxQueue["strategy"],string> = {
   ringall:"Tocar em todos ao mesmo tempo",
   rrmemory:"Alternar atendentes (rodízio)",
@@ -53,9 +56,13 @@ const statusLabels:Record<PbxQueue["provisioning_status"],string> = {
 };
 
 export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
+  const requestScope = useRef(new AbortController());
+  useEffect(() => {
+    const scope = new AbortController(); requestScope.current = scope;
+    return () => scope.abort();
+  }, []);
   const { activeOrganizationId, hasPermission }=useAuth();
   const canManage=hasPermission("pbx.manage");
-  const live=usePbxQueueLive(canManage ? activeOrganizationId : null);
   const [queues,setQueues]=useState<PbxQueue[]>([]);
   const [members,setMembers]=useState<PbxMember[]>([]);
   const [extensions,setExtensions]=useState<PbxExtension[]>([]);
@@ -64,6 +71,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [reload,setReload]=useState(0);
+  const live=usePbxQueueLive(canManage ? activeOrganizationId : null,reload);
   const [formOpen,setFormOpen]=useState(false);
   const [form,setForm]=useState<QueueForm>(emptyForm);
 
@@ -77,12 +85,12 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
     }
     void (async()=>{
       const [queueResult,extensionResult]=await Promise.all([
-        supabase.from("pbx_queues")
+        pbxRequest(signal => supabase.from("pbx_queues")
           .select("id,organization_id,name,test_extension,strategy,ring_seconds,max_wait_seconds,enabled,provisioning_status,last_error")
-          .eq("organization_id",activeOrganizationId).order("test_extension").limit(50),
-        supabase.from("pbx_extensions")
+          .eq("organization_id",activeOrganizationId).order("test_extension").limit(50).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError),
+        pbxRequest(signal => supabase.from("pbx_extensions")
           .select("id,number,display_name,desired_enabled,provisioning_status")
-          .eq("organization_id",activeOrganizationId).order("number").limit(300),
+          .eq("organization_id",activeOrganizationId).order("number").limit(300).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError),
       ]);
       if(cancelled) return;
       if(queueResult.error||extensionResult.error){
@@ -95,10 +103,10 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
       setQueues(list);
       setExtensions((extensionResult.data||[]) as PbxExtension[]);
       if(list.length){
-        const memberResult=await supabase.from("pbx_queue_members")
+        const memberResult=await pbxRequest(signal => supabase.from("pbx_queue_members")
           .select("queue_id,extension_id,position")
           .in("queue_id",list.map(item=>item.id))
-          .order("position");
+          .order("position").abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
         if(cancelled) return;
         if(memberResult.error) setError("Não foi possível carregar os integrantes das filas.");
         else setMembers((memberResult.data||[]) as PbxMember[]);
@@ -163,7 +171,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
       return;
     }
     setSaving(true);setError("");setNotice("");
-    const {error:saveError}=await supabase.rpc("pbx_save_queue",{
+    const {error:saveError}=await pbxRequest(signal => supabase.rpc("pbx_save_queue",{
       p_organization_id:activeOrganizationId,
       p_queue_id:next.id,
       p_name:next.name.trim(),
@@ -173,7 +181,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
       p_max_wait_seconds:maxWaitSeconds,
       p_enabled:next.enabled,
       p_extension_ids:next.extensionIds,
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if(saveError){setError(saveError.message);return;}
     setFormOpen(false);
@@ -184,12 +192,24 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
   async function retry(item:PbxQueue){
     if(!activeOrganizationId||!canManage||saving||item.provisioning_status!=="failed")return;
     setSaving(true);setError("");
-    const {error:retryError}=await supabase.rpc("pbx_retry_queue",{
+    const {error:retryError}=await pbxRequest(signal => supabase.rpc("pbx_retry_queue",{
       p_organization_id:activeOrganizationId,p_queue_id:item.id,
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if(retryError)setError(retryError.message);
     else {setNotice("Nova tentativa solicitada.");setReload(key=>key+1);}
+  }
+
+  async function setMemberPaused(queueId:string,extensionId:string,paused:boolean){
+    if(!activeOrganizationId || !canManage || saving || !live.ready)return;
+    setSaving(true);setError('');setNotice('');
+    const result=await pbxRequest(signal=>supabase.rpc("pbx_set_queue_member_paused",{
+      p_organization_id:activeOrganizationId,p_queue_id:queueId,p_extension_id:extensionId,p_paused:paused,
+    }).abortSignal(signal),'Solicitação de disponibilidade',{signal:requestScope.current.signal}).catch(pbxOperationError);
+    setSaving(false);
+    if(result.error){setError(result.error.message);return;}
+    setNotice(paused?'Pausa solicitada. Aguarde a confirmação da central.':'Retomada solicitada. Aguarde a confirmação da central.');
+    live.refreshControls();
   }
 
   async function changeEnabled(item:PbxQueue){
@@ -218,52 +238,51 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={()=>setReload(n=>n+1)} disabled={saving}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold text-foreground">
+        <AdminButton variant="secondary" type="button" onClick={()=>setReload(n=>n+1)} disabled={saving}
+          >
           <RefreshCw size={16}/> Atualizar
-        </button>
-        {canManage && <button type="button" onClick={beginNew} disabled={saving}
-          className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:opacity-50">
+        </AdminButton>
+        {canManage && <AdminButton variant="primary" type="button" onClick={beginNew} disabled={saving}
+          >
           <Plus size={16}/> Nova fila
-        </button>}
+        </AdminButton>}
       </div>
     </section>
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
     {live.error && <p role="status" className="text-xs text-muted-foreground">{live.error}</p>}
+    {live.controlError && <p role="status" className="text-xs text-muted-foreground">{live.controlError}</p>}
     {notice && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
 
     {formOpen && canManage && <section className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">{form.id?"Editar fila":"Nova fila"}</h2>
-        <button type="button" onClick={()=>setFormOpen(false)} disabled={saving} aria-label="Fechar"
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={17}/></button>
+        <AdminButton variant="ghost" type="button" onClick={()=>setFormOpen(false)} disabled={saving} aria-label="Fechar"
+          ><X size={17}/></AdminButton>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-xs font-semibold text-foreground">Nome da fila *
-          <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
-            maxLength={80} placeholder="Atendimento geral" className={fieldClass}/>
+          <FInput value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
+            maxLength={80} placeholder="Atendimento geral" />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Número interno de teste *
-          <input value={form.testExtension} type="number" min={850} max={899}
+          <FInput value={form.testExtension} type="number" min={850} max={899}
             onChange={e=>setForm(f=>({...f,testExtension:e.target.value}))}
-            className={fieldClass}/>
+            />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Distribuição *
-          <select value={form.strategy} onChange={e=>setForm(f=>({...f,strategy:e.target.value as PbxQueue["strategy"]}))}
-            className={fieldClass}>
-            {Object.entries(strategyLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}
-          </select>
+          <AdminSelect value={form.strategy} onValueChange={strategy=>setForm(f=>({...f,strategy:strategy as PbxQueue['strategy']}))}
+            ariaLabel="Distribuição da fila" options={Object.entries(strategyLabels).map(([value,label])=>({value,label}))} />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Toque por tentativa (10–40 s)
-          <input type="number" min={10} max={40} value={form.ringSeconds}
+          <FInput type="number" min={10} max={40} value={form.ringSeconds}
             onChange={e=>setForm(f=>({...f,ringSeconds:e.target.value}))}
-            className={fieldClass}/>
+            />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Espera máxima (30–300 s)
-          <input type="number" min={30} max={300} value={form.maxWaitSeconds}
+          <FInput type="number" min={30} max={300} value={form.maxWaitSeconds}
             onChange={e=>setForm(f=>({...f,maxWaitSeconds:e.target.value}))}
-            className={fieldClass}/>
+            />
         </label>
         <label className="flex items-center gap-2 self-end py-2 text-sm font-medium text-foreground">
           <input type="checkbox" checked={form.enabled}
@@ -291,12 +310,12 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
         </div>
       </div>
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={()=>setFormOpen(false)} disabled={saving}
-          className="h-10 rounded-lg border border-border px-4 text-sm font-semibold text-foreground">Cancelar</button>
-        <button type="button" onClick={()=>void save(form)} disabled={saving}
-          className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:opacity-50">
+        <AdminButton variant="secondary" type="button" onClick={()=>setFormOpen(false)} disabled={saving}
+          >Cancelar</AdminButton>
+        <AdminButton variant="primary" type="button" onClick={()=>void save(form)} disabled={saving}
+          >
           {saving?<LoaderCircle size={16} className="animate-spin"/>:<Save size={16}/>} Salvar fila
-        </button>
+        </AdminButton>
       </div>
     </section>}
 
@@ -305,14 +324,12 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
         <h2 className="text-sm font-semibold text-foreground">Filas cadastradas</h2>
         <p className="mt-1 text-xs text-muted-foreground">{queues.length} filas · Atualização manual, sem consultas contínuas</p>
       </div>
-      {loading?<div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
-        <LoaderCircle size={18} className="animate-spin"/> Carregando filas
-      </div>:queues.length===0?<p className="p-8 text-center text-sm text-muted-foreground">Nenhuma fila cadastrada ainda.</p>:
+      {loading?<AdminWorkspaceSkeleton variant="cards" rows={3} />:queues.length===0?<AdminSectionEmpty>Nenhuma fila cadastrada ainda.</AdminSectionEmpty>:
         <div className="divide-y divide-border">
           {queues.map(queue=>{
             const assigned=memberByQueue.get(queue.id)||[];
             return <div key={queue.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/10 text-[#0057e7]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Headphones size={18}/>
               </div>
               <div className="min-w-0 flex-1 space-y-1">
@@ -328,28 +345,32 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
                 {queue.provisioning_status==="failed" && <p className="text-xs text-red-600 dark:text-red-400">
                   {queue.last_error||"Não foi possível aplicar na VPS."}</p>}
                 {queue.enabled && queue.provisioning_status==="applied" && <QueueLiveDetails status={live.items[queue.id]} now={live.now}/>}
+                {canManage && queue.enabled && queue.provisioning_status==='applied' && <UnionPbxMemberAvailability queueId={queue.id}
+                  members={assigned.map(id=>extensionById.get(id)).filter((item):item is PbxExtension=>Boolean(item)).map(item=>({id:item.id,number:item.number,name:item.display_name}))}
+                  controls={live.controls} status={live.items[queue.id]} now={live.now} ready={live.ready} busy={saving}
+                  onChange={(extensionId,paused)=>setMemberPaused(queue.id,extensionId,paused)} />}
               </div>
               {canManage && <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={()=>beginEdit(queue)} disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                <AdminButton variant="secondary" size="sm" type="button" onClick={()=>beginEdit(queue)} disabled={saving}
+                  >
                   <Pencil size={14}/> Editar
-                </button>
-                <button type="button" onClick={()=>void changeEnabled(queue)} disabled={saving}
-                  className="h-9 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                </AdminButton>
+                <AdminButton variant="secondary" size="sm" type="button" onClick={()=>void changeEnabled(queue)} disabled={saving}
+                  >
                   {queue.enabled?"Desativar":"Ativar"}
-                </button>
-                {queue.provisioning_status==="failed" && <button type="button"
+                </AdminButton>
+                {queue.provisioning_status==="failed" && <AdminButton variant="secondary" size="sm" type="button"
                   onClick={()=>void retry(queue)} disabled={saving}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                  >
                   <RefreshCw size={14}/> Repetir
-                </button>}
+                </AdminButton>}
               </div>}
             </div>;
           })}
         </div>}
     </section>
-    <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">
+    <AdminButton variant="ghost" type="button" onClick={onBack} >
       Voltar para o telefone
-    </button>
+    </AdminButton>
   </div>;
 }

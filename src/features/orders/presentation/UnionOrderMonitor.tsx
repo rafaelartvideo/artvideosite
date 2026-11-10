@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +61,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [situationId, setSituationId] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 10));
   const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("order");
   const [orderSort, setOrderSort] = useState<OrderSort>("");
 
@@ -284,6 +286,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
       subtitle="Acompanhamento em tempo real das ordens de serviço vinculadas aos tipos monitorados das empresas parceiras."
     />
 
+    {listQuery.isPending || optionsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={8} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar OS" headerActions={<>
       {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
       <AdminSearchSortMenu value={orderSort} onChange={value => { setOrderSort(value); setPage(1); }}
@@ -341,8 +344,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
           {systemErrorMessage(optionsQuery.error || listQuery.error, "Não foi possível carregar o monitoramento de OS.")}
         </p>
       </AdminCard>
-    ) : listQuery.isPending || optionsQuery.isPending ? (
-      <LoadingState text="Carregando ordens monitoradas..." />
     ) : total === 0 ? (
       <EmptyState
         icon={Search}
@@ -410,5 +411,6 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
         />
       </AdminCard>
     )}
+    </>}
   </div>;
 }

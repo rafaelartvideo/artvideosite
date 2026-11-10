@@ -110,6 +110,6 @@ export function useOrderHistory({
     entries, authorOptions, total: statusHistory.length + (notesQuery.data?.length || 0),
     loading: notesQuery.isLoading, saving: createMutation.isPending,
     submit: () => createMutation.mutate(), resetPageState,
-    clearFilters: () => { setUserFilter(""); setDateFilter(""); },
+    clearFilters: () => { setUserFilter(""); setDateFilter(""); setSort("desc"); },
   };
 }

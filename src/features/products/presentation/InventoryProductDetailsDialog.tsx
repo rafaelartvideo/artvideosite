@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
-import { ArrowLeftRight, Edit2, List, Package } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Edit2, List, Package } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
 import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
+import { listCompatibleModelsForProducts } from "../infrastructure/product-compatible-models.repository";
+import { CompatibleDeviceModelsList } from "./CompatibleDeviceModelsList";
 import { productRelationLabel } from "../domain/product-relation-labels";
 import { productConditionLabel } from "../domain/product-condition";
 import { loadProductGallery } from "../infrastructure/product-lookup.repository";
@@ -12,8 +15,12 @@ import { listInventoryItemSuppliers } from "@/features/inventory/infrastructure/
 import { InventorySaleBatchesPanel, InventorySaleWindowBadge } from "@/features/inventory/presentation/InventorySaleWindowStatus";
 import type { InventorySaleSummary } from "@/features/inventory/infrastructure/inventory-sale-batches.repository";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
-import { listProductVariationOptions, listProductVariations } from "../infrastructure/product-variations.repository";
+import { InventoryMovementFinancePage } from "@/features/inventory/presentation/InventoryMovementFinancePage";
+import { InventoryMovementHistory } from "@/features/inventory/presentation/InventoryMovementHistory";
 import { InventoryProductImageLightbox, type InventoryProductPhoto } from "./InventoryProductImageLightbox";
+import { listProductVariationOptions, listProductVariations } from "../infrastructure/product-variations.repository";
+
+export type InventoryDetailsView = "details" | "move" | "history";
 
 type Props = {
   product: any | null;
@@ -24,6 +31,8 @@ type Props = {
   canViewCosts: boolean;
   canViewSuppliers: boolean;
   saleSummary?: InventorySaleSummary;
+  view: InventoryDetailsView;
+  onBack: () => void;
   onClose: () => void;
   onEdit: (product: any) => void;
   onMove: (product: any) => void;
@@ -32,7 +41,7 @@ type Props = {
 };
 
 function Detail({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+  return <div className="min-w-0 border-b border-border/60 px-1 py-2.5">
     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
     <div className="mt-1 break-words text-xs font-semibold text-foreground">{value ?? "—"}</div>
   </div>;
@@ -40,9 +49,8 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 
 export function InventoryProductDetailsDialog({
   product, organizationId, canEdit, canMove, canHistory, canViewCosts,
-  canViewSuppliers, saleSummary, onClose, onEdit, onMove, onHistory, onOpenProduct,
+  canViewSuppliers, saleSummary, view, onBack, onClose, onEdit, onMove, onHistory, onOpenProduct,
 }: Props) {
-  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const id = product?.id as string | undefined;
   const inventory = product?.inventory;
   const unit = inventory?.unit === "cx" ? "cx" : "un";
@@ -50,6 +58,9 @@ export function InventoryProductDetailsDialog({
   const stock = Number(inventory?.quantity || 0) / (unit === "cx" ? factor : 1);
   const minimum = Number(inventory?.min_quantity || 0) / (unit === "cx" ? factor : 1);
   const { url: coverUrl } = useMediaUrl(product?.cover_media_id || null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [expandedImage, setExpandedImage] = useState<(InventoryProductPhoto & { photos?: InventoryProductPhoto[]; startIndex?: number }) | null>(null);
+  const coverIllustration = salesHomologationImage(product?.sku);
 
   const relatedCodes = useQuery({
     queryKey: ["products", "related-codes-detail", organizationId, id],
@@ -62,6 +73,12 @@ export function InventoryProductDetailsDialog({
     queryFn: () => listProductRelations(organizationId, id!),
     enabled: Boolean(product && organizationId && id),
     staleTime: 20_000,
+  });
+  const compatibleModels = useQuery({
+    queryKey: ["products", "device-compatible-models", organizationId, id],
+    queryFn: () => listCompatibleModelsForProducts(organizationId, [id!]),
+    enabled: Boolean(product && organizationId && id),
+    staleTime: 30_000,
   });
   const gallery = useQuery({
     queryKey: ["products", "gallery-detail", organizationId, id],
@@ -90,32 +107,29 @@ export function InventoryProductDetailsDialog({
   if (!product) return null;
 
   const photos: InventoryProductPhoto[] = [];
-  const seenPhotoIds = new Set<string>();
-  const addPhoto = (mediaId: string, url: string | null, alt: string) => {
-    if (!mediaId || !url || seenPhotoIds.has(mediaId)) return;
-    seenPhotoIds.add(mediaId);
-    photos.push({ mediaId, url, alt });
-  };
-  addPhoto(String(product.cover_media_id || ""), coverUrl, `Foto principal de ${product.name}`);
+  if (coverUrl || coverIllustration) photos.push({
+    mediaId: product.cover_media_id || null,
+    src: coverUrl || coverIllustration || null,
+    name: product.name,
+  });
   for (const image of gallery.data || []) {
-    addPhoto(image.media_id, image.public_url, image.alt_text || product.name);
+    if (!image.public_url || photos.some(photo => photo.mediaId && photo.mediaId === image.media_id)) continue;
+    photos.push({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name });
   }
 
   const childVariation = variationFamily.data?.find(item => item.product_id === id && !item.is_parent);
-  const childAttributes = childVariation?.variation_label?.split(/\s*·\s*/).map(part => {
+  const childAttributes = childVariation?.variation_label?.split(/\\s*·\\s*/).map(part => {
     const separator = part.indexOf(":");
     return separator > 0
       ? { name: part.slice(0, separator).trim(), value: part.slice(separator + 1).trim(), otherValues: [] as string[] }
       : { name: "Variação", value: part.trim(), otherValues: [] as string[] };
   }).filter(attribute => attribute.name && attribute.value) || [];
   const mainAttributes = (variantOptions.data || []).map(option => {
-    const values = option.values.split(/[;,\n]/).map(value => value.trim()).filter(Boolean);
+    const values = option.values.split(/[;,\\n]/).map(value => value.trim()).filter(Boolean);
     return { name: option.name.trim(), value: values[0] || "", otherValues: values.slice(1) };
   }).filter(attribute => attribute.name && attribute.value);
   const attributes = childVariation ? childAttributes : mainAttributes;
 
-  const stockTone = stock <= 0 ? "text-red-600 dark:text-red-400"
-    : stock <= minimum ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300";
   const location = [inventory?.storage_shelf ? `Estante ${inventory.storage_shelf}` : "",
     inventory?.storage_level ? `Prateleira ${inventory.storage_level}` : "",
     inventory?.storage_compartment ? `Compartimento ${inventory.storage_compartment}` : ""]
@@ -124,11 +138,11 @@ export function InventoryProductDetailsDialog({
   return <><AdminDialog
     open
     onClose={onClose}
-    title="Detalhes do item"
+    title={view === "move" ? "Movimentação do estoque" : view === "history" ? "Histórico do estoque" : "Detalhes do item"}
     description={product.name}
     className="w-[min(96vw,850px)] max-w-4xl"
     bodyClassName="space-y-5 p-3 sm:p-5"
-    footer={<div className="flex flex-wrap justify-end gap-2">
+    footer={view === "details" ? <div className="flex flex-wrap justify-end gap-2">
       {canHistory && inventory?.inventory_item_id && <AdminButton variant="secondary" size="sm" onClick={() => onHistory(product)}>
         <List size={15} /> Histórico
       </AdminButton>}
@@ -137,16 +151,27 @@ export function InventoryProductDetailsDialog({
       </AdminButton>}
       {canEdit && <AdminButton size="sm" onClick={() => onEdit(product)}><Edit2 size={15} /> Editar</AdminButton>}
       <AdminButton size="sm" variant="secondary" onClick={onClose}>Fechar</AdminButton>
-    </div>}
+    </div> : view === "history" ? <div className="flex justify-end gap-2">
+      <AdminButton variant="secondary" size="sm" onClick={onBack}>Voltar aos detalhes</AdminButton>
+      <AdminButton variant="secondary" size="sm" onClick={onClose}>Fechar</AdminButton>
+    </div> : undefined}
   >
+    {view === "move" ? (canMove && inventory?.inventory_item_id
+      ? <InventoryMovementFinancePage key={String(inventory.inventory_item_id)} embedded itemId={String(inventory.inventory_item_id)} onClose={onBack}/>
+      : <p className="text-sm text-muted-foreground">Movimentação indisponível para este item.</p>)
+    : view === "history" ? (canHistory && inventory?.inventory_item_id
+      ? <InventoryMovementHistory key={String(inventory.inventory_item_id)} itemId={String(inventory.inventory_item_id)} organizationId={organizationId}
+          unit={unit} conversionFactor={factor} canViewCosts={canViewCosts}/>
+      : <p className="text-sm text-muted-foreground">Histórico indisponível para este item.</p>)
+    : <>
     <section className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start" aria-label="Resumo do item">
-      {coverUrl ? <button type="button" onClick={() => setActivePhotoIndex(0)}
-        aria-label={`Ampliar foto principal de ${product.name}`}
-        className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary">
-        <img src={coverUrl} alt={product.name} className="h-full w-full object-contain"/>
-      </button> : <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30">
-        <Package size={36} className="text-muted-foreground"/>
-      </div>}
+      <button type="button" disabled={!(coverUrl || coverIllustration)}
+        onClick={() => setExpandedImage({ mediaId: product.cover_media_id, src: coverUrl || coverIllustration, name: product.name, photos, startIndex: 0 })}
+        title="Ampliar foto do produto" aria-label="Ampliar foto do produto"
+        className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 disabled:cursor-default">
+        {(coverUrl || coverIllustration) ? <img src={coverUrl || coverIllustration || ""} alt={product.name} className="h-full w-full object-contain"/>
+          : <Package size={36} className="text-muted-foreground"/>}
+      </button>
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold",
@@ -163,11 +188,11 @@ export function InventoryProductDetailsDialog({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <div className="rounded-lg border border-border p-2.5">
             <p className="text-[10px] font-semibold text-muted-foreground">Preço de venda</p>
-            <p className="mt-1 text-sm font-bold text-foreground">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
+            <p className="mt-1 text-sm font-bold text-green-600 dark:text-green-400">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
           </div>
           <div className="rounded-lg border border-border p-2.5">
             <p className="text-[10px] font-semibold text-muted-foreground">Saldo disponível</p>
-            <p className={cn("mt-1 text-sm font-bold",stockTone)}>{formatNumber(stock)} {unit}</p>
+            <p className="mt-1 text-sm font-bold text-blue-600 dark:text-blue-400">{formatNumber(stock)} {unit}</p>
           </div>
           <div className="col-span-2 rounded-lg border border-border p-2.5 sm:col-span-1">
             <p className="text-[10px] font-semibold text-muted-foreground">Estoque mínimo</p>
@@ -192,7 +217,7 @@ export function InventoryProductDetailsDialog({
         <Detail label="Endereço no estoque" value={location}/>
         <Detail label="Cadastrado em" value={product.created_at ? formatDateTime(product.created_at) : "—"}/>
       </div>
-      {product.description && <div className="rounded-lg border border-border px-3 py-2.5">
+      {product.description && <div className="px-1 py-2.5">
         <p className="text-[10px] font-semibold uppercase text-muted-foreground">Descrição</p>
         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground">{product.description}</p>
       </div>}
@@ -209,26 +234,24 @@ export function InventoryProductDetailsDialog({
         ? <p className="text-xs text-muted-foreground">Carregando atributos...</p>
         : attributes.length > 0
           ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {attributes.map((attribute, index) => <Detail key={`${attribute.name}-${index}`} label={attribute.name}
-              value={<>
-                <span>{attribute.value}</span>
-                {attribute.otherValues.length > 0 && <p className="mt-1 text-[11px] font-normal text-muted-foreground">
-                  Outras opções: {attribute.otherValues.join(", ")}
-                </p>}
-              </>}/>)}
-          </div>
-          : <p role="alert" className="text-xs text-destructive">
-            Não foi possível consultar os atributos deste produto.
-          </p>}
+              {attributes.map((attribute, index) => <Detail key={attribute.name + "-" + index} label={attribute.name}
+                value={<>
+                  <span>{attribute.value}</span>
+                  {attribute.otherValues.length > 0 && <p className="mt-1 text-[11px] font-normal text-muted-foreground">
+                    Outras opções: {attribute.otherValues.join(", ")}
+                  </p>}
+                </>} />)}
+            </div>
+          : <p role="alert" className="text-xs text-destructive">Não foi possível consultar os atributos deste produto.</p>}
     </section>}
 
     {gallery.data && gallery.data.length > 0 && <section className="space-y-2">
       <h4 className="text-sm font-bold text-foreground">Fotos do produto</h4>
       <div className="flex flex-wrap gap-2">
         {gallery.data.map(image => <button key={image.media_id} type="button"
-          onClick={() => setActivePhotoIndex(photos.findIndex(photo => photo.mediaId === image.media_id))}
-          aria-label={`Ampliar foto de ${product.name}`}
-          className="h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted/20 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary">
+          onClick={() => setExpandedImage({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name, photos, startIndex: Math.max(0, photos.findIndex(photo => photo.mediaId === image.media_id)) })}
+          title="Ampliar foto" aria-label={`Ampliar foto de ${product.name}`}
+          className="h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted/20 focus-visible:outline-2 focus-visible:outline-primary">
           <img src={image.public_url} alt={image.alt_text || product.name} loading="lazy"
             className="h-full w-full object-contain"/>
         </button>)}
@@ -239,23 +262,42 @@ export function InventoryProductDetailsDialog({
       <h4 className="text-sm font-bold text-foreground">Códigos relacionados</h4>
       {relatedCodes.isPending ? <p className="text-xs text-muted-foreground">Carregando códigos...</p>
         : relatedCodes.isError ? <p className="text-xs text-destructive">Não foi possível consultar os códigos.</p>
-        : relatedCodes.data?.length ? <div className="divide-y divide-border rounded-lg border border-border">
-          {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2">
+        : relatedCodes.data?.length ? <div className="grid gap-x-5 sm:grid-cols-2">
+          {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-1 py-2">
             <span className="break-all font-mono text-xs font-semibold text-foreground">{code.code}</span>
             <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">{productRelationLabel(code.relation_type)}</span>
           </div>)}
         </div> : <p className="text-xs text-muted-foreground">Nenhum código relacionado.</p>}
     </section>
 
+    <section className="space-y-3 border-t border-border pt-4" aria-label="Modelos de aparelhos compatíveis">
+      {compatibleModels.isPending ? <p className="text-xs text-muted-foreground">Carregando modelos compatíveis...</p>
+        : compatibleModels.isError ? <p className="text-xs text-destructive">Não foi possível consultar os modelos compatíveis.</p>
+        : compatibleModels.data?.length ? <CompatibleDeviceModelsList models={compatibleModels.data} />
+        : <><h4 className="text-sm font-bold text-foreground">Modelos de aparelhos compatíveis</h4>
+           <p className="text-xs text-muted-foreground">Nenhum modelo de aparelho informado.</p></>}
+    </section>
+
     <section className="space-y-3 border-t border-border pt-4" aria-label="Produtos relacionados">
-      <h4 className="text-sm font-bold text-foreground">Produtos relacionados</h4>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-bold text-foreground">Produtos relacionados</h4>
+        {Boolean(relations.data?.length) && <div className="flex items-center gap-1.5">
+          <span className="mr-1 text-xs text-muted-foreground">{relations.data?.length} produtos</span>
+          <button type="button" aria-label="Ver produtos anteriores" title="Anterior"
+            onClick={() => carouselRef.current?.scrollBy({ left: -260, behavior: "smooth" })}
+            className="rounded-lg border border-border p-1.5 text-foreground hover:bg-muted"><ChevronLeft size={16}/></button>
+          <button type="button" aria-label="Ver próximos produtos" title="Próximo"
+            onClick={() => carouselRef.current?.scrollBy({ left: 260, behavior: "smooth" })}
+            className="rounded-lg border border-border p-1.5 text-foreground hover:bg-muted"><ChevronRight size={16}/></button>
+        </div>}
+      </div>
       <p className="text-xs text-muted-foreground">Produtos identificados automaticamente por códigos e variações, nos dois sentidos.</p>
       {relations.isPending ? <p className="text-xs text-muted-foreground">Carregando produtos relacionados...</p>
         : relations.isError ? <p className="text-xs text-destructive">Não foi possível consultar as relações.</p>
         : !relations.data?.length ? <p className="text-xs text-muted-foreground">Nenhum produto relacionado identificado.</p>
-        : <div className="divide-y divide-border rounded-lg border border-border">
+        : <div ref={carouselRef} className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
           {relations.data.map(other => <button key={other.product_id} type="button" onClick={() => onOpenProduct(other.product_id)}
-            className="flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30">
+            className="flex w-[250px] shrink-0 snap-start flex-col gap-2 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30">
             <ProductAdminThumb mediaId={other.cover_media_id} name={other.name}/>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-foreground">{other.name}</span>
@@ -267,9 +309,9 @@ export function InventoryProductDetailsDialog({
                 {productRelationLabel(other.relation_type)}
               </span>
             </span>
-            <span className="shrink-0 text-right">
-              <span className="block text-xs font-semibold text-foreground">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
-              <span className="mt-1 block text-[11px] text-muted-foreground">{formatNumber(other.stock)} {other.unit}</span>
+            <span className="mt-auto flex w-full items-center justify-between gap-2 border-t border-border pt-2">
+              <span className="text-xs font-semibold text-green-600 dark:text-green-400">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{formatNumber(other.stock)} {other.unit}</span>
             </span>
           </button>)}
         </div>}
@@ -295,9 +337,8 @@ export function InventoryProductDetailsDialog({
       <h4 className="text-xs font-bold text-foreground">Observações internas</h4>
       <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{product.internal_notes}</p>
     </section>}
+    </>}
   </AdminDialog>
-    {activePhotoIndex !== null && photos[activePhotoIndex] && <InventoryProductImageLightbox
-      photos={photos} index={activePhotoIndex} onIndexChange={setActivePhotoIndex}
-      onClose={() => setActivePhotoIndex(null)}/>}
+  {expandedImage && <InventoryProductImageLightbox key={expandedImage.mediaId || expandedImage.src || expandedImage.name} {...expandedImage} onClose={() => setExpandedImage(null)} />}
   </>;
 }

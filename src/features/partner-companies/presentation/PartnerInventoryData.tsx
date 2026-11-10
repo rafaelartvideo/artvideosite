@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -61,7 +63,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
   const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "sku" | "address">("name");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const [detailItem, setDetailItem] = useState<any>(null);
   const [historyItem, setHistoryItem] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -150,6 +152,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Estoque" subtitle={`${items.length} item${items.length !== 1 ? "s" : ""} cadastrado${items.length !== 1 ? "s" : ""}`} />
 
+    {itemsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={3} columns={8} rows={pageSize} /> : <>
     <AdminSearchPanel title="Buscar estoque" headerActions={<>
       {hasFilters && <AdminSearchClearButton onClick={clearFilters} />}
       <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
@@ -175,7 +178,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-      {itemsQuery.isPending ? <LoadingState /> : filtered.length === 0 ? <EmptyState icon={Package} title={items.length ? "Nenhum item encontrado" : "Nenhum item em estoque"} message={items.length ? "Ajuste os filtros para encontrar o item." : "Não há itens cadastrados nesta empresa."} /> : <>
+      {filtered.length === 0 ? <EmptyState icon={Package} title={items.length ? "Nenhum item encontrado" : "Nenhum item em estoque"} message={items.length ? "Ajuste os filtros para encontrar o item." : "Não há itens cadastrados nesta empresa."} /> : <>
         <div className="divide-y divide-[#0d1b2e]/8 md:hidden">
           {paged.map((item: any) => {
             const quantity = Number(item.quantity ?? 0);
@@ -215,6 +218,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage} onPageSizeChange={next => { setPageSize(next); setPage(1); }} defaultPageSize={5} />
       </>}
     </AdminCard>
+    </>}
 
     <AdminDialog open={Boolean(detailItem)} onClose={() => setDetailItem(null)} title={detailItem?.name || "Detalhes do item"} description="Informações do estoque desta empresa.">
       {detailItem && <div className="grid gap-4 sm:grid-cols-2"><Info label="Nome" value={detailItem.name || "—"} /><Info label="SKU" value={detailItem.sku || "—"} /><Info label="Status" value={detailItem.is_active !== false ? "Ativo" : "Inativo"} /><Info label="Unidade" value={`${unitLabel(detailItem.unit)}${detailItem.unit === "cx" ? ` · ${conversionFactor(detailItem)} un/cx` : ""}`} /><Info label="Quantidade" value={`${formatNumber(detailItem.quantity)} ${unitLabel(detailItem.unit)}`} /><Info label="Quantidade mínima" value={`${formatNumber(detailItem.min_quantity)} ${unitLabel(detailItem.unit)}`} />{showPurchasePrice && <Info label="Preço de compra" value={formatCurrency(detailItem.purchase_price)} />}{showSalePrice && <Info label="Preço de venda" value={formatCurrency(detailItem.sale_price)} />}<div className="sm:col-span-2"><Info label="Endereço no estoque" value={storageAddress(detailItem) || "—"} /></div>{detailItem.description && <div className="sm:col-span-2"><Info label="Descrição" value={detailItem.description} /></div>}</div>}

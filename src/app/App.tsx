@@ -47,6 +47,7 @@ const MobileOrderEditPage = lazy(() => import("@/features/device-capture/present
 const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presentation/MobileOrderChecklistPage").then(module => ({ default: module.MobileOrderChecklistPage })));
 const PublicDocumentSignaturePage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentSignaturePage").then(module => ({ default: module.PublicDocumentSignaturePage })));
 const PublicDocumentVerificationPage = lazy(() => import("@/features/document-signature-public/presentation/PublicDocumentVerificationPage").then(module => ({ default: module.PublicDocumentVerificationPage })));
+const PublicSalesProposalApprovalPage = lazy(() => import("@/features/sales/presentation/PublicSalesProposalApprovalPage").then(module => ({ default:module.PublicSalesProposalApprovalPage })));
 const FieldTrackerDevicePage = lazy(() => import("@/features/field-tracking/presentation/FieldTrackerDevicePage").then(module => ({ default: module.FieldTrackerDevicePage })));
 const MarketplaceHomePage = lazy(() => import("@/features/marketplace/presentation/MarketplaceHomePage").then(module => ({ default: module.MarketplaceHomePage })));
 
@@ -283,6 +284,7 @@ function CrmApplication() {
       <Route path="/checklist-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo checklist da OS..." />}><MobileOrderChecklistPage /></Suspense>} />
       <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/vendas/aprovar/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando proposta comercial..." />}><PublicSalesProposalApprovalPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/marketplace" element={<MarketplaceRouteContent />} />
@@ -307,6 +309,7 @@ function CombinedApplication() {
       <Route path="/checklist-mobile" element={<Suspense fallback={<StandaloneFallback text="Abrindo checklist da OS..." />}><MobileOrderChecklistPage /></Suspense>} />
       <Route path="/assinatura/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando assinatura..." />}><PublicDocumentSignaturePage /></Suspense>} />
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
+      <Route path="/vendas/aprovar/:token" element={<Suspense fallback={<StandaloneFallback text="Carregando proposta comercial..." />}><PublicSalesProposalApprovalPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/marketplace" element={<MarketplaceRouteContent />} />

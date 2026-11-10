@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, initialPageSize } from "@/shared/domain/pagination-preferences";
 import {
   countServiceOrders,
   listOrderNeighborhoodOptions,
@@ -62,8 +63,9 @@ export function useOrderFilters({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const [listPageSize, setListPageSize] = useState(5);
-  const [kanbanPageSize, setKanbanPageSize] = useState(30);
+  // A primeira consulta usa a preferência persistida, sem mostrar 5 OS antes de carregar 50.
+  const [listPageSize, setListPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE));
+  const [kanbanPageSize, setKanbanPageSize] = useState(() => initialPageSize([30, 50, 100], "union-kanban-page-size-v1", 30));
   // Quadro precisa mostrar mais que cinco cartões por página, sem consulta
   // ilimitada. Não altera a preferência de paginação da lista convencional.
   const pageSize = kanbanMode ? kanbanPageSize : listPageSize;

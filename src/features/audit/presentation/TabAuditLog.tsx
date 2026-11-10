@@ -1,3 +1,5 @@
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY } from "@/shared/domain/pagination-preferences";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -114,6 +116,12 @@ const ENTITY_LABELS: Record<string, string> = {
   pdv_sales: "Venda do PDV",
   pdv_sale_items: "Item da venda do PDV",
   pdv_sale_payments: "Pagamento da venda do PDV",
+  sales_orders: "Pedido comercial",
+  sales_order_items: "Item do pedido comercial",
+  sales_order_events: "Histórico do pedido comercial",
+  sales_proposals: "Proposta comercial",
+  sales_proposal_items: "Item da proposta comercial",
+  sales_proposal_events: "Histórico da proposta comercial",
   quote_request_items: "Item do orçamento",
   quote_requests: "Orçamento",
   quote_status_history: "Histórico do orçamento",
@@ -578,7 +586,7 @@ function entityLabel(entry: AuditLogEntry) {
 export function TabAuditLog() {
   const { activeOrganizationId } = useAuth();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(() => initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20));
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [actorUserId, setActorUserId] = useState("");
   const [moduleKey, setModuleKey] = useState("");
@@ -606,7 +614,7 @@ export function TabAuditLog() {
     queryKey: ["audit-logs", activeOrganizationId, filters],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => listAuditLogs(activeOrganizationId!, filters),
-    placeholderData: previous => previous,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === activeOrganizationId ? previous : undefined,
   });
 
   const actorsQuery = useQuery({
@@ -644,6 +652,7 @@ export function TabAuditLog() {
 
   return (
     <div className="min-w-0 space-y-5">
+{logsQuery.isPending ? <AdminWorkspaceSkeleton pageHeader searchFields={7} columns={7} rows={pageSize} /> : <>
       <PageHeader
         title="Auditoria"
         subtitle="Histórico de alterações realizadas nos dados do CRM."
@@ -725,9 +734,7 @@ export function TabAuditLog() {
       </AdminSearchPanel>
 
       <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
-        {logsQuery.isPending ? (
-          <LoadingState text="Carregando auditoria..." />
-        ) : logsQuery.error ? (
+        {logsQuery.error ? (
           <div className="p-4 text-sm font-semibold text-red-700">
             Não foi possível carregar o histórico de auditoria.
           </div>
@@ -803,6 +810,7 @@ export function TabAuditLog() {
           </>
         )}
       </AdminCard>
+      </>}
 
       <AuditDetailsDialog
         entry={detailQuery.data || null}

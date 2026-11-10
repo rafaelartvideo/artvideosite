@@ -41,6 +41,6 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
       <OrderCustomValues fields={rules.custom_fields} values={form.custom_field_values||{}} editing={Boolean(editingOS)} orderId={editingOS?.id} organizationId={activeOrganizationId} canUpload={Boolean(editingOS && hasPermission("orders.edit") && hasPermission("orders.section.images"))} onChange={value=>updateField("custom_field_values",value)}/>
       {!editingOS&&serviceLocationSection}
     </div>
-    <OrderFormActions saving={saving} canSave={editingOS?hasPermission("orders.edit"):hasPermission("orders.create")} onCancel={closePage} onSave={onSave} leftActions={editingOS && hasPermission("orders.edit") ? <OrderMobileEditBridge orderId={editingOS.id} osNumber={editingOS.os_number} disabled={saving}/> : undefined}/>
+    <OrderFormActions saving={saving} canSave={editingOS?hasPermission("orders.edit"):hasPermission("orders.create")} editing={Boolean(editingOS)} onCancel={closePage} onSave={onSave} rightActions={editingOS && hasPermission("orders.edit") ? <OrderMobileEditBridge orderId={editingOS.id} osNumber={editingOS.os_number} disabled={saving}/> : undefined}/>
   </AdminPage>;
 }

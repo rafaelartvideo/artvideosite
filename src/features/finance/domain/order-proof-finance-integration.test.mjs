@@ -31,7 +31,14 @@ test("documentos do Financeiro abrem arquivo no bucket correto", async () => {
   assert.match(repo, /storage_bucket,source_media_id/);
   assert.match(repo, /supabase\.storage\.from\(storageBucket\)\.createSignedUrl/);
   assert.match(documents, /attachment\.storage_bucket \|\| "financial-documents"/);
-  assert.match(documents, /Vinculado à OS/);
+  // O vínculo agora inclui um componente clicável com fallback textual quando não há OS navegável.
+  assert.match(documents, /Vinculado à\s*\{orderId \?\s*<FinanceServiceOrderLink\b/);
+  assert.match(documents, /<FinanceServiceOrderLink orderId=\{orderId\} number=\{orderNumber\}/);
+  assert.match(documents, /: "OS"\}/);
+  const orderLink = read("src/features/finance/presentation/FinanceServiceOrderLink.tsx");
+  assert.match(orderLink, /href=\{adminPath\("orders", id\)\}/);
+  assert.match(orderLink, /target="_blank"/);
+  assert.match(orderLink, /rel="noopener noreferrer"/);
   assert.match(documents, /!item\.source_media_id/);
 });
 

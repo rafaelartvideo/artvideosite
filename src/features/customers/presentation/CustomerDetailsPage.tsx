@@ -1,3 +1,4 @@
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import type { Dispatch, SetStateAction } from "react";
 import { Edit2, Link2, MapPin, MessageCircle, Phone } from "lucide-react";
 import { emptyAddress, getAddressMapUrl, type Address } from "@/lib/address";
@@ -5,7 +6,7 @@ import type { CustomerFieldErrors, CustomerForm } from "../domain/customer-form"
 import { customerFormFromCustomer } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AdminSectionEmpty, AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { CustomerTypeToggle, FBrazilianDateInput, FEmailInput, FGenderRadio, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone, todayDateOnly } from "@/shared/domain/formatters";
 import { CustomerEquipmentsSection } from "./CustomerEquipmentsSection";
@@ -60,7 +61,7 @@ export function CustomerDetailsPage(props: Props) {
 
       {isArtvideo && detail.customer_type === "PF" && <CustomerAccessInviteSection customerId={detail.id} whatsapp={detail.whatsapp} canManage={canEdit}/>}
 
-      {detailLoading ? <LoadingState text="Carregando dados do cliente..." /> : <>
+      {detailLoading ? <AdminWorkspaceSkeleton variant="details" rows={4} columns={4} /> : <>
         <CustomerEquipmentsSection equipments={detailEquipments} />
         {isArtvideo && canViewQuotes && <Section title={`Orçamentos (${detailQuotes.length})`}>{detailQuotes.length === 0 ? <AdminSectionEmpty>Nenhum orçamento para este cliente.</AdminSectionEmpty> : <div className="space-y-2">{detailQuotes.map(q => <div key={q.id} className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3"><div className="mb-1 flex items-center justify-between"><span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span><StatusBadge status={(q.request_status as any)?.name || "—"} /></div><p className="text-xs text-[#5a6a82]">{(q.service as any)?.title || "Serviço não informado"}{(q.brand as any)?.name ? ` — ${(q.brand as any).name}` : ""}</p></div>)}</div>}</Section>}
         {canViewOrders && <Section title={`Ordens de Serviço (${detailOrders.length})`}>{detailOrders.length === 0 ? <AdminSectionEmpty>Nenhuma OS para este cliente.</AdminSectionEmpty> : <div className="space-y-2">{detailOrders.map(o => <button key={o.id} type="button" disabled={!canOpenOrders} onClick={() => canOpenOrders && onOpenOrder?.(o.id, detail.id)} className="w-full cursor-default rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 text-left transition-colors enabled:hover:bg-[#eef5ff]"><div className="mb-1 flex items-center justify-between"><span className="text-xs font-black text-foreground">#{o.os_number || o.id.slice(0, 8)}</span><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} /></div><p className="text-xs font-semibold text-[#0d1b2e]">{(o.service as any)?.title || "Ordem de Serviço"}</p><div className="mt-1 text-[10px] text-[#5a6a82]">Criada: {fmtDate(o.created_at)}</div></button>)}</div>}</Section>}

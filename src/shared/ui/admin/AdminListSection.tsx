@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 
 type AdminListSectionProps = {
@@ -42,7 +42,6 @@ export function AdminListSection({
   searchAutoFocus = false,
   searchAction,
   loading = false,
-  loadingText = "Carregando...",
   error,
   empty = false,
   emptyText = "Nenhum item encontrado",
@@ -52,6 +51,8 @@ export function AdminListSection({
 }: AdminListSectionProps) {
   const hasSearch = typeof onSearchChange === "function" && typeof searchValue === "string";
   const countLabel = count === 1 ? countSingular : countPlural;
+
+  if (loading) return <AdminWorkspaceSkeleton searchFields={hasSearch ? 1 : 0} rows={5} columns={3} variant="table" />;
 
   return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
     {(!headerless || hasSearch) && <div className={cn(headerless ? "px-4 py-3" : "bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4")}>
@@ -79,9 +80,7 @@ export function AdminListSection({
       </div>}
     </div>}
 
-    {loading
-      ? <div className="min-h-40"><LoadingState text={loadingText} /></div>
-      : error
+    {error
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
           ? <AdminSectionEmpty className="min-h-40 gap-2"><Search size={20} className="text-muted-foreground/70" /><p className="text-xs font-bold">{emptyText}</p></AdminSectionEmpty>

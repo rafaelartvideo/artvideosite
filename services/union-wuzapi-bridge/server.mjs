@@ -22,6 +22,35 @@ const seenNonces = new Map();
 const pendingProvision = new Map();
 const contactsCache = new Map();
 const avatarCache = new Map();
+const avatarPending = new Map();
+// In-memory only. Estimate UTF-16 string size conservatively so CDN photos
+// cannot exhaust the shared VPS even when many companies open the inbox.
+const AVATAR_CACHE_MAX_BYTES = 24 * 1024 * 1024;
+const AVATAR_CACHE_MAX_ENTRIES = 512;
+const AVATAR_CACHE_FOUND_TTL_MS = 60 * 60 * 1000;
+const AVATAR_CACHE_EMPTY_TTL_MS = 15 * 60 * 1000;
+let avatarCacheBytes = 0;
+const avatarEntryBytes = (key, entry) => 512 + 2 * (
+  key.length + (entry.base64 || "").length + (entry.fallbackUrl || "").length
+  + (entry.mime || "").length + (entry.status || "").length
+);
+function removeAvatarCacheEntry(key) {
+  const entry = avatarCache.get(key);
+  if (!entry) return;
+  avatarCacheBytes -= entry.estimatedBytes;
+  avatarCache.delete(key);
+}
+function saveAvatarCacheEntry(key, entry) {
+  removeAvatarCacheEntry(key);
+  const estimatedBytes = avatarEntryBytes(key, entry);
+  if (estimatedBytes > AVATAR_CACHE_MAX_BYTES) return;
+  avatarCache.set(key, { ...entry, estimatedBytes });
+  avatarCacheBytes += estimatedBytes;
+  while (avatarCacheBytes > AVATAR_CACHE_MAX_BYTES ||
+      avatarCache.size > AVATAR_CACHE_MAX_ENTRIES) {
+    removeAvatarCacheEntry(avatarCache.keys().next().value);
+  }
+}
 const presenceSubscriptions = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
 // WuzAPI voice notes must contain an Ogg/Opus bitstream, not MP4/AAC with a
@@ -334,10 +363,22 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       throw new Error("bad_request");
     const cacheKey=id+"|"+jid;
     const existing=avatarCache.get(cacheKey);
-    if(existing && Date.now()-existing.at < (existing.base64?3600000:86400000))
-      return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null,
-        avatar_cdn_url:!existing.base64?existing.fallbackUrl||null:null,
-        avatar_status:existing.status||"no_public_photo"};
+    if(existing) {
+      const ttl=existing.base64?AVATAR_CACHE_FOUND_TTL_MS:AVATAR_CACHE_EMPTY_TTL_MS;
+      if(Date.now()-existing.at < ttl) {
+        // LRU: frequently viewed contacts remain cached without raising the limit.
+        avatarCache.delete(cacheKey);
+        avatarCache.set(cacheKey,existing);
+        return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null,
+          avatar_cdn_url:!existing.base64?existing.fallbackUrl||null:null,
+          avatar_status:existing.status||"no_public_photo"};
+      }
+      removeAvatarCacheEntry(cacheKey);
+    }
+    // Concurrent operators viewing the same contact share one provider request.
+    const pending=avatarPending.get(cacheKey);
+    if(pending)return await pending;
+    const loadAvatar=(async()=>{
     // One request per contact. Missing/private photos are expected.
     // Avoid legacy GET fallback and full-size retry after a provider 500.
     let avatarResult=null;
@@ -386,9 +427,19 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         if(!response.ok){status="cdn_http_"+response.status;break;}
         const declared=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
         const len=Number(response.headers.get("content-length")||0);
-        if(len && len>200000)break;
-        const bytes=Buffer.from(await response.arrayBuffer());
-        if(!bytes.length || bytes.length>200000)break;
+        if(len && len>200000){await response.body?.cancel().catch(()=>{});break;}
+        // Some CDNs omit Content-Length: enforce the 200 kB limit while
+        // streaming, before a large body can occupy memory on the VPS.
+        if(!response.body)break;
+        const chunks=[];
+        let received=0;
+        for await (const chunk of response.body) {
+          received+=chunk.length;
+          if(received>200000)break;
+          chunks.push(Buffer.from(chunk));
+        }
+        if(!received || received>200000)break;
+        const bytes=Buffer.concat(chunks,received);
         const detected=bytes[0]===255 && bytes[1]===216?"image/jpeg":
           bytes[0]===137 && bytes[1]===80 && bytes[2]===78?"image/png":
           bytes.toString("ascii",0,4)==="RIFF" &&
@@ -399,10 +450,15 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         break;
       }
     }catch{/* Missing/private photos are expected and not an error. */}
-    avatarCache.set(cacheKey,{base64,mime,fallbackUrl,status,at:Date.now()});
-    if(avatarCache.size>2000) avatarCache.delete(avatarCache.keys().next().value);
+    saveAvatarCacheEntry(cacheKey,{base64,mime,fallbackUrl,status,at:Date.now()});
     return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null,
       avatar_cdn_url:!base64?fallbackUrl||null:null,avatar_status:status};
+    })();
+    avatarPending.set(cacheKey,loadAvatar);
+    try {return await loadAvatar;}
+    finally {
+      if(avatarPending.get(cacheKey)===loadAvatar)avatarPending.delete(cacheKey);
+    }
   }
   if (action === "number_check") {
     // Only the signed Union backend can check a direct recipient; no public enumeration.

@@ -192,6 +192,8 @@ export interface FinancialMovement {
   source_type: FinancialMovementSourceType;
   source_id: string;
   origin_label?: string;
+  /** Identificador real da OS vinculada à baixa, quando existir. */
+  origin_order_id?: string | null;
   reversal_of_movement_id: string | null;
   cash_session_id?: string | null;
   description_snapshot: string;

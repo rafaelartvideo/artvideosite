@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { useMemo, useState, useEffect } from "react";
 import { AlertTriangle, Banknote, CalendarClock, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryType, FinancialReportFilters, FinanceSection } from "../domain/finance.types";
@@ -53,9 +54,10 @@ function DueCard({ title, amount, detail, warning = false }: {
   </div>;
 }
 
-export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
+export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection, onInitialReady }: {
   onSelectEntry: (type: FinancialEntryType, id: string) => void;
   onSelectSection: (section: FinanceSection) => void;
+  onInitialReady?: () => void;
 }) {
   const [period, setPeriod] = useState(defaultPeriod);
   const [metricKind, setMetricKind] = useState<FinanceMetricKind | null>(null);
@@ -67,6 +69,10 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
     ...row,
     label: new Date(`${row.date.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
   })), [reports.cashFlowQuery.data?.rows]);
+
+  useEffect(() => {
+    if (!reports.dashboardQuery.isPending && (!reports.canCashFlow || !reports.cashFlowQuery.isPending)) onInitialReady?.();
+  }, [onInitialReady, reports.dashboardQuery.isPending, reports.cashFlowQuery.isPending, reports.canCashFlow]);
 
   return <div className="space-y-5">
     {dashboard && metricKind && <FinanceMetricDetailsDialog
@@ -86,7 +92,7 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
 
     {reports.dashboardQuery.error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{reports.dashboardQuery.error instanceof Error ? reports.dashboardQuery.error.message : "Não foi possível carregar o resumo financeiro."}</div>}
 
-    {reports.dashboardQuery.isLoading ? <AdminCard className="p-8"><LoadingState text="Carregando resumo financeiro..." /></AdminCard> : dashboard && <>
+    {reports.dashboardQuery.isLoading ? <AdminWorkspaceSkeleton variant="cards" rows={3} /> : dashboard && <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {visible?.balance && <MetricCard title="Saldo disponível" value={dashboard.available_balance} detail="Dinheiro nas contas e caixas" icon={Banknote} onClick={() => setMetricKind("balance")} />}
         {visible?.receivables && <MetricCard title="A receber" value={dashboard.receivable_open} detail="Valores que ainda devem entrar" icon={TrendingUp} onClick={() => setMetricKind("receivables")} />}
@@ -109,7 +115,7 @@ export function FinanceOverviewFoundation({ onSelectEntry, onSelectSection }: {
         <div><h3 className="text-sm font-bold text-foreground">Entradas e saídas</h3><p className="mt-1 text-xs text-muted-foreground">Comparativo entre o valor previsto e o realizado no período.</p></div>
       </AdminCardHeader>
       <AdminCardContent>
-        {reports.cashFlowQuery.isLoading ? <LoadingState text="Carregando movimentações..." /> : chartRows.length === 0 ? <EmptyState icon={AlertTriangle} title="Nenhuma movimentação no período" /> : <div className="h-64 w-full sm:h-72">
+        {reports.cashFlowQuery.isLoading ? <AdminWorkspaceSkeleton variant="table" columns={6} rows={4} /> : chartRows.length === 0 ? <EmptyState icon={AlertTriangle} title="Nenhuma movimentação no período" /> : <div className="h-64 w-full sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartRows}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />

@@ -1,28 +1,12 @@
 import React, { useEffect, useRef } from "react";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-
-const DEFAULT_ADMIN_PAGE_SIZE = 5;
-const DEFAULT_ADMIN_PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50, 100];
-const ADMIN_PAGE_SIZE_STORAGE_KEY = "union-admin-page-size-v1";
-
-function readPersistedPageSize(options: number[], storageKey: string) {
-  if (typeof window === "undefined") return null;
-  try {
-    const value = Number(window.localStorage.getItem(storageKey));
-    return Number.isFinite(value) && options.includes(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function persistPageSize(value: number, storageKey: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey, String(value));
-  } catch {
-    // Preferência visual não deve impedir o uso da paginação.
-  }
-}
+import {
+  DEFAULT_ADMIN_PAGE_SIZE,
+  DEFAULT_ADMIN_PAGE_SIZE_OPTIONS,
+  ADMIN_PAGE_SIZE_STORAGE_KEY,
+  readPersistedPageSize,
+  persistPageSize,
+} from "@/shared/domain/pagination-preferences";
 
 export function PaginationBar({
   page,

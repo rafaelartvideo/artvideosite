@@ -1,7 +1,8 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { listExactCustomersPage } from "../infrastructure/customers-filtered-page.repository";
 
 type Options = {
@@ -31,7 +32,7 @@ export function useCustomersList({ organizationId, onToast }: Options) {
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [orderSort, setOrderSort] = useState<CustomerSort>("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(() => initialPageSize(DEFAULT_ADMIN_PAGE_SIZE_OPTIONS, ADMIN_PAGE_SIZE_STORAGE_KEY, 5));
   const debouncedNameSearch = useDebouncedValue(nameSearch);
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
 
@@ -73,9 +74,10 @@ export function useCustomersList({ organizationId, onToast }: Options) {
   }), [organizationId, page, pageSize, debouncedNameSearch, debouncedDocumentSearch, selectedStates, selectedCities, orderSort]);
 
   const query = useQuery({
-    queryKey: [...queryKeys.customers.lists(), queryFilters],
+    queryKey: [...queryKeys.customers.lists(), organizationId, queryFilters],
     enabled: Boolean(organizationId),
-    placeholderData: keepPreviousData,
+    // Não desmonta a lista durante refetch nem reaproveita clientes de outra empresa.
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === organizationId ? previous : undefined,
     queryFn: () => listExactCustomersPage({
       organizationId: organizationId!,
       page,
@@ -141,7 +143,7 @@ export function useCustomersList({ organizationId, onToast }: Options) {
   return {
     customers,
     totalItems,
-    loading: Boolean(organizationId) && query.isFetching,
+    loading: Boolean(organizationId) && query.isPending && !query.data,
     isFetching: query.isFetching,
     refetch: query.refetch,
     refresh,
