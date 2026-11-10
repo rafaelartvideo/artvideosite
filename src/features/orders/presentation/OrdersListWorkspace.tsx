@@ -200,6 +200,7 @@ export function OrdersListWorkspace(props: Props) {
       onOpen={openDetail}
       onSituationChange={updateOrderSituation}
       getSituations={getSituationsForType}
+      serviceTypes={serviceTypes}
       onEdit={(order) => { void openEdit(order); }}
       onComplete={completeOrder}
       formatDate={fmtDate}
