@@ -178,9 +178,9 @@ function ScrollToTop() {
 }
 
 function AuthenticatedAdminRealtimeSync() {
-  const { session } = useAuth();
+  const { session, accessWindow } = useAuth();
   const { pathname } = useLocation();
-  if (!session || !pathname.startsWith("/admin")) return null;
+  if (!session || !accessWindow?.allowed || !pathname.startsWith("/admin")) return null;
   return <QueryRealtimeSync />;
 }
 
@@ -190,7 +190,7 @@ function AuthenticatedAdminRealtimeSync() {
  * function checks the linked OAuth identity again before any provider PATCH.
  */
 function AuthenticatedSacAutoPresence() {
-  const { session, activeOrganizationId, permissions, loading, pendingTerms } = useAuth();
+  const { session, activeOrganizationId, permissions, loading, pendingTerms, accessWindow } = useAuth();
   const { pathname } = useLocation();
   const attempted = useRef("");
 
@@ -199,7 +199,7 @@ function AuthenticatedSacAutoPresence() {
       attempted.current = "";
       return;
     }
-    if (loading || pendingTerms.length > 0 || !activeOrganizationId
+    if (loading || !accessWindow?.allowed || pendingTerms.length > 0 || !activeOrganizationId
       || !pathname.startsWith("/admin")
       || !permissions.some(permission =>
         permission.key === "sac_digital.messages.view" || permission.key === "sac_digital.view")) {
@@ -228,7 +228,7 @@ function AuthenticatedSacAutoPresence() {
       });
     return () => { cancelled = true; };
   }, [session?.user?.id, activeOrganizationId, permissions, loading, pendingTerms.length,
-    pathname.startsWith("/admin")]);
+    accessWindow?.allowed, pathname.startsWith("/admin")]);
   return null;
 }
 

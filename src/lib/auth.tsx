@@ -197,7 +197,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   // completo, abrir canais Realtime adicionais ou desmontar o módulo ativo.
   useEffect(() => {
     const organizationId = activeOrganization?.organization_id;
-    if (scope !== "crm" || !session?.user?.id || !organizationId) return;
+    if (scope !== "crm" || !session?.user?.id || !organizationId || !accessWindow?.allowed) return;
     // Conferir assim que a aba voltar a receber foco, sem polling contínuo.
     // A checagem anterior aguardava 120s e mantinha menus já revogados visíveis.
     let lastCheck = 0;
@@ -236,7 +236,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       window.removeEventListener("focus", checkPermissionsOnReturn);
       document.removeEventListener("visibilitychange", checkPermissionsOnReturn);
     };
-  }, [scope, session?.user?.id, activeOrganization?.organization_id]);
+  }, [scope, session?.user?.id, activeOrganization?.organization_id, accessWindow?.allowed]);
 
   useEffect(() => {
     // Evita expirar técnicos antes da leitura do acesso da empresa ativa.
