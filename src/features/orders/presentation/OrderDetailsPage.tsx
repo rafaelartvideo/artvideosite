@@ -13,7 +13,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ChevronDown, Download, FileText, LoaderCircle, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
+import { ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -22,6 +22,7 @@ import { OrderChecklistToolbarButton } from "@/features/checklists/presentation/
 import { OrderDetailsActions } from "./OrderDetailsActions";
 import { OrderDetailsContent, OrderEquipmentDetailsSection } from "./OrderDetailsContent";
 import { OrderDetailSectionTabs } from "./OrderDetailSectionTabs";
+import { OrderDetailsContentSkeleton } from "./OrdersSkeletons";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
@@ -724,7 +725,16 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
-        {returnDiagnosisActive
+        {!returnDiagnosisActive && <OrderDetailSectionTabs
+          value={detailSection}
+          onChange={setDetailSection}
+          itemBadge={quoteWorkflowEnabled ? null : itemBadge}
+          commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"}
+          commercialActionsHostId={!transitionPending && quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-actions-" + detail.id : undefined}
+        />}
+        {showSwitchLoading
+          ? <OrderDetailsContentSkeleton section={detailSection} returnDiagnosis={returnDiagnosisActive} />
+          : returnDiagnosisActive
           ? <>
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
                 orderImages={orderImages} onViewImage={setViewImage} />
@@ -737,12 +747,14 @@ export function OrderDetailsPage(props: Props) {
                   ? { ...current, diagnosis, solution, return_classification: kind === "same_part" ? "covered" : "unrelated" }
                   : current);
                 setDetailSection(kind === "different_part" ? "products-services" : "details");
+                // Persiste a nova etapa imediatamente e reconcilia com os dados
+                // completos do banco sem exigir recarregar a OS manualmente.
+                void details.retryDetailLoad();
               }}
               />
             </>
           : <>
-        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"}
-          commercialActionsHostId={quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-actions-" + detail.id : undefined} />
+
         {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
@@ -814,15 +826,6 @@ export function OrderDetailsPage(props: Props) {
         quoteExecutionAllowed={quoteExecutionAllowed}
         quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed ? "os-quote-toolbar-" + detail.id : undefined}
       />}
-      <div
-        data-order-switch-overlay="true"
-        aria-hidden={!showSwitchLoading}
-        className={`absolute inset-0 z-30 flex items-center justify-center bg-background/65 transition-opacity duration-150 ease-out motion-reduce:transition-none ${transitionPending ? "pointer-events-auto" : "pointer-events-none"} ${showSwitchLoading ? "opacity-100" : "opacity-0"}`}
-      >
-        {showSwitchLoading && <span role="status" aria-label="Preparando OS selecionada" className="text-primary">
-          <LoaderCircle size={24} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-        </span>}
-      </div>
     </AdminPage>}
   </>;
 }
