@@ -5,7 +5,7 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("o retorno nos três pontos e na toolbar consulta o certificado primeiro", async () => {
+test("retorno e reabertura ficam somente nos três pontos e consultam o certificado quando necessário", async () => {
   const table = read("src/features/orders/presentation/OrdersTable.tsx");
   const footer = read("src/features/orders/presentation/OrderDetailsActions.tsx");
   const actions = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
@@ -15,8 +15,8 @@ test("o retorno nos três pontos e na toolbar consulta o certificado primeiro", 
   }
   assert.match(table, /<DropdownMenuItem onSelect=\{\(\) => setReturnTarget\(order\)\}/);
   assert.match(table, /<OrderReturnStartDialog order=\{returnTarget\}/);
-  assert.match(footer, /<OrderReturnActions order=\{detail\}/);
-  assert.match(actions, /<BtnPrimary onClick=\{\(\) => setOpen\(true\)\}/);
+  assert.doesNotMatch(footer, /OrderReturnActions|Iniciar retorno|Reabrir OS/);
+  assert.doesNotMatch(actions, /OrderReturnActions|Iniciar retorno|Reabrir OS/);
   assert.match(dialog, /check_service_order_return_eligibility_v1/);
   assert.match(dialog, /reopen_service_order_as_new_v1/);
   assert.match(dialog, /Garantia fora do prazo/);
@@ -24,8 +24,7 @@ test("o retorno nos três pontos e na toolbar consulta o certificado primeiro", 
   assert.match(dialog, /mode\?: "return" \| "reopen"/);
   assert.match(table, /canReopenOrReturn/);
   assert.match(table, /canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
-  assert.match(actions, /if \(!canStartReturn\) return null/);
-  assert.match(actions, /<RotateCcw size=\{15\} \/> Iniciar retorno/);
+  assert.match(table, /<RotateCcw size=\{15\} \/> \{canStartReturn \? "Iniciar retorno" : "Reabrir OS"\}/);
   assert.doesNotMatch(actions, /Classificar garantia|<MoreHorizontal/);
 });
 
