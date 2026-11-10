@@ -305,7 +305,7 @@ export function OrderCompletionModal({
 
   const completionBlocked = completion.returnAwaitingClassification || completion.discountExceedsMax
     || completion.discountExceedsServicePrice
-    || Boolean(completion.servicePriceValidationMessage)
+    || (!completion.coverageFree && Boolean(completion.servicePriceValidationMessage))
     || Boolean(completion.financeValidationMessage)
     || completion.financeOptionsLoading
     || completion.commercialItemsLoading
