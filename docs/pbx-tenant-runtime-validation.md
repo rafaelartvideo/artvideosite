@@ -49,6 +49,18 @@ implementa troncos externos para parceiros, URA ou gravação de voz.
   O agente legado foi preservado durante esse ensaio.
 - O proprietário confirmou chamadas pelo discador do CRM usando **301 e 302**,
   para o celular autorizado, com áudio nos dois sentidos.
+- **Produção Supabase:** migrações `20261110140045` e `20261110165015`
+  aplicadas pela CLI oficial, com prévia restrita aos arquivos correspondentes.
+  Edge `union-pbx-agent` versão 7 ativa, mantendo a autenticação assinada
+  existente. Heartbeat real voltou a renovar a capacidade do agente legado
+  (protocolo 2), sem habilitar parceiros.
+- A suíte SQL transacional também passou no banco real e terminou em
+  `ROLLBACK`: nenhuma organização sintética permaneceu. O teste considera os
+  gatilhos reais que criam o Gestor e concedem permissões gerais ao ativar um
+  módulo; mede separadamente as concessões exclusivas do helper PABX. As
+  negativas de troncos consultam fixtures explícitas, inclusive uma linha
+  existente de outra empresa, sem pressupor que o usuário não tenha outras
+  organizações legítimas. A mesma suíte passou no PostgreSQL 14 descartável.
 
 ## Limites do aceite
 

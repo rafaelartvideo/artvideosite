@@ -15,7 +15,7 @@ reset role;
 do $$
 declare org uuid=gen_random_uuid(); other_org uuid=gen_random_uuid(); actor uuid;
  owner_role uuid; other_role uuid; employee uuid; other_employee uuid; key text; other_extension uuid; manager_role uuid;
- owner_permissions_before uuid[];
+ owner_permissions_before uuid[]; manager_unrelated_before uuid[];
 begin
  select id into strict actor from public.profiles order by created_at limit 1;
  insert into public.organizations(id,name,slug) values
@@ -31,13 +31,27 @@ begin
  insert into public.organization_modules(organization_id,module_key,is_enabled) values(org,'pbx',true),(other_org,'pbx',true)
  on conflict(organization_id,module_key) do update set is_enabled=true;
  insert into public.roles(organization_id,name,is_system) values(org,'Gestor',true)
- on conflict(organization_id,name) do update set is_system=true returning id into manager_role;
+ on conflict(organization_id,name) do nothing;
+ select id into strict manager_role from public.roles where organization_id=org and name='Gestor';
  insert into public.employees(organization_id,profile_id,full_name,cpf,function_name,role_id)
  values(org,actor,'PABX admission employee','00000000000','test',owner_role) returning id into employee;
  insert into public.employees(organization_id,full_name,cpf,function_name,role_id)
  values(other_org,'PABX foreign employee','00000000000','test',other_role) returning id into other_employee;
  insert into public.pbx_extensions(organization_id,number,display_name,employee_id,provisioning_status)
  values(other_org,301,'Foreign managed extension',other_employee,'applied') returning id into other_extension;
+ -- Generic onboarding also provisions Gestor permissions. Probe the PBX helper
+ -- separately, with a missing unrelated canary, inside this synthetic org only.
+ delete from public.role_permissions rp using public.roles r,public.permissions p
+  where rp.role_id=manager_role and r.id=rp.role_id and r.organization_id=org
+   and p.id=rp.permission_id and p.key in ('pbx.view','pbx.manage','products.view');
+ select coalesce(array_agg(rp.permission_id order by rp.permission_id),array[]::uuid[]) into manager_unrelated_before
+  from public.role_permissions rp join public.permissions p on p.id=rp.permission_id
+  where rp.role_id=manager_role and p.key not in ('pbx.view','pbx.manage');
+ perform private.pbx_seed_manager_permissions(org);
+ if (select count(*) from public.role_permissions rp join public.permissions p on p.id=rp.permission_id
+     where rp.role_id=manager_role and p.key in ('pbx.view','pbx.manage'))<>2 then
+  raise exception 'PBX manager permissions were not seeded';
+ end if;
  perform set_config('request.jwt.claim.sub',actor::text,true);
  perform set_config('pbx.admission_org',org::text,true);
  perform set_config('pbx.admission_other_org',other_org::text,true);
@@ -53,8 +67,9 @@ begin
      from public.role_permissions where role_id=owner_role) is distinct from owner_permissions_before then
   raise exception 'Owner PBX bootstrap elevated a shared non-manager role';
  end if;
- if exists(select 1 from public.role_permissions rp join public.permissions p on p.id=rp.permission_id
-  where rp.role_id=manager_role and p.key not in ('pbx.view','pbx.manage')) then
+ if (select coalesce(array_agg(rp.permission_id order by rp.permission_id),array[]::uuid[])
+     from public.role_permissions rp join public.permissions p on p.id=rp.permission_id
+     where rp.role_id=manager_role and p.key not in ('pbx.view','pbx.manage')) is distinct from manager_unrelated_before then
   raise exception 'Manager PBX bootstrap granted unrelated permissions';
  end if;
  foreach key in array array['pbx_register_agent(uuid,text,text)','pbx_list_agents(uuid)',
@@ -117,7 +132,7 @@ begin
  exception when insufficient_privilege then null; end;
  if exists(select 1 from public.pbx_extensions where organization_id=other_org)
   or exists(select 1 from public.pbx_call_logs where organization_id=other_org)
-  or exists(select 1 from public.pbx_trunks) then raise exception 'Cross-tenant or trunk read'; end if;
+  or exists(select 1 from public.pbx_trunks where organization_id in (org,other_org)) then raise exception 'Cross-tenant or trunk read'; end if;
  begin
   perform public.pbx_save_inbound_route_plan(org,'direct_301',null);
   raise exception 'Partner authorized Union inbound route';
@@ -261,6 +276,9 @@ reset role;
 update public.pbx_browser_login_requests set expires_at=now()+interval '1 minute' where id=current_setting('pbx.admission_request')::uuid;
 set local role authenticated;
 do $$ declare r record; org uuid=current_setting('pbx.admission_org')::uuid; begin
+ if exists(select 1 from public.pbx_trunks where organization_id=org) then
+  raise exception 'Partner read a registered trunk despite internal-only admission';
+ end if;
  perform public.pbx_set_queue_member_paused(org,current_setting('pbx.admission_queue')::uuid,current_setting('pbx.admission_extension')::uuid,true);
  select * into r from public.pbx_take_browser_login(current_setting('pbx.admission_request')::uuid);
  if r.status<>'ready' or r.encrypted_secret is null then raise exception 'Valid handoff rejected'; end if;

@@ -7,6 +7,7 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
 files=(
  scripts/union-pbx-agent/test_tenant_runtime_admission_bootstrap.sql
+ supabase/migrations/20261013202500_gestor_new_permission_defaults.sql
  supabase/migrations/20261104022003_pbx_extension_registry_foundation.sql
  supabase/migrations/20261104022025_pbx_extension_trigger_ownership_fix.sql
  supabase/migrations/20261104111730_pbx_signed_agent_enrollment.sql

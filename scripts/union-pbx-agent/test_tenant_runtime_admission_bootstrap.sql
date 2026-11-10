@@ -581,4 +581,5 @@ insert into auth.users values ('10000000-0000-4000-8000-000000000001');
 insert into public.profiles(id) values ('10000000-0000-4000-8000-000000000001');
 insert into public.system_modules(key,name,category) values('pbx','PABX','operation');
 insert into public.permissions(key,label,description,module_name,sort_order) values('pbx.view','PABX','PABX fixture','pbx',5020);
+insert into public.permissions(key,label,description,module_name,sort_order) values('products.view','Produtos','Unrelated permission fixture','products',5010);
 -- No platform organization is pre-created: historical seed statements affect no real rows.
