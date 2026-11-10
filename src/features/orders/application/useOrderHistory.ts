@@ -13,7 +13,7 @@ type ProfileOption = { id: string; full_name?: string | null };
 // financeira, não aos registros escritos manualmente pela equipe.
 function isAutomaticQuoteApprovalNote(content: unknown): boolean {
   return typeof content === "string"
-    && /^Orçamento versão \\d+ aprovado\\. Conciliação: [\\s\\S]+\\. Total anterior: R\\$ /.test(content.trim());
+    && /^Orçamento versão \d+ aprovado\. Conciliação: [\s\S]+\. Total anterior: R\$ /.test(content.trim());
 }
 
 export function useOrderHistory({
