@@ -651,18 +651,18 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </AdminButton>}
 
         {callState === "idle" && allowExternalCalls && isPlatformOperatorOrganization && <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-1" role="group" aria-label="Tipo de ligação">
-          <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
-            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</button>
-          <button type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
-            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</button>
+          <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
+            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</AdminButton>
+          <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
+            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</AdminButton>
         </div>}
         {callState === "idle" && (dialMode === "internal" || !allowExternalCalls || !isPlatformOperatorOrganization) && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ramal, fila ou URA" />
           <div className="relative">
             <FInput type="tel" inputMode="numeric" aria-label="Discar ramal, fila ou fluxo" value={dialTarget}
               maxLength={6} placeholder="Digite o número" onChange={event => setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6))}/>
-            <button type="button" aria-label="Apagar último dígito" onClick={() => setDialTarget(value => value.slice(0,-1))}
-              disabled={!dialTarget} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-30"><Delete size={17}/></button>
+            <AdminButton variant="secondary" type="button" aria-label="Apagar último dígito" onClick={() => setDialTarget(value => value.slice(0,-1))}
+              disabled={!dialTarget} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-30"><Delete size={17}/></AdminButton>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="min-w-0 flex-1"><AdminSelect value={dialableNumbers.has(Number(dialTarget)) ? dialTarget : ""} onValueChange={setDialTarget}
