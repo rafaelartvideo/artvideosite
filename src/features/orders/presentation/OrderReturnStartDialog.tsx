@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, CircleAlert, RotateCcw } from "lucide-react";
+import { ArrowUpRight, CircleAlert, CircleHelp, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { cn } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 type Eligibility = {
@@ -119,12 +120,29 @@ export function OrderReturnStartDialog({
     preparingError={eligibilityError}
     onRetryPreparing={() => { setEligibility(null); setError(""); setEligibilityRetry(value => value + 1); }}
     onClose={() => { if (!processing) onClose(); }}
-    title={isReopening || expired ? dialogTitle : <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
-      <span>{dialogTitle}</span>
-      {!loading && eligibility?.eligible && eligibility.warranty_expires_at && <span className="text-sm font-semibold text-primary">
-        Garantia válida até {formatWarrantyDate(eligibility.warranty_expires_at)}.
-      </span>}
-    </span>}
+    title={isReopening || expired
+      ? <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{dialogTitle}</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" aria-label="Informações sobre a reabertura da OS"
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                <CircleHelp size={17} aria-hidden="true" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" side="bottom" sideOffset={6}
+              className="z-[350] w-80 max-w-[calc(100vw-2rem)] text-xs leading-relaxed text-popover-foreground">
+              Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados.
+              Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados.
+            </PopoverContent>
+          </Popover>
+        </span>
+      : <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span>{dialogTitle}</span>
+          {!loading && eligibility?.eligible && eligibility.warranty_expires_at && <span className="text-sm font-semibold text-primary">
+            Garantia válida até {formatWarrantyDate(eligibility.warranty_expires_at)}.
+          </span>}
+        </span>}
     minimizedTitle={dialogTitle}
     className="max-w-lg"
     footer={<div className="flex w-full flex-wrap justify-end gap-2">
@@ -181,9 +199,6 @@ export function OrderReturnStartDialog({
                   : "A vigência do certificado ainda não começou."}
         </p>
       </div>
-      <p className="text-sm leading-6 text-foreground/90 dark:text-slate-200">
-        Você pode reabrir o atendimento com outro número, aproveitando os dados do cliente, equipamento e fotos. Valores, pagamentos e aprovações anteriores não serão replicados.
-      </p>
     </div>}
     {!isReopening && !loading && eligibility?.reason === "active_return" && <p className="text-sm text-foreground">
       Esta OS já possui um retorno em andamento.
