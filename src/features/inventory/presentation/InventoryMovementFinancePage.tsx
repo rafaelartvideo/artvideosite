@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CalendarClock, CircleHelp, Minus, Package, Plus, Scale } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, CircleHelp, Minus, Package, Plus, Scale } from "lucide-react";
 import { buildInstallments, inventoryPurchaseTotal } from "@/features/finance/domain/finance-integration.mjs";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminFieldLabel, AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, AdminSelect, FCurrencyInput, FInput, FIntegerInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminCard, AdminPage, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/primitives/popover";
 import { SupplierQuickCreateDialog } from "@/features/registrations/presentation/SupplierQuickCreateDialog";
@@ -77,10 +77,6 @@ function emptyForm(unit: "un" | "cx" = "un"): Form {
 
 function conversionFactor(item: any) {
   return Math.max(1, Number(item?.conversion_factor ?? 1) || 1);
-}
-
-function unitLabel(unit?: string | null) {
-  return unit === "cx" ? "cx" : "un";
 }
 
 export function InventoryMovementFinancePage({ itemId, onClose, embedded = false, backToDetails = false, onSupplierEditorChange }: Props) {
