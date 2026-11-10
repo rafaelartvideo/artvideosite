@@ -121,7 +121,8 @@ test("seletor de OS e retorno destaca qualquer selecionada em azul com sublinhad
   const switcher = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
   assert.ok((await transformWithEsbuild(switcher, "OrderReturnsPanel.tsx", { loader: "tsx" })).code);
   assert.match(switcher, /aria-current="page"/);
-  assert.match(switcher, /border-b-2 border-primary px-2\.5 py-1 text-base font-black text-primary/);
+  assert.match(switcher, /border-b-2 border-primary px-2\.5 py-1 text-base font-bold tabular-nums text-primary/);
+  assert.match(switcher, /border-b-2 border-transparent px-2\.5 py-1 text-base font-bold tabular-nums/);
   assert.match(switcher, /border-b-2 border-transparent/);
   assert.doesNotMatch(switcher, /bg-orange-|text-orange-|bg-\[#0131CD\]/);
   assert.match(switcher, /navigate\(adminPath\("orders", cycle\.id\)\)/);
