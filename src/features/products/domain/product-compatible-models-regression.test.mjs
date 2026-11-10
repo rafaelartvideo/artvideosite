@@ -110,7 +110,7 @@ test("configurações do estoque são persistidas por empresa e alimentam os sel
   assert.ok(page.includes("deviceTypes={catalogSettings?.deviceTypes || []}"));
   assert.ok(page.includes("deviceBrands={catalogSettings?.deviceBrands || []}"));
   assert.ok(page.includes("Ajuda sobre códigos relacionados"));
-  assert.ok(editor.includes('dropdownClassName="!max-h-[176px]"'));
+  assert.ok(editor.includes('dropdownClassName="!max-h-[148px]"'));
   assert.ok(!editor.includes("Informe os aparelhos nos quais"));
   assert.ok(productRepo.includes('save_inventory_item_unified_v7'));
 });

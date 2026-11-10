@@ -52,9 +52,11 @@ export function InventoryCatalogSettingsDialog({
         : selected === "device_type" ? settings?.deviceTypes || []
           : settings?.deviceBrands || [];
   const section = sections.find(item => item.key === selected)!;
-  const allowed = selected === "category" || selected === "subcategory" || selected === "device_type"
-    ? canManageCategories || canEditItems
-    : canManageBrands || canEditItems;
+  const allowed = selected === "category" ? canManageCategories
+    : selected === "brand" ? canManageBrands
+      : selected === "subcategory" || selected === "device_type"
+        ? canManageCategories || canEditItems
+        : canManageBrands || canEditItems;
   const visible = selected === "subcategory"
     ? entries.filter(entry => !parentCategoryId || entry.category_id === parentCategoryId)
     : entries;

@@ -88,7 +88,7 @@ export function ProductCompatibleModelsEditor({
         <div className="min-w-0">
           <AdminFieldLabel label="Tipo de aparelho" />
           <AdminSelect value={deviceType} ariaLabel="Tipo de aparelho compatível" disabled={disabled || activeTypes.length === 0}
-            dropdownClassName="!max-h-[176px]"
+            dropdownClassName="!max-h-[148px]"
             onValueChange={setDeviceType}
             options={activeTypes.length
               ? activeTypes.map(type => ({ value: type.name, label: type.name }))
@@ -97,7 +97,7 @@ export function ProductCompatibleModelsEditor({
         <div className="min-w-0">
           <AdminFieldLabel label="Marca do aparelho" />
           <AdminSelect value={brand} ariaLabel="Marca do aparelho compatível" disabled={disabled || activeBrands.length === 0}
-            dropdownClassName="!max-h-[176px]"
+            dropdownClassName="!max-h-[148px]"
             onValueChange={setBrand}
             options={[{ value: "", label: activeBrands.length ? "Selecione uma marca" : "Cadastre em Configurações do Estoque" },
               ...activeBrands.map(item => ({ value: item.name, label: item.name }))]} />
