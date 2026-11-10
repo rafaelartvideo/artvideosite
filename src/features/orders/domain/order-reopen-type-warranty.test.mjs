@@ -23,9 +23,15 @@ test("Reabrir OS cria um novo número com dados e fotos, sem fluxo de retorno", 
   const start = read("src/features/orders/presentation/OrderReturnStartDialog.tsx");
   const panel = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
   const table = read("src/features/orders/presentation/OrdersTable.tsx");
-  assert.match(start,/reopen_service_order_as_new_v1/);
+  assert.match(start,/reopen_service_order_as_new_v2/);
   assert.match(start,/mode\?: "return" \| "reopen"/);
-  assert.match(start,/Confirmar reabertura/);
+  assert.match(start,/\{isReopening \|\| \(!loading && \(eligibility\?\.eligible \|\| expired\)\)\}/);
+  assert.match(start,/Motivo do retorno <span className="text-red-600"/);
+  assert.match(start,/p_reason: reason\.trim\(\)/);
+  assert.match(start,/disabled=\{processing \|\| loading \|\| reason\.trim\(\)\.length < 5\}/);
+  assert.match(start,/>\{processing \? "Reabrindo\.\.\." : "Confirmar"\}/);
+  assert.match(start,/>\{isReopening \|\| expired \? "Cancelar" : "Voltar"\}/);
+  assert.doesNotMatch(start,/Confirmar reabertura|Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados/);
   assert.doesNotMatch(panel,/OrderReturnActions|Iniciar retorno|Reabrir OS/);
   assert.doesNotMatch(panel, /const label = canStartReturn/);
   assert.match(table,/canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
