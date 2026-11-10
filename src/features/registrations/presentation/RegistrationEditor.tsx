@@ -231,7 +231,7 @@ export function RegistrationEditor({
 
   const editorActions = <>
     {supplierQuickCreate
-      ? <AdminButton variant="quaternary" onClick={onClose} disabled={saving}>
+      ? <AdminButton variant={inlineSupplier ? "secondary" : "quaternary"} onClick={onClose} disabled={saving}>
           {inlineSupplier ? "Voltar" : "Cancelar"}
         </AdminButton>
       : <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>}

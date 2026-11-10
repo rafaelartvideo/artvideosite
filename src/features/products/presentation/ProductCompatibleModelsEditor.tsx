@@ -1,9 +1,9 @@
-import { useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Tv2 } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import type { InventoryCatalogOption } from "../infrastructure/inventory-catalog-settings.repository";
 import type { CompatibleDeviceModel } from "../infrastructure/product-compatible-models.repository";
-
-const DEVICE_TYPES = ["TV", "Monitor", "Ar-condicionado", "Projetor", "Som", "Receptor", "DVD/Blu-ray", "Outros"];
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -11,6 +11,7 @@ function normalize(value: string) {
 
 export function ProductCompatibleModelsEditor({
   models, onChange, inherited, onInheritedChange, parentProductId, disabled = false, loaded = true,
+  deviceTypes = [], deviceBrands = [],
 }: {
   models: CompatibleDeviceModel[];
   onChange: (models: CompatibleDeviceModel[]) => void;
@@ -19,13 +20,23 @@ export function ProductCompatibleModelsEditor({
   parentProductId?: string | null;
   disabled?: boolean;
   loaded?: boolean;
+  deviceTypes?: InventoryCatalogOption[];
+  deviceBrands?: InventoryCatalogOption[];
 }) {
-  const typeListId = useId();
-  const [deviceType, setDeviceType] = useState("TV");
+  const [deviceType, setDeviceType] = useState("");
   const [brand, setBrand] = useState("");
   const [modelInput, setModelInput] = useState("");
   const [error, setError] = useState("");
   const inheritedFromParent = Boolean(parentProductId && inherited);
+  const activeTypes = deviceTypes.filter(item => item.is_active);
+  const activeBrands = deviceBrands.filter(item => item.is_active);
+
+  useEffect(() => {
+    setDeviceType(current => activeTypes.some(item => item.name === current) ? current : activeTypes[0]?.name || "");
+  }, [deviceTypes]);
+  useEffect(() => {
+    setBrand(current => activeBrands.some(item => item.name === current) ? current : "");
+  }, [deviceBrands]);
 
   const addModels = () => {
     const t = deviceType.trim().replace(/\s+/g, " ");
@@ -61,11 +72,6 @@ export function ProductCompatibleModelsEditor({
   };
 
   return <div className="min-w-0 space-y-3">
-    <p className="text-xs leading-5 text-muted-foreground">
-      Informe os aparelhos nos quais este produto funciona. Ex.: controle remoto compatível com TV Samsung UN50AU7700.
-      Não confunda com o modelo do próprio produto ou com outros produtos similares do estoque.
-    </p>
-
     {Boolean(parentProductId) && <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm">
       <input type="checkbox" checked={inherited} disabled={disabled || !loaded}
         onChange={event => { setError(""); onInheritedChange(event.target.checked); }}
@@ -79,19 +85,23 @@ export function ProductCompatibleModelsEditor({
     {!loaded ? <p className="py-4 text-center text-xs text-muted-foreground">Carregando modelos compatíveis...</p>
     : <div className="space-y-3">
       {!inheritedFromParent && <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(135px,0.8fr)_minmax(140px,1fr)]">
-        <label className="min-w-0">
-          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de aparelho</span>
-          <input value={deviceType} list={typeListId} maxLength={60} disabled={disabled}
-            onChange={event => setDeviceType(event.target.value)} placeholder="Ex.: TV"
-            className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"/>
-          <datalist id={typeListId}>{DEVICE_TYPES.map(type => <option value={type} key={type}/>)}</datalist>
-        </label>
-        <label className="min-w-0">
-          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Marca do aparelho</span>
-          <input value={brand} maxLength={80} disabled={disabled}
-            onChange={event => setBrand(event.target.value)} placeholder="Ex.: Samsung"
-            className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"/>
-        </label>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Tipo de aparelho" />
+          <AdminSelect value={deviceType} ariaLabel="Tipo de aparelho compatível" disabled={disabled || activeTypes.length === 0}
+            dropdownClassName="!max-h-[176px]"
+            onValueChange={setDeviceType}
+            options={activeTypes.length
+              ? activeTypes.map(type => ({ value: type.name, label: type.name }))
+              : [{ value: "", label: "Cadastre em Configurações do Estoque" }]} />
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Marca do aparelho" />
+          <AdminSelect value={brand} ariaLabel="Marca do aparelho compatível" disabled={disabled || activeBrands.length === 0}
+            dropdownClassName="!max-h-[176px]"
+            onValueChange={setBrand}
+            options={[{ value: "", label: activeBrands.length ? "Selecione uma marca" : "Cadastre em Configurações do Estoque" },
+              ...activeBrands.map(item => ({ value: item.name, label: item.name }))]} />
+        </div>
         <div className="min-w-0 sm:col-span-2">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Modelos compatíveis</label>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
