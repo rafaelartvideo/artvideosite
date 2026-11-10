@@ -22,7 +22,8 @@ test("aprovação mostra produtos e serviços diretamente na subseção da OS", 
   const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
   const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   assert.ok((await transformWithEsbuild(details, "OrderDetailsPage.tsx", { loader: "tsx" })).code);
-  assert.match(quote, /proposal\?\.status==="approved"\s*\? <section aria-label="Produtos e serviços da OS"/);
+  assert.match(quote, /proposal\?\.status==="approved"\s*\? <OrderProductsServicesSection/);
+  assert.doesNotMatch(quote, /aria-label="Produtos e serviços da OS"/);
   assert.match(quote, /<OrderProductsServicesSection\s+order=\{order\} canEdit=\{canEdit\}/);
   assert.match(quote, /onOverviewChange=\{onOverviewChange\}/);
   assert.match(details, /onOverviewChange=\{handleItemsOverviewChange\}/);
