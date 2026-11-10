@@ -33,3 +33,13 @@ test('resposta tardia após timeout não é entregue ao consumidor', async () =>
   const pending = pbxRequest(() => new Promise(resolve => { deliver = resolve; }), 'Credencial', { timeoutMs: 10 });
   await assert.rejects(pending, /Credencial/); deliver('late'); await Promise.resolve();
 });
+
+test('operação sem resposta não vira sucesso nem recomenda repetição cega de escrita', async () => {
+  const { pbxOperationError } = await load();
+  assert.equal(typeof pbxOperationError, 'function');
+  const result = pbxOperationError(new Error('timeout'));
+  assert.equal(result.data, null);
+  assert.equal(result.error.code, 'PBX_UNCONFIRMED');
+  assert.match(result.error.message, /atualize.*antes de repetir/i);
+  assert.doesNotMatch(result.error.message, /tente novamente/i);
+});

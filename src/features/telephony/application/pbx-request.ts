@@ -1,5 +1,11 @@
 type RequestOptions = { signal?: AbortSignal; timeoutMs?: number };
 
+/** A lost response does not prove that a server-side write failed. */
+export function pbxOperationError(_error?: unknown) {
+  return { data: null, error: { code: 'PBX_UNCONFIRMED',
+    message: 'Operação sem confirmação. Atualize os dados antes de repetir uma alteração.' } };
+}
+
 /** Bound both fetch and the UI wait, including transports that ignore abort. */
 export function pbxRequest<T>(
   request: (signal: AbortSignal) => PromiseLike<T>,

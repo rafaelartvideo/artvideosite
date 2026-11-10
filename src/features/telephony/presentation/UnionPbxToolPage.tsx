@@ -1,3 +1,4 @@
+import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug } from "lucide-react";
 import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
@@ -12,7 +13,7 @@ import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
-// Primeira etapa: somente a Union World e a extensao 900 (teste de eco).
+// Acesso piloto da Union World; diretório e filas são consultados por organização.
 // Credenciais SIP sao inseridas pelo operador e nunca persistidas no navegador.
 const SIP_USER = "union-301";
 const SIP_HOST = "pbx.unionworld.com.br";
@@ -499,36 +500,36 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
                   ? "Acesso individual protegido. A senha permanece na VPS e é enviada somente criptografada para este navegador."
                   : "Ramal ainda não ativado na VPS."}
               </p>
-              <button type="button" onClick={() => void connectManaged()}
+              <AdminButton variant="primary" type="button" onClick={() => void connectManaged()}
                 disabled={checkingManaged || managedExtension.provisioning_status !== "applied"}
-                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                >
                 <Phone size={16} /> Conectar meu ramal {managedExtension.number}
-              </button>
-              <button type="button" onClick={() => setManualMode(true)}
-                className="block text-xs font-semibold text-primary hover:underline">Usar o ramal manual 301</button>
+              </AdminButton>
+              <AdminButton variant="ghost" type="button" onClick={() => setManualMode(true)}
+                >Usar o ramal manual 301</AdminButton>
             </div>
           )}
           {(!managedExtension || manualMode) && <>
           {checkingManaged && <p className="text-xs text-muted-foreground">Verificando ramal vinculado...</p>}
           <label htmlFor="union-sip-password" className="block text-sm font-medium text-foreground">Senha SIP do ramal {SIP_USER}</label>
-          <input id="union-sip-password" type="password" value={password} onChange={event => setPassword(event.target.value)}
+          <FInput id="union-sip-password" type="password" value={password} onChange={event => setPassword(event.target.value)}
             autoComplete="off" spellCheck={false} placeholder="Digite a senha protegida na VPS"
-            className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+             />
           <p className="text-xs text-muted-foreground">A senha nao e salva no banco, em cookies nem no armazenamento local. Nao utilize a senha do tronco FVX.</p>
-          <button type="button" onClick={() => void connect()} disabled={!password.trim()}
-            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+          <AdminButton variant="primary" type="button" onClick={() => void connect()} disabled={!password.trim()}
+            >
             <Phone size={16} /> Conectar ramal
-          </button>
-          {managedExtension && <button type="button" onClick={() => setManualMode(false)}
-            className="block text-xs font-semibold text-primary hover:underline">Voltar para meu ramal {managedExtension.number}</button>}
+          </AdminButton>
+          {managedExtension && <AdminButton variant="ghost" type="button" onClick={() => setManualMode(false)}
+            >Voltar para meu ramal {managedExtension.number}</AdminButton>}
           </>}
         </div>}
 
         {registration !== "offline" && <div className="mt-5 flex flex-wrap gap-2">
-          <button type="button" onClick={stop}
-            className="flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-semibold text-foreground">
+          <AdminButton variant="secondary" type="button" onClick={stop}
+            >
             <Unplug size={16} /> Desconectar
-          </button>
+          </AdminButton>
           {registration === "connecting" && <LoaderCircle size={20} className="animate-spin self-center text-primary" />}
         </div>}
       </section>
@@ -542,34 +543,25 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>
 
         <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Audio da ligacao" />
-        {audioBlocked && <button type="button" onClick={() => {
+        {audioBlocked && <AdminButton variant="secondary" type="button" onClick={() => {
           void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o audio do site nas configuracoes do navegador."));
-        }} className="mt-3 w-full rounded-lg border border-amber-500/40 p-2.5 text-sm font-semibold text-foreground">
+        }} className="w-full">
           Habilitar audio da chamada
-        </button>}
+        </AdminButton>}
 
         {callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
-          <label htmlFor="pbx-internal-destination" className="text-sm font-semibold text-foreground">Ligações internas e filas</label>
+          <AdminFieldLabel label="Ligações internas e filas" />
           <div className="flex flex-wrap items-center gap-2">
-            <select id="pbx-internal-destination" value={dialTarget}
-              onChange={event => setDialTarget(event.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground"
-              disabled={directoryLoading || registration !== "registered"}>
-              <option value="">Selecione um ramal ou fila</option>
-              {dialableExtensions.map(item => (
-                <option key={item.number} value={String(item.number)}>{item.number} · Ramal · {item.display_name}</option>
-              ))}
-              {testQueues.map(item=>(
-                <option key={"fila-"+item.number} value={String(item.number)}>
-                  {item.number} · Fila · {item.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" onClick={callInternal}
+            <div className="min-w-0 flex-1"><AdminSelect value={dialTarget} onValueChange={setDialTarget}
+              ariaLabel="Destino interno ou fila" disabled={directoryLoading || registration !== "registered"}
+              options={[{value:'',label:'Selecione um ramal ou fila'},
+                ...dialableExtensions.map(item=>({value:String(item.number),label:`${item.number} · Ramal · ${item.display_name}`})),
+                ...testQueues.map(item=>({value:String(item.number),label:`${item.number} · Fila · ${item.name}`}))]} /></div>
+            <AdminButton variant="primary" type="button" onClick={callInternal}
               disabled={outputPending || registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+              >
               <Phone size={16}/> Ligar
-            </button>
+            </AdminButton>
           </div>
           <p className="text-xs text-muted-foreground">
             {directoryLoading ? "Carregando ramais" : directoryError || testQueueError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
@@ -577,22 +569,22 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           {(directoryError || testQueueError) && <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Atualizar ramais e filas</AdminButton>}
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
-          {callState === "idle" && <button type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}
-            className="flex h-11 items-center gap-2 rounded-lg bg-[#0057e7] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+          {callState === "idle" && <AdminButton variant="primary" size="lg" type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}
+            >
             <Phone size={17} /> Testar ramal 900
-          </button>}
-          {callState === "incoming" && <button type="button" onClick={answer} disabled={outputPending}
-            className="flex h-11 items-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white">
+          </AdminButton>}
+          {callState === "incoming" && <AdminButton variant="success" size="lg" type="button" onClick={answer} disabled={outputPending}
+            >
             <PhoneIncoming size={17} /> Atender
-          </button>}
-          {callState === "active" && <button type="button" onClick={toggleMute}
-            className="flex h-11 items-center gap-2 rounded-lg border border-border px-4 text-sm font-semibold text-foreground">
+          </AdminButton>}
+          {callState === "active" && <AdminButton variant="secondary" size="lg" type="button" onClick={toggleMute}
+            >
             {muted ? <MicOff size={17} /> : <Mic size={17} />} {muted ? "Ativar microfone" : "Silenciar"}
-          </button>}
-          {callState !== "idle" && <button type="button" onClick={hangup}
-            className="flex h-11 items-center gap-2 rounded-lg bg-red-600 px-5 text-sm font-semibold text-white">
+          </AdminButton>}
+          {callState !== "idle" && <AdminButton variant="danger" size="lg" type="button" onClick={hangup}
+            >
             <PhoneOff size={17} /> Desligar
-          </button>}
+          </AdminButton>}
         </div>
       </section>
 
@@ -602,14 +594,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>O ramal 301 recebe chamadas da linha da Union World; ramais gerenciados novos ainda não entram na rota de chamadas externas. Todos podem testar o áudio interno pelo 900. Discagem externa ainda não foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
+        <p>Use os ramais e as filas listadas para ligações internas e o 900 para testar o áudio. A discagem externa por este telefone ainda não foi habilitada. A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
       <div className="flex flex-wrap gap-4">
-        {onManage && <button type="button" onClick={onManage} className="text-sm font-semibold text-primary hover:underline">Gerenciar ramais</button>}
-        {onManageQueues && <button type="button" onClick={onManageQueues} className="text-sm font-semibold text-primary hover:underline">Gerenciar filas</button>}
-        {onManageInbound && <button type="button" onClick={onManageInbound} className="text-sm font-semibold text-primary hover:underline">Planejar entrada FVX</button>}
+        {onManage && <AdminButton variant="ghost" type="button" onClick={onManage} >Gerenciar ramais</AdminButton>}
+        {onManageQueues && <AdminButton variant="ghost" type="button" onClick={onManageQueues} >Gerenciar filas</AdminButton>}
+        {onManageInbound && <AdminButton variant="ghost" type="button" onClick={onManageInbound} >Planejar entrada FVX</AdminButton>}
         {onHistory && <AdminButton variant="secondary" onClick={onHistory}>Histórico de ligações</AdminButton>}
-        <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para Ferramentas</button>
+        <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para Ferramentas</AdminButton>
       </div>
     </div>
     </div>
@@ -626,9 +618,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
               {callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
             </p>
           </div>
-          <button type="button" onClick={onOpen} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted" aria-label="Abrir telefone completo">
+          <AdminButton variant="secondary" type="button" onClick={onOpen} className="shrink-0" aria-label="Abrir telefone completo">
             Abrir
-          </button>
+          </AdminButton>
         </div>
         {callState !== "idle" && <p className="truncate text-sm font-semibold">{remoteParty || "Chamada"}</p>}
         {callState === "active" && <>
@@ -641,33 +633,33 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}
         <div className="flex flex-wrap items-center gap-2">
           {callState === "incoming" && (
-            <button type="button" onClick={answer} disabled={outputPending} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50">
+            <AdminButton variant="success" type="button" onClick={answer} disabled={outputPending} className="flex-1">
               <PhoneIncoming size={16} /> Atender
-            </button>
+            </AdminButton>
           )}
           {callState === "active" && (
-            <button type="button" onClick={toggleMute} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold">
+            <AdminButton variant="secondary" type="button" onClick={toggleMute} className="flex-1">
               {muted ? <MicOff size={16} /> : <Mic size={16} />} {muted ? "Ativar microfone" : "Silenciar"}
-            </button>
+            </AdminButton>
           )}
           {callState !== "idle" && (
-            <button type="button" onClick={hangup} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white">
+            <AdminButton variant="danger" type="button" onClick={hangup} className="flex-1">
               <PhoneOff size={16} /> Desligar
-            </button>
+            </AdminButton>
           )}
           {callState === "idle" && (
-            <button type="button" onClick={stop} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold">
+            <AdminButton variant="secondary" type="button" onClick={stop} >
               <Unplug size={15} /> {registration === "registered" ? "Desconectar" : "Reiniciar conexão"}
-            </button>
+            </AdminButton>
           )}
           {registration === "connecting" && <LoaderCircle size={18} className="animate-spin text-primary" />}
         </div>
         {audioBlocked && (
-          <button type="button" onClick={() => {
+          <AdminButton variant="secondary" type="button" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o audio do site nas configuracoes do navegador."));
-          }} className="w-full rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-semibold">
+          }} className="w-full">
             Habilitar áudio da chamada
-          </button>
+          </AdminButton>
         )}
       </section>
     )}

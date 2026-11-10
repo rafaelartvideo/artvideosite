@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { FInput, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { pbxRequest, pbxOperationError } from "../application/pbx-request";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { Check, LoaderCircle, Pencil, Phone, Plus, RefreshCw, Save, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader, AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { UnionPbxAgentPanel } from "./UnionPbxAgentPanel";
 
 type Extension = {
@@ -28,9 +31,13 @@ function statusText(extension: Extension) {
   return extension.desired_enabled ? "Configuração aplicada" : "Desativação aplicada";
 }
 
-const inputClass = "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary disabled:opacity-60";
 
 export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
+  const requestScope = useRef(new AbortController());
+  useEffect(() => {
+    const scope = new AbortController(); requestScope.current = scope;
+    return () => scope.abort();
+  }, []);
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("pbx.manage");
   const [extensions, setExtensions] = useState<Extension[]>([]);
@@ -57,9 +64,9 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
       return () => { cancelled = true; };
     }
     void (async () => {
-      const result = await supabase.from("pbx_extensions")
+      const result = await pbxRequest(signal => supabase.from("pbx_extensions")
         .select("id,organization_id,number,display_name,employee_id,endpoint_name,desired_enabled,provisioning_status,is_managed,updated_at")
-        .eq("organization_id", activeOrganizationId).order("number");
+        .eq("organization_id", activeOrganizationId).order("number").abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
       if (cancelled) return;
       if (result.error) setError("Não foi possível carregar os ramais. " + result.error.message);
       else setExtensions((result.data || []) as Extension[]);
@@ -67,13 +74,16 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     })();
     if (canManage) {
       void (async () => {
-        const result = await supabase.from("employees")
+        const result = await pbxRequest(signal => supabase.from("employees")
           .select("id,full_name,is_active")
           .eq("organization_id", activeOrganizationId)
           .eq("is_active", true)
           .order("full_name")
-          .limit(300);
-        if (!cancelled && !result.error) setEmployees((result.data || []) as EmployeeOption[]);
+          .limit(300).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
+        if (!cancelled) {
+          if (result.error) setError('Não foi possível consultar os funcionários. Atualize antes de editar vínculos.');
+          else setEmployees((result.data || []) as EmployeeOption[]);
+        }
       })();
     }
     return () => { cancelled = true; };
@@ -128,8 +138,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
       ...(!editingId ? { number, organization_id: activeOrganizationId } : {}),
     };
     const result = editingId
-      ? await supabase.from("pbx_extensions").update(values).eq("id", editingId).eq("organization_id", activeOrganizationId)
-      : await supabase.from("pbx_extensions").insert(values);
+      ? await pbxRequest(signal => supabase.from("pbx_extensions").update(values).eq("id", editingId).eq("organization_id", activeOrganizationId).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError)
+      : await pbxRequest(signal => supabase.from("pbx_extensions").insert(values).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if (result.error) {
       setError(result.error.code === "23505" ? "Esse número ou funcionário já está vinculado a outro ramal." : result.error.message);
@@ -145,10 +155,10 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     if (!activeOrganizationId || !canManage || saving || item.provisioning_status !== "failed") return;
     setSaving(true);
     setError("");
-    const result = await supabase.rpc("pbx_retry_extension", {
+    const result = await pbxRequest(signal => supabase.rpc("pbx_retry_extension", {
       p_organization_id: activeOrganizationId,
       p_extension_id: item.id,
-    });
+    }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if (result.error) setError(result.error.message);
     else {
@@ -163,10 +173,10 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     if (!window.confirm("Deseja " + label + " o ramal " + item.number + "? A alteração será solicitada à VPS.")) return;
     setSaving(true);
     setError("");
-    const result = await supabase.from("pbx_extensions")
+    const result = await pbxRequest(signal => supabase.from("pbx_extensions")
       .update({ desired_enabled: !item.desired_enabled })
       .eq("id", item.id)
-      .eq("organization_id", activeOrganizationId);
+      .eq("organization_id", activeOrganizationId).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setSaving(false);
     if (result.error) {
       setError(result.error.message);
@@ -191,12 +201,12 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setReloadKey(key => key + 1)} aria-label="Atualizar ramais" title="Atualizar" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold text-foreground">
+        <AdminButton variant="secondary" type="button" onClick={() => setReloadKey(key => key + 1)} aria-label="Atualizar ramais" title="Atualizar" >
           <RefreshCw size={16} /> Atualizar
-        </button>
-        {canManage && <button type="button" onClick={beginNew} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:opacity-50">
+        </AdminButton>
+        {canManage && <AdminButton variant="primary" type="button" onClick={beginNew} disabled={saving} >
           <Plus size={16} /> Novo ramal
-        </button>}
+        </AdminButton>}
       </div>
     </div>
 
@@ -208,28 +218,27 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     {formOpen && canManage && <section className="rounded-xl border border-border bg-card p-4 sm:p-5" aria-label={editingId ? "Editar ramal" : "Cadastrar ramal"}>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-semibold text-foreground">{editingId ? "Editar ramal" : "Novo ramal"}</h2>
-        <button type="button" onClick={cancelForm} disabled={saving} aria-label="Fechar formulário" className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X size={17} /></button>
+        <AdminButton variant="ghost" type="button" onClick={cancelForm} disabled={saving} aria-label="Fechar formulário" ><X size={17} /></AdminButton>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-xs font-semibold text-foreground">Número *
-          <input className={inputClass} type="number" min={100} max={9999} disabled={Boolean(editingId)} value={form.number} onChange={event => setForm(current => ({...current, number:event.target.value}))} />
+          <FInput  type="number" min={100} max={9999} disabled={Boolean(editingId)} value={form.number} onChange={event => setForm(current => ({...current, number:event.target.value}))} />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Nome do ramal *
-          <input className={inputClass} maxLength={80} value={form.display_name} onChange={event => setForm(current => ({...current, display_name:event.target.value}))} placeholder="Recepção" />
+          <FInput  maxLength={80} value={form.display_name} onChange={event => setForm(current => ({...current, display_name:event.target.value}))} placeholder="Recepção" />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Funcionário vinculado
-          <select className={inputClass} value={form.employee_id} onChange={event => setForm(current => ({...current,employee_id:event.target.value}))}>
-            <option value="">Sem vínculo</option>
-            {employees.filter(employee => !linkedEmployees.has(employee.id)).map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
-          </select>
+          <AdminSelect value={form.employee_id} onValueChange={employee_id => setForm(current => ({...current,employee_id}))}
+            ariaLabel="Funcionário vinculado" options={[{value:'',label:'Sem vínculo'},
+              ...employees.filter(employee => !linkedEmployees.has(employee.id)).map(employee => ({value:employee.id,label:employee.full_name}))]} />
         </label>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">Para preservar a configuração atual, o número não pode ser alterado depois do cadastro. Desative o ramal e crie outro se precisar mudar a numeração.</p>
       <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <button type="button" disabled={saving} onClick={cancelForm} className="h-10 rounded-lg border border-border px-4 text-sm font-semibold text-foreground">Cancelar</button>
-        <button type="button" disabled={saving} onClick={() => void save()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:opacity-50">
+        <AdminButton variant="secondary" type="button" disabled={saving} onClick={cancelForm} >Cancelar</AdminButton>
+        <AdminButton variant="primary" type="button" disabled={saving} onClick={() => void save()} >
           {saving ? <LoaderCircle className="animate-spin" size={16}/> : <Save size={16}/>} Salvar
-        </button>
+        </AdminButton>
       </div>
     </section>}
 
@@ -238,33 +247,33 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
         <h2 className="text-sm font-semibold text-foreground">Ramais cadastrados</h2>
         <p className="mt-1 text-xs text-muted-foreground">{extensions.length} registros nesta empresa · atualização manual sem consultas repetidas</p>
       </div>
-      {loading ? <div className="flex items-center justify-center gap-2 p-9 text-sm text-muted-foreground"><LoaderCircle className="animate-spin" size={18}/> Carregando ramais</div>
-      : extensions.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum ramal cadastrado nesta empresa.</p>
+      {loading ? <AdminWorkspaceSkeleton variant="cards" rows={3} />
+      : extensions.length === 0 ? <AdminSectionEmpty>Nenhum ramal cadastrado nesta empresa.</AdminSectionEmpty>
       : <div className="divide-y divide-border">
           {extensions.map(item => <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/10 text-[#0057e7]"><Phone size={18} /></div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Phone size={18} /></div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground">{item.number} · {item.display_name}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{item.employee_id ? employeeNames.get(item.employee_id) || "Funcionário vinculado" : "Sem funcionário vinculado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">{statusText(item)}{item.desired_enabled ? "" : " · desativação solicitada"}</p>
             </div>
             {canManage && <div className="flex items-center gap-2">
-              <button type="button" onClick={() => beginEdit(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground" title="Editar ramal">
+              <AdminButton variant="secondary" size="sm" type="button" onClick={() => beginEdit(item)} disabled={saving}  title="Editar ramal">
                 <Pencil size={14} /> Editar
-              </button>
+              </AdminButton>
               {item.is_managed && item.provisioning_status === "failed" &&
-                <button type="button" onClick={() => void retry(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                <AdminButton variant="secondary" size="sm" type="button" onClick={() => void retry(item)} disabled={saving} >
                   <RefreshCw size={14} /> Tentar novamente
-                </button>}
+                </AdminButton>}
               {item.is_managed
-                ? <button type="button" onClick={() => void toggle(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                ? <AdminButton variant="secondary" size="sm" type="button" onClick={() => void toggle(item)} disabled={saving} >
                     {item.desired_enabled ? <X size={14}/> : <Check size={14}/>} {item.desired_enabled ? "Desativar" : "Ativar"}
-                  </button>
+                  </AdminButton>
                 : <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">Legado protegido</span>}
             </div>}
           </div>)}
         </div>}
     </section>
-    <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para o telefone</button>
+    <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para o telefone</AdminButton>
   </div>;
 }

@@ -451,11 +451,11 @@ export function AdminDashboard({
   const toolsContent = route.resourceId === "union-pbx"
     ? !canAccessPbxTool ? <Navigate to={adminPath("tools")} replace />
       : route.subpage === "ramais"
-        ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+        ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
         : route.subpage === "filas"
-          ? canManagePbxTool ? <UnionPbxQueuesPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+          ? canManagePbxTool ? <UnionPbxQueuesPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
           : route.subpage === "entrada"
-            ? canManagePbxTool ? <UnionPbxInboundPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+            ? canManagePbxTool ? <UnionPbxInboundPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
             : route.subpage === "historico"
               ? <UnionPbxHistoryPage key={activeOrganizationId || 'no-organization'} onBack={() => navigateAdmin("tools", "union-pbx")} />
               : null /* Telefone persistente montado fora das rotas. */

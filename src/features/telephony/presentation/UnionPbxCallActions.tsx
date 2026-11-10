@@ -1,5 +1,6 @@
 import { ArrowRightLeft, Pause, Play } from 'lucide-react';
 import { AdminButton } from '@/shared/ui/admin/AdminLayout';
+import { AdminSelect } from '@/shared/ui/admin/AdminFormControls';
 
 type Props = {
   idPrefix: string;
@@ -26,14 +27,11 @@ export function UnionPbxCallActions({ idPrefix, held, holdUncertain, transferUnc
       {(held || holdUncertain) && <span role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-300">{holdUncertain ? 'Estado de espera sem confirmação' : 'Chamada em espera'}</span>}
     </div>
     <div className="space-y-2">
-      <label htmlFor={`${idPrefix}-transfer`} className="block text-xs font-semibold text-foreground">Transferir para outro ramal</label>
+      <p id={`${idPrefix}-transfer-label`} className="block text-xs font-semibold text-foreground">Transferir para outro ramal</p>
       <div className="flex flex-wrap gap-2">
-        <select id={`${idPrefix}-transfer`} value={destination} disabled={Boolean(busy) || transferUncertain || !extensions.length}
-          onChange={event => onDestination(event.target.value)}
-          className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:border-primary">
-          <option value="">Selecione um ramal</option>
-          {extensions.map(item => <option key={item.number} value={String(item.number)}>{item.number} · {item.display_name}</option>)}
-        </select>
+        <div className="min-w-0 flex-1"><AdminSelect value={destination} disabled={Boolean(busy) || transferUncertain || !extensions.length}
+          onValueChange={onDestination} ariaLabel="Transferir para outro ramal"
+          options={[{value:'',label:'Selecione um ramal'},...extensions.map(item=>({value:String(item.number),label:`${item.number} · ${item.display_name}`}))]} /></div>
         <AdminButton size="sm" onClick={onTransfer} disabled={!valid || Boolean(busy) || transferUncertain}
           loading={busy === 'transfer'} loadingText="Transferindo...">
           <ArrowRightLeft size={15} /> Transferir

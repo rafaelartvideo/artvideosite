@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { pbxRequest } from "../application/pbx-request";
 
 export type PbxMemberLive = {
   number: number;
@@ -23,21 +24,22 @@ export function usePbxQueueLive(organizationId: string | null | undefined) {
 
   useEffect(()=>{
     let cancelled=false;
+    const controller=new AbortController();
     setItems({});
     setError("");
     if(!organizationId) return () => {cancelled=true;};
 
     // One initial fetch and one realtime channel per open management screen.
     // No repeated database queries, even with many queues.
-    void supabase.from("pbx_queue_live_status")
+    void pbxRequest(signal => supabase.from("pbx_queue_live_status")
       .select("queue_id,organization_id,queue_state,waiting_count,members,sampled_at")
       .eq("organization_id",organizationId)
-      .limit(50)
+      .limit(50).abortSignal(signal), 'Acompanhamento das filas', { signal: controller.signal })
       .then(({data,error:fetchError})=>{
         if(cancelled) return;
         if(fetchError) setError("Não foi possível consultar o acompanhamento das filas.");
         else setItems(Object.fromEntries(((data||[]) as PbxQueueLive[]).map(item=>[item.queue_id,item])));
-      });
+      }).catch(()=>{if(!cancelled)setError('A consulta das filas não foi confirmada. Atualize a página para tentar novamente.');});
 
     const channel=supabase.channel("pbx-queue-live-"+organizationId)
       .on("postgres_changes",{
@@ -59,6 +61,7 @@ export function usePbxQueueLive(organizationId: string | null | undefined) {
       }).subscribe();
     return ()=>{
       cancelled=true;
+      controller.abort();
       void supabase.removeChannel(channel);
     };
   },[organizationId]);
