@@ -1,11 +1,12 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { OrdersTableSkeleton } from "./OrdersSkeletons";
 import { OrderConclusionButton } from "./OrderConclusionButton";
+import { OrderReturnStartDialog } from "./OrderReturnStartDialog";
 import { Skeleton } from "@/shared/ui/primitives/skeleton";
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
-import { Check, ClipboardList, Clock3, Edit2, Printer } from "lucide-react";
+import { Check, ClipboardList, Clock3, Edit2, Printer, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
@@ -50,6 +51,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [actionToast, setActionToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [returnTarget, setReturnTarget] = useState<any | null>(null);
 
   if (!hasPermission("orders.table.view")) return null;
   const canOpenDetails = hasPermission("orders.details.view");
@@ -63,7 +65,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const safePage = page;
   const openDetails = (order: any) => { if (canOpenDetails) onOpen(order); };
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
-  const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
+  const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order)
+    && (!order.return_root_id || order.return_classification !== "analysis");
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order)
     && (!order.return_root_id || (order.return_classification && order.return_classification !== "analysis"));
@@ -121,7 +124,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     const situations = availableSituations(order);
     const editable = canEdit(order);
     const allowSituationChange = canChangeOrderSituation(order);
-    const hasAnyAction = canPrint || allowSituationChange || editable;
+    const canStartReturn = hasPermission("orders.create") && Boolean(order.completed_at) && !isCancelled(order);
+    const hasAnyAction = canPrint || allowSituationChange || editable || canStartReturn;
 
     return <DropdownMenu onOpenChange={open => { if (!open) setExpandedSituationOrderId(null); }}>
       <DropdownMenuTrigger asChild>
@@ -139,6 +143,9 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           {printingOrderId === order.id ? "Preparando A4..." : "Imprimir A4"}
         </DropdownMenuItem>}
 
+        {canStartReturn && <DropdownMenuItem onSelect={() => setReturnTarget(order)} className="gap-2 font-semibold">
+          <RotateCcw size={15} /> Iniciar retorno
+        </DropdownMenuItem>}
         {canPrint && (allowSituationChange || editable) && <DropdownMenuSeparator />}
 
         {allowSituationChange && <>
@@ -226,6 +233,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
       </div>}
     </AdminDialog>
 
+    <OrderReturnStartDialog order={returnTarget} open={Boolean(returnTarget)}
+      onClose={() => setReturnTarget(null)} />
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
         <OrdersTableSkeleton hasPermission={hasPermission} hasActiveFilters={hasActiveFilters} pageSize={pageSize} totalItems={totalItems} />
