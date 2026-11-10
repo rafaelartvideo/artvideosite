@@ -118,3 +118,23 @@ test("agenda semanal de acesso permite vários intervalos sem sobreposição e s
     "list_employee_crm_access_sources_v1", "enable row level security",
   ]) assert.ok(sql.includes(token), token);
 });
+
+test("agenda de acesso usa a entidade de cadastro unificado, inclusive funcionários sem registro legado", () => {
+  const repo=read("src/features/registrations/infrastructure/employee-access-hours.repository.ts");
+  const modal=read("src/features/registrations/presentation/EmployeeAccessHoursDialog.tsx");
+  const form=read("src/features/registrations/presentation/TabRegistrations.tsx");
+  const sql=read("supabase/migrations/20261110213000_employee_crm_hours_unified_entities.sql");
+  assert.match(sql,/entity_crm_access_hours|employee_crm_access_hours/);
+  assert.match(sql,/entity_id/);
+  assert.match(sql,/entity_employee_details/);
+  assert.match(sql,/private\.employee_crm_access_now/);
+  assert.match(sql,/get_employee_crm_access_hours_v2/);
+  assert.match(sql,/save_employee_crm_access_hours_v2/);
+  assert.match(sql,/check_my_employee_crm_access_hours_v2/);
+  assert.match(repo,/get_employee_crm_access_hours_v2/);
+  assert.match(repo,/save_employee_crm_access_hours_v2/);
+  assert.match(repo,/p_entity_id: entityId/);
+  assert.match(modal,/entityId/);
+  assert.match(form,/saveEmployeeAccessHours\(activeOrganizationId, savedId, stagedAccessHours\)/);
+  assert.match(form,/entityId=\{creating \? null : selected\?\.id \|\| null\}/);
+});

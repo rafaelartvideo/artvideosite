@@ -12,9 +12,9 @@ import {
 } from "../domain/employee-access-hours";
 import { getEmployeeAccessHours, listEmployeeAccessHoursSources } from "../infrastructure/employee-access-hours.repository";
 
-export function EmployeeAccessHoursDialog({ organizationId, employeeId, employeeName, stagedHours, canEdit, onClose, onSave }: {
+export function EmployeeAccessHoursDialog({ organizationId, entityId, employeeName, stagedHours, canEdit, onClose, onSave }: {
   organizationId: string;
-  employeeId: string | null;
+  entityId: string | null;
   employeeName: string;
   stagedHours: EmployeeAccessHours | null;
   canEdit: boolean;
@@ -29,9 +29,9 @@ export function EmployeeAccessHoursDialog({ organizationId, employeeId, employee
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const detail = useQuery({
-    queryKey: ["registrations", "crm-access-hours", organizationId, employeeId],
-    queryFn: () => getEmployeeAccessHours(organizationId, employeeId!),
-    enabled: Boolean(employeeId && !stagedHours),
+    queryKey: ["registrations", "crm-access-hours", organizationId, entityId],
+    queryFn: () => getEmployeeAccessHours(organizationId, entityId!),
+    enabled: Boolean(entityId && !stagedHours),
   });
   const sources = useQuery({
     queryKey: ["registrations", "crm-access-hours-sources", organizationId],
@@ -86,11 +86,11 @@ export function EmployeeAccessHoursDialog({ organizationId, employeeId, employee
     bodyClassName="space-y-4 !p-3 sm:!p-5"
     footer={<div className="flex justify-end gap-2">
       <AdminButton variant="secondary" disabled={busy} onClick={onClose}>Voltar</AdminButton>
-      {canEdit && <BtnPrimary loading={busy} loadingText="Salvando..." disabled={copying || Boolean(invalid) || Boolean(employeeId && !stagedHours && detail.isPending)}
+      {canEdit && <BtnPrimary loading={busy} loadingText="Salvando..." disabled={copying || Boolean(invalid) || Boolean(entityId && !stagedHours && detail.isPending)}
         onClick={() => void save()}>Salvar horários</BtnPrimary>}
     </div>}>
-    {employeeId && !stagedHours && detail.isPending ? <LoadingState text="Preparando agenda..." />
-      : employeeId && !stagedHours && detail.isError
+    {entityId && !stagedHours && detail.isPending ? <LoadingState text="Preparando agenda..." />
+      : entityId && !stagedHours && detail.isError
         ? <p role="alert" className="py-6 text-sm font-semibold text-destructive">{systemErrorMessage(detail.error)}</p>
         : <>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -115,8 +115,8 @@ export function EmployeeAccessHoursDialog({ organizationId, employeeId, employee
                   value={sourceId} onValueChange={setSourceId}
                   disabled={disabled || sources.isPending}
                   options={[{ value: "", label: sources.isPending ? "Carregando..." : "Selecione um funcionário" },
-                    ...(sources.data || []).filter(item => item.employee_id !== employeeId)
-                      .map(item => ({ value: item.employee_id, label: item.full_name + (!item.enabled ? " · sem restrição" : "") }))]}/>
+                    ...(sources.data || []).filter(item => item.entity_id !== entityId)
+                      .map(item => ({ value: item.entity_id, label: item.full_name + (!item.enabled ? " · sem restrição" : "") }))]}/>
               </div>
               <AdminButton variant="secondary" className="h-[42px] shrink-0"
                 disabled={disabled || !sourceId} onClick={() => void copySchedule()}>
@@ -180,7 +180,7 @@ export function EmployeeAccessHoursDialog({ organizationId, employeeId, employee
           </Section>
           {(error || invalid) && <p role="alert" className="text-sm font-semibold text-destructive">{error || invalid}</p>}
           {info && <p role="status" className="text-xs font-semibold text-emerald-600">{info}</p>}
-          {!employeeId && <p className="text-xs text-muted-foreground">
+          {!entityId && <p className="text-xs text-muted-foreground">
             Em um funcionário novo, a agenda é gravada quando o cadastro do funcionário é criado.
           </p>}
         </>}

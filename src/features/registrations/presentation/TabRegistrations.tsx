@@ -586,12 +586,12 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
-      if (form.roles.includes("employee") && refreshed.legacy_employee_id && stagedAccessHours) {
+      if (form.roles.includes("employee") && stagedAccessHours) {
         try {
-          await saveEmployeeAccessHours(activeOrganizationId, refreshed.legacy_employee_id, stagedAccessHours);
+          await saveEmployeeAccessHours(activeOrganizationId, savedId, stagedAccessHours);
           setStagedAccessHours(null);
           void queryClient.invalidateQueries({
-            queryKey: ["registrations", "crm-access-hours", activeOrganizationId, refreshed.legacy_employee_id],
+            queryKey: ["registrations", "crm-access-hours", activeOrganizationId, savedId],
           });
         } catch (scheduleError) {
           setSelected(refreshed);
@@ -752,17 +752,17 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       />
       {hoursOpen && activeOrganizationId && form.roles.includes("employee") && <EmployeeAccessHoursDialog
         organizationId={activeOrganizationId}
-        employeeId={creating ? null : selected?.legacy_employee_id || null}
+        entityId={creating ? null : selected?.id || null}
         employeeName={selected?.name || form.name || "Funcionário"}
         stagedHours={stagedAccessHours}
         canEdit={creating ? canCreateAccess && canEditAccess : canEditAccess}
         onClose={() => setHoursOpen(false)}
         onSave={async hours => {
           if (!activeOrganizationId) throw new Error("Empresa não selecionada.");
-          if (!creating && selected?.legacy_employee_id) {
-            await saveEmployeeAccessHours(activeOrganizationId, selected.legacy_employee_id, hours);
+          if (!creating && selected?.id) {
+            await saveEmployeeAccessHours(activeOrganizationId, selected.id, hours);
             void queryClient.invalidateQueries({
-              queryKey: ["registrations", "crm-access-hours", activeOrganizationId, selected.legacy_employee_id],
+              queryKey: ["registrations", "crm-access-hours", activeOrganizationId, selected.id],
             });
             setToast({ msg: "Horários de acesso atualizados.", type: "success" });
           } else {
