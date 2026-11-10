@@ -386,3 +386,40 @@ Ferramentas → PABX → Histórico de ligações e mantém o telefone montado.
 
 Referências de formato e opções: [CDR Asterisk 22](https://docs.asterisk.org/Asterisk_22_Documentation/API_Documentation/Dialplan_Functions/CDR/)
 e [backend customizado oficial](https://github.com/asterisk/asterisk/blob/22/configs/samples/cdr_custom.conf.sample).
+
+## Pausa por integrante da fila
+
+O protocolo 2 adiciona `queue_availability.py`, instalado ao lado de `agent.py`.
+Sem esse módulo importável, o agente anuncia protocolo 1 e mantém as demais
+operações. O backend registra a capacidade a cada poll; um rollback volta a
+bloquear os controles. A tela exige `pbx.manage`, leitura recente da fila e um
+agente compatível com comunicação nos últimos 95 segundos.
+
+As migrações `20261110015339_pbx_queue_member_availability_controls.sql` e
+`20261110021308_pbx_queue_control_generation_order.sql` guardam o estado desejado
+e a confirmação separadamente. Não criam pausas por padrão. O RPC verifica
+organização, permissão, integrante ativo e fila aplicada. A revisão UUID impede
+confirmar uma solicitação substituída; o contador sequencial ordena solicitações
+na interface mesmo quando transações têm horários iguais ou fora de ordem.
+
+O agente reconcilia até dez integrantes por ciclo, com limite de tempo. Verifica
+o endpoint e número no estado local da fila da própria organização. O UUID do
+cadastro e o UUID do nome do endpoint são independentes e não são derivados um
+do outro. Todo comando CLI inclui a fila exata; nunca pausa em todas as filas.
+O estado é consultado após a ação. Falhas não são reportadas como aplicação, nem
+incluem a saída bruta do comando. Não recarrega módulos, dialplan ou PJSIP e não
+derruba uma conversa em andamento. Pausa é diferente de registro SIP e de mudo.
+
+`activate-availability.sh` é a atualização única para o agente auditado que já
+possui histórico. Exige `--acknowledge-availability-activation`, hash anterior
+confirmado, diretório de staging revisado, ausência de chamadas e aprovação do
+proprietário. Faz backup, instala agente/módulo e reinicia somente o agente.
+Não envia qualquer solicitação de pausa. Sua reversão automática mantém o
+histórico e restaura o agente anterior se houver falha local.
+
+Antes de aplicar: testes Python e de banco, backup e janela autorizada. O arquivo
+`test_queue_availability_database.sql` usa o papel authenticated de verdade,
+valida RLS, membro/organização, revisão substituída, geração, confirmação repetida
+e protocolo antigo; todas as alterações fictícias são revertidas. Depois da
+aplicação, testar pausa e retomada de um integrante mantendo outro disponível,
+conferir o estado efetivo no Asterisk e no CRM e restabelecer a disponibilidade.

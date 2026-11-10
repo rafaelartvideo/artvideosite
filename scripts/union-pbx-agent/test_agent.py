@@ -15,6 +15,12 @@ agent = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agent)
 
 class AgentSafetyTests(unittest.TestCase):
+    def test_missing_availability_module_does_not_advertise_unsupported_commands(self):
+        with patch.dict('sys.modules', {'queue_availability': None}):
+            protocol, processor = agent.availability_capability()
+            self.assertEqual(protocol, 1)
+            self.assertIsNone(processor)
+
     def test_web_rtc_template_is_restricted(self):
         endpoint = "uw-" + "a" * 32
         text = agent.sip_conf(endpoint, 302, "safePassword_" + "b" * 35)

@@ -12,17 +12,22 @@ async function bridge({ fail = false, enabled = true } = {}) {
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
   const calls = [];
+  const updates = [];
   const admin = {
     from(table) {
       const query = {
         select() { return query; }, eq() { return query; }, lt() { return query; },
-        update() { return query; },
+        gt() { return query; }, order() { return query; }, limit() { return query; },
+        abortSignal() { return query; }, delete() { return query; },
+        update(value) { if (table === 'pbx_agents') updates.push(value); return query; },
+        then(resolve) { return Promise.resolve(resolve({ data: [] })); },
         async maybeSingle() { return { data: { id: agentId, organization_id: organizationId, enabled, public_key: publicKey, last_sequence: 0 } }; },
       };
-      assert.equal(table, 'pbx_agents');
+      assert.ok(table.startsWith('pbx_'));
       return query;
     },
-    async rpc(name, args) { calls.push({ name, args }); return fail ? { error: { code: '23514' } } : { data: { accepted: true, acknowledged: args.p_records.length } }; },
+    async rpc(name, args) { calls.push({ name, args }); return fail ? { error: { code: '23514' } } :
+      name === 'pbx_poll_queue_availability' ? { data: [] } : { data: { accepted: true, acknowledged: (args.p_records || args.p_results).length } }; },
   };
   globalThis.__historyCreateClient = () => admin;
   globalThis.Deno = { env: { get: () => 'configured' }, serve: value => { handler = value; } };
@@ -31,6 +36,7 @@ async function bridge({ fail = false, enabled = true } = {}) {
   await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}#${crypto.randomUUID()}`);
   return {
     calls,
+    updates,
     async send(body, tamper = false) {
       const time = String(Date.now()), sequence = '1', raw = JSON.stringify(body);
       const signature = await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(`${time}\n${sequence}\n${raw}`));
@@ -69,4 +75,26 @@ test('lotes fora do limite não chegam ao banco e rejeição não recebe confirm
   const response = await failed.send({ action: 'report_calls', records: [{}] });
   assert.equal(response.status, 400);
   assert.notEqual((await response.json()).accepted, true);
+});
+
+test('confirmações de pausa usam somente agente assinado e lote limitado', async () => {
+  const b = await bridge();
+  const results = [{ queue_id: 'sample', status: 'applied' }];
+  const response = await b.send({ action: 'report_availability', results, agent_id: 'forged' });
+  assert.equal(response.status, 200);
+  assert.deepEqual(b.calls, [{ name: 'pbx_report_queue_availability', args: { p_agent_id: agentId, p_results: results } }]);
+  assert.equal((await b.send({ action: 'report_availability', results: Array(11).fill({}) })).status, 400);
+});
+
+test('somente protocolo compatível recebe pausas e rollback do agente restaura protocolo antigo', async () => {
+  const b = await bridge();
+  const current = await b.send({ action: 'poll', protocol_version: 2 });
+  assert.equal(current.status, 200);
+  assert.deepEqual((await current.json()).availability_jobs, []);
+  assert.ok(b.updates.some(row => row.protocol_version === 2));
+  assert.ok(b.calls.some(call => call.name === 'pbx_poll_queue_availability'));
+  const old = await bridge();
+  assert.equal((await old.send({ action: 'poll' })).status, 200);
+  assert.ok(old.updates.some(row => row.protocol_version === 1));
+  assert.equal(old.calls.filter(call => call.name === 'pbx_poll_queue_availability').length, 0);
 });

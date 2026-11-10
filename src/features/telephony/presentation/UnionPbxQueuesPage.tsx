@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { PageHeader, AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { QueueLiveDetails, usePbxQueueLive } from "./UnionPbxQueueLiveStatus";
+import { UnionPbxMemberAvailability } from './UnionPbxMemberAvailability';
 
 type PbxQueue = {
   id: string;
@@ -62,7 +63,6 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
   }, []);
   const { activeOrganizationId, hasPermission }=useAuth();
   const canManage=hasPermission("pbx.manage");
-  const live=usePbxQueueLive(canManage ? activeOrganizationId : null);
   const [queues,setQueues]=useState<PbxQueue[]>([]);
   const [members,setMembers]=useState<PbxMember[]>([]);
   const [extensions,setExtensions]=useState<PbxExtension[]>([]);
@@ -71,6 +71,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [reload,setReload]=useState(0);
+  const live=usePbxQueueLive(canManage ? activeOrganizationId : null,reload);
   const [formOpen,setFormOpen]=useState(false);
   const [form,setForm]=useState<QueueForm>(emptyForm);
 
@@ -199,6 +200,18 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
     else {setNotice("Nova tentativa solicitada.");setReload(key=>key+1);}
   }
 
+  async function setMemberPaused(queueId:string,extensionId:string,paused:boolean){
+    if(!activeOrganizationId || !canManage || saving || !live.ready)return;
+    setSaving(true);setError('');setNotice('');
+    const result=await pbxRequest(signal=>supabase.rpc("pbx_set_queue_member_paused",{
+      p_organization_id:activeOrganizationId,p_queue_id:queueId,p_extension_id:extensionId,p_paused:paused,
+    }).abortSignal(signal),'Solicitação de disponibilidade',{signal:requestScope.current.signal}).catch(pbxOperationError);
+    setSaving(false);
+    if(result.error){setError(result.error.message);return;}
+    setNotice(paused?'Pausa solicitada. Aguarde a confirmação da central.':'Retomada solicitada. Aguarde a confirmação da central.');
+    live.refreshControls();
+  }
+
   async function changeEnabled(item:PbxQueue){
     if(saving)return;
     const extensionIds=memberByQueue.get(item.id)||[];
@@ -238,6 +251,7 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
     {live.error && <p role="status" className="text-xs text-muted-foreground">{live.error}</p>}
+    {live.controlError && <p role="status" className="text-xs text-muted-foreground">{live.controlError}</p>}
     {notice && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
 
     {formOpen && canManage && <section className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5">
@@ -331,6 +345,10 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
                 {queue.provisioning_status==="failed" && <p className="text-xs text-red-600 dark:text-red-400">
                   {queue.last_error||"Não foi possível aplicar na VPS."}</p>}
                 {queue.enabled && queue.provisioning_status==="applied" && <QueueLiveDetails status={live.items[queue.id]} now={live.now}/>}
+                {canManage && queue.enabled && queue.provisioning_status==='applied' && <UnionPbxMemberAvailability queueId={queue.id}
+                  members={assigned.map(id=>extensionById.get(id)).filter((item):item is PbxExtension=>Boolean(item)).map(item=>({id:item.id,number:item.number,name:item.display_name}))}
+                  controls={live.controls} status={live.items[queue.id]} now={live.now} ready={live.ready} busy={saving}
+                  onChange={(extensionId,paused)=>setMemberPaused(queue.id,extensionId,paused)} />}
               </div>
               {canManage && <div className="flex flex-wrap items-center gap-2">
                 <AdminButton variant="secondary" size="sm" type="button" onClick={()=>beginEdit(queue)} disabled={saving}

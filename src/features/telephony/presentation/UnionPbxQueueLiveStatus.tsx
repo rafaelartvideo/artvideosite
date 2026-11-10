@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
+import { mergeAvailability, newestQueueSnapshot, type AvailabilityMap, type QueueMemberControl } from '../application/queue-availability';
 
 export type PbxMemberLive = {
   number: number;
@@ -17,15 +18,38 @@ export type PbxQueueLive = {
 type LiveMap = Record<string, PbxQueueLive>;
 const ACTIVE_WINDOW_MS = 95_000;
 
-export function usePbxQueueLive(organizationId: string | null | undefined) {
+export function usePbxQueueLive(organizationId: string | null | undefined, revision=0) {
   const [items,setItems]=useState<LiveMap>({});
   const [now,setNow]=useState(() => Date.now());
   const [error,setError]=useState("");
+  const [controls,setControls]=useState<AvailabilityMap>({});
+  const [ready,setReady]=useState(false);
+  const [controlError,setControlError]=useState('');
+  const [controlsRevision,setControlsRevision]=useState(0);
+
+  useEffect(()=>{
+    let cancelled=false;
+    const controller=new AbortController();
+    setControlError('');
+    if(!organizationId)return()=>controller.abort();
+    void pbxRequest(signal=>Promise.all([
+      supabase.from('pbx_queue_member_controls').select('organization_id,queue_id,extension_id,revision,request_generation,desired_paused,status,updated_at,last_checked_at,last_error')
+       .eq('organization_id',organizationId).limit(1000).abortSignal(signal),
+      supabase.rpc('pbx_queue_controls_ready',{p_organization_id:organizationId}).abortSignal(signal),
+    ]),'Disponibilidade dos atendentes',{signal:controller.signal}).then(([rows,availability])=>{
+      if(cancelled)return;
+      if(rows.error || availability.error){setReady(false);setControlError('Não foi possível confirmar os controles de pausa.');return;}
+      setControls(previous=>mergeAvailability(previous,(rows.data||[]) as QueueMemberControl[],organizationId));
+      setReady(availability.data===true);
+    }).catch(()=>{if(!cancelled){setReady(false);setControlError('A consulta da disponibilidade não foi confirmada.');}});
+    return()=>{cancelled=true;controller.abort();};
+  },[organizationId,revision,controlsRevision]);
 
   useEffect(()=>{
     let cancelled=false;
     const controller=new AbortController();
     setItems({});
+    setControls({});setReady(false);
     setError("");
     if(!organizationId) return () => {cancelled=true;};
 
@@ -38,7 +62,13 @@ export function usePbxQueueLive(organizationId: string | null | undefined) {
       .then(({data,error:fetchError})=>{
         if(cancelled) return;
         if(fetchError) setError("Não foi possível consultar o acompanhamento das filas.");
-        else setItems(Object.fromEntries(((data||[]) as PbxQueueLive[]).map(item=>[item.queue_id,item])));
+        else setItems(previous=>{
+          const next={...previous};
+          for(const item of (data||[]) as PbxQueueLive[]){
+            next[item.queue_id]=newestQueueSnapshot(next[item.queue_id],item);
+          }
+          return next;
+        });
       }).catch(()=>{if(!cancelled)setError('A consulta das filas não foi confirmada. Atualize a página para tentar novamente.');});
 
     const channel=supabase.channel("pbx-queue-live-"+organizationId)
@@ -55,23 +85,30 @@ export function usePbxQueueLive(organizationId: string | null | undefined) {
         } else if(payload.new && typeof payload.new==="object") {
           const item=payload.new as PbxQueueLive;
           if(item.organization_id!==organizationId) return;
-          setItems(prev=>({...prev,[item.queue_id]:item}));
+          setItems(prev=>({...prev,[item.queue_id]:newestQueueSnapshot(prev[item.queue_id],item)}));
           setNow(Date.now());
         }
+      }).on('postgres_changes',{
+        event:'*',schema:'public',table:'pbx_queue_member_controls',filter:'organization_id=eq.'+organizationId,
+      },payload=>{
+        if(cancelled || payload.eventType==='DELETE')return;
+        const row=payload.new as QueueMemberControl;
+        if(row.organization_id!==organizationId)return;
+        setControls(previous=>mergeAvailability(previous,[row],organizationId));
       }).subscribe();
     return ()=>{
       cancelled=true;
       controller.abort();
       void supabase.removeChannel(channel);
     };
-  },[organizationId]);
+  },[organizationId,revision]);
 
   useEffect(()=>{
     const id=window.setInterval(()=>setNow(Date.now()),15_000);
     return ()=>window.clearInterval(id);
   },[]);
 
-  return {items,now,error};
+  return {items,now,error,controls,ready,controlError,refreshControls:()=>setControlsRevision(value=>value+1)};
 }
 
 export function isQueueSnapshotCurrent(item:PbxQueueLive|null|undefined,now:number) {
