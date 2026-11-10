@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChecklistsPage";
 import { OrderChecklistToolbarButton } from "@/features/checklists/presentation/OrderChecklistToolbarButton";
 import { OrderDetailsActions } from "./OrderDetailsActions";
-import { OrderDetailsContent, OrderEquipmentDetailsSection } from "./OrderDetailsContent";
+import { OrderCustomerDetailsSection, OrderDetailsContent, OrderEquipmentDetailsSection } from "./OrderDetailsContent";
 import { OrderDetailSectionTabs } from "./OrderDetailSectionTabs";
 import { OrderDetailsContentSkeleton } from "./OrdersSkeletons";
 import { OrderHistoryPage } from "./OrderHistoryPage";
@@ -736,6 +736,12 @@ export function OrderDetailsPage(props: Props) {
           ? <OrderDetailsContentSkeleton section={detailSection} returnDiagnosis={returnDiagnosisActive} />
           : returnDiagnosisActive
           ? <>
+              <OrderCustomerDetailsSection
+                detail={detail}
+                hasPermission={hasPermission}
+                onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
+                onWhatsApp={!monitorView && canSendSac ? () => void openCustomerWhatsApp() : undefined}
+              />
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
                 orderImages={orderImages} onViewImage={setViewImage} />
               <OrderReturnDiagnosisGate
