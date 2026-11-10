@@ -18,9 +18,13 @@ test("o retorno nos três pontos e na toolbar consulta o certificado primeiro", 
   assert.match(footer, /<OrderReturnActions order=\{detail\}/);
   assert.match(actions, /<BtnPrimary onClick=\{\(\) => setOpen\(true\)\}/);
   assert.match(dialog, /check_service_order_return_eligibility_v1/);
-  assert.match(dialog, /create_service_order_from_expired_warranty_v1/);
+  assert.match(dialog, /reopen_service_order_as_new_v1/);
   assert.match(dialog, /Garantia fora do prazo/);
-  assert.match(dialog, /Criar nova OS/);
+  assert.match(dialog, /Reabrir OS/);
+  assert.match(dialog, /mode\?: "return" \| "reopen"/);
+  assert.match(table, /canReopenOrReturn/);
+  assert.match(table, /canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
+  assert.match(actions, /const label = canStartReturn \? "Iniciar retorno" : "Reabrir OS"/);
   assert.doesNotMatch(actions, /Classificar garantia|<MoreHorizontal/);
 });
 

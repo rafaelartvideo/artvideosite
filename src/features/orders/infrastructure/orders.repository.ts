@@ -78,7 +78,7 @@ export const listServiceOrderUsedItems = (serviceOrderId: string) =>
 export const getServiceOrderResolutionState = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("is_solved,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason,order_rules_snapshot,custom_field_values")
+    .select("is_solved,return_root_id,diagnosis,solution,cannot_be_solved,cannot_be_solved_reason,order_rules_snapshot,custom_field_values")
     .eq("id", serviceOrderId)
     .maybeSingle();
 
@@ -285,7 +285,7 @@ export const resolveServiceOrder = ({
 export const getFullServiceOrder = (serviceOrderId: string) =>
   supabase
     .from("service_orders")
-    .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title,forecast_days), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
+    .select("*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), service_type:service_types(id,title,forecast_days,quote_workflow_enabled,generates_warranty), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)")
     .eq("id", serviceOrderId)
     .maybeSingle();
 

@@ -35,10 +35,11 @@ function SituationDot({ color }: { color?: string | null }) {
   />;
 }
 
-export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, hasActiveFilters, hasPermission, onOpen, onSituationChange, getSituations, onEdit, onComplete, formatDate, equipmentSummary, page, pageSize, totalPages, onPageChange, onPageSizeChange }: {
+export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, hasActiveFilters, hasPermission, onOpen, onSituationChange, getSituations, serviceTypes, onEdit, onComplete, formatDate, equipmentSummary, page, pageSize, totalPages, onPageChange, onPageSizeChange }: {
   loading: boolean; filteredOrders: any[]; pagedOrders: any[]; totalItems: number; hasActiveFilters: boolean;
   hasPermission: (permission: string) => boolean; onOpen: (order: any) => void;
   onSituationChange: (order: any, situationId: string) => void | Promise<unknown>; getSituations: (serviceTypeId: string, situationId?: string, situation?: any) => any[];
+  serviceTypes: any[];
   onEdit: (order: any) => void; onComplete: (order: any) => void;
   formatDate: (value?: string | null, time?: boolean) => string; equipmentSummary: (order: any) => string;
   page: number; pageSize: number; totalPages: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void;
@@ -70,7 +71,13 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order)
     && (!order.return_root_id || (order.return_classification && order.return_classification !== "analysis"));
-  const canEdit = (order: any) => canEditOrder && !order.is_solved && !isCancelled(order);
+  const canEdit = (order: any) => canEditOrder && !order.return_root_id && !order.is_solved && !isCancelled(order);
+  const resolveServiceType = (order: any) =>
+    serviceTypes.find((type: any) => type.id === order.service_type_id) || order.service_type || null;
+  const returnMode = (order: any): "return" | "reopen" => {
+    const type = resolveServiceType(order);
+    return type?.quote_workflow_enabled === true && type?.generates_warranty === true ? "return" : "reopen";
+  };
   const rowNumber = (index: number) => filteredRowNumber({ page: safePage, pageSize, index });
   const availableSituations = (order: any) => getSituations(order.service_type_id, order.situation_id, order.situation);
 
@@ -124,8 +131,9 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     const situations = availableSituations(order);
     const editable = canEdit(order);
     const allowSituationChange = canChangeOrderSituation(order);
-    const canStartReturn = hasPermission("orders.create") && Boolean(order.completed_at) && !isCancelled(order);
-    const hasAnyAction = canPrint || allowSituationChange || editable || canStartReturn;
+    const canReopenOrReturn = hasPermission("orders.create") && Boolean(order.completed_at) && !isCancelled(order);
+    const canStartReturn = returnMode(order) === "return";
+    const hasAnyAction = canPrint || allowSituationChange || editable || canReopenOrReturn;
 
     return <DropdownMenu onOpenChange={open => { if (!open) setExpandedSituationOrderId(null); }}>
       <DropdownMenuTrigger asChild>
@@ -143,8 +151,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           {printingOrderId === order.id ? "Preparando A4..." : "Imprimir A4"}
         </DropdownMenuItem>}
 
-        {canStartReturn && <DropdownMenuItem onSelect={() => setReturnTarget(order)} className="gap-2 font-semibold">
-          <RotateCcw size={15} /> Iniciar retorno
+        {canReopenOrReturn && <DropdownMenuItem onSelect={() => setReturnTarget(order)} className="gap-2 font-semibold">
+          <RotateCcw size={15} /> {canStartReturn ? "Iniciar retorno" : "Reabrir OS"}
         </DropdownMenuItem>}
         {canPrint && (allowSituationChange || editable) && <DropdownMenuSeparator />}
 
@@ -234,6 +242,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     </AdminDialog>
 
     <OrderReturnStartDialog order={returnTarget} open={Boolean(returnTarget)}
+      mode={returnTarget ? returnMode(returnTarget) : "reopen"}
       onClose={() => setReturnTarget(null)} />
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (

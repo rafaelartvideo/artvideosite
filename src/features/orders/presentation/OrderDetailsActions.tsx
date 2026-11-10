@@ -52,7 +52,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const canResolve = !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
   const canComplete = !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && detail.is_solved && returnReady && !detail.completed_at && !cancelled;
-  const canEditOrder = !quoteMode && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
+  const canEditOrder = !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
 
