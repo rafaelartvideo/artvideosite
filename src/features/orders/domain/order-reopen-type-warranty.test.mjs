@@ -40,12 +40,14 @@ test("retornos não podem usar Editar OS nem por URL", async () => {
   const actions = read("src/features/orders/presentation/OrderDetailsActions.tsx");
   const table = read("src/features/orders/presentation/OrdersTable.tsx");
   const editor = read("src/features/orders/application/useOrderEditorWorkflow.ts");
+  const kanban = read("src/features/orders/presentation/OrdersKanban.tsx");
   const state = read("src/features/orders/infrastructure/orders.repository.ts");
   for (const [file,source] of [["OrderDetailsActions.tsx",actions],["OrdersTable.tsx",table],["useOrderEditorWorkflow.ts",editor]]) {
     assert.ok((await transformWithEsbuild(source,file,{loader:"tsx"})).code);
   }
   assert.match(actions,/!detail\.return_root_id && !returnAwaitingDiagnosis/);
   assert.match(table,/canEditOrder && !order\.return_root_id/);
+  assert.match(kanban,/canEdit && !order\.return_root_id && !order\.is_solved/);
   assert.match(editor,/if\(order\?\.return_root_id\)/);
   assert.match(editor,/if\(currentOrder\?\.return_root_id\)/);
   assert.match(editor,/if\(editingOrder\?\.return_root_id\)/);
