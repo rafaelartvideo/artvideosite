@@ -49,7 +49,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const canRequestParts = !quoteMode && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
   const canResolve = !quoteMode && quoteExecutionAllowed && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const canComplete = !quoteMode && hasPermission("orders.complete") && detail.is_solved && !detail.completed_at && !cancelled;
-  const canEditOrder = !quoteMode && canEdit && !detail.is_solved && !cancelled;
+  const canEditOrder = !quoteMode && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
 
