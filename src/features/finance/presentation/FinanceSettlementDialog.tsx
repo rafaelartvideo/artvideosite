@@ -116,7 +116,10 @@ export function FinanceSettlementDialog({
       || activeMethods.find(item => item.id === nextPlanned?.payment_method_id) || activeMethods[0] || null;
     setSettlementScope("installment");
     setInstallmentId(firstInstallment?.id || "");
-    setPrincipal(firstInstallment ? String(Math.round(Math.min(Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount), plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount))*100)/100) : "");
+    setPrincipal(firstInstallment ? String(Math.round(Math.min(
+      Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount),
+      report?.principal_amount || plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount),
+    ) * 100) / 100) : "");
     setInterest("0");
     setPenalty("0");
     setAdditions("0");
@@ -147,11 +150,15 @@ export function FinanceSettlementDialog({
     if (installment) {
       setPrincipal(String(Number(installment.original_amount) - Number(installment.settled_amount)));
       const report = reportedReceipts.find(item => item.installment_number === installment.installment_number);
-      if (report) {
-        if (activeMethods.some(item => item.id === report.payment_method_id)) setMethodId(report.payment_method_id);
-        if (activeAccounts.some(item => item.id === report.financial_account_id)) setAccountId(report.financial_account_id);
-        setOccurredAt(localDateTimeFromIso(report.occurred_at) || localDateTimeInput());
-      }
+      const preferences = Array.isArray(detail.source_details?.payment_preferences)
+        ? detail.source_details.payment_preferences as Array<{ installment_number: number; payment_method_id: string; financial_account_id: string }>
+        : [];
+      const preference = preferences.find(item => item.installment_number === installment.installment_number);
+      const preferredMethodId = report?.payment_method_id || preference?.payment_method_id;
+      const preferredAccountId = report?.financial_account_id || preference?.financial_account_id;
+      if (preferredMethodId && activeMethods.some(item => item.id === preferredMethodId)) setMethodId(preferredMethodId);
+      if (preferredAccountId && activeAccounts.some(item => item.id === preferredAccountId)) setAccountId(preferredAccountId);
+      setOccurredAt(localDateTimeFromIso(report?.occurred_at) || localDateTimeInput());
     }
   };
 
