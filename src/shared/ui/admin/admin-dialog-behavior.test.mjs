@@ -74,3 +74,21 @@ test("AdminDialog unifica preparação, retry e conteúdo com animação sem fli
   assert.match(layout, /motion-reduce:animate-none/);
   assert.doesNotMatch(layout, /transition-\[max-width,height\]/);
 });
+
+
+test("modais de dados somente revelam formulários e ações depois da preparação real", () => {
+  const sources = [
+    ["src/features/sales/presentation/SalesOrderDetailDialog.tsx", "Preparando pedido"],
+    ["src/features/pdv/presentation/PdvSalesHistory.tsx", "Preparando venda"],
+    ["src/features/pdv/presentation/PdvCashReports.tsx", "Preparando relatório de caixa"],
+    ["src/features/orders/presentation/OrderSettingsDialog.tsx", "Preparando configurações da OS"],
+    ["src/features/finance/presentation/FinanceSettingsSection.tsx", "Preparando configurações financeiras"],
+  ];
+  for (const [path, label] of sources) {
+    const contents = readFileSync(path, "utf8");
+    assert.match(contents, /preparing=\{/);
+    assert.ok(contents.includes(label), path);
+    assert.match(contents, /preparingError=\{/);
+    assert.match(contents, /onRetryPreparing=\{/);
+  }
+});

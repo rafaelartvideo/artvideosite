@@ -130,6 +130,10 @@ export function SalesOrderDetailDialog({
 
   return <>
     <AdminDialog open onClose={onClose}
+      preparing={detailQuery.isPending}
+      preparingText="Preparando pedido..."
+      preparingError={detailQuery.isError ? systemErrorMessage(detailQuery.error, "Não foi possível carregar o pedido.") : null}
+      onRetryPreparing={() => { void detailQuery.refetch(); }}
       title={"Pedido comercial #" + (order?.order_number ?? "…")}
       description="Detalhes, pagamento, produtos, separação e histórico"
       className="w-[calc(100vw-1.25rem)] max-w-4xl"

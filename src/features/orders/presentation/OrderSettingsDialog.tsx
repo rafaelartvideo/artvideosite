@@ -70,6 +70,10 @@ export function OrderSettingsDialog({
 
   return <AdminDialog
     open={open}
+    preparing={open && (companySettings.isPending || rulesLoading)}
+    preparingText="Preparando configurações da OS..."
+    preparingError={companySettings.isError ? systemErrorMessage(companySettings.error, "Não foi possível carregar as configurações da OS.") : null}
+    onRetryPreparing={() => { void companySettings.refetch(); }}
     onClose={close}
     title="Configurações das Ordens de Serviço"
     description="Defina as exigências de conclusão, os campos e as evidências desta empresa."

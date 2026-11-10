@@ -28,12 +28,7 @@ export function FinanceSettingsSection({ modalOpen = false, onModalClose }: { mo
   };
 
   const loading = finance.settingsQuery.isLoading;
-  if (loading) return modalOpen
-    ? <AdminDialog open onClose={() => { if (!finance.saveSettings.isPending) onModalClose?.(); }}
-        title="Configurações financeiras" className="w-[calc(100vw-1.5rem)] max-w-3xl">
-        <AdminWorkspaceSkeleton variant="details" columns={4} rows={3} />
-      </AdminDialog>
-    : <AdminWorkspaceSkeleton variant="details" columns={4} rows={3} />;
+  if (loading && !modalOpen) return <AdminWorkspaceSkeleton variant="details" columns={4} rows={3} />;
 
   const error = finance.settingsQuery.error;
 
@@ -60,6 +55,10 @@ export function FinanceSettingsSection({ modalOpen = false, onModalClose }: { mo
   </div>;
   if (!modalOpen) return fields;
   return <AdminDialog open onClose={() => { if (!finance.saveSettings.isPending) onModalClose?.(); }}
+    preparing={loading}
+    preparingText="Preparando configurações financeiras..."
+    preparingError={error ? systemErrorMessage(error, "Não foi possível carregar as configurações financeiras.") : null}
+    onRetryPreparing={() => { void finance.settingsQuery.refetch(); }}
     title="Configurações financeiras"
     className="h-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-3xl"
     bodyClassName="flex-none overscroll-contain"

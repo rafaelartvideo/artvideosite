@@ -284,6 +284,10 @@ export function PdvSalesHistory({
 
     <AdminDialog
       open={Boolean(selectedSaleId)}
+      preparing={Boolean(selectedSaleId) && detailQuery.isPending}
+      preparingText="Preparando venda..."
+      preparingError={selectedSaleId && detailQuery.isError ? systemErrorMessage(detailQuery.error, "Não foi possível carregar a venda.") : null}
+      onRetryPreparing={() => { void detailQuery.refetch(); }}
       onClose={() => {
         if (cancelMutation.isPending) return;
         setSelectedSaleId(null);

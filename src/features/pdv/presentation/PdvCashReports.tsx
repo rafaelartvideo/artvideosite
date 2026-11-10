@@ -187,6 +187,10 @@ export function PdvCashReports({
 
     <AdminDialog
       open={Boolean(selectedSessionId)}
+      preparing={Boolean(selectedSessionId) && reportQuery.isPending}
+      preparingText="Preparando relatório de caixa..."
+      preparingError={selectedSessionId && reportQuery.isError ? systemErrorMessage(reportQuery.error, "Não foi possível carregar o relatório de caixa.") : null}
+      onRetryPreparing={() => { void reportQuery.refetch(); }}
       onClose={() => setSelectedSessionId(null)}
       title={report ? (report.session.status === "open" ? "Caixa atual" : "Fechamento de caixa") : "Relatório de caixa"}
       description={report ? report.session.account_name + " · aberto em " + formatDateTime(report.session.opened_at) : "Carregando turno..."}
