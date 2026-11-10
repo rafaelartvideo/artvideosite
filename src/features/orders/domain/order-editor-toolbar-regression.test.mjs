@@ -105,3 +105,24 @@ test("detalhes não repetem endereço e retorno usa o motivo informado na abertu
   assert.doesNotMatch(summary, /Descrição do problema/);
   assert.match(details, /<Section title="Local do atendimento">/);
 });
+
+test("solucionar OS não duplica os títulos dos campos de diagnóstico e solução", async () => {
+  const resolution = read("src/features/orders/presentation/OrderResolutionPage.tsx");
+  assert.ok((await transformWithEsbuild(resolution, "OrderResolutionPage.tsx", { loader: "tsx" })).code);
+  assert.match(resolution, /<Section title="Diagnóstico">/);
+  assert.match(resolution, /<Section title="Solução">/);
+  assert.match(resolution, /<FTextarea aria-label="Diagnóstico" required=\{diagnosisRequired\}/);
+  assert.match(resolution, /<FTextarea aria-label="Solução" required=\{solutionRequired\}/);
+  assert.doesNotMatch(resolution, /<FTextarea label="Diagnóstico"/);
+  assert.doesNotMatch(resolution, /<FTextarea label="Solução"/);
+});
+
+test("seletor de OS e retorno destaca qualquer selecionada em azul com sublinhado e sem fundo", async () => {
+  const switcher = read("src/features/orders/presentation/OrderReturnsPanel.tsx");
+  assert.ok((await transformWithEsbuild(switcher, "OrderReturnsPanel.tsx", { loader: "tsx" })).code);
+  assert.match(switcher, /aria-current="page"/);
+  assert.match(switcher, /border-b-2 border-primary px-2\.5 py-1 text-base font-black text-primary/);
+  assert.match(switcher, /border-b-2 border-transparent/);
+  assert.doesNotMatch(switcher, /bg-orange-|text-orange-|bg-\[#0131CD\]/);
+  assert.match(switcher, /navigate\(adminPath\("orders", cycle\.id\)\)/);
+});

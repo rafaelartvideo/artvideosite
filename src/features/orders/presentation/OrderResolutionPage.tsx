@@ -79,7 +79,7 @@ export function OrderResolutionPage({
 
           {diagnosisVisible && <Section title="Diagnóstico">
             <div className="space-y-1">
-              <FTextarea label="Diagnóstico" aria-label="Diagnóstico" required={diagnosisRequired} autoCapitalize="sentences"
+              <FTextarea aria-label="Diagnóstico" required={diagnosisRequired} autoCapitalize="sentences"
                 value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{diagnosis.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
@@ -91,7 +91,7 @@ export function OrderResolutionPage({
 
           {solutionVisible && <Section title="Solução">
             <div className="space-y-1">
-              <FTextarea label="Solução" aria-label="Solução" required={solutionRequired} autoCapitalize="sentences"
+              <FTextarea aria-label="Solução" required={solutionRequired} autoCapitalize="sentences"
                 value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{solution.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
