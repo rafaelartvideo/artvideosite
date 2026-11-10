@@ -67,7 +67,7 @@ export function systemErrorMessage(
   // 42501 também é usado por regras de negócio de OS (ex.: uma OS já
   // solucionada), e não apenas por falta de acesso. Preserve somente mensagens
   // explícitas e legíveis; nunca exponha nomes internos de tabelas ou RLS.
-  const safeDomainMessage = /^(?:Esta OS|Uma OS|Este retorno|O retorno|O orçamento|A garantia|Você não possui permissão para|Sem permissão para)\b/i.test(displayText)
+  const safeDomainMessage = /^(?:Esta OS|Uma OS|Este retorno|O retorno|O orçamento|A garantia|A conclusão|A atualização comercial|O vínculo|A classificação|Resolva a OS|Você não possui permissão para|Sem permissão para)\b/i.test(displayText)
     && displayText.length <= 280
     && !/(?:permission denied|row-level security|\b(?:schema|relation|column|table)\b|public\.|private\.)/i.test(displayText);
   if (code === "42501" && status !== "401" && status !== "403" && safeDomainMessage) {
