@@ -58,6 +58,8 @@ test("diagnóstico mostra Cliente com ações normais antes da seção completa 
   assert.match(content, /aria-label="Enviar WhatsApp pelo SAC Digital"/);
   assert.equal((content.match(/title="Cliente"/g) || []).length, 1,
     "uma única implementação compartilhada de Cliente");
+  const skeleton = read("src/features/orders/presentation/OrdersSkeletons.tsx");
+  assert.match(skeleton, /returnDiagnosis && <SectionSkeleton lines=\{3\} \/>/);
   assert.match(detail, /!returnDiagnosisActive && canOpenDocumentsPage/);
   assert.match(detail, /!returnDiagnosisActive && hasPermission\("orders\.section\.parts"\)/);
   assert.match(detail, /!returnDiagnosisActive && \(detail\.situation as any\)\?\.name/);
