@@ -31,5 +31,5 @@ test("garantia procedente ou cortesia: abatimento integral sem pagamento e com b
   assert.match(hook, /const targetFinalTotal = targetCoverageFree \? 0 :/);
   assert.match(hook, /const discountAmount = coverageFree \? subtotal :/);
   assert.match(modal, /completion\.coverageFree/);
-  assert.match(modal, /não serão gerados recebimentos/);
+  assert.match(modal, /[Nn]ão serão gerados recebimentos/);
 });
