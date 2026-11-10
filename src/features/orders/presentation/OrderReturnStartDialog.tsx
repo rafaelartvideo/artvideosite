@@ -93,12 +93,12 @@ export function OrderReturnStartDialog({
   };
 
   const expired = eligibility && !eligibility.eligible
-    && ["expired", "no_certificate", "not_started"].includes(eligibility.reason);
+    && ["expired", "no_certificate", "not_started", "not_quote", "warranty_disabled"].includes(eligibility.reason);
 
   return <AdminDialog
     open={open}
     onClose={() => { if (!processing) onClose(); }}
-    title={isReopening ? "Reabrir OS " + String(order.os_number || "") : expired ? "Garantia fora do prazo" : "Iniciar retorno da OS " + String(order.os_number || "")}
+    title={isReopening ? "Reabrir OS " + String(order.os_number || "") : expired ? "Reabrir OS " + String(order.os_number || "") : "Iniciar retorno da OS " + String(order.os_number || "")}
     className="max-w-lg"
     footer={<div className="flex w-full flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose} disabled={processing}>Voltar</BtnSecondary>
@@ -155,7 +155,11 @@ export function OrderReturnStartDialog({
             ? "A garantia da OS " + String(order.os_number || "") + " venceu em " + formatWarrantyDate(eligibility.warranty_expires_at) + "."
             : eligibility.reason === "no_certificate"
               ? "Esta OS não possui certificado de garantia registrado."
-              : "A vigência do certificado ainda não começou."}
+              : eligibility.reason === "not_quote"
+                ? "Este tipo de atendimento não utiliza o fluxo de orçamento. Use Reabrir OS para criar um novo atendimento."
+                : eligibility.reason === "warranty_disabled"
+                  ? "Este tipo de atendimento não emite garantia. Use Reabrir OS para criar um novo atendimento."
+                  : "A vigência do certificado ainda não começou."}
         </p>
       </div>
       <p className="text-sm leading-6 text-foreground/90 dark:text-slate-200">
