@@ -710,18 +710,13 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />}
       {callState === "active" && <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />}
       {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
+        </div>
+      </div>
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
         <p>Use os destinos listados para ligações internas e o 900 para testar o áudio. {allowExternalCalls && isPlatformOperatorOrganization ? 'Para telefones externos, informe o DDD e o número no campo acima.' : 'As ligações externas dependem da configuração da sua empresa.'} A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
-      <div className="flex flex-wrap gap-4">
-        {onManage && <AdminButton variant="ghost" type="button" onClick={onManage} >Gerenciar ramais</AdminButton>}
-        {onManageQueues && <AdminButton variant="ghost" type="button" onClick={onManageQueues} >Gerenciar filas</AdminButton>}
-        {onManageFlows && <AdminButton variant="ghost" type="button" onClick={onManageFlows}>URA e horários</AdminButton>}
-        {isPlatformOperatorOrganization && onManageInbound && <AdminButton variant="ghost" type="button" onClick={onManageInbound} >Planejar entrada FVX</AdminButton>}
-        {onHistory && <AdminButton variant="secondary" onClick={onHistory}>Histórico de ligações</AdminButton>}
-        <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para Ferramentas</AdminButton>
-      </div>
+
     </div>
     </div>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
