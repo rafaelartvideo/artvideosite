@@ -34,7 +34,9 @@ test("diagnóstico obriga definir mesma ou outra peça antes de liberar o atendi
   assert.match(gate, /classify_service_order_return_v2/);
   assert.match(gate, /same_part/);
   assert.match(gate, /different_part/);
-  assert.match(gate, /Confirmar diagnóstico/);
+  assert.match(gate, /<CheckCircle2 size=\{17\} \/> Confirmar/);
+  assert.match(gate, /footerHost && createPortal/);
+  assert.match(gate, /className="h-10 min-w-28 gap-2 px-4"/);
   assert.match(detail, /detail\.return_classification === "analysis"/);
   assert.match(detail, /<OrderReturnDiagnosisGate/);
   assert.match(detail, /setDetailSection\(kind === "different_part" \? "products-services" : "details"\)/);

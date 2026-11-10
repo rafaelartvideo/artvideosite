@@ -1,34 +1,60 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardCheck, ShieldCheck, Wrench } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
+import { BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 
 type DamageKind = "same_part" | "different_part";
 
+const DAMAGE_OPTIONS: { value: DamageKind; label: string; description: string }[] = [
+  {
+    value: "same_part",
+    label: "Mesma peça",
+    description: "Coberto pela garantia. O fluxo de aprovação do orçamento será dispensado.",
+  },
+  {
+    value: "different_part",
+    label: "Outra peça",
+    description: "Novo defeito. Será necessário enviar um orçamento e aguardar aprovação antes de executar.",
+  },
+];
+
 export function OrderReturnDiagnosisGate({
-  order, canClassify, onClassified,
+  order, canClassify, onClassified, footerHostId,
 }: {
   order: any;
   canClassify: boolean;
   onClassified: (kind: DamageKind, diagnosis: string, solution: string) => void;
+  footerHostId: string;
 }) {
   const queryClient = useQueryClient();
   const [diagnosis, setDiagnosis] = useState(String(order.diagnosis || ""));
   const [solution, setSolution] = useState(String(order.solution || ""));
   const [damageKind, setDamageKind] = useState<DamageKind | "">("");
+  const [footerHost, setFooterHost] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   useEffect(() => {
     setDiagnosis(String(order.diagnosis || ""));
     setSolution(String(order.solution || ""));
     setDamageKind("");
     setError("");
   }, [order.id]);
+
+  // Mesmo host sticky utilizado pelo fluxo de aprovação de orçamento.
+  useEffect(() => {
+    setFooterHost(document.getElementById(footerHostId));
+    return () => setFooterHost(null);
+  }, [footerHostId]);
+
+  const canConfirm = canClassify && !busy && Boolean(damageKind)
+    && diagnosis.trim().length >= 5 && solution.trim().length >= 5;
 
   const confirm = async () => {
     if (busy || !canClassify) return;
@@ -62,9 +88,9 @@ export function OrderReturnDiagnosisGate({
     }
   };
 
-  return <div className="space-y-4">
+  return <>
     <Section title="Diagnóstico do retorno">
-      <div className="space-y-4">
+      <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
           Relato do cliente: <span className="font-semibold text-foreground">{order.return_reason || "Não informado"}</span>
         </p>
@@ -76,33 +102,47 @@ export function OrderReturnDiagnosisGate({
             disabled={busy || !canClassify}
             onChange={(event: any) => setSolution(capitalizeSentenceStarts(event.target.value).slice(0, 400))} />
         </div>
-        <div className="border-t border-border pt-4">
-          <p className="mb-2 text-sm font-bold text-foreground">Qual peça apresentou o defeito?</p>
-          <AdminSegmentedControl
-            value={damageKind}
-            onChange={value => setDamageKind(value as DamageKind)}
-            disabled={busy || !canClassify}
-            options={[
-              { value: "same_part", label: "Mesma peça (garantia)" },
-              { value: "different_part", label: "Outra peça (novo orçamento)" },
-            ]}
-            className="w-full grid-cols-2"
-          />
-          {damageKind === "same_part" && <p className="mt-3 flex items-center gap-2 text-sm text-emerald-700">
-            <ShieldCheck size={16} /> Coberto pela garantia. O fluxo de aprovação do orçamento será dispensado.
-          </p>}
-          {damageKind === "different_part" && <p className="mt-3 flex items-center gap-2 text-sm text-orange-700">
-            <Wrench size={16} /> Novo defeito. Será necessário enviar um orçamento e aguardar aprovação antes de executar.
-          </p>}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-border pt-4">
+          <span id="return-damage-question" className="shrink-0 text-sm font-bold text-foreground">
+            Qual peça apresentou o defeito?
+          </span>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-3"
+            role="radiogroup" aria-labelledby="return-damage-question">
+            {DAMAGE_OPTIONS.map(option => {
+              const checked = damageKind === option.value;
+              return <div key={option.value} className="inline-flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  disabled={busy || !canClassify}
+                  onClick={() => setDamageKind(option.value)}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-md py-1 text-sm font-semibold text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true" className={"relative inline-flex h-[22px] w-10 shrink-0 items-center rounded-full transition-colors " + (checked ? "bg-primary" : "bg-[#cbd0d7] dark:bg-slate-600")}>
+                    <span className={"absolute left-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform " + (checked ? "translate-x-[18px]" : "translate-x-0")} />
+                  </span>
+                  {option.label}
+                </button>
+                {checked && <span className={"min-w-0 text-xs font-medium leading-5 " +
+                  (option.value === "same_part"
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-orange-700 dark:text-orange-300")}>
+                  {option.description}
+                </span>}
+              </div>;
+            })}
+          </div>
         </div>
-        {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
-        <div className="flex justify-end border-t border-border pt-4">
-          <AdminButton disabled={!canClassify || busy || !damageKind || diagnosis.trim().length < 5 || solution.trim().length < 5}
-            onClick={() => void confirm()} className="gap-2" variant="primary">
-            <ClipboardCheck size={16} /> {busy ? "Registrando..." : "Confirmar diagnóstico"}
-          </AdminButton>
-        </div>
+        {error && <p role="alert" className="text-sm font-semibold text-red-600 dark:text-red-400">{error}</p>}
       </div>
     </Section>
-  </div>;
+    {footerHost && createPortal(
+      <BtnPrimary onClick={() => void confirm()} disabled={!canConfirm} loading={busy}
+        loadingText="Confirmando..." className="h-10 min-w-28 gap-2 px-4">
+        <CheckCircle2 size={17} /> Confirmar
+      </BtnPrimary>,
+      footerHost,
+    )}
+  </>;
 }

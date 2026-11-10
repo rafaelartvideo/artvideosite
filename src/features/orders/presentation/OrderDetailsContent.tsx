@@ -29,6 +29,52 @@ export function InfoRow({
   ) : null;
 }
 
+/** Seção completa compartilhada entre os detalhes da OS e o diagnóstico do retorno. */
+export function OrderEquipmentDetailsSection({
+  detail, hasPermission, orderImages, onViewImage,
+}: {
+  detail: any;
+  hasPermission: (permission: string) => boolean;
+  orderImages: OrderImage[];
+  onViewImage: (image: OrderImage) => void;
+}) {
+  const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
+  const labelImages = orderImages.filter(image => image.kind === "label");
+  const equipmentImages = orderImages.filter(image => image.kind !== "label" && image.kind !== "solution");
+  return hasPermission("orders.section.equipment") ? (
+<Section title="Equipamento">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid min-w-0 content-start gap-3 sm:grid-cols-2">
+            <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
+            <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
+            <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
+            <InfoRow label="Número de série" value={detail.serial_number || undefined} />
+            {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? undefined : String(value.value_number))} />)}
+            {isMobileDeviceType((detail.equipment_type as any)?.name) && hasPermission("orders.unlock.view") && <OrderDeviceUnlockReadOnly orderId={detail.id} />}
+            </div>
+          {hasPermission("orders.section.images") && (
+            <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Foto da etiqueta</p>
+                  <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
+                </div>
+                {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto da etiqueta cadastrada.</AdminSectionEmpty>}
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
+                  <OrderImageDownloadMenu images={equipmentImages} label="fotos do equipamento" />
+                </div>
+                {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto do equipamento cadastrada.</AdminSectionEmpty>}
+              </div>
+            </div>
+          )}
+          </div>
+        </Section>
+  ) : null;
+}
+
 export function OrderDetailsContent({
   detail,
   formatDate,
@@ -59,9 +105,6 @@ export function OrderDetailsContent({
   const getSlaForOrder = getSla;
   void getSlaForOrder;
   const customer = detail.customer as any;
-  const technicalValues = Array.isArray(detail.technical_values) ? detail.technical_values : [];
-  const labelImages = orderImages.filter(image => image.kind === "label");
-  const equipmentImages = orderImages.filter(image => image.kind !== "label" && image.kind !== "solution");
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
   const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
@@ -161,38 +204,9 @@ export function OrderDetailsContent({
         </Section>
       )}
 
-      {hasPermission("orders.section.equipment") && (
-        <Section title="Equipamento">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="grid min-w-0 content-start gap-3 sm:grid-cols-2">
-            <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
-            <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
-            <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
-            <InfoRow label="Número de série" value={detail.serial_number || undefined} />
-            {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? undefined : String(value.value_number))} />)}
-            {isMobileDeviceType((detail.equipment_type as any)?.name) && hasPermission("orders.unlock.view") && <OrderDeviceUnlockReadOnly orderId={detail.id} />}
-            </div>
-          {hasPermission("orders.section.images") && (
-            <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Foto da etiqueta</p>
-                  <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
-                </div>
-                {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto da etiqueta cadastrada.</AdminSectionEmpty>}
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
-                  <OrderImageDownloadMenu images={equipmentImages} label="fotos do equipamento" />
-                </div>
-                {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto do equipamento cadastrada.</AdminSectionEmpty>}
-              </div>
-            </div>
-          )}
-          </div>
-        </Section>
-      )}
+      <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
+        orderImages={orderImages} onViewImage={onViewImage} />
+
 
       {detail.quote_request_id && detail.organization_id && hasPermission("orders.section.images") && (
         <SiteQuoteMediaGallery quoteId={detail.quote_request_id} organizationId={detail.organization_id}/>

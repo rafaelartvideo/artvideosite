@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, RotateCcw } from "lucide-react";
+import { ArrowUpRight, CircleAlert, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { cn } from "@/shared/domain/formatters";
@@ -133,14 +133,19 @@ export function OrderReturnStartDialog({
       </label>
     </div>}
     {!loading && expired && <div className="space-y-3">
-      <p className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800">
-        {eligibility.reason === "expired"
-          ? "A garantia da OS " + String(order.os_number || "") + " venceu em " + formatWarrantyDate(eligibility.warranty_expires_at) + "."
-          : eligibility.reason === "no_certificate"
-            ? "Esta OS não possui certificado de garantia registrado."
-            : "A vigência do certificado ainda não começou."}
-      </p>
-      <p className="text-sm text-muted-foreground">
+      <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-400/70 bg-amber-50 px-4 py-3.5 text-amber-950 shadow-sm dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-950 dark:bg-amber-400/20 dark:text-amber-200" aria-hidden="true">
+          <CircleAlert size={19} strokeWidth={2.5} />
+        </span>
+        <p className="min-w-0 flex-1 pt-1 text-sm font-bold leading-6">
+          {eligibility.reason === "expired"
+            ? "A garantia da OS " + String(order.os_number || "") + " venceu em " + formatWarrantyDate(eligibility.warranty_expires_at) + "."
+            : eligibility.reason === "no_certificate"
+              ? "Esta OS não possui certificado de garantia registrado."
+              : "A vigência do certificado ainda não começou."}
+        </p>
+      </div>
+      <p className="text-sm leading-6 text-foreground/90 dark:text-slate-200">
         É possível criar uma nova OS com outro número, aproveitando os dados do cliente, equipamento, informações e fotos da anterior. Pagamentos e aprovações não serão replicados.
       </p>
     </div>}
