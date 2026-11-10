@@ -13,6 +13,7 @@ import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } fro
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { UnionPbxSectionTabs, type UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
@@ -586,7 +587,19 @@ export function AdminDashboard({
                onNavigate={tab => navigateAdmin(tab)} />} />
              <Route path="site/pedidos-da-loja/*" element={<Navigate to={adminPath("siteRequests", "pedidos")} replace />} />
             <Route path="operation" element={operationHub} />
-            <Route path="tools/*" element={toolsContent} />
+            <Route path="tools/*" element={
+              route.resourceId === "union-pbx" && route.subpage && canAccessPbxTool
+                ? <div className="min-w-0 space-y-5">
+                    <UnionPbxSectionTabs
+                      active={route.subpage as UnionPbxSection}
+                      canManage={canManagePbxTool}
+                      canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
+                      onSelect={section => navigateAdmin("tools", "union-pbx", section === "telefone" ? null : section)}
+                    />
+                    {toolsContent}
+                  </div>
+                : toolsContent
+            } />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
             <Route path="operation/checklists/*" element={<ChecklistAdminPanel onBack={() => backToParent("checklists")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("checklists")} />} />
             <Route path="operation/general-services/*" element={<GeneralServicesPanel onBack={() => backToParent("generalServices")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("generalServices")} />} />

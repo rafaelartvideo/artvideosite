@@ -147,7 +147,9 @@ test("PABX Union: filas da empresa nunca redirecionam FVX automaticamente",async
   assert.match(app,/route.subpage === "filas"/);
   assert.match(app,/canManagePbxTool \? <UnionPbxQueuesPage/);
   assert.match(app,/onManageQueues=\{canManagePbxTool/);
-  assert.match(phone,/Gerenciar filas/);
+  const tabs=read("src/features/telephony/presentation/UnionPbxSectionTabs.tsx");
+  assert.match(tabs,/label: "Filas"/);
+  assert.match(phone,/onManageQueues\?\.\(\)/);
   assert.match(page,/hasPermission\("pbx.manage"\)/);
   assert.match(page,/\.eq\("organization_id",activeOrganizationId\)/);
   assert.match(page,/\.rpc\("pbx_save_queue"/);
@@ -197,7 +199,10 @@ test("entrada FVX: planejar destino sem acionar Asterisk ou publicar troca autom
   assert.match(app,/route.subpage === "entrada"/);
   assert.match(app,/canManagePbxTool && isPlatformOperatorOrganization \? <UnionPbxInboundPage/);
   assert.match(app,/onManageInbound=\{canManagePbxTool/);
-  assert.match(phone,/Planejar entrada FVX/);
+  const tabs=read("src/features/telephony/presentation/UnionPbxSectionTabs.tsx");
+  assert.match(tabs,/label: "Entrada FVX"/);
+  assert.match(tabs,/canManageInbound \?/);
+  assert.match(phone,/onManageInbound\?\.\(\)/);
   assert.match(page,/hasPermission\("pbx.manage"\)/);
   assert.match(page,/\.eq\("organization_id",activeOrganizationId\)/);
   assert.match(page,/\.rpc\("pbx_save_inbound_route_plan"/);
