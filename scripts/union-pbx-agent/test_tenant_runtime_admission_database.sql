@@ -1,9 +1,21 @@
 -- Run after the migration in a disposable PostgreSQL/Supabase test database.
 -- Every synthetic row and any trigger side effect is rolled back. No PBX action.
 begin;
+
+set local role service_role;
+do $$ begin
+ if coalesce(public.pbx_admit_agent_request(null,null,'poll',2,null,null)->>'allowed','true')<>'false' then
+  raise exception 'Service-role admission facade did not reject an unknown agent';
+ end if;
+ if has_schema_privilege('anon','private','USAGE') then
+  raise exception 'Private-schema usage leaked to anonymous callers';
+ end if;
+end $$;
+reset role;
 do $$
 declare org uuid=gen_random_uuid(); other_org uuid=gen_random_uuid(); actor uuid;
  owner_role uuid; other_role uuid; employee uuid; other_employee uuid; key text; other_extension uuid; manager_role uuid;
+ owner_permissions_before uuid[];
 begin
  select id into strict actor from public.profiles order by created_at limit 1;
  insert into public.organizations(id,name,slug) values
@@ -12,11 +24,14 @@ begin
  -- Exercise enable-after-role onboarding; no heartbeat or PBX permission existed.
  insert into public.roles(organization_id,name,is_system) values(org,'PABX fixture owner',false) returning id into owner_role;
  insert into public.roles(organization_id,name) values(other_org,'PABX fixture foreign') returning id into other_role;
+ select coalesce(array_agg(permission_id order by permission_id),array[]::uuid[]) into owner_permissions_before
+  from public.role_permissions where role_id=owner_role;
  insert into public.organization_members(organization_id,user_id,role_id,is_owner,status)
  values(org,actor,owner_role,true,'active');
  insert into public.organization_modules(organization_id,module_key,is_enabled) values(org,'pbx',true),(other_org,'pbx',true)
  on conflict(organization_id,module_key) do update set is_enabled=true;
- insert into public.roles(organization_id,name,is_system) values(org,'Gestor',true) returning id into manager_role;
+ insert into public.roles(organization_id,name,is_system) values(org,'Gestor',true)
+ on conflict(organization_id,name) do update set is_system=true returning id into manager_role;
  insert into public.employees(organization_id,profile_id,full_name,cpf,function_name,role_id)
  values(org,actor,'PABX admission employee','00000000000','test',owner_role) returning id into employee;
  insert into public.employees(organization_id,full_name,cpf,function_name,role_id)
@@ -34,7 +49,8 @@ begin
  if not private.pbx_has_permission(org,'pbx.manage') or not private.pbx_has_permission(org,'pbx.view') then
   raise exception 'Owner cannot enroll before first heartbeat';
  end if;
- if exists(select 1 from public.role_permissions rp where rp.role_id=owner_role) then
+ if (select coalesce(array_agg(permission_id order by permission_id),array[]::uuid[])
+     from public.role_permissions where role_id=owner_role) is distinct from owner_permissions_before then
   raise exception 'Owner PBX bootstrap elevated a shared non-manager role';
  end if;
  if exists(select 1 from public.role_permissions rp join public.permissions p on p.id=rp.permission_id

@@ -20,6 +20,7 @@ files=(
  supabase/migrations/20261110021308_pbx_queue_control_generation_order.sql
  supabase/migrations/20261110022733_pbx_call_history_reports.sql
  supabase/migrations/20261110140045_pbx_tenant_runtime_admission.sql
+ supabase/migrations/20261110165015_pbx_agent_private_schema_usage.sql
  scripts/union-pbx-agent/test_tenant_runtime_admission_database.sql
 )
 for file in "${files[@]}"; do

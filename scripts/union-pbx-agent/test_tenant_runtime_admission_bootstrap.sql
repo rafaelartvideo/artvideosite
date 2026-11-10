@@ -10,7 +10,8 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
 create schema private;
-grant usage on schema public,auth,private to anon,authenticated,service_role;
+grant usage on schema public,auth to anon,authenticated,service_role;
+grant usage on schema private to authenticated;
 -- Match postgres-owned public-object default ACLs read from pg_default_acl.
 alter default privileges in schema public grant all on tables to service_role;
 alter default privileges in schema public grant all on sequences to service_role;

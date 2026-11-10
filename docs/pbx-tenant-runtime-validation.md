@@ -24,6 +24,10 @@ implementa troncos externos para parceiros, URA ou gravação de voz.
 - Cadastro e consulta de configurações não exigem agente online. A entrega
   criptografada de credenciais revalida funcionário, organização, permissão,
   agente, validade e consumo único.
+- A ponte de produção não tinha `USAGE` no esquema privado para `service_role`,
+  embora possuísse `EXECUTE` nos helpers. A migração complementar concede apenas
+  esse acesso de resolução ao serviço. O teste descartável passou a reproduzir
+  o ACL real e a chamar a fachada como `service_role`, mantendo `anon` sem acesso.
 
 ## Evidências
 
@@ -54,6 +58,10 @@ preparar seu perfil e registrar seu agente individual. Nenhum parceiro real foi
 habilitado pelo ensaio. Revogar a ponte bloqueia novos comandos e credenciais;
 não desativa automaticamente a telefonia dos ramais já instalados.
 
+O proprietário também validou a transferência pela interface: chamada interna
+com eco atendida no 302, transferida para o 301 e atendida com retorno de voz.
+Encerramento conferido com zero canais ativos, sem uso da FVX.
+
 O tom intermitente de chamada da FVX permanece na pendência adiada pelo
-proprietário. Transferência pela interface e contingência com atendente offline
-ainda exigem a validação operacional correspondente.
+proprietário. A contingência com atendente offline ainda exige a validação
+operacional correspondente.
