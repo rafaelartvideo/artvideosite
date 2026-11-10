@@ -15,8 +15,13 @@ test("Reabrir OS compartilha o campo Motivo do retorno obrigatório", async () =
   assert.match(dialog, /Motivo do retorno <span className="text-red-600"/);
   assert.match(dialog, /minLength=\{5\} maxLength=\{2000\}/);
   assert.match(dialog, /if \(reason\.trim\(\)\.length < 5\)/);
-  assert.doesNotMatch(dialog, /Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados/);
-  assert.doesNotMatch(dialog, /Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados/);
+  assert.match(dialog, /aria-label="Informações sobre a reabertura da OS"/);
+  assert.match(dialog, /<CircleHelp size=\{17\} aria-hidden="true" \/>/);
+  assert.match(dialog, /<PopoverContent align="start" side="bottom" sideOffset=\{6\}/);
+  assert.match(dialog, /Os dados do cliente, equipamento, campos técnicos e fotos serão reutilizados\./);
+  assert.match(dialog, /Valores, pagamentos, soluções anteriores, checklists e aprovações não serão copiados\./);
+  assert.match(dialog, /title=\{isReopening \|\| expired/);
+  assert.doesNotMatch(dialog, /Você pode reabrir o atendimento com outro número, aproveitando os dados/);
 });
 
 test("Reabrir OS usa Cancelar/Confirmar e salva motivo por RPC autenticada", () => {
