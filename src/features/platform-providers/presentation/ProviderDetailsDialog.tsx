@@ -76,6 +76,10 @@ export function ProviderDetailsDialog({provider,organizationId,onClose}:{
     </a>}
   </> : undefined;
   return <AdminDialog open onClose={onClose} title={provider.name}
+    preparing={files.isPending} preparingKey={provider.id}
+    preparingText="Preparando prestador..."
+    preparingError={files.isError ? systemErrorMessage(files.error, "Não foi possível carregar os anexos do prestador.") : null}
+    onRetryPreparing={() => { void files.refetch(); }}
     description="Detalhes do prestador" className="w-[min(96vw,800px)] max-w-3xl"
     footer={<div className="flex justify-end"><AdminButton variant="secondary" onClick={onClose}>Fechar</AdminButton></div>}>
     <div className="space-y-4">

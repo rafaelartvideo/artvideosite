@@ -102,6 +102,10 @@ export function SalesProductDetailsDialog({
   ];
 
   return <AdminDialog open onClose={onClose} title="Detalhes do produto" description={product.name}
+    preparing={details.isPending || models.isPending} preparingKey={product.product_id}
+    preparingText="Preparando produto..."
+    preparingError={details.isError ? "Não foi possível carregar o produto." : models.isError ? "Não foi possível carregar os modelos compatíveis." : null}
+    onRetryPreparing={() => { void details.refetch(); void models.refetch(); }}
     className="w-[calc(100vw-1.25rem)] max-w-4xl"
     bodyClassName="max-h-[min(77dvh,820px)] overflow-y-auto">
     {preparing||details.isPending||models.isPending||relatedLoading

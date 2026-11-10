@@ -227,6 +227,10 @@ export function SalesCheckoutDialog({
   </div>;
 
   return <><AdminDialog open={open} onClose={close}
+    preparing={open && !result && (termsQuery.isPending || optionsQuery.isPending)}
+    preparingText="Preparando checkout..."
+    preparingError={optionsQuery.isError ? systemErrorMessage(optionsQuery.error, "Não foi possível carregar as formas de pagamento.") : termsQuery.isError ? systemErrorMessage(termsQuery.error, "Não foi possível carregar as condições de pagamento.") : null}
+    onRetryPreparing={() => { void termsQuery.refetch(); void optionsQuery.refetch(); }}
     title={result ? "Pedido registrado" : proposal ? "Converter proposta em pedido" : "Finalizar venda"}
     description={result
       ? "Venda comercial registrada no Estoque e no Financeiro."

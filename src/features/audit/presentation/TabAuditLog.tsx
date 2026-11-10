@@ -841,6 +841,9 @@ function AuditDetailsDialog({
   return (
     <AdminDialog
       open
+      preparing={loading}
+      preparingText="Preparando auditoria..."
+      preparingError={error ? "Não foi possível carregar os detalhes da alteração." : null}
       onClose={onClose}
       title="Detalhes da alteração"
       description={entry ? `${operationLabel(entry.operation)} • ${formatDateTime(entry.created_at)}` : "Carregando evento de auditoria"}

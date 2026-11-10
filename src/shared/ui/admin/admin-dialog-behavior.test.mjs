@@ -93,3 +93,25 @@ test("modais de dados somente revelam formulários e ações depois da preparaç
     assert.match(contents, /onRetryPreparing=\{/);
   }
 });
+
+
+test("modal de preparação é usado em estoque, comercial, financeiro e operações de auditoria", () => {
+  const files = [
+    "src/features/products/presentation/InventoryCatalogSettingsDialog.tsx",
+    "src/features/sales/presentation/SalesPaymentTermsDialog.tsx",
+    "src/features/sales/presentation/SalesReturnsDialog.tsx",
+    "src/features/sales/presentation/SalesDeliveryDialog.tsx",
+    "src/features/sales/presentation/SalesProposalDetailDialog.tsx",
+    "src/features/audit/presentation/TabAuditLog.tsx",
+    "src/features/management/presentation/ManagementTrashDialog.tsx",
+    "src/features/technician-panel/presentation/TechnicianOrderHistoryDialog.tsx",
+    "src/features/platform-providers/presentation/ProviderDetailsDialog.tsx",
+    "src/features/sales/presentation/SalesProductDetailsDialog.tsx",
+    "src/features/sales/presentation/SalesCheckoutDialog.tsx",
+  ];
+  for (const path of files) {
+    const contents = readFileSync(path, "utf8");
+    assert.match(contents, /preparing=\{/);
+    assert.match(contents, /preparingText="Preparando /);
+  }
+});

@@ -28,11 +28,15 @@ export function ManagementTrashDialog({
 }) {
   const [entries, setEntries] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setLoaded(false); return; }
     let alive = true;
+    setLoaded(false);
+    setLoadError("");
     setLoading(true);
     Promise.all(spaces.map(async space => {
       const [folders, records] = await Promise.all([
@@ -53,8 +57,12 @@ export function ManagementTrashDialog({
     })).then(parts => {
       if (alive) setEntries(parts.flat().sort((a,b) => b.deletedAt.localeCompare(a.deletedAt)));
     }).catch(error => {
-      if (alive) notifyAdmin(systemErrorMessage(error, "Não foi possível carregar a lixeira."), "error");
-    }).finally(() => { if (alive) setLoading(false); });
+      if (alive) {
+        const message = systemErrorMessage(error, "Não foi possível carregar a lixeira.");
+        setLoadError(message);
+        notifyAdmin(message, "error");
+      }
+    }).finally(() => { if (alive) { setLoading(false); setLoaded(true); } });
     return () => { alive = false; };
   }, [open, spaces, revision]);
   const count = useMemo(() => entries.length, [entries]);
@@ -94,6 +102,8 @@ export function ManagementTrashDialog({
   };
 
   return <AdminDialog open={open} title="Lixeira" className="max-w-3xl"
+    preparing={!loaded} preparingText="Preparando lixeira..."
+    preparingError={loadError} onRetryPreparing={() => setRevision(value => value + 1)}
     description="Itens são excluídos definitivamente após 7 dias, caso não sejam restaurados."
     onClose={() => { if (!busy) onClose(); }}
     footer={<div className="flex flex-wrap justify-between gap-2">

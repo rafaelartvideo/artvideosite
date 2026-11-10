@@ -22,20 +22,31 @@ export function TechnicianOrderHistoryDialog({
 }) {
   const [entries, setEntries] = useState<TechnicianOrderHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedOrderId, setLoadedOrderId] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setEntries([]);
+    setLoadError("");
     setLoading(true);
     void getMyTechnicianOrderHistory(orderId)
-      .then(result => { if (!cancelled) setEntries(result); })
-      .catch(error => { if (!cancelled) notifyAdmin(systemErrorMessage(error, "Não foi possível abrir o histórico."), "error"); })
+      .then(result => { if (!cancelled) { setEntries(result); setLoadedOrderId(orderId); } })
+      .catch(error => { if (!cancelled) {
+        const message = systemErrorMessage(error, "Não foi possível abrir o histórico.");
+        setLoadError(message);
+        notifyAdmin(message, "error");
+      } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open, orderId]);
+  }, [open, orderId, retry]);
 
   return <AdminDialog open={open} onClose={onClose}
+    preparing={loading || (loadedOrderId !== orderId && !loadError)}
+    preparingKey={orderId} preparingText="Preparando histórico da OS..."
+    preparingError={loadError} onRetryPreparing={() => setRetry(value => value + 1)}
     title="Histórico da OS" description={"OS " + orderNumber}
     className="max-w-2xl"
     footer={<div className="flex justify-end"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>}>
