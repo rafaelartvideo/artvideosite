@@ -1,6 +1,6 @@
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
-import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug } from "lucide-react";
+import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
 import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,7 @@ import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
 import { UnionPbxDtmfPad } from "./UnionPbxDtmfPad";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
+import { UnionPbxSectionTabs, type UnionPbxSection } from "./UnionPbxSectionTabs";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
@@ -55,6 +56,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [directoryError, setDirectoryError] = useState("");
   const [testQueueError, setTestQueueError] = useState("");
   const [dialTarget, setDialTarget] = useState("");
+  const [dialMode, setDialMode] = useState<"internal" | "external">("internal");
   const [externalTarget, setExternalTarget] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
@@ -163,6 +165,16 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     ...testQueues.map(item=>item.number),
     ...testFlows.map(item=>item.number),
   ]);
+
+  const internalDestinationReady = dialTarget === "900" || dialableNumbers.has(Number(dialTarget));
+  const registeredAndIdle = registration === "registered" && callState === "idle" && !outputPending;
+  const selectSection = (section: UnionPbxSection) => {
+    if (section === "historico") onHistory?.();
+    else if (section === "ramais") onManage?.();
+    else if (section === "filas") onManageQueues?.();
+    else if (section === "fluxos") onManageFlows?.();
+    else if (section === "entrada") onManageInbound?.();
+  };
 
   const clearAudio = () => {
     const element = remoteAudioRef.current;
@@ -394,6 +406,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   };
 
   const callInternal = () => {
+    if (dialTarget === "900") { callEcho(); return; }
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     const destination = Number(dialTarget);
     if (!dialTarget || !Number.isInteger(destination) ||
@@ -531,9 +544,30 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   return <>
     {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
     <div className={isPageOpen ? "min-w-0 space-y-5" : "hidden"} aria-hidden={!isPageOpen}>
-    <PageHeader title="PABX Union" subtitle="Telefonia da sua empresa. Continue conectado enquanto navega pelo CRM." />
+    <PageHeader title="PABX Union" subtitle="Central telefônica da sua empresa. Seu ramal permanece conectado enquanto você navega pelo CRM."
+      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Ferramentas</AdminButton>} />
+    <UnionPbxSectionTabs active="telefone" onSelect={selectSection}
+      canManage={Boolean(onManage || onManageQueues || onManageFlows)}
+      canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}/>
+    <div className="grid gap-3 sm:grid-cols-3" aria-label="Estado da central">
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <Phone className="shrink-0 text-primary" size={23}/>
+        <div className="min-w-0"><p className="text-xs text-muted-foreground">Linha telefônica</p>
+          <p className="truncate text-sm font-semibold">{isPlatformOperatorOrganization ? "(11) 4290-1575" : "Telefonia interna"}</p></div>
+      </div>
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <Headphones className="shrink-0 text-primary" size={23}/>
+        <div className="min-w-0"><p className="text-xs text-muted-foreground">Meu ramal</p>
+          <p className="truncate text-sm font-semibold">{sipUser || (checkingManaged ? "Consultando..." : managedExtension ? String(managedExtension.number) : "Não vinculado")}</p></div>
+      </div>
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <Radio className={registration === "registered" ? "shrink-0 text-emerald-600 dark:text-emerald-400" : "shrink-0 text-primary"} size={23}/>
+        <div className="min-w-0"><p className="text-xs text-muted-foreground">Registro SIP</p>
+          <p role="status" className="truncate text-sm font-semibold">{registration === "registered" ? "Conectado" : registration === "connecting" ? "Conectando..." : registration === "error" ? "Falha na conexão" : "Offline"}</p></div>
+      </div>
+    </div>
 
-    <div className="mx-auto w-full max-w-2xl space-y-4">
+    <div className="w-full min-w-0 space-y-4">
       <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
         onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
       {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio. Ligar e atender ficam bloqueados até terminar.</p>}
