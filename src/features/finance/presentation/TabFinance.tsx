@@ -22,6 +22,19 @@ import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSk
 import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
 import { ADMIN_PAGE_SIZE_STORAGE_KEY, initialPageSize } from "@/shared/domain/pagination-preferences";
 
+/** Usa o mesmo filtro operacional da lista, incluindo parcelas parcialmente liquidadas. */
+async function countPendingFinancialEntries(organizationId: string, entryType: "receivable" | "payable"): Promise<number> {
+  const { data, error } = await supabase.rpc("search_financial_entry_page_ids_v4", {
+    p_organization_id: organizationId,
+    p_entry_type: entryType,
+    p_page: 1,
+    p_page_size: 1,
+    p_operational_status: "pending",
+  });
+  if (error) throw error;
+  return Number(data?.[0]?.total_count || 0);
+}
+
 export function TabFinance({
   routeResourceId,
   routeSubpage,
@@ -32,17 +45,14 @@ export function TabFinance({
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
   const { hasPermission, activeOrganizationId, user, loading: authLoading } = useAuth();
-  // Contagens leves (HEAD/COUNT), por empresa e permissão: não carrega lançamentos inteiros.
+  // Contagens por empresa e permissão: títulos em aberto via RPC paginada; extrato por COUNT.
   const organizationId = activeOrganizationId || "";
   const receivableCount = useQuery({
     queryKey: [...queryKeys.finance.entries(organizationId || "none", "receivable"), "tab-count"],
     enabled: Boolean(activeOrganizationId && hasPermission("finance.receivables.view")),
     staleTime: 30_000,
     queryFn: async () => {
-      const { count, error } = await supabase.from("financial_entries").select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId).eq("entry_type", "receivable");
-      if (error) throw error;
-      return count ?? 0;
+      return countPendingFinancialEntries(organizationId, "receivable");
     },
   });
   const payableCount = useQuery({
@@ -50,8 +60,16 @@ export function TabFinance({
     enabled: Boolean(activeOrganizationId && hasPermission("finance.payables.view")),
     staleTime: 30_000,
     queryFn: async () => {
-      const { count, error } = await supabase.from("financial_entries").select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId).eq("entry_type", "payable");
+      return countPendingFinancialEntries(organizationId, "payable");
+    },
+  });
+  const movementsCount = useQuery({
+    queryKey: [...queryKeys.finance.movements(organizationId || "none"), "tab-count"],
+    enabled: Boolean(activeOrganizationId && hasPermission("finance.accounts.view")),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("financial_movements").select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
       if (error) throw error;
       return count ?? 0;
     },
@@ -70,11 +88,13 @@ export function TabFinance({
   const countErrors: FinanceSection[] = [
     ...(hasPermission("finance.receivables.view") && receivableCount.isError ? ["receivables" as const] : []),
     ...(hasPermission("finance.payables.view") && payableCount.isError ? ["payables" as const] : []),
+    ...(hasPermission("finance.accounts.view") && movementsCount.isError ? ["movements" as const] : []),
     ...(hasPermission("finance.accounts.view") && accountsCount.isError ? ["accounts" as const] : []),
   ];
   const tabCounts: Partial<Record<FinanceSection, number>> = {
     ...(receivableCount.data !== undefined ? { receivables: receivableCount.data } : {}),
     ...(payableCount.data !== undefined ? { payables: payableCount.data } : {}),
+    ...(movementsCount.data !== undefined ? { movements: movementsCount.data } : {}),
     ...(accountsCount.data !== undefined ? { accounts: accountsCount.data } : {}),
   };
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -161,7 +181,8 @@ export function TabFinance({
   }, [scope]);
   const countsLoading = (hasPermission("finance.receivables.view") && receivableCount.isPending)
     || (hasPermission("finance.payables.view") && payableCount.isPending)
-    || (hasPermission("finance.accounts.view") && accountsCount.isPending);
+    || (hasPermission("finance.accounts.view") && accountsCount.isPending)
+    || (hasPermission("finance.accounts.view") && movementsCount.isPending);
   const initialLoading = authLoading
     || (Boolean(activeOrganizationId) && (countsLoading || (primarySections.length > 0 && !readyScopes[scope])));
   const skeletonRows = section === "movements"

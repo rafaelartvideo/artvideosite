@@ -26,14 +26,15 @@ const ICONS: Record<FinanceSection, LucideIcon> = {
 };
 
 export function FinanceSubsectionTabs<T extends string>({
-  value, items, onSelect, ariaLabel = "Subseções do financeiro",
+  value, items, onSelect, ariaLabel = "Subseções do financeiro", centered = false,
 }: {
   value: T;
   items: Array<{ id: T; label: string }>;
   onSelect: (value: T) => void;
   ariaLabel?: string;
+  centered?: boolean;
 }) {
-  return <AdminSubsectionTabs value={value} items={items} onChange={onSelect} ariaLabel={ariaLabel} />;
+  return <AdminSubsectionTabs value={value} items={items} onChange={onSelect} ariaLabel={ariaLabel} centered={centered} />;
 }
 
 export function FinanceSectionTabs({
@@ -56,6 +57,7 @@ export function FinanceSectionTabs({
     value={section} items={primary.map(id => ({
       id, label: LABELS[id], Icon: ICONS[id],
       count: counts?.[id], countUnavailable: countErrors.includes(id),
+      countTone: id === "receivables" || id === "payables" ? "pending" as const : undefined,
     }))}
     onChange={onSelect} ariaLabel="Áreas do financeiro"
     trailing={hasRegistryMenu ? <>

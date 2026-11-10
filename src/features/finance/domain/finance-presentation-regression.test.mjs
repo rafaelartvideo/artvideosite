@@ -83,6 +83,35 @@ test("receivable responsible dropdown binds outside-click to browser document, n
   assert.match(entries, /value=\{documentSearch\}/);
 });
 
+test("financial tab badges count only pending balances, retain statement totals and pending palette", () => {
+  const tab = source("TabFinance.tsx");
+  const tabs = source("FinanceSectionTabs.tsx");
+  const shared = readFileSync(new URL("../../../shared/ui/admin/AdminSubsectionTabs.tsx", import.meta.url), "utf8");
+  assert.match(tab, /search_financial_entry_page_ids_v4/);
+  assert.match(tab, /p_operational_status: "pending"/);
+  assert.match(tab, /financial_movements/);
+  assert.match(tab, /movements: movementsCount.data/);
+  assert.match(tabs, /countTone: id === "receivables" \|\| id === "payables"/);
+  assert.match(shared, /STATUS_TONE_CLASSES.pending.badge/);
+});
+
+test("financial detail subsection tabs are centered without altering report tabs", () => {
+  const detail = source("FinanceEntryDetail.tsx");
+  const tabs = source("FinanceSectionTabs.tsx");
+  assert.match(detail, /centered/);
+  assert.match(tabs, /centered=\{centered\}/);
+});
+
+test("finance overview separates uncompleted OS estimates from confirmed receivables", () => {
+  const overview = source("FinanceOverviewFoundation.tsx");
+  assert.match(overview, /\.is\("completed_at", null\)/);
+  assert.match(overview, /\.is\("cancelled_at", null\)/);
+  assert.match(overview, /hasPermission\("orders.view_all"\)/);
+  assert.match(overview, /OS não concluídas/);
+  assert.match(overview, /Próximos 7 dias/);
+  assert.match(overview, /Realizado e previsto no período/);
+});
+
 test("finance submenus show permission-scoped totals without duplicated table counters", () => {
   const tab = source("TabFinance.tsx");
   const tabs = source("FinanceSectionTabs.tsx");

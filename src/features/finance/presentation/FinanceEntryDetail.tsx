@@ -158,6 +158,7 @@ function EntryDetailContent({
         if (scrollContainerRef?.current) scrollContainerRef.current.scrollTop = 0;
       }}
       ariaLabel={`Subseções da conta a ${isReceivable ? "receber" : "pagar"}`}
+      centered
       items={[
         { id: "overview", label: "Resumo" },
         { id: "settlements", label: "Baixas" },
