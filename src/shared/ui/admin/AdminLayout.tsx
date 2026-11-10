@@ -443,7 +443,7 @@ export function AdminDialog({
             "[&:has(>_[data-admin-loading-state])]:flex [&:has(>_[data-admin-loading-state])]:items-center [&:has(>_[data-admin-loading-state])]:justify-center",
             bodyClassName,
           )}>{children}</div>}
-      {!showPreparation && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>
+      {!showPreparation && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
