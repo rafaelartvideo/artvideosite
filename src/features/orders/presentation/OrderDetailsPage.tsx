@@ -11,7 +11,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -290,6 +290,17 @@ export function OrderDetailsPage(props: Props) {
   const [signatureRequestOpen, setSignatureRequestOpen] = useState(false);
   const [signatureQrLink, setSignatureQrLink] = useState<string | null>(null);
   const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
+  // O status da garantia vem do certificado registrado, não de uma suposição
+  // baseada no tipo de atendimento ou na possibilidade de imprimir.
+  const warrantyCertificateKey = ["orders", "warranty-certificate", detail?.organization_id, detail?.id];
+  const warrantyCertificateQuery = useQuery({
+    queryKey: warrantyCertificateKey,
+    enabled: Boolean(visible && canPrintDocuments && generatesWarranty && detail?.completed_at && detail?.id && detail?.organization_id),
+    queryFn: () => loadWarrantyCertificate(String(detail?.organization_id), String(detail?.id)),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
   const labelUrl = detail?.id && detail?.organization_id
     ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
     : "";
@@ -442,11 +453,8 @@ export function OrderDetailsPage(props: Props) {
     if(templateId==="warranty-certificate") {
       if(!generatesWarranty) throw new Error("Este tipo de atendimento não emite certificado de garantia.");
       if(!detail?.completed_at || !canPrintDocuments) throw new Error("O certificado só pode ser enviado para OS concluída, com permissão para imprimir.");
-      let certificate=await loadWarrantyCertificate(detail.organization_id,detail.id);
-      if(!certificate) {
-        if(!hasPermission("orders.complete")) throw new Error("Certificado não emitido. Solicite sua emissão a um gestor.");
-        certificate=await issueWarrantyCertificate(detail.organization_id,detail.id,null);
-      }
+      const certificate=await loadWarrantyCertificate(detail.organization_id,detail.id);
+      if(!certificate) throw new Error("Certificado ainda não emitido. Emita-o explicitamente nos detalhes da OS.");
       return createWarrantyCertificatePdfFile(certificate,String(detail.os_number||"OS"));
     }
     const template = printTemplates.templates.find(item => item.id === templateId);
@@ -500,28 +508,40 @@ export function OrderDetailsPage(props: Props) {
     }
   };
 
+  const issueWarranty = async () => {
+    if (!generatesWarranty || !detail?.completed_at || printingWarranty || !hasPermission("orders.complete")) return;
+    setPrintingWarranty(true);
+    try {
+      // Revalida no banco para não emitir duas vezes ao usar outra sessão.
+      const existing = await loadWarrantyCertificate(detail.organization_id, detail.id);
+      const certificate = existing || await issueWarrantyCertificate(detail.organization_id, detail.id, null);
+      queryClient.setQueryData(["orders", "warranty-certificate", detail.organization_id, detail.id], certificate);
+      notifyAdmin(existing ? "Certificado já registrado para esta OS." : "Certificado de garantia emitido com sucesso.", "success");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível emitir o certificado de garantia."), "error");
+    } finally { setPrintingWarranty(false); }
+  };
+
   const printWarranty = async () => {
     if (!generatesWarranty || !detail?.completed_at || printingWarranty || !canPrintDocuments) return;
-    // Pop-up reservado no clique para que a impressão não seja bloqueada após a consulta.
+    // A impressão nunca gera um certificado. Emissão é uma ação explícita.
     const popup = openPrintWindow();
     if (!popup) {
-      const message = "Permita pop-ups para imprimir o certificado de garantia.";
-      notifyAdmin(message, "error"); return;
+      notifyAdmin("Permita pop-ups para imprimir o certificado de garantia.", "error");
+      return;
     }
     setPrintingWarranty(true);
     try {
-      let certificate = await loadWarrantyCertificate(detail.organization_id, detail.id);
+      const certificate = await loadWarrantyCertificate(detail.organization_id, detail.id);
       if (!certificate) {
-        if (!hasPermission("orders.complete")) {
-          throw new Error("Certificado ainda não emitido. Solicite a geração a um usuário com permissão para concluir OS.");
-        }
-        certificate = await issueWarrantyCertificate(detail.organization_id, detail.id, null);
+        queryClient.setQueryData(["orders", "warranty-certificate", detail.organization_id, detail.id], null);
+        throw new Error("Certificado não emitido. Use a ação Emitir certificado antes de imprimir.");
       }
+      queryClient.setQueryData(["orders", "warranty-certificate", detail.organization_id, detail.id], certificate);
       await printWarrantyCertificate(certificate, popup);
     } catch (error) {
       popup.close();
-      const message = systemErrorMessage(error, "Não foi possível imprimir o certificado de garantia.");
-      notifyAdmin(message, "error");
+      notifyAdmin(systemErrorMessage(error, "Não foi possível imprimir o certificado de garantia."), "error");
     } finally { setPrintingWarranty(false); }
   };
 
@@ -637,10 +657,11 @@ export function OrderDetailsPage(props: Props) {
           <div className="flex flex-wrap items-center gap-2"><OrderReturnSwitcher order={detail} /><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{!returnDiagnosisActive && (detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{quoteWorkflowEnabled && quoteState?.orderId === detail.id && <OrderQuoteStatusBadge status={quoteState.status} />}{detail.completed_at ? <OrderLifecycleTag status="completed" /> : detail.is_solved ? <OrderLifecycleTag status="solved" /> : null}</div>
           <div className="flex w-full min-w-0 flex-col gap-2 border-t border-border pt-3 sm:w-auto sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0 md:flex-row md:flex-wrap md:items-center">
             <div className="flex w-full min-w-0 flex-nowrap gap-2 md:w-auto md:flex-wrap">
-              {canPrintDocuments && <div className="min-w-0 flex-1 md:flex-none"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" collisionPadding={12} className="w-[calc(100vw-2rem)] max-w-[23rem] min-w-0 overflow-x-hidden"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex min-w-0 cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">Etiqueta</span><span className="block truncate text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{detail.completed_at && generatesWarranty && <DropdownMenuItem onSelect={event => { event.preventDefault(); void printWarranty(); }}
-              disabled={printingWarranty} className="flex min-w-0 cursor-pointer items-center gap-3">
+              {canPrintDocuments && <div className="min-w-0 flex-1 md:flex-none"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" collisionPadding={12} className="w-[calc(100vw-2rem)] max-w-[23rem] min-w-0 overflow-x-hidden"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex min-w-0 cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0 flex-1"><span className="block truncate font-semibold">Etiqueta</span><span className="block truncate text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{detail.completed_at && generatesWarranty && <DropdownMenuItem
+              onSelect={event => { event.preventDefault(); if (warrantyCertificateQuery.data) void printWarranty(); else if (!warrantyCertificateQuery.isPending && !warrantyCertificateQuery.isError) void issueWarranty(); }}
+              disabled={printingWarranty || warrantyCertificateQuery.isPending || warrantyCertificateQuery.isError || (!warrantyCertificateQuery.data && !hasPermission("orders.complete"))} className="flex min-w-0 cursor-pointer items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><FileText size={15}/></span>
-              <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : "Certificado de garantia"}</span><span className="block truncate text-[10px] text-[#5a6a82]">Imprimir ou salvar em PDF · OS concluída</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : warrantyCertificateQuery.isPending ? "Consultando certificado..." : warrantyCertificateQuery.isError ? "Falha ao consultar certificado" : warrantyCertificateQuery.data ? "Imprimir certificado de garantia" : "Emitir certificado de garantia"}</span><span className="block truncate text-[10px] text-[#5a6a82]">{warrantyCertificateQuery.data ? "Emitido · válido até " + new Date(warrantyCertificateQuery.data.expires_at + "T12:00:00").toLocaleDateString("pt-BR") : warrantyCertificateQuery.isPending ? "Consultando registro no banco..." : warrantyCertificateQuery.isError ? "Feche e reabra a OS para consultar novamente" : "Ainda não emitido · exige permissão para concluir OS"}</span></span>
             </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
