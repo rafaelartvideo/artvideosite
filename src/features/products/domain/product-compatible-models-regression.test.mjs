@@ -12,7 +12,8 @@ test("cadastro de produtos inclui modelos de aparelhos na aba Variações e Rela
     assert.ok((await transformWithEsbuild(code,name,{loader:"tsx"})).code.length>100,name);
   }
   assert.match(page, /<TabsContent value="relationships"/);
-  assert.match(page, /<Section title="Modelos de aparelhos compatíveis"/);
+  assert.match(page, /Modelos de aparelhos compatíveis/);
+  assert.match(page, /Ajuda sobre modelos de aparelhos compatíveis/);
   assert.match(page, /<ProductCompatibleModelsEditor/);
   assert.match(page, /getProductCompatibleModels\(activeOrganizationId, product\.id\)/);
   assert.match(page, /replaceProductCompatibleModels\(activeOrganizationId, savedProductId,/);

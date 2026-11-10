@@ -16,6 +16,7 @@ import {
   Plus,
   ShoppingBag,
   Search,
+  Settings2,
   Star,
   Trash2,
   Truck,
@@ -77,6 +78,8 @@ import { InventorySuppliersEditor } from "@/features/inventory/presentation/Inve
 import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptureBridge";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductCompatibleModelsEditor } from "./ProductCompatibleModelsEditor";
+import { InventoryCatalogSettingsDialog } from "./InventoryCatalogSettingsDialog";
+import { listInventoryCatalogSettings } from "../infrastructure/inventory-catalog-settings.repository";
 import {
   getProductCompatibleModels, replaceProductCompatibleModels,
   type CompatibleDeviceModel,
@@ -168,12 +171,14 @@ type ProductForm = {
   compare_at_price: string;
   is_featured: boolean;
   category_id: string;
+  subcategory_id: string;
   brand_id: string;
   site_characteristics: Array<{ label: string; value: string }>;
 };
 
 type ProductFieldErrors = Partial<Record<
   "name"
+  | "subcategory_id"
   | "price"
   | "compare_at_price"
   | "conversion_factor"
@@ -277,6 +282,7 @@ function emptyForm(): ProductForm {
     compare_at_price: "",
     is_featured: false,
     category_id: "",
+    subcategory_id: "",
     brand_id: "",
     site_characteristics: [],
   };
@@ -394,6 +400,13 @@ export function TabProducts({
     gcTime: REFERENCE_DATA_CACHE_TIME,
   });
 
+  const inventoryCatalogQuery = useQuery({
+    queryKey: ["inventory", "catalog-settings", activeOrganizationId],
+    queryFn: () => listInventoryCatalogSettings(activeOrganizationId!),
+    enabled: Boolean(activeOrganizationId && (canViewTable || canViewDetails || canCreate || canEdit)),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+  });
+
   const saleSummaryQuery = useQuery({
     queryKey: [...queryKeys.inventory.all, "sale-summary", activeOrganizationId],
     queryFn: () => listInventorySaleSummaries(activeOrganizationId!),
@@ -410,6 +423,7 @@ export function TabProducts({
   const [detailsProductId, setDetailsProductId] = useState<string | null>(null);
   const [detailsView, setDetailsView] = useState<InventoryDetailsView>("details");
   const [detailsBackAvailable, setDetailsBackAvailable] = useState(false);
+  const [inventoryCatalogSettingsOpen, setInventoryCatalogSettingsOpen] = useState(false);
   const [expandedListImage, setExpandedListImage] = useState<{ mediaId?: string | null; src?: string | null; name: string } | null>(null);
   // Evita fechar e reabrir o editor entre o clique em Novo e a sincronização da rota.
   const pendingEditorRouteRef = useRef(false);
@@ -559,13 +573,26 @@ export function TabProducts({
     queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.featuredProducts() }),
   ]);
 
+  const catalogSettings = inventoryCatalogQuery.data;
+  const categorySource = catalogSettings?.categories ?? categories;
+  const brandSource = catalogSettings?.brands ?? brands;
   const catOptions = [
     { value: "", label: "Sem categoria" },
-    ...([...categories].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))).map((item: any) => ({ value: item.id, label: item.name })),
+    ...categorySource.filter((item: any) => item.is_active !== false || item.id === form.category_id)
+      .sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+      .map((item: any) => ({ value: item.id, label: item.name })),
   ];
   const brandOptions = [
     { value: "", label: "Sem marca" },
-    ...([...brands].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))).map((item: any) => ({ value: item.id, label: item.name })),
+    ...brandSource.filter((item: any) => item.is_active !== false || item.id === form.brand_id)
+      .sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+      .map((item: any) => ({ value: item.id, label: item.name })),
+  ];
+  const subcategoryOptions = [
+    { value: "", label: "Sem subcategoria" },
+    ...(catalogSettings?.subcategories || [])
+      .filter(item => item.category_id === form.category_id && (item.is_active || item.id === form.subcategory_id))
+      .map(item => ({ value: item.id, label: item.name })),
   ];
 
   const openNew = () => {
@@ -670,6 +697,7 @@ export function TabProducts({
       compare_at_price: product.compare_at_price == null ? "" : String(product.compare_at_price),
       is_featured: product.is_featured ?? false,
       category_id: product.category_id || "",
+      subcategory_id: product.subcategory_id || "",
       brand_id: product.brand_id || "",
       site_characteristics: Array.isArray(product.site_characteristics)
         ? product.site_characteristics
@@ -827,6 +855,10 @@ export function TabProducts({
     const initialUnitCost = nullableNumber(form.initial_unit_cost);
 
     if (!form.name.trim()) errors.name = "Nome do item é obrigatório.";
+    if (form.subcategory_id && !(catalogSettings?.subcategories || []).some(item =>
+      item.id === form.subcategory_id && item.category_id === form.category_id && item.is_active)) {
+      errors.subcategory_id = "A subcategoria deve pertencer à categoria selecionada.";
+    }
     if (form.sale_window_days.trim() && (!Number.isInteger(Number(form.sale_window_days)) || Number(form.sale_window_days) < 1 || Number(form.sale_window_days) > 3650)) {
       errors.sale_window_days = "Informe um prazo entre 1 e 3650 dias.";
     }
@@ -879,7 +911,7 @@ export function TabProducts({
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      if (errors.name || errors.barcode) setEditorTab("general");
+      if (errors.name || errors.barcode || errors.subcategory_id) setEditorTab("general");
       else if (errors.price || errors.sale_window_days || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
       else if (errors.compare_at_price) setEditorTab("general");
       else setEditorTab("general");
@@ -1001,6 +1033,7 @@ export function TabProducts({
         compare_at_price: isArtvideoTenant ? compareAtPrice : null,
         is_featured: isArtvideoTenant ? form.is_featured : false,
         category_id: form.category_id || null,
+        subcategory_id: form.subcategory_id || null,
         brand_id: form.brand_id || null,
         site_characteristics: isArtvideoTenant
           ? form.site_characteristics
@@ -1168,7 +1201,10 @@ export function TabProducts({
       }
       setMasterDataDialog(null);
       setMasterDataName("");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
+        queryClient.invalidateQueries({ queryKey: ["inventory", "catalog-settings", activeOrganizationId] }),
+      ]);
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível criar o cadastro."), type: "error" });
     } finally {
@@ -1263,7 +1299,13 @@ export function TabProducts({
       <PageHeader
         title="Estoque"
         subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
-        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null}
+        actions={<div className="flex flex-wrap items-center gap-2">
+          {(canManageCategories || canManageBrands || canEdit) && <AdminButton variant="secondary"
+            onClick={() => setInventoryCatalogSettingsOpen(true)} className="text-xs">
+            <Settings2 size={15}/> Configurações
+          </AdminButton>}
+          {canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton>}
+        </div>}
       />
 
       {canViewTable && <><AdminSearchPanel title="Buscar no estoque" headerActions={<>
@@ -1578,7 +1620,7 @@ export function TabProducts({
                       label="Categoria"
                       value={form.category_id}
                       disabled={saving || !canLoadCategories}
-                      onChange={(event: any) => setForm(current => ({ ...current, category_id: event.target.value }))}
+                      onChange={(event: any) => { setFieldErrors(current => ({ ...current, subcategory_id: undefined })); setForm(current => ({ ...current, category_id: event.target.value, subcategory_id: "" })); }}
                       options={catOptions}
                     />
                   </div>
@@ -1594,6 +1636,15 @@ export function TabProducts({
                     className="h-[42px] w-[42px] shrink-0 !p-0"
                   ><Plus size={17} /></AdminButton>}
                 </div>
+
+                <FSelect
+                  label="Subcategoria"
+                  value={form.subcategory_id}
+                  disabled={saving || !form.category_id || inventoryCatalogQuery.isPending}
+                  error={fieldErrors.subcategory_id}
+                  options={subcategoryOptions}
+                  onChange={(event: any) => { setFieldErrors(current => ({ ...current, subcategory_id: undefined })); setForm(current => ({ ...current, subcategory_id: event.target.value })); }}
+                />
 
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
@@ -1812,8 +1863,14 @@ export function TabProducts({
               </div>}
               </div>
             </Section>
-            <Section title="Modelos de aparelhos compatíveis"
-              description="Vincule os modelos dos aparelhos atendidos por este produto. Variações podem herdar os modelos do produto principal ou ter uma lista própria.">
+            <Section title={<span className="inline-flex min-w-0 items-center gap-1.5">
+              Modelos de aparelhos compatíveis
+              <Popover><PopoverTrigger asChild><button type="button" aria-label="Ajuda sobre modelos de aparelhos compatíveis"
+                className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-primary"><CircleHelp size={15}/></button></PopoverTrigger>
+                <PopoverContent align="start" side="top" className="z-[350] w-80 max-w-[calc(100vw-2rem)] text-xs font-normal normal-case leading-relaxed tracking-normal">
+                  Vincule os modelos dos aparelhos atendidos por este produto. Variações podem herdar os modelos do produto principal ou ter uma lista própria.
+                </PopoverContent></Popover>
+            </span>}>
               <ProductCompatibleModelsEditor
                 key={editItem?.id || "new"}
                 models={compatibleModels}
@@ -1823,10 +1880,18 @@ export function TabProducts({
                 parentProductId={compatibleModelsParentId}
                 disabled={saving}
                 loaded={compatibleModelsLoaded}
+                deviceTypes={catalogSettings?.deviceTypes || []}
+                deviceBrands={catalogSettings?.deviceBrands || []}
               />
             </Section>
-            <Section title="Códigos relacionados"
-              description="O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código."
+            <Section title={<span className="inline-flex min-w-0 items-center gap-1.5">
+              Códigos relacionados
+              <Popover><PopoverTrigger asChild><button type="button" aria-label="Ajuda sobre códigos relacionados"
+                className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-primary"><CircleHelp size={15}/></button></PopoverTrigger>
+                <PopoverContent align="start" side="top" className="z-[350] w-80 max-w-[calc(100vw-2rem)] text-xs font-normal normal-case leading-relaxed tracking-normal">
+                  O tipo selecionado define a relação com outros produtos da empresa quando houver correspondência exata de código.
+                </PopoverContent></Popover>
+            </span>}
               actions={<AdminButton variant="secondary" size="sm"
                       disabled={saving || !relatedCodesLoaded || form.related_codes.length >= 100}
                       onClick={() => setForm(current => ({
@@ -2359,6 +2424,15 @@ export function TabProducts({
         </div>}
       </AdminStickyToolbar>
     </AdminPage>
+
+    {inventoryCatalogSettingsOpen && activeOrganizationId && <InventoryCatalogSettingsDialog
+      organizationId={activeOrganizationId}
+      canManageCategories={canManageCategories}
+      canManageBrands={canManageBrands}
+      canEditItems={canEdit}
+      onChanged={() => { void refresh(); }}
+      onClose={() => setInventoryCatalogSettingsOpen(false)}
+    />}
 
     {activeDetailsProduct && activeOrganizationId && <InventoryProductDetailsDialog
       product={activeDetailsProduct}
