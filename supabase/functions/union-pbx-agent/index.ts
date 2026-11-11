@@ -220,8 +220,27 @@ Deno.serve(async request=>{
         try{flowJobs=await loadFlowJobs(admin,agent.organization_id);}
         catch{console.error('PBX flow resources unavailable');}
       }
+      let sipTrunks:unknown[]|undefined;
+      if(!isPlatform&&body.protocol_version===3&&Array.isArray(body.features)&&body.features.length<=10&&body.features.includes('sip_trunks_v1')){
+        // Optional support must never prevent existing phone logins. No secret
+        // is selected before the verified profile's fresh capability admission.
+        try{
+          const admitted=await admin.rpc('pbx_admit_sip_trunk_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
+          if(!admitted.error&&admitted.data===true){
+            const result=await admin.rpc('pbx_poll_sip_trunks',{p_agent_id:agent.id});
+            if(!result.error&&Array.isArray(result.data)&&result.data.length<=100)sipTrunks=result.data;
+          }
+        }catch{console.error('PBX SIP configuration unavailable');}
+      }
       return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
-        history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs});
+        history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs,
+        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks})});
+    }
+    if(body.action==='report_sip_trunks'){
+      if(!Array.isArray(body.results)||body.results.length<1||body.results.length>200)return respond({error:'Confirmação de troncos inválida'},400);
+      const {data,error}=await admin.rpc('pbx_report_sip_trunks',{p_agent_id:agent.id,p_results:body.results});
+      if(error||typeof data?.acknowledged!=='number')return respond({error:'Troncos sem confirmação'},503);
+      return respond({accepted:true,acknowledged:data.acknowledged});
     }
     if(body.action==="report_availability"){
       if(!Array.isArray(body.results)||body.results.length<1||body.results.length>10)

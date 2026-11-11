@@ -7,7 +7,7 @@ const path = 'supabase/functions/union-pbx-agent/index.ts';
 const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -33,9 +33,14 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         admissions.push(args);
         return admissionError ? { error: { code: 'XX000' } } : { data: { allowed: admitted, is_platform: platform } };
       }
-      calls.push({ name, args }); return fail ? { error: { code: '23514' } } :
+      calls.push({ name, args });
+      if(name==='pbx_admit_sip_trunk_poll')return {data:sipAdmitted};
+      if(name==='pbx_poll_sip_trunks')return {data:[]};
+      return fail ? { error: { code: '23514' } } :
       name === 'pbx_poll_queue_availability' ? { data: [] } : { data: { accepted: true, acknowledged: (args.p_records || args.p_results).length } }; },
   };
+
+
   globalThis.__historyCreateClient = () => admin;
   globalThis.Deno = { env: { get: () => 'configured' }, serve: value => { handler = value; } };
   const source = readFileSync(path, 'utf8').replace(/^import .*createClient.*;$/m, 'const createClient = globalThis.__historyCreateClient;');
@@ -93,6 +98,7 @@ test('every runtime action requires database admission after signature verificat
     { action: 'report_login', id: agentId, ciphertext: 'A'.repeat(342) + '==' },
     { action: 'report', id: agentId, version: '2026-11-10T14:00:00Z', status: 'applied' },
     { action: 'report_queue', id: agentId, version: '2026-11-10T14:00:00Z', status: 'applied' },
+    { action: 'report_sip_trunks', results: [{id:agentId,revision:1,status:'applied'}] },
   ]) {
     const b = await bridge({ admitted: false, platform: false });
     assert.equal((await b.send(body)).status, 403, body.action);
@@ -181,4 +187,19 @@ test('somente protocolo compatível recebe pausas e rollback do agente restaura 
   assert.equal((await old.send({ action: 'poll' })).status, 200);
   assert.ok(old.admissions.some(row => row.p_protocol_version === null));
   assert.equal(old.calls.filter(call => call.name === 'pbx_poll_queue_availability').length, 0);
+});
+
+test('SIP secrets require signed isolated partner poll and separately admitted capability',async()=>{
+ const partner=await bridge({platform:false});
+ const response=await partner.send({action:'poll',protocol_version:3,features:['sip_trunks_v1']});
+ assert.equal(response.status,200);assert.deepEqual((await response.json()).sip_trunks,[]);
+ assert.ok(partner.calls.some(call=>call.name==='pbx_admit_sip_trunk_poll'&&call.args.p_agent_id===agentId&&call.args.p_sequence===1));
+ assert.ok(partner.calls.some(call=>call.name==='pbx_poll_sip_trunks'&&call.args.p_agent_id===agentId));
+ const denied=await bridge({platform:false,sipAdmitted:false});
+ await denied.send({action:'poll',protocol_version:3,features:['sip_trunks_v1']});
+ assert.equal(denied.calls.some(call=>call.name==='pbx_poll_sip_trunks'),false);
+ for(const options of [{platform:true},{platform:false}]){
+  const old=await bridge(options);await old.send({action:'poll',protocol_version:2,features:['sip_trunks_v1']});
+  assert.equal(old.calls.some(call=>call.name==='pbx_poll_sip_trunks'),false);
+ }
 });

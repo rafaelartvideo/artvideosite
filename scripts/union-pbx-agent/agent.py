@@ -80,6 +80,20 @@ def flow_support():
         return None
 
 
+def trunk_support():
+    if PROFILE_ID is None:return None  # The manual Union/FVX path is unchanged.
+    try:
+        import sip_trunk_runtime
+        return sip_trunk_runtime
+    except ImportError:
+        suffix=uuid.UUID(PROFILE_ID).hex
+        if ((STATE_DIR/'sip-trunks.json').exists() or
+            (SIP_DIR/('uw-trunks-'+suffix+'.conf')).exists() or
+            (DIALPLAN_MANAGED.parent/('uw-trunks-'+suffix+'.conf')).exists()):
+            raise AgentError('Reinstale o pacote completo de troncos antes de modificar as rotas.') from None
+        return None
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -335,6 +349,9 @@ def render_internal_routes(overrides=None):
         lines.append(" same => n,Hangup()\n")
     if PROFILE_ID is not None:
         lines.extend(['exten => 900,1,Answer()\n',' same => n,Echo()\n',' same => n,Hangup()\n'])
+    trunk_runtime=trunk_support()
+    if trunk_runtime is not None:
+        lines.append(trunk_runtime.internal_attachment(runtime_api()))
     # O roteamento de filas é opcional e nunca altera o contexto de entrada FVX.
     if QUEUE_TEST_FILE.is_file():
         lines.append(QUEUE_TEST_CONTEXT_INCLUDE + "\n")
@@ -1145,6 +1162,13 @@ def _verify_profile_runtime_locked():
     flow_runtime=flow_support()
     flow_file,flow_dispatch,_=flow_runtime.attachment(runtime_api()) if flow_runtime is not None else (None,None,None)
     includes=[QUEUE_TEST_CONTEXT]+([flow_dispatch] if flow_file is not None and flow_file.is_file() else [])
+    trunk_runtime=trunk_support()
+    if trunk_runtime is not None:
+        trunk_file,trunk_context,_=trunk_runtime.attachment(runtime_api())
+        trunk_paths=trunk_runtime.paths(runtime_api())
+        if any(path.exists() or path.is_symlink() for path in trunk_paths[:3]):
+            if trunk_file.is_file():includes.append(trunk_context)
+            trunk_runtime.verify(runtime_api(),PROFILE_ID)
     _verify_loaded_context(DIALPLAN_CONTEXT,internal,numbers+[900],includes)
     if flow_file is not None and flow_file.is_file():flow_runtime.verify(runtime_api(),PROFILE_ID)
     _verify_loaded_context(QUEUE_TEST_CONTEXT,routes,sorted(queue_numbers),[])
@@ -1190,6 +1214,10 @@ def cycle(dry_run=False):
         capabilities['features']=flow_capability(runtime_api(),config['organization_id'])
     except Exception:
         capabilities['features']=[]
+    if capabilities['protocol_version']==3:
+        trunk_runtime=trunk_support()
+        if trunk_runtime is not None:
+            capabilities['features'].extend(trunk_runtime.capability(runtime_api(),config['organization_id']))
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
@@ -1295,6 +1323,22 @@ def cycle(dry_run=False):
         except Exception as exc:
             print("Historico adiado: " + type(exc).__name__, file=sys.stderr)
 
+    # Whole snapshots are independent of extension jobs and never expose SIP
+    # credentials to progress logs or reports. Legacy Union never enters here.
+    if not dry_run and 'sip_trunks' in payload and 'sip_trunks_v1' in capabilities.get('features',[]):
+        try:
+            trunk_runtime=trunk_support()
+            results=trunk_runtime.apply_snapshot(runtime_api(),payload['sip_trunks'],config['organization_id'])
+            if results:
+                signed_request({'action':'report_sip_trunks','results':results})
+        except Busy:
+            pass
+        except Exception as exc:
+            print('Troncos adiados: '+type(exc).__name__,file=sys.stderr)
+            results=trunk_runtime.failure_reports(payload['sip_trunks'],config['organization_id'])
+            if results:
+                signed_request({'action':'report_sip_trunks','results':results})
+
     # Media work runs last so slow downloads cannot delay browser credentials.
     flow_jobs=payload.get('flow_jobs',[])
     if not isinstance(flow_jobs,list) or len(flow_jobs)>10:raise AgentError('Resposta de fluxos invalida.')
@@ -1326,6 +1370,7 @@ def main():
     actions.add_parser("public-key")
     actions.add_parser("internal-routes")
     actions.add_parser("queues-init")
+    actions.add_parser("sip-trunks-init")
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -1345,6 +1390,9 @@ def main():
                 if args.action in ('init','internal-routes','queues-init'):
                     with operation_lock():
                         {'init':init,'internal-routes':install_internal_routes,'queues-init':install_queues}[args.action]()
+                elif args.action=='sip-trunks-init':
+                    from sip_trunk_runtime import init as init_trunks
+                    init_trunks(runtime_api(),PROFILE_ID)
                 elif args.action=="configure":
                     configure(args.agent_id,args.organization_id)
                 elif args.action=="once":

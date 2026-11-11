@@ -1,7 +1,7 @@
 import { Clock3, Headset, ListTree, Network, PhoneCall, UsersRound } from "lucide-react";
 import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 
-export type UnionPbxSection = "telefone" | "historico" | "ramais" | "filas" | "fluxos" | "entrada";
+export type UnionPbxSection = "telefone" | "historico" | "ramais" | "filas" | "fluxos" | "entrada" | "troncos";
 
 /** Navegação compartilhada com os demais módulos do CRM; a rota controla a seleção. */
 export function UnionPbxSectionTabs({
@@ -19,6 +19,7 @@ export function UnionPbxSectionTabs({
       { id: "ramais" as const, label: "Ramais", Icon: UsersRound },
       { id: "filas" as const, label: "Filas", Icon: ListTree },
       { id: "fluxos" as const, label: "URA e horários", Icon: Network },
+      { id: "troncos" as const, label: "Troncos SIP", Icon: PhoneCall },
     ] : []),
     ...(canManageInbound ? [
       { id: "entrada" as const, label: "Entrada FVX", Icon: PhoneCall },

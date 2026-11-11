@@ -21,12 +21,14 @@ test('recusa SIP, injeção, DDI estrangeiro, números especiais e DDD inválido
     '79988037605\r\nHeader: yes','79988037605;foo'])
     assert.equal(normalize(value),null,value);
 });
-test('discador externo depende da organização plataforma e envia só o número normalizado',()=>{
+test('discador externo preserva saída Union e exige autorização específica para parceiros',()=>{
   const page=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');
   const admin=readFileSync('src/app/Admin.tsx','utf8');
   assert.match(admin,/allowExternalCalls=\{isPlatformOperatorOrganization\}/);
-  assert.match(page,/allowExternalCalls && callState === "idle"/);
+  assert.match(page,/canUseExternal && callState === "idle"/);
   assert.match(page,/const destination = normalizeNationalDestination\(externalTarget\)/);
-  assert.match(page,/if \(!allowExternalCalls \|\| !destination/);
+  assert.match(page,/if \(!canUseExternal \|\| !destination/);
+  assert.match(page,/externalDialingAllowed\(allowExternalCalls,isPlatformOperatorOrganization,activeOrganizationId,sipUser,externalGrant\)/);
+  assert.match(page,/supabase.rpc\('pbx_can_dial_external'/);
   assert.match(page,/aria-label="Telefone com DDD"/);
 });

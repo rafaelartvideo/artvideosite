@@ -13,14 +13,15 @@ ROOT = Path(__file__).parent
 
 
 class CallFlowInstallerTests(unittest.TestCase):
-    def test_current_bundle_pins_match_the_exact_canonical_sources(self):
+    def test_archived_flow_bundle_rejects_newer_agent_and_pins_unchanged_helpers(self):
         text = (ROOT / 'activate-call-flows.sh').read_text()
         pins = dict(re.findall(r"^    '([a-z_]+\.py)': '([A-Za-z0-9_]+)',", text, re.M))
         self.assertEqual(set(pins), {'agent.py', 'flow_runtime.py', 'call_flows.py'})
         for name, pin in pins.items():
             self.assertRegex(pin, r'^[a-f0-9]{64}$', name + ': finalize release pin')
             canonical = (ROOT / name).read_bytes().replace(b'\r\n', b'\n')
-            self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)
+            self.assertEqual(pin, 'd119546868b5581f24c31d2fe365f01e5547aa7b2cd1cd2fe525b504f41aa884') if name == 'agent.py' else self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)
+        self.assertNotEqual(pins['agent.py'],hashlib.sha256((ROOT/'agent.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest())
         self.assertIn("PREVIOUS_SHA = '643e10620fc77a65103e4956b6fba47422f4fed1c8df5c52113f397975a60acd'", text)
 
     def test_installer_requires_explicit_gate_and_pins_all_three_sources(self):

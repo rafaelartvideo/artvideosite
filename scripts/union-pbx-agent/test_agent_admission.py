@@ -39,6 +39,7 @@ class RuntimeAdmissionTests(unittest.TestCase):
         for name in ('MASTER_FILE','DIALPLAN_MANAGED','QUEUE_FILE','QUEUE_TEST_FILE','PJSIP_FILE','DIALPLAN_MAIN','QUEUE_MAIN'):
             stack.enter_context(patch.object(a,name,root/name))
         stack.enter_context(patch.object(a,'STATE_DIR',root/'state'))
+        stack.enter_context(patch.object(a,'SIP_DIR',root/'pjsip.d'))
         stack.enter_context(patch.object(a,'QUEUE_STATE_DIR',root/'state'/'queues'))
         stack.enter_context(patch.object(a,'operation_lock',return_value=nullcontext()))
         stack.enter_context(patch.object(a,'ensure_queue_control_ready'))

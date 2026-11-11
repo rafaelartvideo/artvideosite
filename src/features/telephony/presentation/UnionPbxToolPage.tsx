@@ -11,6 +11,7 @@ import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import { UnionPbxSectionTabs, type UnionPbxSection } from "./UnionPbxSectionTabs";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
+import {externalDialingAllowed,type ExternalDialGrant} from '../application/external-access';
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
 import { sendPbxDigit, type PbxDigitSession } from "../application/dtmf";
 import { pbxRequest } from "../application/pbx-request";
@@ -38,12 +39,27 @@ type SipSession = CallControlSession & PbxDigitSession & {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageFlows, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageFlows?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageFlows, onManageTrunks, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageFlows?: () => void; onManageTrunks?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
   const { activeOrganizationId, organizations } = useAuth();
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
   const [sipUser, setSipUser] = useState(isPlatformOperatorOrganization ? SIP_USER : "");
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
+  const [externalGrant,setExternalGrant]=useState<ExternalDialGrant|null>(null);
+  const canUseExternal=externalDialingAllowed(allowExternalCalls,isPlatformOperatorOrganization,activeOrganizationId,sipUser,externalGrant);
+  useEffect(()=>{
+    const controller=new AbortController();
+    setExternalGrant(null);
+    const endpoint=managedExtension?.endpoint_name;
+    if(!activeOrganizationId||!endpoint||isPlatformOperatorOrganization||!isPageOpen)return()=>controller.abort();
+    const refresh=()=>void pbxRequest(signal=>supabase.rpc('pbx_can_dial_external',{
+      p_organization_id:activeOrganizationId,p_endpoint_name:endpoint,
+    }).abortSignal(signal),'Autorização de saída',{signal:controller.signal})
+      .then(({data,error})=>{if(!controller.signal.aborted)setExternalGrant({organizationId:activeOrganizationId,endpoint,allowed:!error&&data===true});})
+      .catch(()=>{if(!controller.signal.aborted)setExternalGrant(null);});
+    refresh();const timer=setInterval(refresh,30000);
+    return()=>{controller.abort();clearInterval(timer);};
+  },[activeOrganizationId,managedExtension?.endpoint_name,isPlatformOperatorOrganization,isPageOpen]);
   const [checkingManaged, setCheckingManaged] = useState(false);
   const [managedLookupError, setManagedLookupError] = useState("");
   const [directoryRevision, setDirectoryRevision] = useState(0);
@@ -173,6 +189,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     else if (section === "ramais") onManage?.();
     else if (section === "filas") onManageQueues?.();
     else if (section === "fluxos") onManageFlows?.();
+    else if (section === "troncos") onManageTrunks?.();
     else if (section === "entrada") onManageInbound?.();
   };
 
@@ -425,9 +442,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   const callExternal = () => {
     const destination = normalizeNationalDestination(externalTarget);
-    if (!allowExternalCalls || !destination || !isPlatformOperatorOrganization || outputPendingRef.current ||
+    if (!canUseExternal || !destination || outputPendingRef.current ||
         registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
-    setNotice("Chamando " + externalTarget + " pela FVX...");
+    setNotice("Chamando " + externalTarget + " pela operadora configurada...");
     try {
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
@@ -650,13 +667,13 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           Habilitar audio da chamada
         </AdminButton>}
 
-        {callState === "idle" && allowExternalCalls && isPlatformOperatorOrganization && <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-1" role="group" aria-label="Tipo de ligação">
+        {callState === "idle" && canUseExternal && <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-1" role="group" aria-label="Tipo de ligação">
           <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
             className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</AdminButton>
           <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
             className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</AdminButton>
         </div>}
-        {callState === "idle" && (dialMode === "internal" || !allowExternalCalls || !isPlatformOperatorOrganization) && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+        {callState === "idle" && (dialMode === "internal" || !canUseExternal) && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ramal, fila ou URA" />
           <div className="relative">
             <FInput type="tel" inputMode="numeric" aria-label="Discar ramal, fila ou fluxo" value={dialTarget}
@@ -682,7 +699,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           </p>
           <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}><RefreshCw size={15}/> Atualizar destinos</AdminButton>
         </div>}
-        {allowExternalCalls && callState === "idle" && isPlatformOperatorOrganization && dialMode === "external" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+        {canUseExternal && callState === "idle" && dialMode === "external" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
           <AdminFieldLabel label="Ligar para telefone" />
           <div className="flex items-center gap-2">
             <FInput type="tel" inputMode="tel" autoComplete="off" aria-label="Telefone com DDD"
@@ -700,7 +717,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         {callState === "idle" && <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
           <UnionPbxDtmfPad disabled={false} title="Teclado de discagem" allowSymbols={false}
             onDigit={digit => {
-              if (dialMode === "external" && allowExternalCalls && isPlatformOperatorOrganization)
+              if (dialMode === "external" && canUseExternal)
                 setExternalTarget(value => (value.replace(/\D/g, "") + digit).slice(0,11));
               else setDialTarget(value => (value + digit).slice(0,6));
             }}/>
@@ -734,7 +751,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       </div>
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>Use os destinos listados para ligações internas e o 900 para testar o áudio. {allowExternalCalls && isPlatformOperatorOrganization ? 'Para telefones externos, informe o DDD e o número no campo acima.' : 'As ligações externas dependem da configuração da sua empresa.'} A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
+        <p>Use os destinos listados para ligações internas e o 900 para testar o áudio. {canUseExternal ? 'Para telefones externos, informe o DDD e o número no campo acima.' : 'As ligações externas dependem da configuração da sua empresa.'} A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
 
     </div>
