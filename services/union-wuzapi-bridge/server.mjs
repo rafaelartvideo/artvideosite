@@ -297,15 +297,16 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         host==="fbcdn.net" || host.endsWith(".fbcdn.net")) ||
       source.username || source.password) throw new Error("bad_request");
     const endpoints={image:"/chat/downloadimage",video:"/chat/downloadvideo",
-      audio:"/chat/downloadaudio",file:"/chat/downloaddocument",sticker:"/chat/downloadimage"};
+      audio:"/chat/downloadaudio",file:"/chat/downloaddocument",sticker:"/chat/downloadsticker"};
     // Recent whatsmeow versions download media from DirectPath (not URL).
     // WuzAPI still accepts Url for legacy clients, but without DirectPath its
     // Download() returns "no url present" even when Url is populated.
     // Extract the original path + query only after validating the CDN hostname.
     // Whatsmeow appends its own &hash=... to this query on trusted media hosts.
     const directPath=source.pathname+source.search;
-    if(!directPath.startsWith("/") || directPath.length>2048 ||
-      !source.search || source.hash || source.port) throw new Error("bad_request");
+    if(!directPath.startsWith("/v/") || directPath.length>2048 ||
+      source.hash || source.port || source.username || source.password)
+      throw new Error("bad_request");
     const result=await wuzapi(endpoints[kind],session.token,"POST",{
       Url:source.href,DirectPath:directPath,
       MediaKey:mediaKey,Mimetype:mime,FileSHA256:fileSHA256,
