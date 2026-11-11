@@ -240,7 +240,7 @@ export function SalesReturnsDialog({organizationId,order,onClose,onChanged}:{
           })}
         </div>
         <p className="text-right text-sm">Crédito estimado: <strong>{formatCurrency(selectedGross)}</strong></p>
-        <label className="block space-y-1 text-xs font-semibold"><span>Motivo *</span>
+        <label className="block space-y-1 text-xs font-semibold"><span>Motivo <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span></span>
           <textarea rows={3} maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)}
             placeholder="Descreva o problema com os produtos..."
             className="w-full rounded-lg border border-border bg-background p-3 text-sm"/>
