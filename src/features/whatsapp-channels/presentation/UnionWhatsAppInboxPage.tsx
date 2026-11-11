@@ -234,7 +234,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
               className="inline-flex h-4 items-center gap-0.5 text-[9px] leading-none hover:text-primary">
               <Star size={11} strokeWidth={1.8}/><span>Salvar</span>
             </button>}
-        </div>
+        </div>}
       {mediaError && <span role="alert" className="text-[10px] text-red-600">{mediaError}</span>}
       </div>
       {stickerZoom && mediaUrl && <div role="dialog" aria-modal="true" aria-label="Figurinha ampliada"
