@@ -70,7 +70,7 @@ const UnionPbxTrunksPage = lazy(() => import("@/features/telephony/presentation/
 const UnionPbxFlowsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxFlowsPage").then(({ UnionPbxFlowsPage }) => ({ default: UnionPbxFlowsPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
-const WhatsAppChannelsPage = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppChannelsPage").then(({ WhatsAppChannelsPage }) => ({ default: WhatsAppChannelsPage })));
+const WhatsAppAttendanceSettings = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings").then(({ WhatsAppAttendanceSettings }) => ({ default: WhatsAppAttendanceSettings })));
 const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlatformIntegrationsPage = lazy(() => import("@/features/integrations/presentation/PlatformIntegrationsPage").then(({ PlatformIntegrationsPage }) => ({ default: PlatformIntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
@@ -162,7 +162,7 @@ export function AdminDashboard({
     const section = params.get("section");
     const sectionSuffix = section ? `?section=${encodeURIComponent(section)}` : "";
     const target = params.get("channels") === "1"
-      ? `${adminPath("tools", "union-whatsapp", "canais")}${sectionSuffix}`
+      ? `${adminPath("tools", "union-whatsapp", "configuracoes")}${sectionSuffix}`
       : isPlatformOperatorOrganization && !crmMode ? adminPath("integrations") : adminPath("tools");
     navigate(target, { replace: true });
   }, [loading, activeOrganizationId, location.pathname, location.search, isPlatformOperatorOrganization, crmMode, navigate]);
@@ -431,7 +431,7 @@ export function AdminDashboard({
         return;
       }
       if (id === "union-whatsapp" && (canAccessWhatsAppTool || canViewWhatsAppChannels)) {
-        navigateAdmin("tools", "union-whatsapp", canAccessWhatsAppTool ? null : "canais");
+        navigateAdmin("tools", "union-whatsapp", canAccessWhatsAppTool ? null : "configuracoes");
         return;
       }
       if (id === "marketplace" && canAccessMarketplaceTool) {
@@ -483,29 +483,33 @@ export function AdminDashboard({
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "union-whatsapp"
       ? route.subpage === "canais"
-        ? canViewWhatsAppChannels
-          ? <WhatsAppChannelsPage
-            key={activeOrganizationId || "no-company"}
-            onBack={() => canAccessWhatsAppTool ? navigateAdmin("tools", "union-whatsapp") : navigateAdmin("tools")}
-            onOpenInbox={canAccessWhatsAppTool ? () => navigateAdmin("tools", "union-whatsapp") : undefined}
-            initialSection={((
-              ["configuration","connections","departments","queues","operators","permissions","quick-replies"].includes(new URLSearchParams(location.search).get("section") || "")
-                ? new URLSearchParams(location.search).get("section") : "configuration"
-            ) || "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions" | "quick-replies"}
-          />
-          : <Navigate to={adminPath("tools")} replace />
-        : canAccessWhatsAppTool
-        ? <UnionWhatsAppInboxPage
-          onBack={() => navigateAdmin("tools")}
-          onConfigure={() => navigateAdmin("tools", "union-whatsapp", "canais")}
-          onOpenCustomer={hasPermission("customers.view")
-            ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
-            : undefined}
-          onOpenOrder={hasPermission("orders.details.view")
-            ? orderId => openAuthenticatedAdminTab(adminPath("orders",orderId))
-            : undefined}
-        />
-        : canViewWhatsAppChannels ? <Navigate to={adminPath("tools", "union-whatsapp", "canais")} replace /> : <Navigate to={adminPath("tools")} replace />
+        ? <Navigate to={adminPath("tools","union-whatsapp","configuracoes")+location.search} replace/>
+        : route.subpage && route.subpage!=="configuracoes"
+          ? <Navigate to={adminPath("tools","union-whatsapp")} replace/>
+          : canAccessWhatsAppTool
+            ? <>
+              <UnionWhatsAppInboxPage
+                onBack={() => navigateAdmin("tools")}
+                onConfigure={() => navigateAdmin("tools","union-whatsapp","configuracoes")}
+                onOpenCustomer={hasPermission("customers.view")
+                  ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
+                  : undefined}
+                onOpenOrder={hasPermission("orders.details.view")
+                  ? orderId => openAuthenticatedAdminTab(adminPath("orders",orderId))
+                  : undefined}
+              />
+              {route.subpage==="configuracoes" && canViewWhatsAppChannels &&
+                <WhatsAppAttendanceSettings open
+                  onClose={()=>navigateAdmin("tools","union-whatsapp")}
+                  initialSection={new URLSearchParams(location.search).get("section")}/>}
+            </>
+            : route.subpage==="configuracoes" && canViewWhatsAppChannels
+              ? <WhatsAppAttendanceSettings open
+                  onClose={()=>navigateAdmin("tools")}
+                  initialSection={new URLSearchParams(location.search).get("section")}/>
+              : canViewWhatsAppChannels
+                ? <Navigate to={adminPath("tools","union-whatsapp","configuracoes")} replace/>
+                : <Navigate to={adminPath("tools")} replace/>
     : route.resourceId === "sac-digital"
       ? route.subpage === "configuracoes"
         ? canConfigureSacDigital
