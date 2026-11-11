@@ -35,6 +35,13 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+type CrmConversationContext = {
+  customer: {id:string;name:string}|null;
+  equipments: Array<{id:string;equipment_type_name:string|null;equipment_brand_name:string|null;equipment_model_name:string|null;serial_number:string|null}>;
+  orders: Array<{id:string;os_number:string;created_at:string;completed_at:string|null;model:string|null}>;
+  ambiguous?: boolean;
+  error?: boolean;
+};
 // Photo lookups are only for contacts currently displayed, never the imported
 // address book. Refresh lazily to notice profile-photo/privacy changes.
 const hasForwarding=(item:UnionWhatsAppConversation)=>
@@ -483,7 +490,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const avatarRequestsRef=useRef(new Set<string>());
   const avatarScopeGenerationRef=useRef(0);
   const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
-  const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
+  const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
+  const [crmDetailsOpen,setCrmDetailsOpen]=useState(true);
+  useEffect(()=>{setCrmDetailsOpen(true);},[selectedId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
@@ -838,7 +847,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
    useEffect(() => {
-    if(!onOpenCustomer || !hasPermission("customers.view") || !selectedId ||
+    if(!hasPermission("customers.view") || !selectedId ||
        !activeOrganizationId || channelReady!==true ||
        Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
     let cancelled=false;
@@ -846,10 +855,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void operateUnionWhatsAppInbox(org,selectedId,"customer_match")
       .then(result=>{
         if(cancelled || organizationRef.current!==org) return;
-        setLinkedCustomers(old=>({...old,[selectedId]:result.customer||null}));
-      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:null}));});
+        setLinkedCustomers(old=>({...old,[selectedId]:{
+          customer:result.customer||null,equipments:result.equipments||[],
+          orders:result.crm_orders||[],ambiguous:result.ambiguous===true,
+        }}));
+      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:{
+        customer:null,equipments:[],orders:[],error:true,
+      }}));});
     return()=>{cancelled=true;};
-  },[onOpenCustomer,selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
+  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
 
   useEffect(()=>{
     if(!activeOrganizationId || !selectedId || channelReady!==true)return;
@@ -1983,6 +1997,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
+                  {selected.contact_presence==="online" && selected.contact_presence_at &&
+                    clockNow-Date.parse(selected.contact_presence_at)>=0 &&
+                    clockNow-Date.parse(selected.contact_presence_at)<120000 &&
+                    <span role="status" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Online
+                    </span>}
 
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
@@ -1996,9 +2016,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
                    </span>
-                   {selected.contact_presence==="online" && selected.contact_presence_at &&
-                     Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
-                     <span className="ml-2 font-semibold text-emerald-600">Online</span>}
+
                  </p>
                  {(selected.contact_presence==="composing"||selected.contact_presence==="recording") &&
                    selected.contact_presence_at &&
@@ -2006,12 +2024,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    <p role="status" className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                      {selected.contact_presence==="recording"?"Gravando áudio...":"Digitando..."}
                    </p>}
-                 {onOpenCustomer && linkedCustomers[selected.id] && <button type="button"
-                   onClick={()=>onOpenCustomer(linkedCustomers[selected.id]!.id)}
-                   className="mt-0.5 max-w-full truncate text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                   title="Abrir cadastro do cliente vinculado pelo telefone">
-                   Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
-                 </button>}
+
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
@@ -2056,6 +2069,60 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
+            {hasPermission("customers.view") && <section aria-label="Dados do cliente no CRM"
+              className="shrink-0 border-b border-border bg-muted/20 px-3 py-2">
+              <button type="button" onClick={()=>setCrmDetailsOpen(open=>!open)}
+                aria-expanded={crmDetailsOpen}
+                className="flex w-full items-center gap-2 text-left text-xs font-semibold text-foreground">
+                <ContactRound size={15} className="shrink-0 text-primary"/>
+                <span className="shrink-0">Dados do CRM</span>
+                <span className="min-w-0 flex-1 truncate font-normal text-muted-foreground">
+                  {linkedCustomers[selected.id]?.customer?.name || (linkedCustomers[selected.id]
+                    ? "Sem vínculo confirmado" : "Consultando cadastro...")}
+                </span>
+                {crmDetailsOpen?<ChevronUp size={15}/>:<ChevronDown size={15}/>}
+              </button>
+              {crmDetailsOpen && <div className="mt-2 grid max-h-48 grid-cols-1 gap-2 overflow-y-auto text-xs sm:grid-cols-3">
+                {!linkedCustomers[selected.id] ? <span className="text-muted-foreground">Buscando cliente, equipamentos e OS...</span>
+                : linkedCustomers[selected.id].error ? <span role="status" className="text-muted-foreground">
+                    Não foi possível consultar os dados do CRM.
+                  </span>
+                : !linkedCustomers[selected.id].customer ? <span className="text-muted-foreground">
+                    {linkedCustomers[selected.id].ambiguous
+                      ? "Mais de um cadastro possui este número. Verifique antes de vincular."
+                      : "Nenhum cliente do CRM encontrado para este número."}
+                  </span>
+                : <>
+                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">Cliente</p>
+                    <p className="truncate" title={linkedCustomers[selected.id].customer!.name}>
+                      {linkedCustomers[selected.id].customer!.name}</p>
+                    {onOpenCustomer && <button type="button" className="mt-1 font-semibold text-primary hover:underline"
+                      onClick={()=>onOpenCustomer(linkedCustomers[selected.id].customer!.id)}>Abrir cadastro</button>}
+                  </div>
+                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">Equipamentos</p>
+                    {linkedCustomers[selected.id].equipments.length===0
+                      ? <p className="text-muted-foreground">Nenhum equipamento cadastrado.</p>
+                      : linkedCustomers[selected.id].equipments.map(equipment=>
+                          <p key={equipment.id} className="truncate py-0.5"
+                            title={[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ")}>
+                            {[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
+                          </p>)}
+                  </div>
+                  {hasPermission("orders.details.view") && <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">OS recentes</p>
+                    {linkedCustomers[selected.id].orders.length===0
+                      ? <p className="text-muted-foreground">Nenhuma OS encontrada.</p>
+                      : linkedCustomers[selected.id].orders.map(order=>
+                          <a key={order.id} target="_blank" rel="noopener noreferrer"
+                            href={"/admin/orders/"+encodeURIComponent(order.id)+"?org="+encodeURIComponent(activeOrganizationId||"")}
+                            className="block truncate py-0.5 font-semibold text-primary hover:underline"
+                            title={order.model||""}>OS {order.os_number}{order.model?" · "+order.model:""}</a>)}
+                  </div>}
+                </>}
+              </div>}
+            </section>}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
               <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
