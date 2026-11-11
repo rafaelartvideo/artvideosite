@@ -1534,7 +1534,7 @@ Deno.serve(async request => {
     if(action==="customer_match") {
       if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
       if(!(canManage || thread.assigned_to===actorId ||
-          (thread.status==="waiting" && !thread.assigned_to))) {
+          isParticipant || inQueue)) {
         return json({success:false,error:"Conversa não disponível para consulta."},403);
       }
       // A LID is not a phone number. Never guess a customer from it.
@@ -1547,7 +1547,26 @@ Deno.serve(async request => {
       if(!Array.isArray(matches) || matches.length!==1) {
         return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
       }
-      return json({success:true,customer:{id:matches[0].customer_id,name:matches[0].customer_name}});
+      const customerId=String(matches[0].customer_id);
+      // This lookup is scoped to one verified customer of the current tenant.
+      // Fetch only a small summary on opening the chat, not complete OS histories.
+      const [equipmentResult,orderResult]=await Promise.all([
+        admin.from("customer_equipments")
+          .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number")
+          .eq("organization_id",org).eq("customer_id",customerId)
+          .order("updated_at",{ascending:false}).limit(8),
+        permissions.has("orders.details.view")
+          ? admin.from("service_orders")
+              .select("id,os_number,created_at,completed_at,model")
+              .eq("organization_id",org).eq("customer_id",customerId)
+              .order("created_at",{ascending:false}).limit(8)
+          : Promise.resolve({data:[],error:null}),
+      ]);
+      if(equipmentResult.error)throw equipmentResult.error;
+      if(orderResult.error)throw orderResult.error;
+      return json({success:true,
+        customer:{id:customerId,name:matches[0].customer_name},
+        equipments:equipmentResult.data||[],crm_orders:orderResult.data||[]});
     }
     if(action==="contact_avatar") {
       // At this point the caller passed the company, operator binding and
