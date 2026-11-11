@@ -47,6 +47,8 @@ export type MyEmployeeAccessWindow = {
   allowed: boolean;
   restricted: boolean;
   timezone: string;
+  server_now: string | null;
+  next_end_at: string | null;
 };
 
 export async function checkMyEmployeeAccessWindow(organizationId: string): Promise<MyEmployeeAccessWindow> {
@@ -55,9 +57,14 @@ export async function checkMyEmployeeAccessWindow(organizationId: string): Promi
   }).abortSignal(AbortSignal.timeout(12_000));
   if (error) throw error;
   const result = (data || {}) as Partial<MyEmployeeAccessWindow>;
+  if (typeof result.allowed !== "boolean" || typeof result.restricted !== "boolean") {
+    throw new Error("Resposta inválida ao verificar o horário de acesso.");
+  }
   return {
-    allowed: result.allowed === true,
-    restricted: result.restricted === true,
+    allowed: result.allowed,
+    restricted: result.restricted,
     timezone: result.timezone || "America/Sao_Paulo",
+    server_now: typeof result.server_now === "string" ? result.server_now : null,
+    next_end_at: typeof result.next_end_at === "string" ? result.next_end_at : null,
   };
 }
