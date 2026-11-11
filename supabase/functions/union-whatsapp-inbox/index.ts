@@ -1606,7 +1606,8 @@ Deno.serve(async request => {
         if(saveError) throw saveError;
       }
       if(!mediaPath) return json({success:false,error:"Mídia não disponível para download."},404);
-      if(!mediaPath.startsWith(org+"/"+thread.channel_id+"/"+thread.id+"/")) {
+      if(!mediaPath.startsWith(org+"/"+thread.channel_id+"/"+thread.id+"/") &&
+        !mediaPath.startsWith(org+"/stickers/")) {
         return json({success:false,error:"Arquivo inválido."},403);
       }
       const {data:link,error:linkError}=await admin.storage.from("union-whatsapp-media")
