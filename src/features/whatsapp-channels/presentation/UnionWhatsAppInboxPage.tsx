@@ -140,10 +140,10 @@ function WhatsAppVoicePlayer({src,loading=false,error="",onRetry,compact=false}:
   </div>;
 }
 
-function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stickerBusy }: {
+function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stickerSaved = false }: {
   message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
   onSaveSticker?: (message:UnionWhatsAppMessage)=>void;
-  stickerBusy?: boolean;
+  stickerSaved?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -223,13 +223,18 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
           className="text-primary underline underline-offset-2">Tentar novamente</button>}
       </div>}
       {mediaUrl && onSaveSticker &&
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <button type="button" disabled={stickerBusy} onClick={()=>onSaveSticker(message)}
-            title="Salvar figurinha na empresa" className="inline-flex items-center gap-1 hover:text-primary disabled:opacity-50">
-            <Star size={12}/> Salvar
-          </button>
-          {stickerBusy && <LoaderCircle size={12} className="animate-spin"/>}
-        </div>}
+        <div className="flex h-4 items-center text-muted-foreground">
+          {stickerSaved ?
+            <span role="status" aria-label="Figurinha salva na coleção" title="Salva na coleção da empresa"
+              className="inline-flex h-4 w-4 items-center justify-center text-amber-500">
+              <Star size={13} fill="currentColor" strokeWidth={1.6}/>
+            </span> :
+            <button type="button" onClick={()=>onSaveSticker(message)}
+              aria-label="Salvar figurinha" title="Salvar figurinha na empresa"
+              className="inline-flex h-4 items-center gap-0.5 text-[9px] leading-none hover:text-primary">
+              <Star size={11} strokeWidth={1.8}/><span>Salvar</span>
+            </button>}
+        </div>
       {mediaError && <span role="alert" className="text-[10px] text-red-600">{mediaError}</span>}
       </div>
       {stickerZoom && mediaUrl && <div role="dialog" aria-modal="true" aria-label="Figurinha ampliada"
@@ -356,6 +361,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const actionPanelRef=useRef<HTMLDivElement|null>(null);
   const [stickerOpen,setStickerOpen]=useState(false);
   const [stickers,setStickers]=useState<UnionWhatsAppSavedSticker[]>([]);
+  const [savedStickerMessageIds,setSavedStickerMessageIds]=useState<Set<string>>(()=>new Set());
+  const stickerSaveInFlightRef=useRef(new Set<string>());
+  const stickerSavedScopeRef=useRef("");
   const [stickerLoading,setStickerLoading]=useState(false);
   const [stickerBusy,setStickerBusy]=useState<string|null>(null);
   const stickerFileInputRef=useRef<HTMLInputElement|null>(null);
@@ -2015,7 +2023,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         </div>}
                       <MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
                         onSaveSticker={canSend?message=>void saveReceivedSticker(message):undefined}
-                        stickerBusy={stickerBusy===entry.message.id || Boolean(stickerBusy)}
+                        stickerSaved={savedStickerMessageIds.has(entry.message.id)}
                         onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                         {clock(entry.message.sent_at)}
