@@ -18,6 +18,7 @@ import {
 } from "../domain/visible-avatar-cache.mjs";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -2325,7 +2326,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           <button type="button" aria-label="Fechar" onClick={() => setNewConversationOpen(false)} className="rounded p-1 hover:bg-muted"><X size={18}/></button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Informe o DDD e o telefone. O código do Brasil (+55) é aplicado automaticamente.</p>
-        <label className="mt-4 block text-xs font-semibold" htmlFor="union-new-phone">WhatsApp *</label>
+        <label className="mt-4 block text-xs font-semibold" htmlFor="union-new-phone"><RequiredFieldLabel label="WhatsApp" required/></label>
         <div className="mt-1 flex w-full items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
           <span className="flex shrink-0 items-center border-r border-border bg-muted/45 px-3 text-sm font-semibold text-foreground">+55</span>
           <input id="union-new-phone" required autoFocus inputMode="tel" autoComplete="tel-national"
