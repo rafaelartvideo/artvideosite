@@ -50,6 +50,37 @@ function bearerToken(req: Request) {
   return req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim() || "";
 }
 
+// Validate the active schedule after checking the password but BEFORE sending
+// tokens to the browser. No schedule configured is the fast, unrestricted path.
+// All authorization-sensitive reads are scoped to the authenticated actor.
+async function allowedByEmployeeSchedule(profileId: string, accessToken: string): Promise<boolean> {
+  const { data: members, error: membershipError } = await admin
+    .from("organization_members").select("organization_id")
+    .eq("user_id", profileId).eq("status", "active").limit(80);
+  if (membershipError) throw membershipError;
+  const organizationIds = [...new Set((members || []).map(row => row.organization_id))];
+  if (!organizationIds.length) return true; // Existing bootstrap handles accounts without a tenant.
+
+  const { data: enabled, error: scheduleError } = await admin
+    .from("employee_crm_access_hours").select("organization_id")
+    .in("organization_id", organizationIds).eq("enabled", true).limit(1);
+  if (scheduleError) throw scheduleError;
+  if (!enabled?.length) return true;
+
+  const scoped = createClient(url, anonKey, {
+    global: { headers: { Authorization: "Bearer " + accessToken } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const statuses = await Promise.all(organizationIds.map(async organizationId => {
+    const { data, error } = await scoped.rpc("check_my_employee_crm_access_hours_v2", {
+      p_organization_id: organizationId,
+    });
+    if (error) throw error;
+    return data?.allowed === true;
+  }));
+  return statuses.some(Boolean);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
@@ -98,6 +129,22 @@ Deno.serve(async (req) => {
     }
 
     if (action === "login") {
+      // Auth GoTrue checks credentials first, but the CRM has not received
+      // a usable browser session yet. Refuse outside-hours sign-ins here.
+      let scheduleAllowed: boolean;
+      try {
+        scheduleAllowed = await allowedByEmployeeSchedule(login.id, signIn.data.session.access_token);
+      } catch (scheduleError) {
+        console.error("[username-auth] schedule check unavailable", scheduleError);
+        await client.auth.signOut({ scope: "local" });
+        return json({ error: "Não foi possível verificar seu expediente. Tente novamente.",
+          code: "schedule_unavailable" }, 503);
+      }
+      if (!scheduleAllowed) {
+        await client.auth.signOut({ scope: "local" });
+        return json({ error: "Fora do horário de acesso. Consulte sua escala com o gestor.",
+          code: "outside_hours" }, 403);
+      }
       return json({
         success: true,
         access_token: signIn.data.session.access_token,
