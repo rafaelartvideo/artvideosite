@@ -155,3 +155,24 @@ test("expediente não bloqueia contas sem configuração e falha transitória n�
   assert.match(auth, /setAccessError\(null\);\s*setAccessWindow\(status\);/);
   assert.match(auth, /previousAllowed = false;/);
 });
+
+test("expediente valida login antes da sessão, avisa dez minutos antes e não faz polling constante", () => {
+  const db=read("supabase/migrations/20261111143000_employee_schedule_fast_auth_boundaries.sql");
+  const edge=read("supabase/functions/username-auth/index.ts");
+  const auth=read("src/lib/auth.tsx");
+  const repo=read("src/features/auth/infrastructure/auth.repository.ts");
+  const login=read("src/features/auth/presentation/AdminLogin.tsx");
+  assert.match(db, /IF NOT EXISTS \(/);
+  assert.match(db, /employee_crm_hours_enabled_org_idx/);
+  assert.match(db, /'server_now',now\(\),'next_end_at',v_end_at/);
+  assert.match(edge, /allowedByEmployeeSchedule\(login\.id, signIn\.data\.session\.access_token\)/);
+  assert.match(edge, /code: "outside_hours"/);
+  assert.match(edge, /code: "schedule_unavailable"/);
+  assert.match(repo, /"outside_hours" \| "schedule_unavailable"/);
+  assert.match(login, /result === "outside_hours"/);
+  assert.match(login, /Só carregar o CRM depois que o servidor confirmou o expediente/);
+  assert.match(auth, /SCHEDULE_WARNING_MS = 10 \* 60_000/);
+  assert.match(auth, /setTimeout\(warn, Math\.max\(0, remaining - SCHEDULE_WARNING_MS\)\)/);
+  assert.match(auth, /setTimeout\(\(\) => signOutForSchedule\(\), remaining\)/);
+  assert.match(auth, /setInterval\(\(\) => void checkWindow\(\), 5 \* 60_000\)/);
+});
