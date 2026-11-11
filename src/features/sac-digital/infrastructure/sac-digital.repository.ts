@@ -496,6 +496,8 @@ export async function sendSacDigitalMediaMessage(
   externalContactId?: string,
   clientRequestId?: string,
 ) {
+  // A SAC foi aposentada. Não comprimir arquivos nem abrir requisições.
+  if (SAC_DIGITAL_DISABLED) throw new Error("A integração SAC Digital foi desativada.");
   if (!file.size) throw Object.assign(new Error("O arquivo está vazio."), { outcome: "rejected", type: "invalid_media" });
   if (file.type.startsWith("image/")) {
     try { file = await prepareImageForUpload(file, "sac-image", 1024 * 1024); }
