@@ -1880,12 +1880,12 @@ Deno.serve(async request => {
     const firstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
       .replace(/[*_~`\r\n]/g,"");
     const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR")+firstName.slice(1) : null;
-    // Image, video and document have a native WhatsApp Caption. Sign even
-    // attachments without a typed caption; don't create a second message.
-    // Voice notes and stickers cannot carry this standard text caption.
-    const captionSupported=!isMedia || ["image","video","file"].includes(kind);
-    const outboundText=senderName && captionSupported
-      ? `*${senderName}*${text ? "\n\n"+text : ""}`
+    // The operator identity is preserved in sender_name for the INTERNAL
+    // conversation history for every message type. WhatsApp recipients should
+    // receive only the content typed by the operator for media captions.
+    // Text messages retain their existing operator signature.
+    const outboundText=!isMedia && senderName
+      ? `*${senderName}*\n\n${text}`
       : text;
     if(outboundText.length>4000)
       return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
