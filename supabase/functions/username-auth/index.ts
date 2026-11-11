@@ -29,10 +29,12 @@ async function resolveLogin(username: string) {
     .select("id,is_active")
     .eq("username", username)
     .maybeSingle();
-  if (error || !profile || profile.is_active === false) return null;
+  if (error) throw error;
+  if (!profile || profile.is_active === false) return null;
 
   const authResult = await admin.auth.admin.getUserById(profile.id);
-  if (authResult.error || !authResult.data.user?.email) return null;
+  if (authResult.error) throw authResult.error;
+  if (!authResult.data.user?.email) return null;
   return { id: profile.id, email: authResult.data.user.email };
 }
 
@@ -126,6 +128,9 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
     const signIn = await client.auth.signInWithPassword({ email: login.email, password });
+    if (signIn.error && signIn.error.status >= 500) {
+      return json({ error: "Serviço de autenticação temporariamente indisponível.", code: "service_unavailable" }, 503);
+    }
     if (signIn.error || !signIn.data.session) return json({ error: "Credenciais inválidas." }, 400);
 
     if (!await ipAccessAllowed(login.id, req)) {
@@ -180,6 +185,6 @@ Deno.serve(async (req) => {
     return json({ error: "Ação não suportada." }, 400);
   } catch (error) {
     console.error("[username-auth]", error);
-    return json({ error: "Não foi possível processar a autenticação." }, 400);
+    return json({ error: "Serviço de autenticação temporariamente indisponível.", code: "service_unavailable" }, 503);
   }
 });
