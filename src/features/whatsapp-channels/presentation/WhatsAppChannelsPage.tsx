@@ -201,6 +201,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     if (!qrOpen || !activeOrganizationId || !channel?.id || !canManage) return;
     let cancelled = false;
     let qrUnavailableCount = 0;
+    let automaticReconnects = 0;
     const org = activeOrganizationId;
     const id = channel.id;
     let timer: number | undefined;
@@ -222,10 +223,36 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           setQr(result.qr);
         }
       } catch {
-        // QR may disappear during pairing. Back off on repeated failures
-        // so an unavailable bridge does not trigger a request storm.
+        // WuzAPI stops the pairing channel when its QR expires. Calling
+        // /session/qr again cannot revive it; verify the provider state first.
         qrUnavailableCount += 1;
-        if (!cancelled && qrUnavailableCount >= 2 && channelRef.current?.state === "connecting") {
+        if (!cancelled && automaticReconnects < 2) {
+          try {
+            const status = await operateWhatsAppChannel(org, "status", id);
+            if (cancelled) return;
+            if (status.channel) applyChannel(status.channel);
+            if (status.logged_in) return;
+            if (status.channel?.state === "disconnected") {
+              // Only restart an explicitly disconnected channel. Keep the
+              // saved WuzAPI credentials and never force a logout.
+              automaticReconnects += 1;
+              const restarted = await operateWhatsAppChannel(org, "connect", id);
+              if (cancelled) return;
+              if (restarted.channel) applyChannel(restarted.channel);
+              if (restarted.logged_in) return;
+              const next = await operateWhatsAppChannel(org, "qr", id);
+              if (cancelled) return;
+              if (next.qr) {
+                setQr(next.qr);
+                qrUnavailableCount = 0;
+              }
+            }
+          } catch {
+            // Network/provider trouble still uses the bounded retry delay.
+          }
+        }
+        if (!cancelled && qrUnavailableCount >= 2 &&
+            channelRef.current?.state !== "connected") {
           setQr(null);
         }
       } finally {
