@@ -207,9 +207,9 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, initialConversationId }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
-  embedded?: boolean; initialConversationId?: string | null;
+  embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
 }) {
   const { activeOrganizationId, hasPermission, user, profile } = useAuth();
   const location = useLocation();
@@ -1629,7 +1629,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <button type="button" onClick={()=>{
                   if (embedded) { onBack(); return; }
                   setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);
-                }} aria-label={embedded ? "Voltar ao Painel do Técnico" : "Voltar para conversas"}
+                }} aria-label={embedded ? "Fechar conversa" : "Voltar para conversas"}
                 className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
                 src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,selected.id,null));}}/>
@@ -1666,15 +1666,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
                  </button>}
               </div>
-              {(!embedded || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
+              {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
-                {!embedded && canAction("manage_contacts") && <button type="button"
+                {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <button type="button"
                   title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
                   className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
                 </button>}
-                {!embedded && <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
+                {(!embedded || embeddedFullControls) && <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
                   aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <History size={15}/><span className="hidden xl:inline">Histórico</span>
                 </button>}
@@ -1687,9 +1687,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         {participants.filter(item=>item.status==="requested").length}
                       </span>}
                   </AdminButton>}
-                {!embedded && !protocolFilter && selected.status === "waiting" && canAction("assume") &&
+                {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
-                {!embedded && !protocolFilter && selected.status === "in_att" && canOperateSelected && <>
+                {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
@@ -1705,7 +1705,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
                    </AdminButton>}
                 </>}
-                {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
+                {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
