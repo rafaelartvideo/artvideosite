@@ -1542,6 +1542,34 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(stickerOpen)void refreshStickers();
   },[stickerOpen,refreshStickers]);
 
+  const uploadStickerToLibrary=async(file:File)=>{
+    if(!selected?.id || !activeOrganizationId)return;
+    if(file.type!=="image/webp" || !file.size || file.size>1048576){
+      reportError("Selecione uma figurinha WebP com até 1 MB.");
+      return;
+    }
+    const org=activeOrganizationId,threadId=selected.id;
+    setStickerBusy("upload");
+    try{
+      const prepare=await operateUnionWhatsAppInbox(org,threadId,"sticker_prepare",{
+        media_size:file.size,media_mime:file.type,
+      });
+      if(!prepare.upload_path || !prepare.upload_token || !prepare.sticker_id)
+        throw Error("Não foi possível autorizar o upload da figurinha.");
+      const {error:uploadError}=await supabase.storage.from("union-whatsapp-media")
+        .uploadToSignedUrl(prepare.upload_path,prepare.upload_token,file,{contentType:"image/webp"});
+      if(uploadError)throw uploadError;
+      await operateUnionWhatsAppInbox(org,threadId,"sticker_commit",{
+        sticker_id:prepare.sticker_id,media_size:file.size,media_mime:"image/webp",
+      });
+      if(organizationRef.current===org){
+        await refreshStickers();
+        notifyAdmin("Figurinha adicionada à coleção da empresa.","success");
+      }
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível adicionar a figurinha."));}
+    finally{setStickerBusy(null);}
+  };
+
   const stickerSendGateRef=useRef(false);
   const sendSavedSticker=async(stickerId:string,previewUrl?:string)=>{
     if(!canReply || !selected?.id || !activeOrganizationId || stickerSendGateRef.current)return;
@@ -2000,8 +2028,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     accept="image/webp,.webp" aria-label="Enviar figurinha WebP"
                     onChange={event=>{const file=event.target.files?.[0]||null;
                       event.currentTarget.value="";
-                      setStickerOpen(false);
-                      if(file)void onChooseMedia(file);
+                      if(file)void uploadStickerToLibrary(file);
                     }}/>
                   <input ref={mediaInputRef} type="file" className="hidden"
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
