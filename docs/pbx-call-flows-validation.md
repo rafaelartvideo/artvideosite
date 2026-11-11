@@ -54,6 +54,29 @@ Não executar durante chamadas ativas.
 
 ## Limites
 
+### Aceite adicional no motor — 11/11/2026
+
+O ensaio passou nos cinco caminhos abaixo, com chamadas locais sintéticas,
+sem endpoints de funcionários, operadora, cloud ou voz humana:
+
+| Caminho | Auditoria | Evidência executada |
+|---|---|---|
+| Tecla 1 | `0b81c225-f822-4765-af5f-85cc495f16d9` | Aviso reproduzido e destino da tecla executado |
+| Tecla inválida | `6cb4eb49-f407-43ea-8f76-7d4973475d8a` | Aviso, extensão inválida e fallback executados |
+| Sem resposta | `f0523f0a-99b7-4295-9b27-944c396d3e44` | Timeout real do canal e fallback executados |
+| Fora do expediente | `3634b307-760c-487c-b239-2514842ca4e3` | Destino fechado executado, menu não reproduzido |
+| Feriado UTC do ensaio | `479283bc-be20-48e7-8edc-847f1dc8c695` | Destino fechado executado, menu não reproduzido |
+
+Todos terminaram com `passed=true`, `cleaned=true` e zero chamadas externas.
+`--scenario` seleciona o caminho de `audit_call_flows.py`. A ausência de resposta
+é comprovada pelo evento real de timeout seguido do fallback: `WaitExten` pode
+continuar na prioridade seguinte sem invocar a extensão `t`. O teste inicial
+exigia `t` e foi corrigido na auditoria; o fluxo de produção não foi alterado.
+
+O primeiro fixture de expediente fechado usava agenda vazia, corretamente
+rejeitada pelo compilador. Agora usa uma agenda válida em outro dia da semana.
+As tentativas sem aprovação do ensaio restauraram as configurações também.
+
 O ensaio sintético comprova mídia e seleção no motor. A conversão de arquivos
 e o teclado ainda precisam de aceite em um navegador real do operador. A
 interface não oferece gravação de conversa nesta etapa. Troncos externos de

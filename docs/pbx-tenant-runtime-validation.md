@@ -75,5 +75,30 @@ com eco atendida no 302, transferida para o 301 e atendida com retorno de voz.
 Encerramento conferido com zero canais ativos, sem uso da FVX.
 
 O tom intermitente de chamada da FVX permanece na pendência adiada pelo
-proprietário. A contingência com atendente offline ainda exige a validação
-operacional correspondente.
+proprietário.
+
+## Aceite Artvideo e contingência — 11/11/2026
+
+Artvideo Jmg (`00000000-0000-4000-8000-000000000001`) foi habilitada para
+telefonia interna na mesma VPS. Agente próprio no protocolo 3, serviço
+`union-pbx-agent@UUID` ativo/habilitado, chave privada própria e contexto
+`uwi-00000000000040008000000000000001`. Ramal 301 vinculado a Rafael Gestor e
+302 a Elmo. Ambos `applied`, sem erros. O proprietário confirmou toque e áudio
+nos dois sentidos em 301 → 302 pelas contas da Artvideo. Isso não comprova uma
+tentativa de ligação entre empresas; o isolamento das rotas foi conferido
+separadamente. Nenhum tronco externo foi cadastrado para a Artvideo.
+
+Ensaio `8c068fbef67646acb4dd72c748b3b69c`: dois perfis temporários, ambos
+301/850; uma chamada Local sintética entrou na fila cujo único endpoint estava
+offline e sem pausa. Espera observada de 30,71 s, abandono incrementado em 1,
+canais liberados. `passed=true`, `cleaned=true`, uma chamada interna sintética,
+zero chamadas externas. Rotas/pausas Union e registro FVX preservados; hash do
+dialplan Artvideo idêntico antes/depois. Não houve desconexão de um navegador
+real nem teste de atendimento com outro membro disponível nesse ensaio.
+
+`contingency_audit.py` usa o bundle revisado de `audit_sip_trunks.py` e o journal
+recuperável de `isolation_audit.py`. A prévia não carrega runtime nem faz chamadas.
+Aplicação exige `--apply --acknowledge-contingency-audit`; recuperação usa o mesmo
+script com `--cleanup ID`. Limpeza e recuperação nunca repetem a chamada de
+teste, inclusive se a primeira tentativa falhou. Mantêm as guardas de chamadas
+ativas e de arquivos alterados fora do ensaio.

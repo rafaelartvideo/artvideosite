@@ -14,10 +14,11 @@ import wave
 
 import agent
 import flow_runtime
-from call_flows import flow_context
+from call_flows import flow_context, compile_flow
+from flow_audit_scenarios import SCENARIOS, scenario_config, driver_steps, observations
 
 
-def run(originate=False):
+def run(originate=False, scenario='menu-digit'):
     agent.require_root()
     org=str(uuid.uuid4());flow_id=str(uuid.uuid4());prompt_id=str(uuid.uuid4())
     agent.select_profile(org)
@@ -56,7 +57,7 @@ def run(originate=False):
             initial=agent.render_internal_routes()[0]
             # A local driver sends one RTP digit after the menu answers. It has
             # no Dial, trunk, real endpoint, or external destination.
-            driver_text=('\n['+driver+']\nexten => s,1,Wait(0.5)\n same => n,SendDTMF(1)\n same => n,Wait(0.5)\n same => n,Hangup()\n').encode()
+            driver_text=('\n['+driver+']\n'+driver_steps(scenario)).encode()
             # Keep driver in its own included file so reconciliation cannot
             # erase it when regenerating the internal dispatch.
             driver_file=agent.DIALPLAN_MANAGED.with_name('union-flow-driver-'+uuid.UUID(org).hex+'.conf')
@@ -65,12 +66,7 @@ def run(originate=False):
             main_written=original+b'\n'+(include+'\n#include "extensions.d/'+driver_file.name+'"\n').encode()
             agent.write_atomic(main,main_written,info.st_mode&0o777,info.st_gid)
             agent.guarded_reload('dialplan reload')
-        config={'version':1,'mode':'menu','prompt_id':prompt_id,'closed_prompt_id':None,
-                'options':[{'digit':'1','target':{'kind':'hangup'}}],
-                'fallback':{'kind':'hangup'},'closed_target':{'kind':'hangup'},
-                'timezone':'America/Sao_Paulo','schedule_enabled':True,
-                'windows':[{'days':[1,2,3,4,5,6,7],'start':'00:00','end':'24:00'}],
-                'holidays':['2099-01-01'],'timeout_seconds':5,'repeats':0}
+        config=scenario_config(scenario,prompt_id)
         flow={'id':flow_id,'organization_id':org,'name':'Synthetic engine audit','test_extension':910,
               'enabled':True,'updated_at':'2026-11-10T20:00:00Z','config':config}
         flow_runtime.apply(agent,{'flow':flow,'extensions':[],'queues':[],'prompts':[prompt]},org)
@@ -85,13 +81,14 @@ def run(originate=False):
             with agent.operation_lock():
                 agent.assert_no_calls()
                 agent.asterisk('channel originate Local/s@'+context+'/n extension s@'+driver)
-            deadline=time.monotonic()+8
+            compiled=compile_flow(flow,org,{}, {}, {prompt_id:prompt})
+            asset_stem=str(asset.relative_to(flow_runtime.SOUNDS_ROOT.parent).with_suffix(''))
+            deadline=time.monotonic()+12
             while time.monotonic()<deadline:
                 time.sleep(.2)
                 with log.open('rb') as stream:stream.seek(offset);trace=stream.read(2000000).decode(errors='replace')
-                if '[1@'+context+':' in trace:break
-            call_result={'digit_route_observed':'[1@'+context+':' in trace,
-                         'audio_playback_observed':str(asset.relative_to(flow_runtime.SOUNDS_ROOT.parent).with_suffix('')) in trace}
+                call_result=observations(scenario,trace,context,compiled,asset_stem)
+                if all(call_result.values()):break
             if not all(call_result.values()):raise RuntimeError('Synthetic digit/playback not confirmed')
             while time.monotonic()<deadline:
                 try:agent.assert_no_calls();break
@@ -115,7 +112,7 @@ def run(originate=False):
             if sounds_created:flow_runtime.SOUNDS_ROOT.rmdir()
             if logger_name is not None:agent.asterisk('logger remove channel '+logger_name)
     print(json.dumps({'passed':passed,'cleaned':True,'audit_id':org,'external_calls':0,
-                      'synthetic_call':call_result,'evidence_directory':str(directory)}))
+                      'scenario':scenario,'synthetic_call':call_result,'evidence_directory':str(directory)}))
 
 
 if __name__=='__main__':
@@ -123,6 +120,7 @@ if __name__=='__main__':
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--acknowledge-flow-audit',action='store_true')
     parser.add_argument('--synthetic-call',action='store_true')
+    parser.add_argument('--scenario',choices=SCENARIOS,default='menu-digit')
     args=parser.parse_args()
-    if args.apply and args.acknowledge_flow_audit:run(args.synthetic_call)
+    if args.apply and args.acknowledge_flow_audit:run(args.synthetic_call,args.scenario)
     else:print(json.dumps({'preview':True,'external_calls':0,'temporary_contexts':True,'synthetic_call':args.synthetic_call}))
