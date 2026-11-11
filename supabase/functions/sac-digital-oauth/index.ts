@@ -1,11 +1,6 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
-import { handleSacOAuthCallback } from '../_shared/sac-oauth-callback.mjs';
-import { operatorTokenError, responseEnvelope } from '../_shared/sac-gateway.ts';
-
-// Public callback is authenticated by a one-time scoped state, never a client JWT.
-Deno.serve(async request=>{
- const supabaseUrl=Deno.env.get('SUPABASE_URL');const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
- if(!supabaseUrl || !serviceKey) return new Response('Serviço indisponível.',{status:503,headers:{'Cache-Control':'no-store'}});
- const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
- return handleSacOAuthCallback(request,admin,{operatorTokenError,profileAccepted:(body,status)=>responseEnvelope(body,status).success});
+// SAC Digital desativada em 2026-11-11; nenhuma leitura/escrita no banco.
+const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Cache-Control": "no-store" };
+Deno.serve((request) => {
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
+  return new Response(JSON.stringify({ success: false, disabled: true, code: "sac_disabled", error: "SAC Digital desativado." }), { status: 410, headers: { ...headers, "Content-Type": "application/json" } });
 });
