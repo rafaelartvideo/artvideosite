@@ -1,4 +1,4 @@
-import { FInput, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, AdminSelect, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { pbxRequest, pbxOperationError } from "../application/pbx-request";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { Headphones, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users, X } from "lucide-react";
@@ -262,16 +262,16 @@ export function UnionPbxQueuesPage({onBack}:{onBack:()=>void}) {
           ><X size={17}/></AdminButton>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="space-y-1 text-xs font-semibold text-foreground">Nome da fila *
+        <label className="space-y-1 text-xs font-semibold text-foreground"><RequiredFieldLabel label="Nome da fila" required/>
           <FInput value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
             maxLength={80} placeholder="Atendimento geral" />
         </label>
-        <label className="space-y-1 text-xs font-semibold text-foreground">Número interno de teste *
+        <label className="space-y-1 text-xs font-semibold text-foreground"><RequiredFieldLabel label="Número interno de teste" required/>
           <FInput value={form.testExtension} type="number" min={850} max={899}
             onChange={e=>setForm(f=>({...f,testExtension:e.target.value}))}
             />
         </label>
-        <label className="space-y-1 text-xs font-semibold text-foreground">Distribuição *
+        <label className="space-y-1 text-xs font-semibold text-foreground"><RequiredFieldLabel label="Distribuição" required/>
           <AdminSelect value={form.strategy} onValueChange={strategy=>setForm(f=>({...f,strategy:strategy as PbxQueue['strategy']}))}
             ariaLabel="Distribuição da fila" options={Object.entries(strategyLabels).map(([value,label])=>({value,label}))} />
         </label>
