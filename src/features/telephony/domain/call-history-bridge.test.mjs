@@ -6,8 +6,9 @@ import { transformWithEsbuild } from 'vite';
 const path = 'supabase/functions/union-pbx-agent/index.ts';
 const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
+const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint] } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -36,6 +37,7 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
       calls.push({ name, args });
       if(name==='pbx_admit_sip_trunk_poll')return {data:sipAdmitted};
       if(name==='pbx_poll_sip_trunks')return {data:[]};
+      if(name==='pbx_sip_history_endpoints')return {data:sipHistory};
       return fail ? { error: { code: '23514' } } :
       name === 'pbx_poll_queue_availability' ? { data: [] } : { data: { accepted: true, acknowledged: (args.p_records || args.p_results).length } }; },
   };
@@ -79,6 +81,15 @@ test('flow commands are opt-in and reports remain signed and bound to organizati
   const forged=await bridge();
   assert.equal((await forged.send({action:'report_flow',id:flowId,version,status:'applied'},true)).status,401);
   assert.equal(forged.filters.some(item=>item[0]==='pbx_call_flows'),false);
+});
+
+test('managed history refuses foreign, malformed and oversized endpoint responses',async()=>{
+ for(const sipHistory of [[managedEndpoint.replace(organizationId.replaceAll('-',''),'0'.repeat(32))],['union-fvx-in'],Array(101).fill(managedEndpoint),null]){
+  const partner=await bridge({platform:false,sipHistory});
+  const response=await partner.send({action:'poll',protocol_version:3,features:['sip_trunks_v1']});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).history_endpoints,[]);
+ }
 });
 
 test('histórico passa pela assinatura e usa apenas o agente verificado, ignorando empresa forjada', async () => {
@@ -192,14 +203,18 @@ test('somente protocolo compatível recebe pausas e rollback do agente restaura 
 test('SIP secrets require signed isolated partner poll and separately admitted capability',async()=>{
  const partner=await bridge({platform:false});
  const response=await partner.send({action:'poll',protocol_version:3,features:['sip_trunks_v1']});
- assert.equal(response.status,200);assert.deepEqual((await response.json()).sip_trunks,[]);
+ assert.equal(response.status,200);const payload=await response.json();assert.deepEqual(payload.sip_trunks,[]);
+ assert.deepEqual(payload.history_endpoints,[managedEndpoint]);
+ assert.ok(partner.calls.some(call=>call.name==='pbx_sip_history_endpoints'&&call.args.p_agent_id===agentId));
  assert.ok(partner.calls.some(call=>call.name==='pbx_admit_sip_trunk_poll'&&call.args.p_agent_id===agentId&&call.args.p_sequence===1));
  assert.ok(partner.calls.some(call=>call.name==='pbx_poll_sip_trunks'&&call.args.p_agent_id===agentId));
  const denied=await bridge({platform:false,sipAdmitted:false});
  await denied.send({action:'poll',protocol_version:3,features:['sip_trunks_v1']});
  assert.equal(denied.calls.some(call=>call.name==='pbx_poll_sip_trunks'),false);
+ assert.equal(denied.calls.some(call=>call.name==='pbx_sip_history_endpoints'),false);
  for(const options of [{platform:true},{platform:false}]){
   const old=await bridge(options);await old.send({action:'poll',protocol_version:2,features:['sip_trunks_v1']});
   assert.equal(old.calls.some(call=>call.name==='pbx_poll_sip_trunks'),false);
+  assert.equal(old.calls.some(call=>call.name==='pbx_sip_history_endpoints'),false);
  }
 });

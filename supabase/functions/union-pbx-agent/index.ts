@@ -229,6 +229,12 @@ Deno.serve(async request=>{
           if(!admitted.error&&admitted.data===true){
             const result=await admin.rpc('pbx_poll_sip_trunks',{p_agent_id:agent.id});
             if(!result.error&&Array.isArray(result.data)&&result.data.length<=100)sipTrunks=result.data;
+            const history=await admin.rpc('pbx_sip_history_endpoints',{p_agent_id:agent.id});
+            const prefix=`uwt-${agent.organization_id.replaceAll('-','')}-`;
+            if(!history.error&&Array.isArray(history.data)&&history.data.length<=100&&
+              history.data.every((endpoint:unknown)=>typeof endpoint==='string'&&endpoint.startsWith(prefix)&&/^uwt-[a-f0-9]{32}-[a-f0-9]{32}-ep$/.test(endpoint))){
+              for(const endpoint of history.data)historyEndpoints.add(endpoint);
+            }
           }
         }catch{console.error('PBX SIP configuration unavailable');}
       }

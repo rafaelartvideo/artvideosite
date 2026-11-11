@@ -65,7 +65,20 @@ externas nessa entrega. A Artvideo foi escolhida como piloto, mas continuava
 sem módulo PABX, agente ou ramais ativos na conferência; não foi ativada por
 escolher seu nome. Gravações protegidas e contingência continuam na missão.
 
-## Instalação e recuperação
+## Histórico das saídas gerenciadas
+
+A migração `20261111163048` atribui a chamada ao tronco gerenciado da própria
+empresa, preservando os vínculos FVX anteriores. Apenas uma origem de ramal
+gerenciado da mesma empresa pode ter esse tronco como destino. Entradas de
+novos troncos continuam bloqueadas. Endpoints são enviados ao agente somente
+após admissão assinada e capacidade SIP válida; não incluem credenciais.
+
+Validação: 13 testes da ponte assinada, suíte completa do CRM, ambas as
+compilações e PostgreSQL 14 descartável passaram. Os testes de banco cobrem
+isolamento, configuração desativada após a chamada, idempotência, capacidade
+expirada e preservação das chamadas internas e da entrada/saída legada.
+
+## Instalação e recuperação do agente
 
 `activate-sip-trunks.sh --acknowledge-sip-trunk-update` confere o agente anterior
 revisado e os hashes do pacote, exige ausência de chamadas e mantém a trava de
