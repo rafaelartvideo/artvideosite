@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Forward, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -139,10 +139,9 @@ function WhatsAppVoicePlayer({src,loading=false,error="",onRetry,compact=false}:
   </div>;
 }
 
-function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onResendSticker, stickerBusy }: {
+function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stickerBusy }: {
   message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
   onSaveSticker?: (message:UnionWhatsAppMessage)=>void;
-  onResendSticker?: (message:UnionWhatsAppMessage)=>void;
   stickerBusy?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
@@ -213,22 +212,21 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onRe
         aria-label="Ampliar figurinha" title="Ampliar figurinha" className="block w-fit">
         <img src={mediaUrl} alt="Figurinha do WhatsApp" loading="lazy" decoding="async"
           onLoad={onMediaLoad} className="block max-h-[124px] max-w-[120px] object-contain"/>
-      </button> : <div className="inline-flex items-center gap-1.5 rounded-lg bg-card/80 px-2 py-1.5 text-[11px] text-muted-foreground">
+      </button> : mediaLoading ? <div role="status" aria-label="Carregando figurinha"
+        className="flex h-[70px] w-[100px] items-center justify-center">
+        <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
+      </div> : <div className="inline-flex items-center gap-1.5 rounded-lg bg-card/80 px-2 py-1.5 text-[11px] text-muted-foreground">
         <Sticker size={15}/>
-        <span>{mediaLoading?"Carregando figurinha...":hasStoredMedia?"Figurinha indisponível":"Figurinha não sincronizada"}</span>
-        {hasStoredMedia && !mediaLoading && <button type="button" onClick={()=>void loadMedia()}
+        <span>{hasStoredMedia?"Figurinha indisponível":"Figurinha não sincronizada"}</span>
+        {hasStoredMedia && <button type="button" onClick={()=>void loadMedia()}
           className="text-primary underline underline-offset-2">Tentar novamente</button>}
       </div>}
-      {mediaUrl && (onSaveSticker || onResendSticker) &&
+      {mediaUrl && onSaveSticker &&
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          {onSaveSticker && <button type="button" disabled={stickerBusy} onClick={()=>onSaveSticker(message)}
+          <button type="button" disabled={stickerBusy} onClick={()=>onSaveSticker(message)}
             title="Salvar figurinha na empresa" className="inline-flex items-center gap-1 hover:text-primary disabled:opacity-50">
             <Star size={12}/> Salvar
-          </button>}
-          {onResendSticker && <button type="button" disabled={stickerBusy} onClick={()=>onResendSticker(message)}
-            title="Reenviar figurinha nesta conversa" className="inline-flex items-center gap-1 hover:text-primary disabled:opacity-50">
-            <Forward size={12}/> Reenviar
-          </button>}
+          </button>
           {stickerBusy && <LoaderCircle size={12} className="animate-spin"/>}
         </div>}
       {mediaError && <span role="alert" className="text-[10px] text-red-600">{mediaError}</span>}
@@ -260,15 +258,19 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onRe
       <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
       <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
     </div>}
-    {!mediaUrl && <div className="flex items-center gap-2 text-sm">
-      <Icon size={17}/>
-      <span className="font-semibold">{message.media_name || label}</span>
-      {hasStoredMedia && <button type="button" disabled={mediaLoading} onClick={() => void loadMedia()}
-        className="text-xs font-semibold text-primary underline-offset-2 hover:underline disabled:opacity-40">
-        {mediaLoading ? "Carregando..." : "Abrir"}
-      </button>}
-      {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
-    </div>}
+    {!mediaUrl && (mediaLoading ?
+      <div role="status" aria-label="Carregando arquivo" className="flex min-h-9 items-center justify-center">
+        <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
+      </div> :
+      <div className="flex items-center gap-2 text-sm">
+        <Icon size={17}/>
+        <span className="font-semibold">{message.media_name || label}</span>
+        {hasStoredMedia && <button type="button" onClick={() => void loadMedia()}
+          className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
+          Abrir
+        </button>}
+        {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
+      </div>)}
     {content && <p className="text-sm leading-5"><WhatsAppFormattedText text={content}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
   </div>;
@@ -1665,11 +1667,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       return null;
     }finally{setStickerBusy(null);}
   };
-  const resendReceivedSticker=async(message:UnionWhatsAppMessage)=>{
-    if(stickerBusy)return;
-    const savedId=await saveReceivedSticker(message);
-    if(savedId)await sendSavedSticker(savedId);
-  };
   const toggleFavoriteSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
     if(!selected?.id||!activeOrganizationId||stickerBusy)return;
     const org=activeOrganizationId;
@@ -1992,7 +1989,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         </div>}
                       <MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
                         onSaveSticker={canSend?message=>void saveReceivedSticker(message):undefined}
-                        onResendSticker={canReply?message=>void resendReceivedSticker(message):undefined}
                         stickerBusy={stickerBusy===entry.message.id || Boolean(stickerBusy)}
                         onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
