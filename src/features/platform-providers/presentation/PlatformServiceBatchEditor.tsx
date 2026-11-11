@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type { PlatformServiceBatchItem } from "../infrastructure/platform-providers.repository";
 
@@ -86,7 +87,7 @@ export function PlatformServiceBatchEditor({
 
   return <div className="space-y-3">
     <div>
-      <label className="mb-1.5 block text-xs font-bold text-muted-foreground" htmlFor="provider-batch-profession">Profissão *</label>
+      <label className="mb-1.5 block text-xs font-bold text-muted-foreground" htmlFor="provider-batch-profession"><RequiredFieldLabel label="Profissão" required/></label>
       <input id="provider-batch-profession" className={inputClass} maxLength={120}
         list="provider-batch-profession-options" placeholder="Ex.: Técnico de refrigeração"
         value={professionName} onChange={event => setProfessionName(event.target.value)}/>
