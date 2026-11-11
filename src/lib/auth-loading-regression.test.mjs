@@ -16,3 +16,10 @@ test("validação de horários preserva bloqueio de acesso, mas com timeout", ()
   assert.match(hours, /check_my_employee_crm_access_hours_v2/);
   assert.match(hours, /\.abortSignal\(AbortSignal\.timeout\(12_000\)\)/);
 });
+
+test("bootstrap aproveita expediente validado e mantém bloqueio na troca de empresa", () => {
+  const auth = readFileSync("src/lib/auth.tsx", "utf8");
+  assert.match(auth, /shouldBlockAccessLoad\(activeOrganizationIdRef\.current, requestedOrganizationId, background\)\) \{\s*setLoading\(true\)/);
+  assert.match(auth, /resolveBootstrapAccessWindow\(access,\s*\(\) => checkMyEmployeeAccessWindow\(resolvedOrganization\.organization_id\)\)/);
+  assert.match(auth, /catch \(scheduleError\) \{[\s\S]*?clearResolvedAccess\(\);[\s\S]*?setLoading\(false\)/);
+});

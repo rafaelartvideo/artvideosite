@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
+import { resolveBootstrapAccessWindow, shouldBlockAccessLoad } from "@/features/auth/domain/access-bootstrap";
 
 import { checkMyEmployeeAccessWindow, type MyEmployeeAccessWindow } from "@/features/registrations/infrastructure/employee-access-hours.repository";
 import type { Profile } from "./database.types";
@@ -183,7 +184,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       const userId = signedInUserRef.current;
       if (!userId) return;
       accessLoadingKeyRef.current = null;
-      void loadAccess(userId, activeOrganizationIdRef.current);
+      void loadAccess(userId, activeOrganizationIdRef.current, true);
     };
     const removePermissionListener = addCompatibleEventListener(
       PERMISSIONS_CHANGED_EVENT,
@@ -525,13 +526,13 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     }
   }
 
-  async function loadAccess(userId: string, preferredOrganizationId?: string | null) {
+  async function loadAccess(userId: string, preferredOrganizationId?: string | null, background = false) {
     const requestKey = `${userId}:${preferredOrganizationId ?? "auto"}`;
     if (accessLoadingKeyRef.current === requestKey) return;
     accessLoadingKeyRef.current = requestKey;
 
     try {
-      await loadAccessData(userId, preferredOrganizationId);
+      await loadAccessData(userId, preferredOrganizationId, background);
     } catch (error) {
       // Erros de rede (incluindo 504 e TimeoutError) podem rejeitar a Promise.
       // Nunca deixar o painel preso em 42% sem um botão para tentar novamente.
@@ -549,9 +550,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     }
   }
 
-  async function loadAccessData(userId: string, preferredOrganizationId?: string | null) {
+  async function loadAccessData(userId: string, preferredOrganizationId?: string | null, background = false) {
     const requestId = ++accessRequestRef.current;
-    setLoading(true);
     setLoadingProgress(42);
     setAccessError(null);
 
@@ -563,6 +563,12 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       ?? activeOrganizationIdRef.current
       ?? persistedOrganizationId
       ?? null;
+
+    // Atualizar o acesso da empresa atual não desmonta o módulo aberto.
+    // Login, troca de empresa e recuperação após erro continuam bloqueantes.
+    if (shouldBlockAccessLoad(activeOrganizationIdRef.current, requestedOrganizationId, background)) {
+      setLoading(true);
+    }
 
     const { data, error } = await supabase.rpc("load_auth_access_v1", {
       p_preferred_organization_id: requestedOrganizationId,
@@ -636,7 +642,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
 
     let resolvedWindow: MyEmployeeAccessWindow;
     try {
-      resolvedWindow = await checkMyEmployeeAccessWindow(resolvedOrganization.organization_id);
+      resolvedWindow = await resolveBootstrapAccessWindow(access,
+        () => checkMyEmployeeAccessWindow(resolvedOrganization.organization_id));
     } catch (scheduleError) {
       if (requestId !== accessRequestRef.current) return;
       console.error("Access schedule validation error:", scheduleError);
@@ -694,7 +701,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     if (!userId) return;
     cancelScheduledAccessLoad();
     accessLoadingKeyRef.current = null;
-    await loadAccess(userId, activeOrganizationIdRef.current);
+    await loadAccess(userId, activeOrganizationIdRef.current, true);
   }
 
   async function signOut() {

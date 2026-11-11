@@ -151,6 +151,8 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
     }
 
     try {
+      // Download de código em paralelo à autenticação, sem consultar dados.
+      prefetchAdminModule("home");
       // Só carregar o CRM depois que o servidor confirmou o expediente.
       const result = await authenticateAdmin(normalizedUsername, password);
       if (result === "authenticated") {
