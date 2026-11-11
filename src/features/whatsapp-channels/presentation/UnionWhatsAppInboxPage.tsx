@@ -895,14 +895,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const timeline=useMemo(()=>{
     const local=pending.filter(item=>item.conversationId===selectedId &&
       item.organizationId===activeOrganizationId);
-    const acknowledged=new Set(local.map(item=>item.providerMessageId).filter(
-      (id):id is string=>Boolean(id)));
+    const persistedProviderIds=new Set(messages.map(message=>message.provider_message_id));
+    // The server row is authoritative. Previously this filter was reversed:
+    // the optimistic "sent" attachment hid the stored image/sticker/file
+    // until leaving the conversation cleared pending state.
     return [
-      ...messages.filter(message=>!acknowledged.has(message.provider_message_id))
-        .map(message=>({kind:"persisted" as const,id:message.id,sentAt:message.sent_at,message})),
-      ...local.map(item=>({kind:"optimistic" as const,id:item.id,sentAt:item.sentAt,pending:item})),
+      ...messages.map(message=>({kind:"persisted" as const,id:message.id,sentAt:message.sent_at,message})),
+      ...local.filter(item=>!item.providerMessageId || !persistedProviderIds.has(item.providerMessageId))
+        .map(item=>({kind:"optimistic" as const,id:item.id,sentAt:item.sentAt,pending:item})),
     ].sort((a,b)=>Date.parse(a.sentAt)-Date.parse(b.sentAt)||a.id.localeCompare(b.id));
   },[pending,messages,selectedId,activeOrganizationId]);
+  useEffect(()=>{
+    // Reconcile only confirmed sends with the actual provider IDs. Never
+    // remove unknown/failed sends: their warning prevents accidental resend.
+    const persistedProviderIds=new Set(messages.map(item=>item.provider_message_id));
+    if(!persistedProviderIds.size)return;
+    setPending(current=>{
+      const remaining=current.filter(item=>!(
+        item.status==="sent" && item.providerMessageId &&
+        item.conversationId===selectedId && item.organizationId===activeOrganizationId &&
+        persistedProviderIds.has(item.providerMessageId)
+      ));
+      return remaining.length===current.length?current:remaining;
+    });
+  },[messages,selectedId,activeOrganizationId]);
   useEffect(()=>{
     // The persisted history is authoritative when returning to a conversation.
     // Keep only pending errors/in-flight sends for conversations no longer open.
