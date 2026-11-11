@@ -19,7 +19,7 @@ export function UnionWhatsAppStickerPicker({
   const [tab, setTab] = useState<StickerTab>("company");
   const displayed = useMemo(() => {
     const filtered = tab === "favorites" ? stickers.filter(item => item.is_favorite) :
-      tab === "recent" ? stickers.filter(item => item.last_used_at) : stickers;
+      tab === "recent" ? stickers.filter(item => item.last_used_at) : [...stickers];
     return filtered.sort((a,b) => tab === "recent"
       ? Date.parse(b.last_used_at||b.created_at)-Date.parse(a.last_used_at||a.created_at)
       : tab === "favorites"
@@ -79,11 +79,11 @@ export function UnionWhatsAppStickerPicker({
                   className={`rounded-md p-1 hover:bg-muted ${sticker.is_favorite?"text-amber-500":"text-muted-foreground"}`}>
                   <Star size={14} fill={sticker.is_favorite?"currentColor":"none"}/>
                 </button>
-                <button type="button" disabled={Boolean(busyId)} onClick={()=>onRemove(sticker)}
+                {sticker.can_remove && <button type="button" disabled={Boolean(busyId)} onClick={()=>onRemove(sticker)}
                   aria-label="Remover figurinha da coleção" title="Remover da coleção"
                   className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                   <Trash2 size={14}/>
-                </button>
+                </button>}
               </div>
             </div>)}
         </div>}
