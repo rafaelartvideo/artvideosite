@@ -33,12 +33,32 @@ export const listPermissions = (organizationId: string) =>
     p_organization_id: organizationId,
   });
 
-export const listRoleMembers = (organizationId: string) =>
-  supabase
-    .from("organization_members")
-    .select("role_id")
-    .eq("organization_id", organizationId)
-    .eq("status", "active");
+export type RoleMemberRecord = {
+  role_id: string | null;
+  user_id: string;
+  profile: { full_name: string | null } | null;
+};
+
+// Pagina a leitura para que a lista do modal não perca funcionários após
+// o limite padrão de linhas do PostgREST. A consulta permanece na empresa ativa.
+export async function listRoleMembers(organizationId: string) {
+  const pageSize = 500;
+  const members: RoleMemberRecord[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("organization_members")
+      .select("role_id,user_id,profile:profiles!organization_members_user_id_fkey(full_name)")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .order("user_id")
+      .range(offset, offset + pageSize - 1);
+    if (error) return { data: null, error };
+    const page = (data || []) as unknown as RoleMemberRecord[];
+    members.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return { data: members, error: null };
+}
 
 export const getRolePermissionIds = (roleId: string) =>
   supabase.from("role_permissions").select("permission_id").eq("role_id", roleId);
