@@ -51,12 +51,15 @@ const channelSections: Array<{ id: ChannelSection; label: string }> = [
 const showSuccess = (message: string) => { if (message) notifyAdmin(message, "success"); };
 const showError = (message: string) => { if (message) notifyAdmin(message, "error"); };
 
-export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration" }: { onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection }) {
+export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration", embeddedSection, onSectionChange }: {
+  onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection;
+  embeddedSection?: ChannelSection; onSectionChange?: (section:ChannelSection)=>void;
+}) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete");
   const canManage = hasPermission("settings.channels.manage");
   const canDelete = hasPermission("settings.channels.delete");
-  const [section, setSection] = useState<ChannelSection>(initialSection);
+  const [section, setSection] = useState<ChannelSection>(embeddedSection || initialSection);
   const [settingsCreateRequest, setSettingsCreateRequest] = useState(0);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
   const [channels, setChannels] = useState<WhatsAppChannel[]>([]);
@@ -412,49 +415,64 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     (c.state==="connected" || c.state==="connecting"));
 
   return <div className="space-y-5">
-    <PageHeader title="Canais de Atendimento" subtitle="Configure o canal e gerencie os números conectados." />
-    <AdminSubsectionTabs value={section} items={channelSections}
-      onChange={setSection} ariaLabel="Subseções de canais de atendimento" />
+    {!embeddedSection && <>
+      <PageHeader title="Canais de Atendimento" subtitle="Configure o canal e gerencie os números conectados." />
+      <AdminSubsectionTabs value={section} items={channelSections}
+        onChange={setSection} ariaLabel="Subseções de canais de atendimento" />
+    </>}
     {loading && (section === "configuration" || section === "connections") ? <AdminWorkspaceSkeleton variant="cards" rows={5} /> : section === "configuration" ?
       <AdminCard>
-        <AdminCardContent className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="max-w-2xl">
-              <p className="text-sm font-semibold">WhatsApp da empresa</p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                Ative o canal uma única vez. A Union prepara a integração e configura o recebimento automaticamente quando um número é conectado.
+        <AdminCardContent className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-border p-4">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${enabled?"bg-emerald-500/15 text-emerald-600":"bg-primary/10 text-primary"}`}>
+              {enabled?<CheckCircle2 size={20}/>:1}
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">1. Ativar o canal da empresa</p>
+                <StatusBadge status={enabled?"Ativo":"Desativado"}/>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Ative o WhatsApp uma única vez. Cada empresa utiliza suas próprias conexões e permissões.
+              </p>
+              {!enabled && canManage && <AdminButton size="sm" disabled={Boolean(action)}
+                loading={action==="activate"} onClick={()=>void perform("activate")}>Ativar WhatsApp</AdminButton>}
+            </div>
+          </div>
+          <div className="flex items-start gap-3 rounded-xl border border-border p-4">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${connected?"bg-emerald-500/15 text-emerald-600":"bg-primary/10 text-primary"}`}>
+              {connected?<CheckCircle2 size={20}/>:2}
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">2. Conectar o número</p>
+                <StatusBadge status={connected?"Conectado":"Pendente"}/>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Cadastre o número, faça a leitura do QR Code e gerencie as sessões do WhatsApp.
+              </p>
+              {enabled && <AdminButton size="sm" variant="secondary" onClick={()=>
+                embeddedSection ? onSectionChange?.("connections") : setSection("connections")}>
+                Gerenciar conexões
+              </AdminButton>}
+            </div>
+          </div>
+          <div className="flex items-start gap-3 rounded-xl border border-border p-4">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${receiving?"bg-emerald-500/15 text-emerald-600":"bg-primary/10 text-primary"}`}>
+              {receiving?<CheckCircle2 size={20}/>:3}
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">3. Recebimento e atendimento</p>
+                <StatusBadge status={receiving?"Ativo":connected?"Configurando":"Pendente"}/>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {receiving ? "Recebimento, entrega e leitura estão sendo acompanhados automaticamente." :
+                  connected ? "O número já está conectado. A Union finaliza o recebimento automaticamente." :
+                    "Esta etapa será preparada após conectar o WhatsApp."}
               </p>
             </div>
-            <StatusBadge status={enabled ? "Ativo" : "Desativado"} />
           </div>
-          {!enabled && canManage && <AdminButton disabled={Boolean(action)} loading={action === "activate"}
-            onClick={() => void perform("activate")}>Ativar WhatsApp</AdminButton>}
-          {enabled && <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2">
-            <div className="flex items-start gap-2.5">
-              <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600"/>
-              <div><p className="text-sm font-semibold">Integração preparada</p>
-                <p className="mt-1 text-xs text-muted-foreground">Sessão segura criada para esta empresa.</p></div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              {receiving ? <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600"/> :
-                connected ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/> :
-                  <CircleAlert size={18} className="mt-0.5 shrink-0 text-muted-foreground"/>}
-              <div><p className="text-sm font-semibold">Recebimento de mensagens</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {receiving ? "Autenticado e ativo." :
-                    connected ? "Número conectado. Finalizando configuração automaticamente." :
-                      "Será configurado após conectar um número."}
-                </p></div>
-            </div>
-          </div>}
-          {connected && canManage &&
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/25 p-3">
-              <p className="text-xs text-muted-foreground">Sincronize os eventos de recebimento, entrega e leitura após atualizar a ponte da VPS.</p>
-              <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
-                loading={action === "webhook_setup"} onClick={() => void perform("webhook_setup", channels.find(c=>c.state==="connected")?.id)}>
-                <RefreshCw size={15}/> Tentar novamente
-              </AdminButton>
-            </div>}
         </AdminCardContent>
       </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
       <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
@@ -521,8 +539,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           O WhatsApp está confirmando a conexão. A verificação ocorre automaticamente.
         </p>}
       </AdminCard>}
-    {section !== "permissions" && <AdminStickyToolbar className="justify-between">
-      <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+    {section !== "permissions" && (!embeddedSection || section==="connections" || ((section==="departments" || section==="queues") && canManage)) && <AdminStickyToolbar className="justify-between">
+      {!embeddedSection && <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>}
       {(section === "departments" || section === "queues") && canManage &&
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
       {section === "connections" && canManage && <AdminButton onClick={() => setCreateConnectionOpen(true)}
