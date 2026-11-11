@@ -557,9 +557,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         <p className="max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
           Após escanear, a Union reconhece a conexão e ativa o recebimento automaticamente, sem etapas adicionais.
         </p>
-        <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "qr"} onClick={() => void perform("qr")}>
-          <RefreshCw size={16}/> Atualizar QR Code
-        </AdminButton>
       </div>
     </AdminDialog>
 
