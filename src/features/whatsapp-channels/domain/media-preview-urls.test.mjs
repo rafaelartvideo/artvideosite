@@ -66,8 +66,8 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(page,/h-\[216px\] max-h-\[min\(48vh,216px\)\]/);
   assert.match(page,/aria-label="Voltar às opções"/);
   assert.match(page,/aria-label="Carregando mensagens rápidas"/);
-  assert.match(bridge,/const audioSeconds=audioBytes \? oggOpusSeconds\(audioBytes\) : 0/);
-  assert.match(bridge,/Seconds:audioSeconds/);
+  assert.match(bridge,/const audio=kind==="audio" \? await toPlayableAudio\(buffer\) : null/);
+  assert.match(bridge,/MimeType:"audio\/mpeg",PTT:false,Seconds:audio\.seconds/);
   assert.match(bridge,/path="\/chat\/send\/sticker"/);
   assert.match(schema,/enable row level security/);
   assert.match(schema,/revoke all on public\.union_whatsapp_sticker_library from public,anon,authenticated/);
