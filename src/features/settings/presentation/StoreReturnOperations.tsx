@@ -74,7 +74,7 @@ function InspectedReceipt({receipt,canRestock,onSaved}:{
   {!canAddStock&&<p className="text-xs text-amber-700 dark:text-amber-300">
    Itens danificados ou defeituosos não voltam ao estoque disponível.
   </p>}
-  <label className="block text-xs font-bold">Laudo / observação da avaliação *
+  <label className="block text-xs font-bold">Laudo / observação da avaliação <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
    <textarea className={field+" mt-1.5 min-h-24 resize-y"} value={note} maxLength={1000} minLength={10}
     required onChange={e=>setNote(e.target.value)}
     placeholder="Descreva o estado físico, os testes realizados e o destino do produto."/>
@@ -187,12 +187,12 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
     </div>)}
     {receiving&&caseStatus==="approved"&&<form onSubmit={e=>void receive(e)}
       className="space-y-3 rounded-md border border-border bg-background p-3">
-      <label className="block text-xs font-bold">Produto da compra *
+      <label className="block text-xs font-bold">Produto da compra <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
        <select className={field+" mt-1.5"} value={line} onChange={e=>{setLine(e.target.value);setQuantity(1);}}>
         {available.map(item=><option key={item.lineKey} value={item.lineKey}>{item.title} — vendido: {item.quantity} un.</option>)}
        </select>
       </label>
-      <label className="block text-xs font-bold">Quantidade física recebida *
+      <label className="block text-xs font-bold">Quantidade física recebida <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
        <input type="number" min={1} max={selectedLine?.quantity||1} step={1}
         className={field+" mt-1.5"} value={quantity}
         onChange={e=>setQuantity(Math.max(1,Math.min(selectedLine?.quantity||1,Number(e.target.value)||1)))}/>
@@ -236,7 +236,7 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
        Registre somente depois de confirmar que o estorno já ocorreu no provedor. Esta tela não realiza reembolsos.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-       <label className="block text-xs font-bold">Valor efetivamente reembolsado (R$) *
+       <label className="block text-xs font-bold">Valor efetivamente reembolsado (R$) <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
         <input type="text" inputMode="decimal" className={field+" mt-1.5"} required
          value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.,]/g,""))} placeholder="0,00"/>
        </label>
@@ -248,12 +248,12 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
           <option value="mercado_pago">Mercado Pago (histórico)</option>
         </select>
        </label>
-       <label className="block text-xs font-bold">Referência de reembolso do provedor *
+       <label className="block text-xs font-bold">Referência de reembolso do provedor <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
         <input type="text" className={field+" mt-1.5"} required minLength={6} maxLength={160}
          value={reference} onChange={e=>setReference(e.target.value)}
          placeholder="ID da transação de estorno"/>
        </label>
-       <label className="block text-xs font-bold">Data e hora da confirmação *
+       <label className="block text-xs font-bold">Data e hora da confirmação <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
         <input type="datetime-local" className={field+" mt-1.5"} required value={date}
          onChange={e=>setDate(e.target.value)}/>
        </label>
