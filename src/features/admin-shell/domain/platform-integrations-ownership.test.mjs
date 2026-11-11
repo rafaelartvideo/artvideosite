@@ -46,14 +46,13 @@ test("distribuição reutiliza organization_modules, aplica permissões e não d
 });
 
 
-test("canais e SAC Digital possuem rotas próprias de configuração dentro de Ferramentas", () => {
+test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bloqueadas", () => {
   const platform = read("src/features/integrations/presentation/PlatformIntegrationsPage.tsx");
   const admin = read("src/app/Admin.tsx");
   const navigation = read("src/features/admin-shell/navigation-config.ts");
   const channels = read("src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx");
   const permissions = read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
   const attendanceSettings=read("src/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings.tsx");
-  const sac = read("src/features/sac-digital/presentation/SacDigitalToolPage.tsx");
   const inbox = read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
 
   assert.doesNotMatch(platform, /showingOwnChannels|<WhatsAppChannelsPage|Canais da Union/);
@@ -62,9 +61,9 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   assert.match(admin, /route\.subpage === "canais"/);
   assert.match(admin, /route\.subpage === "configuracoes"/);
   assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools","union-whatsapp","configuracoes"\)\}/);
-  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
+  assert.doesNotMatch(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
   assert.match(admin, /<WhatsAppAttendanceSettings/);
-  assert.match(admin, /<SacDigitalSettingsPage/);
+  assert.doesNotMatch(admin, /<SacDigitalSettingsPage/);
   assert.match(channels, /<WhatsAppRolePermissions onBack=\{onBack\}/);
   assert.match(channels, /section !== "permissions" && \(!embeddedSection/);
   assert.match(attendanceSettings, /<WhatsAppChannelsPage/);
@@ -73,7 +72,7 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   assert.match(attendanceSettings, /onClick=\{\(\)=>setSection\(item.id\)\}/);
   assert.match(permissions, /onBack \? <AdminStickyToolbar/);
   assert.match(permissions, /Salvar permissões/);
-  assert.match(sac, /onConfigure && hasPermission\("sac_digital.settings.manage"\)/);
+  assert.match(admin, /route\.resourceId === "sac-digital"[\s\S]*?<Navigate to=\{adminPath\("tools"\)\} replace/);
   assert.match(inbox, /aria-label="Configurações dos Atendimentos"/);
   assert.doesNotMatch(inbox, /settingsModal|settingsMenuRef/);
   assert.match(navigation, /if \(tab === "integrations"\) return true;/);
