@@ -1625,6 +1625,34 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(stickerOpen)void refreshStickers();
   },[stickerOpen,refreshStickers]);
 
+  // Read the saved state once for visible sticker messages. Avoid loading
+  // the entire company sticker library (and generating signed URLs) on every
+  // conversation refresh. The action is scoped to this operator and thread.
+  const visibleStickerIds=useMemo(()=>messages
+    .filter(row=>row.message_type==="sticker").map(row=>row.id)
+    .slice(-100).sort().join(","),[messages]);
+  useEffect(()=>{
+    stickerSavedScopeRef.current=String(activeOrganizationId||"")+":"+String(selectedId||"");
+    setSavedStickerMessageIds(new Set());
+    stickerSaveInFlightRef.current.clear();
+  },[activeOrganizationId,selectedId]);
+  useEffect(()=>{
+    if(!activeOrganizationId || !selectedId || !canSend || !visibleStickerIds)return;
+    const org=activeOrganizationId,threadId=selectedId,scope=org+":"+threadId;
+    let cancelled=false;
+    void operateUnionWhatsAppInbox(org,threadId,"sticker_saved_ids",{
+      message_ids:visibleStickerIds.split(","),
+    }).then(result=>{
+      if(cancelled || stickerSavedScopeRef.current!==scope)return;
+      setSavedStickerMessageIds(current=>{
+        const next=new Set(current);
+        for(const id of result.saved_message_ids||[])next.add(id);
+        return next;
+      });
+    }).catch(()=>undefined);
+    return()=>{cancelled=true;};
+  },[activeOrganizationId,selectedId,canSend,visibleStickerIds]);
+
   const uploadStickerToLibrary=async(file:File)=>{
     if(!selected?.id || !activeOrganizationId)return;
     if(file.type!=="image/webp" || !file.size || file.size>1048576){
@@ -1686,20 +1714,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }finally{setStickerBusy(null);stickerSendGateRef.current=false;}
   };
 
-  const saveReceivedSticker=async(message:UnionWhatsAppMessage):Promise<string|null>=>{
-    if(!activeOrganizationId || !selected?.id)return null;
-    const org=activeOrganizationId;
-    setStickerBusy(message.id);
-    try{
-      const result=await operateUnionWhatsAppInbox(org,selected.id,"sticker_save",{message_id:message.id});
-      if(organizationRef.current!==org)return null;
-      void refreshStickers();
-      notifyAdmin(result.already_saved?"Figurinha já está na coleção.":"Figurinha salva na coleção da empresa.","success");
-      return result.sticker_id||null;
-    }catch(reason){
-      reportError(systemErrorMessage(reason,"Não foi possível salvar a figurinha."));
-      return null;
-    }finally{setStickerBusy(null);}
+  const saveReceivedSticker=(message:UnionWhatsAppMessage)=>{
+    if(!activeOrganizationId || !selected?.id || savedStickerMessageIds.has(message.id) ||
+      stickerSaveInFlightRef.current.has(message.id))return;
+    const org=activeOrganizationId,threadId=selected.id,scope=org+":"+threadId;
+    stickerSaveInFlightRef.current.add(message.id);
+    // Optimistic state: the label vanishes at the click, not after the request.
+    setSavedStickerMessageIds(current=>new Set(current).add(message.id));
+    void operateUnionWhatsAppInbox(org,threadId,"sticker_save",{message_id:message.id})
+      .then(()=>{
+        if(stickerSavedScopeRef.current===scope && stickerOpen)void refreshStickers();
+      })
+      .catch(()=>{
+        // Silent rollback: restore the small Save action without a toast.
+        if(stickerSavedScopeRef.current!==scope)return;
+        setSavedStickerMessageIds(current=>{
+          const next=new Set(current);
+          next.delete(message.id);
+          return next;
+        });
+      })
+      .finally(()=>stickerSaveInFlightRef.current.delete(message.id));
   };
   const toggleFavoriteSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
     if(!selected?.id||!activeOrganizationId||stickerBusy)return;
