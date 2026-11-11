@@ -7,6 +7,7 @@ import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
+import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
@@ -321,6 +322,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [stickerOpen,setStickerOpen]=useState(false);
+  const [stickers,setStickers]=useState<UnionWhatsAppSavedSticker[]>([]);
+  const [stickerLoading,setStickerLoading]=useState(false);
+  const [stickerBusy,setStickerBusy]=useState<string|null>(null);
+  const stickerFileInputRef=useRef<HTMLInputElement|null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [imageOptimizing, setImageOptimizing] = useState(false);
@@ -1431,7 +1437,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
-    const optimisticText=text && operatorFirstName ? `*${operatorFirstName}*\n\n${text}` : text;
+    const optimisticText=text;
     const file = attachment;
     const preview = mediaPreview;
     const fileType = file ? file.type==="image/webp" ? "sticker" : file.type.startsWith("image/") ? "image" :
@@ -1446,6 +1452,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMediaPreview(null);
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     setEmojiOpen(false);
+    setStickerOpen(false);
     if(fileType==="audio" && preview) pendingAudioUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
