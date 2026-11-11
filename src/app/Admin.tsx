@@ -68,10 +68,8 @@ const UnionPbxInboundPage = lazy(() => import("@/features/telephony/presentation
 const UnionPbxHistoryPage = lazy(() => import("@/features/telephony/presentation/UnionPbxHistoryPage").then(({ UnionPbxHistoryPage }) => ({ default: UnionPbxHistoryPage })));
 const UnionPbxTrunksPage = lazy(() => import("@/features/telephony/presentation/UnionPbxTrunksPage").then(({ UnionPbxTrunksPage }) => ({ default: UnionPbxTrunksPage })));
 const UnionPbxFlowsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxFlowsPage").then(({ UnionPbxFlowsPage }) => ({ default: UnionPbxFlowsPage })));
-const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const WhatsAppAttendanceSettings = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings").then(({ WhatsAppAttendanceSettings }) => ({ default: WhatsAppAttendanceSettings })));
-const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlatformIntegrationsPage = lazy(() => import("@/features/integrations/presentation/PlatformIntegrationsPage").then(({ PlatformIntegrationsPage }) => ({ default: PlatformIntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
@@ -217,16 +215,13 @@ export function AdminDashboard({
       hasPermission("tools.view")
       || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
-      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
     ) && (
       hasPermission("tools.view")
       ||       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
-      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
-      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
@@ -362,8 +357,6 @@ export function AdminDashboard({
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
-  const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
-  const canConfigureSacDigital = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage");
   const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp"))
     && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view");
   const canViewWhatsAppChannels = (isPlatformOperatorOrganization || hasModule("whatsapp"))
@@ -380,9 +373,6 @@ export function AdminDashboard({
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
-    ] : []),
-    ...((canAccessSacDigitalTool || canConfigureSacDigital) ? [
-      { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
     ] : []),
     ...((canAccessWhatsAppTool || canViewWhatsAppChannels) ? [
       { id: "union-whatsapp", label: "Atendimentos", icon: MessageSquare, description: "Central de atendimento por canais, começando pelo WhatsApp.", href: null },
@@ -424,10 +414,6 @@ export function AdminDashboard({
       }
       if (id === "union-senhas" && canManageQueueTool) {
         navigateAdmin("tools", "union-senhas");
-        return;
-      }
-      if (id === "sac-digital" && (canAccessSacDigitalTool || canConfigureSacDigital)) {
-        navigateAdmin("tools", "sac-digital", canAccessSacDigitalTool ? null : "configuracoes");
         return;
       }
       if (id === "union-whatsapp" && (canAccessWhatsAppTool || canViewWhatsAppChannels)) {
@@ -521,25 +507,7 @@ export function AdminDashboard({
                 ? <Navigate to={adminPath("tools","union-whatsapp","configuracoes")} replace/>
                 : <Navigate to={adminPath("tools")} replace/>
     : route.resourceId === "sac-digital"
-      ? route.subpage === "configuracoes"
-        ? canConfigureSacDigital
-          ? <SacDigitalSettingsPage onBack={() => canAccessSacDigitalTool ? navigateAdmin("tools", "sac-digital") : navigateAdmin("tools")} />
-          : <Navigate to={adminPath("tools")} replace />
-        : canAccessSacDigitalTool
-        ? <SacDigitalToolPage
-          onConfigure={() => navigateAdmin("tools", "sac-digital", "configuracoes")}
-          onBack={() => navigateAdmin("tools")}
-          onOpenCustomer={hasPermission("customers.view")
-            ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
-            : undefined}
-          onOpenOrder={hasPermission("orders.view")
-            ? orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))
-            : undefined}
-          onCreateOrder={hasPermission("orders.create")
-            ? customerId => openAuthenticatedAdminTab(`${adminPath("orders", "new")}?customer=${encodeURIComponent(customerId)}`)
-            : undefined}
-        />
-        : canConfigureSacDigital ? <Navigate to={adminPath("tools", "sac-digital", "configuracoes")} replace /> : <Navigate to={adminPath("tools")} replace />
+      ? <Navigate to={adminPath("tools")} replace />
       : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
@@ -575,7 +543,7 @@ export function AdminDashboard({
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
-        <Suspense fallback={<LoadingState text={activeTab === "tools" && route.resourceId === "sac-digital" ? "Carregando SAC Digital..." : "Carregando módulo..."} />}>
+        <Suspense fallback={<LoadingState text="Carregando módulo..." />}>
         <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
             <Route index element={<AdminHomePage
