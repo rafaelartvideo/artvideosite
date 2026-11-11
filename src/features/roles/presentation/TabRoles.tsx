@@ -10,6 +10,7 @@ import {
   listPermissions,
   listRoleMembers,
   listRoles,
+  type RoleMemberRecord,
   updateRole,
   saveRolePermissions,
 } from "../infrastructure/roles.repository";
@@ -19,6 +20,7 @@ import {
 } from "@/features/employees/domain/permission-taxonomy";
 import {
   AdminCard,
+  AdminDialog,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -63,6 +65,17 @@ const emptyForm = (): FormState => ({
   selected: [],
 });
 
+// O resumo utiliza nome + um sobrenome; o modal conserva o nome completo.
+function shortMemberName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 3) return parts.join(" ");
+  let surnameIndex = 1;
+  while (surnameIndex < parts.length - 1 && /^(de|da|do|das|dos|e)$/i.test(parts[surnameIndex])) surnameIndex++;
+  return parts.slice(0, surnameIndex + 1).join(" ");
+}
+
+type DisplayRoleMember = { id: string; fullName: string; shortName: string };
+
 export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteProps) {
   const { hasPermission, activeOrganizationId, organizations } = useAuth();
   const canView = hasPermission("roles.view");
@@ -74,7 +87,8 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
 
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
-  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+  const [roleMembers, setRoleMembers] = useState<RoleMemberRecord[]>([]);
+  const [selectedMembersRoleId, setSelectedMembersRoleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [permissionListReady, setPermissionListReady] = useState(false);
@@ -91,11 +105,28 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const activeCompany = organizations.find(organization => organization.organization_id === activeOrganizationId);
   const hasPlatformOperatorAccess = activeCompany?.is_platform_operator !== true
     && organizations.some(organization => organization.is_platform_operator && organization.is_direct_member);
+  const membersByRole = useMemo(() => {
+    const grouped = new Map<string, DisplayRoleMember[]>();
+    for (const member of roleMembers) {
+      if (!member.role_id) continue;
+      const fullName = member.profile?.full_name?.trim() || "Usuário sem nome";
+      const list = grouped.get(member.role_id) || [];
+      list.push({ id: member.user_id, fullName, shortName: shortMemberName(fullName) });
+      grouped.set(member.role_id, list);
+    }
+    for (const list of grouped.values()) {
+      list.sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR", { sensitivity: "base" }));
+    }
+    return grouped;
+  }, [roleMembers]);
+  const selectedMembersRole = roles.find(role => role.id === selectedMembersRoleId) || null;
+  const selectedMembers = selectedMembersRoleId ? membersByRole.get(selectedMembersRoleId) || [] : [];
 
   const load = async () => {
     if (!activeOrganizationId || !canView) {
       setRoles([]);
       setPermissions([]);
+      setRoleMembers([]);
       setLoading(false);
       return;
     }
@@ -111,16 +142,15 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       setToast({ msg: `Erro ao carregar funções: ${systemErrorMessage(error)}`, type: "error" });
       return;
     }
-    const counts: Record<string, number> = {};
-    (membersResult.data || []).forEach((member: any) => {
-      if (member.role_id) counts[member.role_id] = (counts[member.role_id] || 0) + 1;
-    });
     setRoles((rolesResult.data || []) as RoleRecord[]);
     setPermissions((permissionsResult.data || []) as PermissionRecord[]);
-    setMemberCounts(counts);
+    setRoleMembers(membersResult.data || []);
   };
 
-  useEffect(() => { void load(); }, [activeOrganizationId, canView]);
+  useEffect(() => {
+    setSelectedMembersRoleId(null);
+    void load();
+  }, [activeOrganizationId, canView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -347,7 +377,21 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
             <tbody>{pagedRoles.map(role => <tr key={role.id} onClick={() => openRole(role)} className={canViewDetails ? "cursor-pointer" : undefined}>
               <td className="font-bold text-[#0d1b2e]">{role.name}</td>
               <td className="max-w-sm text-xs text-[#5a6a82]">{role.description || "—"}</td>
-              <td className="text-xs text-[#5a6a82]">{memberCounts[role.id] || 0}</td>
+              <td className="max-w-[320px] text-xs">
+                {(() => {
+                  const members = membersByRole.get(role.id) || [];
+                  if (!members.length) return <span className="text-muted-foreground">Nenhum funcionário</span>;
+                  const preview = members.slice(0, 3).map(member => member.shortName).join(", ")
+                    + (members.length > 3 ? ", ..." : "");
+                  return <button type="button"
+                    className="block w-full max-w-[300px] truncate text-left font-medium text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    title="Ver todos os funcionários vinculados"
+                    aria-label={`Ver todos os ${members.length} funcionários do perfil ${role.name}`}
+                    onClick={event => { event.stopPropagation(); setSelectedMembersRoleId(role.id); }}>
+                    {preview}
+                  </button>;
+                })()}
+              </td>
               <td><StatusBadge status={role.is_active ? "Ativo" : "Inativo"} /></td>
               
             </tr>)}</tbody>
@@ -356,6 +400,21 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={roles.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </>}
     </AdminCard>}
+    <AdminDialog
+      open={Boolean(selectedMembersRole)}
+      onClose={() => setSelectedMembersRoleId(null)}
+      title="Funcionários vinculados"
+      description={selectedMembersRole ? `${selectedMembersRole.name} · ${selectedMembers.length} ${selectedMembers.length === 1 ? "funcionário" : "funcionários"}` : undefined}
+      className="max-w-lg"
+      footer={<div className="flex justify-end"><BtnSecondary onClick={() => setSelectedMembersRoleId(null)}>Fechar</BtnSecondary></div>}
+    >
+      <ul className="divide-y divide-border">
+        {selectedMembers.map(member => <li key={member.id} className="py-3 first:pt-0 last:pb-0">
+          <p className="text-sm font-semibold text-foreground">{member.shortName}</p>
+          {member.fullName !== member.shortName && <p className="mt-0.5 text-xs text-muted-foreground">{member.fullName}</p>}
+        </li>)}
+      </ul>
+    </AdminDialog>
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
       {canCreate && <BtnPrimary onClick={openNew}>Novo</BtnPrimary>}
