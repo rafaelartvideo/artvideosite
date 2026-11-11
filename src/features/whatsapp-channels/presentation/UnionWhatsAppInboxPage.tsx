@@ -150,6 +150,9 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
+  const [mediaRequested,setMediaRequested]=useState(false);
+  const mediaTargetRef=useRef<HTMLDivElement|null>(null);
+  const mediaRequestInFlight=useRef(false);
   const [stickerZoom,setStickerZoom]=useState(false);
   useEffect(()=>{
     if(!stickerZoom)return;
@@ -159,39 +162,56 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   },[stickerZoom]);
   const hasStoredMedia = Boolean(message.media_path || message.media_available);
   const loadMedia = useCallback(async () => {
-    if (!hasStoredMedia || mediaLoading || !organizationId) return;
+    if (!hasStoredMedia || mediaRequestInFlight.current || !organizationId) return;
     const cacheKey=organizationId+":"+message.id;
     const cached=message.message_type==="sticker" ? stickerPreviewCache.get(cacheKey) : null;
-    if(cached && cached.expires>Date.now()){
-      setMediaUrl(cached.url);
-      return;
-    }
+    if(cached && cached.expires>Date.now()){setMediaUrl(cached.url);return;}
+    mediaRequestInFlight.current=true;
+    const controller=new AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),75000);
     setMediaLoading(true);
     setMediaError("");
     try {
-      const data = await operateUnionWhatsAppInbox(organizationId, message.conversation_id, "media_view", {
-        message_id: message.id,
-      });
-      if (!data.url) throw new Error("Mídia não disponível.");
+      const data=await operateUnionWhatsAppInbox(organizationId,message.conversation_id,"media_view",
+        {message_id:message.id},controller.signal);
+      if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
+      if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
       setMediaUrl(data.url);
       if(message.message_type==="sticker"){
         if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
         stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
       }
-    } catch (reason) {
-      setMediaError(systemErrorMessage(reason, "Não foi possível abrir o arquivo."));
-    } finally {
+    }catch(reason){
+      setMediaError(controller.signal.aborted
+        ? "O carregamento demorou demais. Toque para tentar novamente."
+        : systemErrorMessage(reason,"Não foi possível abrir o arquivo."));
+    }finally{
+      window.clearTimeout(timeout);
+      mediaRequestInFlight.current=false;
       setMediaLoading(false);
     }
-  }, [message.id, message.conversation_id, organizationId, hasStoredMedia, mediaLoading]);
+  },[message.id,message.conversation_id,message.message_type,organizationId,hasStoredMedia]);
 
-  useEffect(() => {
+  // Fotos e figurinhas são consultadas quando estiverem próximas da área visível,
+  // evitando um download simultâneo para cada imagem do histórico.
+  useEffect(()=>{
+    setMediaUrl("");setMediaError("");setMediaRequested(false);
+    if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
+      (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
+    const element=mediaTargetRef.current;
+    if(!element || typeof IntersectionObserver==="undefined"){setMediaRequested(true);return;}
+    const observer=new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting)){setMediaRequested(true);observer.disconnect();}
+    },{rootMargin:"150px"});
+    observer.observe(element);
+    return()=>observer.disconnect();
+  },[message.id,hasStoredMedia,message.message_type,message.media_mime,organizationId]);
+  useEffect(()=>{if(mediaRequested)void loadMedia();},[mediaRequested,loadMedia]);
+  const onImageError=()=>{
+    stickerPreviewCache.delete(organizationId+":"+message.id);
     setMediaUrl("");
-    setMediaError("");
-    if (hasStoredMedia && (["image","sticker","audio"].includes(message.message_type) ||
-      (message.message_type==="file" && message.media_mime?.startsWith("audio/")))) void loadMedia();
-    // Avoid repeatedly fetching large files when switching conversation.
-  }, [message.id, hasStoredMedia, message.message_type, organizationId]);
+    setMediaError("Imagem não carregada. Tente novamente.");
+  };
 
   if(message.message_type==="audio" ||
     (message.message_type==="file" && message.media_mime?.startsWith("audio/"))) {
@@ -210,11 +230,11 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   }
   if(message.message_type==="sticker"){
     return <>
-      <div className="flex w-fit max-w-[130px] flex-col gap-1.5">
+      <div ref={mediaTargetRef} className="flex w-fit max-w-[130px] flex-col gap-1.5">
       {mediaUrl ? <button type="button" onClick={()=>setStickerZoom(true)}
         aria-label="Ampliar figurinha" title="Ampliar figurinha" className="block w-fit">
         <img src={mediaUrl} alt="Figurinha do WhatsApp" loading="lazy" decoding="async"
-          onLoad={onMediaLoad} className="block max-h-[124px] max-w-[120px] object-contain"/>
+          onLoad={onMediaLoad} onError={onImageError} className="block max-h-[124px] max-w-[120px] object-contain"/>
       </button> : mediaLoading ? <div role="status" aria-label="Carregando figurinha"
         className="flex h-[70px] w-[100px] items-center justify-center">
         <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
@@ -256,10 +276,10 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const Icon = (mediaIcons as Record<string, typeof FileText>)[message.message_type] || FileText;
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
     location:"Localização", contact:"Contato",sticker:"Figurinha"} as Record<string,string>)[message.message_type] || "Mensagem";
-  return <div className="space-y-2">
+  return <div ref={mediaTargetRef} className="space-y-2">
     {mediaUrl && message.message_type==="image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
       className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
-        onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
+        onLoad={onMediaLoad} onError={onImageError} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
