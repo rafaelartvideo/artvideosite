@@ -1,4 +1,4 @@
-import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { INPUT, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MapPin, Search, UserPlus } from "lucide-react";
@@ -84,18 +84,18 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-semibold">
-          <span>{type==="PF"?"Nome completo":"Nome da empresa"} *</span>
+          <span><RequiredFieldLabel label={type==="PF"?"Nome completo":"Nome da empresa"} required/></span>
           <input value={name} maxLength={180} onChange={e=>setName(e.target.value)}
             className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1 text-xs font-semibold">
-          <span>{type==="PF"?"CPF":"CNPJ"} *</span>
+          <span><RequiredFieldLabel label={type==="PF"?"CPF":"CNPJ"} required/></span>
           <input value={document} inputMode="numeric" maxLength={18}
             onChange={e=>setDocument(e.target.value)}
             className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
         </label>
         <label className="space-y-1 text-xs font-semibold">
-          <span>WhatsApp com DDD *</span>
+          <span><RequiredFieldLabel label="WhatsApp com DDD" required/></span>
           <input value={whatsapp} inputMode="tel" maxLength={20}
             onChange={e=>setWhatsapp(e.target.value)}
             className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
@@ -110,7 +110,7 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
       <div className="space-y-3 border-t border-border pt-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold"><MapPin size={15}/> Endereço</h3>
         <div className="grid gap-3 sm:grid-cols-[170px_minmax(0,1fr)]">
-          <label className="space-y-1 text-xs font-semibold"><span>CEP *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="CEP" required/></span>
             <div className="flex gap-1">
               <input value={address.zip_code||""} inputMode="numeric" maxLength={9}
                 onChange={e=>changeAddress("zip_code",formatZipCode(e.target.value))}
@@ -122,13 +122,13 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
               </button>
             </div>
           </label>
-          <label className="space-y-1 text-xs font-semibold"><span>Rua / logradouro *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="Rua / logradouro" required/></span>
             <input value={address.street||""} onChange={e=>changeAddress("street",e.target.value)}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1 text-xs font-semibold"><span>Número *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="Número" required/></span>
             <input value={address.number||""} onChange={e=>changeAddress("number",e.target.value)}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
@@ -136,15 +136,15 @@ export function SalesQuickCustomerDialog({organizationId,onClose,onSaved}:{
             <input value={address.complement||""} onChange={e=>changeAddress("complement",e.target.value)}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
-          <label className="space-y-1 text-xs font-semibold"><span>Bairro *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="Bairro" required/></span>
             <input value={address.neighborhood||""} onChange={e=>changeAddress("neighborhood",e.target.value)}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
-          <label className="space-y-1 text-xs font-semibold"><span>Cidade *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="Cidade" required/></span>
             <input value={address.city||""} onChange={e=>changeAddress("city",e.target.value)}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
           </label>
-          <label className="space-y-1 text-xs font-semibold"><span>Estado (UF) *</span>
+          <label className="space-y-1 text-xs font-semibold"><span><RequiredFieldLabel label="Estado (UF)" required/></span>
             <input value={address.state||""} maxLength={2}
               onChange={e=>changeAddress("state",e.target.value.toUpperCase())}
               className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/>
