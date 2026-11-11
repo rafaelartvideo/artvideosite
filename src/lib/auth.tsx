@@ -347,12 +347,15 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     let disposed = false;
     let inFlight = false;
     let previousAllowed = accessWindow?.allowed ?? true;
+    let lastVerifiedWindow = accessWindow;
     const checkWindow = async () => {
       if (inFlight) return;
       inFlight = true;
       try {
         const status = await checkMyEmployeeAccessWindow(organizationId);
         if (disposed || activeOrganizationIdRef.current !== organizationId) return;
+        lastVerifiedWindow = status;
+        setAccessError(null);
         setAccessWindow(status);
         if (!status.allowed) setPermissions([]);
         if (!previousAllowed && status.allowed) {
@@ -361,11 +364,16 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         }
         previousAllowed = status.allowed;
       } catch (error) {
-        if (disposed) return;
+        if (disposed || activeOrganizationIdRef.current !== organizationId) return;
         console.warn("[ACESSO] Falha na verificação de horários:", error);
+        // Uma falha temporária no Supabase não revoga um acesso
+        // anteriormente confirmado como irrestrito. A próxima verificação
+        // continua agendada normalmente. Restrições ativas seguem fail-closed.
+        if (lastVerifiedWindow?.allowed && lastVerifiedWindow.restricted === false) return;
         setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
         setAccessWindow({ allowed: false, restricted: true, timezone: "America/Sao_Paulo" });
         setPermissions([]);
+        previousAllowed = false;
       } finally {
         inFlight = false;
       }
