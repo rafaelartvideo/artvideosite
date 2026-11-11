@@ -365,22 +365,22 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
           <h3 className="text-[16px] font-extrabold text-[#0b1d37]">Avaliar minha compra</h3>
           <p className="mt-1 text-[12px] leading-5 text-[#64748b]">Comprou este produto? Use o código do pedido e seu e-mail para compartilhar sua experiência.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-[12px] font-bold">Código do pedido *
+            <label className="text-[12px] font-bold">Código do pedido <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
               <input required minLength={36} maxLength={36} className={`${inputClass} mt-1`} value={reviewOrderId} onChange={e => setReviewOrderId(e.target.value)} placeholder="Código UUID do pedido"/>
             </label>
-            <label className="text-[12px] font-bold">E-mail da compra *
+            <label className="text-[12px] font-bold">E-mail da compra <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
               <input required type="email" className={`${inputClass} mt-1`} value={reviewEmail} onChange={e => setReviewEmail(e.target.value)} placeholder="email@exemplo.com"/>
             </label>
           </div>
           <fieldset className="mt-4">
-            <legend className="text-[12px] font-bold">Sua nota *</legend>
+            <legend className="text-[12px] font-bold">Sua nota <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span></legend>
             <div className="mt-1 flex gap-1">{[1,2,3,4,5].map(n =>
               <button key={n} type="button" onClick={() => setReviewRating(n)} aria-label={`${n} ${n === 1 ? "estrela" : "estrelas"}`}
                 aria-pressed={reviewRating === n} className="rounded p-1 text-[#f59e0b] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
                 <Star size={25} fill={n <= reviewRating ? "currentColor" : "none"}/>
               </button>)}</div>
           </fieldset>
-          <label className="mt-4 block text-[12px] font-bold">Comentário *
+          <label className="mt-4 block text-[12px] font-bold">Comentário <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
             <textarea required minLength={10} maxLength={1500} rows={3} value={reviewBody}
               onChange={e => setReviewBody(e.target.value)} placeholder="Conte como foi sua experiência com o produto..." className={`${inputClass} mt-1 resize-y`}/>
           </label>
