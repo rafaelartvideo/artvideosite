@@ -142,3 +142,16 @@ test("agenda de acesso usa a entidade de cadastro unificado, inclusive funcioná
   assert.match(form,/saveEmployeeAccessHours\(activeOrganizationId, savedId, stagedAccessHours\)/);
   assert.match(form,/entityId=\{routeRegistration\.id\}/);
 });
+
+test("expediente não bloqueia contas sem configuração e falha transitória não revoga acesso irrestrito", () => {
+  const migration=read("supabase/migrations/20261111125500_employee_crm_hours_unrestricted_default.sql");
+  const auth=read("src/lib/auth.tsx");
+  assert.match(migration, /member\.status = 'active'/);
+  assert.match(migration, /private\.can_access_organization\(p_organization_id\)/);
+  assert.match(migration, /if not exists \([\s\S]*?config\.enabled[\s\S]*?then/);
+  assert.match(migration, /'allowed',true,'restricted',false/);
+  assert.match(migration, /private\.employee_crm_access_now\(p_organization_id, v_actor\)/);
+  assert.match(auth, /lastVerifiedWindow\?\.allowed && lastVerifiedWindow\.restricted === false/);
+  assert.match(auth, /setAccessError\(null\);\s*setAccessWindow\(status\);/);
+  assert.match(auth, /previousAllowed = false;/);
+});
