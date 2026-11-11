@@ -133,8 +133,10 @@ function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-export async function getSacDigitalFinishedProtocolCount(organizationId: string) {
-  return singleFlight(`${organizationId}:finished-count`, async () => {
+export async function getSacDigitalFinishedProtocolCount(organizationId: string, userId: string) {
+  // O total respeita RLS. Nunca compartilhe o resultado de uma chamada em
+  // andamento entre dois usuários com permissões diferentes na mesma empresa.
+  return singleFlight(`${organizationId}:${userId}:finished-count`, async () => {
     const { count, error } = await supabase
       .from("sac_digital_protocols")
       .select("id", { count: "exact", head: true })

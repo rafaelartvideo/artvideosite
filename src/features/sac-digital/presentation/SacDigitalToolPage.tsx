@@ -2,6 +2,7 @@ import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, createVisiblePolling, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
+import { shouldRefreshFinishedCount } from '../domain/finished-count-coordinator.mjs';
 import { lazy, Suspense } from 'react';
 const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m => ({default: m.SacDigitalResources})));
 const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').then(m => ({default: m.SacDigitalContactsPage})));
@@ -380,6 +381,7 @@ export function SacDigitalToolPage({
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
   const [finishedProtocolCount, setFinishedProtocolCount] = useState(0);
+  const finishedCountSnapshotRef = useRef<{ identity: string; count: number; refreshedAt: number } | null>(null);
   const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [messagesIdentity, setMessagesIdentity] = useState("");
@@ -680,11 +682,23 @@ export function SacDigitalToolPage({
       return;
     }
     try {
+      // A contagem exata pode varrer o histórico inteiro, embora a lista
+      // finalizada da caixa mostre somente as últimas 400 conversas.
+      // Reutiliza-a entre atualizações automáticas; ações explícitas com
+      // fresh=true sempre consultam novamente. Escopo separado por usuário.
+      const countIdentity = JSON.stringify([activeOrganizationId, user?.id || null]);
+      const countSnapshot = finishedCountSnapshotRef.current;
+      const refreshCount = shouldRefreshFinishedCount(countSnapshot, countIdentity, fresh);
       const [next, totalFinished] = await Promise.all([
         listSacDigitalProtocols(activeOrganizationId,fresh,user?.id || ""),
-        getSacDigitalFinishedProtocolCount(activeOrganizationId),
+        refreshCount
+          ? getSacDigitalFinishedProtocolCount(activeOrganizationId, user?.id || "")
+          : Promise.resolve(countSnapshot!.count),
       ]);
       if(requestId!==protocolsRequestIdRef.current)return;
+      if (refreshCount) finishedCountSnapshotRef.current = {
+        identity: countIdentity, count: totalFinished, refreshedAt: Date.now(),
+      };
       setFinishedProtocolCount(totalFinished);
       const currentSelectedId = selectedProtocolIdRef.current;
       let resolvedSelectedId: string | null = null;
