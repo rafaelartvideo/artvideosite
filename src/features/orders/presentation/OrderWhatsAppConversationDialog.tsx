@@ -116,7 +116,7 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
       const verified = await operateUnionWhatsAppInbox(
         organizationId, crypto.randomUUID(), "check_number", { phone: number },
       );
-      if (!verified.phone || !/^55[1-9]\\d{9,10}$/.test(verified.phone)) {
+      if (!verified.phone || !/^55[1-9]\d{9,10}$/.test(verified.phone)) {
         throw new Error("O número não foi confirmado pelo WhatsApp.");
       }
       const created = await operateUnionWhatsAppInbox(
