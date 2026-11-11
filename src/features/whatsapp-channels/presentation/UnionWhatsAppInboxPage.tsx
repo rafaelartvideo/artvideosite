@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation } from "react-router";
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -600,7 +601,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     let last=0;
     const onResume=()=>{
       // No provider or database polling while disconnected. Users reconnect
-      // from Canais or explicitly click Verificar conexão below.
+      // from the Canais area.
       if(channelReady===false || document.visibilityState!=="visible"||
         Date.now()-last<30000)return;
       last=Date.now();
@@ -1483,20 +1484,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </div>
     </header>}
     {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
-     channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
-      <MessageCircle size={36} className="text-muted-foreground"/>
-      <div className="space-y-2">
-        <p className="text-base font-bold">Nenhum canal WhatsApp conectado</p>
-        <p className="max-w-sm text-sm text-muted-foreground">Configure e conecte um canal para começar a receber e enviar mensagens.</p>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <AdminButton variant="secondary" onClick={()=>void checkChannel()}>
-          <RefreshCw size={16}/> Verificar conexão
-        </AdminButton>
+     channelReady === false ? <div className={embedded
+      ? "flex min-h-0 flex-1 items-center justify-center bg-card px-6 py-8 text-center"
+      : "flex min-h-[440px] items-center justify-center bg-card px-6 py-12 text-center"}>
+      <div className="flex w-full max-w-md flex-col items-center gap-3">
+        <WhatsAppBrandIcon size={44} className="text-[#25D366]"/>
+        <div className="flex w-full flex-col items-center gap-2">
+          <p className="text-base font-bold text-foreground">Nenhum canal WhatsApp conectado</p>
+          <p className="max-w-sm text-center text-sm leading-6 text-muted-foreground">Configure e conecte um canal para começar a receber e enviar mensagens.</p>
+        </div>
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-          <AdminButton onClick={() => onConfigure()}>
-            <Settings2 size={16}/> Reconectar WhatsApp
-          </AdminButton>}
+          <div className="mt-2 flex justify-center">
+            <AdminButton onClick={onConfigure}>
+              <Settings2 size={16}/> Reconectar WhatsApp
+            </AdminButton>
+          </div>}
       </div>
     </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "h-[calc(100dvh-210px)] min-h-[420px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:h-[min(76vh,850px)] md:min-h-[520px]"}>
       <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1"}>
