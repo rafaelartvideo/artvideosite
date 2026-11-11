@@ -54,7 +54,7 @@ export async function loadDashboardOverview({ organizationId, periodDays, access
   };
 
   const loadCompleteList = async <K extends "orders" | "registrations">(key: K): Promise<DashboardOverview[K]> => {
-    const all: DashboardOverview[K] = [];
+    const all: Array<DashboardOverview["orders"][number] | DashboardOverview["registrations"][number]> = [];
     let cursor: DashboardCursor | null = null;
     let iterations = 0;
     while (all.length < DASHBOARD_MAX_ROWS) {
@@ -72,7 +72,7 @@ export async function loadDashboardOverview({ organizationId, periodDays, access
       };
       const page = await readPage(flags, key === "orders" ? cursor : null, key === "registrations" ? cursor : null, batchSize);
       const rows = page[key];
-      all.push(...(rows as DashboardOverview[K]));
+      all.push(...rows);
       if (rows.length < batchSize || all.length >= DASHBOARD_MAX_ROWS) break;
       const last = rows[rows.length - 1];
       if (!last?.id || !last.created_at || (cursor && last.id === cursor.id)) {
@@ -80,7 +80,7 @@ export async function loadDashboardOverview({ organizationId, periodDays, access
       }
       cursor = { id: last.id, created_at: last.created_at };
     }
-    return all;
+    return all as DashboardOverview[K];
   };
 
   const otherFlags = {
