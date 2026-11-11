@@ -12,26 +12,99 @@ type DashboardQueryInput = {
   access: DashboardAccess;
 };
 
-export async function loadDashboardOverview({ organizationId, periodDays, access }: DashboardQueryInput): Promise<DashboardOverview> {
-  const { data, error } = await supabase.rpc("load_admin_dashboard_overview_v2", {
-    p_organization_id: organizationId,
-    p_period_days: Math.max(1, Math.trunc(periodDays || 30)),
-    p_orders: access.orders,
-    p_registrations: access.registrations,
-    p_inventory: access.inventory,
-    p_inventory_costs: access.inventoryCosts,
-    p_agenda: access.agenda,
-    p_quotes: access.quotes,
-  });
-  if (error) throw error;
+const DASHBOARD_PAGE_SIZE = 60;
+const DASHBOARD_MAX_ROWS = 2000;
+type DashboardCursor = { id: string; created_at: string };
 
-  const overview = (data || {}) as Record<string, unknown>;
+export async function loadDashboardOverview({ organizationId, periodDays, access }: DashboardQueryInput): Promise<DashboardOverview> {
+  const safePeriod = Math.max(1, Math.trunc(periodDays || 30));
+
+  // Fetch pages before joining their JSON rows. Each request stays below the
+  // PostgREST statement timeout without dropping older records from totals.
+  const readPage = async (
+    flags: Pick<DashboardAccess, "orders" | "registrations" | "inventory" | "inventoryCosts" | "agenda" | "quotes">,
+    ordersBefore: DashboardCursor | null = null,
+    registrationsBefore: DashboardCursor | null = null,
+    pageSize = DASHBOARD_PAGE_SIZE,
+  ): Promise<DashboardOverview> => {
+    const { data, error } = await supabase.rpc("load_admin_dashboard_overview_v3", {
+      p_organization_id: organizationId,
+      p_period_days: safePeriod,
+      p_orders: flags.orders,
+      p_registrations: flags.registrations,
+      p_inventory: flags.inventory,
+      p_inventory_costs: flags.inventoryCosts,
+      p_agenda: flags.agenda,
+      p_quotes: flags.quotes,
+      p_order_before_at: ordersBefore?.created_at ?? null,
+      p_order_before_id: ordersBefore?.id ?? null,
+      p_registration_before_at: registrationsBefore?.created_at ?? null,
+      p_registration_before_id: registrationsBefore?.id ?? null,
+      p_page_size: pageSize,
+    });
+    if (error) throw error;
+    const result = (data || {}) as Record<string, unknown>;
+    return {
+      orders: Array.isArray(result.orders) ? result.orders as DashboardOverview["orders"] : [],
+      registrations: Array.isArray(result.registrations) ? result.registrations as DashboardOverview["registrations"] : [],
+      inventory: Array.isArray(result.inventory) ? result.inventory as DashboardOverview["inventory"] : [],
+      appointments: Array.isArray(result.appointments) ? result.appointments as DashboardOverview["appointments"] : [],
+      quotes: Array.isArray(result.quotes) ? result.quotes as DashboardOverview["quotes"] : [],
+    };
+  };
+
+  const loadCompleteList = async <K extends "orders" | "registrations">(key: K): Promise<DashboardOverview[K]> => {
+    const all: DashboardOverview[K] = [];
+    let cursor: DashboardCursor | null = null;
+    let iterations = 0;
+    while (all.length < DASHBOARD_MAX_ROWS) {
+      if (++iterations > Math.ceil(DASHBOARD_MAX_ROWS / DASHBOARD_PAGE_SIZE)) {
+        throw new Error("Paginação do dashboard não avançou.");
+      }
+      const batchSize = Math.min(DASHBOARD_PAGE_SIZE, DASHBOARD_MAX_ROWS - all.length);
+      const flags = {
+        orders: key === "orders",
+        registrations: key === "registrations",
+        inventory: false,
+        inventoryCosts: false,
+        agenda: false,
+        quotes: false,
+      };
+      const page = await readPage(flags, key === "orders" ? cursor : null, key === "registrations" ? cursor : null, batchSize);
+      const rows = page[key];
+      all.push(...(rows as DashboardOverview[K]));
+      if (rows.length < batchSize || all.length >= DASHBOARD_MAX_ROWS) break;
+      const last = rows[rows.length - 1];
+      if (!last?.id || !last.created_at || (cursor && last.id === cursor.id)) {
+        throw new Error("Cursor inválido na paginação do dashboard.");
+      }
+      cursor = { id: last.id, created_at: last.created_at };
+    }
+    return all;
+  };
+
+  const otherFlags = {
+    orders: false,
+    registrations: false,
+    inventory: access.inventory,
+    inventoryCosts: access.inventoryCosts,
+    agenda: access.agenda,
+    quotes: access.quotes,
+  };
+  const [orders, registrations, additional] = await Promise.all([
+    access.orders ? loadCompleteList("orders") : Promise.resolve([] as DashboardOverview["orders"]),
+    access.registrations ? loadCompleteList("registrations") : Promise.resolve([] as DashboardOverview["registrations"]),
+    (access.inventory || access.agenda || access.quotes)
+      ? readPage(otherFlags)
+      : Promise.resolve({ inventory: [], appointments: [], quotes: [] } as Pick<DashboardOverview, "inventory" | "appointments" | "quotes">),
+  ]);
+
   return {
-    orders: (Array.isArray(overview.orders) ? overview.orders : []) as DashboardOverview["orders"],
-    registrations: (Array.isArray(overview.registrations) ? overview.registrations : []) as DashboardOverview["registrations"],
-    inventory: (Array.isArray(overview.inventory) ? overview.inventory : []) as DashboardOverview["inventory"],
-    appointments: (Array.isArray(overview.appointments) ? overview.appointments : []) as DashboardOverview["appointments"],
-    quotes: (Array.isArray(overview.quotes) ? overview.quotes : []) as DashboardOverview["quotes"],
+    orders,
+    registrations,
+    inventory: additional.inventory,
+    appointments: additional.appointments,
+    quotes: additional.quotes,
   };
 }
 
