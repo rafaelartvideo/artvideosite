@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { QUICK_REPLY_VARIABLES, renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { MessageSquareText, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -72,7 +73,7 @@ export function WhatsAppQuickRepliesSettings() {
         items.length===0 ? <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
           <MessageSquareText size={26}/>
           <p>Nenhuma mensagem rápida configurada nesta empresa.</p>
-          <p className="max-w-lg text-xs">Cadastre, por exemplo, uma saudação ou o endereço da loja com os dados corretos.</p>
+          <p className="max-w-lg text-xs">Crie saudações, endereços e respostas com variáveis como {"{operador}"} e {"{horario}"}.</p>
         </div> :
         <div className="divide-y divide-border">
           {items.map(item => <div key={item.id} className="flex items-start justify-between gap-3 px-4 py-3">
@@ -111,6 +112,21 @@ export function WhatsAppQuickRepliesSettings() {
             placeholder="Texto que será inserido na conversa para revisão"
             className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-3 text-sm"/>
         </label>
+        <section aria-label="Variáveis disponíveis" className="space-y-2">
+          <p className="text-xs font-bold">Variáveis automáticas</p>
+          <p className="text-xs text-muted-foreground">Clique em uma variável para inserir na mensagem. Ela será preenchida com os dados do operador e da conversa ao selecionar a resposta.</p>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_REPLY_VARIABLES.map(item=><button type="button" key={item.token} title={item.label}
+              onClick={()=>setDraft(current=>current&&({...current,message:(current.message+" "+item.token).trimStart().slice(0,4000)}))}
+              className="rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs font-semibold text-primary hover:border-primary/50 hover:bg-primary/10">
+              {item.token}
+            </button>)}
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="mb-1 text-[11px] font-bold text-muted-foreground">Prévia com dados de exemplo</p>
+            <p className="whitespace-pre-wrap break-words text-xs leading-5">{renderWhatsAppQuickReply(draft.message,{operatorName:"Rafael Ferreira",customerName:"Cliente de exemplo",protocol:"ATD-000001"})||"Escreva a mensagem para visualizar."}</p>
+          </div>
+        </section>
         <label className="flex items-center gap-2 text-xs font-semibold">
           <input type="checkbox" checked={draft.is_active}
             onChange={event => setDraft(current => current && ({...current,is_active:event.target.checked}))}/>
