@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -18,7 +17,7 @@ export const TESTE_WHATSAPP_OS_ORGANIZATION_ID = "5bcd7ec7-38f0-4dda-a84c-10429b
 
 type State =
   | { status: "loading" }
-  | { status: "ready"; conversationId: string }
+  | { status: "ready"; conversationId: string; participating?: boolean; responsibleName?: string | null }
   | { status: "empty"; message: string; canStart: boolean }
   | { status: "disconnected" | "unauthorized" | "error"; message: string };
 
@@ -37,9 +36,10 @@ type Props = {
   organizationId: string;
   phone: string;
   customerName: string;
+  serviceOrderId: string;
 };
 
-export function OrderWhatsAppConversationDialog({ open, onClose, organizationId, phone, customerName }: Props) {
+export function OrderWhatsAppConversationDialog({ open, onClose, organizationId, phone, customerName, serviceOrderId }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
   const [state, setState] = useState<State>({ status: "loading" });
@@ -68,39 +68,28 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
 
     void (async () => {
       try {
-        // The backend verifies the operator and resolves the active organization channel.
-        const channel = await operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), "channel_status");
+        // The server verifies the OS/customer, contact phone, tenant, operator
+        // permissions and active channel before sharing or joining a thread.
+        const found = await operateUnionWhatsAppInbox(
+          organizationId, crypto.randomUUID(), "os_join", { service_order_id: serviceOrderId },
+        );
         if (cancelled) return;
-        if (!channel.channel_connected || !channel.channel_id || !channel.channel_phone) {
-          set({ status: "disconnected", message: "A empresa Teste ainda não possui um canal WhatsApp conectado." });
-          return;
-        }
-
-        // RLS is preserved: do not use service-role credentials or merge other
-        // organizations/channels to try to locate a private conversation.
-        const { data, error } = await supabase.from("union_whatsapp_conversations")
-          .select("id")
-          .eq("organization_id", organizationId)
-          .eq("channel_id", channel.channel_id)
-          .eq("account_phone", channel.channel_phone)
-          .in("contact_phone", candidates)
-          .order("last_message_at", { ascending: false, nullsFirst: false })
-          .limit(1);
-        if (error) throw error;
-        if (cancelled) return;
-        const conversationId = data?.[0]?.id;
-        if (conversationId) {
-          set({ status: "ready", conversationId });
+        if (found.found && found.conversation_id) {
+          set({ status: "ready", conversationId: found.conversation_id,
+            participating: found.participating === true, responsibleName: found.responsible_name });
         } else {
-          set({ status: "empty", message: "Este cliente ainda não possui uma conversa no WhatsApp da empresa.", canStart: channel.capabilities?.start === true });
+          set({ status: "empty", message: found.can_start === false
+            ? "O cliente não possui um WhatsApp válido para iniciar o atendimento."
+            : "Este cliente ainda não possui uma conversa no WhatsApp da empresa.",
+            canStart: found.can_start === true });
         }
       } catch (error) {
-        set({ status: "error", message: systemErrorMessage(error, "Não foi possível carregar a conversa do cliente.") });
+        set({ status: "error", message: systemErrorMessage(error, "Não foi possível abrir o atendimento WhatsApp.") });
       }
     })();
 
     return () => { cancelled = true; };
-  }, [open, organizationId, phone, activeOrganizationId, canViewInbox]);
+  }, [open, organizationId, phone, serviceOrderId, activeOrganizationId, canViewInbox]);
 
   const startConversation = async () => {
     if (startGateRef.current || state.status !== "empty" || !state.canStart ||
@@ -144,18 +133,26 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
       <LoadingState text="Preparando conversa do cliente..." />
-    </div> : state.status === "ready" ? <Suspense fallback={<div className="flex h-full items-center justify-center">
-      <LoadingState text="Carregando conversa..." />
-    </div>}>
-      <EmbeddedWhatsAppConversation
-        key={state.conversationId}
-        embedded
-        embeddedFullControls
-        initialConversationId={state.conversationId}
-        onBack={onClose}
-        onConfigure={onClose}
-      />
-    </Suspense> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+    </div> : state.status === "ready" ? <div className="flex h-full min-h-0 flex-col">
+      {state.participating && <div role="status" className="flex shrink-0 items-center gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/45 dark:text-sky-200">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
+        <span>{state.responsibleName ? `Atendimento com ${state.responsibleName}.` : "Atendimento com outro operador."} Você entrou como <strong>Participando</strong>, sem alterar o responsável.</span>
+      </div>}
+      <div className="min-h-0 flex-1">
+        <Suspense fallback={<div className="flex h-full items-center justify-center">
+          <LoadingState text="Carregando conversa..." />
+        </div>}>
+          <EmbeddedWhatsAppConversation
+            key={state.conversationId}
+            embedded
+            embeddedFullControls
+            initialConversationId={state.conversationId}
+            onBack={onClose}
+            onConfigure={onClose}
+          />
+        </Suspense>
+      </div>
+    </div> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <WhatsAppBrandIcon size={42} className="text-[#25D366]" />
       <p className="max-w-md text-sm text-muted-foreground">{state.message}</p>
       {state.status === "empty" && state.canStart && <AdminButton
