@@ -275,7 +275,15 @@ Deno.serve(async request => {
     const originalName=str(get(media,"fileName","FileName","filename"),180)
       .replace(/[^\p{L}\p{N}._() -]/gu,"").trim().slice(0,160);
     const fileLength=Number(get(media,"fileLength","FileLength","fileSize","FileSize") || 0);
-    const fileUrl=str(get(media,"URL","Url","url"),2000);
+    const providerUrl=str(get(media,"URL","Url","url"),2000);
+    const directPath=str(get(media,"directPath","DirectPath"),1800);
+    // Whatsmeow commonly supplies DirectPath but no URL for stickers.
+    // Use only a CDN-relative WhatsApp media path from an authenticated webhook.
+    // This is an internal descriptor, NEVER a browser-accessible media link.
+    const validDirectPath=directPath.startsWith("/v/") &&
+      !directPath.startsWith("//") && !/[\\#\u0000-\u001f]/.test(directPath) &&
+      !directPath.includes("://") && directPath.length<=1800;
+    const fileUrl=validDirectPath ? "https://mmg.whatsapp.net"+directPath : providerUrl;
     const mediaKey=str(get(media,"mediaKey","MediaKey"),512);
     const fileHash=str(get(media,"fileSHA256","FileSHA256"),512);
     const fileEncHash=str(get(media,"fileEncSHA256","FileEncSHA256"),512);
@@ -285,8 +293,16 @@ Deno.serve(async request => {
       validMedia=mediaKind && addr.protocol==="https:" &&
         (addr.hostname==="whatsapp.net" || addr.hostname.endsWith(".whatsapp.net") ||
           addr.hostname==="fbcdn.net" || addr.hostname.endsWith(".fbcdn.net")) &&
+        !addr.username && !addr.password && !addr.port && !addr.hash &&
         fileLength>0 && fileLength<=5242880 && Boolean(mediaKey && fileHash && mime);
     } catch { /* A media thumbnail alone is not a decryptable attachment. */ }
+    if(typeHint==="sticker" && !validMedia) {
+      // Log presence flags only: never log media URLs, keys, hashes or JIDs.
+      console.warn("union-whatsapp-webhook sticker_media_descriptor_missing", {
+        direct_path:validDirectPath, url:Boolean(providerUrl), size:fileLength>0,
+        media_key:Boolean(mediaKey), sha256:Boolean(fileHash), mime:Boolean(mime),
+      });
+    }
     // PushName on IsFromMe events identifies OUR OWN WhatsApp account,
     // not the recipient. Never assign it to the conversation contact.
     const name = isFromMe ? "" : str(get(info, "PushName", "pushName") || "", 160).trim();
