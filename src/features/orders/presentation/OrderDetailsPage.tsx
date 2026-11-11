@@ -643,7 +643,8 @@ export function OrderDetailsPage(props: Props) {
         onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
-    {detail && detail.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && <OrderWhatsAppConversationDialog
+    {detail && testWhatsAppOpen && detail.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && <OrderWhatsAppConversationDialog
+      key={detail.id}
       open={testWhatsAppOpen}
       onClose={() => setTestWhatsAppOpen(false)}
       organizationId={detail.organization_id}
