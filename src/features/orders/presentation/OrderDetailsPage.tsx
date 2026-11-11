@@ -43,6 +43,7 @@ import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
+import { OrderWhatsAppConversationDialog, TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "./OrderWhatsAppConversationDialog";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { phoneContactLinks } from "../domain/order-contact-actions";
@@ -208,10 +209,12 @@ export function OrderDetailsPage(props: Props) {
     : null;
 
   const [sacMessageOpen, setSacMessageOpen] = useState(false);
+  const [testWhatsAppOpen, setTestWhatsAppOpen] = useState(false);
   const [checkingSac, setCheckingSac] = useState(false);
   const [sacEnabled, setSacEnabled] = useState(false);
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
+  const useTestWhatsAppModal = !monitorView && detail?.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && hasPermission("whatsapp.inbox.view");
   const { statuses, situations } = workspace;
   // A rota já conhece o tipo da OS: não aguarde a carga ampla das
   // referências para reconhecer o orçamento e iniciar a consulta da proposta.
@@ -331,6 +334,7 @@ export function OrderDetailsPage(props: Props) {
   useEffect(() => {
     setSolutionRecordsOpen(false);
     setSacMessageOpen(false);
+    setTestWhatsAppOpen(false);
     setDetailSection(initialSection);
   }, [detail?.id, initialSection]);
 
@@ -394,6 +398,11 @@ export function OrderDetailsPage(props: Props) {
 
     // A integração foi consultada com sucesso e está explicitamente desativada.
     window.open(external.whatsapp, "_blank", "noopener,noreferrer");
+  };
+
+  const openOrderWhatsApp = () => {
+    if (useTestWhatsAppModal) setTestWhatsAppOpen(true);
+    else void openCustomerWhatsApp();
   };
 
   const openSolutionRecords = () => {
@@ -634,6 +643,12 @@ export function OrderDetailsPage(props: Props) {
         onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
+    {detail && detail.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && <OrderWhatsAppConversationDialog
+      open={testWhatsAppOpen}
+      onClose={() => setTestWhatsAppOpen(false)}
+      organizationId={detail.organization_id}
+      phone={String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || "")}
+    />}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
@@ -740,7 +755,7 @@ export function OrderDetailsPage(props: Props) {
                 detail={detail}
                 hasPermission={hasPermission}
                 onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
-                onWhatsApp={!monitorView && canSendSac ? () => void openCustomerWhatsApp() : undefined}
+                onWhatsApp={!monitorView && (useTestWhatsAppModal || canSendSac) ? openOrderWhatsApp : undefined}
               />
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
                 orderImages={orderImages} onViewImage={setViewImage} />
@@ -788,8 +803,8 @@ export function OrderDetailsPage(props: Props) {
             orderImages={orderImages}
             onViewImage={setViewImage}
             onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
-            onWhatsApp={!monitorView && canSendSac
-              ? () => void openCustomerWhatsApp()
+            onWhatsApp={!monitorView && (useTestWhatsAppModal || canSendSac)
+              ? openOrderWhatsApp
               : undefined}
           />
           <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />
