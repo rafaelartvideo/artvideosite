@@ -412,16 +412,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     status: "sending" | "sent" | "unknown" | "failed"; providerMessageId?: string;
     error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
-  const pendingAudioUrlsRef=useRef(new Set<string>());
+  const pendingMediaPreviewUrlsRef=useRef(new Set<string>());
   useEffect(()=>{
     const retained=new Set(pending.map(item=>item.previewUrl).filter((url):url is string=>Boolean(url)));
-    for(const url of pendingAudioUrlsRef.current){
-      if(!retained.has(url)){previewUrls.release(url);pendingAudioUrlsRef.current.delete(url);}
+    for(const url of pendingMediaPreviewUrlsRef.current){
+      if(!retained.has(url)){previewUrls.release(url);pendingMediaPreviewUrlsRef.current.delete(url);}
     }
   },[pending]);
   useEffect(()=>()=>{
-    for(const url of pendingAudioUrlsRef.current)previewUrls.release(url);
-    pendingAudioUrlsRef.current.clear();
+    for(const url of pendingMediaPreviewUrlsRef.current)previewUrls.release(url);
+    pendingMediaPreviewUrlsRef.current.clear();
     optimizeSeq.current++;
     previewUrls.clear();
   },[previewUrls]);
@@ -1474,7 +1474,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(mediaInputRef.current) mediaInputRef.current.value="";
         return;
       }
-      if(mediaPreview && !pendingAudioUrlsRef.current.has(mediaPreview)) previewUrls.release(mediaPreview);
+      if(mediaPreview && !pendingMediaPreviewUrlsRef.current.has(mediaPreview)) previewUrls.release(mediaPreview);
       setMediaPreview(image || sticker || audio ? previewUrls.create(prepared) : null);
       setAttachment(prepared);
       inputRef.current?.focus({preventScroll:true});
@@ -1537,11 +1537,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setEmojiOpen(false);
     setStickerOpen(false);
     setActionPanel(null);
-    if((fileType==="audio"||fileType==="sticker") && preview) pendingAudioUrlsRef.current.add(preview);
+    if((fileType==="audio"||fileType==="sticker"||fileType==="image") && preview)
+      pendingMediaPreviewUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
       text:optimisticText, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
-      mediaType:fileType || undefined, previewUrl:fileType==="audio"||fileType==="sticker" ? preview||undefined : undefined,
+      mediaType:fileType || undefined,
+      previewUrl:fileType==="audio"||fileType==="sticker"||fileType==="image"
+        ? preview||undefined : undefined,
     }]);
     scrollToLatest("auto");
     inputRef.current?.focus({ preventScroll: true });
@@ -1581,7 +1584,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           ? { ...item, status: /confirm|pendente|verifique/i.test(detail) ? "unknown" : "failed", error: detail }
           : item));
       } finally {
-        if (preview && fileType!=="audio" && fileType!=="sticker") previewUrls.release(preview);
+        if (preview && !["audio","sticker","image"].includes(fileType||"")) previewUrls.release(preview);
         sendingIds.current.delete(requestId);
       }
     })();
@@ -2025,15 +2028,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       {operatorFirstName && <p className="mb-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                         {operatorFirstName} <span className="font-normal opacity-70">· Operador</span>
                       </p>}
-                      {entry.pending.mediaType==="sticker" && entry.pending.previewUrl &&
-                        <img src={entry.pending.previewUrl} alt="Figurinha sendo enviada"
-                          className="max-h-[124px] max-w-[120px] object-contain" loading="lazy"/>}
+                      {entry.pending.previewUrl && ["sticker","image"].includes(entry.pending.mediaType||"") &&
+                        <img src={entry.pending.previewUrl}
+                          alt={entry.pending.mediaType==="sticker"?"Figurinha":"Imagem"}
+                          className={entry.pending.mediaType==="sticker"
+                            ? "max-h-[124px] max-w-[120px] object-contain"
+                            : "max-h-72 max-w-full rounded-md object-contain"} loading="lazy"/>}
                       {entry.pending.mediaType==="audio"
                         ? <WhatsAppVoicePlayer src={entry.pending.previewUrl} compact/>
-                        : entry.pending.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
+                        : entry.pending.fileName &&
+                          !(entry.pending.previewUrl && ["sticker","image"].includes(entry.pending.mediaType||"")) &&
+                          <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
                       {entry.pending.text && <p className="text-sm"><WhatsAppFormattedText text={entry.pending.text}/></p>}
                       <div className="mt-1 flex min-h-4 items-center justify-end gap-1.5 text-[10px] opacity-70">
-                        {entry.pending.status==="sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
+                        {entry.pending.status==="sending" ?
+                          <LoaderCircle size={13} className="animate-spin" aria-label="Enviando mensagem"/>
                           : entry.pending.status==="sent" ? <>
                             {messages.find(message=>message.provider_message_id===entry.pending.providerMessageId)?.delivery_status==="read"
                               ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
