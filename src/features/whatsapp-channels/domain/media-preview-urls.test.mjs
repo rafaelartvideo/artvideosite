@@ -39,8 +39,15 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(page,/max-h-\[124px\] max-w-\[120px\]/);
   assert.match(page,/sender_name &&/);
   assert.match(page,/onSaveSticker=/);
-  assert.match(page,/onResendSticker=/);
+  assert.doesNotMatch(page,/onResendSticker|resendReceivedSticker|> Reenviar/);
   assert.match(page,/stickerZoom && mediaUrl/);
+  assert.match(page,/persistedProviderIds=new Set\(messages\.map/);
+  assert.match(page,/local\.filter\(item=>!item\.providerMessageId \|\| !persistedProviderIds\.has\(item\.providerMessageId\)\)/);
+  assert.match(page,/item\.status==="sent" && item\.providerMessageId/);
+  assert.match(page,/role="status" aria-label="Carregando figurinha"/);
+  assert.match(page,/role="status" aria-label="Carregando arquivo"/);
+  assert.match(page,/fileType==="sticker"\|\|fileType==="image"/);
+  assert.match(page,/pendingMediaPreviewUrlsRef/);
   assert.match(picker,/Da empresa/);
   assert.match(picker,/Recentes/);
   assert.match(picker,/Favoritas/);
