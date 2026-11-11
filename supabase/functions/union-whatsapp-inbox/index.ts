@@ -166,7 +166,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["participant_request_protocol","os_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -237,7 +237,7 @@ Deno.serve(async request => {
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",start:"start",
-      assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
+      assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_prepare:"send",sticker_commit:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
       members:"transfer",transfer:"transfer",transfer_department:"transfer",
       participants:"collaborate",participant_add:"collaborate",
       participant_respond:"collaborate",participant_remove:"collaborate",
@@ -1221,6 +1221,43 @@ Deno.serve(async request => {
         preview_url:links?.[index]?.signedUrl||null,
       }))});
     }
+    if(action==="sticker_prepare" || action==="sticker_commit") {
+      const size=Number(body.media_size);
+      if(!Number.isSafeInteger(size) || size<1 || size>1048576 ||
+        String(body.media_mime||"image/webp")!=="image/webp")
+        return json({success:false,error:"A figurinha deve ser WebP e ter no máximo 1 MB."},413);
+      if(action==="sticker_prepare") {
+        const stickerId=crypto.randomUUID();
+        const mediaPath=org+"/stickers/"+stickerId+".webp";
+        const {data:upload,error:uploadError}=await admin.storage.from("union-whatsapp-media")
+          .createSignedUploadUrl(mediaPath,{upsert:false});
+        if(uploadError || !upload?.token)throw uploadError||Error("sticker_upload_unavailable");
+        return json({success:true,sticker_id:stickerId,upload_path:mediaPath,upload_token:upload.token});
+      }
+      const stickerId=String(body.sticker_id||"");
+      if(!uuid(stickerId))return json({success:false,error:"Figurinha inválida."},400);
+      const mediaPath=org+"/stickers/"+stickerId+".webp";
+      const {data:stored,error:storedError}=await admin.storage.from("union-whatsapp-media")
+        .list(org+"/stickers",{search:stickerId+".webp",limit:5});
+      if(storedError)throw storedError;
+      const file=(stored||[]).find(item=>item.name===stickerId+".webp");
+      const actualSize=Number(file?.metadata?.size||0);
+      if(!file || actualSize!==size)
+        return json({success:false,error:"O arquivo enviado não corresponde ao cadastro."},409);
+      const {data:created,error:saveError}=await admin.from("union_whatsapp_sticker_library")
+        .insert({id:stickerId,organization_id:org,storage_path:mediaPath,
+          file_size:actualSize,created_by:actorId}).select("id").single();
+      if(saveError){
+        if(saveError.code==="23505"){
+          const {data:existing}=await admin.from("union_whatsapp_sticker_library")
+            .select("id").eq("organization_id",org).eq("id",stickerId).maybeSingle();
+          if(existing)return json({success:true,sticker_id:existing.id,already_saved:true});
+        }
+        throw saveError;
+      }
+      return json({success:true,sticker_id:created.id});
+    }
+
     if(["sticker_save","sticker_favorite","sticker_remove"].includes(action)) {
       if(action==="sticker_save"){
         const messageId=String(body.message_id||"");
