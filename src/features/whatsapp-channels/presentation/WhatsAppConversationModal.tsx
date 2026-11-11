@@ -168,7 +168,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
             onBack={onClose}
             onConfigure={() => {
               onClose();
-              navigate(adminPath("tools", "union-whatsapp", "canais"));
+              navigate(adminPath("tools", "union-whatsapp", "configuracoes"));
             }}
           />
         </Suspense>
