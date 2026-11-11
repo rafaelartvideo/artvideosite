@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { MessageCircle, RefreshCw, WifiOff } from "lucide-react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -19,7 +19,8 @@ export const TESTE_WHATSAPP_OS_ORGANIZATION_ID = "5bcd7ec7-38f0-4dda-a84c-10429b
 type State =
   | { status: "loading" }
   | { status: "ready"; conversationId: string }
-  | { status: "empty" | "disconnected" | "unauthorized" | "error"; message: string };
+  | { status: "empty"; message: string; canStart: boolean }
+  | { status: "disconnected" | "unauthorized" | "error"; message: string };
 
 function phoneCandidates(value: string): string[] {
   const digits = String(value || "").replace(/\D/g, "");
@@ -35,19 +36,23 @@ type Props = {
   onClose: () => void;
   organizationId: string;
   phone: string;
+  customerName: string;
 };
 
-export function OrderWhatsAppConversationDialog({ open, onClose, organizationId, phone }: Props) {
+export function OrderWhatsAppConversationDialog({ open, onClose, organizationId, phone, customerName }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
-  const [retry, setRetry] = useState(0);
   const [state, setState] = useState<State>({ status: "loading" });
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+  const startGateRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const set = (value: State) => { if (!cancelled) setState(value); };
     set({ status: "loading" });
+    setStartError("");
 
     if (organizationId !== TESTE_WHATSAPP_OS_ORGANIZATION_ID ||
       organizationId !== activeOrganizationId || !canViewInbox) {
@@ -57,7 +62,7 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
 
     const candidates = phoneCandidates(phone);
     if (!candidates.length) {
-      set({ status: "empty", message: "O cliente não possui um WhatsApp válido para localizar o histórico." });
+      set({ status: "empty", message: "O cliente não possui um WhatsApp válido para localizar o histórico.", canStart: false });
       return () => { cancelled = true; };
     }
 
@@ -87,7 +92,7 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
         if (conversationId) {
           set({ status: "ready", conversationId });
         } else {
-          set({ status: "empty", message: "Nenhuma conversa acessível foi encontrada para o WhatsApp deste cliente neste canal." });
+          set({ status: "empty", message: "Este cliente ainda não possui uma conversa no WhatsApp da empresa.", canStart: channel.capabilities?.start === true });
         }
       } catch (error) {
         set({ status: "error", message: systemErrorMessage(error, "Não foi possível carregar a conversa do cliente.") });
@@ -95,7 +100,40 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
     })();
 
     return () => { cancelled = true; };
-  }, [open, organizationId, phone, activeOrganizationId, canViewInbox, retry]);
+  }, [open, organizationId, phone, activeOrganizationId, canViewInbox]);
+
+  const startConversation = async () => {
+    if (startGateRef.current || state.status !== "empty" || !state.canStart ||
+      organizationId !== activeOrganizationId || !canViewInbox) return;
+    const number = phoneCandidates(phone)[0];
+    if (!number) return;
+    startGateRef.current = true;
+    setStarting(true);
+    setStartError("");
+    try {
+      // Follow the same verified flow as Atendimentos > Nova conversa.
+      // The server checks the identity again before creating a protocol.
+      const verified = await operateUnionWhatsAppInbox(
+        organizationId, crypto.randomUUID(), "check_number", { phone: number },
+      );
+      if (!verified.phone || !/^55[1-9]\d{9,10}$/.test(verified.phone)) {
+        throw new Error("O número não foi confirmado pelo WhatsApp.");
+      }
+      const created = await operateUnionWhatsAppInbox(
+        organizationId, crypto.randomUUID(), "start",
+        { phone: verified.phone, contact_name: customerName.trim() },
+      );
+      if (!created.conversation_id) throw new Error("Não foi possível confirmar a conversa.");
+      // Existing contacts are reopened by the backend, preserving previous history.
+      // New conversations get their protocol from the database lifecycle trigger.
+      setState({ status: "ready", conversationId: created.conversation_id });
+    } catch (reason) {
+      setStartError(systemErrorMessage(reason, "Não foi possível iniciar a conversa."));
+    } finally {
+      startGateRef.current = false;
+      setStarting(false);
+    }
+  };
 
   return <AdminDialog
     open={open}
@@ -118,13 +156,13 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
         onConfigure={onClose}
       />
     </Suspense> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      {state.status === "disconnected" ? <WifiOff size={32} className="text-muted-foreground" /> :
-        <MessageCircle size={32} className="text-muted-foreground" />}
+      <WhatsAppBrandIcon size={42} className="text-[#25D366]" />
       <p className="max-w-md text-sm text-muted-foreground">{state.message}</p>
-      {state.status !== "unauthorized" && <AdminButton variant="secondary" size="sm"
-        onClick={() => setRetry(value => value + 1)}>
-        <RefreshCw size={15} /> Verificar novamente
+      {state.status === "empty" && state.canStart && <AdminButton
+        disabled={starting} loading={starting} onClick={() => void startConversation()}>
+        {starting ? "Iniciando conversa..." : "Iniciar conversa"}
       </AdminButton>}
+      {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
   </AdminDialog>;
 }
