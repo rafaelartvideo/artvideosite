@@ -58,6 +58,35 @@ const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{
 // No third-party conversion service, token or media is exposed.
 const isOggOpus = bytes => bytes.subarray(0,4).toString("ascii")==="OggS"
   && bytes.subarray(0,8192).includes(Buffer.from("OpusHead"));
+// WhatsApp expects the duration of an Ogg/Opus voice note in the metadata.
+// Validate the complete Ogg page layout instead of trusting a MIME string:
+// a provider can ACK an uploaded audio object that the recipient cannot play.
+const oggOpusSeconds = bytes => {
+  if(!isOggOpus(bytes)) throw new Error("audio_conversion_failed");
+  let offset=0,lastGranule=0n,firstPayload=null;
+  while(offset<bytes.length){
+    if(offset+27>bytes.length || bytes.toString("ascii",offset,offset+4)!=="OggS" ||
+      bytes[offset+4]!==0) throw new Error("audio_conversion_failed");
+    const segments=bytes[offset+26];
+    if(offset+27+segments>bytes.length) throw new Error("audio_conversion_failed");
+    let length=0;
+    for(let i=0;i<segments;i++) length+=bytes[offset+27+i];
+    const payloadOffset=offset+27+segments;
+    const end=payloadOffset+length;
+    if(end>bytes.length) throw new Error("audio_conversion_failed");
+    if(firstPayload===null)firstPayload=payloadOffset;
+    const granule=bytes.readBigUInt64LE(offset+6);
+    if(granule!==0xffffffffffffffffn)lastGranule=granule;
+    offset=end;
+  }
+  if(firstPayload===null || bytes.toString("ascii",firstPayload,firstPayload+8)!=="OpusHead" ||
+    firstPayload+12>bytes.length) throw new Error("audio_conversion_failed");
+  const preskip=BigInt(bytes.readUInt16LE(firstPayload+10));
+  const seconds=Number(lastGranule-preskip)/48000;
+  if(!Number.isFinite(seconds)||seconds<=0||seconds>3600)
+    throw new Error("audio_conversion_failed");
+  return Math.max(1,Math.ceil(seconds));
+};
 const toVoiceNote = async (input,mime) => {
   if(mime==="audio/ogg" && isOggOpus(input)) return input;
   if(input.length>16*1048576) throw new Error("media_too_large");
@@ -596,12 +625,13 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const buffer=Buffer.from(await response.arrayBuffer());
     if(!buffer.length || buffer.length>limits[kind]) throw new Error("media_too_large");
     const audioBytes=kind==="audio" ? await toVoiceNote(buffer,mime) : null;
+    const audioSeconds=audioBytes ? oggOpusSeconds(audioBytes) : 0;
     const outgoingMime=kind==="audio"?"audio/ogg":mime; // WuzAPI data URL convention; Opus is enforced in the file and MimeType.
     const dataUrl="data:"+outgoingMime+";base64,"+(audioBytes||buffer).toString("base64");
     const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
     let resource,path;
     if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
-    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/ogg; codecs=opus",PTT:true};}
+    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/ogg; codecs=opus",PTT:true,Seconds:audioSeconds};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
     else if(kind==="sticker"){if(caption.trim())throw new Error("sticker_caption_unsupported");path="/chat/send/sticker";resource={...fields,Sticker:dataUrl};}
     else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime,Caption:caption};}
