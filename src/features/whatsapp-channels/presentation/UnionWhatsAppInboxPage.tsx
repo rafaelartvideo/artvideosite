@@ -8,6 +8,7 @@ import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPick
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
@@ -1995,7 +1996,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
                 {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <button type="button"
                   title="Editar contato" aria-label="Editar contato"
-                  onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
+                  onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
                   className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
                 </button>}
@@ -2280,22 +2281,36 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </section>
       </div>
     </div>}
-    {contactsOpen && activeOrganizationId && <UnionWhatsAppContactsDialog
+    {contactsOpen && !editContactId && activeOrganizationId && <UnionWhatsAppContactsDialog
       key={activeChannelPhone}
       organizationId={activeOrganizationId} accountPhone={activeChannelPhone!} channelId={activeChannelId!}
       canImport={canAction("import_contacts")}
       canEdit={canAction("manage_contacts")}
-      initialContact={editContactId?(()=>{
-        const thread=scopedConversations.find(item=>item.id===editContactId);
-        return thread?{id:thread.id,chat_jid:thread.chat_jid,
-          contact_phone:thread.contact_phone,display_name:null,device_name:null,
-          imported_name:null,profile_name:null,updated_at:""}:null;
-      })():null}
-      initialName={editContactId?scopedConversations.find(item=>item.id===editContactId)?.contact_name:""}
-      onClose={()=>{setContactsOpen(false);setEditContactId(null);}}
+      onClose={()=>setContactsOpen(false)}
       onSaved={()=>void refresh(true)}
       onChoose={openFromContact}
     />}
+    {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
+      <UnionWhatsAppContactEditDialog
+        key={activeOrganizationId+":"+editContactId}
+        organizationId={activeOrganizationId} accountPhone={activeChannelPhone}
+        contact={{id:selected.id,chat_jid:selected.chat_jid,
+          contact_phone:selected.contact_phone,display_name:selected.contact_name,
+          device_name:null,imported_name:null,profile_name:null,updated_at:""}}
+        initialName={selected.contact_name}
+        onClose={()=>setEditContactId(null)}
+        onSaved={saved=>{
+          // Only rename the open conversation when the WhatsApp identity stays
+          // the same; a changed phone can point to a different WhatsApp JID.
+          if(saved.chat_jid===selected.chat_jid) {
+            setConversations(current=>current.map(item=>item.id===editContactId
+              ? {...item,contact_name:saved.display_name||item.contact_name}:item));
+            setSelectedFallback(current=>current?.id===editContactId
+              ? {...current,contact_name:saved.display_name||current.contact_name}:current);
+          }
+          void refresh(true);
+        }}
+      />}
     {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
       <form onSubmit={event => {
