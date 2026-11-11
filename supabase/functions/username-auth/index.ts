@@ -54,6 +54,14 @@ function bearerToken(req: Request) {
 // tokens to the browser. No schedule configured is the fast, unrestricted path.
 // All authorization-sensitive reads are scoped to the authenticated actor.
 async function allowedByEmployeeSchedule(profileId: string, accessToken: string): Promise<boolean> {
+  // The common setup state has zero enabled schedules across all tenants.
+  // One indexed read avoids fetching membership lists or executing RLS RPCs.
+  const { data: anyEnabled, error: enabledError } = await admin
+    .from("employee_crm_access_hours").select("organization_id")
+    .eq("enabled", true).limit(1);
+  if (enabledError) throw enabledError;
+  if (!anyEnabled?.length) return true;
+
   const { data: members, error: membershipError } = await admin
     .from("organization_members").select("organization_id")
     .eq("user_id", profileId).eq("status", "active").limit(80);
