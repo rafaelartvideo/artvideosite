@@ -5,6 +5,8 @@ import { supabase, supabaseUrl } from "@/lib/supabase";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { pendingStartHasProtocol } from "../domain/pending-resolution.mjs";
 
+const SAC_DIGITAL_DISABLED = true;
+
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
 
 export type SacDigitalIntegrationStatus = {
@@ -40,12 +42,17 @@ function normalizeRpcData<T>(data: unknown): T {
   return data as T;
 }
 
-export async function getSacDigitalIntegrationStatus(organizationId: string) {
-  const { data, error } = await supabase.rpc("get_sac_digital_integration_status", {
-    p_organization_id: organizationId,
-  });
-  if (error) throw error;
-  return normalizeRpcData<SacDigitalIntegrationStatus>(data);
+export async function getSacDigitalIntegrationStatus(organizationId: string): Promise<SacDigitalIntegrationStatus> {
+  // A integração legada foi desativada. Não consultar o banco ao abrir OS ou clientes.
+  return {
+    organization_id: organizationId,
+    enabled: false,
+    credential_configured: false,
+    connection_status: "not_configured",
+    last_webhook_at: null,
+    last_event_type: null,
+    last_error: null,
+  };
 }
 
 export async function getSacDigitalIntegrationSettings(organizationId: string) {
@@ -354,6 +361,8 @@ export async function markSacDigitalProtocolRead(
 const requestIntents = new IntentLedger(() => crypto.randomUUID(), typeof sessionStorage === "undefined" ? undefined : sessionStorage);
 
 async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
+  // Bloqueio local: nenhuma chamada da aplicação à Edge Function desativada.
+  if (SAC_DIGITAL_DISABLED) throw new Error("A integração SAC Digital foi desativada.");
   const intentBody = body instanceof FormData ? Object.fromEntries([...body.entries()].filter(([key])=>key!=="intent_key").map(([key,value]) => [key,value instanceof File ? {name:value.name,size:value.size,lastModified:value.lastModified}:value])) : body;
   const action = String(intentBody.action || "");
   if (!actionEnabled(action, intentBody.endpoint_id)) throw new Error("Este recurso está desativado na Union. Utilize o painel da SAC Digital.");
