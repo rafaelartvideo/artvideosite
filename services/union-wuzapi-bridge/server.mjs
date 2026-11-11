@@ -53,56 +53,49 @@ function saveAvatarCacheEntry(key, entry) {
 }
 const presenceSubscriptions = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
-// WuzAPI voice notes must contain an Ogg/Opus bitstream, not MP4/AAC with a
-// renamed MIME. Conversion happens only on this local private VPS bridge.
-// No third-party conversion service, token or media is exposed.
-const isOggOpus = bytes => bytes.subarray(0,4).toString("ascii")==="OggS"
-  && bytes.subarray(0,8192).includes(Buffer.from("OpusHead"));
-// WhatsApp expects the duration of an Ogg/Opus voice note in the metadata.
-// Validate the complete Ogg page layout instead of trusting a MIME string:
-// a provider can ACK an uploaded audio object that the recipient cannot play.
-const oggOpusSeconds = bytes => {
-  if(!isOggOpus(bytes)) throw new Error("audio_conversion_failed");
-  let offset=0,lastGranule=0n,firstPayload=null;
-  while(offset<bytes.length){
-    if(offset+27>bytes.length || bytes.toString("ascii",offset,offset+4)!=="OggS" ||
-      bytes[offset+4]!==0) throw new Error("audio_conversion_failed");
-    const segments=bytes[offset+26];
-    if(offset+27+segments>bytes.length) throw new Error("audio_conversion_failed");
-    let length=0;
-    for(let i=0;i<segments;i++) length+=bytes[offset+27+i];
-    const payloadOffset=offset+27+segments;
-    const end=payloadOffset+length;
-    if(end>bytes.length) throw new Error("audio_conversion_failed");
-    if(firstPayload===null)firstPayload=payloadOffset;
-    const granule=bytes.readBigUInt64LE(offset+6);
-    if(granule!==0xffffffffffffffffn)lastGranule=granule;
-    offset=end;
+// Browser recordings arrive as WebM/Opus or MP4/AAC. WhatsApp recipients
+// have reported unplayable PTT voice notes, despite provider delivery ACKs.
+// Send an ordinary MP3 audio attachment (PTT:false), with verified MPEG-1
+// Layer III frames and an exact duration. No third-party media service.
+// Conversion is intentionally on the private VPS; storage keeps the original
+// recording so browser playback/history remain unchanged.
+const inspectMp3 = bytes => {
+  const bitrates=[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320];
+  let offset=0,frames=0;
+  if(bytes.length<512) throw new Error("audio_conversion_failed");
+  // The encoder below disables ID3 and Xing tags; only real audio frames
+  // must be present. Reject inconsistent/truncated output before WuzAPI.
+  while(offset+4<=bytes.length) {
+    const a=bytes[offset],b=bytes[offset+1],c=bytes[offset+2];
+    if(a!==0xff || (b&0xfe)!==0xfa || ((c>>4)&15)<1 ||
+      ((c>>4)&15)>14 || ((c>>2)&3)!==0) throw new Error("audio_conversion_failed");
+    const bitrate=bitrates[(c>>4)&15];
+    const length=Math.floor(144000*bitrate/44100)+((c>>1)&1);
+    if(length<24 || offset+length>bytes.length) throw new Error("audio_conversion_failed");
+    offset+=length;
+    frames++;
   }
-  if(firstPayload===null || bytes.toString("ascii",firstPayload,firstPayload+8)!=="OpusHead" ||
-    firstPayload+12>bytes.length) throw new Error("audio_conversion_failed");
-  const preskip=BigInt(bytes.readUInt16LE(firstPayload+10));
-  const seconds=Number(lastGranule-preskip)/48000;
-  if(!Number.isFinite(seconds)||seconds<=0||seconds>3600)
+  if(offset!==bytes.length || frames<2) throw new Error("audio_conversion_failed");
+  const duration=frames*1152/44100;
+  if(!Number.isFinite(duration)||duration<=0||duration>3600)
     throw new Error("audio_conversion_failed");
-  return Math.max(1,Math.ceil(seconds));
+  return Math.max(1,Math.ceil(duration));
 };
-const toVoiceNote = async (input,mime) => {
-  if(mime==="audio/ogg" && isOggOpus(input)) return input;
-  if(input.length>16*1048576) throw new Error("media_too_large");
+const toPlayableAudio = async input => {
+  if(!input?.length || input.length>16*1048576) throw new Error("media_too_large");
   const ffmpeg=process.env.UNION_FFMPEG_PATH || "ffmpeg";
   return await new Promise((resolve,reject)=>{
     let settled=false;
-    const fail=message=>{if(!settled){settled=true;reject(new Error(message));}};
+    const fail=code=>{if(!settled){settled=true;reject(new Error(code));}};
     const convert=spawn(ffmpeg,[
       "-hide_banner","-loglevel","error","-nostdin","-i","pipe:0",
-      "-map","0:a:0","-vn","-ac","1","-ar","48000",
-      "-c:a","libopus","-application","voip","-b:a","32k",
-      "-f","ogg","pipe:1"
+      "-map","0:a:0","-vn","-ac","1","-ar","44100",
+      "-c:a","libmp3lame","-b:a","96k",
+      "-id3v2_version","0","-write_xing","0","-f","mp3","pipe:1",
     ],{stdio:["pipe","pipe","ignore"]});
     const parts=[];
     let size=0;
-    const timer=setTimeout(()=>{convert.kill("SIGKILL");fail("audio_conversion_timeout");},20000);
+    const timer=setTimeout(()=>{convert.kill("SIGKILL");fail("audio_conversion_timeout");},25000);
     convert.stdout.on("data",chunk=>{
       size+=chunk.length;
       if(size>16*1048576){convert.kill("SIGKILL");fail("media_too_large");}
@@ -112,10 +105,13 @@ const toVoiceNote = async (input,mime) => {
     convert.on("close",code=>{
       clearTimeout(timer);
       if(settled)return;
-      const result=Buffer.concat(parts);
-      if(code!==0||!isOggOpus(result))return fail("audio_conversion_failed");
-      settled=true;
-      resolve(result);
+      const bytes=Buffer.concat(parts);
+      if(code!==0)return fail("audio_conversion_failed");
+      try{
+        const seconds=inspectMp3(bytes);
+        settled=true;
+        resolve({bytes,seconds});
+      }catch{fail("audio_conversion_failed");}
     });
     convert.stdin.on("error",()=>undefined);
     convert.stdin.end(input);
@@ -624,14 +620,14 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(declared>limits[kind]) throw new Error("media_too_large");
     const buffer=Buffer.from(await response.arrayBuffer());
     if(!buffer.length || buffer.length>limits[kind]) throw new Error("media_too_large");
-    const audioBytes=kind==="audio" ? await toVoiceNote(buffer,mime) : null;
-    const audioSeconds=audioBytes ? oggOpusSeconds(audioBytes) : 0;
-    const outgoingMime=kind==="audio"?"audio/ogg":mime; // WuzAPI data URL convention; Opus is enforced in the file and MimeType.
-    const dataUrl="data:"+outgoingMime+";base64,"+(audioBytes||buffer).toString("base64");
+    const audio=kind==="audio" ? await toPlayableAudio(buffer) : null;
+    // Data URL, MIME metadata, and bytes must all be the SAME format.
+    const outgoingMime=audio?"audio/mpeg":mime;
+    const dataUrl="data:"+outgoingMime+";base64,"+(audio?.bytes||buffer).toString("base64");
     const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
     let resource,path;
     if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
-    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/ogg; codecs=opus",PTT:true,Seconds:audioSeconds};}
+    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/mpeg",PTT:false,Seconds:audio.seconds};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
     else if(kind==="sticker"){if(caption.trim())throw new Error("sticker_caption_unsupported");path="/chat/send/sticker";resource={...fields,Sticker:dataUrl};}
     else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime,Caption:caption};}
