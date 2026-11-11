@@ -260,3 +260,20 @@ test("salvamento de função confere resultado persistido e atualização ao foc
   assert.match(roleEditor, /const canViewDetails = hasPermission\("roles\.details\.view"\);/);
   assert.match(auth, /now - lastCheck < 10_000/);
 });
+
+
+test("funções exibem nomes resumidos e abrem lista completa sem editar o perfil", () => {
+  const roles = read("src/features/roles/presentation/TabRoles.tsx");
+  const repository = read("src/features/roles/infrastructure/roles.repository.ts");
+  assert.match(repository, /profiles!organization_members_user_id_fkey\(full_name\)/);
+  assert.match(repository, /\.eq\("organization_id", organizationId\)/);
+  assert.match(repository, /\.eq\("status", "active"\)/);
+  assert.match(repository, /\.range\(offset, offset \+ pageSize - 1\)/);
+  assert.match(roles, /shortMemberName/);
+  assert.match(roles, /members\.slice\(0, 3\)/);
+  assert.match(roles, /truncate text-left/);
+  assert.match(roles, /event\.stopPropagation\(\); setSelectedMembersRoleId\(role\.id\)/);
+  assert.match(roles, /title="Funcionários vinculados"/);
+  assert.match(roles, /selectedMembers\.map\(member =>/);
+  assert.doesNotMatch(roles, /memberCounts\[role\.id\]/);
+});
