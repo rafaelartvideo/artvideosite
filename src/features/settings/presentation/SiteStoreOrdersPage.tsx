@@ -18,7 +18,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
-import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, AdminSelect, INPUT, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -800,11 +800,11 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                 Registrar ocorrência
               </button>
             </div>}
-            {recipientRequired && <label className="block text-xs font-bold">Nome de quem recebeu *
+            {recipientRequired && <label className="block text-xs font-bold"><RequiredFieldLabel label="Nome de quem recebeu" required/>
               <input type="text" maxLength={120} value={recipient} onChange={e => setRecipient(e.target.value)}
                 placeholder="Nome do recebedor" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
             </label>}
-            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de retirada ou link de acompanhamento *
+            {nextStatus === "picked_up" && <label className="block text-xs font-bold"><RequiredFieldLabel label="Código de retirada ou link de acompanhamento" required/>
               <input type="text" autoComplete="off" spellCheck={false}
                 maxLength={512} value={pickupCode}
                 onChange={e => setPickupCode(e.target.value.slice(0, 512))}
@@ -816,7 +816,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                 A confirmação é validada no servidor para este pedido.
               </span>
             </label>}
-            {nextStatus !== "picked_up" && <label className="block text-xs font-bold">Observação {issueRequired ? "*" : "(opcional)"}
+            {nextStatus !== "picked_up" && <label className="block text-xs font-bold">Observação {issueRequired ? <RequiredFieldLabel label="" required/> : "(opcional)"}
               <textarea rows={2} maxLength={500} value={note} onChange={e => setNote(e.target.value)}
                 placeholder={issueRequired ? "Descreva o que aconteceu com a entrega..." : "Adicione alguma informação sobre a movimentação"}
                 className="mt-1.5 w-full resize-y rounded-md border border-border bg-background p-3 text-sm"/>
