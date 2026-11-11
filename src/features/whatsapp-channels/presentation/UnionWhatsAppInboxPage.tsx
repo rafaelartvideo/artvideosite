@@ -1738,18 +1738,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const toggleFavoriteSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
     if(!selected?.id||!activeOrganizationId||stickerBusy)return;
-    const org=activeOrganizationId;
+    const org=activeOrganizationId,threadId=selected.id;
+    const nextFavorite=!sticker.is_favorite;
     setStickerBusy(sticker.id);
+    // Immediate toggle. If the request fails, revert without changing the
+    // selected tab or rebuilding the sticker collection.
+    setStickers(current=>current.map(row=>row.id===sticker.id
+      ? {...row,is_favorite:nextFavorite}:row));
     try{
-      await operateUnionWhatsAppInbox(org,selected.id,"sticker_favorite",{
-        sticker_id:sticker.id,is_favorite:!sticker.is_favorite,
+      await operateUnionWhatsAppInbox(org,threadId,"sticker_favorite",{
+        sticker_id:sticker.id,is_favorite:nextFavorite,
       });
+    }catch{
       if(organizationRef.current===org){
         setStickers(current=>current.map(row=>row.id===sticker.id
-          ? {...row,is_favorite:!sticker.is_favorite}:row));
+          ? {...row,is_favorite:sticker.is_favorite}:row));
       }
-    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível favoritar a figurinha."));}
-    finally{setStickerBusy(null);}
+    }finally{setStickerBusy(null);}
   };
   const removeSavedSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
     if(!selected?.id||!activeOrganizationId||stickerBusy)return;
