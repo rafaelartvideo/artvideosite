@@ -34,6 +34,7 @@ type PasswordFieldProps = {
 const LOGIN_BACKGROUND = "/assets/crm/login/capatelalogin.png";
 const LOGIN_LOGO = "/assets/crm/login/logotelalogin.png";
 const REMEMBERED_USERNAME_KEY = "unionworld:remembered-username";
+const LOGIN_NOTICE_KEY = "unionworld:login:notice";
 
 function PasswordField({
   id,
@@ -118,9 +119,17 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
 
   useEffect(() => {
     const remembered = window.localStorage.getItem(REMEMBERED_USERNAME_KEY);
-    if (!remembered) return;
-    setUsername(remembered);
-    setRememberUsername(true);
+    if (remembered) {
+      setUsername(remembered);
+      setRememberUsername(true);
+    }
+    try {
+      const notice = window.sessionStorage.getItem(LOGIN_NOTICE_KEY);
+      if (notice) {
+        window.sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+        setError(notice);
+      }
+    } catch { /* Storage may be disabled. */ }
   }, []);
 
   const clearFeedback = () => {
@@ -141,9 +150,11 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       window.localStorage.removeItem(REMEMBERED_USERNAME_KEY);
     }
 
-    // Sobrepor o download do primeiro módulo à autenticação. Sem consultas.
-    prefetchAdminModule("home");
+    // Só carregar o CRM depois que o servidor confirmou o expediente.
     const result = await authenticateAdmin(normalizedUsername, password);
+    if (result === "authenticated") {
+      void prefetchAdminModule("home");
+    }
 
     if (result === "invalid_credentials") {
       setError("Credenciais inválidas. Verifique seu usuário e senha.");
@@ -151,6 +162,10 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       setError("Usuário inativo. Entre em contato com o gestor.");
     } else if (result === "ip_not_allowed") {
       setError("Acesso negado. Este endereço IP não está autorizado para este usuário.");
+    } else if (result === "outside_hours") {
+      setError("Fora do horário permitido. Você só pode acessar o CRM nos dias e intervalos definidos pelo gestor.");
+    } else if (result === "schedule_unavailable") {
+      setError("Não foi possível confirmar seu horário de acesso. Tente novamente.");
     }
 
     setLoading(false);
