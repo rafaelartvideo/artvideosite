@@ -75,13 +75,13 @@ test('management logo uses optimized bytes, MIME and extension', async () => {
   assert.match(upload.path, /\.webp$/);
   assert.equal(upload.options.contentType, 'image/webp');
 });
-test('SAC compresses a camera photo to JPEG before its 1 MB provider cap', async () => {
+test('SAC desativada bloqueia envio de foto sem chamar APIs ou Storage', async () => {
   browser();
-  await sendSacDigitalMediaMessage('org', 'protocol', photo(), 'Legenda');
-  const body = calls.find(call => call.kind === 'invoke').body;
-  assert.equal(body.get('file').size, 1000);
-  assert.equal(body.get('file').type, 'image/jpeg');
-  assert.equal(body.get('text'), 'Legenda');
+  await assert.rejects(
+    sendSacDigitalMediaMessage('org', 'protocol', photo(), 'Legenda'),
+    /SAC Digital foi desativada/i,
+  );
+  assert.equal(calls.length, 0);
 });
 test('mobile documents preserve original scan bytes while situation photos are optimized', async () => {
   browser();
@@ -93,9 +93,12 @@ test('mobile documents preserve original scan bytes while situation photos are o
   assert.equal(calls[1].body.get('file').size, 1000);
 });
 
-test('SAC rejects an image that remains above provider cap before invoking the API', async () => {
+test('SAC desativada bloqueia também arquivo grande antes de qualquer processamento', async () => {
   browser(2 * 1024 * 1024);
-  await assert.rejects(sendSacDigitalMediaMessage('org', 'protocol', photo()), error => error.outcome === 'rejected' && error.type === 'invalid_media');
+  await assert.rejects(
+    sendSacDigitalMediaMessage('org', 'protocol', photo()),
+    /SAC Digital foi desativada/i,
+  );
   assert.equal(calls.length, 0);
 });
 
