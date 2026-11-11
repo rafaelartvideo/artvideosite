@@ -208,7 +208,7 @@ export function SalesDeliveryDialog({
               Confirme a identidade do recebedor. O registro fica vinculado ao pedido no histórico.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs font-semibold"><span>Quem recebeu? *</span>
+              <label className="space-y-1 text-xs font-semibold"><span>Quem recebeu? <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span></span>
                 <input value={recipient} maxLength={160} onChange={e=>setRecipient(e.target.value)}
                   className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
               <label className="space-y-1 text-xs font-semibold"><span>Documento (opcional)</span>
@@ -216,7 +216,7 @@ export function SalesDeliveryDialog({
                   className={INPUT+" h-[42px] md:h-9 md:py-1.5 md:text-xs"}/></label>
             </div>
             {method==="pickup"&&<label className="block space-y-1 text-xs font-semibold">
-              <span>PIN apresentado pelo cliente *</span>
+              <span>PIN apresentado pelo cliente <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span></span>
               <input inputMode="numeric" autoComplete="off" maxLength={6} value={enteredPin}
                 onChange={e=>setEnteredPin(e.target.value.replace(/\D/g,"").slice(0,6))}
                 placeholder="000000" className={INPUT+" h-[42px] font-mono tracking-widest md:h-9 md:py-1.5 md:text-xs"}/>
