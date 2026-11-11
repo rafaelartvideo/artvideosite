@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { checkMyEmployeeAccessWindow, type MyEmployeeAccessWindow } from "@/features/registrations/infrastructure/employee-access-hours.repository";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
@@ -44,6 +45,9 @@ interface AuthContextValue {
   loadingProgress: number;
   signOut: () => Promise<void>;
 }
+
+const LOGIN_NOTICE_KEY = "unionworld:login:notice";
+const SCHEDULE_WARNING_MS = 10 * 60_000;
 
 const AuthContext = createContext<AuthContextValue>({
   session: null,
@@ -88,6 +92,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   const signedInUserRef = useRef<string | null>(null);
   const activeOrganizationIdRef = useRef<string | null>(null);
   const deferredAccessTimerRef = useRef<number | null>(null);
+  const scheduleWarningKeyRef = useRef("");
+  const scheduleSignOutRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,8 +345,56 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     };
   }, [scope, session?.user.id, loading, activeOrganization?.organization_id, employee?.is_active, employee?.disable_inactivity_logout]);
 
-  // Respeita mudanças de expediente durante uma sessão já aberta.
-  // A validação é feita no relógio do banco, nunca no horário alterável do navegador.
+  // A sessão deve ser encerrada ao ultrapassar uma escala ativa, sem levar
+  // o usuário para uma tela interna de bloqueio.
+  function signOutForSchedule() {
+    if (scheduleSignOutRef.current) return;
+    scheduleSignOutRef.current = true;
+    try {
+      window.sessionStorage.setItem(LOGIN_NOTICE_KEY,
+        "Seu horário de acesso ao CRM terminou. Entre novamente no próximo intervalo permitido.");
+    } catch { /* Session storage is optional. */ }
+    setLoading(true);
+    void signOut();
+  }
+
+  // Programar o aviso e o fim do turno a partir do relógio do PostgreSQL.
+  // Não é necessário consultar a API a cada 30 segundos.
+  useEffect(() => {
+    const organizationId = activeOrganization?.organization_id;
+    const windowData = accessWindow;
+    if (scope !== "crm" || loading || !session?.user?.id || !organizationId ||
+      !windowData?.allowed || !windowData.restricted || !windowData.next_end_at || !windowData.server_now)
+      return;
+    const end = Date.parse(windowData.next_end_at);
+    const serverNow = Date.parse(windowData.server_now);
+    if (!Number.isFinite(end) || !Number.isFinite(serverNow)) return;
+    const remaining = end - serverNow;
+    const warningKey = `${session.user.id}:${organizationId}:${windowData.next_end_at}`;
+    const warn = () => {
+      if (scheduleWarningKeyRef.current === warningKey) return;
+      scheduleWarningKeyRef.current = warningKey;
+      const formattedEnd = new Date(end).toLocaleTimeString("pt-BR", {
+        hour: "2-digit", minute: "2-digit", timeZone: windowData.timezone,
+      });
+      notifyAdmin(`Seu acesso será encerrado às ${formattedEnd}, em até 10 minutos. Salve seu trabalho.`, "warning");
+    };
+    if (remaining <= 0) {
+      signOutForSchedule();
+      return;
+    }
+    const warningTimer = window.setTimeout(warn, Math.max(0, remaining - SCHEDULE_WARNING_MS));
+    const logoutTimer = window.setTimeout(() => signOutForSchedule(), remaining);
+    return () => {
+      window.clearTimeout(warningTimer);
+      window.clearTimeout(logoutTimer);
+    };
+  }, [scope, loading, session?.user?.id, activeOrganization?.organization_id,
+    accessWindow?.allowed, accessWindow?.restricted, accessWindow?.next_end_at,
+    accessWindow?.server_now, accessWindow?.timezone]);
+
+  // Respeita alterações de expediente durante uma sessão já aberta.
+  // Verificação no foco e a cada 5 minutos, não a cada 30 segundos.
   useEffect(() => {
     const organizationId = activeOrganization?.organization_id;
     if (scope !== "crm" || !session?.user?.id || !organizationId || loading) return;
@@ -357,7 +411,11 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         lastVerifiedWindow = status;
         setAccessError(null);
         setAccessWindow(status);
-        if (!status.allowed) setPermissions([]);
+        if (!status.allowed) {
+          setPermissions([]);
+          signOutForSchedule();
+          return;
+        }
         if (!previousAllowed && status.allowed) {
           accessLoadingKeyRef.current = null;
           void loadAccess(session.user.id, organizationId);
@@ -371,7 +429,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         // continua agendada normalmente. Restrições ativas seguem fail-closed.
         if (lastVerifiedWindow?.allowed && lastVerifiedWindow.restricted === false) return;
         setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
-        setAccessWindow({ allowed: false, restricted: true, timezone: "America/Sao_Paulo" });
+        setAccessWindow({ allowed: false, restricted: true, timezone: "America/Sao_Paulo",
+          server_now: null, next_end_at: null });
         setPermissions([]);
         previousAllowed = false;
       } finally {
@@ -379,7 +438,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       }
     };
     const onFocus = () => { if (document.visibilityState === "visible") void checkWindow(); };
-    const timer = window.setInterval(() => void checkWindow(), 30_000);
+    const timer = window.setInterval(() => void checkWindow(), 5 * 60_000);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => {
@@ -422,6 +481,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     setPendingTerms([]);
     setAccessError(null);
     setAccessWindow(null);
+    scheduleSignOutRef.current = false;
+    scheduleWarningKeyRef.current = "";
 
     if (notifyOrganizationChange) {
       // Mesmo sem empresa selecionada, um logout deve descartar os caches
@@ -575,6 +636,10 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       return;
     }
     if (requestId !== accessRequestRef.current) return;
+    if (resolvedWindow.restricted && !resolvedWindow.allowed) {
+      signOutForSchedule();
+      return;
+    }
 
     const previousOrganizationId = activeOrganizationIdRef.current;
     activeOrganizationIdRef.current = resolvedOrganization.organization_id;
