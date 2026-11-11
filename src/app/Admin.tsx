@@ -491,7 +491,7 @@ export function AdminDashboard({
             initialSection={((
               ["configuration","connections","departments","queues","operators","permissions","quick-replies"].includes(new URLSearchParams(location.search).get("section") || "")
                 ? new URLSearchParams(location.search).get("section") : "configuration"
-            ) || "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions"}
+            ) || "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions" | "quick-replies"}
           />
           : <Navigate to={adminPath("tools")} replace />
         : canAccessWhatsAppTool
