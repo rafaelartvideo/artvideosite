@@ -366,7 +366,35 @@ Deno.serve(async request => {
       .select("id").eq("channel_id",channelId).eq("account_phone",accountPhone)
       .eq("provider_message_id",providerMessageId).maybeSingle();
     if(messageLookupError)throw messageLookupError;
-    if(existingMessage)return json({ok:true,ignored:"already_synced"});
+    if(existingMessage) {
+      // Um webhook anterior pode ter gravado a mensagem e falhado ao salvar
+      // a mídia (por exemplo, constraint antiga sem 'sticker'). Quando o
+      // WuzAPI reenviar o MESMO evento assinado, repare somente o descritor.
+      // Não abra protocolo, altere a fila ou incremente não lidas.
+      if(validMedia && mediaKind && !isFromMe) {
+        const {data:knownRef,error:knownRefError}=await admin.from("union_whatsapp_inbound_media_refs")
+          .select("message_id").eq("message_id",existingMessage.id)
+          .eq("organization_id",org).eq("channel_id",channelId).maybeSingle();
+        if(knownRefError)throw knownRefError;
+        if(!knownRef) {
+          const {error:refRepairError}=await admin.from("union_whatsapp_inbound_media_refs")
+            .upsert({
+              message_id:existingMessage.id,organization_id:org,channel_id:channelId,
+              mime_type:mime,file_url:fileUrl,media_key:mediaKey,
+              file_sha256:fileHash,file_enc_sha256:fileEncHash||null,
+              file_length:fileLength,media_type:typeHint,file_name:originalName||null,
+            },{onConflict:"message_id"});
+          if(refRepairError)throw refRepairError;
+          const {error:availabilityError}=await admin.from("union_whatsapp_messages")
+            .update({media_available:true,media_mime:mime})
+            .eq("id",existingMessage.id).eq("organization_id",org)
+            .eq("channel_id",channelId).eq("account_phone",accountPhone);
+          if(availabilityError)throw availabilityError;
+          return json({ok:true,repaired:"media_reference"});
+        }
+      }
+      return json({ok:true,ignored:"already_synced"});
+    }
 
     // Prefer the existing thread for an EXACT, provider-verified phone.
     // PN and LID can be two identities for the same WhatsApp user.
