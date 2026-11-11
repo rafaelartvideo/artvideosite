@@ -79,7 +79,7 @@ const inspectMp3 = bytes => {
   const duration=frames*1152/44100;
   if(!Number.isFinite(duration)||duration<=0||duration>3600)
     throw new Error("audio_conversion_failed");
-  return Math.max(1,Math.ceil(duration));
+  return Math.max(1,Math.round(duration));
 };
 const toPlayableAudio = async input => {
   if(!input?.length || input.length>16*1048576) throw new Error("media_too_large");
