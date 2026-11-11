@@ -650,6 +650,7 @@ export function OrderDetailsPage(props: Props) {
       organizationId={detail.organization_id}
       phone={String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || "")}
       customerName={String((detail.customer as any)?.full_name || (detail.customer as any)?.trade_name || (detail.customer as any)?.legal_name || "")}
+      serviceOrderId={detail.id}
     />}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}

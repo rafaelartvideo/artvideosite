@@ -165,8 +165,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","os_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -899,6 +899,103 @@ Deno.serve(async request => {
       return json({success:true,channel_connected:ready,staff_role:staffRole,capabilities,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
+    // OS WhatsApp: a company-Teste-only route to join an existing operator's
+    // active chat. Never accepts a phone from the caller as authorization:
+    // service_order_id must belong to this tenant and its registered customer.
+    if(action==="os_join") {
+      const TESTE_ORGANIZATION="5bcd7ec7-38f0-4dda-a84c-10429bd46b23";
+      if(org!==TESTE_ORGANIZATION)
+        return json({success:false,error:"Recurso disponível somente na empresa Teste."},403);
+      if(!canRead || !permissions.has("orders.details.view"))
+        return json({success:false,error:"Sem permissão para acessar a OS e seus atendimentos."},403);
+      const orderId=String(body.service_order_id||"");
+      if(!uuid(orderId))
+        return json({success:false,error:"Informe uma OS válida."},400);
+      const {data:order,error:orderError}=await admin.from("service_orders")
+        .select("id,customer_id").eq("organization_id",org).eq("id",orderId).maybeSingle();
+      if(orderError)throw orderError;
+      if(!order?.customer_id)
+        return json({success:false,error:"OS ou cliente não encontrado nesta empresa."},404);
+      const {data:customer,error:customerError}=await admin.from("customers")
+        .select("phone,whatsapp").eq("organization_id",org)
+        .eq("id",order.customer_id).maybeSingle();
+      if(customerError)throw customerError;
+      if(!customer)
+        return json({success:false,error:"Cliente da OS não encontrado."},404);
+      const raw=String(customer.whatsapp||customer.phone||"").replace(/\D/g,"");
+      const contactPhone=raw.length===10 || raw.length===11 ? "55"+raw : raw;
+      if(!/^55[1-9]\d{9,10}$/.test(contactPhone))
+        return json({success:true,found:false,can_start:false});
+      const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+        .select("id,phone").eq("organization_id",org)
+        .eq("provider","wuzapi").eq("state","connected").eq("webhook_ready",true)
+        .maybeSingle();
+      if(channelError)throw channelError;
+      if(!channel || !/^[0-9]{10,15}$/.test(String(channel.phone||"")))
+        return json({success:false,error:"Canal WhatsApp não conectado."},409);
+      const scope=()=>admin.from("union_whatsapp_conversations")
+        .select("id,chat_jid,status,assigned_to,contact_phone")
+        .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone);
+      const {data:byPhone,error:phoneError}=await scope()
+        .in("contact_phone",[contactPhone,contactPhone.slice(2)])
+        .order("last_message_at",{ascending:false,nullsFirst:false}).limit(3);
+      if(phoneError)throw phoneError;
+      let matching=byPhone||[];
+      // WuzAPI can resolve a phone identity to an LID or a verified 9th-digit
+      // alias. Resolve ambiguities by the provider JID, never by guessing.
+      if(matching.length!==1){
+        try {
+          const verified=await verifyWhatsAppNumber(contactPhone);
+          if(!("error" in verified)){
+            const {data:byJid,error:jidError}=await scope()
+              .eq("chat_jid",verified.jid).limit(2);
+            if(jidError)throw jidError;
+            matching=byJid||[];
+          }
+        }catch(error){
+          if(matching.length>1)throw error;
+          // A failed provider lookup should not prevent starting a valid new chat.
+        }
+      }
+      if(matching.length>1)
+        return json({success:false,error:"Existem conversas ambíguas para este número. Consulte o Atendimento."},409);
+      const thread=matching[0];
+      if(!thread)return json({success:true,found:false,can_start:allowed("start")});
+      const otherOperator=thread.status==="in_att" &&
+        Boolean(thread.assigned_to && thread.assigned_to!==actorId);
+      const alreadyOwn=thread.assigned_to===actorId;
+      let joined=false;
+      if(otherOperator){
+        if(!permissions.has("whatsapp.inbox.send") || !allowed("send") || !allowed("collaborate"))
+          return json({success:false,error:"Seu perfil não permite participar do atendimento de outro operador."},403);
+        const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversation_participants")
+          .select("status").eq("organization_id",org).eq("conversation_id",thread.id)
+          .eq("user_id",actorId).maybeSingle();
+        if(existingError)throw existingError;
+        if(existing?.status!=="active"){
+          const {error:joinError}=await admin.from("union_whatsapp_conversation_participants")
+            .upsert({organization_id:org,conversation_id:thread.id,user_id:actorId,
+              status:"active",requested_by:actorId,decided_by:actorId,
+              updated_at:new Date().toISOString()},{onConflict:"conversation_id,user_id"});
+          if(joinError)throw joinError;
+          await admin.from("union_whatsapp_conversations")
+            .update({updated_at:new Date().toISOString()})
+            .eq("organization_id",org).eq("id",thread.id);
+        }
+        joined=true;
+      }else if(!alreadyOwn && !canManage){
+        return json({success:false,error:"Este atendimento está fora da sua fila ou já foi finalizado."},403);
+      }
+      let responsible_name:string|null=null;
+      if(otherOperator && thread.assigned_to){
+        const {data:responsible}=await admin.from("profiles")
+          .select("full_name").eq("id",thread.assigned_to).maybeSingle();
+        responsible_name=String(responsible?.full_name||"Outro operador").trim().slice(0,100);
+      }
+      return json({success:true,found:true,conversation_id:thread.id,
+        participating:joined,responsible_name});
+    }
+
     if(action==="start") {
       const inputDigits=String(body.phone||"").replace(/\D/g,"");
       const national=inputDigits.startsWith("55") && inputDigits.length>11
