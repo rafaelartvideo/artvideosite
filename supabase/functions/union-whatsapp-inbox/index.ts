@@ -1740,8 +1740,13 @@ Deno.serve(async request => {
     const firstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
       .replace(/[*_~`\r\n]/g,"");
     const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR")+firstName.slice(1) : null;
-    // WhatsApp recognizes *bold*; the customer sees the operator's first name above the message.
-    const outboundText=text && senderName ? `*${senderName}*\n\n${text}` : text;
+    // Image, video and document have a native WhatsApp Caption. Sign even
+    // attachments without a typed caption; don't create a second message.
+    // Voice notes and stickers cannot carry this standard text caption.
+    const captionSupported=!isMedia || ["image","video","file"].includes(kind);
+    const outboundText=senderName && captionSupported
+      ? `*${senderName}*${text ? "\n\n"+text : ""}`
+      : text;
     if(outboundText.length>4000)
       return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
     const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(text);
