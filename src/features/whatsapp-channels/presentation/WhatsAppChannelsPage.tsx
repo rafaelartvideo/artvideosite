@@ -171,8 +171,13 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       } finally {
         statusInFlight.current = false;
         const currentState = channelRef.current?.state;
-        if(currentState==="connected" || currentState==="connecting")
-          schedule(currentState === "connecting" ? 5000 : 30000);
+        if(currentState==="connected" || currentState==="connecting") {
+          const healthyDelay = currentState === "connecting" ? 5000 : 30000;
+          const retryDelay = failures > 0
+            ? Math.min(120000, 15000 * (2 ** Math.min(failures - 1, 3)))
+            : healthyDelay;
+          schedule(retryDelay);
+        }
       }
     };
     const onVisibilityChange = () => {
@@ -198,8 +203,16 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     let qrUnavailableCount = 0;
     const org = activeOrganizationId;
     const id = channel.id;
-    const interval = window.setInterval(async () => {
-      if (document.visibilityState !== "visible" || qrInFlight.current) return;
+    let timer: number | undefined;
+    const schedule = (delay: number) => {
+      if (!cancelled) timer = window.setTimeout(() => { void refresh(); }, delay);
+    };
+    const refresh = async () => {
+      if (cancelled) return;
+      if (document.visibilityState !== "visible" || qrInFlight.current) {
+        schedule(15000);
+        return;
+      }
       qrInFlight.current = true;
       try {
         const result = await operateWhatsAppChannel(org, "qr", id);
@@ -209,19 +222,27 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           setQr(result.qr);
         }
       } catch {
-        // A QR that stops being available after it was displayed can mean
-        // that pairing started. Two failures avoid transitioning on one hiccup.
-        // This is only a progress indicator, never proof of connection.
+        // QR may disappear during pairing. Back off on repeated failures
+        // so an unavailable bridge does not trigger a request storm.
         qrUnavailableCount += 1;
         if (!cancelled && qrUnavailableCount >= 2 && channelRef.current?.state === "connecting") {
-          // QR can disappear when pairing begins; wait for actual status.
           setQr(null);
         }
       } finally {
         qrInFlight.current = false;
+        if (!cancelled) {
+          const delay = qrUnavailableCount === 0
+            ? 15000
+            : Math.min(120000, 15000 * (2 ** Math.min(qrUnavailableCount - 1, 3)));
+          schedule(delay);
+        }
       }
-    }, 15000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    };
+    schedule(15000);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [qrOpen, activeOrganizationId, channel?.id, canManage]);
 
   const perform = useCallback(async (operation: "activate" | "status" | "qr" | "disconnect" | "logout" | "webhook_setup", connectionId?:string) => {
