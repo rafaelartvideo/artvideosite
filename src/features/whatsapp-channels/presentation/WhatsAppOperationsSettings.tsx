@@ -28,7 +28,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
-  const canView = hasPermission("whatsapp.inbox.view");
+  const canView = hasPermission("whatsapp.inbox.view") || hasPermission("settings.channels.manage");
   const canManage = canView && Boolean(section === "operators"
     ? capabilities.manage_operators : capabilities.manage_queues);
   const [selectedRoles, setSelectedRoles] = useState<Record<string,StaffRole>>({});
