@@ -73,3 +73,25 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(schema,/revoke all on public\.union_whatsapp_sticker_library from public,anon,authenticated/);
   assert.match(schema,/storage_path like organization_id::text \|\| '\/stickers\/%'/);
 });
+
+test("salvar figurinha é otimista, compacto e restaura a ação sem erro visual", async () => {
+  const { readFileSync } = await import("node:fs");
+  const read = path => readFileSync(new URL("../../../../"+path,import.meta.url),"utf8");
+  const page=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(page,/stickerSaved=\{savedStickerMessageIds\.has\(entry\.message\.id\)\}/);
+  assert.match(page,/text-\[9px\] leading-none/);
+  assert.match(page,/text-amber-500/);
+  assert.match(page,/<Star size=\{13\} fill="currentColor"/);
+  assert.match(page,/setSavedStickerMessageIds\(current=>new Set\(current\)\.add\(message\.id\)\)/);
+  assert.match(page,/next\.delete\(message\.id\)/);
+  assert.match(page,/\/\/ Silent rollback: restore the small Save action without a toast/);
+  assert.match(page,/const nextFavorite=!sticker\.is_favorite/);
+  assert.match(page,/is_favorite:nextFavorite/);
+  assert.match(edge,/action==="sticker_saved_ids"/);
+  assert.match(edge,/\.eq\("conversation_id",thread\.id\)/);
+  assert.match(edge,/\.in\("source_message_id",owned\.map\(row=>row\.id\)\)/);
+  assert.match(repository,/message_ids\?: string\[\]/);
+  assert.match(repository,/saved_message_ids\?: string\[\]/);
+});
