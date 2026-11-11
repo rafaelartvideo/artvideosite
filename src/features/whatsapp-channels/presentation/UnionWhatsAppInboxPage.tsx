@@ -2135,7 +2135,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       <ChevronUp size={20}/>
                     </button>
                     {actionPanel && <div role="menu" aria-label="Opções da conversa"
-                      className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-[min(90vw,640px)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
+                      className="absolute bottom-[calc(100%+8px)] left-0 z-40 flex h-[216px] max-h-[min(48vh,216px)] w-[min(90vw,640px)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
                       {actionPanel==="actions" ? <div className="space-y-1">
                         <p className="px-2 pb-1 text-xs font-bold text-muted-foreground">Opções da conversa</p>
                         <button type="button" role="menuitem" onClick={()=>void openQuickReplies()}
@@ -2147,11 +2147,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                           className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                           <FileText size={17}/> Enviar documento da OS
                         </button>}
-                      </div> : <div>
-                        <button type="button" onClick={()=>setActionPanel("actions")}
-                          className="mb-3 text-xs font-semibold text-primary hover:underline">Voltar às opções</button>
-                        <p className="mb-2 text-sm font-bold">{actionPanel==="quick"?"Mensagens rápidas":"Documentos da OS"}</p>
-                        {actionPanel==="quick" ? quickLoading ? <LoadingState text="Carregando mensagens rápidas..."/> :
+                      </div> : <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="mb-3 flex shrink-0 items-center gap-2">
+                          <button type="button" onClick={()=>setActionPanel("actions")}
+                            title="Voltar às opções" aria-label="Voltar às opções"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+                            <ChevronLeft size={18}/>
+                          </button>
+                          <p className="text-sm font-bold">{actionPanel==="quick"?"Mensagens rápidas":"Documentos da OS"}</p>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                        {actionPanel==="quick" ? quickLoading ?
+                          <div role="status" aria-label="Carregando mensagens rápidas"
+                            className="flex h-full min-h-16 items-center justify-center">
+                            <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
+                          </div> :
                           quickError ? <p role="alert" className="text-xs text-destructive">{quickError}</p> :
                           quickReplies.length===0 ? <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma mensagem configurada. Cadastre em Canais de Atendimento → Mensagens rápidas.</p> :
                           <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5">
@@ -2174,6 +2184,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         {actionPanel==="documents" && <p className="mt-2 text-xs text-muted-foreground">
                           O PDF será anexado ao campo de mensagem. Revise antes de enviar.
                         </p>}
+                        </div>
                       </div>}
                     </div>}
                   </div>
