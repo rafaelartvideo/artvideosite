@@ -10,6 +10,7 @@ import { LoadingSpinner, StatusBadge, notifyAdmin } from "@/shared/ui/admin/Admi
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
+import { WhatsAppQuickRepliesSettings } from "./WhatsAppQuickRepliesSettings";
 
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
@@ -35,7 +36,7 @@ function WhatsAppIcon() {
   </svg>;
 }
 
-type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions";
+type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions" | "quick-replies";
 const channelSections: Array<{ id: ChannelSection; label: string }> = [
   { id: "configuration", label: "Configuração do canal" },
   { id: "connections", label: "Conexões" },
@@ -43,6 +44,7 @@ const channelSections: Array<{ id: ChannelSection; label: string }> = [
   { id: "queues", label: "Filas" },
   { id: "operators", label: "Operadores" },
   { id: "permissions", label: "Perfis e Permissões" },
+  { id: "quick-replies", label: "Mensagens rápidas" },
 ];
 
 // Exibe sucesso e erro no balão global do CRM (sucesso: 3s; erro: 6s).
@@ -456,7 +458,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         </AdminCardContent>
       </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
       <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
-      <WhatsAppRolePermissions onBack={onBack}/> :
+      <WhatsAppRolePermissions onBack={onBack}/> : section === "quick-replies" ?
+      <WhatsAppQuickRepliesSettings/> :
       <AdminCard square>
         <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[850px] w-full">

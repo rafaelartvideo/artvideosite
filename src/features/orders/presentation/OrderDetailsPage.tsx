@@ -43,7 +43,7 @@ import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
-import { OrderWhatsAppConversationDialog, TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "./OrderWhatsAppConversationDialog";
+import { useWhatsAppConversationModal, TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { phoneContactLinks } from "../domain/order-contact-actions";
@@ -209,7 +209,7 @@ export function OrderDetailsPage(props: Props) {
     : null;
 
   const [sacMessageOpen, setSacMessageOpen] = useState(false);
-  const [testWhatsAppOpen, setTestWhatsAppOpen] = useState(false);
+  const { openWhatsAppConversation, closeWhatsAppConversation, whatsAppModal } = useWhatsAppConversationModal();
   const [checkingSac, setCheckingSac] = useState(false);
   const [sacEnabled, setSacEnabled] = useState(false);
   const canSendSac = hasPermission("sac_digital.messages.send");
@@ -334,9 +334,9 @@ export function OrderDetailsPage(props: Props) {
   useEffect(() => {
     setSolutionRecordsOpen(false);
     setSacMessageOpen(false);
-    setTestWhatsAppOpen(false);
+    closeWhatsAppConversation();
     setDetailSection(initialSection);
-  }, [detail?.id, initialSection]);
+  }, [detail?.id, initialSection, closeWhatsAppConversation]);
 
   useEffect(() => {
     let alive = true;
@@ -401,8 +401,31 @@ export function OrderDetailsPage(props: Props) {
   };
 
   const openOrderWhatsApp = () => {
-    if (useTestWhatsAppModal) setTestWhatsAppOpen(true);
-    else void openCustomerWhatsApp();
+    if (!useTestWhatsAppModal || !detail) {
+      void openCustomerWhatsApp();
+      return;
+    }
+    const documentOptions = canPrintDocuments
+      ? [
+          ...(detail.completed_at && generatesWarranty
+            ? [{ id: "warranty-certificate", label: "Certificado de garantia · PDF" }] : []),
+          ...printTemplates.templates.filter(template => template.is_active).map(template => ({
+            id: template.id,
+            label: template.name + " · " + (PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type),
+          })),
+        ]
+      : [];
+    openWhatsAppConversation({
+      organizationId: detail.organization_id,
+      source: {
+        kind: "order",
+        orderId: detail.id,
+        phone: String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || ""),
+        customerName: String((detail.customer as any)?.full_name || (detail.customer as any)?.trade_name || (detail.customer as any)?.legal_name || ""),
+        documentOptions,
+        prepareDocument: canPrintDocuments ? buildSacTemplateDocument : undefined,
+      },
+    });
   };
 
   const openSolutionRecords = () => {
@@ -643,15 +666,7 @@ export function OrderDetailsPage(props: Props) {
         onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
-    {detail && testWhatsAppOpen && detail.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && <OrderWhatsAppConversationDialog
-      key={detail.id}
-      open={testWhatsAppOpen}
-      onClose={() => setTestWhatsAppOpen(false)}
-      organizationId={detail.organization_id}
-      phone={String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || "")}
-      customerName={String((detail.customer as any)?.full_name || (detail.customer as any)?.trade_name || (detail.customer as any)?.legal_name || "")}
-      serviceOrderId={detail.id}
-    />}
+    {whatsAppModal}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}

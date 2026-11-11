@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Forward, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Forward, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -278,9 +279,11 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, orderDocumentOptions, onPrepareOrderDocument }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
+  orderDocumentOptions?: Array<{id:string;label:string}>;
+  onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
   const { activeOrganizationId, hasPermission, user, profile } = useAuth();
   const location = useLocation();
@@ -341,6 +344,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [actionPanel, setActionPanel] = useState<"actions"|"quick"|"documents"|null>(null);
+  const [quickReplies,setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
+  const [quickLoading,setQuickLoading] = useState(false);
+  const [quickError,setQuickError] = useState("");
+  const [documentPreparing,setDocumentPreparing] = useState<string|null>(null);
+  const actionPanelRef=useRef<HTMLDivElement|null>(null);
   const [stickerOpen,setStickerOpen]=useState(false);
   const [stickers,setStickers]=useState<UnionWhatsAppSavedSticker[]>([]);
   const [stickerLoading,setStickerLoading]=useState(false);
@@ -419,6 +428,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
   // Regenerating it automatically would risk sending the same message twice.
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if(!actionPanel)return;
+    const onPointer=(event:PointerEvent)=>{
+      if(actionPanelRef.current && !actionPanelRef.current.contains(event.target as Node))setActionPanel(null);
+    };
+    const onKey=(event:KeyboardEvent)=>{if(event.key==="Escape")setActionPanel(null);};
+    document.addEventListener("pointerdown",onPointer);
+    document.addEventListener("keydown",onKey);
+    return()=>{document.removeEventListener("pointerdown",onPointer);document.removeEventListener("keydown",onKey);};
+  },[actionPanel]);
+  useEffect(()=>{setActionPanel(null);setQuickReplies([]);setQuickError("");},[activeOrganizationId]);
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [activeChannelId,setActiveChannelId]=useState<string|null>(null);
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
@@ -1448,6 +1468,32 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   };
 
+  const openQuickReplies = async () => {
+    setActionPanel("quick");
+    setQuickError("");
+    if(!activeOrganizationId)return;
+    const org=activeOrganizationId;
+    setQuickLoading(true);
+    try {
+      const rows=await listWhatsAppQuickReplies(org,true);
+      if(organizationRef.current===org)setQuickReplies(rows);
+    }catch(reason){
+      if(organizationRef.current===org)setQuickError(systemErrorMessage(reason,"Não foi possível carregar as mensagens rápidas."));
+    }finally { if(organizationRef.current===org)setQuickLoading(false); }
+  };
+  const prepareOrderDocument = async (templateId:string) => {
+    if(!onPrepareOrderDocument || documentPreparing || !canReply)return;
+    setDocumentPreparing(templateId);
+    try {
+      const file=await onPrepareOrderDocument(templateId);
+      // Reuse the same attachment/preview checks and safe send_media pipeline.
+      await onChooseMedia(file);
+      setActionPanel(null);
+    }catch(reason){
+      reportError(systemErrorMessage(reason,"Não foi possível gerar o documento da OS."));
+    }finally{setDocumentPreparing(null);}
+  };
+
   const sendText = () => {
     if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || imageOptimizing || (!draft.trim() && !attachment)) return;
     if(attachment?.type==="image/webp" && draft.trim()){
@@ -1472,6 +1518,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     setEmojiOpen(false);
     setStickerOpen(false);
+    setActionPanel(null);
     if((fileType==="audio"||fileType==="sticker") && preview) pendingAudioUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
@@ -2058,6 +2105,56 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       <Smile size={22}/>
                     </button>
                     {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
+                  </div>
+                  <div ref={actionPanelRef} className="relative flex h-12 shrink-0">
+                    <button type="button" aria-label="Mais opções da conversa" title="Mais opções da conversa"
+                      aria-expanded={Boolean(actionPanel)} aria-haspopup="menu"
+                      onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current ? null : "actions");}}
+                      className={`flex h-12 w-10 items-center justify-center border-r border-border text-foreground hover:bg-muted ${actionPanel?"bg-primary-soft text-primary":""}`}>
+                      <ChevronUp size={20}/>
+                    </button>
+                    {actionPanel && <div role="menu" aria-label="Opções da conversa"
+                      className="absolute bottom-[calc(100%+8px)] left-0 z-40 w-[min(90vw,640px)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
+                      {actionPanel==="actions" ? <div className="space-y-1">
+                        <p className="px-2 pb-1 text-xs font-bold text-muted-foreground">Opções da conversa</p>
+                        <button type="button" role="menuitem" onClick={()=>void openQuickReplies()}
+                          className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                          <MessageSquareText size={17}/> Mensagens rápidas
+                        </button>
+                        {onPrepareOrderDocument && <button type="button" role="menuitem"
+                          onClick={()=>setActionPanel("documents")}
+                          className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                          <FileText size={17}/> Enviar documento da OS
+                        </button>}
+                      </div> : <div>
+                        <button type="button" onClick={()=>setActionPanel("actions")}
+                          className="mb-3 text-xs font-semibold text-primary hover:underline">Voltar às opções</button>
+                        <p className="mb-2 text-sm font-bold">{actionPanel==="quick"?"Mensagens rápidas":"Documentos da OS"}</p>
+                        {actionPanel==="quick" ? quickLoading ? <LoadingState text="Carregando mensagens rápidas..."/> :
+                          quickError ? <p role="alert" className="text-xs text-destructive">{quickError}</p> :
+                          quickReplies.length===0 ? <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma mensagem configurada. Cadastre em Canais de Atendimento → Mensagens rápidas.</p> :
+                          <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5">
+                            {quickReplies.map(item=><button key={item.id} type="button" role="menuitem"
+                              title={item.message} onClick={()=>{
+                                setDraft(item.message.slice(0,4000));setActionPanel(null);inputRef.current?.focus({preventScroll:true});
+                              }}
+                              className="min-h-16 rounded-lg border border-border px-2 py-2 text-center text-xs font-semibold hover:border-primary hover:bg-primary/5">
+                              <span className="line-clamp-2 break-words">{item.title}</span>
+                            </button>)}
+                          </div> : <div className="max-h-64 space-y-1 overflow-y-auto">
+                            {(orderDocumentOptions||[]).length===0 ? <p className="py-4 text-center text-xs text-muted-foreground">Não há documentos disponíveis para envio nesta OS.</p> :
+                              (orderDocumentOptions||[]).map(item=><button key={item.id} type="button" role="menuitem"
+                                disabled={Boolean(documentPreparing)} onClick={()=>void prepareOrderDocument(item.id)}
+                                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-muted disabled:opacity-50">
+                                <FileText size={16}/><span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                {documentPreparing===item.id && <LoaderCircle className="animate-spin" size={15}/>}
+                              </button>)}
+                          </div>}
+                        {actionPanel==="documents" && <p className="mt-2 text-xs text-muted-foreground">
+                          O PDF será anexado ao campo de mensagem. Revise antes de enviar.
+                        </p>}
+                      </div>}
+                    </div>}
                   </div>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
                     placeholder={attachment ? "Legenda (opcional)" : "Digite uma mensagem"}
