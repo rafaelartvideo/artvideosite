@@ -1889,8 +1889,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {timeline.map(entry => entry.kind==="persisted" ? (
                   <div key={entry.id} className={`mt-2 flex ${entry.message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
-                      <MessageBody message={entry.message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
+                    <div className={entry.message.message_type==="sticker"
+                      ? "w-fit max-w-[140px] bg-transparent p-0 shadow-none"
+                      : `max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
+                      {entry.message.direction==="outgoing" && entry.message.sender_name &&
+                        <div className="mb-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                          {entry.message.sender_name} <span className="font-normal opacity-70">· Operador</span>
+                        </div>}
+                      <MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
+                        onSaveSticker={canSend?message=>void saveReceivedSticker(message):undefined}
+                        onResendSticker={canReply?message=>void resendReceivedSticker(message):undefined}
+                        stickerBusy={stickerBusy===entry.message.id || Boolean(stickerBusy)}
+                        onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                         {clock(entry.message.sent_at)}
                         {entry.message.direction === "outgoing" && (entry.message.delivery_status === "read"
@@ -1903,7 +1913,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   </div>
                 ) : (
                   <div key={entry.id} className="mt-2 flex justify-end">
-                    <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
+                    <div className={entry.pending.mediaType==="sticker"
+                      ? "w-fit max-w-[140px] bg-transparent p-0 shadow-none"
+                      : "max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]"}>
+                      {operatorFirstName && <p className="mb-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {operatorFirstName} <span className="font-normal opacity-70">· Operador</span>
+                      </p>}
+                      {entry.pending.mediaType==="sticker" && entry.pending.previewUrl &&
+                        <img src={entry.pending.previewUrl} alt="Figurinha sendo enviada"
+                          className="max-h-[124px] max-w-[120px] object-contain" loading="lazy"/>}
                       {entry.pending.mediaType==="audio"
                         ? <WhatsAppVoicePlayer src={entry.pending.previewUrl} compact/>
                         : entry.pending.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
