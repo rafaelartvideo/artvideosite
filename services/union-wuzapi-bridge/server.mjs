@@ -604,7 +604,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/ogg; codecs=opus",PTT:true};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
     else if(kind==="sticker"){if(caption.trim())throw new Error("sticker_caption_unsupported");path="/chat/send/sticker";resource={...fields,Sticker:dataUrl};}
-    else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime};}
+    else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime,Caption:caption};}
     const result=await wuzapi(path,session.token,"POST",resource);
     const resultId=String(result?.data?.Id||result?.data?.id||"");
     if(!resultId || resultId.length>180) throw new Error("provider_confirmation_unknown");
