@@ -4,6 +4,7 @@ import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedi
 import { supabase, supabaseUrl } from "@/lib/supabase";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { pendingStartHasProtocol } from "../domain/pending-resolution.mjs";
+import { createProtocolAvatarCache } from "../domain/protocol-avatar-cache.mjs";
 
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
 
@@ -147,9 +148,16 @@ export async function getSacDigitalFinishedProtocolCount(organizationId: string)
   });
 }
 
+const protocolAvatarCache = createProtocolAvatarCache();
+
 export async function listSacDigitalProtocols(organizationId: string,fresh=false,identityKey="") {
   const read=fresh ? freshSingleFlight : singleFlight;
   return read(`${organizationId}:protocols:${identityKey}`, async () => {
+    // Evita reenviar ~1 MB de avatares a cada atualização da caixa.
+    // O cache é apenas de memória e isolado por organização + usuário.
+    const avatarScope = identityKey ? `${organizationId}:${identityKey}` : "";
+    const includeAvatars = !avatarScope || fresh || !protocolAvatarCache.hasScope(avatarScope);
+    const avatarField = includeAvatars ? "avatar_url," : "";
     const selection = `
       id,
       external_protocol_id,
@@ -168,7 +176,8 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
         id,
         name,
         phone,
-        avatar_url,
+        ${avatarField}
+        updated_at,
         customer_id,
         customer:customers(id,full_name)
       )
@@ -202,18 +211,6 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
     if (finishedResult.error) throw finishedResult.error;
 
     const rows = [...(activeResult.data || []), ...(finishedResult.data || [])];
-    const protocols = rows.map((row: any) => {
-      const contact = normalizeRelation<any>(row.contact);
-      return {
-        ...row,
-        contact: contact
-          ? {
-              ...contact,
-              customer: normalizeRelation<any>(contact.customer),
-            }
-          : null,
-      };
-    }) as SacDigitalProtocolListItem[];
 
     // A primeira mensagem pode ser aceita pela SAC sem abrir protocolo.
     // Exibir o registro pendente com identidade propria, sem fabricar protocolo.
@@ -231,7 +228,8 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
           id,
           name,
           phone,
-          avatar_url,
+          ${avatarField}
+          updated_at,
           customer_id,
           customer:customers(id,full_name)
         )
@@ -240,6 +238,48 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
       .order("sent_at", { ascending: false })
       .limit(100);
 
+    // Atualizações de protocolos frequentemente não alteram o contato.
+    // Buscar fotos somente quando contato mudou, é novo ou TTL expirou.
+    const allRows = [...rows, ...(pendingError ? [] : (pendingRows || []))];
+    if (avatarScope) {
+      if (includeAvatars) protocolAvatarCache.capture(avatarScope, allRows);
+      else {
+        const staleIds = protocolAvatarCache.staleIds(avatarScope, allRows);
+        // IDs por lote, para não ultrapassar limites de URL do PostgREST.
+        // No máximo quatro lotes simultâneos; dados de negócio não aguardam
+        // uma falha de miniatura para carregar a caixa.
+        for (let index = 0; index < staleIds.length; index += 240) {
+          const batches: string[][] = [];
+          for (let offset = index; offset < Math.min(index + 240, staleIds.length); offset += 60) {
+            batches.push(staleIds.slice(offset, offset + 60));
+          }
+          const results = await Promise.all(batches.map(ids => supabase
+            .from("sac_digital_contacts")
+            .select("id,avatar_url,updated_at")
+            .eq("organization_id", organizationId)
+            .in("id", ids)
+            .abortSignal(AbortSignal.timeout(15_000))));
+          for (const result of results) {
+            if (!result.error) protocolAvatarCache.capture(avatarScope, (result.data || []).map(contact => ({ contact })));
+          }
+        }
+      }
+    }
+    const normalizeContact = (value: unknown) => {
+      const contact = normalizeRelation<any>(value as any);
+      if (!contact) return null;
+      const cached = avatarScope ? protocolAvatarCache.get(avatarScope, contact.id) : undefined;
+      return {
+        ...contact,
+        avatar_url: cached ? cached.url : (contact.avatar_url || null),
+        customer: normalizeRelation<any>(contact.customer),
+      };
+    };
+    const protocols = rows.map((row: any) => ({
+      ...row,
+      contact: normalizeContact(row.contact),
+    })) as SacDigitalProtocolListItem[];
+
     // Compatibilidade enquanto a migracao ainda nao foi aplicada: nao quebrar
     // os protocolos reais so porque o recurso de pendentes nao esta disponivel.
     if (pendingError) return protocols;
@@ -247,7 +287,6 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
     const pending = (pendingRows || []).filter((row: any) => {
       return !pendingStartHasProtocol(row, protocols);
     }).map((row: any): SacDigitalProtocolListItem => {
-      const contact = normalizeRelation<any>(row.contact);
       return {
         id: `pending:${row.id}`,
         external_protocol_id: "",
@@ -264,12 +303,7 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
         pending_message: String(row.message_text || ""),
         notification_id: row.notification_id || null,
         delivery_state: row.delivery_state || "queued",
-        contact: contact
-          ? {
-              ...contact,
-              customer: normalizeRelation<any>(contact.customer),
-            }
-          : null,
+        contact: normalizeContact(row.contact),
       };
   });
 

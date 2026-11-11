@@ -189,8 +189,12 @@ export function subscribeToAdminNotifications(
   handlers: {
     onNotification: (notification: AdminNotification) => void;
     onStateChange?: () => void;
+    onConnectionChange?: (connected: boolean) => void;
   },
 ) {
+  let disposed = false;
+  let connected = false;
+  let connectedBefore = false;
   const channel = supabase
     .channel(`organization-notifications:${organizationId}:${userId}`)
     .on(
@@ -220,9 +224,24 @@ export function subscribeToAdminNotifications(
       },
       () => handlers.onStateChange?.(),
     )
-    .subscribe();
+    .subscribe(status => {
+      if (disposed) return;
+      if (status === "SUBSCRIBED") {
+        const recovered = connectedBefore && !connected;
+        connected = true;
+        connectedBefore = true;
+        handlers.onConnectionChange?.(true);
+        // Em reconexão real pode haver eventos perdidos; não repetir RPC
+        // na primeira conexão, pois o bootstrap já leu a caixa.
+        if (recovered) handlers.onStateChange?.();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        connected = false;
+        handlers.onConnectionChange?.(false);
+      }
+    });
 
   return () => {
+    disposed = true;
     void supabase.removeChannel(channel);
   };
 }
