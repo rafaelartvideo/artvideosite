@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+
 import { checkMyEmployeeAccessWindow, type MyEmployeeAccessWindow } from "@/features/registrations/infrastructure/employee-access-hours.repository";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
@@ -377,7 +377,12 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       const formattedEnd = new Date(end).toLocaleTimeString("pt-BR", {
         hour: "2-digit", minute: "2-digit", timeZone: windowData.timezone,
       });
-      notifyAdmin(`Seu acesso será encerrado às ${formattedEnd}, em até 10 minutos. Salve seu trabalho.`, "warning");
+      // A interface de notificações só é carregada quando o aviso é necessário;
+      // não aumentar o bundle de autenticação com componentes do CRM.
+      void import("@/shared/ui/admin/AdminFeedback")
+        .then(({ notifyAdmin }) => notifyAdmin(
+          `Seu acesso será encerrado às ${formattedEnd}, em até 10 minutos. Salve seu trabalho.`, "warning"))
+        .catch(() => console.warn("[ACESSO] Não foi possível mostrar o aviso de fim de expediente."));
     };
     if (remaining <= 0) {
       signOutForSchedule();
