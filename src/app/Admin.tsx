@@ -489,7 +489,7 @@ export function AdminDashboard({
             onBack={() => canAccessWhatsAppTool ? navigateAdmin("tools", "union-whatsapp") : navigateAdmin("tools")}
             onOpenInbox={canAccessWhatsAppTool ? () => navigateAdmin("tools", "union-whatsapp") : undefined}
             initialSection={((
-              ["configuration","connections","departments","queues","operators","permissions"].includes(new URLSearchParams(location.search).get("section") || "")
+              ["configuration","connections","departments","queues","operators","permissions","quick-replies"].includes(new URLSearchParams(location.search).get("section") || "")
                 ? new URLSearchParams(location.search).get("section") : "configuration"
             ) || "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions"}
           />
