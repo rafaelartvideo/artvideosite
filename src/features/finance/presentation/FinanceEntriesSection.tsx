@@ -543,9 +543,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className={settlementDialogOpen || editingSelectedEntry
-        ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,max-height,height] duration-300 ease-out"
+        ? "h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,max-height,height] duration-300 ease-out sm:h-auto"
         : "h-[calc(100dvh-1.5rem)] max-w-5xl transition-[max-width,max-height,height] duration-300 ease-out sm:h-[min(820px,calc(100dvh-2rem))]"}
-      bodyClassName={settlementDialogOpen || editingSelectedEntry ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
+      bodyClassName={settlementDialogOpen || editingSelectedEntry ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-6 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen || editingSelectedEntry ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={closeSelectedEntry}>Fechar</AdminButton>
