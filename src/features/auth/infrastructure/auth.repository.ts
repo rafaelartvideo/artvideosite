@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { recordAuthActivity } from "./session-audit.repository";
 import { isValidUsername, normalizeUsername } from "../domain/username";
 
-export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed" | "outside_hours" | "schedule_unavailable";
+export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed" | "outside_hours" | "schedule_unavailable" | "service_unavailable";
 export type AdminPasswordChangeResult = "changed" | "invalid_credentials" | "inactive_user" | "weak_password" | "update_failed";
 
 async function functionErrorPayload(error: unknown) {
@@ -23,23 +23,47 @@ export async function authenticateAdmin(identifier: string, password: string): P
   const username = normalizeUsername(identifier);
   if (!isValidUsername(username) || !password) return "invalid_credentials";
 
-  const result = await supabase.functions.invoke("username-auth", {
-    body: { action: "login", username, password },
-  });
+  // Evita manter a tela em "Entrando..." durante timeouts do banco/Edge.
+  // O sinal cancela a requisição HTTP, sem criar novas tentativas automáticas.
+  let result;
+  try {
+    result = await supabase.functions.invoke("username-auth", {
+      body: { action: "login", username, password },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return "service_unavailable";
+  }
   if (result.error) {
     const payload = await functionErrorPayload(result.error);
     if (payload.code === "ip_not_allowed") return "ip_not_allowed";
     if (payload.code === "outside_hours") return "outside_hours";
     if (payload.code === "schedule_unavailable") return "schedule_unavailable";
-    return "invalid_credentials";
+    if (result.error instanceof FunctionsHttpError) {
+      const status = result.error.context.status;
+      if (status >= 500 || payload.code === "service_unavailable"
+        || payload.message.includes("Não foi possível processar a autenticação")) {
+        return "service_unavailable";
+      }
+      if (status === 400 && payload.message.includes("Credenciais inválidas")) {
+        return "invalid_credentials";
+      }
+    }
+    return "service_unavailable";
   }
   if (!result.data?.access_token || !result.data?.refresh_token) return "invalid_credentials";
 
-  const session = await supabase.auth.setSession({
-    access_token: String(result.data.access_token),
-    refresh_token: String(result.data.refresh_token),
-  });
-  if (session.error || !session.data.user) return "invalid_credentials";
+  let session;
+  try {
+    session = await supabase.auth.setSession({
+      access_token: String(result.data.access_token),
+      refresh_token: String(result.data.refresh_token),
+    });
+  } catch {
+    return "service_unavailable";
+  }
+  if (session.error) return "service_unavailable";
+  if (!session.data.user) return "invalid_credentials";
 
   // A Edge Function username-auth já verifica profiles.is_active antes de
   // autenticar. Repetir SELECT profiles após setSession acrescentava latência
