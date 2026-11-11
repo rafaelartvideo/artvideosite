@@ -241,11 +241,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       return result.data as unknown as Registration;
     },
     enabled: Boolean(activeOrganizationId && routeRegistrationId && canView),
-    // A tabela já traz os dados essenciais do cadastro. Exiba-os imediatamente
-    // enquanto o detalhe completo é consultado, sem uma página de loading.
-    placeholderData: () => registrationsQuery.data?.items.find(item =>
-      item.id === routeRegistrationId && item.organization_id === activeOrganizationId,
-    ),
   });
   const routeRegistration = detailQuery.data ?? null;
   const detailPreview = detailQuery.isPlaceholderData;
@@ -273,6 +268,20 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     },
     enabled: Boolean(activeOrganizationId && detailExtrasEnabled && routeEmployeeId && canViewAccess),
   });
+
+  // Evita exibir a ficha incompleta enquanto os dados vinculados são consultados.
+  const supplierDetailsPending = detailExtrasEnabled && routeRoles.includes("supplier") && supplierItemsQuery.isPending;
+  const employeeAccessPending = detailExtrasEnabled && routeRoles.includes("employee")
+    && Boolean(routeEmployeeId) && canViewAccess && employeeAccessQuery.isPending;
+  const registrationPreparing = recordLoading || supplierDetailsPending || employeeAccessPending;
+  const registrationPreparationError = !routeRegistration && detailQuery.isError
+    ? systemErrorMessage(detailQuery.error, "Não foi possível carregar o cadastro.")
+    : detailExtrasEnabled && routeRoles.includes("supplier") && supplierItemsQuery.isError && !supplierItemsQuery.data
+      ? systemErrorMessage(supplierItemsQuery.error, "Não foi possível carregar os itens do fornecedor.")
+      : detailExtrasEnabled && routeRoles.includes("employee") && Boolean(routeEmployeeId)
+        && canViewAccess && employeeAccessQuery.isError && !employeeAccessQuery.data
+        ? systemErrorMessage(employeeAccessQuery.error, "Não foi possível carregar o acesso do funcionário.")
+        : null;
 
   const [saving, setSaving] = useState(false);
   const [registrationFieldErrors, setRegistrationFieldErrors] = useState<RegistrationFieldErrors>({});
@@ -391,6 +400,14 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setAccessForm(access ? accessFormFromResponse(access) : emptyEmployeeAccessForm());
     editorAccessHydratedRef.current = routeRegistration.id;
   }, [editorOpen, creating, routeRegistration, routeRoles, routeEmployeeId, canViewAccess, employeeAccessQuery.isSuccess, employeeAccessQuery.data]);
+
+  const editorHydrating = Boolean(editorOpen && !creating && routeRegistration && (
+    selected?.id !== routeRegistration.id
+    || editorBaseHydratedRef.current !== routeRegistration.id
+    || (routeRoles.includes("supplier") && editorSupplierHydratedRef.current !== routeRegistration.id)
+    || (routeRoles.includes("employee") && canViewAccess && routeEmployeeId
+      && editorAccessHydratedRef.current !== routeRegistration.id)
+  ));
 
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -689,7 +706,26 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     }
     onRouteChange?.(selected?.id || routeRegistration?.id || null, null);
   };
-  const closeDetail = () => onRouteChange?.(null, null);
+  const closeDetail = () => {
+    setHoursOpen(false);
+    onRouteChange?.(null, null);
+  };
+
+  const registrationPreparationPage = (onClose: () => void) => <AdminPage
+    open onClose={onClose} smoothMotion={false} breadcrumb={platformUsersOnly ? "Usuários" : "Cadastros"}
+    title="Preparando cadastro" maxW="max-w-7xl"
+  >
+    <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 p-5">
+      {registrationPreparationError ? <>
+        <p role="alert" className="text-center text-sm text-destructive">{registrationPreparationError}</p>
+        <BtnPrimary onClick={() => {
+          if (detailQuery.isError) void detailQuery.refetch();
+          if (supplierItemsQuery.isError) void supplierItemsQuery.refetch();
+          if (employeeAccessQuery.isError) void employeeAccessQuery.refetch();
+        }}>Tentar novamente</BtnPrimary>
+      </> : <LoadingState text="Preparando cadastro..." />}
+    </div>
+  </AdminPage>;
 
   if (!canView) return null;
 
@@ -715,7 +751,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   }
 
   if (editorOpen) {
-    if (!creating && (recordLoading || !routeRegistration || !selected)) return <AdminPage open onClose={closeEditor} smoothMotion={false} breadcrumb="Cadastros" title="Editar cadastro"><LoadingState /></AdminPage>;
+    if (!creating && (registrationPreparing || registrationPreparationError || !routeRegistration || editorHydrating)) return registrationPreparationPage(closeEditor);
     return <>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <RegistrationEditor
@@ -747,34 +783,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         onSave={() => void save()}
         onClose={closeEditor}
         onToggleRole={toggleRole}
-        onOpenHours={(canViewAccess || canEditAccess || canCreateAccess) ? () => setHoursOpen(true) : undefined}
         employeeOnly={platformUsersOnly}
       />
-      {hoursOpen && activeOrganizationId && form.roles.includes("employee") && <EmployeeAccessHoursDialog
-        organizationId={activeOrganizationId}
-        entityId={creating ? null : selected?.id || null}
-        employeeName={selected?.name || form.name || "Funcionário"}
-        stagedHours={stagedAccessHours}
-        canEdit={creating ? canCreateAccess && canEditAccess : canEditAccess}
-        onClose={() => setHoursOpen(false)}
-        onSave={async hours => {
-          if (!activeOrganizationId) throw new Error("Empresa não selecionada.");
-          if (!creating && selected?.id) {
-            await saveEmployeeAccessHours(activeOrganizationId, selected.id, hours);
-            void queryClient.invalidateQueries({
-              queryKey: ["registrations", "crm-access-hours", activeOrganizationId, selected.id],
-            });
-            setToast({ msg: "Horários de acesso atualizados.", type: "success" });
-          } else {
-            setStagedAccessHours(hours);
-            setToast({ msg: "Agenda preparada. Salve o cadastro para gravar os horários.", type: "success" });
-          }
-        }}
-      />}
     </>;
   }
 
   if (routeRegistration && routeResourceId) {
+    if (registrationPreparing || registrationPreparationError) return registrationPreparationPage(closeDetail);
     const access = employeeAccessQuery.data;
     const permissionUserId = access?.user_id || access?.profile_id || routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
     const detailAccessForm = access ? accessFormFromResponse(access) : emptyEmployeeAccessForm();
@@ -802,13 +817,27 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         onOpenOrder={onOpenOrder}
         onAddressLinked={() => void queryClient.invalidateQueries({queryKey:detailKey})}
         onOpenPermissions={() => onRouteChange?.(routeRegistration.id, "permissions")}
+        onOpenAccessHours={() => setHoursOpen(true)}
       />
+      {hoursOpen && activeOrganizationId && routeRoles.includes("employee") && <EmployeeAccessHoursDialog
+        organizationId={activeOrganizationId}
+        entityId={routeRegistration.id}
+        employeeName={routeRegistration.name || "Funcionário"}
+        stagedHours={null}
+        canEdit={canEditAccess}
+        onClose={() => setHoursOpen(false)}
+        onSave={async hours => {
+          await saveEmployeeAccessHours(activeOrganizationId, routeRegistration.id, hours);
+          void queryClient.invalidateQueries({
+            queryKey: ["registrations", "crm-access-hours", activeOrganizationId, routeRegistration.id],
+          });
+          setToast({ msg: "Horários de acesso atualizados.", type: "success" });
+        }}
+      />}
     </>;
   }
 
-  // O preview da linha evita este loading ao abrir pela tabela. Em URLs diretas,
-  // sem qualquer dado em cache, aguardamos a consulta para não exibir ficha falsa.
-  if (routeResourceId && !routeRegistration && recordLoading) return <LoadingState text="Carregando cadastro..." />;
+  if (routeResourceId && !routeRegistration) return registrationPreparationPage(closeDetail);
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

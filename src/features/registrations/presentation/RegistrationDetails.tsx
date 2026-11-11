@@ -1,4 +1,4 @@
-import { Link2, MapPin, Phone } from "lucide-react";
+import { CalendarClock, Link2, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
@@ -11,7 +11,7 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
-import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatDateOnly, formatDateTime, formatPhone } from "@/shared/domain/formatters";
 import { usernameFromAuthEmail } from "@/features/auth/domain/username";
@@ -65,9 +65,10 @@ type RegistrationDetailsProps = {
   onOpenOrder?: (id: string, customerId?: string) => void;
   onAddressLinked?: () => void;
   onOpenPermissions: () => void;
+  onOpenAccessHours?: () => void;
 };
 
-export function RegistrationDetails({ selected, preview = false, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenOrder, onAddressLinked, onOpenPermissions }: RegistrationDetailsProps) {
+export function RegistrationDetails({ selected, preview = false, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenOrder, onAddressLinked, onOpenPermissions, onOpenAccessHours }: RegistrationDetailsProps) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const roles = activeRegistrationRoles(selected);
@@ -192,7 +193,12 @@ export function RegistrationDetails({ selected, preview = false, supplierItems, 
             onOpenOrder={onOpenOrder}/>
         </>}
 
-        {!preview && roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
+        {!preview && roles.includes("employee") && canViewAccess && <Section
+          title="Acesso e Permissões"
+          actions={onOpenAccessHours ? <AdminButton variant="secondary" size="sm" onClick={onOpenAccessHours}>
+            <CalendarClock size={16} /> Horários de acesso
+          </AdminButton> : undefined}
+        >
           <div aria-busy={accessLoading}>
             {accessLoading ? <LoadingState text="Carregando acesso ao sistema..." /> : <div className="grid gap-4 sm:grid-cols-2">
               {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}

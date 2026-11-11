@@ -79,13 +79,14 @@ test("agenda semanal de acesso permite vários intervalos sem sobreposição e s
   const repo = read("src/features/registrations/infrastructure/employee-access-hours.repository.ts");
   const modal = read("src/features/registrations/presentation/EmployeeAccessHoursDialog.tsx");
   const editor = read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  const details = read("src/features/registrations/presentation/RegistrationDetails.tsx");
   const registrations = read("src/features/registrations/presentation/TabRegistrations.tsx");
   const auth = read("src/lib/auth.tsx");
   const app = read("src/app/App.tsx");
   const sql = read("supabase/migrations/20261110210000_employee_crm_access_hours.sql");
   for (const [path, source] of [
     ["EmployeeAccessHoursDialog.tsx", modal], ["RegistrationEditor.tsx", editor],
-    ["TabRegistrations.tsx", registrations], ["auth.tsx", auth], ["App.tsx", app],
+    ["RegistrationDetails.tsx", details], ["TabRegistrations.tsx", registrations], ["auth.tsx", auth], ["App.tsx", app],
   ]) assert.ok((await transformWithEsbuild(source, path, { loader: "tsx" })).code.length > 100, path);
   assert.ok((await transformWithEsbuild(repo, "employee-access-hours.repository.ts", { loader: "ts" })).code.length > 100);
   const transformed = await transformWithEsbuild(domain, "employee-access-hours.ts", { loader: "ts" });
@@ -102,7 +103,10 @@ test("agenda semanal de acesso permite vários intervalos sem sobreposição e s
   monday.intervals[0].end = "08:00";
   assert.match(logic.validateEmployeeAccessHours(empty), /início/);
   assert.equal(logic.nextFreeAccessInterval([{ start: "08:00", end: "12:00" }]).start, "13:00");
-  assert.match(editor, /<CalendarClock size=\{16\}\/> Horários/);
+  assert.doesNotMatch(editor, /onOpenHours|<CalendarClock size=\{16\}\/> Horários/);
+  assert.match(details, /title="Acesso e Permissões"/);
+  assert.match(details, /Horários de acesso/);
+  assert.match(registrations, /Preparando cadastro/);
   assert.match(modal, /Agenda semanal/);
   assert.match(modal, /Copiar horários de outro funcionário/);
   assert.match(modal, /variant="secondary" disabled=\{busy\} onClick=\{onClose\}>Voltar/);
@@ -136,5 +140,5 @@ test("agenda de acesso usa a entidade de cadastro unificado, inclusive funcioná
   assert.match(repo,/p_entity_id: entityId/);
   assert.match(modal,/entityId/);
   assert.match(form,/saveEmployeeAccessHours\(activeOrganizationId, savedId, stagedAccessHours\)/);
-  assert.match(form,/entityId=\{creating \? null : selected\?\.id \|\| null\}/);
+  assert.match(form,/entityId=\{routeRegistration\.id\}/);
 });
