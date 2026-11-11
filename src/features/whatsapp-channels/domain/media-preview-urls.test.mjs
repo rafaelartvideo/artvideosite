@@ -95,3 +95,25 @@ test("salvar figurinha é otimista, compacto e restaura a ação sem erro visual
   assert.match(repository,/message_ids\?: string\[\]/);
   assert.match(repository,/saved_message_ids\?: string\[\]/);
 });
+
+test("editar contato abre modal isolado e campos obrigatórios usam asterisco vermelho", async () => {
+  const { readFileSync } = await import("node:fs");
+  const read = file => readFileSync(new URL("../../../../"+file,import.meta.url),"utf8");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const edit=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactEditDialog.tsx");
+  const directory=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const common=read("src/shared/ui/admin/AdminFormControls.tsx");
+  assert.match(inbox, /<UnionWhatsAppContactEditDialog/);
+  assert.match(inbox, /contactsOpen && !editContactId/);
+  assert.match(inbox, /setContactsOpen\(false\);setEditContactId\(selected\.id\)/);
+  assert.match(edit, /"contacts_save"/);
+  assert.match(edit, /"check_number"/);
+  assert.doesNotMatch(edit, /"contacts_list"|"contacts_import"/);
+  assert.match(edit, /<AdminDialog open title="Editar contato"/);
+  assert.match(edit, /<RequiredFieldLabel label="Nome salvo na Union" required\/>/);
+  assert.match(edit, /<RequiredFieldLabel label="WhatsApp" required=/);
+  assert.match(directory, /<RequiredFieldLabel label="Nome salvo na Union" required\/>/);
+  assert.match(directory, /<RequiredFieldLabel label="WhatsApp" required\/>/);
+  assert.match(common, /data-admin-required-indicator="true"/);
+  assert.match(common, /text-red-600 dark:text-red-400/);
+});
