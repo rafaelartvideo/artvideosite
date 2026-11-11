@@ -1504,6 +1504,105 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
 
+  const refreshStickers=useCallback(async()=>{
+    if(!activeOrganizationId || !selected?.id)return;
+    setStickerLoading(true);
+    try{
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"sticker_list");
+      if(organizationRef.current===activeOrganizationId)setStickers(result.stickers||[]);
+    }catch(reason){
+      reportError(systemErrorMessage(reason,"Não foi possível abrir as figurinhas."));
+    }finally{setStickerLoading(false);}
+  },[activeOrganizationId,selected?.id,reportError]);
+
+  useEffect(()=>{
+    setStickerOpen(false);
+    setStickers([]);
+  },[activeOrganizationId,selected?.id]);
+  useEffect(()=>{
+    if(stickerOpen)void refreshStickers();
+  },[stickerOpen,refreshStickers]);
+
+  const stickerSendGateRef=useRef(false);
+  const sendSavedSticker=async(stickerId:string,previewUrl?:string)=>{
+    if(!canReply || !selected?.id || !activeOrganizationId || stickerSendGateRef.current)return;
+    stickerSendGateRef.current=true;
+    const threadId=selected.id, organizationId=activeOrganizationId;
+    const requestId=crypto.randomUUID();
+    setStickerBusy(stickerId);
+    setPending(current=>[...current,{
+      id:requestId,conversationId:threadId,organizationId,
+      text:"",mediaType:"sticker",fileName:"Figurinha",previewUrl,
+      sentAt:new Date().toISOString(),status:"sending",
+    }]);
+    scrollToLatest("auto");
+    try{
+      const result=await operateUnionWhatsAppInbox(organizationId,threadId,"sticker_send",{
+        sticker_id:stickerId,client_message_id:requestId,
+      });
+      if(organizationRef.current!==organizationId)return;
+      setPending(current=>current.map(item=>item.id===requestId
+        ? {...item,status:"sent",providerMessageId:result.provider_message_id||undefined}
+        : item));
+      setStickerOpen(false);
+      void Promise.allSettled([refreshMessages(threadId,true),refresh(true),refreshStickers()]);
+    }catch(reason){
+      if(organizationRef.current!==organizationId)return;
+      const detail=systemErrorMessage(reason,"Não foi possível enviar a figurinha.");
+      setPending(current=>current.map(item=>item.id===requestId
+        ? {...item,status:/confirm|pendente|verifique/i.test(detail)?"unknown":"failed",error:detail}
+        : item));
+      reportError(detail);
+    }finally{setStickerBusy(null);stickerSendGateRef.current=false;}
+  };
+
+  const saveReceivedSticker=async(message:UnionWhatsAppMessage):Promise<string|null>=>{
+    if(!activeOrganizationId || !selected?.id)return null;
+    const org=activeOrganizationId;
+    setStickerBusy(message.id);
+    try{
+      const result=await operateUnionWhatsAppInbox(org,selected.id,"sticker_save",{message_id:message.id});
+      if(organizationRef.current!==org)return null;
+      void refreshStickers();
+      notifyAdmin(result.already_saved?"Figurinha já está na coleção.":"Figurinha salva na coleção da empresa.","success");
+      return result.sticker_id||null;
+    }catch(reason){
+      reportError(systemErrorMessage(reason,"Não foi possível salvar a figurinha."));
+      return null;
+    }finally{setStickerBusy(null);}
+  };
+  const resendReceivedSticker=async(message:UnionWhatsAppMessage)=>{
+    if(stickerBusy)return;
+    const savedId=await saveReceivedSticker(message);
+    if(savedId)await sendSavedSticker(savedId);
+  };
+  const toggleFavoriteSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
+    if(!selected?.id||!activeOrganizationId||stickerBusy)return;
+    const org=activeOrganizationId;
+    setStickerBusy(sticker.id);
+    try{
+      await operateUnionWhatsAppInbox(org,selected.id,"sticker_favorite",{
+        sticker_id:sticker.id,is_favorite:!sticker.is_favorite,
+      });
+      if(organizationRef.current===org){
+        setStickers(current=>current.map(row=>row.id===sticker.id
+          ? {...row,is_favorite:!sticker.is_favorite}:row));
+      }
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível favoritar a figurinha."));}
+    finally{setStickerBusy(null);}
+  };
+  const removeSavedSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
+    if(!selected?.id||!activeOrganizationId||stickerBusy)return;
+    if(!window.confirm("Remover esta figurinha da coleção da empresa?"))return;
+    const org=activeOrganizationId;
+    setStickerBusy(sticker.id);
+    try{
+      await operateUnionWhatsAppInbox(org,selected.id,"sticker_remove",{sticker_id:sticker.id});
+      if(organizationRef.current===org)setStickers(current=>current.filter(row=>row.id!==sticker.id));
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível remover a figurinha."));}
+    finally{setStickerBusy(null);}
+  };
+
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
   return <div className={embedded ? "flex h-full min-h-0 flex-col" : "space-y-5"}>
