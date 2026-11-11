@@ -22,7 +22,6 @@ export function useAdminNotifications(
   userId: string | null | undefined,
 ) {
   const queryClient = useQueryClient();
-  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [liveQueue, setLiveQueue] = useState<AdminNotification[]>([]);
   const liveNotification = liveQueue[0] || null;
   const isWorkReminder = (notification: AdminNotification) =>
@@ -47,20 +46,17 @@ export function useAdminNotifications(
     queryKey,
     enabled,
     queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50, normalizedUserId!),
-    // Realtime entrega eventos imediatamente. Só enquanto o canal está
-    // conectado, a reconciliação pode ser menos frequente; desconectado,
-    // mantemos a contingência de 60s (erros seguem o backoff existente).
+    // O canal Realtime entrega novidades imediatamente. A verificação
+    // periódica é só contingência para eventos perdidos/reconexão.
+    // Não consulte novamente a cada troca de módulo ou foco da janela.
     staleTime: 60_000,
-    refetchInterval: query => query.state.status === "error"
-      ? 120_000 : realtimeConnected ? 5 * 60_000 : 60_000,
-    refetchIntervalInBackground: false,
+    refetchInterval: query => query.state.status === "error" ? 120_000 : 60_000,
     refetchOnWindowFocus: false,
     retry: false,
   });
 
   useEffect(() => {
     setLiveQueue([]);
-    setRealtimeConnected(false);
     if (!normalizedOrganizationId || !normalizedUserId) return;
 
     let disposed = false;
@@ -111,9 +107,6 @@ export function useAdminNotifications(
     };
 
     const unsubscribe = subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
-      onConnectionChange: connected => {
-        if (!disposed) setRealtimeConnected(connected);
-      },
       onNotification: notification => {
         // The home page uses the same React Query key. Flush once instead of
         // invalidating it separately for every inserted notification.
@@ -136,25 +129,10 @@ export function useAdminNotifications(
     };
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
 
-  // Ao retornar de uma aba oculta por bastante tempo, reconcilia uma vez.
-  // Não dispara fetch a cada alternância de foco.
-  useEffect(() => {
-    if (!enabled) return;
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      const updatedAt = queryClient.getQueryState(queryKey)?.dataUpdatedAt || 0;
-      if (Date.now() - updatedAt >= 5 * 60_000) {
-        void queryClient.invalidateQueries({ queryKey, exact: true });
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [enabled, normalizedOrganizationId, normalizedUserId, queryClient]);
-
   // The realtime INSERT can be missed if the page was closed, switched tabs,
   // the websocket reconnected, or the database cron fired during a reload.
-  // Recover pending reminders on initial load, reconnection, returning from
-  // a long-hidden tab or periodic fallback. Dismissed/read items aren't replayed.
+  // Recover pending reminders from the actual server inbox on initial load,
+  // focus and 60-second polling; dismissed/read notifications are not replayed.
   useEffect(() => {
     if (!enabled) return;
     const since = Date.now() - 24 * 60 * 60_000;
