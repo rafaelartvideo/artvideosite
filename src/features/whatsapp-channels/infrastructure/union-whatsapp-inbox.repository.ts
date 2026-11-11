@@ -71,6 +71,7 @@ export type UnionWhatsAppSavedSticker = {
   created_at: string;
   last_used_at: string | null;
   file_size: number;
+  can_remove: boolean;
 };
 
 export type UnionWhatsAppQueueSettings = {
