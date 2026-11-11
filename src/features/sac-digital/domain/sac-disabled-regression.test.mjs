@@ -48,6 +48,11 @@ test('CRM não exibe nem abre o módulo SAC legado', async () => {
   assert.match(admin, /UnionWhatsAppInboxPage/);
 });
 
+test('bootstrap do CRM não inicia presença da SAC aposentada depois do login', async () => {
+  const app = await read('src/app/App.tsx');
+  assert.doesNotMatch(app, /AuthenticatedSacAutoPresence|bringMySacOperatorOnline|features\/sac-digital/);
+});
+
 test('repository bloqueia a SAC legada antes de chamar rede ou comprimir mídia', async () => {
   const repo = await read('src/features/sac-digital/infrastructure/sac-digital.repository.ts');
   assert.match(repo, /const SAC_DIGITAL_DISABLED = true/);
