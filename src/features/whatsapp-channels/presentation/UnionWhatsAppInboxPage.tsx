@@ -147,6 +147,13 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onRe
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
+  const [stickerZoom,setStickerZoom]=useState(false);
+  useEffect(()=>{
+    if(!stickerZoom)return;
+    const onEscape=(event:KeyboardEvent)=>{if(event.key==="Escape")setStickerZoom(false);};
+    window.addEventListener("keydown",onEscape);
+    return()=>window.removeEventListener("keydown",onEscape);
+  },[stickerZoom]);
   const hasStoredMedia = Boolean(message.media_path || message.media_available);
   const loadMedia = useCallback(async () => {
     if (!hasStoredMedia || mediaLoading || !organizationId) return;
@@ -199,12 +206,13 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onRe
     return <p className="text-sm leading-5"><WhatsAppFormattedText text={content || "Mensagem"}/></p>;
   }
   if(message.message_type==="sticker"){
-    return <div className="flex w-fit max-w-[130px] flex-col gap-1.5">
-      {mediaUrl ? <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+    return <>
+      <div className="flex w-fit max-w-[130px] flex-col gap-1.5">
+      {mediaUrl ? <button type="button" onClick={()=>setStickerZoom(true)}
         aria-label="Ampliar figurinha" title="Ampliar figurinha" className="block w-fit">
         <img src={mediaUrl} alt="Figurinha do WhatsApp" loading="lazy" decoding="async"
           onLoad={onMediaLoad} className="block max-h-[124px] max-w-[120px] object-contain"/>
-      </a> : <div className="inline-flex items-center gap-1.5 rounded-lg bg-card/80 px-2 py-1.5 text-[11px] text-muted-foreground">
+      </button> : <div className="inline-flex items-center gap-1.5 rounded-lg bg-card/80 px-2 py-1.5 text-[11px] text-muted-foreground">
         <Sticker size={15}/>
         <span>{mediaLoading?"Carregando figurinha...":hasStoredMedia?"Figurinha indisponível":"Figurinha não sincronizada"}</span>
         {hasStoredMedia && !mediaLoading && <button type="button" onClick={()=>void loadMedia()}
@@ -223,7 +231,18 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onRe
           {stickerBusy && <LoaderCircle size={12} className="animate-spin"/>}
         </div>}
       {mediaError && <span role="alert" className="text-[10px] text-red-600">{mediaError}</span>}
-    </div>;
+      </div>
+      {stickerZoom && mediaUrl && <div role="dialog" aria-modal="true" aria-label="Figurinha ampliada"
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-6"
+        onClick={()=>setStickerZoom(false)}>
+        <button type="button" aria-label="Fechar figurinha ampliada" onClick={()=>setStickerZoom(false)}
+          className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25">
+          <X size={22}/>
+        </button>
+        <img src={mediaUrl} alt="Figurinha ampliada" onClick={event=>event.stopPropagation()}
+          className="max-h-[80vh] max-w-[80vw] object-contain"/>
+      </div>}
+    </>;
   }
   const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
     location:FileText, contact:FileText, sticker:ImageIcon };
