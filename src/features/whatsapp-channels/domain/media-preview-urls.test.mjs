@@ -46,6 +46,9 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(picker,/Favoritas/);
   assert.match(edge,/action==="sticker_list"/);
   assert.match(edge,/action==="sticker_save"/);
+  assert.match(edge,/action==="sticker_prepare"/);
+  assert.match(edge,/action==="sticker_commit"/);
+  assert.match(page,/uploadStickerToLibrary/);
   assert.match(edge,/action==="sticker_favorite"/);
   assert.match(edge,/action==="sticker_send"/);
   assert.match(edge,/message_type:isMedia\?kind:"text"/);
