@@ -363,6 +363,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [stickers,setStickers]=useState<UnionWhatsAppSavedSticker[]>([]);
   const [savedStickerMessageIds,setSavedStickerMessageIds]=useState<Set<string>>(()=>new Set());
   const stickerSaveInFlightRef=useRef(new Set<string>());
+  const favoriteToggleInFlightRef=useRef(new Set<string>());
   const stickerSavedScopeRef=useRef("");
   const [stickerLoading,setStickerLoading]=useState(false);
   const [stickerBusy,setStickerBusy]=useState<string|null>(null);
@@ -1737,10 +1738,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       .finally(()=>stickerSaveInFlightRef.current.delete(message.id));
   };
   const toggleFavoriteSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
-    if(!selected?.id||!activeOrganizationId||stickerBusy)return;
+    if(!selected?.id||!activeOrganizationId||
+      favoriteToggleInFlightRef.current.has(sticker.id))return;
     const org=activeOrganizationId,threadId=selected.id;
     const nextFavorite=!sticker.is_favorite;
-    setStickerBusy(sticker.id);
+    favoriteToggleInFlightRef.current.add(sticker.id);
     // Immediate toggle. If the request fails, revert without changing the
     // selected tab or rebuilding the sticker collection.
     setStickers(current=>current.map(row=>row.id===sticker.id
@@ -1754,7 +1756,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setStickers(current=>current.map(row=>row.id===sticker.id
           ? {...row,is_favorite:sticker.is_favorite}:row));
       }
-    }finally{setStickerBusy(null);}
+    }finally{favoriteToggleInFlightRef.current.delete(sticker.id);}
   };
   const removeSavedSticker=async(sticker:UnionWhatsAppSavedSticker)=>{
     if(!selected?.id||!activeOrganizationId||stickerBusy)return;
