@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
@@ -612,13 +613,13 @@ export function UnionWhatsAppContactsDialog({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold" htmlFor="union-contact-name">Nome salvo na Union *</label>
+              <label className="block text-xs font-semibold" htmlFor="union-contact-name"><RequiredFieldLabel label="Nome salvo na Union" required/></label>
               <input id="union-contact-name" value={name} disabled={!canEdit}
                 onChange={event=>setName(event.target.value)} maxLength={160} placeholder="Nome do contato"
                 className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"/>
             </div>
             {(creating || selected) && <div>
-              <label htmlFor="union-contact-phone" className="block text-xs font-semibold">WhatsApp *</label>
+              <label htmlFor="union-contact-phone" className="block text-xs font-semibold"><RequiredFieldLabel label="WhatsApp" required/></label>
               <div className="mt-1 flex overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
                 <span className="border-r border-border bg-muted px-3 py-2.5 text-sm font-semibold">+55</span>
                 <input id="union-contact-phone" inputMode="tel" value={phone} disabled={!canEdit}
