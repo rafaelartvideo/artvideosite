@@ -2109,7 +2109,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <div ref={actionPanelRef} className="relative flex h-12 shrink-0">
                     <button type="button" aria-label="Mais opções da conversa" title="Mais opções da conversa"
                       aria-expanded={Boolean(actionPanel)} aria-haspopup="menu"
-                      onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current?"actions":"actions");}}
+                      onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current ? null : "actions");}}
                       className={`flex h-12 w-10 items-center justify-center border-r border-border text-foreground hover:bg-muted ${actionPanel?"bg-primary-soft text-primary":""}`}>
                       <ChevronUp size={20}/>
                     </button>
