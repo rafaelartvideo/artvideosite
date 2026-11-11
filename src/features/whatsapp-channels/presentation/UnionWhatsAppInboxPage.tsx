@@ -1453,11 +1453,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     setEmojiOpen(false);
     setStickerOpen(false);
-    if(fileType==="audio" && preview) pendingAudioUrlsRef.current.add(preview);
+    if((fileType==="audio"||fileType==="sticker") && preview) pendingAudioUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
       text:optimisticText, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
-      mediaType:fileType || undefined, previewUrl:fileType==="audio" ? preview||undefined : undefined,
+      mediaType:fileType || undefined, previewUrl:fileType==="audio"||fileType==="sticker" ? preview||undefined : undefined,
     }]);
     scrollToLatest("auto");
     inputRef.current?.focus({ preventScroll: true });
@@ -1497,7 +1497,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           ? { ...item, status: /confirm|pendente|verifique/i.test(detail) ? "unknown" : "failed", error: detail }
           : item));
       } finally {
-        if (preview && fileType!=="audio") previewUrls.release(preview);
+        if (preview && fileType!=="audio" && fileType!=="sticker") previewUrls.release(preview);
         sendingIds.current.delete(requestId);
       }
     })();
@@ -1977,6 +1977,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>}
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
+                  <input ref={stickerFileInputRef} type="file" className="hidden"
+                    accept="image/webp,.webp" aria-label="Enviar figurinha WebP"
+                    onChange={event=>{const file=event.target.files?.[0]||null;
+                      event.currentTarget.value="";
+                      setStickerOpen(false);
+                      if(file)void onChooseMedia(file);
+                    }}/>
                   <input ref={mediaInputRef} type="file" className="hidden"
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
@@ -1987,6 +1994,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <Paperclip size={22}/>
                   </button>
                   <div className="relative flex h-12 shrink-0">
+                    <button type="button" aria-label="Selecionar figurinha" aria-expanded={stickerOpen}
+                      title="Figurinhas da empresa" onClick={()=>{setEmojiOpen(false);setStickerOpen(open=>!open);}}
+                      className={`flex h-12 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted ${stickerOpen?"bg-primary-soft text-primary":""}`}>
+                      <Sticker size={21}/>
+                    </button>
+                    {stickerOpen && <UnionWhatsAppStickerPicker
+                      stickers={stickers} loading={stickerLoading} busyId={stickerBusy}
+                      onSend={sticker=>void sendSavedSticker(sticker.id,sticker.preview_url||undefined)}
+                      onFavorite={sticker=>void toggleFavoriteSticker(sticker)}
+                      onRemove={sticker=>void removeSavedSticker(sticker)}
+                      onUpload={()=>stickerFileInputRef.current?.click()}
+                      onClose={()=>setStickerOpen(false)}/>}
                     <button type="button" aria-label="Selecionar emoji" aria-expanded={emojiOpen}
                       onClick={() => setEmojiOpen(v => !v)}
                       className={`flex h-12 w-12 items-center justify-center border-r border-border text-foreground hover:bg-muted ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
