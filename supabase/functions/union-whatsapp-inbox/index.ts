@@ -1771,10 +1771,22 @@ Deno.serve(async request => {
     }
     const text=typeof body.text === "string" ? body.text.trim() : "";
     const clientId=String(body.client_message_id || "");
-    const isMedia=action==="send_media";
-    const kind=String(body.media_type||"");
-    const mime=String(body.media_mime||"");
-    const name=String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
+    const fromLibrary=action==="sticker_send";
+    let librarySticker:{id:string;storage_path:string;file_size:number}|null=null;
+    if(fromLibrary){
+      const stickerId=String(body.sticker_id||"");
+      if(!uuid(stickerId))return json({success:false,error:"Figurinha inválida."},400);
+      const {data:found,error:findError}=await admin.from("union_whatsapp_sticker_library")
+        .select("id,storage_path,file_size").eq("organization_id",org).eq("id",stickerId).maybeSingle();
+      if(findError)throw findError;
+      if(!found||!found.storage_path.startsWith(org+"/stickers/"))
+        return json({success:false,error:"Figurinha não encontrada nesta empresa."},404);
+      librarySticker=found;
+    }
+    const isMedia=action==="send_media" || fromLibrary;
+    const kind=fromLibrary?"sticker":String(body.media_type||"");
+    const mime=fromLibrary?"image/webp":String(body.media_mime||"");
+    const name=fromLibrary?"figurinha.webp":String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
     const limits:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
     const mimeAllowed=isMedia && (
       kind==="sticker" ? mime==="image/webp"
@@ -1786,15 +1798,19 @@ Deno.serve(async request => {
           "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime) : false
     );
-    const fileSize=Number(body.media_size);
-    const mediaPath=isMedia ? String(body.media_path||"") : "";
+    const fileSize=fromLibrary ? Number(librarySticker?.file_size) : Number(body.media_size);
+    const mediaPath=fromLibrary ? String(librarySticker?.storage_path||"") :
+      isMedia ? String(body.media_path||"") : "";
     const ext=isMedia ? kind==="sticker"?"webp":kind==="image"?(mime==="image/png"?"png":"jpg"):
       kind==="video"?"mp4":kind==="audio"?(mime==="audio/mp4"?"m4a":mime==="audio/mpeg"?"mp3":mime==="audio/webm"?"webm":"ogg"):
       (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin" : "";
     const expectedMediaPath=isMedia ? org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext : "";
+    const validMediaPath=fromLibrary
+      ? Boolean(librarySticker && mediaPath===librarySticker.storage_path && mediaPath.startsWith(org+"/stickers/"))
+      : mediaPath===expectedMediaPath;
     if(!uuid(clientId) || text.length>4000 || (!isMedia && !text) ||
       (kind==="sticker" && Boolean(text)) ||
-      (isMedia && (!mimeAllowed || !name || mediaPath!==expectedMediaPath ||
+      (isMedia && (!mimeAllowed || !name || !validMediaPath ||
         !Number.isSafeInteger(fileSize) || fileSize<1 || fileSize>limits[kind])) ||
       !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid))
       return json({success:false,error:"Mensagem ou anexo inválido."},400);
@@ -1920,6 +1936,24 @@ Deno.serve(async request => {
       .update({status:"sent",provider_message_id:messageId,updated_at:now})
       .eq("id",attempt.id);
     if(completeError) throw completeError;
+    if(fromLibrary && librarySticker){
+      const {error:recentError}=await admin.from("union_whatsapp_sticker_library")
+        .update({last_used_at:now}).eq("organization_id",org).eq("id",librarySticker.id);
+      if(recentError) console.warn("union-whatsapp-inbox: recent_sticker_not_updated");
+    }else if(isMedia && kind==="sticker"){
+      // The original outgoing media stays available in its conversation.
+      // Save one private company copy for the picker without delaying sending.
+      const catalogPath=org+"/stickers/"+clientId+".webp";
+      const {error:copyError}=await admin.storage.from("union-whatsapp-media")
+        .copy(mediaPath,catalogPath);
+      if(!copyError){
+        const {error:catalogError}=await admin.from("union_whatsapp_sticker_library")
+          .upsert({organization_id:org,storage_path:catalogPath,file_size:fileSize,
+            source_message_id:message?.id||null,created_by:actorId,last_used_at:now},
+            {onConflict:"organization_id,storage_path",ignoreDuplicates:true});
+        if(catalogError)console.warn("union-whatsapp-inbox: sticker_catalog_save_failed");
+      }else console.warn("union-whatsapp-inbox: sticker_catalog_copy_failed");
+    }
     return json({success:true,message_id:message?.id || null,provider_message_id:messageId,provider_confirmed:true});
   } catch(error) {
     console.error("union-whatsapp-inbox:",(error as Error)?.name || "unknown");
