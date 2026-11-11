@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { recordAuthActivity } from "./session-audit.repository";
 import { isValidUsername, normalizeUsername } from "../domain/username";
 
-export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed";
+export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed" | "outside_hours" | "schedule_unavailable";
 export type AdminPasswordChangeResult = "changed" | "invalid_credentials" | "inactive_user" | "weak_password" | "update_failed";
 
 async function functionErrorPayload(error: unknown) {
@@ -29,6 +29,8 @@ export async function authenticateAdmin(identifier: string, password: string): P
   if (result.error) {
     const payload = await functionErrorPayload(result.error);
     if (payload.code === "ip_not_allowed") return "ip_not_allowed";
+    if (payload.code === "outside_hours") return "outside_hours";
+    if (payload.code === "schedule_unavailable") return "schedule_unavailable";
     return "invalid_credentials";
   }
   if (!result.data?.access_token || !result.data?.refresh_token) return "invalid_credentials";
