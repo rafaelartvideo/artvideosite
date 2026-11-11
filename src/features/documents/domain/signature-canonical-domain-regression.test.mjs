@@ -18,12 +18,9 @@ test("links e QR de assinatura sempre usam o dominio publico da Union", () => {
   }
 });
 
-test("SAC Digital valida a origem da Union e Minha Conta usa o mesmo dominio", () => {
-  const sac = read(`${root}/sac-digital-api/index.ts`);
+test("Minha Conta usa o domínio público Union mesmo com SAC Digital desativada", () => {
   const artvideo = read(`${root}/artvideo-customer-access/index.ts`);
   const app = read("src/app/App.tsx");
-  assert.match(sac, /const configuredSignatureBase = "https:\/\/unionworld\.com\.br";/);
-  assert.match(sac, /linkUrl\.origin !== configuredOrigin/);
   assert.match(artvideo, /url:"https:\/\/unionworld\.com\.br\/assinatura\/"\+encodeURIComponent\(token\)/);
   assert.doesNotMatch(artvideo, /url:"https:\/\/eletronicaartvideo\.com\.br\/assinatura\//);
   assert.equal((app.match(/path="\/assinatura\/:token"/g) || []).length, 2);
