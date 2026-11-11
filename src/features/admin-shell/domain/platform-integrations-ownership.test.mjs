@@ -59,7 +59,7 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   assert.match(platform, /Atendimentos da Union/);
   assert.match(platform, /Gerenciar motor WuzAPI/);
   assert.match(admin, /route\.subpage === "canais"/);
-  assert.match(admin, /route\.subpage === "configuracoes"/);
+  assert.match(admin, /route\.subpage\s*===\s*"configuracoes"/);
   assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools","union-whatsapp","configuracoes"\)\}/);
   assert.doesNotMatch(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
   assert.match(admin, /<WhatsAppAttendanceSettings/);
