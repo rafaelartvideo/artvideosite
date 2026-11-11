@@ -50,7 +50,10 @@ export function useAdminNotifications(
     // periódica é só contingência para eventos perdidos/reconexão.
     // Não consulte novamente a cada troca de módulo ou foco da janela.
     staleTime: 60_000,
-    refetchInterval: query => query.state.status === "error" ? 120_000 : 60_000,
+    // No Realtime, a reconciliação completa é contingência: em primeiro plano
+    // basta uma verificação a cada 2 minutos. Eventos INSERT continuam imediatos.
+    refetchInterval: query => query.state.status === "error" ? 120_000 : 120_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: false,
   });
