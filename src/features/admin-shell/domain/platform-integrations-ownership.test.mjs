@@ -52,6 +52,7 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   const navigation = read("src/features/admin-shell/navigation-config.ts");
   const channels = read("src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx");
   const permissions = read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
+  const attendanceSettings=read("src/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings.tsx");
   const sac = read("src/features/sac-digital/presentation/SacDigitalToolPage.tsx");
   const inbox = read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
 
@@ -60,16 +61,20 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   assert.match(platform, /Gerenciar motor WuzAPI/);
   assert.match(admin, /route\.subpage === "canais"/);
   assert.match(admin, /route\.subpage === "configuracoes"/);
-  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "union-whatsapp", "canais"\)\}/);
+  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools","union-whatsapp","configuracoes"\)\}/);
   assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
-  assert.match(admin, /<WhatsAppChannelsPage/);
+  assert.match(admin, /<WhatsAppAttendanceSettings/);
   assert.match(admin, /<SacDigitalSettingsPage/);
   assert.match(channels, /<WhatsAppRolePermissions onBack=\{onBack\}/);
-  assert.match(channels, /section !== "permissions" && <AdminStickyToolbar/);
+  assert.match(channels, /section !== "permissions" && \(!embeddedSection/);
+  assert.match(attendanceSettings, /<WhatsAppChannelsPage/);
+  assert.match(attendanceSettings, /<WhatsAppQuickRepliesSettings/);
+  assert.match(attendanceSettings, /<WhatsAppRolePermissions/);
+  assert.match(attendanceSettings, /onClick=\{\(\)=>setSection\(item.id\)\}/);
   assert.match(permissions, /onBack \? <AdminStickyToolbar/);
   assert.match(permissions, /Salvar permissões/);
   assert.match(sac, /onConfigure && hasPermission\("sac_digital.settings.manage"\)/);
-  assert.match(inbox, /aria-label="Abrir Canais de Atendimento"/);
+  assert.match(inbox, /aria-label="Configurações dos Atendimentos"/);
   assert.doesNotMatch(inbox, /settingsModal|settingsMenuRef/);
   assert.match(navigation, /if \(tab === "integrations"\) return true;/);
 });
