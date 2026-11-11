@@ -1206,7 +1206,7 @@ Deno.serve(async request => {
     // token de mídia ou path arbitrário vindo do navegador é aceito.
     if(action==="sticker_list") {
       const {data:items,error:itemsError}=await admin.from("union_whatsapp_sticker_library")
-        .select("id,storage_path,is_favorite,created_at,last_used_at,file_size")
+        .select("id,storage_path,is_favorite,created_at,last_used_at,file_size,created_by")
         .eq("organization_id",org).order("created_at",{ascending:false}).limit(100);
       if(itemsError)throw itemsError;
       const paths=(items||[]).map(row=>row.storage_path);
@@ -1217,6 +1217,7 @@ Deno.serve(async request => {
       return json({success:true,stickers:(items||[]).map((item,index)=>({
         id:item.id,is_favorite:item.is_favorite,created_at:item.created_at,
         last_used_at:item.last_used_at,file_size:item.file_size,
+        can_remove:item.created_by===actorId||canManage,
         preview_url:links?.[index]?.signedUrl||null,
       }))});
     }
