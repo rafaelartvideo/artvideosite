@@ -31,9 +31,12 @@ export function UnionWhatsAppStickerPicker({
     <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
       <strong className="text-sm">Figurinhas</strong>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={onUpload}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-primary hover:bg-muted"
-          title="Adicionar figurinha WebP (até 1 MB)"><ImagePlus size={15}/> Adicionar</button>
+        <button type="button" onClick={onUpload} disabled={Boolean(busyId)}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-primary hover:bg-muted disabled:opacity-50"
+          title="Cadastrar figurinha WebP (até 1 MB) na coleção da empresa">
+          {busyId==="upload"?<LoaderCircle size={15} className="animate-spin"/>:<ImagePlus size={15}/>}
+          {busyId==="upload"?"Enviando...":"Adicionar"}
+        </button>
         <button type="button" onClick={onClose} aria-label="Fechar figurinhas"
           className="rounded-md p-1.5 hover:bg-muted"><X size={16}/></button>
       </div>
