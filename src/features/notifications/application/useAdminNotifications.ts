@@ -52,7 +52,7 @@ export function useAdminNotifications(
     staleTime: 60_000,
     // No Realtime, a reconciliação completa é contingência: em primeiro plano
     // basta uma verificação a cada 2 minutos. Eventos INSERT continuam imediatos.
-    refetchInterval: query => query.state.status === "error" ? 120_000 : 120_000,
+    refetchInterval: 120_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: false,
@@ -135,7 +135,7 @@ export function useAdminNotifications(
   // The realtime INSERT can be missed if the page was closed, switched tabs,
   // the websocket reconnected, or the database cron fired during a reload.
   // Recover pending reminders from the actual server inbox on initial load,
-  // focus and 60-second polling; dismissed/read notifications are not replayed.
+  // reconnection and 2-minute fallback; dismissed/read notifications are not replayed.
   useEffect(() => {
     if (!enabled) return;
     const since = Date.now() - 24 * 60 * 60_000;
