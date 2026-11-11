@@ -196,7 +196,17 @@ Deno.serve(async request => {
     if(myBindingError)throw myBindingError;
     const staffRole=myBinding?.is_active===true ? myBinding.staff_role as "manager"|"operator"|"both" : null;
     const canRead=permissions.has("whatsapp.inbox.view") && Boolean(staffRole);
-    if(!canRead)return json({success:false,error:"Usuário sem vínculo ativo no atendimento."},403);
+    // Quem recebeu Gerenciar canais em Funções e Permissões pode configurar
+    // operadores, filas e perfis sem depender de um vínculo que ainda precisa
+    // criar. A permissão NÃO libera conversas, mensagens ou atendimentos.
+    const canConfigure=permissions.has("settings.channels.manage");
+    const configurationActions=new Set([
+      "channel_status","role_permissions_list","role_permissions_save",
+      "departments_list","department_save","department_members","department_set_member",
+      "operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save",
+    ]);
+    if(!canRead && !(canConfigure && configurationActions.has(action)))
+      return json({success:false,error:"Usuário sem vínculo ativo no atendimento."},403);
     const {data:overrides,error:rolePermissionError}=await admin.from("union_whatsapp_role_permissions")
       .select("staff_role,capability,enabled").eq("organization_id",org);
     if(rolePermissionError)throw rolePermissionError;
@@ -213,7 +223,9 @@ Deno.serve(async request => {
       return (staffRole!=="operator" && roleAllowed("manager",capability)) ||
         (staffRole!=="manager" && roleAllowed("operator",capability));
     };
-    const capabilities=Object.fromEntries(Object.keys(WHATSAPP_ROLE_DEFAULTS).map(key=>[key,allowed(key)]));
+    const capabilities=Object.fromEntries(Object.keys(WHATSAPP_ROLE_DEFAULTS).map(key=>[
+      key, (canConfigure && (key==="manage_operators" || key==="manage_queues")) || allowed(key),
+    ]));
     const canManage=allowed("view_all");
     const canSend=allowed("send");
     const required:Record<string,string>={
@@ -233,8 +245,8 @@ Deno.serve(async request => {
       return_queue:"return_queue",finish:"finish",reopen:"reopen",
       handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
     };
-    if(required[action] && !allowed(required[action]) &&
-      !(action==="operator_list" && allowed("manage_queues"))){
+    if(required[action] && !capabilities[required[action]] &&
+      !(action==="operator_list" && capabilities.manage_queues)){
       return json({success:false,error:"Seu perfil não possui permissão para esta operação."},403);
     }
 
@@ -293,7 +305,7 @@ Deno.serve(async request => {
           (proposed.get("manager:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[0])) ||
           (staffRole!=="manager" &&
           (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]));
-        if(!selfCanStillManage)return json({success:false,error:
+        if(!canConfigure && !selfCanStillManage)return json({success:false,error:
           "Você não pode retirar seu próprio acesso à administração de perfis. Peça a outro gestor autorizado para realizar essa alteração."},409);
         const {error:saveError}=await admin.from("union_whatsapp_role_permissions").upsert(
           edits.map((item:{capability:string;enabled:boolean})=>({
