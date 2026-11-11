@@ -12,7 +12,7 @@ import { PlatformCrmHub } from "@/features/admin-shell/presentation/PlatformCrmH
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { UnionPbxSectionTabs, type UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
@@ -499,14 +499,24 @@ export function AdminDashboard({
                   : undefined}
               />
               {route.subpage==="configuracoes" && canViewWhatsAppChannels &&
-                <WhatsAppAttendanceSettings open
-                  onClose={()=>navigateAdmin("tools","union-whatsapp")}
-                  initialSection={new URLSearchParams(location.search).get("section")}/>}
+                <Suspense fallback={<AdminDialog open title="Configurações dos Atendimentos"
+                  onClose={()=>navigateAdmin("tools","union-whatsapp")}>
+                  <div className="flex min-h-28 items-center justify-center"><LoadingState text="Preparando configurações..."/></div>
+                </AdminDialog>}>
+                  <WhatsAppAttendanceSettings open
+                    onClose={()=>navigateAdmin("tools","union-whatsapp")}
+                    initialSection={new URLSearchParams(location.search).get("section")}/>
+                </Suspense>}
             </>
             : route.subpage==="configuracoes" && canViewWhatsAppChannels
-              ? <WhatsAppAttendanceSettings open
-                  onClose={()=>navigateAdmin("tools")}
-                  initialSection={new URLSearchParams(location.search).get("section")}/>
+              ? <Suspense fallback={<AdminDialog open title="Configurações dos Atendimentos"
+                  onClose={()=>navigateAdmin("tools")}>
+                  <div className="flex min-h-28 items-center justify-center"><LoadingState text="Preparando configurações..."/></div>
+                </AdminDialog>}>
+                  <WhatsAppAttendanceSettings open
+                    onClose={()=>navigateAdmin("tools")}
+                    initialSection={new URLSearchParams(location.search).get("section")}/>
+                </Suspense>
               : canViewWhatsAppChannels
                 ? <Navigate to={adminPath("tools","union-whatsapp","configuracoes")} replace/>
                 : <Navigate to={adminPath("tools")} replace/>
