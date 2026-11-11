@@ -1,4 +1,4 @@
-import { FInput, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, AdminSelect, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { pbxRequest, pbxOperationError } from "../application/pbx-request";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { Check, LoaderCircle, Pencil, Phone, Plus, RefreshCw, Save, ShieldCheck, X } from "lucide-react";
@@ -222,10 +222,10 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
         <AdminButton variant="ghost" type="button" onClick={cancelForm} disabled={saving} aria-label="Fechar formulário" ><X size={17} /></AdminButton>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="space-y-1 text-xs font-semibold text-foreground">Número *
+        <label className="space-y-1 text-xs font-semibold text-foreground"><RequiredFieldLabel label="Número" required/>
           <FInput  type="number" min={100} max={9999} disabled={Boolean(editingId)} value={form.number} onChange={event => setForm(current => ({...current, number:event.target.value}))} />
         </label>
-        <label className="space-y-1 text-xs font-semibold text-foreground">Nome do ramal *
+        <label className="space-y-1 text-xs font-semibold text-foreground"><RequiredFieldLabel label="Nome do ramal" required/>
           <FInput  maxLength={80} value={form.display_name} onChange={event => setForm(current => ({...current, display_name:event.target.value}))} placeholder="Recepção" />
         </label>
         <label className="space-y-1 text-xs font-semibold text-foreground">Funcionário vinculado
