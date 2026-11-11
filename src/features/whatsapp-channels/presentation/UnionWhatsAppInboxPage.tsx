@@ -35,6 +35,13 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+type CrmConversationContext = {
+  customer: {id:string;name:string}|null;
+  equipments: Array<{id:string;equipment_type_name:string|null;equipment_brand_name:string|null;equipment_model_name:string|null;serial_number:string|null}>;
+  orders: Array<{id:string;os_number:string;created_at:string;completed_at:string|null;model:string|null}>;
+  ambiguous?: boolean;
+  error?: boolean;
+};
 // Photo lookups are only for contacts currently displayed, never the imported
 // address book. Refresh lazily to notice profile-photo/privacy changes.
 const hasForwarding=(item:UnionWhatsAppConversation)=>
@@ -150,6 +157,9 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
+  const [mediaRequested,setMediaRequested]=useState(false);
+  const mediaTargetRef=useRef<HTMLDivElement|null>(null);
+  const mediaRequestInFlight=useRef(false);
   const [stickerZoom,setStickerZoom]=useState(false);
   useEffect(()=>{
     if(!stickerZoom)return;
@@ -159,39 +169,56 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   },[stickerZoom]);
   const hasStoredMedia = Boolean(message.media_path || message.media_available);
   const loadMedia = useCallback(async () => {
-    if (!hasStoredMedia || mediaLoading || !organizationId) return;
+    if (!hasStoredMedia || mediaRequestInFlight.current || !organizationId) return;
     const cacheKey=organizationId+":"+message.id;
     const cached=message.message_type==="sticker" ? stickerPreviewCache.get(cacheKey) : null;
-    if(cached && cached.expires>Date.now()){
-      setMediaUrl(cached.url);
-      return;
-    }
+    if(cached && cached.expires>Date.now()){setMediaUrl(cached.url);return;}
+    mediaRequestInFlight.current=true;
+    const controller=new AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),75000);
     setMediaLoading(true);
     setMediaError("");
     try {
-      const data = await operateUnionWhatsAppInbox(organizationId, message.conversation_id, "media_view", {
-        message_id: message.id,
-      });
-      if (!data.url) throw new Error("Mídia não disponível.");
+      const data=await operateUnionWhatsAppInbox(organizationId,message.conversation_id,"media_view",
+        {message_id:message.id},controller.signal);
+      if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
+      if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
       setMediaUrl(data.url);
       if(message.message_type==="sticker"){
         if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
         stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
       }
-    } catch (reason) {
-      setMediaError(systemErrorMessage(reason, "Não foi possível abrir o arquivo."));
-    } finally {
+    }catch(reason){
+      setMediaError(controller.signal.aborted
+        ? "O carregamento demorou demais. Toque para tentar novamente."
+        : systemErrorMessage(reason,"Não foi possível abrir o arquivo."));
+    }finally{
+      window.clearTimeout(timeout);
+      mediaRequestInFlight.current=false;
       setMediaLoading(false);
     }
-  }, [message.id, message.conversation_id, organizationId, hasStoredMedia, mediaLoading]);
+  },[message.id,message.conversation_id,message.message_type,organizationId,hasStoredMedia]);
 
-  useEffect(() => {
+  // Fotos e figurinhas são consultadas quando estiverem próximas da área visível,
+  // evitando um download simultâneo para cada imagem do histórico.
+  useEffect(()=>{
+    setMediaUrl("");setMediaError("");setMediaRequested(false);
+    if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
+      (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
+    const element=mediaTargetRef.current;
+    if(!element || typeof IntersectionObserver==="undefined"){setMediaRequested(true);return;}
+    const observer=new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting)){setMediaRequested(true);observer.disconnect();}
+    },{rootMargin:"150px"});
+    observer.observe(element);
+    return()=>observer.disconnect();
+  },[message.id,hasStoredMedia,message.message_type,message.media_mime,organizationId]);
+  useEffect(()=>{if(mediaRequested)void loadMedia();},[mediaRequested,loadMedia]);
+  const onImageError=()=>{
+    stickerPreviewCache.delete(organizationId+":"+message.id);
     setMediaUrl("");
-    setMediaError("");
-    if (hasStoredMedia && (["image","sticker","audio"].includes(message.message_type) ||
-      (message.message_type==="file" && message.media_mime?.startsWith("audio/")))) void loadMedia();
-    // Avoid repeatedly fetching large files when switching conversation.
-  }, [message.id, hasStoredMedia, message.message_type, organizationId]);
+    setMediaError("Imagem não carregada. Tente novamente.");
+  };
 
   if(message.message_type==="audio" ||
     (message.message_type==="file" && message.media_mime?.startsWith("audio/"))) {
@@ -210,11 +237,11 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   }
   if(message.message_type==="sticker"){
     return <>
-      <div className="flex w-fit max-w-[130px] flex-col gap-1.5">
+      <div ref={mediaTargetRef} className="flex w-fit max-w-[130px] flex-col gap-1.5">
       {mediaUrl ? <button type="button" onClick={()=>setStickerZoom(true)}
         aria-label="Ampliar figurinha" title="Ampliar figurinha" className="block w-fit">
         <img src={mediaUrl} alt="Figurinha do WhatsApp" loading="lazy" decoding="async"
-          onLoad={onMediaLoad} className="block max-h-[124px] max-w-[120px] object-contain"/>
+          onLoad={onMediaLoad} onError={onImageError} className="block max-h-[124px] max-w-[120px] object-contain"/>
       </button> : mediaLoading ? <div role="status" aria-label="Carregando figurinha"
         className="flex h-[70px] w-[100px] items-center justify-center">
         <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
@@ -256,10 +283,10 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const Icon = (mediaIcons as Record<string, typeof FileText>)[message.message_type] || FileText;
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
     location:"Localização", contact:"Contato",sticker:"Figurinha"} as Record<string,string>)[message.message_type] || "Mensagem";
-  return <div className="space-y-2">
+  return <div ref={mediaTargetRef} className="space-y-2">
     {mediaUrl && message.message_type==="image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
       className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
-        onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
+        onLoad={onMediaLoad} onError={onImageError} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
@@ -463,7 +490,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const avatarRequestsRef=useRef(new Set<string>());
   const avatarScopeGenerationRef=useRef(0);
   const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
-  const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
+  const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
+  const [crmDetailsOpen,setCrmDetailsOpen]=useState(true);
+  useEffect(()=>{setCrmDetailsOpen(true);},[selectedId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
@@ -818,7 +847,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
    useEffect(() => {
-    if(!onOpenCustomer || !hasPermission("customers.view") || !selectedId ||
+    if(!hasPermission("customers.view") || !selectedId ||
        !activeOrganizationId || channelReady!==true ||
        Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
     let cancelled=false;
@@ -826,10 +855,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void operateUnionWhatsAppInbox(org,selectedId,"customer_match")
       .then(result=>{
         if(cancelled || organizationRef.current!==org) return;
-        setLinkedCustomers(old=>({...old,[selectedId]:result.customer||null}));
-      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:null}));});
+        setLinkedCustomers(old=>({...old,[selectedId]:{
+          customer:result.customer||null,equipments:result.equipments||[],
+          orders:result.crm_orders||[],ambiguous:result.ambiguous===true,
+        }}));
+      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:{
+        customer:null,equipments:[],orders:[],error:true,
+      }}));});
     return()=>{cancelled=true;};
-  },[onOpenCustomer,selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
+  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
 
   useEffect(()=>{
     if(!activeOrganizationId || !selectedId || channelReady!==true)return;
@@ -1963,6 +1997,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
+                  {selected.contact_presence==="online" && selected.contact_presence_at &&
+                    clockNow-Date.parse(selected.contact_presence_at)>=0 &&
+                    clockNow-Date.parse(selected.contact_presence_at)<120000 &&
+                    <span role="status" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Online
+                    </span>}
 
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
@@ -1976,9 +2016,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
                    </span>
-                   {selected.contact_presence==="online" && selected.contact_presence_at &&
-                     Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
-                     <span className="ml-2 font-semibold text-emerald-600">Online</span>}
+
                  </p>
                  {(selected.contact_presence==="composing"||selected.contact_presence==="recording") &&
                    selected.contact_presence_at &&
@@ -1986,12 +2024,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    <p role="status" className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                      {selected.contact_presence==="recording"?"Gravando áudio...":"Digitando..."}
                    </p>}
-                 {onOpenCustomer && linkedCustomers[selected.id] && <button type="button"
-                   onClick={()=>onOpenCustomer(linkedCustomers[selected.id]!.id)}
-                   className="mt-0.5 max-w-full truncate text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                   title="Abrir cadastro do cliente vinculado pelo telefone">
-                   Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
-                 </button>}
+
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
@@ -2036,6 +2069,60 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
+            {hasPermission("customers.view") && <section aria-label="Dados do cliente no CRM"
+              className="shrink-0 border-b border-border bg-muted/20 px-3 py-2">
+              <button type="button" onClick={()=>setCrmDetailsOpen(open=>!open)}
+                aria-expanded={crmDetailsOpen}
+                className="flex w-full items-center gap-2 text-left text-xs font-semibold text-foreground">
+                <ContactRound size={15} className="shrink-0 text-primary"/>
+                <span className="shrink-0">Dados do CRM</span>
+                <span className="min-w-0 flex-1 truncate font-normal text-muted-foreground">
+                  {linkedCustomers[selected.id]?.customer?.name || (linkedCustomers[selected.id]
+                    ? "Sem vínculo confirmado" : "Consultando cadastro...")}
+                </span>
+                {crmDetailsOpen?<ChevronUp size={15}/>:<ChevronDown size={15}/>}
+              </button>
+              {crmDetailsOpen && <div className="mt-2 grid max-h-48 grid-cols-1 gap-2 overflow-y-auto text-xs sm:grid-cols-3">
+                {!linkedCustomers[selected.id] ? <span className="text-muted-foreground">Buscando cliente, equipamentos e OS...</span>
+                : linkedCustomers[selected.id].error ? <span role="status" className="text-muted-foreground">
+                    Não foi possível consultar os dados do CRM.
+                  </span>
+                : !linkedCustomers[selected.id].customer ? <span className="text-muted-foreground">
+                    {linkedCustomers[selected.id].ambiguous
+                      ? "Mais de um cadastro possui este número. Verifique antes de vincular."
+                      : "Nenhum cliente do CRM encontrado para este número."}
+                  </span>
+                : <>
+                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">Cliente</p>
+                    <p className="truncate" title={linkedCustomers[selected.id].customer!.name}>
+                      {linkedCustomers[selected.id].customer!.name}</p>
+                    {onOpenCustomer && <button type="button" className="mt-1 font-semibold text-primary hover:underline"
+                      onClick={()=>onOpenCustomer(linkedCustomers[selected.id].customer!.id)}>Abrir cadastro</button>}
+                  </div>
+                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">Equipamentos</p>
+                    {linkedCustomers[selected.id].equipments.length===0
+                      ? <p className="text-muted-foreground">Nenhum equipamento cadastrado.</p>
+                      : linkedCustomers[selected.id].equipments.map(equipment=>
+                          <p key={equipment.id} className="truncate py-0.5"
+                            title={[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ")}>
+                            {[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
+                          </p>)}
+                  </div>
+                  {hasPermission("orders.details.view") && <div className="min-w-0 rounded-md border border-border bg-card p-2">
+                    <p className="mb-1 font-bold">OS recentes</p>
+                    {linkedCustomers[selected.id].orders.length===0
+                      ? <p className="text-muted-foreground">Nenhuma OS encontrada.</p>
+                      : linkedCustomers[selected.id].orders.map(order=>
+                          <a key={order.id} target="_blank" rel="noopener noreferrer"
+                            href={"/admin/orders/"+encodeURIComponent(order.id)+"?org="+encodeURIComponent(activeOrganizationId||"")}
+                            className="block truncate py-0.5 font-semibold text-primary hover:underline"
+                            title={order.model||""}>OS {order.os_number}{order.model?" · "+order.model:""}</a>)}
+                  </div>}
+                </>}
+              </div>}
+            </section>}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
               <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
