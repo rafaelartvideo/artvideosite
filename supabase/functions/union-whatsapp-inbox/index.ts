@@ -166,7 +166,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["participant_request_protocol","os_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -237,7 +237,7 @@ Deno.serve(async request => {
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",start:"start",
-      assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_prepare:"send",sticker_commit:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
+      assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_saved_ids:"send",sticker_prepare:"send",sticker_commit:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
       members:"transfer",transfer:"transfer",transfer_department:"transfer",
       participants:"collaborate",participant_add:"collaborate",
       participant_respond:"collaborate",participant_remove:"collaborate",
@@ -1220,6 +1220,27 @@ Deno.serve(async request => {
         can_remove:item.created_by===actorId||canManage,
         preview_url:links?.[index]?.signedUrl||null,
       }))});
+    }
+    if(action==="sticker_saved_ids") {
+      // Lightweight saved-state lookup for the CURRENT conversation only.
+      // No signed media URLs or large library payloads on every chat refresh.
+      const requested=Array.isArray(body.message_ids) ? body.message_ids : [];
+      if(requested.length>100 || requested.some(id=>typeof id!=="string" || !uuid(id)))
+        return json({success:false,error:"Lista de figurinhas inválida."},400);
+      const ids=[...new Set(requested as string[])];
+      if(!ids.length)return json({success:true,saved_message_ids:[]});
+      // Verify the IDs belong to this thread before querying the shared library.
+      const {data:owned,error:ownedError}=await admin.from("union_whatsapp_messages")
+        .select("id").eq("organization_id",org).eq("conversation_id",thread.id)
+        .eq("message_type","sticker").in("id",ids);
+      if(ownedError)throw ownedError;
+      if(!owned?.length)return json({success:true,saved_message_ids:[]});
+      const {data:saved,error:savedError}=await admin.from("union_whatsapp_sticker_library")
+        .select("source_message_id").eq("organization_id",org)
+        .in("source_message_id",owned.map(row=>row.id));
+      if(savedError)throw savedError;
+      return json({success:true,saved_message_ids:(saved||[])
+        .map(row=>row.source_message_id).filter(Boolean)});
     }
     if(action==="sticker_prepare" || action==="sticker_commit") {
       const size=Number(body.media_size);
