@@ -7,7 +7,7 @@ create table if not exists public.union_whatsapp_sticker_library (
   storage_path text not null,
   file_size integer not null check (file_size between 1 and 1048576),
   source_message_id uuid references public.union_whatsapp_messages(id) on delete set null,
-  created_by uuid not null references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
   is_favorite boolean not null default false,
   last_used_at timestamptz,
   created_at timestamptz not null default now(),
