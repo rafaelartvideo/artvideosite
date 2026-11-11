@@ -150,25 +150,29 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       window.localStorage.removeItem(REMEMBERED_USERNAME_KEY);
     }
 
-    // Só carregar o CRM depois que o servidor confirmou o expediente.
-    const result = await authenticateAdmin(normalizedUsername, password);
-    if (result === "authenticated") {
-      void prefetchAdminModule("home");
+    try {
+      // Só carregar o CRM depois que o servidor confirmou o expediente.
+      const result = await authenticateAdmin(normalizedUsername, password);
+      if (result === "authenticated") {
+        void prefetchAdminModule("home");
+      } else if (result === "invalid_credentials") {
+        setError("Credenciais inválidas. Verifique seu usuário e senha.");
+      } else if (result === "inactive_user") {
+        setError("Usuário inativo. Entre em contato com o gestor.");
+      } else if (result === "ip_not_allowed") {
+        setError("Acesso negado. Este endereço IP não está autorizado para este usuário.");
+      } else if (result === "outside_hours") {
+        setError("Fora do horário permitido. Você só pode acessar o CRM nos dias e intervalos definidos pelo gestor.");
+      } else if (result === "schedule_unavailable") {
+        setError("Não foi possível confirmar seu horário de acesso. Tente novamente.");
+      } else {
+        setError("O servidor está demorando para responder. Tente novamente em instantes.");
+      }
+    } catch {
+      setError("Não foi possível conectar ao CRM. Verifique a conexão e tente novamente.");
+    } finally {
+      setLoading(false);
     }
-
-    if (result === "invalid_credentials") {
-      setError("Credenciais inválidas. Verifique seu usuário e senha.");
-    } else if (result === "inactive_user") {
-      setError("Usuário inativo. Entre em contato com o gestor.");
-    } else if (result === "ip_not_allowed") {
-      setError("Acesso negado. Este endereço IP não está autorizado para este usuário.");
-    } else if (result === "outside_hours") {
-      setError("Fora do horário permitido. Você só pode acessar o CRM nos dias e intervalos definidos pelo gestor.");
-    } else if (result === "schedule_unavailable") {
-      setError("Não foi possível confirmar seu horário de acesso. Tente novamente.");
-    }
-
-    setLoading(false);
   };
 
   const handlePasswordChange = async (event: React.FormEvent) => {
