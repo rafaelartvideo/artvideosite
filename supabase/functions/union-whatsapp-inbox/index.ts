@@ -1884,7 +1884,10 @@ Deno.serve(async request => {
     // conversation history for every message type. WhatsApp recipients should
     // receive only the content typed by the operator for media captions.
     // Text messages retain their existing operator signature.
-    const outboundText=!isMedia && senderName
+    // Mensagens rápidas com {operador} já identificam o remetente no texto.
+    // Não duplique a assinatura visível; a autoria autenticada permanece salva
+    // em sender_name e nunca é definida pelo navegador.
+    const outboundText=!isMedia && senderName && body.no_operator_prefix!==true
       ? `*${senderName}*\n\n${text}`
       : text;
     if(outboundText.length>4000)
