@@ -453,6 +453,16 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
 
     try {
       await loadAccessData(userId, preferredOrganizationId);
+    } catch (error) {
+      // Erros de rede (incluindo 504 e TimeoutError) podem rejeitar a Promise.
+      // Nunca deixar o painel preso em 42% sem um botão para tentar novamente.
+      if (accessLoadingKeyRef.current === requestKey && signedInUserRef.current === userId) {
+        console.error("Auth access request failed:", error);
+        clearResolvedAccess();
+        setProfile(null);
+        setAccessError("O Supabase não respondeu ao carregar seu acesso. Tente novamente.");
+        setLoading(false);
+      }
     } finally {
       if (accessLoadingKeyRef.current === requestKey) {
         accessLoadingKeyRef.current = null;
@@ -477,7 +487,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
 
     const { data, error } = await supabase.rpc("load_auth_access_v1", {
       p_preferred_organization_id: requestedOrganizationId,
-    });
+    }).abortSignal(AbortSignal.timeout(18_000));
 
     if (requestId !== accessRequestRef.current) return;
 

@@ -52,7 +52,7 @@ export type MyEmployeeAccessWindow = {
 export async function checkMyEmployeeAccessWindow(organizationId: string): Promise<MyEmployeeAccessWindow> {
   const { data, error } = await supabase.rpc("check_my_employee_crm_access_hours_v2", {
     p_organization_id: organizationId,
-  });
+  }).abortSignal(AbortSignal.timeout(12_000));
   if (error) throw error;
   const result = (data || {}) as Partial<MyEmployeeAccessWindow>;
   return {
