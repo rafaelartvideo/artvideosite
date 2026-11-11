@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+import { adminPath } from "@/features/admin-shell/admin-routes";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -41,6 +43,7 @@ type Props = {
 
 export function OrderWhatsAppConversationDialog({ open, onClose, organizationId, phone, customerName, serviceOrderId }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
+  const navigate = useNavigate();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
   const [state, setState] = useState<State>({ status: "loading" });
   const [starting, setStarting] = useState(false);
@@ -148,7 +151,10 @@ export function OrderWhatsAppConversationDialog({ open, onClose, organizationId,
             embeddedFullControls
             initialConversationId={state.conversationId}
             onBack={onClose}
-            onConfigure={onClose}
+            onConfigure={() => {
+              onClose();
+              navigate(adminPath("tools", "union-whatsapp", "canais"));
+            }}
           />
         </Suspense>
       </div>
