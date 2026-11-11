@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Forward, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
@@ -57,6 +58,8 @@ const compactDate = (value: string | null) => value && !Number.isNaN(new Date(va
   ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
   : "";
 const clock = (value: string) => new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Short-lived cache: signed media URLs expire after 120 seconds.
+const stickerPreviewCache=new Map<string,{url:string;expires:number}>();
 
 const voiceTime=(value:number)=>{
   if(!Number.isFinite(value) || value<0)return "0:00";
@@ -134,8 +137,11 @@ function WhatsAppVoicePlayer({src,loading=false,error="",onRetry,compact=false}:
   </div>;
 }
 
-function MessageBody({ message, organizationId, onMediaLoad }: {
+function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, onResendSticker, stickerBusy }: {
   message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
+  onSaveSticker?: (message:UnionWhatsAppMessage)=>void;
+  onResendSticker?: (message:UnionWhatsAppMessage)=>void;
+  stickerBusy?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -143,6 +149,12 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   const hasStoredMedia = Boolean(message.media_path || message.media_available);
   const loadMedia = useCallback(async () => {
     if (!hasStoredMedia || mediaLoading || !organizationId) return;
+    const cacheKey=organizationId+":"+message.id;
+    const cached=message.message_type==="sticker" ? stickerPreviewCache.get(cacheKey) : null;
+    if(cached && cached.expires>Date.now()){
+      setMediaUrl(cached.url);
+      return;
+    }
     setMediaLoading(true);
     setMediaError("");
     try {
@@ -151,6 +163,10 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
       });
       if (!data.url) throw new Error("Mídia não disponível.");
       setMediaUrl(data.url);
+      if(message.message_type==="sticker"){
+        if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
+        stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
+      }
     } catch (reason) {
       setMediaError(systemErrorMessage(reason, "Não foi possível abrir o arquivo."));
     } finally {
@@ -171,8 +187,42 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
     return <WhatsAppVoicePlayer src={mediaUrl} loading={mediaLoading} error={mediaError}
       onRetry={()=>void loadMedia()}/>;
   }
+  // The operator's name is displayed internally above the bubble instead of
+  // duplicating the WhatsApp-facing signature inside the CRM history.
+  const signature=message.direction==="outgoing" && message.sender_name
+    ? "*"+message.sender_name+"*" : "";
+  const content=signature && message.body_text===signature ? "" :
+    signature && message.body_text.startsWith(signature+"\n\n")
+      ? message.body_text.slice(signature.length+2) : message.body_text;
   if (message.message_type === "text" || message.message_type === "unknown") {
-    return <p className="text-sm leading-5"><WhatsAppFormattedText text={message.body_text || "Mensagem"}/></p>;
+    return <p className="text-sm leading-5"><WhatsAppFormattedText text={content || "Mensagem"}/></p>;
+  }
+  if(message.message_type==="sticker"){
+    return <div className="flex w-fit max-w-[130px] flex-col gap-1.5">
+      {mediaUrl ? <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+        aria-label="Ampliar figurinha" title="Ampliar figurinha" className="block w-fit">
+        <img src={mediaUrl} alt="Figurinha do WhatsApp" loading="lazy" decoding="async"
+          onLoad={onMediaLoad} className="block max-h-[124px] max-w-[120px] object-contain"/>
+      </a> : <div className="inline-flex items-center gap-1.5 rounded-lg bg-card/80 px-2 py-1.5 text-[11px] text-muted-foreground">
+        <Sticker size={15}/>
+        <span>{mediaLoading?"Carregando figurinha...":hasStoredMedia?"Figurinha indisponível":"Figurinha não sincronizada"}</span>
+        {hasStoredMedia && !mediaLoading && <button type="button" onClick={()=>void loadMedia()}
+          className="text-primary underline underline-offset-2">Tentar novamente</button>}
+      </div>}
+      {mediaUrl && (onSaveSticker || onResendSticker) &&
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          {onSaveSticker && <button type="button" disabled={stickerBusy} onClick={()=>onSaveSticker(message)}
+            title="Salvar figurinha na empresa" className="inline-flex items-center gap-1 hover:text-primary disabled:opacity-50">
+            <Star size={12}/> Salvar
+          </button>}
+          {onResendSticker && <button type="button" disabled={stickerBusy} onClick={()=>onResendSticker(message)}
+            title="Reenviar figurinha nesta conversa" className="inline-flex items-center gap-1 hover:text-primary disabled:opacity-50">
+            <Forward size={12}/> Reenviar
+          </button>}
+          {stickerBusy && <LoaderCircle size={12} className="animate-spin"/>}
+        </div>}
+      {mediaError && <span role="alert" className="text-[10px] text-red-600">{mediaError}</span>}
+    </div>;
   }
   const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
     location:FileText, contact:FileText, sticker:ImageIcon };
@@ -180,7 +230,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
     location:"Localização", contact:"Contato",sticker:"Figurinha"} as Record<string,string>)[message.message_type] || "Mensagem";
   return <div className="space-y-2">
-    {mediaUrl && ["image","sticker"].includes(message.message_type) && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+    {mediaUrl && message.message_type==="image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
       className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
         onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
@@ -198,7 +248,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
       </button>}
       {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
     </div>}
-    {message.body_text && <p className="text-sm leading-5"><WhatsAppFormattedText text={message.body_text}/></p>}
+    {content && <p className="text-sm leading-5"><WhatsAppFormattedText text={content}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
   </div>;
 }
