@@ -48,7 +48,7 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(edge,/action==="sticker_save"/);
   assert.match(edge,/action==="sticker_favorite"/);
   assert.match(edge,/action==="sticker_send"/);
-  assert.match(edge,/media_type:isMedia\?kind:"text"/);
+  assert.match(edge,/message_type:isMedia\?kind:"text"/);
   assert.match(edge,/sender_name:senderName/);
   assert.match(edge,/\["image","video","file"\]\.includes\(kind\)/);
   assert.match(bridge,/path="\/chat\/send\/sticker"/);
