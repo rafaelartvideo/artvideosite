@@ -6,6 +6,7 @@ import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
+import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -348,6 +349,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [actionPanel, setActionPanel] = useState<"actions"|"quick"|"documents"|null>(null);
   const [quickReplies,setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
+  const [quickReplyHasOperator,setQuickReplyHasOperator]=useState(false);
   const [quickLoading,setQuickLoading] = useState(false);
   const [quickError,setQuickError] = useState("");
   const [documentPreparing,setDocumentPreparing] = useState<string|null>(null);
@@ -1519,7 +1521,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
-    const text = draft.trim();
+    const text = renderWhatsAppQuickReply(draft.trim(),{
+      operatorName:profile?.full_name||"", customerName:selected.contact_name,
+      protocol:selected.last_protocol_number ? unionWhatsAppProtocolLabel(selected.last_protocol_number) : "",
+    }).trim();
+    const omitOperatorPrefix=quickReplyHasOperator;
     const optimisticText=text;
     const file = attachment;
     const preview = mediaPreview;
@@ -1531,6 +1537,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     // Capture and clear the current draft before awaiting. The composer stays
     // interactive for subsequent messages, matching the SAC outbox UX.
     setDraft("");
+    setQuickReplyHasOperator(false);
     setAttachment(null);
     setMediaPreview(null);
     if (mediaInputRef.current) mediaInputRef.current.value = "";
@@ -1551,9 +1558,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     sendingIds.current.add(requestId);
     void (async () => {
       try {
-        let extra: {text:string;client_message_id:string;media_name?:string;media_mime?:string;
+        let extra: {text:string;client_message_id:string;no_operator_prefix?:boolean;media_name?:string;media_mime?:string;
           media_type?:string;media_size?:number;media_path?:string} =
-          { text, client_message_id: requestId };
+          { text, client_message_id: requestId, no_operator_prefix:omitOperatorPrefix };
         if (file && fileType) {
           const base={media_name:file.name,media_mime:file.type,
             media_type:fileType,media_size:file.size,client_message_id:requestId};
@@ -2163,11 +2170,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                             <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
                           </div> :
                           quickError ? <p role="alert" className="text-xs text-destructive">{quickError}</p> :
-                          quickReplies.length===0 ? <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma mensagem configurada. Cadastre em Canais de Atendimento → Mensagens rápidas.</p> :
+                          quickReplies.length===0 ? <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma mensagem configurada. Abra Configurações dos Atendimentos → Mensagens rápidas.</p> :
                           <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-5">
                             {quickReplies.map(item=><button key={item.id} type="button" role="menuitem"
                               title={item.message} onClick={()=>{
-                                setDraft(item.message.slice(0,4000));setActionPanel(null);inputRef.current?.focus({preventScroll:true});
+                                setDraft(renderWhatsAppQuickReply(item.message,{
+                                  operatorName:profile?.full_name||"",customerName:selected?.contact_name||"",
+                                  protocol:selected?.last_protocol_number ? unionWhatsAppProtocolLabel(selected.last_protocol_number) : "",
+                                }).slice(0,4000));
+                                setQuickReplyHasOperator(/\{\s*operador(?:_completo)?\s*\}/i.test(item.message));
+                                setActionPanel(null);inputRef.current?.focus({preventScroll:true});
                               }}
                               className="min-h-16 rounded-lg border border-border px-2 py-2 text-center text-xs font-semibold hover:border-primary hover:bg-primary/5">
                               <span className="line-clamp-2 break-words">{item.title}</span>
