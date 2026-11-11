@@ -433,6 +433,11 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         // anteriormente confirmado como irrestrito. A próxima verificação
         // continua agendada normalmente. Restrições ativas seguem fail-closed.
         if (lastVerifiedWindow?.allowed && lastVerifiedWindow.restricted === false) return;
+        // Um usuário já autorizado para um intervalo vigente mantém a tela
+        // enquanto a checagem de rede falha; o timer de saída e a RLS no
+        // servidor continuam impondo o horário configurado.
+        if (lastVerifiedWindow?.allowed && lastVerifiedWindow.restricted === true &&
+          lastVerifiedWindow.next_end_at) return;
         setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
         setAccessWindow({ allowed: false, restricted: true, timezone: "America/Sao_Paulo",
           server_now: null, next_end_at: null });
