@@ -51,9 +51,10 @@ const channelSections: Array<{ id: ChannelSection; label: string }> = [
 const showSuccess = (message: string) => { if (message) notifyAdmin(message, "success"); };
 const showError = (message: string) => { if (message) notifyAdmin(message, "error"); };
 
-export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration", embeddedSection, onSectionChange }: {
+export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration", embeddedSection, onSectionChange, createConnectionRequest = 0, onCanCreateChange }: {
   onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection;
   embeddedSection?: ChannelSection; onSectionChange?: (section:ChannelSection)=>void;
+  createConnectionRequest?: number; onCanCreateChange?: (ready:boolean)=>void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete");
@@ -61,6 +62,12 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const canDelete = hasPermission("settings.channels.delete");
   const [section, setSection] = useState<ChannelSection>(embeddedSection || initialSection);
   const [settingsCreateRequest, setSettingsCreateRequest] = useState(0);
+  const previousConnectionCreateRequest = useRef(createConnectionRequest);
+  useEffect(() => {
+    if (previousConnectionCreateRequest.current === createConnectionRequest) return;
+    previousConnectionCreateRequest.current = createConnectionRequest;
+    if (embeddedSection === "connections") setCreateConnectionOpen(true);
+  }, [createConnectionRequest, embeddedSection]);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
   const [channels, setChannels] = useState<WhatsAppChannel[]>([]);
   const channelRef = useRef<WhatsAppChannel | null>(null);
@@ -404,6 +411,13 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setCreatingWhatsApp(false);
     setConnectionName("");
   };
+  useEffect(() => {
+    if (embeddedSection === "connections") {
+      onCanCreateChange?.(canManage && !loading && Boolean(channel && channel.state !== "not_connected") &&
+        channels.length < 3 && !Boolean(action));
+    }
+  }, [embeddedSection, onCanCreateChange, canManage, loading, channel, channels.length, action]);
+
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
@@ -421,8 +435,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         onChange={setSection} ariaLabel="Subseções de canais de atendimento" />
     </>}
     {loading && (section === "configuration" || section === "connections") ? <AdminWorkspaceSkeleton variant="cards" rows={5} /> : section === "configuration" ?
-      <AdminCard>
-        <AdminCardContent className="space-y-4">
+      <div className={embeddedSection ? "space-y-4" : "space-y-4 rounded-xl border border-border bg-card p-5"}>
           <div className="flex items-start gap-3 rounded-xl border border-border p-4">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${enabled?"bg-emerald-500/15 text-emerald-600":"bg-primary/10 text-primary"}`}>
               {enabled?<CheckCircle2 size={20}/>:1}
@@ -473,8 +486,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
               </p>
             </div>
           </div>
-        </AdminCardContent>
-      </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
+      </div> : section === "departments" || section === "queues" || section === "operators" ?
       <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
       <WhatsAppRolePermissions onBack={onBack}/> : section === "quick-replies" ?
       <WhatsAppQuickRepliesSettings/> :
@@ -539,7 +551,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           O WhatsApp está confirmando a conexão. A verificação ocorre automaticamente.
         </p>}
       </AdminCard>}
-    {section !== "permissions" && (!embeddedSection || section==="connections" || ((section==="departments" || section==="queues") && canManage)) && <AdminStickyToolbar className="justify-between">
+    {!embeddedSection && section !== "permissions" && <AdminStickyToolbar className="justify-between">
       {!embeddedSection && <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>}
       {(section === "departments" || section === "queues") && canManage &&
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
