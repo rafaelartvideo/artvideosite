@@ -32,8 +32,11 @@ function snapToEdge(point: Point, node: HTMLElement): {point: Point;dock: Dock} 
   distances.sort((a,b)=>a.distance-b.distance);
   const side=distances[0].side;
   const horizontal=side==="top" || side==="bottom";
-  const progress=clamp(horizontal ? (x-MARGIN)/Math.max(1,maxX-MARGIN)
-    : (y-MARGIN)/Math.max(1,maxY-MARGIN),0,1);
+  // When the expanded dialer occupies almost the entire viewport there is
+  // no meaningful Y travel to preserve. Prefer bottom docking on resize so
+  // switching to the shorter external dialer does not leave a large gap below.
+  const progress=clamp(horizontal ? (maxX-MARGIN < 24 ? 1 : (x-MARGIN)/(maxX-MARGIN))
+    : (maxY-MARGIN < 24 ? 1 : (y-MARGIN)/(maxY-MARGIN)),0,1);
   const dock={side,progress};
   return {point:positionForDock(dock,node),dock};
 }
