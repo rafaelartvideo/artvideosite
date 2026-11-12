@@ -676,11 +676,16 @@ setTestFlowError('');
               </div>
             </div>
           </div>}
-          {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-            <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
-              className={`rounded-md px-2 py-2 text-sm font-semibold ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</button>
-            <button type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
-              className={`rounded-md px-2 py-2 text-sm font-semibold ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</button>
+          {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação"
+            data-pbx-dial-mode="true" className="grid grid-cols-2 gap-1 rounded-xl bg-muted/80 p-1">
+            {([["internal","Interna"],["external","Externa"]] as const).map(([value,label])=>
+              <button key={value} type="button" aria-pressed={dialMode===value}
+                onClick={()=>setDialMode(value)}
+                className={`min-h-10 rounded-lg border px-2 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${dialMode===value
+                  ? "border-primary bg-card text-primary ring-1 ring-inset ring-primary"
+                  : "border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground"}`}>
+                {label}
+              </button>)}
           </div>}
           {callState === "idle" && <div className="space-y-2">
             <AdminFieldLabel label={dialMode === "external" && canUseExternal ? "Número com DDD" : "Ramal, fila ou URA"} />
