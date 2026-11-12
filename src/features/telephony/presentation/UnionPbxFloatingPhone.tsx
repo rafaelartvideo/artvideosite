@@ -104,7 +104,6 @@ export function UnionPbxFloatingPhone({
     const box=node.getBoundingClientRect();
     const state={id:event.pointerId,startX:event.clientX,startY:event.clientY,
       x:box.left,y:box.top,moved:false};
-    dockRef.current=null;
     drag.current=state;
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
@@ -116,6 +115,7 @@ export function UnionPbxFloatingPhone({
     const dx=event.clientX-state.startX;
     const dy=event.clientY-state.startY;
     if(!state.moved && Math.abs(dx)+Math.abs(dy)<4)return;
+    if(!state.moved) dockRef.current=null;
     state.moved=true;
     const {maxX,maxY}=bounds(node);
     setPosition({x:clamp(state.x+dx,MARGIN,maxX),y:clamp(state.y+dy,MARGIN,maxY)});
