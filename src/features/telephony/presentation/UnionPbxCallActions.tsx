@@ -1,47 +1,76 @@
-import { ArrowRightLeft, Pause, Play } from 'lucide-react';
-import { AdminButton } from '@/shared/ui/admin/AdminLayout';
-import { AdminSelect } from '@/shared/ui/admin/AdminFormControls';
+import { useState } from "react";
+import { ArrowRightLeft, LoaderCircle, Mic, MicOff, Pause, PhoneOff, Play } from "lucide-react";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 
 type Props = {
   idPrefix: string;
   held: boolean;
+  muted: boolean;
   holdUncertain: boolean;
   transferUncertain: boolean;
-  busy: 'hold' | 'transfer' | null;
+  busy: "hold" | "transfer" | null;
   destination: string;
   extensions: { number: number; display_name: string }[];
   onDestination: (value: string) => void;
   onHold: () => void;
+  onMute: () => void;
+  onHangup: () => void;
   onTransfer: () => void;
 };
 
-/** Presentation only: both phone surfaces use the parent's single SIP session. */
-export function UnionPbxCallActions({ idPrefix, held, holdUncertain, transferUncertain, busy, destination, extensions, onDestination, onHold, onTransfer }: Props) {
+/** Uma barra de controles para a sessão SIP ativa, reutilizada no telefone completo e no flutuante. */
+export function UnionPbxCallActions({
+  idPrefix, held, muted, holdUncertain, transferUncertain, busy,
+  destination, extensions, onDestination, onHold, onMute, onHangup, onTransfer,
+}: Props) {
+  const [transferOpen, setTransferOpen] = useState(false);
   const valid = extensions.some(item => String(item.number) === destination);
-  return <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
-    <div className="flex flex-wrap items-center gap-2">
-      <AdminButton variant="secondary" size="sm" onClick={onHold} disabled={Boolean(busy)}
-        loading={busy === 'hold'} loadingText="Negociando áudio..." aria-pressed={held}>
-        {held ? <Play size={15} /> : <Pause size={15} />} {held ? 'Retomar chamada' : 'Colocar em espera'}
-      </AdminButton>
-      {(held || holdUncertain) && <span role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-300">{holdUncertain ? 'Estado de espera sem confirmação' : 'Chamada em espera'}</span>}
+  const control = "inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return <div className="space-y-2">
+    <div role="group" aria-label="Controles da ligação" className="flex w-full items-center gap-2">
+      <button type="button" aria-label={muted ? "Ativar microfone" : "Silenciar microfone"}
+        title={muted ? "Ativar microfone" : "Silenciar microfone"} aria-pressed={muted}
+        disabled={Boolean(busy)} onClick={onMute}
+        className={`${control} ${muted ? "border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-border bg-background text-foreground hover:bg-muted"}`}>
+        {muted ? <MicOff size={20}/> : <Mic size={20}/>}
+      </button>
+      <button type="button" onClick={onHold} disabled={Boolean(busy)}
+        aria-label={held ? "Retomar chamada" : "Colocar em espera"}
+        title={held ? "Retomar chamada" : "Colocar em espera"} aria-pressed={held}
+        className={`${control} ${held
+          ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+          : "border-amber-400/35 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"}`}>
+        {busy === "hold" ? <LoaderCircle size={20} className="animate-spin"/> : held ? <Play size={20}/> : <Pause size={20}/>}
+      </button>
+      <button type="button" aria-label="Transferir chamada" title="Transferir chamada"
+        aria-expanded={transferOpen} aria-controls={`${idPrefix}-transfer-panel`}
+        aria-pressed={transferOpen} onClick={() => setTransferOpen(value => !value)}
+        disabled={Boolean(busy) || transferUncertain}
+        className={`${control} border-primary/20 bg-primary/5 text-primary hover:bg-primary/10`}>
+        <ArrowRightLeft size={20}/>
+      </button>
+      <button type="button" aria-label="Desligar" title="Desligar" onClick={onHangup}
+        className={`${control} border-red-700 bg-red-700 text-white hover:bg-red-800 dark:border-red-600 dark:bg-red-600`}>
+        <PhoneOff size={20}/>
+      </button>
     </div>
-    <div className="space-y-2">
-      <p id={`${idPrefix}-transfer-label`} className="block text-xs font-semibold text-foreground">Transferir para outro ramal</p>
-      <div className="flex flex-wrap gap-2">
-        <div className="min-w-0 flex-1"><AdminSelect value={destination} disabled={Boolean(busy) || transferUncertain || !extensions.length}
-          onValueChange={onDestination} ariaLabel="Transferir para outro ramal"
-          options={[{value:'',label:'Selecione um ramal'},...extensions.map(item=>({value:String(item.number),label:`${item.number} · ${item.display_name}`}))]} /></div>
-        <AdminButton size="sm" onClick={onTransfer} disabled={!valid || Boolean(busy) || transferUncertain}
-          loading={busy === 'transfer'} loadingText="Transferindo...">
-          <ArrowRightLeft size={15} /> Transferir
-        </AdminButton>
+    {holdUncertain && <p role="status" className="text-xs text-amber-700 dark:text-amber-300">Confirmação de espera pendente.</p>}
+    {transferOpen && <div id={`${idPrefix}-transfer-panel`} className="flex flex-wrap gap-2 rounded-lg border border-border bg-muted/20 p-3">
+      <div className="min-w-[155px] flex-1">
+        <AdminSelect value={destination} disabled={Boolean(busy) || transferUncertain || !extensions.length}
+          onValueChange={onDestination} ariaLabel="Selecione o ramal para transferência"
+          options={[{ value:"",label:"Selecione um ramal" },
+            ...extensions.map(item => ({value:String(item.number),label:`${item.number} · ${item.display_name}`}))]}/>
       </div>
-      <p role={transferUncertain ? 'status' : undefined} className="text-xs leading-5 text-muted-foreground">{transferUncertain
-        ? 'Transferência sem confirmação final. Aguarde ou encerre a chamada; uma nova transferência fica bloqueada para evitar duplicação.'
-        : extensions.length
-        ? 'A transferência só é concluída após o destino atender. Se falhar, verifique se a chamada original continua ativa.'
-        : 'Não há outro ramal disponível para transferência nesta chamada.'}</p>
-    </div>
+      <AdminButton size="sm" onClick={onTransfer} disabled={!valid || Boolean(busy) || transferUncertain}
+        loading={busy === "transfer"} loadingText="Transferindo...">
+        <ArrowRightLeft size={16}/> Transferir
+      </AdminButton>
+      {transferUncertain && <p role="status" className="w-full text-xs text-amber-700 dark:text-amber-300">
+        Aguarde a confirmação da transferência para tentar novamente.
+      </p>}
+    </div>}
   </div>;
 }
