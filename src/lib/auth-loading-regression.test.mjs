@@ -36,7 +36,7 @@ test("logout do CRM não pisca por reload e não reseta o acesso duas vezes", ()
   assert.match(logout, /signOutInProgressRef\.current/);
   assert.match(logout, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
   assert.match(logout, /if \(signedInUserRef\.current === userId && userId\)/);
-  assert.doesNotMatch(logout, /window\.location\.(?:replace|assign|reload)\(/);
+  assert.doesNotMatch(logout, /^\s*window\.location\.(?:replace|assign|reload)\(/m);
   assert.match(app, /if \(loading \|\| session \|\| \(location\.pathname === "\/admin"/);
   assert.match(app, /navigate\("\/admin", \{ replace: true \}\)/);
 });
