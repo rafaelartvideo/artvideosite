@@ -40,12 +40,12 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
     }
   }, [createRequest, canManage, items.length]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!activeOrganizationId) { setItems([]); setLoading(false); return; }
-    setLoading(true);
+    if(!silent)setLoading(true);
     try { setItems(await listWhatsAppQuickReplies(activeOrganizationId)); }
     catch (reason) { notifyAdmin(systemErrorMessage(reason, "Não foi possível carregar as mensagens rápidas."), "error"); }
-    finally { setLoading(false); }
+    finally { if(!silent)setLoading(false); }
   }, [activeOrganizationId]);
   useEffect(() => { setDraft(null); void refresh(); }, [refresh]);
 
@@ -56,7 +56,7 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
       await saveWhatsAppQuickReply(activeOrganizationId, draft);
       setDraft(null);
       notifyAdmin("Mensagem rápida salva.", "success");
-      await refresh();
+      await refresh(true);
     } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível salvar a mensagem.")); }
     finally { setBusy(false); }
   };
