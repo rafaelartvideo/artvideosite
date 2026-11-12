@@ -82,7 +82,9 @@ test('controles compartilham sessão e cancelam operações ao encerrar a ligaç
   assert.match(page, /controlAbortRef\.current\?\.abort\(\)/);
   assert.match(page, /await transferCall\(/);
   assert.match(page, /await holdCall\(/);
-  assert.equal((page.match(/<UnionPbxCallActions/g) || []).length, 2, 'telefone completo e flutuante precisam dos mesmos controles');
+  assert.equal((page.match(/<UnionPbxCallActions/g) || []).length, 1, 'existe apenas um discador compartilhado');
+  assert.match(page, /dialer=\{isPageOpen \? dialerContent : null\}/);
+  assert.match(page, /<UnionPbxFloatingPhone[\s\S]*?\{dialerContent\}<\/UnionPbxFloatingPhone>/);
   assert.match(page, /sessionRef\.current === session/);
   assert.match(page, /controlLockRef\.current/);
   assert.match(page, /kind === 'transfer' && transferUncertainRef\.current/);
