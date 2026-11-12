@@ -28,7 +28,8 @@ test('partner phone has no manual Union credentials or line and only lists manag
   assert.match(phone, /setManualMode\(true\)/);
   assert.match(phone, /isPlatformOperatorOrganization \? "\(11\) 4290-1575/);
   assert.match(phone, /item\.is_managed && item\.endpoint_name !== SIP_USER/);
-  assert.match(phone, /!isPlatformOperatorOrganization && !managedExtension/);
+  assert.match(phone, /managedLookupError \|\| "Nenhum ramal ativo vinculado ao seu usuário\."/);
+  assert.doesNotMatch(phone, /<AdminDialog open=\{isPageOpen && connectionDialogOpen\}/);
   assert.match(phone, /isPlatformOperatorOrganization && onManageInbound/);
 });
 
