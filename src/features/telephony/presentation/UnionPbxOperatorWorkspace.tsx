@@ -83,6 +83,7 @@ export function UnionPbxOperatorWorkspace({
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const directoryCallback = useRef(onDirectoryChange);
   directoryCallback.current = onDirectoryChange;
 
@@ -91,6 +92,22 @@ export function UnionPbxOperatorWorkspace({
     return () => clearTimeout(timer);
   }, [search]);
   const numberSearch = debouncedSearch.replace(/[^+0-9#]/g, "").slice(0, 32);
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!settingsRef.current?.contains(event.target as Node)) setSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [settingsOpen]);
+
   useEffect(() => { setPage(1); setRows([]); setSelectedId(null); setSelectedExtension(null); }, [activeOrganizationId]);
   useEffect(() => { setPage(1); }, [recentFilter, numberSearch]);
 
@@ -178,7 +195,7 @@ export function UnionPbxOperatorWorkspace({
   return <div className="min-w-0 space-y-4 text-foreground">
     <PageHeader title={<div className="flex items-center gap-3">
       <span>Chamadas</span>
-      <div className="relative">
+      <div ref={settingsRef} className="relative">
         <button type="button" title="Configurações gerais do módulo" aria-label="Configurações gerais do PABX"
           aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
           onClick={() => setSettingsOpen(value => !value)}
@@ -200,7 +217,7 @@ export function UnionPbxOperatorWorkspace({
     <div className="grid min-w-0 gap-3 lg:grid-cols-[72px_minmax(0,1fr)]">
       <aside aria-label="Navegação do operador" className="flex min-w-0 flex-row items-center gap-2 rounded-xl border border-border bg-card p-2 lg:min-h-[640px] lg:flex-col">
         {nav.map(item => <button key={item.id} type="button" aria-current={mode === item.id ? "page" : undefined}
-          title={item.label} onClick={() => { setMode(item.id); setSettingsOpen(false); setSelectedExtension(null); }}
+          title={item.label} onClick={() => { setMode(item.id); setSettingsOpen(false); setSelectedExtension(null); setSelectedId(null); }}
           className={`flex h-14 min-w-[62px] flex-col items-center justify-center gap-1 rounded-lg border text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:w-full ${mode === item.id ? "border-primary/25 bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:bg-muted"}`}>
           <item.Icon size={20} aria-hidden="true"/>{item.label}
         </button>)}
