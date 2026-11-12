@@ -37,6 +37,13 @@ function resultTitle(row: CallHistoryRow) {
 function returnNumber(row: CallHistoryRow): string {
   return row.direction === "inbound" ? row.source : row.destination;
 }
+function responsibleExtension(row: CallHistoryRow): number | null {
+  // Na entrada, o responsável é o ramal de destino; na saída/interna, o que originou a ligação.
+  const number = row.direction === "inbound"
+    ? row.destination_extension?.number
+    : row.source_extension?.number;
+  return Number.isInteger(number) && Number(number) > 0 ? Number(number) : null;
+}
 
 export function PbxContactActivity({ organizationId, number, active, revision, onDialNumber, callBusy }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -87,6 +94,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
     {!loading && !failed && <div className="space-y-1.5">
       {shown.map(row => {
         const answered = row.disposition === "ANSWERED";
+        const extension = responsibleExtension(row);
         const numberToCall = returnNumber(row);
         const canCall = !answered && !callBusy && /\d{3,15}/.test(numberToCall.replace(/\D/g, ""));
         return <div key={row.id} className="group flex min-w-0 items-center gap-2 rounded-lg p-2 hover:bg-muted/60">
@@ -95,7 +103,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold" title={resultTitle(row)}>{resultTitle(row)}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{activityDate(row.started_at)} · {callDuration(row.duration_seconds || 0)}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{activityDate(row.started_at)} · {callDuration(row.duration_seconds || 0)}{extension !== null ? ` - ${extension}` : ""}</p>
           </div>
           {canCall && <button type="button" aria-label={`Retornar chamada para ${formatPbxNumber(numberToCall)}`}
             title="Retornar chamada" onClick={() => onDialNumber(numberToCall)}
