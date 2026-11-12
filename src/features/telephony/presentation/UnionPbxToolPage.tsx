@@ -13,6 +13,7 @@ import type { UnionPbxSection } from "./UnionPbxSectionTabs";
 import { UnionPbxOperatorWorkspace, formatPbxNumber } from "./UnionPbxOperatorWorkspace";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
+import { pbxContactPhoneKey, usePbxSavedContactCards } from "../application/pbx-saved-contact-cards";
 import {externalDialingAllowed,type ExternalDialGrant} from '../application/external-access';
 import { holdCall, transferCall, type CallControlSession } from "../application/call-controls";
 import { sendPbxDigit, type PbxDigitSession } from "../application/dtmf";
@@ -82,6 +83,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
+  const callerCards=usePbxSavedContactCards(activeOrganizationId,callState!=="idle",[remoteParty]);
+  const currentCallerCard=callerCards[pbxContactPhoneKey(remoteParty)];
+  const callerInitials=(currentCallerCard?.name||"").trim().split(/\s+/)
+    .filter(Boolean).map(part=>part[0]).slice(0,2).join("").toUpperCase()||"☎";
   const [completedCall, setCompletedCall] = useState<{sequence:number;number:string;startedAt:number;at:number}>({sequence:0,number:"",startedAt:0,at:0});
   const [muted, setMuted] = useState(false);
   const [microphoneId, setMicrophoneId] = useState("");
@@ -658,7 +663,7 @@ setTestFlowError('');
         isActive={isPageOpen}
         lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
         extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
-        connectionStatus={registration} callState={callState} remoteParty={remoteParty} completedCall={completedCall}
+        connectionStatus={registration} callState={callState} remoteParty={remoteParty} callerCard={currentCallerCard} completedCall={completedCall}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}
         onBack={onBack} onConnectionSettings={connectDirectly}
         onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
@@ -694,12 +699,26 @@ setTestFlowError('');
           originateExternal(destination, rawPhone);
         }}
         dialer={<div className="space-y-3">
-          {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 text-center ${held && callState === "active"
+          {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
-            <p className={`text-sm font-semibold ${held && callState === "active" ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
+            <p className={`mb-2 text-center text-sm font-semibold ${held && callState === "active"
+              ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
               {callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : held ? "Em espera" : "Em ligação"}
             </p>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{formatPbxNumber(remoteParty)}</p>
+            <div className="flex min-w-0 items-center justify-center gap-2.5">
+              {pbxContactPhoneKey(remoteParty) && <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {callerInitials}
+                {currentCallerCard?.avatarUrl && <img src={currentCallerCard.avatarUrl} alt="" referrerPolicy="no-referrer"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={event=>{event.currentTarget.hidden=true;}}/>}
+              </span>}
+              <div className="min-w-0 text-left">
+                {currentCallerCard?.name && <p className="truncate text-sm font-semibold" title={currentCallerCard.name}>
+                  {currentCallerCard.name}
+                </p>}
+                <p className="truncate text-xs text-muted-foreground">{formatPbxNumber(remoteParty)}</p>
+              </div>
+            </div>
           </div>}
           {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
@@ -731,7 +750,7 @@ setTestFlowError('');
                   ...testFlows.map(item => ({value:String(item.number),label:`${item.number} · URA · ${item.name}`}))]} />
             </div>}
           </div>}
-          <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
+          {callState !== "incoming" && <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
             {([["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]] as const).map(([digit, letters]) =>
               <button key={digit} type="button" aria-label={`Tecla ${digit}`}
                 disabled={callState === "idle" && (digit === "*" || digit === "#") || (callState !== "idle" && callState !== "active") || (callState === "active" && dtmfDisabled)}
@@ -743,7 +762,7 @@ setTestFlowError('');
                 className="flex h-[60px] flex-col items-center justify-center rounded-lg border border-border bg-background text-xl font-semibold text-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-35">
                 {digit}<span className="text-[10px] font-normal tracking-wide text-muted-foreground">{letters || "\u00a0"}</span>
               </button>)}
-          </div>
+          </div>}
           {callState === "idle" && <>
             <AdminButton variant="primary" className="!w-full" disabled={!registeredAndIdle || (dialMode === "external" && canUseExternal ? !normalizeNationalDestination(externalTarget) : !internalDestinationReady)}
               onClick={dialMode === "external" && canUseExternal ? callExternal : callInternal}>
@@ -751,9 +770,14 @@ setTestFlowError('');
             </AdminButton>
             
           </>}
-          {callState === "incoming" && <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
-            <PhoneIncoming size={17}/> Atender chamada
-          </AdminButton>}
+          {callState === "incoming" && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Responder chamada recebida">
+            <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
+              <PhoneIncoming size={17}/> Atender
+            </AdminButton>
+            <AdminButton variant="danger" className="!w-full" onClick={hangup}>
+              <PhoneOff size={17}/> Recusar
+            </AdminButton>
+          </div>}
           {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} muted={muted}
             holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
@@ -761,9 +785,6 @@ setTestFlowError('');
             onHangup={hangup} onTransfer={() => void runControl("transfer")} />}
           {callState === "dialing" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
             <PhoneOff size={17}/> Cancelar chamada
-          </AdminButton>}
-          {callState === "incoming" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
-            <PhoneOff size={17}/> Recusar
           </AdminButton>}
           {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
