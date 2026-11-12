@@ -23,9 +23,9 @@ const channelRequest = (organizationId: string, action: Parameters<typeof operat
   extra?: Parameters<typeof operateUnionWhatsAppInbox>[3]) =>
   operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), action, extra);
 
-export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCreateChange }: {
+export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCreateChange, footerTarget }: {
   section: WhatsAppOperationsSection; createRequest?: number;
-  onCanCreateChange?: (ready:boolean)=>void;
+  onCanCreateChange?: (ready:boolean)=>void; footerTarget?: HTMLElement|null;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
@@ -230,7 +230,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
           </div>}
         </div>}
       </AdminCard>}
-    {!loading && canManage && section==="queues" && <WhatsAppQueueSettings/>}
+    {!loading && canManage && section==="queues" && <WhatsAppQueueSettings footerTarget={footerTarget} footerInParent/>}
     <AdminDialog open={Boolean(editing)} onClose={() => { if(!busy)setEditing(null); }}
       title={editing === "new" ? "Novo departamento" : "Editar departamento"}
       className="max-w-xl"
