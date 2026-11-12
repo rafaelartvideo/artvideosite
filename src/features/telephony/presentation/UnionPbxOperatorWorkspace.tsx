@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, ContactRound, Headphones, History, ListTree, LoaderCircle, Phone, PhoneMissed, Radio, RefreshCw, Search, Settings2, SlidersHorizontal, UsersRound, Voicemail, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, ContactRound, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Radio, Search, Settings2, Voicemail, X } from "lucide-react";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -9,7 +9,7 @@ import type { UnionPbxSection } from "./UnionPbxSectionTabs";
 
 type Extension = { number: number; display_name: string; endpoint_name: string };
 type Queue = { number: number; name: string };
-type WorkspaceMode = "chamadas" | "contatos" | "filas" | "ramais";
+type WorkspaceMode = "chamadas" | "contatos";
 type RecentFilter = "todas" | "atendidas" | "perdidas";
 type Props = {
   isActive: boolean;
@@ -24,6 +24,8 @@ type Props = {
   directoryLoading: boolean;
   onBack: () => void;
   onConnectionSettings: () => void;
+  onDeviceSettings: () => void;
+  onDirectoryChange: () => void;
   onSelectSection: (section: UnionPbxSection) => void;
   onDialNumber: (number: string) => void;
   canManage: boolean;
@@ -49,10 +51,21 @@ function initials(value: string) {
   return value.replace(/\D/g, "").slice(-2) || "PB";
 }
 
+
+/** Apenas para exibição: a discagem mantém o número original. */
+export function formatPbxNumber(value: string): string {
+  const raw = (value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  const national = digits.startsWith("55") && (digits.length === 12 || digits.length === 13) ? digits.slice(2) : digits;
+  if (national.length === 11) return `(${national.slice(0,2)}) ${national.slice(2,7)}-${national.slice(7)}`;
+  if (national.length === 10) return `(${national.slice(0,2)}) ${national.slice(2,6)}-${national.slice(6)}`;
+  return raw;
+}
+
 /** Apenas apresentação do operador: o WebRTC e o áudio continuam na instância persistente do telefone. */
 export function UnionPbxOperatorWorkspace({
   isActive, dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
-  directory, queues, directoryLoading, onBack, onConnectionSettings,
+  directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
   onSelectSection, onDialNumber, canManage, canManageInbound, canRecordings,
 }: Props) {
   const { activeOrganizationId } = useAuth();
@@ -62,7 +75,7 @@ export function UnionPbxOperatorWorkspace({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const pageSize = 10;
   const [revision, setRevision] = useState(0);
   const [rows, setRows] = useState<CallHistoryRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -70,6 +83,8 @@ export function UnionPbxOperatorWorkspace({
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
+  const directoryCallback = useRef(onDirectoryChange);
+  directoryCallback.current = onDirectoryChange;
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
@@ -77,11 +92,11 @@ export function UnionPbxOperatorWorkspace({
   }, [search]);
   const numberSearch = debouncedSearch.replace(/[^+0-9#]/g, "").slice(0, 32);
   useEffect(() => { setPage(1); setRows([]); setSelectedId(null); setSelectedExtension(null); }, [activeOrganizationId]);
-  useEffect(() => { setPage(1); }, [recentFilter, numberSearch, pageSize]);
+  useEffect(() => { setPage(1); }, [recentFilter, numberSearch]);
 
   useEffect(() => {
     const controller = new AbortController();
-    if (!activeOrganizationId || !isActive) { setRows([]); setTotal(0); setLoading(false); return () => controller.abort(); }
+    if (!activeOrganizationId || !isActive || mode !== "chamadas") { setLoading(false); return () => controller.abort(); }
     const filters = { ...initialHistoryFilters(), number: numberSearch,
       disposition: recentFilter === "atendidas" ? "ANSWERED" : recentFilter === "perdidas" ? "NO ANSWER" : "" };
     setLoading(true);
@@ -96,10 +111,47 @@ export function UnionPbxOperatorWorkspace({
         setTotal(count || 0);
         setSelectedId(previous => results.some(row => row.id === previous) ? previous : (results[0]?.id || null));
       }).catch(() => {
-        if (!controller.signal.aborted) { setRows([]); setTotal(0); setSelectedId(null); setError("Não foi possível carregar as chamadas. Tente atualizar."); }
+        if (!controller.signal.aborted) { setRows([]); setTotal(0); setSelectedId(null); setError("Não foi possível carregar as chamadas. Verifique sua conexão."); }
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [activeOrganizationId, isActive, recentFilter, numberSearch, page, pageSize, revision]);
+  }, [activeOrganizationId, isActive, mode, recentFilter, numberSearch, page, revision]);
+
+
+  // Uma assinatura filtrada por empresa e atualização em lote para evitar consultas repetidas.
+  useEffect(() => {
+    if (!activeOrganizationId || !isActive) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let callsChanged = false, directoryChanged = false;
+    const flush = () => {
+      timer = undefined;
+      if (callsChanged) setRevision(value => value + 1);
+      if (directoryChanged) directoryCallback.current();
+      callsChanged = false; directoryChanged = false;
+    };
+    const schedule = (kind: "calls" | "directory") => {
+      if (kind === "calls") callsChanged = true;
+      else directoryChanged = true;
+      if (!timer) timer = setTimeout(flush, 500);
+    };
+    const filter = `organization_id=eq.${activeOrganizationId}`;
+    const channel = supabase.channel(`pbx-operator:${activeOrganizationId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_call_logs", filter }, () => schedule("calls"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_extensions", filter }, () => schedule("directory"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_queues", filter }, () => schedule("directory"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_call_flows", filter }, () => schedule("directory"))
+      .subscribe(status => { if (status === "SUBSCRIBED") schedule("calls"); });
+    const resume = () => {
+      if (document.visibilityState !== "hidden") { schedule("calls"); schedule("directory"); }
+    };
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [activeOrganizationId, isActive]);
 
   const selected = rows.find(row => row.id === selectedId) || null;
   const selectedNumber = selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
