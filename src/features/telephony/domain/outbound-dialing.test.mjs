@@ -10,7 +10,7 @@ async function load(){
 }
 test('normaliza telefone nacional com DDD para o formato FVX já validado',async()=>{
   const {normalizeNationalDestination:normalize}=await load();
-  for(const value of ['(79) 98803-7605','79988037605','5579988037605','+55 (79) 98803-7605'])
+  for(const value of ['(79) 98803-7605','79988037605','079988037605','5579988037605','+55 (79) 98803-7605'])
     assert.equal(normalize(value),'5579988037605');
   assert.equal(normalize('(11) 4290-1575'),'551142901575');
 });
