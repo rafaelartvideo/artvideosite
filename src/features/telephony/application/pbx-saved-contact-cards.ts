@@ -13,7 +13,9 @@ const CACHE_MISSING_MS = 5 * 60 * 1000;
 
 /** Only Brazilian external numbers, never ramals, can map to CRM / WhatsApp contacts. */
 export function pbxContactPhoneKey(raw: string): string {
-  const digits = String(raw || "").replace(/\D/g, "");
+  let digits = String(raw || "").replace(/\D/g, "");
+  // Asterisk/PSTN may prepend a single trunk 0 to a national number.
+  if (/^0(?:55[1-9][0-9]{9,10}|[1-9][0-9]{9,10})$/.test(digits)) digits = digits.slice(1);
   if (/^55[1-9][0-9]{9,10}$/.test(digits)) return digits;
   if (/^[1-9][0-9]{9,10}$/.test(digits)) return "55" + digits;
   return "";
