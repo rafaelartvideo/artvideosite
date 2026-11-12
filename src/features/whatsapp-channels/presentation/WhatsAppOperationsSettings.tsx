@@ -172,8 +172,9 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
       description:inlineStage==="department-form"
         ? "Defina os dados do departamento." : "Gerencie quem recebe os atendimentos deste setor.",
       compact:true,
+      blocked:Boolean(busy),
     }:null,closeInline);
-  },[embedded,inlineStage,editing,teamDepartment?.name,onInlinePaneChange]);
+  },[embedded,inlineStage,editing,teamDepartment?.name,busy,onInlinePaneChange]);
 
   if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Seu perfil não possui a permissão necessária para gerenciar esta seção dos atendimentos.</p>;
 
