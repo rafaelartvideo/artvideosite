@@ -291,6 +291,12 @@ function AdminEntry() {
   } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // Keep logout on the login URL without reloading the entire CRM. This also
+  // replaces protected deep links when a visitor opens them while signed out.
+  useEffect(() => {
+    if (loading || session || (location.pathname === "/admin" && !location.search && !location.hash)) return;
+    navigate("/admin", { replace: true });
+  }, [loading, session, location.pathname, location.search, location.hash, navigate]);
   const requestedOrganizationId = new URLSearchParams(location.search).get("org");
   const canOpenRequestedOrganization = Boolean(
     requestedOrganizationId
