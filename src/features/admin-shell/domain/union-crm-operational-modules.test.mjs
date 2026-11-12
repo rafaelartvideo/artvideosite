@@ -42,7 +42,7 @@ test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou u
   const phoneMount = app.indexOf("<UnionPbxToolPage", workspaceEnd);
   assert.ok(workspaceEnd > 0 && phoneMount > workspaceEnd, "softphone deve ficar fora da rota retida");
   assert.match(app, /key=\{\`\$\{user.id\}:\$\{activeOrganizationId\}\`\}/);
-  assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null\}/);
+  assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx"\}/);
   assert.match(phone, /<audio ref=\{remoteAudioRef\}/);
   assert.match(phone, /!isPageOpen && \(registration !== "offline" \|\| callState !== "idle"\)/);
   assert.match(phone, /callState === "incoming" && \(/);
