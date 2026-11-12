@@ -6,7 +6,7 @@ import {
   callDuration, dispositionLabels, loadCallHistory, localHistoryDate,
   type CallHistoryRow, type HistoryFilters,
 } from "../application/call-history";
-import { formatPbxNumber } from "./UnionPbxOperatorWorkspace";
+import { formatPbxNumber } from "../domain/pbx-display";
 
 type Props = {
   organizationId: string | null;
