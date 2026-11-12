@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, History, Search } from 'lucide-react';
+import { Download, History, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search } from 'lucide-react';
+import { formatPbxNumber } from './UnionPbxOperatorWorkspace';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { AdminButton, AdminCard, AdminCardContent, AdminSectionEmpty, PageHeader } from '@/shared/ui/admin/AdminLayout';
@@ -138,13 +139,18 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       {loading ? <AdminWorkspaceSkeleton columns={7} rows={4} />
         : !rows.length && !error ? <AdminSectionEmpty className="gap-2"><History size={28} /><p>Nenhum registro neste período.</p><p>A coleta precisa estar ativa na VPS para receber novas ligações.</p></AdminSectionEmpty>
           : <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Início', 'Origem', 'Destino', 'Direção', 'Resultado', 'Duração', 'Conversa'].map(label => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Início', 'Origem', 'Destino', 'Direção', 'Chamada', 'Duração', 'Conversa'].map(label => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="border-t border-border">
               <td className="px-4 py-3"><time dateTime={row.started_at}>{new Date(row.started_at).toLocaleString('pt-BR')}</time><p className="max-w-40 truncate text-[10px] text-muted-foreground" title={row.linked_id}>ID: {row.linked_id}</p></td>
-              <td className="px-4 py-3">{row.source || 'Não informado'}{row.source_extension && <p className="text-xs text-muted-foreground">{row.source_extension.display_name} · {row.source_extension.number}</p>}</td>
-              <td className="px-4 py-3">{row.destination || (row.destination_extension ? String(row.destination_extension.number) : row.direction === 'inbound' ? 'Entrada principal' : 'Não informado')}{row.destination_extension && <p className="text-xs text-muted-foreground">{row.destination_extension.display_name} · {row.destination_extension.number}</p>}</td>
+              <td className="px-4 py-3">{formatPbxNumber(row.source) || 'Não informado'}{row.source_extension && <p className="text-xs text-muted-foreground">{row.source_extension.display_name} · {row.source_extension.number}</p>}</td>
+              <td className="px-4 py-3">{row.destination ? formatPbxNumber(row.destination) : (row.destination_extension ? String(row.destination_extension.number) : row.direction === 'inbound' ? 'Entrada principal' : 'Não informado')}{row.destination_extension && <p className="text-xs text-muted-foreground">{row.destination_extension.display_name} · {row.destination_extension.number}</p>}</td>
               <td className="px-4 py-3">{directionLabels[row.direction] || row.direction}</td>
-              <td className="px-4 py-3">{dispositionLabels[row.disposition] || row.disposition}</td>
+              <td className="px-4 py-3">
+                 <span role="img" title={dispositionLabels[row.disposition] || row.disposition} aria-label={dispositionLabels[row.disposition] || row.disposition}
+                   className={row.disposition === "ANSWERED" ? "inline-flex text-emerald-600 dark:text-emerald-400" : "inline-flex text-red-600 dark:text-red-400"}>
+                   {row.disposition !== "ANSWERED" ? <PhoneMissed size={19}/> : row.direction === "outbound" ? <PhoneOutgoing size={19}/> : <PhoneIncoming size={19}/>}
+                 </span>
+               </td>
               <td className="px-4 py-3 tabular-nums">{callDuration(row.duration_seconds)}</td>
               <td className="px-4 py-3 tabular-nums">{callDuration(row.billable_seconds)}</td>
             </tr>)}</tbody>
