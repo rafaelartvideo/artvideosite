@@ -1817,7 +1817,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
-          <button type="button" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
+          <button type="button" data-whatsapp-attendance-settings-trigger="true" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
             onClick={onConfigure}
             className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Settings2 size={20} strokeWidth={2}/>
