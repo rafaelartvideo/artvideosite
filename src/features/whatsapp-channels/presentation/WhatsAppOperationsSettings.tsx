@@ -23,8 +23,9 @@ const channelRequest = (organizationId: string, action: Parameters<typeof operat
   extra?: Parameters<typeof operateUnionWhatsAppInbox>[3]) =>
   operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), action, extra);
 
-export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
+export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCreateChange }: {
   section: WhatsAppOperationsSection; createRequest?: number;
+  onCanCreateChange?: (ready:boolean)=>void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
@@ -42,6 +43,9 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   const [teamDepartment, setTeamDepartment] = useState<Department | null>(null);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const previousCreateRequest = useRef(createRequest);
+  useEffect(() => {
+    onCanCreateChange?.(section !== "operators" && canManage && !loading && !Boolean(busy));
+  }, [onCanCreateChange, section, canManage, loading, busy]);
 
   const reload = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -73,7 +77,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     setActive(department === "new" ? true : department.is_active);
     
   };
-  // The "Novo" action belongs to the parent modal/page toolbar, not the table.
+  // The "Novo" action belongs to the parent modal footer or page toolbar, not the table.
   useEffect(() => {
     if (previousCreateRequest.current === createRequest) return;
     previousCreateRequest.current = createRequest;
