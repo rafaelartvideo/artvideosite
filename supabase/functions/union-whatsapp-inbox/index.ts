@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { cachedWhatsAppAvatar } from "./avatar-cache.ts";
 
 // Padrões espelhados no catálogo SQL: overrides por empresa são lidos em uma só consulta.
 const WHATSAPP_ROLE_DEFAULTS: Record<string,[boolean,boolean]> = {
@@ -336,16 +337,38 @@ Deno.serve(async request => {
       if(!channel || !/^[0-9]{10,15}$/.test(String(channel.phone||"")))
         return {error:"Conecte um número WhatsApp antes de verificar contatos.",status:409};
       try{
-        const reply=JSON.parse(await signedBridge({id:channel.id,organization_id:org},
-          "55"+national,"",crypto.randomUUID(),undefined,undefined,
-          false,false,false,false,true));
         const requested="55"+national;
+        const {data:previousCheck,error:cacheError}=await admin
+          .from("union_whatsapp_number_check_cache").select("provider_result,checked_at")
+          .eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("account_phone",channel.phone).eq("requested_phone",requested).maybeSingle();
+        if(cacheError)console.warn("whatsapp_number_cache_read_failed");
+        const age=Date.now()-Date.parse(String(previousCheck?.checked_at||""));
+        const ttl=previousCheck?.provider_result?.status==="not_registered"
+          ? 10*60*1000 : 30*60*1000;
+        const fresh=!(previousCheck?.provider_result && Number.isFinite(age) &&
+          age>=0 && age<ttl);
+        const reply=fresh
+          ? JSON.parse(await signedBridge({id:channel.id,organization_id:org},
+              requested,"",crypto.randomUUID(),undefined,undefined,
+              false,false,false,false,true))
+          : previousCheck.provider_result;
+        const rememberCheck=async()=>{
+          if(!fresh)return;
+          const {error}=await admin.from("union_whatsapp_number_check_cache").upsert({
+            organization_id:org,channel_id:channel.id,account_phone:channel.phone,
+            requested_phone:requested,provider_result:reply,checked_at:new Date().toISOString(),
+          },{onConflict:"organization_id,channel_id,account_phone,requested_phone"});
+          if(error)console.warn("whatsapp_number_cache_write_failed");
+        };
         const available=(Array.isArray(reply.matches)?reply.matches:[]).filter(
           (r:Record<string,unknown>) => /^55[1-9][0-9][0-9]{8,9}$/.test(String(r.phone||""))
           && /^(?:[0-9]{5,20}@lid|55[1-9][0-9][0-9]{8,9}@s\.whatsapp\.net)$/.test(String(r.jid||""))
         ) as Array<{phone:string;jid:string;query?:string;verified_name?:string}>;
-        if(reply.status==="not_registered")
+        if(reply.status==="not_registered"){
+          await rememberCheck();
           return {error:"O WhatsApp confirmou que esse telefone não está cadastrado. Confira DDD e número.",status:422};
+        }
         if(reply.status!=="verified" || !available.length)
           return {error:"Consulta ao WhatsApp inconclusiva. Tente novamente antes de abrir uma conversa.",status:503};
         // A Brazilian number with and without 9 can refer to the same JID.
@@ -359,6 +382,7 @@ Deno.serve(async request => {
         // The JID is the confirmed WhatsApp identity; a @lid is not a phone.
         // With a LID, retain the typed phone only for display/search.
         const canonicalPhone=matched.jid.endsWith("@lid")?requested:matched.phone;
+        await rememberCheck();
         return {channel,phone:canonicalPhone,jid:matched.jid,alternatives:available,
           adjusted:canonicalPhone!==requested,verified_name:matched.verified_name||"",
           distinct_identities:distinct};
@@ -449,13 +473,15 @@ Deno.serve(async request => {
         }
       }
 
-      // Fetch photo and optional WhatsApp profile name in parallel. Neither
-      // may invalidate an already verified number when the profile is private.
+      // Persist photos privately; do not query profile names when Union already
+      // has a name for the verified contact.
       const [avatar,profile]=await Promise.allSettled([
-        signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
-          crypto.randomUUID(),undefined,undefined,false,true),
-        signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
-          crypto.randomUUID(),undefined,undefined,true),
+        cachedWhatsAppAvatar(admin,org,verified.channel,verified.jid,()=>
+          signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+            crypto.randomUUID(),undefined,undefined,false,true)),
+        contactName ? Promise.resolve("") :
+          signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+            crypto.randomUUID(),undefined,undefined,true),
       ]);
       const fromBridge=profile.status==="fulfilled" ? profile.value : "";
       const cut=fromBridge.indexOf(":");
@@ -713,8 +739,9 @@ Deno.serve(async request => {
           if(!thread)return json({success:false,error:"Contato não encontrado neste canal."},404);
         }
         try{
-          const photo=await signedBridge({id:channel.id,organization_id:org},
-            "",jid,crypto.randomUUID(),undefined,undefined,false,true);
+          const photo=await cachedWhatsAppAvatar(admin,org,channel,jid,()=>
+            signedBridge({id:channel.id,organization_id:org},
+              "",jid,crypto.randomUUID(),undefined,undefined,false,true));
           return json({success:true,avatar_url:photo||null});
         }catch{return json({success:true,avatar_url:null});}
       }
@@ -1521,16 +1548,8 @@ Deno.serve(async request => {
       if(saveError)throw saveError;
       return json({success:true,service_order_id:target||null});
     }
-    if(action==="presence_subscribe") {
-      if(!(canManage || thread.assigned_to===actorId ||
-        (thread.status==="waiting" && !thread.assigned_to)))
-        return json({success:false,error:"Conversa não disponível."},403);
-      try{
-        await signedBridge({id:thread.channel_id,organization_id:org},"",thread.chat_jid,
-          crypto.randomUUID(),undefined,undefined,false,false,true);
-        return json({success:true});
-      }catch{return json({success:true});}
-    }
+    // Legacy clients receive an affirmative no-op; no WuzAPI request is made.
+    if(action==="presence_subscribe")return json({success:true,presence_disabled:true});
     if(action==="customer_match") {
       if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
       if(!(canManage || thread.assigned_to===actorId ||
@@ -1573,10 +1592,10 @@ Deno.serve(async request => {
       // whatsapp.inbox.view checks, and the conversation belongs to the org.
       // A finished or returned thread must not lose its profile photo.
       try {
-        const avatar=await signedBridge(
-          {id:thread.channel_id,organization_id:org},"",thread.chat_jid,crypto.randomUUID(),
-          undefined,undefined,false,true
-        );
+        const avatar=await cachedWhatsAppAvatar(admin,org,
+          {id:thread.channel_id,phone:thread.account_phone},thread.chat_jid,()=>
+            signedBridge({id:thread.channel_id,organization_id:org},
+              "",thread.chat_jid,crypto.randomUUID(),undefined,undefined,false,true));
         return json({success:true,avatar_url:avatar||null});
       } catch {return json({success:true,avatar_url:null});}
     }
