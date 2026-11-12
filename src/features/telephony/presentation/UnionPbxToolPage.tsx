@@ -764,7 +764,7 @@ setTestFlowError('');
           {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
           }}>Habilitar áudio da chamada</AdminButton>}
-          {manualMode && isPlatformOperatorOrganization && registration !== "registered" && registration !== "connecting" && !managedExtension && <div className="space-y-2 rounded-lg border border-border p-3">
+          {manualMode && isPlatformOperatorOrganization && registration !== "registered" && registration !== "connecting" && (!managedExtension || managedExtension.provisioning_status !== "applied") && <div className="space-y-2 rounded-lg border border-border p-3">
             <label htmlFor="pbx-manual-secret" className="block text-xs font-semibold">Senha SIP do ramal manual 301</label>
             <FInput id="pbx-manual-secret" type="password" autoComplete="off" spellCheck={false}
               value={password} onChange={event => setPassword(event.target.value)}
