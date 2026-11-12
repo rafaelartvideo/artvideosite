@@ -19,6 +19,7 @@ export function PbxContactDirectory({
   const [debounced,setDebounced]=useState("");
   const [contacts,setContacts]=useState<PbxDirectoryContact[]>([]);
   const [loading,setLoading]=useState(false);
+  const [readyOrganization,setReadyOrganization]=useState<string|null>(null);
   const [error,setError]=useState("");
   useEffect(()=>{
     const timer=setTimeout(()=>setDebounced(search.trim()),400);
@@ -27,7 +28,8 @@ export function PbxContactDirectory({
   useEffect(()=>{
     const controller=new AbortController();
     if(!organizationId||!active)return()=>controller.abort();
-    setLoading(true);setError("");
+    if(readyOrganization!==organizationId)setLoading(true);
+    setError("");
     void supabase.functions.invoke<{success?:boolean;contacts?:PbxDirectoryContact[]}>("union-pbx-contact-cards",{
       body:{action:"list",organization_id:organizationId,search:debounced},signal:controller.signal,
     }).then(({data,error:requestError})=>{
@@ -36,7 +38,7 @@ export function PbxContactDirectory({
       setContacts(data.contacts);
     }).catch(()=>{
       if(!controller.signal.aborted)setError("Não foi possível consultar a agenda telefônica.");
-    }).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+    }).finally(()=>{if(!controller.signal.aborted){setLoading(false);setReadyOrganization(organizationId);}});
     return ()=>controller.abort();
   },[organizationId,active,debounced,revision]);
   const normalizedSearch=search.trim().toLowerCase();
@@ -51,6 +53,12 @@ export function PbxContactDirectory({
       seen.add(key);return true;
     }),
   ];
+  if (organizationId && active && readyOrganization !== organizationId) {
+    return <div role="status" className="flex min-h-[350px] flex-1 flex-col items-center justify-center gap-3 text-sm font-medium text-primary">
+      <LoaderCircle size={28} className="animate-spin"/>
+      Preparando agenda...
+    </div>;
+  }
   return <div className="mt-4 flex-1 space-y-3">
     <div className="flex flex-wrap gap-2">
       <label className="relative min-w-[175px] flex-1">
@@ -65,7 +73,6 @@ export function PbxContactDirectory({
       </button>
     </div>
     <p className="text-[11px] text-muted-foreground">CRM em primeiro lugar · agenda PABX e contatos do WhatsApp, sem duplicações</p>
-    {loading&&<p role="status" className="flex items-center gap-2 text-xs text-primary"><LoaderCircle size={15} className="animate-spin"/> Sincronizando agenda...</p>}
     {error&&<p role="alert" className="text-xs text-destructive">{error}</p>}
     <div className="max-h-[530px] space-y-1 overflow-y-auto">
       {all.map(contact=><button type="button" key={contact.source+":"+contact.number}
@@ -76,7 +83,7 @@ export function PbxContactDirectory({
           <span className="block text-xs text-muted-foreground">{formatPbxNumber(contact.number)}</span></span>
         <span className="shrink-0 text-[10px] text-muted-foreground">{sourceText[contact.source]}</span>
       </button>)}
-      {!loading&&!all.length&&<p className="py-8 text-center text-sm text-muted-foreground">Nenhum contato encontrado. Você pode salvar um novo número no PABX.</p>}
+      {!all.length&&<p className="py-8 text-center text-sm text-muted-foreground">Nenhum contato encontrado. Você pode salvar um novo número no PABX.</p>}
     </div>
     {all.length>=100&&<p className="text-[11px] text-muted-foreground">Exibindo os contatos mais recentes. Use a busca para localizar outros.</p>}
   </div>;
