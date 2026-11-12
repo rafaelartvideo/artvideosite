@@ -52,6 +52,11 @@ function callStatus(row: CallHistoryRow) {
   return dispositionLabels[row.disposition] || row.disposition || "Sem resultado";
 }
 function initials(value: string) {
+  const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+  const first = words[0] || "";
+  if (/[a-zÀ-ÿ]/i.test(first)) {
+    return ((first[0] || "") + (words.length > 1 ? words[words.length - 1][0] : first[1] || "")).toUpperCase();
+  }
   return value.replace(/\D/g, "").slice(-2) || "PB";
 }
 
