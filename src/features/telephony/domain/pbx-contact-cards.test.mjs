@@ -62,3 +62,48 @@ test("identity lookup deduplicates visible numbers and expires signed-photo memo
   assert.match(content,/union-pbx-contact-cards/);
   assert.ok((await transformWithEsbuild(content,path,{loader:"ts"})).code.length>100);
 });
+
+
+test("PBX uses icon-only call controls with hold and resume colors and an expandable transfer picker", async () => {
+  const path = "src/features/telephony/presentation/UnionPbxCallActions.tsx";
+  const source = read(path);
+  for (const phrase of ["Controles da ligação", "Silenciar microfone", "Ativar microfone",
+    "Colocar em espera", "Retomar chamada", "Transferir chamada", "Desligar",
+    "bg-amber-500/10", "bg-emerald-500/10", "transferOpen", "AdminSelect",
+    "onHangup", "onMute"]) assert.ok(source.includes(phrase), phrase);
+  assert.doesNotMatch(source, /Chamada em espera/);
+  assert.ok((await transformWithEsbuild(source,path,{loader:"tsx"})).code.length > 100);
+});
+
+test("PBX opens finished calls rather than first row, and direct dial/save actions are adjacent", () => {
+  const source=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
+  const phone=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  assert.doesNotMatch(source, /results\[0\]\?\.id/);
+  assert.match(source,/completedHandledRef/);
+  assert.match(source,/setSelectedId\(matching\.id\)/);
+  assert.match(source,/onReturnCall\(selectedNumber\)/);
+  assert.match(source,/Salvar contato/);
+  assert.match(source,/Editar/);
+  assert.doesNotMatch(source,/Contato salvo no PABX/);
+  assert.match(phone,/setCompletedCall\(previous/);
+  assert.match(phone,/held \? "Em espera" : "Em ligação"/);
+  assert.match(phone,/formatPbxNumber\(remoteParty\)/);
+});
+
+test("PBX keeps recent table columns separate and does not refetch agenda on every tab change", async () => {
+  const operator=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
+  const directory=read("src/features/telephony/presentation/PbxContactDirectory.tsx");
+  const timeline=read("src/features/telephony/presentation/PbxContactActivity.tsx");
+  assert.match(operator,/min-w-\[820px\] table-fixed/);
+  assert.match(operator,/contactsVisited/);
+  assert.match(operator,/mode==="contatos" \? "contents" : "hidden"/);
+  assert.match(directory,/Preparando agenda/);
+  assert.doesNotMatch(directory,/Sincronizando agenda/);
+  assert.match(timeline,/loadedQueryRef/);
+  assert.match(timeline,/initialLoad/);
+  assert.doesNotMatch(timeline,/Carregando histórico/);
+  for(const path of ["src/features/telephony/presentation/PbxContactDirectory.tsx",
+    "src/features/telephony/presentation/PbxContactActivity.tsx"]) {
+    assert.ok((await transformWithEsbuild(read(path),path,{loader:"tsx"})).code.length > 100);
+  }
+});
