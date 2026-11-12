@@ -1,11 +1,11 @@
-// Ephemeral browser-only avatar cache. Never stored in localStorage or the DB.
+// Ephemeral browser cache. A shared private Storage cache is maintained server-side.
 // Base64 data URLs can be large; bound both entry count and an intentionally
 // conservative UTF-16 memory estimate, including a small per-entry overhead.
 export const VISIBLE_AVATAR_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const VISIBLE_AVATAR_CACHE_MAX_ENTRIES = 96;
-export const VISIBLE_AVATAR_FOUND_TTL_MS = 60 * 60 * 1000;
-export const VISIBLE_AVATAR_MISSING_TTL_MS = 15 * 60 * 1000;
-export const VISIBLE_AVATAR_RETRY_MS = 5 * 60 * 1000;
+export const VISIBLE_AVATAR_FOUND_TTL_MS = 90 * 60 * 1000;
+export const VISIBLE_AVATAR_MISSING_TTL_MS = 60 * 60 * 1000;
+export const VISIBLE_AVATAR_RETRY_MS = 20 * 60 * 1000;
 
 /**
  * @param {Record<string, string|null>} previous
