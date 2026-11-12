@@ -182,7 +182,7 @@ setTestFlowError('');
     return()=>{cancelled=true;controller.abort();};
   },[activeOrganizationId,isPageOpen,directoryRevision]);
 
-  const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number;
+  const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number ?? directory.find(item => item.endpoint_name === sipUser)?.number;
   const dialableExtensions = directory.filter(item => item.number !== ownNumber && item.endpoint_name !== sipUser);
   const transferExtensions = dialableExtensions.filter(item => String(item.number) !== remoteParty && item.endpoint_name !== remoteParty);
   const dialableNumbers = new Set([
@@ -765,7 +765,7 @@ setTestFlowError('');
       <UnionPbxOperatorWorkspace
         isActive={isPageOpen}
         lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
-        extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
+        extensionLabel={ownNumber ? `Ramal ${ownNumber}` : registration === "registered" ? "Ramal conectado" : "Ramal não conectado"}
         connectionStatus={registration} callState={callState} remoteParty={remoteParty} callerCard={currentCallerCard} completedCall={completedCall}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}
         onBack={onBack} onConnectionSettings={connectDirectly}
