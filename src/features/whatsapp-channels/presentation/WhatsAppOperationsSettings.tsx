@@ -1,11 +1,13 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Check, Pencil, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppQueueSettings } from "./WhatsAppQueueSettings";
+import type { WhatsAppSettingsInlinePaneChange } from "./WhatsAppSettingsInlinePane";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Department = { id: string; name: string; is_active: boolean; is_default?: boolean };
@@ -23,9 +25,10 @@ const channelRequest = (organizationId: string, action: Parameters<typeof operat
   extra?: Parameters<typeof operateUnionWhatsAppInbox>[3]) =>
   operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), action, extra);
 
-export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCreateChange, footerTarget }: {
+export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCreateChange, footerTarget, embedded=false, onInlinePaneChange }: {
   section: WhatsAppOperationsSection; createRequest?: number;
   onCanCreateChange?: (ready:boolean)=>void; footerTarget?: HTMLElement|null;
+  embedded?: boolean; onInlinePaneChange?: WhatsAppSettingsInlinePaneChange;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
@@ -153,10 +156,74 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
     finally { setBusy(""); }
   };
 
+  const inlineStage=embedded ? (editing ? "department-form" : teamDepartment ? "team" : null) : null;
+  const closeInline=()=>{
+    if(busy)return;
+    if(editing)setEditing(null);
+    else if(teamDepartment)setTeamDepartment(null);
+  };
+  useLayoutEffect(()=>{
+    if(!embedded||!onInlinePaneChange)return;
+    onInlinePaneChange(inlineStage ? {
+      key:inlineStage,
+      title:inlineStage==="department-form"
+        ? editing==="new"?"Novo departamento":"Editar departamento"
+        : "Equipe · "+(teamDepartment?.name||""),
+      description:inlineStage==="department-form"
+        ? "Defina os dados do departamento." : "Gerencie quem recebe os atendimentos deste setor.",
+      compact:true,
+    }:null,closeInline);
+  },[embedded,inlineStage,editing,teamDepartment?.name,onInlinePaneChange]);
+
   if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Seu perfil não possui a permissão necessária para gerenciar esta seção dos atendimentos.</p>;
 
   return <div className="space-y-4">
-    {loading ? <LoadingState text="Carregando configuração..." /> :
+    {embedded && inlineStage && <div className="min-w-0 space-y-4" data-whatsapp-inline-stage={inlineStage}>
+      {inlineStage==="department-form" ?
+        <div className="space-y-4">
+          <label className="block text-sm font-semibold">Nome <span className="text-red-600">*</span>
+            <input value={name} onChange={event=>setName(event.target.value)} maxLength={80}
+              autoFocus placeholder="Ex.: Suporte técnico, Vendas, Financeiro"
+              className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+          </label>
+          {editing!=="new" && <label className="flex items-center gap-3 text-sm">
+            <input type="checkbox" checked={active} onChange={event=>setActive(event.target.checked)}/>
+            Departamento ativo
+          </label>}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Este departamento também pode receber atendimentos encaminhados e funcionar como fila.
+            Configure os operadores em Equipe.
+          </p>
+        </div>
+        : <div className="space-y-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Os operadores vinculados podem assumir conversas aguardando nesta fila.
+            As conversas em andamento permanecem visíveis ao responsável e aos gestores.
+          </p>
+          {operators.filter(person=>person.eligible&&person.can_attend&&person.is_active&&person.staff_role!=="manager").length ?
+            operators.filter(person=>person.eligible&&person.can_attend&&person.is_active&&person.staff_role!=="manager").map(person=>
+              <label key={person.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                <span className="flex min-w-0 items-center gap-3">
+                  <input type="checkbox" checked={memberIds.includes(person.id)} disabled={Boolean(busy)}
+                    onChange={event=>void toggleMembership(person,event.target.checked)}/>
+                  <span className="min-w-0 truncate font-semibold">{person.name}</span>
+                </span>
+                <span className="text-xs text-muted-foreground">Operador ativo</span>
+              </label>) :
+            <p className="py-5 text-center text-sm text-muted-foreground">
+              Vincule funcionários em Operadores antes de montar a equipe.
+            </p>}
+        </div>}
+      {footerTarget && createPortal(<div className="flex flex-wrap gap-2">
+        {inlineStage==="department-form" ? <>
+          <AdminButton variant="secondary" disabled={Boolean(busy)} onClick={closeInline}>Cancelar</AdminButton>
+          <AdminButton disabled={Boolean(busy)||name.trim().length<2}
+            loading={busy==="department"} onClick={()=>void saveDepartment()}>Salvar</AdminButton>
+        </> : <AdminButton variant="secondary" disabled={Boolean(busy)} onClick={closeInline}>Concluir</AdminButton>}
+      </div>,footerTarget)}
+    </div>}
+    <div className={embedded && inlineStage ? "hidden" : "contents"}>
+      {loading ? <LoadingState text="Carregando configuração..." /> :
       <AdminCard square>
         {section === "operators" ? <div className="overflow-x-auto"><TopTableScrollbar />
           <table className="min-w-[750px] w-full">
@@ -230,8 +297,10 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
           </div>}
         </div>}
       </AdminCard>}
-    {!loading && canManage && section==="queues" && <WhatsAppQueueSettings footerTarget={footerTarget} footerInParent/>}
-    <AdminDialog open={Boolean(editing)} onClose={() => { if(!busy)setEditing(null); }}
+    {!loading && canManage && section==="queues" && <WhatsAppQueueSettings
+      footerTarget={inlineStage ? null : footerTarget} footerInParent/>}
+    </div>
+    {!embedded && <AdminDialog open={Boolean(editing)} onClose={() => { if(!busy)setEditing(null); }}
       title={editing === "new" ? "Novo departamento" : "Editar departamento"}
       className="max-w-xl"
       footer={<div className="flex justify-end gap-2">
@@ -249,8 +318,8 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
           Departamento ativo</label>}
         <p className="text-xs leading-relaxed text-muted-foreground">Este departamento também pode receber atendimentos encaminhados e funcionar como uma fila. Defina sua equipe no botão Equipe.</p>
       </div>
-    </AdminDialog>
-    <AdminDialog open={Boolean(teamDepartment)} onClose={() => { if(!busy)setTeamDepartment(null); }}
+    </AdminDialog>}
+    {!embedded && <AdminDialog open={Boolean(teamDepartment)} onClose={() => { if(!busy)setTeamDepartment(null); }}
       title={`Equipe · ${teamDepartment?.name || ""}`} className="max-w-xl"
       footer={<AdminButton variant="secondary" disabled={Boolean(busy)} onClick={() => setTeamDepartment(null)}>Fechar</AdminButton>}>
       <div className="space-y-3">
@@ -267,6 +336,6 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
           </label>) : <p className="py-5 text-center text-sm text-muted-foreground">
             Vincule funcionários na subseção Operadores antes de montar a equipe.</p>}
       </div>
-    </AdminDialog>
+    </AdminDialog>}
   </div>;
 }
