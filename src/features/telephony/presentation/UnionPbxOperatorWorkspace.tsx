@@ -122,7 +122,7 @@ export function UnionPbxOperatorWorkspace({
   }, [settingsOpen]);
 
   useEffect(() => { setPage(1); setLoadedRows([]); setHasLoadedHistory(false); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); setSelectedExternal(null); setBrokenAvatar({}); }, [activeOrganizationId]);
-  useEffect(() => { setPage(1); }, [recentFilter, numberSearch]);
+
 
   // Carrega um recorte único; os filtros/páginas são locais e instantâneos.
   useEffect(() => {
@@ -290,7 +290,7 @@ export function UnionPbxOperatorWorkspace({
                 ? <LoaderCircle size={15} className="animate-spin text-amber-500"/>
                 : <span className={`h-2.5 w-2.5 animate-pulse rounded-full ${connectionStatus==="registered"?"bg-emerald-500":connectionStatus==="error"?"bg-red-500":"bg-red-500"}`}/>}
               {connectionStatus==="registered"?"Conectado":connectionStatus==="connecting"?"Conectando...":"Conectar"}
-              <span className="max-w-[95px] truncate font-normal">{extensionLabel.replace("Ramal ","")}</span>
+              <span className="max-w-[95px] truncate font-normal">{extensionLabel === "Ramal não conectado" ? "" : extensionLabel.replace("Ramal ","")}</span>
             </button>
           </div>
           {dialer}
@@ -306,7 +306,7 @@ export function UnionPbxOperatorWorkspace({
           {mode === "chamadas" ? <>
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar chamadas">
               {([["todas","Todas"],["atendidas","Atendidas"],["perdidas","Não atendidas"]] as const).map(([value,label])=>
-                <button type="button" key={value} aria-pressed={recentFilter===value} onClick={()=>setRecentFilter(value)}
+                <button type="button" key={value} aria-pressed={recentFilter===value} onClick={()=>{setPage(1);setRecentFilter(value);}}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${recentFilter===value?"border-primary/20 bg-primary/10 text-primary":"border-border text-muted-foreground hover:bg-muted"}`}>
                   {value==="atendidas"&&<PhoneIncoming size={15} className="text-emerald-600"/>}
                   {value==="perdidas"&&<PhoneMissed size={15} className="text-red-600"/>}
@@ -315,7 +315,7 @@ export function UnionPbxOperatorWorkspace({
             </div>
             <label className="relative mt-3 block">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input type="tel" value={search} onChange={event => setSearch(event.target.value)}
+              <input type="tel" value={search} onChange={event => {setPage(1);setSearch(event.target.value);}}
                 placeholder="Buscar por número" aria-label="Buscar chamadas por número"
                 className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
             </label>
