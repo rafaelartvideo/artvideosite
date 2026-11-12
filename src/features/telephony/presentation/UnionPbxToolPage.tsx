@@ -82,7 +82,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
-  const [completedCall, setCompletedCall] = useState<{sequence:number;number:string;at:number}>({sequence:0,number:"",at:0});
+  const [completedCall, setCompletedCall] = useState<{sequence:number;number:string;startedAt:number;at:number}>({sequence:0,number:"",startedAt:0,at:0});
   const [muted, setMuted] = useState(false);
   const [microphoneId, setMicrophoneId] = useState("");
   const [outputPending, setOutputPending] = useState(false);
@@ -317,6 +317,7 @@ setTestFlowError('');
           return;
         }
         sessionRef.current = session;
+        const sessionStartedAt = Date.now();
         controlAbortRef.current?.abort();
         controlAbortRef.current = new AbortController();
         controlLockRef.current = false;
@@ -355,6 +356,7 @@ setTestFlowError('');
           setCompletedCall(previous => ({
             sequence: previous.sequence + 1,
             number: session.remote_identity?.uri?.user || "",
+            startedAt: sessionStartedAt,
             at: Date.now(),
           }));
         };
