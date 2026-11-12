@@ -156,7 +156,7 @@ export function UnionPbxOperatorWorkspace({
   const selected = rows.find(row => row.id === selectedId) || null;
   const selectedNumber = selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
   const selectedName = selectedExtension?.display_name || (selected ? (
-    directory.find(item => String(item.number) === selectedNumber)?.display_name || selectedNumber || "Número não identificado"
+    directory.find(item => String(item.number) === selectedNumber)?.display_name || formatPbxNumber(selectedNumber) || "Número não identificado"
   ) : "");
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
