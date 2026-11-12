@@ -212,28 +212,25 @@ export function UnionPbxOperatorWorkspace({
       </aside>
       <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,0.85fr)_minmax(340px,1.55fr)_minmax(255px,0.9fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
             <div><h2 className="text-sm font-bold">Telefone</h2><p className="text-xs text-muted-foreground">{lineLabel}</p></div>
-            <span className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold ${connectionStatus === "registered" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+            <button type="button" onClick={onConnectionSettings} title="Gerenciar conexão do ramal"
+              aria-label={connectionStatus === "registered" ? "Gerenciar ramal conectado" : "Conectar ramal"}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors hover:bg-muted ${connectionStatus === "registered" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "border-border text-primary"}`}>
               <span className={`h-2 w-2 rounded-full ${connectionStatus === "registered" ? "bg-emerald-500" : "bg-muted-foreground"}`}/>
-              {connectionStatus === "registered" ? "Online" : connectionStatus === "connecting" ? "Conectando" : connectionStatus === "error" ? "Falha" : "Offline"}
-            </span>
+              {connectionStatus === "registered" ? "Conectado" : connectionStatus === "connecting" ? "Conectando" : "Conectar"}
+              <span className="text-[11px] font-normal">{extensionLabel}</span>
+            </button>
           </div>
           {dialer}
-          <div className="mt-5 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">
-            <span className="min-w-0 truncate"><Headphones className="mr-1.5 inline text-muted-foreground" size={15}/> {extensionLabel}</span>
-            <button type="button" onClick={onConnectionSettings} className="shrink-0 font-semibold text-primary underline underline-offset-2">Configurar</button>
-          </div>
         </section>
         <section aria-label="Painel de chamadas" className="flex min-h-[570px] min-w-0 flex-col rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold">{mode === "chamadas" ? "Recentes" : mode === "contatos" ? "Contatos internos" : mode === "filas" ? "Filas" : "Ramais"}</h2>
+              <h2 className="text-base font-bold">{mode === "chamadas" ? "Recentes" : "Contatos internos"}</h2>
               <p className="text-xs text-muted-foreground">{mode === "chamadas" ? "Últimos 30 dias" : "Diretório da empresa"}</p>
             </div>
-            <AdminButton variant="icon" size="sm" aria-label="Atualizar chamadas" onClick={() => setRevision(value => value + 1)}>
-              <RefreshCw size={16}/>
-            </AdminButton>
           </div>
           {mode === "chamadas" ? <>
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar chamadas">
@@ -254,23 +251,26 @@ export function UnionPbxOperatorWorkspace({
                   <th className="border-b border-border p-2 font-medium">Tipo</th>
                   <th className="border-b border-border p-2 font-medium">Horário</th>
                   <th className="border-b border-border p-2 font-medium">Duração</th>
-                  <th className="border-b border-border p-2 font-medium">Situação</th>
+                  
                 </tr></thead>
                 <tbody>{rows.map(row => {
                   const number = callNumber(row);
                   const extension = directory.find(item => String(item.number) === number);
-                  const name = extension?.display_name || number || "Desconhecido";
+                  const name = extension?.display_name || formatPbxNumber(number) || "Desconhecido";
                   const active = row.id === selectedId && !selectedExtension;
                   return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); }}
                     className={`cursor-pointer hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}>
                     <td className="border-b border-border/60 p-2"><div className="flex items-center gap-2">
-                      <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{initials(number)}</span>
-                      <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? number : row.source + " → " + row.destination}</p></div>
+                      <span aria-label={callStatus(row)} title={callStatus(row)}
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${row.disposition === "ANSWERED" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                        {row.disposition !== "ANSWERED" ? <PhoneMissed size={18}/> : row.direction === "outbound" ? <PhoneOutgoing size={18}/> : <PhoneIncoming size={18}/>}
+                      </span>
+                      <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
                     <td className="border-b border-border/60 p-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
                     <td className="border-b border-border/60 p-2 whitespace-nowrap">{displayTime(row.started_at)}</td>
                     <td className="border-b border-border/60 p-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
-                    <td className="border-b border-border/60 p-2"><span className={`rounded-md px-2 py-1 font-semibold ${row.disposition === "ANSWERED" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-red-500/10 text-red-700 dark:text-red-400"}`}>{callStatus(row)}</span></td>
+                    
                   </tr>;
                 })}</tbody>
               </table>
@@ -281,30 +281,21 @@ export function UnionPbxOperatorWorkspace({
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
               <span>Mostrando {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} de {total}</span>
               <div className="flex items-center gap-2">
-                <label htmlFor="pbx-page-size" className="sr-only">Itens por página</label>
-                <select id="pbx-page-size" value={pageSize} onChange={event => setPageSize(Number(event.target.value))}
-                  className="rounded-md border border-border bg-background px-2 py-1.5 text-foreground">
-                  <option value={25}>25</option><option value={50}>50</option><option value={100}>100</option>
-                </select>
                 <button aria-label="Página anterior" type="button" disabled={loading || page === 1} onClick={() => setPage(p => p - 1)} className="rounded-md border border-border p-1.5 disabled:opacity-40"><ChevronLeft size={16}/></button>
                 <span className="tabular-nums">{page} / {pages}</span>
                 <button aria-label="Próxima página" type="button" disabled={loading || page >= pages} onClick={() => setPage(p => p + 1)} className="rounded-md border border-border p-1.5 disabled:opacity-40"><ChevronRight size={16}/></button>
               </div>
             </div>
+
           </> : <div className="mt-4 flex-1 space-y-2">
-            {(mode === "filas" ? queues : directory).map(entry => {
-              const isQueue = mode === "filas";
-              return <button key={entry.number} type="button" onClick={() => {
-                if (!isQueue) setSelectedExtension(entry as Extension);
-                else setSelectedExtension({ number: entry.number, display_name: (entry as Queue).name, endpoint_name: "" });
-                onDialNumber(String(entry.number));
-              }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-border p-3 text-left hover:bg-muted">
-                <span className="min-w-0 truncate text-sm font-medium">{entry.number} · {"display_name" in entry ? entry.display_name : entry.name}</span>
-                <Phone size={15} className="shrink-0 text-primary"/>
-              </button>;
-            })}
-            {directoryLoading && mode !== "filas" && <p className="py-8 text-center text-sm text-muted-foreground">Carregando ramais...</p>}
-            {(mode === "filas" ? queues.length === 0 : directory.length === 0) && !directoryLoading && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum item disponível nesta empresa.</p>}
+            {directory.map(entry => <button key={entry.number} type="button" onClick={() => {
+              setSelectedExtension(entry); onDialNumber(String(entry.number));
+            }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-border p-3 text-left hover:bg-muted">
+              <span className="min-w-0 truncate text-sm font-medium">{entry.number} · {entry.display_name}</span>
+              <Phone size={15} className="shrink-0 text-primary"/>
+            </button>)}
+            {directoryLoading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando contatos...</p>}
+            {directory.length === 0 && !directoryLoading && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum contato interno disponível.</p>}
           </div>}
         </section>
         <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
@@ -316,7 +307,7 @@ export function UnionPbxOperatorWorkspace({
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">{initials(selectedNumber)}</div>
               <div className="min-w-0"><h3 className="break-words text-base font-semibold">{selectedName}</h3>
-                <p className="text-sm text-muted-foreground">{selectedNumber}</p></div>
+                <p className="text-sm text-muted-foreground">{formatPbxNumber(selectedNumber)}</p></div>
               <AdminButton className="w-full" variant="primary" onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
               <p className="text-xs text-muted-foreground">O número será preenchido no discador. Confirme para ligar.</p>
             </div>
@@ -327,8 +318,8 @@ export function UnionPbxOperatorWorkspace({
                 ["Data e horário", displayTime(selected.started_at)],
                 ["Duração", callDuration(selected.duration_seconds || 0)],
                 ["Resultado", callStatus(selected)],
-                ["Origem", selected.source],
-                ["Destino", selected.destination],
+                ["Origem", formatPbxNumber(selected.source)],
+                ["Destino", formatPbxNumber(selected.destination)],
               ].map(([key, value]) => <div key={key} className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="break-all text-right font-medium">{value}</span></div>)}
               {canRecordings && <AdminButton variant="secondary" className="mt-3 w-full" onClick={() => onSelectSection("gravacoes")}><Voicemail size={16}/> Consultar gravações</AdminButton>}
               <p className="text-xs text-muted-foreground">Reprodução disponível somente quando a gravação existir e estiver autorizada.</p>
