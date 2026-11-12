@@ -100,9 +100,9 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0, onCanCr
         department_id: editing && editing !== "new" ? editing.id : undefined,
         name: name.trim(), is_active: active,
       });
+      await reload();
       setEditing(null);
       notifySuccess("Departamento salvo. As filas e equipes foram atualizadas.");
-      await reload();
     } catch (reason) {
       notifyError(systemErrorMessage(reason, "Não foi possível salvar o departamento."));
     } finally { setBusy(""); }
