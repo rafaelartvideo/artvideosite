@@ -82,6 +82,14 @@ function LineField({ label, value }: { label: string; value?: string | number | 
   </div>;
 }
 
+function ColumnField({ label, value }: { label: string; value?: string | number | null }) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  return <div className="min-w-0">
+    <div className="mb-0.5 text-[10px] font-semibold text-muted-foreground">{label}</div>
+    <div className="break-words text-xs leading-5 text-foreground">{value}</div>
+  </div>;
+}
+
 function addressText(address: CrmAddress) {
   const street = [address.street, address.number].filter(Boolean).join(", ");
   return [
@@ -117,6 +125,18 @@ export function UnionWhatsAppCrmMenu({
   onOpenCustomer?: (id: string) => void;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null);
+  const selectedEquipment = activePanel === "equipments" && selectedEquipmentId
+    ? context?.equipments.find(equipment => equipment.id === selectedEquipmentId)
+    : null;
+  const openPanel = (panel: Panel) => {
+    setSelectedEquipmentId(null);
+    setActivePanel(panel);
+  };
+  const back = () => {
+    if (selectedEquipmentId) setSelectedEquipmentId(null);
+    else setActivePanel(null);
+  };
   const menuRef = useRef<HTMLDivElement>(null);
   const regionId = useId();
   const customer = context?.customer;
@@ -124,6 +144,7 @@ export function UnionWhatsAppCrmMenu({
   useEffect(() => {
     if (!open) {
       setActivePanel(null);
+      setSelectedEquipmentId(null);
       return;
     }
     const handlePointer = (event: PointerEvent) => {
@@ -161,13 +182,15 @@ export function UnionWhatsAppCrmMenu({
       {open && <div id={regionId} role="dialog" aria-label="Consultar dados do CRM"
         className="absolute left-0 top-[calc(100%+9px)] z-50 flex max-h-[min(62vh,470px)] w-[min(90vw,860px)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
         <div className="mb-2 flex shrink-0 items-center gap-2 border-b border-border pb-2">
-          {activePanel ? <button type="button" onClick={() => setActivePanel(null)}
+          {activePanel ? <button type="button" onClick={back}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-muted"
-            aria-label="Voltar às opções do CRM" title="Voltar às opções do CRM">
+            aria-label={selectedEquipmentId ? "Voltar aos equipamentos" : "Voltar às opções do CRM"}
+            title={selectedEquipmentId ? "Voltar aos equipamentos" : "Voltar às opções do CRM"}>
             <ChevronLeft size={18}/>
           </button> : null}
           <p className="min-w-0 flex-1 truncate text-sm font-bold">
-            {activePanel ? panelLabels[activePanel] : "Dados do CRM"}
+            {selectedEquipment ? [selectedEquipment.equipment_brand_name, selectedEquipment.equipment_model_name].filter(Boolean).join(" · ") || "Detalhes do equipamento"
+              : activePanel ? panelLabels[activePanel] : "Dados do CRM"}
           </p>
         </div>
 
@@ -183,18 +206,18 @@ export function UnionWhatsAppCrmMenu({
               {context.ambiguous ? "Mais de um cadastro possui este número. Verifique antes de vincular." : "Nenhum cliente do CRM encontrado para este número."}
             </div>
           : activePanel === null ? <div className="space-y-0.5">
-              <button type="button" className={mainRow} onClick={() => setActivePanel("registration")}>
+              <button type="button" className={mainRow} onClick={() => openPanel("registration")}>
                 <UserRound size={17} className="shrink-0 text-foreground"/>
                 <span className="min-w-0 flex-1">Dados de cadastro</span>
                 <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
               </button>
-              <button type="button" className={mainRow} onClick={() => setActivePanel("equipments")}>
+              <button type="button" className={mainRow} onClick={() => openPanel("equipments")}>
                 <Cpu size={17} className="shrink-0 text-foreground"/>
                 <span className="min-w-0 flex-1">Equipamentos</span>
                 <span className="text-[11px] font-normal text-muted-foreground">{context.equipments.length}</span>
                 <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
               </button>
-              {canViewOrders && <button type="button" className={mainRow} onClick={() => setActivePanel("orders")}>
+              {canViewOrders && <button type="button" className={mainRow} onClick={() => openPanel("orders")}>
                 <ClipboardList size={17} className="shrink-0 text-foreground"/>
                 <span className="min-w-0 flex-1">OS recentes</span>
                 <span className="text-[11px] font-normal text-muted-foreground">{context.orders.length}</span>
@@ -202,22 +225,22 @@ export function UnionWhatsAppCrmMenu({
               </button>}
             </div>
           : activePanel === "registration" ? <div className="space-y-3 px-1 py-1">
-              <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-                <LineField label="Cliente" value={customer.name}/>
-                <LineField label={customer.customer_type === "PJ" || customer.cnpj ? "CNPJ" : "CPF"}
+              <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
+                <ColumnField label="Cliente" value={customer.name}/>
+                <ColumnField label={customer.customer_type === "PJ" || customer.cnpj ? "CNPJ" : "CPF"}
                   value={formatDocument(customer.cnpj || customer.document || "Não informado")}/>
-                <LineField label="E-mail" value={customer.email || "Não informado"}/>
-                <LineField label="Telefone" value={customer.phone || customer.whatsapp || "Não informado"}/>
-                {customer.whatsapp && customer.whatsapp !== customer.phone && <LineField label="WhatsApp" value={customer.whatsapp}/>}
-                <LineField label="Nome fantasia" value={customer.trade_name}/>
-                <LineField label="Razão social" value={customer.legal_name}/>
-                <LineField label="Inscrição estadual" value={customer.state_registration}/>
-                <LineField label="Inscrição municipal" value={customer.municipal_registration}/>
+                <ColumnField label="E-mail" value={customer.email || "Não informado"}/>
+                <ColumnField label="Telefone" value={customer.phone || customer.whatsapp || "Não informado"}/>
+                {customer.whatsapp && customer.whatsapp !== customer.phone && <ColumnField label="WhatsApp" value={customer.whatsapp}/>}
+                <ColumnField label="Nome fantasia" value={customer.trade_name}/>
+                <ColumnField label="Razão social" value={customer.legal_name}/>
+                <ColumnField label="Inscrição estadual" value={customer.state_registration}/>
+                <ColumnField label="Inscrição municipal" value={customer.municipal_registration}/>
               </div>
-              <div className="space-y-1 border-t border-border pt-2">
+              <div className="grid grid-cols-1 gap-x-5 gap-y-2 border-t border-border pt-2 sm:grid-cols-2">
                 {customer.addresses?.length ? customer.addresses.map((address, index) =>
-                  <LineField key={address.id} label={address.is_default ? "Endereço principal" : "Endereço " + (index + 1)} value={addressText(address)}/>
-                ) : <LineField label="Endereço" value="Nenhum endereço cadastrado."/>}
+                  <ColumnField key={address.id} label={address.is_default ? "Endereço principal" : "Endereço " + (index + 1)} value={addressText(address)}/>
+                ) : <ColumnField label="Endereço" value="Nenhum endereço cadastrado."/>}
               </div>
               {onOpenCustomer && <button type="button" onClick={() => onOpenCustomer(customer.id)}
                 className="text-xs font-normal text-primary underline underline-offset-2 hover:text-primary/80">
@@ -225,26 +248,37 @@ export function UnionWhatsAppCrmMenu({
               </button>}
             </div>
           : activePanel === "equipments" ? <div className="px-1 py-1">
-              {!context.equipments.length ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
-              : <div className="divide-y divide-border">
-                  {context.equipments.map(equipment => <div key={equipment.id} className="space-y-2 py-3 first:pt-1">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <LineField label="Tipo" value={equipment.equipment_type_name || "Não informado"}/>
-                      <LineField label="Marca" value={equipment.equipment_brand_name || "Não informada"}/>
-                      <LineField label="Modelo" value={equipment.equipment_model_name || "Não informado"}/>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 lg:grid-cols-4">
-                      <LineField label="Nº de série" value={equipment.serial_number || "Não informado"}/>
-                      {Array.isArray(equipment.technical_values) && equipment.technical_values.map((value, index) =>
-                        <LineField key={value.technical_field_id || index}
-                          label={value.label_snapshot || value.field_key_snapshot || "Campo técnico"}
-                          value={technicalValue(value)}/>)}
-                      <LineField label="Cadastrado" value={dateLabel(equipment.created_at)}/>
-                      <LineField label="Atualizado" value={dateLabel(equipment.updated_at)}/>
-                    </div>
-                  </div>)}
+              {selectedEquipment ? <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
+                    <ColumnField label="Tipo" value={selectedEquipment.equipment_type_name || "Não informado"}/>
+                    <ColumnField label="Marca" value={selectedEquipment.equipment_brand_name || "Não informada"}/>
+                    <ColumnField label="Modelo" value={selectedEquipment.equipment_model_name || "Não informado"}/>
+                    <ColumnField label="Número de série" value={selectedEquipment.serial_number || "Não informado"}/>
+                    {Array.isArray(selectedEquipment.technical_values) && selectedEquipment.technical_values.map((value, index) =>
+                      <ColumnField key={value.technical_field_id || index}
+                        label={value.label_snapshot || value.field_key_snapshot || "Campo técnico"}
+                        value={technicalValue(value)}/>)}
+                    <ColumnField label="Cadastrado em" value={dateLabel(selectedEquipment.created_at)}/>
+                    <ColumnField label="Atualizado em" value={dateLabel(selectedEquipment.updated_at)}/>
+                  </div>
+                </div>
+              : !context.equipments.length ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
+              : <div className="space-y-0.5">
+                  {context.equipments.map(equipment => <button type="button" key={equipment.id}
+                    onClick={() => setSelectedEquipmentId(equipment.id)}
+                    className={mainRow} aria-label={"Ver detalhes do equipamento " + [equipment.equipment_brand_name, equipment.equipment_model_name].filter(Boolean).join(" ")}>
+                    <Cpu size={16} className="shrink-0 text-foreground"/>
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {[equipment.equipment_brand_name, equipment.equipment_model_name].filter(Boolean).join(" · ") ||
+                        equipment.equipment_type_name || "Equipamento sem modelo"}
+                    </span>
+                    {equipment.equipment_type_name && <span className="hidden max-w-44 shrink-0 truncate text-[11px] font-normal text-muted-foreground sm:inline">
+                      {equipment.equipment_type_name}
+                    </span>}
+                    <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+                  </button>)}
                 </div>}
-              {context.equipments.length === 50 && <p className="mt-2 text-[11px] text-muted-foreground">
+              {context.equipments.length === 50 && !selectedEquipment && <p className="mt-2 px-3 text-[11px] text-muted-foreground">
                 Exibindo até 50 equipamentos. Consulte o cadastro completo para visualizar os demais.
               </p>}
             </div>
