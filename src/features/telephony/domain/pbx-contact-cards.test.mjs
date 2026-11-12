@@ -43,10 +43,13 @@ test("server grants cached-only lookup solely to service role and validates pbx 
   assert.match(sql,/grant execute on function public\.pbx_resolve_cached_contacts_v1\(uuid,text\[\]\) to service_role/);
   assert.match(auth,/private\.pbx_has_permission\(p_organization_id, 'pbx.view'\)/);
   assert.match(edge,/scoped\.rpc\("pbx_contact_access_v1"/);
-  assert.match(edge,/admin\.rpc\("pbx_resolve_cached_contacts_v1"/);
+  assert.match(edge,/admin\.rpc\("pbx_resolve_cached_contacts_v2"/);
   assert.match(edge,/\.createSignedUrl\(path,3600\)/);
   assert.doesNotMatch(edge,/signedBridge\(|cachedWhatsAppAvatar\(|presence_subscribe/);
-  assert.ok(edge.length < 10000);
+  assert.ok(edge.length < 12000);
+  assert.match(edge,/action==="save"/);
+  assert.match(edge,/action==="list"/);
+  assert.match(edge,/code:"already_crm"/);
 });
 
 test("identity lookup deduplicates visible numbers and expires signed-photo memo", async () => {
