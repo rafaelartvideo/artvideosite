@@ -46,6 +46,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
   const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
+  const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [sipUser, setSipUser] = useState(isPlatformOperatorOrganization ? SIP_USER : "");
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
   const [externalGrant,setExternalGrant]=useState<ExternalDialGrant|null>(null);
@@ -630,6 +631,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         connectionStatus={registration} callState={callState} remoteParty={remoteParty}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}
         onBack={onBack} onConnectionSettings={() => setConnectionDialogOpen(true)}
+        onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
         onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
         canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
         canRecordings={Boolean(onRecordings)}
@@ -663,9 +665,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
                   if (dialMode === "external" && canUseExternal) setExternalTarget(event.target.value.slice(0,32));
                   else setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6));
                 }} />
-              <AdminButton variant="secondary" type="button" aria-label="Apagar último dígito"
+              <button type="button" aria-label="Apagar último dígito" title="Apagar último dígito"
                 onClick={() => dialMode === "external" && canUseExternal ? setExternalTarget(value => value.slice(0,-1)) : setDialTarget(value => value.slice(0,-1))}
-                className="absolute right-1 top-1/2 !-translate-y-1/2 !p-2"><Delete size={17}/></AdminButton>
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent p-1.5 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Delete size={18}/></button>
             </div>
             {(dialMode === "internal" || !canUseExternal) && <div>
               <AdminSelect value={dialableNumbers.has(Number(dialTarget)) ? dialTarget : ""}
@@ -695,10 +697,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
               onClick={dialMode === "external" && canUseExternal ? callExternal : callInternal}>
               <Phone size={17}/> Ligar
             </AdminButton>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <button type="button" onClick={callEcho} disabled={!registeredAndIdle} className="font-semibold text-primary underline underline-offset-2 disabled:opacity-40">Testar áudio (900)</button>
-              <button type="button" onClick={() => setDirectoryRevision(value => value + 1)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"><RefreshCw size={13}/> Atualizar destinos</button>
-            </div>
+            
           </>}
           {callState === "incoming" && <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
             <PhoneIncoming size={17}/> Atender chamada
@@ -712,20 +711,16 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
             onHold={() => void runControl("hold")} onTransfer={() => void runControl("transfer")} />}
-          {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
           {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
           }}>Habilitar áudio da chamada</AdminButton>}
-          {registration !== "registered" && <AdminButton variant="secondary" className="!w-full" onClick={() => setConnectionDialogOpen(true)}>
-            <Headphones size={16}/> {registration === "connecting" ? "Ver conexão" : "Conectar ramal"}
-          </AdminButton>}
-          <p role="status" className="break-words text-xs leading-5 text-muted-foreground">{notice}</p>
+          {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
           {(directoryError || testQueueError || testFlowError) && <p className="text-xs text-muted-foreground">{directoryError || testQueueError || testFlowError}</p>}
         </div>}
       />
     </div>
     <AdminDialog open={isPageOpen && connectionDialogOpen} onClose={() => setConnectionDialogOpen(false)}
-      title="Conexão e dispositivos" description="Gerencie o ramal e os dispositivos de áudio do operador."
+      title="Conexão do ramal" description="Conecte ou desconecte seu ramal telefônico."
       className="w-[min(680px,calc(100vw-1.5rem))] max-w-[680px]" minimizable={false}>
       <div className="space-y-4">
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
@@ -789,9 +784,22 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       </section>
 
 
+      </div>
+    </AdminDialog>
+
+    <AdminDialog open={isPageOpen && deviceDialogOpen} onClose={() => setDeviceDialogOpen(false)}
+      title="Dispositivos e testes de áudio" description="Escolha o microfone, a saída de som e teste a conexão."
+      className="w-[min(680px,calc(100vw-1.5rem))] max-w-[680px]" minimizable={false}>
+      <div className="space-y-4">
         <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
           onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
         {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio.</p>}
+
+        <AdminButton variant="secondary" disabled={!registeredAndIdle} onClick={callEcho}>
+          <Headphones size={16}/> Testar áudio no ramal 900
+        </AdminButton>
+        {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
+        {registration !== "registered" && <p className="text-xs text-muted-foreground">Conecte o ramal para testar o áudio.</p>}
       </div>
     </AdminDialog>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
