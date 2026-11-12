@@ -35,7 +35,7 @@ export function PbxCrmContactPanel({
   organizationId: string | null;
   phone: string;
   active: boolean;
-  source?: "crm" | "pbx" | "whatsapp" | null;
+  source?: "crm" | "pbx" | "whatsapp" | "ramal" | null;
 }) {
   const { hasPermission } = useAuth();
   const canViewCustomers=hasPermission("customers.view");
