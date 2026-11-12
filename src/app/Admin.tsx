@@ -680,9 +680,13 @@ export function AdminDashboard({
               onHistory={() => setPbxModalSection("historico")}
               onBack={() => navigateAdmin("tools")}
             />
-            {pbxModalSection&&<UnionPbxSettingsDialog section={pbxModalSection} onClose={()=>setPbxModalSection(null)}
-              canManage={canManagePbxTool} canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
-              canRecordings={canAccessPbxRecordings} organizationKey={activeOrganizationId}/>}
+            {pbxModalSection&&<Suspense fallback={<AdminDialog open onClose={()=>setPbxModalSection(null)} title="Configurações do PABX"
+              className="!w-[calc(100vw-1.5rem)] !max-w-[1100px]" minimizable={false}
+              preparing preparingText="Preparando configurações..." preparingKey={pbxModalSection}><div/></AdminDialog>}>
+              <UnionPbxSettingsDialog section={pbxModalSection} onClose={()=>setPbxModalSection(null)}
+                canManage={canManagePbxTool} canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
+                canRecordings={canAccessPbxRecordings} organizationKey={activeOrganizationId}/>
+            </Suspense>}
           </Suspense>
         )}
         {showCrmBackToolbar && <AdminStickyToolbar className="mt-5">
