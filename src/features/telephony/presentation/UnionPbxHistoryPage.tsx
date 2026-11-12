@@ -21,7 +21,7 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId } = useAuth();
   const [draft, setDraft] = useState(initialFilters);
   const [filters, setFilters] = useState(initialFilters);
-  const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(10);
   const [rows, setRows] = useState<CallHistoryRow[]>([]), [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
@@ -132,7 +132,7 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
             </tr>)}</tbody>
           </table></div>}
       <PaginationBar page={page} pageSize={pageSize} totalItems={total} onPageChange={setPage}
-        onPageSizeChange={size => { setPageSize(size); setPage(1); }} defaultPageSize={25} pageSizeOptions={[25, 50, 100]} storageKey="union.pbx.history.pageSize" showFilteredTotal />
+        onPageSizeChange={size => { setPageSize(size); setPage(1); }} defaultPageSize={10} pageSizeOptions={[10]} storageKey="union.pbx.history.pageSize" showFilteredTotal />
     </section>
   </div>;
 }
