@@ -23,13 +23,14 @@ export function phoneContactLinks(value?: string | null) {
  * softphones/extensions. Returning true means a listener accepted the call
  * action and the regular tel: navigation should be cancelled.
  */
-export function notifyPhoneCallIntegration(phone: string, serviceOrderId?: string) {
+export function notifyPhoneCallIntegration(phone: string, serviceOrderId?: string, organizationId?: string | null) {
   if (typeof window === "undefined" || !phone) return false;
   const event = new CustomEvent(PHONE_CALL_EVENT, {
     cancelable: true,
     detail: {
       phone: `+${phone}`,
       serviceOrderId: serviceOrderId || null,
+      organizationId: organizationId || null,
       source: "service-order-customer",
     },
   });

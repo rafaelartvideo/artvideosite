@@ -46,7 +46,7 @@ import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/Order
 import { useWhatsAppConversationModal, TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
-import { phoneContactLinks } from "../domain/order-contact-actions";
+import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
@@ -837,7 +837,7 @@ export function OrderDetailsPage(props: Props) {
             variant="secondary"
             title={monitorContact?.owner_name ? `Ligar para a empresa · proprietário: ${monitorContact.owner_name}` : "Ligar para a empresa"}
             aria-label="Ligar para a empresa parceira"
-            onClick={() => { window.location.href = `tel:${contactPhone}`; }}
+            onClick={() => { if (!notifyPhoneCallIntegration(phoneContactLinks(contactPhone).phone, detail.id)) window.location.href = `tel:${contactPhone}`; }}
           >
             <Phone size={15} /> Ligar
           </AdminButton>}

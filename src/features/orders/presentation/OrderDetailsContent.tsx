@@ -113,7 +113,7 @@ export function OrderCustomerDetailsSection({
                 href={callContact.tel}
                 data-phone-number={`+${callContact.phone}`}
                 data-service-order-id={detail.id}
-                onClick={event => { if (notifyPhoneCallIntegration(callContact.phone, detail.id)) event.preventDefault(); }}
+                onClick={event => { if (notifyPhoneCallIntegration(callContact.phone, detail.id, detail.organization_id)) event.preventDefault(); }}
                 aria-label="Ligar para o cliente"
                 className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}
                 title="Abrir no telefone ou aplicativo de telefonia"

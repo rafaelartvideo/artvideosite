@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
 import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
+import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions";
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
@@ -440,11 +441,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     }
   };
 
-  const callExternal = () => {
-    const destination = normalizeNationalDestination(externalTarget);
-    if (!canUseExternal || !destination || outputPendingRef.current ||
-        registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
-    setNotice("Chamando " + externalTarget + " pela operadora configurada...");
+  const originateExternal = (destination: string, label: string) => {
+    setNotice("Chamando " + label + " pela operadora configurada...");
     try {
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
@@ -454,6 +452,64 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       setNotice("Não foi possível iniciar a ligação. Confira o ramal e o microfone.");
     }
   };
+
+  const callExternal = () => {
+    const destination = normalizeNationalDestination(externalTarget);
+    if (!canUseExternal || !destination || outputPendingRef.current ||
+        registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
+    originateExternal(destination, externalTarget);
+  };
+
+  // Click-to-call reutiliza a unica sessao SIP, inclusive fora da rota PABX.
+  // Nao intercepta outras empresas: a saida externa piloto e exclusiva da Union.
+  useEffect(() => {
+    if (!isPlatformOperatorOrganization || !canUseExternal || !activeOrganizationId) return;
+
+    const requestCall = (rawPhone: string, requestedOrganizationId?: string | null) => {
+      if (requestedOrganizationId && requestedOrganizationId !== activeOrganizationId) return false;
+      const destination = normalizeNationalDestination(rawPhone);
+      setExternalTarget(rawPhone);
+      setDialMode("external");
+
+      if (!destination) {
+        setNotice("Telefone inválido. Informe um número nacional com DDD.");
+        onOpen();
+        return true;
+      }
+      if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
+        setNotice("Número preenchido. Conecte seu ramal e clique em Ligar para confirmar a chamada.");
+        onOpen();
+        return true;
+      }
+      if (callState !== "idle" || sessionRef.current || outputPendingRef.current) {
+        setNotice("Já existe uma chamada em andamento ou o áudio está sendo preparado.");
+        onOpen();
+        return true;
+      }
+      originateExternal(destination, rawPhone);
+      return true;
+    };
+
+    const handleIntegrationCall = (event: Event) => {
+      const detail = (event as CustomEvent<{phone?: string; organizationId?: string | null}>).detail;
+      if (detail?.phone && requestCall(detail.phone, detail.organizationId)) event.preventDefault();
+    };
+    const handlePhoneAnchorClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || !(event.target instanceof Element)) return;
+      const anchor = event.target.closest<HTMLAnchorElement>('a[href^="tel:"]');
+      // A OS ja usa o evento de integracao. Nao originar duas chamadas pelo mesmo clique.
+      if (!anchor || anchor.hasAttribute("data-phone-number")) return;
+      const rawPhone = anchor.getAttribute("href")?.slice(4) || "";
+      if (requestCall(rawPhone)) event.preventDefault();
+    };
+
+    window.addEventListener(PHONE_CALL_EVENT, handleIntegrationCall);
+    document.addEventListener("click", handlePhoneAnchorClick, true);
+    return () => {
+      window.removeEventListener(PHONE_CALL_EVENT, handleIntegrationCall);
+      document.removeEventListener("click", handlePhoneAnchorClick, true);
+    };
+  }, [activeOrganizationId, isPlatformOperatorOrganization, canUseExternal, registration, callState, microphoneId, onOpen]);
 
   const answer = () => {
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de atender.'); return; }
