@@ -1567,24 +1567,33 @@ Deno.serve(async request => {
         return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
       }
       const customerId=String(matches[0].customer_id);
-      // This lookup is scoped to one verified customer of the current tenant.
-      // Fetch only a small summary on opening the chat, not complete OS histories.
-      const [equipmentResult,orderResult]=await Promise.all([
+      // These details are requested only after expanding "Dados do CRM".
+      // Keep every lookup scoped to the matched customer and active organization.
+      // Never fetch OS histories or unrelated customers in this endpoint.
+      const [customerResult,equipmentResult,orderResult]=await Promise.all([
+        admin.from("customers")
+          .select("id,customer_type,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
+          .eq("organization_id",org).eq("id",customerId).maybeSingle(),
         admin.from("customer_equipments")
-          .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number")
+          .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number,technical_values,created_at,updated_at")
           .eq("organization_id",org).eq("customer_id",customerId)
-          .order("updated_at",{ascending:false}).limit(8),
+          .order("updated_at",{ascending:false}).limit(50),
         permissions.has("orders.details.view")
           ? admin.from("service_orders")
-              .select("id,os_number,created_at,completed_at,model")
+              .select("id,os_number,created_at,completed_at,model,order_status:order_statuses(name,color),situation:os_situations(name,color)")
               .eq("organization_id",org).eq("customer_id",customerId)
-              .order("created_at",{ascending:false}).limit(8)
+              .order("created_at",{ascending:false}).limit(10)
           : Promise.resolve({data:[],error:null}),
       ]);
+      if(customerResult.error)throw customerResult.error;
       if(equipmentResult.error)throw equipmentResult.error;
       if(orderResult.error)throw orderResult.error;
+      if(!customerResult.data)return json({success:true,customer:null});
+      const addresses=Array.isArray(customerResult.data.addresses)
+        ? [...customerResult.data.addresses].sort((a,b)=>Number(Boolean(b.is_default))-Number(Boolean(a.is_default)))
+        : [];
       return json({success:true,
-        customer:{id:customerId,name:matches[0].customer_name},
+        customer:{...customerResult.data,name:matches[0].customer_name,addresses},
         equipments:equipmentResult.data||[],crm_orders:orderResult.data||[]});
     }
     if(action==="contact_avatar") {
