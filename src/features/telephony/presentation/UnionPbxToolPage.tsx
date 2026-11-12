@@ -612,7 +612,7 @@ setTestFlowError('');
         if (!isCurrent()) return;
         setHeld(nextHeld);
         setHoldUncertain(false);
-        setNotice(nextHeld ? 'Chamada em espera.' : 'Chamada retomada.');
+        setNotice("");
       } else {
         const destination = transferDestination;
         setNotice('Solicitando transferência para o ramal ' + destination + '...');
@@ -815,7 +815,8 @@ setTestFlowError('');
         </div>
         {callState !== "idle" && <p className="truncate text-sm font-semibold">{formatPbxNumber(remoteParty) || "Chamada"}</p>}
         {callState === "active" && <>
-          <p role="status" className="text-xs leading-5 text-muted-foreground">{notice}</p>
+          {/falha|erro|não foi possível|sem confirmação|indisponível|bloquead/i.test(notice) &&
+            <p role="alert" className="text-xs leading-5 text-destructive">{notice}</p>}
           <UnionPbxCallActions idPrefix="pbx-floating" held={held} muted={muted}
             holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
