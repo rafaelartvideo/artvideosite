@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, History, RefreshCw, Search } from 'lucide-react';
+import { Download, History, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { AdminButton, AdminCard, AdminCardContent, AdminSectionEmpty, PageHeader } from '@/shared/ui/admin/AdminLayout';
@@ -40,11 +40,29 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
     void pbxRequest(signal=>supabase.rpc('pbx_call_history_report',historyReportParameters(activeOrganizationId,filters)).abortSignal(signal),
       'Resumo do histórico',{signal:controller.signal}).then(({data,error:reportError})=>{
         if(cancelled||summaryGenerationRef.current!==generation)return;
-        if(reportError)throw new Error('Não foi possível consultar o resumo. Atualize para tentar novamente.');
+        if(reportError)throw new Error('Não foi possível consultar o resumo. Verifique a conexão.');
         setSummary(data as HistoryReport);
       }).catch(reason=>{if(!cancelled&&summaryGenerationRef.current===generation)setSummaryError(reason instanceof Error?reason.message:'Falha no resumo.');});
     return()=>{cancelled=true;controller.abort();};
   },[activeOrganizationId,filters,revision]);
+
+
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const channel = supabase.channel(`pbx-history:${activeOrganizationId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_call_logs",
+        filter: `organization_id=eq.${activeOrganizationId}`,
+      }, () => {
+        if (!timer) timer = setTimeout(() => { timer = undefined; setRevision(value => value + 1); }, 500);
+      })
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [activeOrganizationId]);
 
   async function exportCsv(){
     if(!activeOrganizationId||exporting||exportAbortRef.current)return;
@@ -88,7 +106,7 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       actions={<><AdminButton variant="secondary" onClick={onBack}>Voltar ao telefone</AdminButton>
         <AdminButton variant="secondary" onClick={exportCsv} disabled={loading||exporting||total===0} loading={exporting} loadingText="Preparando CSV..."><Download size={16}/> Exportar CSV</AdminButton>
         {exporting&&<AdminButton variant="ghost" onClick={()=>{exportAbortRef.current?.abort();setExportNotice('Exportação cancelada.');}}>Cancelar exportação</AdminButton>}
-        <AdminButton variant="secondary" onClick={() => setRevision(value => value + 1)} disabled={loading||exporting}><RefreshCw size={16} /> Atualizar</AdminButton></>} />
+</>} />
     <form className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3"
       onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setPage(1); }}>
       <FInput label="De" aria-label="Data inicial" type="date" value={draft.from} onChange={(e: any) => setDraft({ ...draft, from: e.target.value })} />
