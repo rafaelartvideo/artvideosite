@@ -25,12 +25,12 @@ test('discador externo preserva saída Union e exige autorização específica p
   const page=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');
   const admin=readFileSync('src/app/Admin.tsx','utf8');
   assert.match(admin,/allowExternalCalls=\{isPlatformOperatorOrganization\}/);
-  assert.match(page,/canUseExternal && callState === "idle"/);
+  assert.match(page,/callState === "idle" && canUseExternal/);
   assert.match(page,/const destination = normalizeNationalDestination\(externalTarget\)/);
   assert.match(page,/if \(!canUseExternal \|\| !destination/);
   assert.match(page,/externalDialingAllowed\(allowExternalCalls,isPlatformOperatorOrganization,activeOrganizationId,sipUser,externalGrant\)/);
   assert.match(page,/supabase.rpc\('pbx_can_dial_external'/);
-  assert.match(page,/aria-label="Telefone com DDD"/);
+  assert.match(page,/label=\{dialMode === "external" && canUseExternal \? "Número com DDD"/);
 });
 
 test('click-to-call da OS e demais links tel usa a sessao SIP da Union, sem cruzar empresas', () => {
