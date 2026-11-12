@@ -263,7 +263,7 @@ export async function operateUnionWhatsAppInbox(
   orders?: Array<{id:string;os_number:string;created_at:string}>; service_order_id?: string|null;
   history?: Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>;
   equipments?: Array<{id:string;equipment_type_name:string|null;equipment_brand_name:string|null;equipment_model_name:string|null;serial_number:string|null;technical_values?:Array<{technical_field_id?:string;label_snapshot?:string|null;field_key_snapshot?:string|null;value_text?:string|null;value_number?:number|null}>|null;created_at?:string|null;updated_at?:string|null}>;
-  crm_orders?: Array<{id:string;os_number:string;created_at:string;completed_at:string|null;model:string|null;order_status?:{name:string;color?:string|null}|null;situation?:{name:string;color?:string|null}|null}> }> {
+  crm_orders?: Array<{id:string;os_number:string;created_at:string;completed_at:string|null;cancelled_at?:string|null;return_root_id?:string|null;model:string|null;customer_equipment?:{equipment_type_name:string|null;equipment_brand_name:string|null;equipment_model_name:string|null}|null;equipment_type?:{name:string}|null;equipment_brand?:{name:string}|null;equipment_model?:{name:string}|null;order_status?:{name:string;color?:string|null}|null;situation?:{name:string;color?:string|null}|null}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
     body: {
       action, organization_id: organizationId, conversation_id: conversationId, ...extra,

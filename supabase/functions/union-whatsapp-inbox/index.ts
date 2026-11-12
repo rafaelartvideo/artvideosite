@@ -1580,7 +1580,7 @@ Deno.serve(async request => {
           .order("updated_at",{ascending:false}).limit(50),
         permissions.has("orders.details.view")
           ? admin.from("service_orders")
-              .select("id,os_number,created_at,completed_at,model,order_status:order_statuses(name,color),situation:os_situations(name,color)")
+              .select("id,os_number,created_at,completed_at,cancelled_at,return_root_id,model,order_status:order_statuses(name,color),situation:os_situations(name,color),customer_equipment:customer_equipments(equipment_type_name,equipment_brand_name,equipment_model_name),equipment_type:equipment_types(name),equipment_brand:equipment_brands(name),equipment_model:equipment_models(name)")
               .eq("organization_id",org).eq("customer_id",customerId)
               .order("created_at",{ascending:false}).limit(10)
           : Promise.resolve({data:[],error:null}),
