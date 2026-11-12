@@ -15,6 +15,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { OrdersWorkspaceSkeleton } from "@/features/orders/presentation/OrdersSkeletons";
 import { AdminDialog, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import type { UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
@@ -63,6 +64,7 @@ const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/UnionAiToolPage").then(({ UnionAiToolPage }) => ({ default: UnionAiToolPage })));
 const UnionPbxToolPage = lazy(() => import("@/features/telephony/presentation/UnionPbxToolPage").then(({ UnionPbxToolPage }) => ({ default: UnionPbxToolPage })));
+const UnionPbxSettingsDialog = lazy(() => import("@/features/telephony/presentation/UnionPbxSettingsDialog").then(({ UnionPbxSettingsDialog }) => ({ default: UnionPbxSettingsDialog })));
 const UnionPbxExtensionsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxExtensionsPage").then(({ UnionPbxExtensionsPage }) => ({ default: UnionPbxExtensionsPage })));
 const UnionPbxQueuesPage = lazy(() => import("@/features/telephony/presentation/UnionPbxQueuesPage").then(({ UnionPbxQueuesPage }) => ({ default: UnionPbxQueuesPage })));
 const UnionPbxInboundPage = lazy(() => import("@/features/telephony/presentation/UnionPbxInboundPage").then(({ UnionPbxInboundPage }) => ({ default: UnionPbxInboundPage })));
@@ -142,12 +144,14 @@ export function AdminDashboard({
   const requestedCrmMode = activeTab === "crm" || new URLSearchParams(location.search).get("mode") === "crm";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
+  const [pbxModalSection,setPbxModalSection] = useState<UnionPbxSection|null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Guarda a posição da lista de OS enquanto uma OS ocupa a mesma rota.
   const ordersListScrollRef = useRef<number | null>(null);
   const customersListScrollRef = useRef<number | null>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
+  useEffect(() => {setPbxModalSection(null);},[activeOrganizationId]);
   const activeOrganizationName = activeOrganization?.organization_name || null;
   const isPlatformOperatorOrganization = activeOrganization?.is_platform_operator === true;
   const isArtVideoOrganization = activeOrganization?.is_artvideo_tenant === true;
@@ -667,15 +671,18 @@ export function AdminDashboard({
               key={`${user.id}:${activeOrganizationId}`}
               isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx"}
               onOpen={() => navigateAdmin("tools", "union-pbx")}
-              onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
-              onManageQueues={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "filas") : undefined}
-              onManageTrunks={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "troncos") : undefined}
-              onManageFlows={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "fluxos") : undefined}
-              onManageInbound={canManagePbxTool && isPlatformOperatorOrganization ? () => navigateAdmin("tools", "union-pbx", "entrada") : undefined}
-              onRecordings={canAccessPbxRecordings ? () => navigateAdmin("tools", "union-pbx", "gravacoes") : undefined}
-              onHistory={() => navigateAdmin("tools", "union-pbx", "historico")}
+              onManage={canManagePbxTool ? () => setPbxModalSection("ramais") : undefined}
+              onManageQueues={canManagePbxTool ? () => setPbxModalSection("filas") : undefined}
+              onManageTrunks={canManagePbxTool ? () => setPbxModalSection("troncos") : undefined}
+              onManageFlows={canManagePbxTool ? () => setPbxModalSection("fluxos") : undefined}
+              onManageInbound={canManagePbxTool && isPlatformOperatorOrganization ? () => setPbxModalSection("entrada") : undefined}
+              onRecordings={canAccessPbxRecordings ? () => setPbxModalSection("gravacoes") : undefined}
+              onHistory={() => setPbxModalSection("historico")}
               onBack={() => navigateAdmin("tools")}
             />
+            {pbxModalSection&&<UnionPbxSettingsDialog section={pbxModalSection} onClose={()=>setPbxModalSection(null)}
+              canManage={canManagePbxTool} canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
+              canRecordings={canAccessPbxRecordings} organizationKey={activeOrganizationId}/>}
           </Suspense>
         )}
         {showCrmBackToolbar && <AdminStickyToolbar className="mt-5">
