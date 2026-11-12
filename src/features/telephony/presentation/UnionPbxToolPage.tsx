@@ -126,7 +126,6 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     if (!activeOrganizationId || !isPageOpen) { setDirectoryLoading(false); return () => { cancelled = true; }; }
     setDirectoryLoading(true);
     setDirectoryError("");
-    setDirectory([]);
     void pbxRequest(signal => supabase.from("pbx_extensions")
       .select("number,endpoint_name,display_name,desired_enabled,provisioning_status,is_managed")
       .eq("organization_id",activeOrganizationId)
@@ -149,7 +148,6 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   useEffect(() => {
     let cancelled=false;
     const controller = new AbortController();
-    setTestQueues([]);
     setTestQueueError("");
     if(!activeOrganizationId || !isPageOpen) return () => { cancelled=true; };
     void pbxRequest(signal => supabase.rpc("pbx_available_test_queues",{p_organization_id:activeOrganizationId}).abortSignal(signal),
@@ -166,7 +164,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   useEffect(() => {
     const controller=new AbortController();let cancelled=false;
-    setTestFlows([]);setTestFlowError('');
+setTestFlowError('');
     if(!activeOrganizationId || !isPageOpen)return()=>{cancelled=true;};
     void pbxRequest(signal=>supabase.rpc("pbx_available_test_flows",{p_organization_id:activeOrganizationId}).abortSignal(signal),
       'Consulta dos fluxos de atendimento',{signal:controller.signal})
