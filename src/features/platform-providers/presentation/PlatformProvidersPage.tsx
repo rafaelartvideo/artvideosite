@@ -34,20 +34,27 @@ const emptyFilters = (): ProviderFilters => ({
   search: "", serviceIds: [], equipmentNames: [], states: [], cities: [], statuses: [], page: 1, pageSize: 24,
 });
 
-function ServiceChoices({ services, profession, selected, onToggle }: {
+function ServiceChoices({ services, profession, selected, onToggle, loading, error, onRetry }: {
   services: PlatformService[]; profession: string; selected: string[]; onToggle: (id: string) => void;
+  loading: boolean; error?: string; onRetry: () => void;
 }) {
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const query = equipmentSearch.trim().toLocaleLowerCase("pt-BR");
   const professionKey = profession.trim().toLocaleLowerCase("pt-BR");
+  // Profissão prioriza resultados, mas nunca limita a vinculação dentro da Union.
   const choices = useMemo(() => services
-    .filter(item => Boolean(professionKey) && item.profession_name.trim().toLocaleLowerCase("pt-BR") === professionKey)
     .filter(item => item.is_active || selected.includes(item.id))
-    .filter(item => !query || item.name.toLocaleLowerCase("pt-BR").includes(query) ||
-      (item.equipment_name || "").toLocaleLowerCase("pt-BR").includes(query))
-    .sort((a, b) => Number(selected.includes(b.id)) - Number(selected.includes(a.id)) || normalSort(a.name, b.name)),
-    [services, professionKey, selected, query]);
+    .filter(item => !query || [item.name, item.equipment_name || "", item.profession_name || ""]
+      .some(value => value.toLocaleLowerCase("pt-BR").includes(query)))
+    .sort((a, b) => {
+      const preferredA = Boolean(professionKey) && a.profession_name.trim().toLocaleLowerCase("pt-BR") === professionKey;
+      const preferredB = Boolean(professionKey) && b.profession_name.trim().toLocaleLowerCase("pt-BR") === professionKey;
+      return Number(selected.includes(b.id)) - Number(selected.includes(a.id))
+        || Number(preferredB) - Number(preferredA)
+        || normalSort(a.profession_name, b.profession_name)
+        || normalSort(a.name, b.name);
+    }), [services, professionKey, selected, query]);
   const standalone = choices.filter(service => !service.equipment_name);
   const equipmentNames = Array.from(new Set(choices
     .map(service => service.equipment_name).filter((name): name is string => Boolean(name)))).sort(normalSort);
@@ -56,20 +63,28 @@ function ServiceChoices({ services, profession, selected, onToggle }: {
     className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${selected.includes(service.id) ? "border-primary/40 bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground"}`}>
     <input type="checkbox" checked={selected.includes(service.id)}
       onChange={() => onToggle(service.id)} className="h-4 w-4 shrink-0 accent-primary"/>
-    <span className="min-w-0 flex-1">{service.name}</span>
+    <span className="min-w-0 flex-1">{service.name}
+      <span className="ml-2 text-[10px] font-normal text-muted-foreground">({service.profession_name || "Geral"})</span>
+      {!service.is_active && <span className="ml-2 text-[10px] text-muted-foreground">Inativo</span>}
+    </span>
     {selected.includes(service.id) && <Check size={13} className="shrink-0 text-primary"/>}
   </label>;
-  if (!professionKey) return <p className="py-3 text-center text-xs text-muted-foreground">
-    Informe a profissão para listar equipamentos e serviços correspondentes.
+  if (loading) return <LoadingState text="Carregando serviços cadastrados"/>;
+  if (error) return <div role="alert" className="space-y-2 rounded-lg border border-destructive/25 p-3">
+    <p className="text-xs text-destructive">{error}</p>
+    <AdminButton size="sm" variant="secondary" onClick={onRetry}>Tentar novamente</AdminButton>
+  </div>;
+  if (services.length === 0) return <p className="py-3 text-center text-xs text-muted-foreground">
+    Nenhum serviço cadastrado no catálogo da Union. Use Novo serviço para adicionar.
   </p>;
   return <div className="space-y-3">
-    <p className="text-xs font-semibold text-foreground">Profissão: {profession.trim()}</p>
-    {choices.length > 0 && <div className="relative">
+    <p className="text-xs text-muted-foreground">Todos os serviços da Union estão disponíveis, organizados por equipamento. Os da profissão informada aparecem primeiro.</p>
+    <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15}/>
       <input value={equipmentSearch} onChange={event => setEquipmentSearch(event.target.value)}
         className={inputClass + " pl-9"} aria-label="Buscar equipamento ou serviço"
-        placeholder="Buscar equipamento ou serviço"/>
-    </div>}
+        placeholder="Buscar profissão, equipamento ou serviço"/>
+    </div>
     {equipmentNames.map(equipment => {
       const members = choices.filter(service => service.equipment_name === equipment);
       const isOpen = expanded[equipment] ?? (Boolean(query) || members.some(service => selected.includes(service.id)));
@@ -100,7 +115,7 @@ function ServiceChoices({ services, profession, selected, onToggle }: {
       </div>}
     </div>}
     {choices.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">
-      Nenhum serviço cadastrado para esta profissão. O prestador pode ser salvo sem serviços.
+      Nenhum serviço corresponde à busca.
     </p>}
   </div>;
 }
@@ -211,12 +226,14 @@ export function PlatformProvidersPage() {
   const openNew = () => {
     setEditing(null); setDraft(emptyProviderDraft()); setSelectedServiceIds([]);
     setPendingFiles([]); setPersistedProviderId(null); setEditorOpen(true);
+    void servicesQuery.refetch();
   };
   const openEdit = (provider: PlatformProvider) => {
     if (!canManage) return;
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
     setPersistedProviderId(provider.id); setEditorOpen(true);
+    void servicesQuery.refetch();
   };
   const openServiceModal = (equipmentName = "", selectNew = false, mode: "equipment" | "standalone" = "equipment", professionName = "") => {
     if (!canManage) return;
@@ -290,9 +307,14 @@ export function PlatformProvidersPage() {
     if (!canManage || !activeOrganizationId || saving) return;
     setSaving(true);
     try {
-      const allowedServiceIds = selectedServiceIds.filter(id => services.some(service =>
-        service.id === id && service.profession_name.trim().toLocaleLowerCase("pt-BR") === draft.profession.trim().toLocaleLowerCase("pt-BR")));
-      const savedId = await savePlatformProvider(persistedProviderId || editing?.id || null, draft, allowedServiceIds);
+      if (servicesQuery.isPending || servicesQuery.isFetching || servicesQuery.isError) {
+        throw new Error("Não foi possível confirmar o catálogo de serviços. Aguarde o carregamento ou tente novamente.");
+      }
+      const catalogIds = new Set(services.map(service => service.id));
+      if (selectedServiceIds.some(id => !catalogIds.has(id))) {
+        throw new Error("Um serviço vinculado não consta no catálogo carregado. Atualize a lista antes de salvar.");
+      }
+      const savedId = await savePlatformProvider(persistedProviderId || editing?.id || null, draft, selectedServiceIds);
       setPersistedProviderId(savedId);
       const failedFiles: File[] = [];
       for (const file of pendingFiles) {
@@ -526,6 +548,9 @@ export function PlatformProvidersPage() {
       key={editing?.id || "new"} editing={editing} organizationId={activeOrganizationId}
       draft={draft} setDraft={setDraft}
       servicesContent={<ServiceChoices services={services} profession={draft.profession} selected={selectedServiceIds}
+        loading={servicesQuery.isPending || (servicesQuery.isFetching && !servicesQuery.data)}
+        error={servicesQuery.isError ? systemErrorMessage(servicesQuery.error, "Não foi possível carregar os serviços cadastrados.") : undefined}
+        onRetry={() => void servicesQuery.refetch()}
         onToggle={id => setSelectedServiceIds(current => current.includes(id)
           ? current.filter(item => item !== id) : [...current, id])}/>}
       batchContent={<AdminButton variant="secondary" size="sm"
