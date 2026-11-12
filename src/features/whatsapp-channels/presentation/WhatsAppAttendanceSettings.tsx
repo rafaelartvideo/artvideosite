@@ -158,10 +158,10 @@ export function WhatsAppAttendanceSettings({
       className="w-full max-w-5xl"
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap items-center justify-between gap-3">
-        <AdminButton variant="secondary" onClick={backToPrevious}>
-          <ArrowLeft size={16}/> Voltar
-        </AdminButton>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminButton variant="secondary" onClick={backToPrevious}>
+            <ArrowLeft size={16}/> Voltar
+          </AdminButton>
           {section==="connections" && canManage && <AdminButton
             disabled={!canCreateConnection} onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Nova conexão
@@ -174,8 +174,9 @@ export function WhatsAppAttendanceSettings({
             onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Nova mensagem
           </AdminButton>}
-          {(section==="permissions" || section==="queues") && <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
         </div>
+        {(section==="permissions" || section==="queues") &&
+          <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
       </div>}>
       {section && <div className="min-w-0 space-y-4">
         {(section==="configuration"||section==="connections") ?
