@@ -10,6 +10,8 @@ export function normalizeNationalDestination(value: string): string | null {
   } else if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
     digits = digits.slice(2);
   }
+  // Only a single leading trunk zero on a national caller ID, not arbitrary carrier prefixes.
+  if (/^0[1-9][0-9]{9,10}$/.test(digits)) digits = digits.slice(1);
   if (!DDD.has(digits.slice(0, 2)) || !/^\d{2}(?:[2-5]\d{7}|9\d{8})$/.test(digits)) return null;
   return '55' + digits;
 }
