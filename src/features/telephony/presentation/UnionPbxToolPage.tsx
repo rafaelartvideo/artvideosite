@@ -45,7 +45,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const { activeOrganizationId, organizations } = useAuth();
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
-  const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
+
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [sipUser, setSipUser] = useState(isPlatformOperatorOrganization ? SIP_USER : "");
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
@@ -86,7 +86,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [microphoneId, setMicrophoneId] = useState("");
   const [outputPending, setOutputPending] = useState(false);
   const outputPendingRef = useRef(false);
-  const [notice, setNotice] = useState("Conecte o ramal para iniciar o teste de audio.");
+  const [notice, setNotice] = useState("");
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [held, setHeld] = useState(false);
   const [holdUncertain, setHoldUncertain] = useState(false);
@@ -294,7 +294,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
         registrationTimerRef.current = null;
         setRegistration("registered");
-        setNotice("Ramal conectado. Ligue para 900 para testar o audio.");
+        setNotice("");
       });
       ua.on("registrationFailed", () => {
         if (!isCurrent()) return;
@@ -411,6 +411,29 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       setNotice(error instanceof Error?error.message:"Não foi possível conectar o ramal.");
     } finally {
       if (credentialAbortRef.current === controller) credentialAbortRef.current = null;
+    }
+  };
+
+
+  const connectDirectly = () => {
+    if (registration === "connecting") return;
+    if (registration === "registered") { stop(); return; }
+    if (uaRef.current) {
+      generationRef.current += 1;
+      const old = uaRef.current; uaRef.current = null;
+      try { old.stop(); } catch { /* falhou antes do registro */ }
+    }
+    if (managedExtension && !manualMode && managedExtension.provisioning_status === "applied") {
+      void connectManaged(); return;
+    }
+    if (checkingManaged) {
+      setNotice("Consultando seu ramal vinculado..."); return;
+    }
+    if (isPlatformOperatorOrganization) {
+      if (password.trim()) connect();
+      else { setManualMode(true); setNotice("Informe sua senha SIP abaixo para conectar o ramal manual."); }
+    } else {
+      setNotice(managedLookupError || "Nenhum ramal ativo vinculado ao seu usuário.");
     }
   };
 
@@ -630,7 +653,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
         connectionStatus={registration} callState={callState} remoteParty={remoteParty}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}
-        onBack={onBack} onConnectionSettings={() => setConnectionDialogOpen(true)}
+        onBack={onBack} onConnectionSettings={connectDirectly}
         onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
         onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
         canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
@@ -655,7 +678,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           }
           if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
             setNotice("Conecte o ramal para retornar a chamada.");
-            setConnectionDialogOpen(true);
+            setNotice("Conecte seu ramal para retornar a chamada.");
             return;
           }
           if (internal) {
@@ -743,79 +766,19 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
           {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
           }}>Habilitar áudio da chamada</AdminButton>}
-          {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
+          {manualMode && isPlatformOperatorOrganization && registration !== "registered" && registration !== "connecting" && !managedExtension && <div className="space-y-2 rounded-lg border border-border p-3">
+            <label htmlFor="pbx-manual-secret" className="block text-xs font-semibold">Senha SIP do ramal manual 301</label>
+            <FInput id="pbx-manual-secret" type="password" autoComplete="off" spellCheck={false}
+              value={password} onChange={event => setPassword(event.target.value)}
+              placeholder="Senha SIP da VPS"/>
+            <AdminButton variant="primary" className="!w-full" type="button" disabled={!password.trim()}
+              onClick={connect}><Phone size={15}/> Conectar</AdminButton>
+          </div>}
+          {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação|nenhum ramal/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
           {(directoryError || testQueueError || testFlowError) && <p className="text-xs text-muted-foreground">{directoryError || testQueueError || testFlowError}</p>}
         </div>}
       />
     </div>
-    <AdminDialog open={isPageOpen && connectionDialogOpen} onClose={() => setConnectionDialogOpen(false)}
-      title="Conexão do ramal" description="Conecte ou desconecte seu ramal telefônico."
-      className="w-[min(680px,calc(100vw-1.5rem))] max-w-[680px]" minimizable={false}>
-      <div className="space-y-4">
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{isPlatformOperatorOrganization ? "Linha Union World" : "Telefonia interna"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{isPlatformOperatorOrganization ? "(11) 4290-1575 · " : ""}{sipUser ? `Ramal ${sipUser}` : "Seu ramal individual"}</p>
-          </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registration === "registered" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : registration === "connecting" ? "bg-blue-500/10 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}>
-            {registration === "registered" ? "Conectado" : registration === "connecting" ? "Conectando" : registration === "error" ? "Falha na conexao" : "Desconectado"}
-          </span>
-        </div>
-
-        {registration === "offline" && <div className="mt-5 space-y-3">
-          {managedLookupError && <div role="alert" className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-foreground">
-            <p>{managedLookupError}</p>
-            <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}>Tentar consultar novamente</AdminButton>
-          </div>}
-          {managedExtension && !manualMode && (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-foreground">Meu ramal {managedExtension.number} · {managedExtension.display_name}</p>
-              <p className="text-xs text-muted-foreground">
-                {managedExtension.provisioning_status === "applied"
-                  ? "Acesso individual protegido. A senha permanece na VPS e é enviada somente criptografada para este navegador."
-                  : "Ramal ainda não ativado na VPS."}
-              </p>
-              <AdminButton variant="primary" type="button" onClick={() => void connectManaged()}
-                disabled={checkingManaged || managedExtension.provisioning_status !== "applied"}
-                >
-                <Phone size={16} /> Conectar meu ramal {managedExtension.number}
-              </AdminButton>
-              {isPlatformOperatorOrganization && <AdminButton variant="ghost" type="button" onClick={() => setManualMode(true)}
-                >Usar o ramal manual 301</AdminButton>}
-            </div>
-          )}
-          {!isPlatformOperatorOrganization && !managedExtension && !checkingManaged && !managedLookupError &&
-            <p className="text-sm text-muted-foreground">Nenhum ramal vinculado ao seu usuário. Peça ao administrador para cadastrar e vincular seu ramal.</p>}
-          {isPlatformOperatorOrganization && (!managedExtension || manualMode) && <>
-          {checkingManaged && <p className="text-xs text-muted-foreground">Verificando ramal vinculado...</p>}
-          <label htmlFor="union-sip-password" className="block text-sm font-medium text-foreground">Senha SIP do ramal {SIP_USER}</label>
-          <FInput id="union-sip-password" type="password" value={password} onChange={event => setPassword(event.target.value)}
-            autoComplete="off" spellCheck={false} placeholder="Digite a senha protegida na VPS"
-             />
-          <p className="text-xs text-muted-foreground">A senha nao e salva no banco, em cookies nem no armazenamento local. Nao utilize a senha do tronco FVX.</p>
-          <AdminButton variant="primary" type="button" onClick={() => void connect()} disabled={!password.trim()}
-            >
-            <Phone size={16} /> Conectar ramal
-          </AdminButton>
-          {managedExtension && <AdminButton variant="ghost" type="button" onClick={() => setManualMode(false)}
-            >Voltar para meu ramal {managedExtension.number}</AdminButton>}
-          </>}
-        </div>}
-
-        {registration !== "offline" && <div className="mt-5 flex flex-wrap gap-2">
-          <AdminButton variant="secondary" type="button" onClick={stop}
-            >
-            <Unplug size={16} /> Desconectar
-          </AdminButton>
-          {registration === "connecting" && <LoaderCircle size={20} className="animate-spin self-center text-primary" />}
-        </div>}
-      </section>
-
-
-      </div>
-    </AdminDialog>
-
     <AdminDialog open={isPageOpen && deviceDialogOpen} onClose={() => setDeviceDialogOpen(false)}
       title="Dispositivos e testes de áudio" description="Escolha o microfone, a saída de som e teste a conexão."
       className="w-[min(680px,calc(100vw-1.5rem))] max-w-[680px]" minimizable={false}>
