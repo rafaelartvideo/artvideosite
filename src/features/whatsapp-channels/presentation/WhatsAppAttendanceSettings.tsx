@@ -191,7 +191,7 @@ export function WhatsAppAttendanceSettings({
             ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}
                 createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}
                 footerTarget={footerTarget}/>
-            : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget}/>
+            : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget} footerInParent/>
             : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded/>}
       </div>}
     </AdminDialog>
