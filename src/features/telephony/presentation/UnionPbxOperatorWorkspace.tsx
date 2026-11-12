@@ -7,7 +7,8 @@ import { pbxRequest } from "../application/pbx-request";
 import { callDuration, dispositionLabels, directionLabels, loadCallHistory, localHistoryDate, type CallHistoryRow, type HistoryFilters } from "../application/call-history";
 import { formatPbxNumber } from "../domain/pbx-display";
 export { formatPbxNumber } from "../domain/pbx-display";
-import { pbxContactPhoneKey, usePbxSavedContactCards } from "../application/pbx-saved-contact-cards";
+import { pbxContactPhoneKey, usePbxSavedContactCards, type PbxSavedContactCard } from "../application/pbx-saved-contact-cards";
+import { PbxCrmContactPanel } from "./PbxCrmContactPanel";
 import { PbxContactActivity } from "./PbxContactActivity";
 import { PbxContactDirectory, type PbxDirectoryContact } from "./PbxContactDirectory";
 import type { UnionPbxSection } from "./UnionPbxSectionTabs";
@@ -22,6 +23,7 @@ type Props = {
   connectionStatus: "offline" | "connecting" | "registered" | "error";
   callState: "idle" | "dialing" | "incoming" | "active";
   remoteParty: string;
+  callerCard?: PbxSavedContactCard;
   completedCall: { sequence:number; number:string; startedAt:number; at:number };
   lineLabel: string;
   extensionLabel: string;
@@ -65,7 +67,7 @@ function initials(value: string) {
 
 /** Apenas apresentação do operador: o WebRTC e o áudio continuam na instância persistente do telefone. */
 export function UnionPbxOperatorWorkspace({
-  isActive, dialer, connectionStatus, callState, remoteParty, completedCall, lineLabel, extensionLabel,
+  isActive, dialer, connectionStatus, callState, remoteParty, callerCard, completedCall, lineLabel, extensionLabel,
   directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
   onSelectSection, onReturnCall, canManage, canManageInbound, canRecordings,
 }: Props) {
@@ -235,19 +237,27 @@ export function UnionPbxOperatorWorkspace({
   }, [isActive, completedCall.sequence]);
 
   const selected = loadedRows.find(row => row.id === selectedId) || null;
-  const selectedNumber = selectedExternal?.number || selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
+  const inCallNumber = callState !== "idle" && remoteParty && remoteParty !== "Chamada" ? remoteParty : "";
+  // Show the current caller even before its CDR exists in the recent-call history.
+  const selectedNumber = inCallNumber || selectedExternal?.number || selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
+  const currentCallerCard = inCallNumber ? callerCard : undefined;
+  const hasDetails = Boolean(inCallNumber || selected || selectedExtension || selectedExternal);
   const savedCards = usePbxSavedContactCards(activeOrganizationId, isActive,
     [...visibleRows.map(callNumber), ...(selectedNumber ? [selectedNumber] : [])],contactRevision);
   const contactCard = savedCards[pbxContactPhoneKey(selectedNumber)];
-  const selectedName = selectedExtension?.display_name
-    || (selectedExternal?.source === "crm" ? selectedExternal.name : null)
+  const selectedName = currentCallerCard?.name
+    || (inCallNumber ? contactCard?.name : null)
+    || (!inCallNumber ? selectedExtension?.display_name : null)
+    || (!inCallNumber && selectedExternal?.source === "crm" ? selectedExternal.name : null)
     || (contactCard?.source === "crm" ? contactCard.name : null)
-    || selectedExternal?.name || contactCard?.name
+    || (!inCallNumber ? selectedExternal?.name : null) || contactCard?.name
     || directory.find(item => String(item.number) === selectedNumber)?.display_name
     || (selectedNumber ? formatPbxNumber(selectedNumber) : "");
   const selectedAvatarKey = pbxContactPhoneKey(selectedNumber);
-  const selectedAvatar = contactCard?.avatarUrl && !brokenAvatar[selectedAvatarKey + ":" + contactCard.avatarUrl]
-    ? contactCard.avatarUrl : null;
+  const avatarUrl = currentCallerCard?.avatarUrl || contactCard?.avatarUrl || null;
+  const selectedAvatar = avatarUrl && !brokenAvatar[selectedAvatarKey + ":" + avatarUrl]
+    ? avatarUrl : null;
+  const identitySource = currentCallerCard?.source || contactCard?.source || (!inCallNumber?selectedExternal?.source:null) || null;
   const pages = Math.max(1, Math.ceil(filteredTotal / pageSize));
 
 
@@ -438,9 +448,9 @@ export function UnionPbxOperatorWorkspace({
         <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
             <h2 className="text-base font-bold">Detalhes</h2>
-            {(selected || selectedExtension || selectedExternal) && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
+            {hasDetails && !inCallNumber && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
           </div>
-          {selected || selectedExtension || selectedExternal ? <>
+          {hasDetails ? <>
             <div className="flex flex-col items-stretch gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
@@ -457,16 +467,17 @@ export function UnionPbxOperatorWorkspace({
               <div className="flex w-full min-w-0 items-center gap-2">
                 <AdminButton className="min-w-0 flex-1" variant="primary" disabled={callState !== "idle" || !selectedNumber}
                   onClick={() => onReturnCall(selectedNumber)}><Phone size={16}/> Ligar</AdminButton>
-                {pbxContactPhoneKey(selectedNumber) && contactCard?.source !== "crm" && selectedExternal?.source !== "crm" &&
+                {pbxContactPhoneKey(selectedNumber) && identitySource !== "crm" &&
                   <AdminButton variant="secondary" className="min-w-0 flex-1" onClick={() => openContactEditor(selectedNumber,selectedName)}>
                     <ContactRound size={16}/>
-                    {contactCard?.source === "pbx" || selectedExternal?.source === "pbx"
-                      || contactCard?.source === "whatsapp" || selectedExternal?.source === "whatsapp"
+                    {identitySource === "pbx" || identitySource === "whatsapp"
                       ? "Editar" : "Salvar contato"}
                   </AdminButton>}
               </div>
 
             </div>
+            <PbxCrmContactPanel organizationId={activeOrganizationId} phone={selectedNumber}
+              active={isActive && Boolean(selectedNumber)} source={identitySource}/>
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
               active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
           </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
