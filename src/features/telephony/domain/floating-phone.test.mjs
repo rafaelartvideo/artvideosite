@@ -38,6 +38,24 @@ test("mini-PABX snaps to viewport edges, supports keyboard reposition and limits
   assert.match(floating,/overflow-y-auto/);
 });
 
+test("mini-PABX stays docked and within viewport after dial mode changes resize its height",async()=>{
+  const floatingPath="src/features/telephony/presentation/UnionPbxFloatingPhone.tsx";
+  const phonePath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
+  const floating=read(floatingPath);
+  const phone=read(phonePath);
+  assert.match(floating,/new ResizeObserver\(update\)/);
+  assert.match(floating,/observer\?\.observe\(node\)/);
+  assert.match(floating,/positionForDock\(dock,node\)/);
+  assert.match(floating,/dockRef\.current=snapped\.dock/);
+  assert.match(floating,/w-\[min\(430px,calc\(100vw-1\.5rem\)\)\]/);
+  assert.match(floating,/w-\[min\(370px,calc\(100vw-1\.5rem\)\)\]/);
+  assert.match(floating,/whitespace-nowrap text-xs font-bold/);
+  assert.match(phone,/data-pbx-dial-mode="true"/);
+  assert.match(phone,/border-primary bg-card text-primary ring-1 ring-inset ring-primary/);
+  assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
+  assert.ok((await transformWithEsbuild(phone,phonePath,{loader:"tsx"})).code.length>150);
+});
+
 test("settings navigation restores originating channel configuration and keeps modal actions in fixed footer",()=>{
   const source=read("src/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings.tsx");
   assert.match(source,/sectionTrail/);
