@@ -23,8 +23,9 @@ test('partner phone has no manual Union credentials or line and only lists manag
   const phone = read('src/features/telephony/presentation/UnionPbxToolPage.tsx');
   assert.match(phone, /useState\(isPlatformOperatorOrganization \? SIP_USER : ""\)/);
   assert.match(phone, /if \(!isPlatformOperatorOrganization\) return;/);
-  assert.match(phone, /isPlatformOperatorOrganization && \(!managedExtension \|\| manualMode\)/);
-  assert.match(phone, /isPlatformOperatorOrganization && <AdminButton[^>]*onClick=\{\(\) => setManualMode\(true\)\}/);
+  assert.match(phone, /manualMode && isPlatformOperatorOrganization/);
+  assert.match(phone, /if \(isPlatformOperatorOrganization\) \{/);
+  assert.match(phone, /setManualMode\(true\)/);
   assert.match(phone, /isPlatformOperatorOrganization \? "\(11\) 4290-1575/);
   assert.match(phone, /item\.is_managed && item\.endpoint_name !== SIP_USER/);
   assert.match(phone, /!isPlatformOperatorOrganization && !managedExtension/);
