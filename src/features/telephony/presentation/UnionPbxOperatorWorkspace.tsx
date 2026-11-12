@@ -12,6 +12,7 @@ type Queue = { number: number; name: string };
 type WorkspaceMode = "chamadas" | "contatos" | "filas" | "ramais";
 type RecentFilter = "todas" | "atendidas" | "perdidas";
 type Props = {
+  isActive: boolean;
   dialer: ReactNode;
   connectionStatus: "offline" | "connecting" | "registered" | "error";
   callState: "idle" | "dialing" | "incoming" | "active";
@@ -50,7 +51,7 @@ function initials(value: string) {
 
 /** Apenas apresentação do operador: o WebRTC e o áudio continuam na instância persistente do telefone. */
 export function UnionPbxOperatorWorkspace({
-  dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
+  isActive, dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
   directory, queues, directoryLoading, onBack, onConnectionSettings,
   onSelectSection, onDialNumber, canManage, canManageInbound, canRecordings,
 }: Props) {
@@ -59,6 +60,7 @@ export function UnionPbxOperatorWorkspace({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recentFilter, setRecentFilter] = useState<RecentFilter>("todas");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [revision, setRevision] = useState(0);
@@ -69,13 +71,17 @@ export function UnionPbxOperatorWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
 
-  const numberSearch = search.replace(/[^+0-9#]/g, "").slice(0, 32);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const numberSearch = debouncedSearch.replace(/[^+0-9#]/g, "").slice(0, 32);
   useEffect(() => { setPage(1); setRows([]); setSelectedId(null); setSelectedExtension(null); }, [activeOrganizationId]);
   useEffect(() => { setPage(1); }, [recentFilter, numberSearch, pageSize]);
 
   useEffect(() => {
     const controller = new AbortController();
-    if (!activeOrganizationId) { setRows([]); setTotal(0); return () => controller.abort(); }
+    if (!activeOrganizationId || !isActive) { setRows([]); setTotal(0); setLoading(false); return () => controller.abort(); }
     const filters = { ...initialHistoryFilters(), number: numberSearch,
       disposition: recentFilter === "atendidas" ? "ANSWERED" : recentFilter === "perdidas" ? "NO ANSWER" : "" };
     setLoading(true);
@@ -93,7 +99,7 @@ export function UnionPbxOperatorWorkspace({
         if (!controller.signal.aborted) { setRows([]); setTotal(0); setSelectedId(null); setError("Não foi possível carregar as chamadas. Tente atualizar."); }
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [activeOrganizationId, recentFilter, numberSearch, page, pageSize, revision]);
+  }, [activeOrganizationId, isActive, recentFilter, numberSearch, page, pageSize, revision]);
 
   const selected = rows.find(row => row.id === selectedId) || null;
   const selectedNumber = selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
