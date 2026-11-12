@@ -62,3 +62,12 @@ A importação Excel/CSV de até 50 mil contatos grava **somente nome e telefone
 - **Implantação:** alterações do frontend e do código de `server.mjs` estão no GitHub. O frontend segue o fluxo habitual de publicação; **a ponte na VPS exige implantação separada** com backup do `server.mjs`, `node --check` e reinício **somente** de `union-wuzapi-bridge`. Não reiniciar o contêiner WuzAPI e não alterar sessões ou banco de dados.
 - **Verificação após publicação:** abrir contato sem foto (iniciais), abrir contato com foto, alternar telas e empresas, deixar a aba aberta além do TTL para confirmar renovação, testar fallback de CDN e medir RSS da ponte sob consultas concorrentes. Os testes de código não substituem validação ponta a ponta na VPS.
 
+
+
+## Cache privado e redução de tráfego (12/11/2026)
+Esta seção substitui os prazos de cache descritos no bloco de 09/11.
+- Online/digitando removidos: interface não solicita presença; webhook ignora eventos antigos sem escrita no Postgres. Nova configuração da ponte retira Presence/ChatPresence das assinaturas; a atualização manual da VPS é necessária para isso.
+- Fotos: o navegador carrega somente as conversas visíveis, sem timer. A Edge busca primeiro o índice privado union_whatsapp_avatar_cache, por empresa, canal e conta. A cópia da imagem fica no bucket privado union-whatsapp-media, e não no corpo das linhas SQL. Fotos existentes são revalidadas no máximo a cada 7 dias; ausência/erro fica em cache por 24 horas. O frontend recebe URL temporária de 2 horas e nunca vê o token WuzAPI.
+- Números: resultados positivos ficam em union_whatsapp_number_check_cache por até 30 minutos; respostas not_registered por até 10 minutos. Respostas inconclusivas não são cacheadas. Cada entrada é isolada por empresa, canal e telefone da conta.
+- Implantação: aplicar a migração 20261112113500_union_whatsapp_private_caches.sql primeiro, publicar as Edge Functions union-whatsapp-inbox (incluindo avatar-cache.ts) e union-whatsapp-webhook, depois o frontend. A ponte Node exige atualização separada na VPS com backup e node --check, reiniciando somente union-wuzapi-bridge, nunca o motor WuzAPI.
+- Não testar envios com contas temporariamente restritas. Reduzir consultas não é método de contornar controles do WhatsApp; a conexão continua não oficial.
