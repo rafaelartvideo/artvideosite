@@ -14,7 +14,9 @@ async function bytesFromPhoto(photo: string): Promise<AvatarContent | null> {
     if (encoded[2].length > 270000) return null;
     const decoded = atob(encoded[2]);
     if (!decoded.length || decoded.length > MAX_BYTES) return null;
-    return { bytes: Uint8Array.from(decoded, char => char.charCodeAt(0)), mime: encoded[1] };
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+    return { bytes, mime: encoded[1] };
   }
   try {
     const url = new URL(photo);
