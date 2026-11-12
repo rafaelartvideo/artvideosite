@@ -8,7 +8,8 @@ for (const file of ['UnionPbxToolPage', 'UnionPbxExtensionsPage', 'UnionPbxQueue
     const path = `src/features/telephony/presentation/${file}.tsx`;
     const source = readFileSync(path, 'utf8');
     assert.ok(source.includes('AdminButton'));
-    assert.doesNotMatch(source, /<button\b/);
+    if (file !== 'UnionPbxToolPage') assert.doesNotMatch(source, /<button\b/);
+    else assert.match(source, /aria-label=\{`Tecla \$\{digit\}`\}/);
     assert.doesNotMatch(source, /#0057e7|#0057E7/);
     assert.ok((await transformWithEsbuild(source, path, { loader: 'tsx' })).code.length > 100);
   });
@@ -28,29 +29,32 @@ test('planejamento de entrada não apresenta como atual um destino fixo antigo',
   assert.ok(source.includes('AdminWorkspaceSkeleton'));
 });
 
-test('PABX organiza a central por subseções reais sem conceder gerenciamento a quem não pode', async () => {
-  const navPath = 'src/features/telephony/presentation/UnionPbxSectionTabs.tsx';
+test('PABX usa console do operador e modais protegidos mantendo a chamada', async () => {
+  const navPath = 'src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx';
   const nav = readFileSync(navPath, 'utf8');
   const pagePath = 'src/features/telephony/presentation/UnionPbxToolPage.tsx';
   const page = readFileSync(pagePath, 'utf8');
   const adminPath = 'src/app/Admin.tsx';
   const admin = readFileSync(adminPath, 'utf8');
-
-  assert.match(nav, /AdminSubsectionTabs/);
-  for (const label of ['telefone', 'historico', 'ramais', 'filas', 'fluxos', 'entrada']) {
-    assert.ok(nav.includes(label), `Subseção ${label} deve existir`);
+  assert.match(nav, /PageHeader/);
+  assert.match(nav, /lg:grid-cols-\[76px_minmax\(0,1fr\)\]/);
+  assert.match(nav, /xl:grid-cols-\[minmax\(270px,0\.85fr\)_minmax\(340px,1\.55fr\)_minmax\(255px,0\.9fr\)\]/);
+  for (const item of ['"chamadas"', '"contatos"', '"filas"', '"ramais"', '"historico"', '"gravacoes"', '"fluxos"', '"troncos"', '"entrada"']) {
+    assert.ok(nav.includes(item), item);
   }
-  assert.match(nav, /canManage\s*\?/);
-  assert.match(nav, /canManageInbound\s*\?/);
+  assert.match(nav, /canManage \?/);
+  assert.match(nav, /canManageInbound \?/);
+  assert.match(nav, /loadCallHistory/);
+  assert.match(nav, /setPage/);
+  assert.match(nav, /AbortController/);
   assert.match(admin, /canManagePbxTool && isPlatformOperatorOrganization/);
-  assert.match(admin, /route\.subpage as UnionPbxSection/);
-  assert.match(page, /UnionPbxSectionTabs active="telefone"/);
-  assert.match(page, /xl:grid-cols-\[minmax\(0,0\.9fr\)_minmax\(0,1\.1fr\)\]/);
-  assert.match(page, /title="Teclado de discagem"/);
+  assert.match(admin, /<AdminDialog[\s\S]*?title=\{\(\{/);
+  assert.match(page, /<UnionPbxOperatorWorkspace/);
+  assert.match(page, /aria-label="Teclado de discagem"/);
   assert.match(page, /internalDestinationReady/);
   assert.match(page, /registeredAndIdle/);
   assert.match(page, /const callInternal = \(\) => \{\s*if \(dialTarget === "900"\)/);
-  assert.doesNotMatch(page, /<button\b/);
+  assert.match(page, /onOutputPending=/);
   for (const [path, source] of [[navPath, nav], [pagePath, page], [adminPath, admin]]) {
     assert.ok((await transformWithEsbuild(source, path, { loader: 'tsx' })).code);
   }
