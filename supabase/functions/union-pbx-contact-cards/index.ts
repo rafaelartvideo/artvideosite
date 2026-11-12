@@ -40,7 +40,7 @@ Deno.serve(async req => {
     const body=await req.json() as Record<string,unknown>;
     const organization_id=body.organization_id;
     const action=String(body.action||"lookup");
-    if(!uuid(organization_id)||!["lookup","list","save"].includes(action))
+    if(!uuid(organization_id)||!["lookup","list","save","context"].includes(action))
       return respond({success:false,error:"Parâmetros inválidos."},400);
     const raw=body.numbers;
     if(action==="lookup" && (!Array.isArray(raw)||raw.length<1||raw.length>12||
@@ -57,6 +57,55 @@ Deno.serve(async req => {
     if(accessError||allowed!==true)return respond({success:false,error:"Acesso negado."},403);
 
     const admin=createClient(base,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+
+
+    if(action==="context") {
+      // Identical CRM customer matching semantics to the WhatsApp customer_match flow,
+      // but independent of WhatsApp accounts/channels and restricted to PBX operators.
+      const canonical=phoneKey(String(body.phone||""));
+      if(!canonical)return respond({success:false,error:"Telefone com DDD inválido."},400);
+      const {data:permissionRows,error:permissionError}=await scoped.rpc("my_organization_permissions",{
+        p_organization_id:organization_id,
+      });
+      if(permissionError)return respond({success:false,error:"Não foi possível verificar permissões."},403);
+      const permissions=new Set((Array.isArray(permissionRows)?permissionRows:[])
+        .map((row:Record<string,unknown>)=>String(row.permission_key||"")));
+      if(!permissions.has("customers.view"))
+        return respond({success:false,error:"Sem permissão para visualizar clientes."},403);
+      const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+        p_organization:organization_id,p_phone:canonical,
+      });
+      if(matchError)throw matchError;
+      if(!Array.isArray(matches)||matches.length!==1)
+        return respond({success:true,customer:null,equipments:[],crm_orders:[],
+          ambiguous:Array.isArray(matches)&&matches.length>1});
+      const customerId=String(matches[0].customer_id);
+      const [customerResult,equipmentResult,orderResult]=await Promise.all([
+        admin.from("customers")
+          .select("id,customer_type,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
+          .eq("organization_id",organization_id).eq("id",customerId).maybeSingle(),
+        admin.from("customer_equipments")
+          .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number,technical_values,created_at,updated_at")
+          .eq("organization_id",organization_id).eq("customer_id",customerId)
+          .order("updated_at",{ascending:false}).limit(30),
+        permissions.has("orders.details.view")
+          ? admin.from("service_orders")
+              .select("id,os_number,created_at,completed_at,cancelled_at,return_root_id,model,order_status:order_statuses(name,color),situation:os_situations(name,color),customer_equipment:customer_equipments(equipment_type_name,equipment_brand_name,equipment_model_name),equipment_type:equipment_types(name),equipment_brand:equipment_brands(name),equipment_model:equipment_models(name)")
+              .eq("organization_id",organization_id).eq("customer_id",customerId)
+              .order("created_at",{ascending:false}).limit(10)
+          : Promise.resolve({data:[],error:null}),
+      ]);
+      if(customerResult.error||equipmentResult.error||orderResult.error)
+        throw customerResult.error||equipmentResult.error||orderResult.error;
+      if(!customerResult.data)return respond({success:true,customer:null,equipments:[],crm_orders:[]});
+      const addresses=Array.isArray(customerResult.data.addresses)
+        ? [...customerResult.data.addresses].sort((a,b)=>Number(Boolean(b.is_default))-Number(Boolean(a.is_default)))
+        : [];
+      return respond({success:true,customer:{...customerResult.data,
+          name:matches[0].customer_name,addresses},
+        equipments:equipmentResult.data||[],crm_orders:orderResult.data||[],
+        can_view_orders:permissions.has("orders.details.view")});
+    }
 
     if(action==="save") {
       const phone=String(body.phone||"").trim();
