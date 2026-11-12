@@ -95,6 +95,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   const deferredAccessTimerRef = useRef<number | null>(null);
   const scheduleWarningKeyRef = useRef("");
   const scheduleSignOutRef = useRef(false);
+  // Avoid duplicate logout requests while audit/signOut are still in flight.
+  const signOutInProgressRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -705,33 +707,46 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   }
 
   async function signOut() {
-    if (scope === "customer") {
-      // Logout público não registra saída de funcionário nem redireciona ao CRM.
-      await supabase.auth.signOut({ scope: "local" });
-      return;
-    }
-    const userId = signedInUserRef.current;
-
-    cancelScheduledAccessLoad();
-
+    if (signOutInProgressRef.current) return;
+    signOutInProgressRef.current = true;
     try {
-      // Gravar antes de revogar o JWT; o registro é uma operação autenticada.
+      if (scope === "customer") {
+        // Logout público mantém suas próprias rotas e não registra saída de funcionário.
+        const { error } = await supabase.auth.signOut({ scope: "local" });
+        if (error) throw error;
+        return;
+      }
+
+      const userId = signedInUserRef.current;
+      cancelScheduledAccessLoad();
+
+      // Gravar antes de revogar o JWT; falhas de auditoria não bloqueiam a saída.
       await recordAuthActivity("logout");
-      await supabase.auth.signOut({ scope: "local" });
-    } finally {
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+
       if (userId) {
         localStorage.removeItem(activeOrganizationStorageKey(userId));
         localStorage.removeItem(legacyActiveOrganizationStorageKey(userId));
         removeSessionActivity(userId);
       }
 
-      signedInUserRef.current = null;
-      resetAccessState(true);
-      setSession(null);
-
-      if (typeof window !== "undefined") {
-        window.location.replace("/admin");
+      // SIGNED_OUT faz a limpeza normalmente. Só usar fallback quando o evento
+      // não atualizou este provider; nunca limpar o cache/estado duas vezes.
+      if (signedInUserRef.current === userId && userId) {
+        signedInUserRef.current = null;
+        resetAccessState(true);
+        setSession(null);
+        setLoading(false);
       }
+      // A troca do CRM para a tela de login é feita pelo React, sem reload.
+      // window.location.replace() fazia a tela de login montar duas vezes.
+    } catch (error) {
+      // Se o Supabase recusar a saída, não simular logout com sessão válida.
+      console.error("[ACESSO] Não foi possível encerrar a sessão.", error);
+      setLoading(false);
+    } finally {
+      signOutInProgressRef.current = false;
     }
   }
 

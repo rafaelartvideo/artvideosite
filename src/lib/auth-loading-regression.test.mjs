@@ -23,3 +23,20 @@ test("bootstrap aproveita expediente validado e mantém bloqueio na troca de emp
   assert.match(auth, /resolveBootstrapAccessWindow\(access,\s*\(\) => checkMyEmployeeAccessWindow\(resolvedOrganization\.organization_id\)\)/);
   assert.match(auth, /catch \(scheduleError\) \{[\s\S]*?clearResolvedAccess\(\);[\s\S]*?setLoading\(false\)/);
 });
+
+
+test("logout do CRM não pisca por reload e não reseta o acesso duas vezes", () => {
+  const auth = readFileSync("src/lib/auth.tsx", "utf8");
+  const app = readFileSync("src/app/App.tsx", "utf8");
+  const logoutStart = auth.indexOf("  async function signOut() {");
+  const logoutEnd = auth.indexOf("  const hasPermission =", logoutStart);
+  assert.ok(logoutStart >= 0 && logoutEnd > logoutStart);
+  const logout = auth.slice(logoutStart, logoutEnd);
+
+  assert.match(logout, /signOutInProgressRef\.current/);
+  assert.match(logout, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
+  assert.match(logout, /if \(signedInUserRef\.current === userId && userId\)/);
+  assert.doesNotMatch(logout, /^\s*window\.location\.(?:replace|assign|reload)\(/m);
+  assert.match(app, /if \(loading \|\| session \|\| \(location\.pathname === "\/admin"/);
+  assert.match(app, /navigate\("\/admin", \{ replace: true \}\)/);
+});
