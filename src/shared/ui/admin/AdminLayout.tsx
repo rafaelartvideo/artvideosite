@@ -406,8 +406,8 @@ export function AdminDialog({
         !(typeof window.matchMedia==="function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
       resizeAnimationRef.current?.cancel();
       resizeAnimationRef.current=node.animate([
-        {width:`${previous.width}px`,height:`${previous.height}px`},
-        {width:`${bounds.width}px`,height:`${bounds.height}px`},
+        {width:`${previous.width}px`,maxWidth:`${previous.width}px`,height:`${previous.height}px`},
+        {width:`${bounds.width}px`,maxWidth:`${bounds.width}px`,height:`${bounds.height}px`},
       ],{duration:260,easing:"cubic-bezier(0.22, 1, 0.36, 1)"});
     }
     previousPanelSizeRef.current={key:transitionKey,width:bounds.width,height:bounds.height};
