@@ -117,7 +117,7 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       <div><AdminFieldLabel label="Direção" /><AdminSelect ariaLabel="Filtrar direção" value={draft.direction}
         onValueChange={direction => setDraft({ ...draft, direction })}
         options={[{ value: '', label: 'Todas as direções' }, ...Object.entries(directionLabels).map(([value, label]) => ({ value, label }))]} /></div>
-      <div><AdminFieldLabel label="Resultado" /><AdminSelect ariaLabel="Filtrar resultado" value={draft.disposition}
+      <div><AdminFieldLabel label="Estado" /><AdminSelect ariaLabel="Filtrar resultado" value={draft.disposition}
         onValueChange={disposition => setDraft({ ...draft, disposition })}
         options={[{ value: '', label: 'Todos os resultados' }, ...Object.entries(dispositionLabels).map(([value, label]) => ({ value, label }))]} /></div>
       <div className="flex items-end"><AdminButton type="submit" disabled={loading}><Search size={16} /> Pesquisar</AdminButton></div>
@@ -139,7 +139,7 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       {loading ? <AdminWorkspaceSkeleton columns={7} rows={4} />
         : !rows.length && !error ? <AdminSectionEmpty className="gap-2"><History size={28} /><p>Nenhum registro neste período.</p><p>A coleta precisa estar ativa na VPS para receber novas ligações.</p></AdminSectionEmpty>
           : <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Início', 'Origem', 'Destino', 'Direção', 'Chamada', 'Duração', 'Conversa'].map(label => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Início', 'Origem', 'Destino', 'Direção', 'Estado', 'Duração', 'Conversa'].map(label => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="border-t border-border">
               <td className="px-4 py-3"><time dateTime={row.started_at}>{new Date(row.started_at).toLocaleString('pt-BR')}</time><p className="max-w-40 truncate text-[10px] text-muted-foreground" title={row.linked_id}>ID: {row.linked_id}</p></td>
               <td className="px-4 py-3">{formatPbxNumber(row.source) || 'Não informado'}{row.source_extension && <p className="text-xs text-muted-foreground">{row.source_extension.display_name} · {row.source_extension.number}</p>}</td>
