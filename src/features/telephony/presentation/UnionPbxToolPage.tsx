@@ -665,15 +665,6 @@ setTestFlowError('');
         onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
         canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
         canRecordings={Boolean(onRecordings)}
-        onDialNumber={number => {
-          if (callState !== "idle") return;
-          const digits = number.replace(/\D/g, "");
-          if (digits.length <= 6 && (digits === "900" || dialableNumbers.has(Number(digits)))) {
-            setDialMode("internal"); setDialTarget(digits);
-          } else if (canUseExternal) {
-            setDialMode("external"); setExternalTarget(number);
-          } else setNotice("O número selecionado não é um destino interno permitido.");
-        }}
         onReturnCall={rawPhone => {
           if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
           const digits = rawPhone.replace(/\D/g, "");
@@ -684,7 +675,6 @@ setTestFlowError('');
             setDialMode("external"); setExternalTarget(rawPhone);
           }
           if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
-            setNotice("Conecte o ramal para retornar a chamada.");
             setNotice("Conecte seu ramal para retornar a chamada.");
             return;
           }
