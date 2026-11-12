@@ -22,6 +22,7 @@ type Props = {
   connectionStatus: "offline" | "connecting" | "registered" | "error";
   callState: "idle" | "dialing" | "incoming" | "active";
   remoteParty: string;
+  completedCall: { sequence:number; number:string; startedAt:number; at:number };
   lineLabel: string;
   extensionLabel: string;
   directory: Extension[];
@@ -65,7 +66,7 @@ function initials(value: string) {
 
 /** Apenas apresentação do operador: o WebRTC e o áudio continuam na instância persistente do telefone. */
 export function UnionPbxOperatorWorkspace({
-  isActive, dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
+  isActive, dialer, connectionStatus, callState, remoteParty, completedCall, lineLabel, extensionLabel,
   directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
   onSelectSection, onDialNumber, onReturnCall, canManage, canManageInbound, canRecordings,
 }: Props) {
@@ -93,10 +94,10 @@ export function UnionPbxOperatorWorkspace({
   const [contactNotes, setContactNotes] = useState("");
   const [contactSaving, setContactSaving] = useState(false);
   const [contactError, setContactError] = useState("");
-  const [contactFeedback, setContactFeedback] = useState("");
 
   const [brokenAvatar, setBrokenAvatar] = useState<Record<string,true>>({});
   const settingsRef = useRef<HTMLDivElement>(null);
+  const completedHandledRef = useRef(0);
   const directoryCallback = useRef(onDirectoryChange);
   directoryCallback.current = onDirectoryChange;
 
@@ -121,7 +122,7 @@ export function UnionPbxOperatorWorkspace({
     };
   }, [settingsOpen]);
 
-  useEffect(() => { setPage(1); setLoadedRows([]); setHasLoadedHistory(false); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); setSelectedExternal(null); setBrokenAvatar({}); }, [activeOrganizationId]);
+  useEffect(() => { setPage(1); setLoadedRows([]); setHasLoadedHistory(false); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); completedHandledRef.current=completedCall.sequence; setBrokenAvatar({}); }, [activeOrganizationId]);
 
 
   // Carrega um recorte único; os filtros/páginas são locais e instantâneos.
@@ -139,7 +140,7 @@ export function UnionPbxOperatorWorkspace({
         const results=(data||[]) as CallHistoryRow[];
         setLoadedRows(results);
         setTotal(count||0);
-        setSelectedId(previous=>results.some(row=>row.id===previous)?previous:results[0]?.id||null);
+        setSelectedId(previous=>previous && results.some(row=>row.id===previous) ? previous : null);
       }).catch(()=>{
         if(!controller.signal.aborted)setError("Não foi possível consultar as chamadas.");
       }).finally(()=>{
@@ -194,14 +195,56 @@ export function UnionPbxOperatorWorkspace({
     };
   }, [activeOrganizationId, isActive]);
 
+  // Seleciona apenas a ligação que realmente acabou, nunca o primeiro item do histórico.
+  useEffect(() => {
+    if (!isActive || !completedCall.sequence || completedHandledRef.current >= completedCall.sequence) return;
+    if (Date.now() - completedCall.at > 120_000) {
+      completedHandledRef.current = completedCall.sequence;
+      return;
+    }
+    const phone = completedCall.number.replace(/\D/g,"").replace(/^55(?=\d{10,11}$)/,"");
+    if (!phone) return;
+    const matching = loadedRows.find(row => {
+      const recordPhone = callNumber(row).replace(/\D/g,"").replace(/^55(?=\d{10,11}$)/,"");
+      if (phone !== recordPhone) return false;
+      const started = new Date(row.started_at).getTime();
+      const ended = new Date(row.ended_at).getTime();
+      return Number.isFinite(started) && Number.isFinite(ended)
+        && started >= completedCall.startedAt - 30_000
+        && ended >= completedCall.startedAt
+        && Math.abs(ended - completedCall.at) <= 90_000;
+    });
+    if (!matching) return;
+    completedHandledRef.current = completedCall.sequence;
+    setSelectedExternal(null);
+    setSelectedExtension(null);
+    setMode("chamadas");
+    setRecentFilter("todas");
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+    setSelectedId(matching.id);
+  }, [isActive, completedCall, loadedRows]);
+
+  useEffect(() => {
+    if (!isActive || !completedCall.sequence) return;
+    setRevision(value => value + 1);
+    // O CDR pode chegar após o evento SIP de encerramento; uma segunda leitura limitada resolve o atraso.
+    const timer = setTimeout(() => setRevision(value => value + 1), 1800);
+    return () => clearTimeout(timer);
+  }, [isActive, completedCall.sequence]);
+
   const selected = loadedRows.find(row => row.id === selectedId) || null;
   const selectedNumber = selectedExternal?.number || selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
   const savedCards = usePbxSavedContactCards(activeOrganizationId, isActive,
     [...visibleRows.map(callNumber), ...(selectedNumber ? [selectedNumber] : [])],contactRevision);
   const contactCard = savedCards[pbxContactPhoneKey(selectedNumber)];
-  const selectedName = selectedExternal?.name || selectedExtension?.display_name || contactCard?.name || (selected ? (
-    directory.find(item => String(item.number) === selectedNumber)?.display_name || formatPbxNumber(selectedNumber) || "Número não identificado"
-  ) : "");
+  const selectedName = selectedExtension?.display_name
+    || (selectedExternal?.source === "crm" ? selectedExternal.name : null)
+    || (contactCard?.source === "crm" ? contactCard.name : null)
+    || selectedExternal?.name || contactCard?.name
+    || directory.find(item => String(item.number) === selectedNumber)?.display_name
+    || (selectedNumber ? formatPbxNumber(selectedNumber) : "");
   const selectedAvatarKey = pbxContactPhoneKey(selectedNumber);
   const selectedAvatar = contactCard?.avatarUrl && !brokenAvatar[selectedAvatarKey + ":" + contactCard.avatarUrl]
     ? contactCard.avatarUrl : null;
@@ -221,7 +264,7 @@ export function UnionPbxOperatorWorkspace({
           name:contactName.trim(),notes:contactNotes.trim()},
       });
       if(saveError||!data?.success)throw Error(data?.error||"Não foi possível salvar este contato.");
-      setContactDialogOpen(false);setContactFeedback("Contato salvo no PABX.");
+      setContactDialogOpen(false);
       setContactRevision(value=>value+1);
       setSelectedExternal({number:pbxContactPhoneKey(contactPhone),name:contactName.trim(),source:"pbx"});
       setSelectedId(null);setSelectedExtension(null);
@@ -294,7 +337,6 @@ export function UnionPbxOperatorWorkspace({
             </button>
           </div>
           {dialer}
-          {contactFeedback&&<p role="status" className="mt-2 text-xs text-emerald-600">{contactFeedback}</p>}
         </section>
         <section aria-label="Painel de chamadas" className="flex min-h-[570px] min-w-0 flex-col rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -336,8 +378,8 @@ export function UnionPbxOperatorWorkspace({
                   const name = extension?.display_name || saved?.name || formatPbxNumber(number) || "Desconhecido";
                   const avatarKey = pbxContactPhoneKey(number);
                   const avatar = saved?.avatarUrl && !brokenAvatar[avatarKey + ":" + saved.avatarUrl] ? saved.avatarUrl : null;
-                  const active = row.id === selectedId && !selectedExtension;
-                  return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); }}
+                  const active = row.id === selectedId && !selectedExtension && !selectedExternal;
+                  return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); setSelectedExternal(null); }}
                     className={`cursor-pointer hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}>
                     <td className="border-b border-border/60 p-2"><div className="flex items-center gap-2">
                       <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -395,7 +437,7 @@ export function UnionPbxOperatorWorkspace({
         <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
             <h2 className="text-base font-bold">Detalhes</h2>
-            {(selected || selectedExtension || selectedExternal) && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); }}><X size={16}/></button>}
+            {(selected || selectedExtension || selectedExternal) && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
           </div>
           {selected || selectedExtension || selectedExternal ? <>
             <div className="flex flex-col items-stretch gap-3">
@@ -411,14 +453,17 @@ export function UnionPbxOperatorWorkspace({
                   <p className="mt-0.5 break-all text-xs text-muted-foreground">{formatPbxNumber(selectedNumber)}</p>
                 </div>
               </div>
-              <AdminButton className="w-full" variant="primary" disabled={callState !== "idle"} onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
-              <p className="text-xs text-muted-foreground">O número será preenchido no discador. Confirme para ligar.</p>
-              {pbxContactPhoneKey(selectedNumber) && contactCard?.source!=="crm" && selectedExternal?.source!=="crm" &&
-                <button type="button" onClick={()=>openContactEditor(selectedNumber,selectedName)}
-                  className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
-                  {contactCard?.source==="pbx" || selectedExternal?.source==="pbx" ? "Editar contato PABX" : "Salvar contato"}
-                </button>}
-              {contactCard?.source==="crm"&&<p className="text-[11px] text-muted-foreground">Identificado pelo cadastro do CRM</p>}
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <AdminButton className="min-w-0 flex-1" variant="primary" disabled={callState !== "idle" || !selectedNumber}
+                  onClick={() => onReturnCall(selectedNumber)}><Phone size={16}/> Ligar</AdminButton>
+                {pbxContactPhoneKey(selectedNumber) && contactCard?.source !== "crm" && selectedExternal?.source !== "crm" &&
+                  <AdminButton variant="secondary" className="min-w-0 flex-1" onClick={() => openContactEditor(selectedNumber,selectedName)}>
+                    <ContactRound size={16}/>
+                    {contactCard?.source === "pbx" || selectedExternal?.source === "pbx"
+                      || contactCard?.source === "whatsapp" || selectedExternal?.source === "whatsapp"
+                      ? "Editar" : "Salvar contato"}
+                  </AdminButton>}
+              </div>
 
             </div>
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
