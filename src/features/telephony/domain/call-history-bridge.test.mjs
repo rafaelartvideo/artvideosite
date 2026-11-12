@@ -8,7 +8,7 @@ const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint] } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[] } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -16,7 +16,9 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
   const updates = [];
   const admissions = [];
   const filters = [];
+  const storage=[];
   const admin = {
+    storage:{from(bucket){return {async createSignedUrl(path,seconds){storage.push({bucket,path,seconds});return {data:{signedUrl:'https://private.test/notice'}};},async createSignedUploadUrl(path,options){storage.push({bucket,path,options});return {data:{signedUrl:'https://private.test/upload'}};},async remove(paths){storage.push({bucket,paths});return {data:[]};}};}},
     from(table) {
       const query = {
         select() { return query; }, eq(...args) { filters.push([table, ...args]); return query; }, lt() { return query; },
@@ -24,7 +26,7 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         abortSignal() { return query; }, delete() { return query; },
         update(value) { if (table === 'pbx_agents') updates.push(value); return query; },
         then(resolve) { return Promise.resolve(resolve({ data: [] })); },
-        async maybeSingle() { return { data: { id: agentId, organization_id: organizationId, enabled, public_key: publicKey, last_sequence: 0 } }; },
+        async maybeSingle() { return { data: table==='pbx_call_recordings'?recording:{ id: agentId, organization_id: organizationId, enabled, public_key: publicKey, last_sequence: 0 } }; },
       };
       assert.ok(table.startsWith('pbx_'));
       return query;
@@ -35,6 +37,11 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         return admissionError ? { error: { code: 'XX000' } } : { data: { allowed: admitted, is_platform: platform } };
       }
       calls.push({ name, args });
+      if(name==='pbx_admit_recording_poll')return {data:recordingAdmitted};
+      if(name==='pbx_poll_recording_policy')return {data:policy};
+      if(name==='pbx_prepare_recording_upload')return recordingAdmitted?{data:recording}:{error:{code:'42501'}};
+      if(name==='pbx_finish_recording_upload'||name==='pbx_finish_recording_purge'||name==='pbx_report_recording_policy')return {data:recordingAdmitted};
+      if(name==='pbx_claim_recording_purge')return {data:purge};
       if(name==='pbx_admit_sip_trunk_poll')return {data:sipAdmitted};
       if(name==='pbx_poll_sip_trunks')return {data:[]};
       if(name==='pbx_sip_history_endpoints')return {data:sipHistory};
@@ -53,6 +60,7 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
     updates,
     admissions,
     filters,
+    storage,
     async send(body, tamper = false) {
       const time = String(Date.now()), sequence = '1', raw = JSON.stringify(body);
       const signature = await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(`${time}\n${sequence}\n${raw}`));
@@ -217,4 +225,65 @@ test('SIP secrets require signed isolated partner poll and separately admitted c
   assert.equal(old.calls.some(call=>call.name==='pbx_poll_sip_trunks'),false);
   assert.equal(old.calls.some(call=>call.name==='pbx_sip_history_endpoints'),false);
  }
+});
+
+const recordingId='7251964c-c24a-47c9-aac8-b1aef88c746a';
+function wav(){const b=Buffer.alloc(16044);b.write('RIFF');b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(8000,24);b.writeUInt32LE(16000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(16000,40);return b;}
+async function recordingRow(bytes=wav()) {const {createHash}=await import('node:crypto');return {id:recordingId,organization_id:organizationId,agent_id:agentId,event_id:'exact-cdr:1',policy_revision:agentId,scope:'internal',storage_path:`${organizationId}/${recordingId}.wav`,status:'uploading',expires_at:new Date(Date.now()+60000).toISOString(),size_bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),duration_seconds:1};}
+
+test('recording poll is opt-in, separately admitted, signed and returns only its notice snapshot',async()=>{
+ const prompt={id:recordingId,storage_path:`${organizationId}/${recordingId}.wav`,sha256:'a'.repeat(64),size_bytes:44,duration_seconds:1};
+ for(const version of [2,3]){
+  const b=await bridge({policy:{organization_id:organizationId,notice_enabled:true,notice_prompt:prompt}});
+  const response=await b.send({action:'poll',protocol_version:version,features:['recordings_v1'],recording_report:{revision:agentId,status:'failed',error:'secret'}});
+  assert.equal(response.status,200);assert.equal((await response.json()).recording_policy.notice_prompt.url,'https://private.test/notice');assert.equal(b.storage[0].seconds,120);
+  assert.equal(b.calls.find(x=>x.name==='pbx_report_recording_policy').args.p_error,'Recording policy application failed');
+ }
+ for(const body of [{action:'poll',protocol_version:2},{action:'poll',protocol_version:3,features:['recordings_v1',42]}]){
+  const b=await bridge();const r=await b.send(body);assert.equal((await r.json()).recording_policy,undefined);assert.equal(b.storage.length,0);assert.equal(b.calls.some(x=>x.name==='pbx_admit_recording_poll'),false);
+ }
+ const denied=await bridge({recordingAdmitted:false});assert.equal((await (await denied.send({action:'poll',protocol_version:3,features:['recordings_v1']})).json()).recording_policy,undefined);assert.equal(denied.storage.length,0);
+ const forged=await bridge();assert.equal((await forged.send({action:'poll',protocol_version:3,features:['recordings_v1']},true)).status,401);assert.equal(forged.calls.length,0);
+});
+
+test('recording prepare only signs exact owned paths after capability RPC and preserves ready idempotency',async()=>{
+ const recording=await recordingRow();const record={...recording};
+ const b=await bridge({recording});const r=await b.send({action:'report_calls',recording_transfer:{kind:'prepare',record}});assert.equal(r.status,200);assert.equal((await r.json()).signed_url,'https://private.test/upload');assert.deepEqual(b.storage[0].options,{upsert:false});
+ for(const options of [{recording:{...recording,storage_path:`${agentId}/${recording.id}.wav`}},{recording,recordingAdmitted:false},{recording,admitted:false}]){const denied=await bridge(options);assert.notEqual((await denied.send({action:'report_calls',recording_transfer:{kind:'prepare',record}})).status,200);assert.equal(denied.storage.length,0);}
+ const ready=await bridge({recording:{...recording,status:'ready'}});assert.equal((await (await ready.send({action:'report_calls',recording_transfer:{kind:'prepare',record}})).json()).already_ready,true);assert.equal(ready.storage.length,0);
+ const combined=await bridge({recording});assert.equal((await combined.send({action:'report_calls',records:[{event_id:recording.event_id}],recording_transfer:{kind:'prepare',record}})).status,200);assert.ok(combined.calls.findIndex(x=>x.name==='pbx_ingest_call_records')<combined.calls.findIndex(x=>x.name==='pbx_prepare_recording_upload'));
+});
+
+test('recording complete streams actual WAV digest, refuses invalid format and does not delete on transient fetch',async()=>{
+ const original=globalThis.fetch;
+ try{
+  for(const invalid of [false,'format','digest','duration','size']){
+   const bytes=wav();if(invalid==='format')bytes.writeUInt16LE(2,22);
+   const recording=await recordingRow(bytes),b=await bridge({recording,policy:{enabled:true}});
+   if(invalid==='digest')recording.sha256='0'.repeat(64);
+   if(invalid==='duration')recording.duration_seconds=2;
+   if(invalid==='size')recording.size_bytes=bytes.length-1;
+   globalThis.fetch=async(url,options)=>{assert.equal(options.redirect,'error');assert.equal(options.headers.apikey,'configured');assert.ok(url.endsWith(recording.storage_path));return new Response(new ReadableStream({start(c){c.enqueue(bytes.subarray(0,30));c.enqueue(bytes.subarray(30));c.close();}}));};
+   const r=await b.send({action:'report_calls',recording_transfer:{kind:'complete',recording_id:recording.id}});assert.equal(r.status,invalid?400:200);assert.equal(b.calls.some(x=>x.name==='pbx_finish_recording_upload'),!invalid);assert.equal(b.storage.length,invalid?1:0);
+   assert.ok(b.filters.some(x=>x[0]==='pbx_call_recordings'&&x[1]==='agent_id'&&x[2]===agentId));
+  }
+  const b=await bridge({recording:await recordingRow(),policy:{enabled:true}});globalThis.fetch=async()=>{throw Error('network');};assert.equal((await b.send({action:'report_calls',recording_transfer:{kind:'complete',recording_id:recordingId}})).status,503);assert.equal(b.storage.length,0);
+  const stale=await bridge({recording:await recordingRow()});globalThis.fetch=async()=>{assert.fail('stale capability reached Storage');};assert.equal((await stale.send({action:'report_calls',recording_transfer:{kind:'complete',recording_id:recordingId}})).status,400);
+ }finally{globalThis.fetch=original;}
+});
+
+test('recording purge deletes only bounded exact organization claims before acknowledging',async()=>{
+ const b=await bridge({purge:[{id:recordingId,storage_path:`${organizationId}/${recordingId}.wav`}]});assert.deepEqual(await (await b.send({action:'report_calls',recording_transfer:{kind:'purge'}})).json(),{accepted:true,acknowledged:1});assert.deepEqual(b.storage[0].paths,[`${organizationId}/${recordingId}.wav`]);
+ const bad=await bridge({purge:[{id:recordingId,storage_path:`${agentId}/${recordingId}.wav`}]});assert.equal((await bad.send({action:'report_calls',recording_transfer:{kind:'purge'}})).status,400);assert.equal(bad.storage.length,0);
+});
+
+test('platform housekeeping can purge expired server claims for offline companies without granting partners that scope',async()=>{
+ const owner='11111111-1111-4111-8111-111111111111';
+ const claim={id:recordingId,organization_id:owner,storage_path:`${owner}/${recordingId}.wav`};
+ const platform=await bridge({platform:true,purge:[claim]});
+ assert.equal((await platform.send({action:'report_calls',recording_transfer:{kind:'purge'}})).status,200);
+ assert.deepEqual(platform.storage[0].paths,[claim.storage_path]);
+ const partner=await bridge({platform:false,purge:[claim]});
+ assert.equal((await partner.send({action:'report_calls',recording_transfer:{kind:'purge'}})).status,400);
+ assert.equal(partner.storage.length,0);
 });

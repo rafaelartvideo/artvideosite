@@ -90,7 +90,7 @@ export function AdminSidebar({
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
-      || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
+      || ((isPlatformOperatorOrganization || hasModule("pbx")) && (hasPermission("pbx.view") || hasPermission("pbx.recordings.view") || hasPermission("pbx.recordings.manage")))
       || ((isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view"))
       || ((isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view"))
     );

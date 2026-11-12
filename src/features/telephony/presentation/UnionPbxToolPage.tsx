@@ -40,7 +40,7 @@ type SipSession = CallControlSession & PbxDigitSession & {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageFlows, onManageTrunks, onManageInbound, onHistory, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageFlows?: () => void; onManageTrunks?: () => void; onManageInbound?: () => void; onHistory?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageFlows, onManageTrunks, onManageInbound, onHistory, onRecordings, isPageOpen, allowExternalCalls = false }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageFlows?: () => void; onManageTrunks?: () => void; onManageInbound?: () => void; onHistory?: () => void; onRecordings?: () => void; isPageOpen: boolean; allowExternalCalls?: boolean }) {
   const { activeOrganizationId, organizations } = useAuth();
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
@@ -188,6 +188,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const registeredAndIdle = registration === "registered" && callState === "idle" && !outputPending;
   const selectSection = (section: UnionPbxSection) => {
     if (section === "historico") onHistory?.();
+    else if (section === "gravacoes") onRecordings?.();
     else if (section === "ramais") onManage?.();
     else if (section === "filas") onManageQueues?.();
     else if (section === "fluxos") onManageFlows?.();
@@ -622,6 +623,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Ferramentas</AdminButton>} />
     <UnionPbxSectionTabs active="telefone" onSelect={selectSection}
       canManage={Boolean(onManage || onManageQueues || onManageFlows)}
+      canAccessRecordings={Boolean(onRecordings)}
       canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}/>
     <div className="grid gap-3 sm:grid-cols-3" aria-label="Estado da central">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">

@@ -28,8 +28,10 @@ ASTERISK_ROOT = Path('/etc/asterisk')
 MAIN_NAMES = ('pjsip.conf', 'extensions.conf', 'queues.conf')
 BUNDLE_NAMES = ('agent.py', 'tenant_profile.py', 'process_lock.py', 'queue_availability.py',
                 'local_queue_reload.py', 'call_flows.py', 'flow_runtime.py',
-                'sip_trunks.py', 'sip_trunk_runtime.py')
-REVIEWED_BUNDLE_SHA = '2cc0a0991ac10d6b7089a0744a1fa8bbfcac41e07e837cdf3186fb7e2cf780b6'
+                'sip_trunks.py', 'sip_trunk_runtime.py', 'call_history.py',
+                'recordings.py', 'recording_agi.py', 'recording_upload.py', 'recording_runtime.py',
+                'inbound_router.py', 'outbound_router.py')
+REVIEWED_BUNDLE_SHA = 'e2606166bebe96e4559e5bae0d06ddd4732ae0c79a18dcfd589eae290b0bd1f7'
 
 
 class AuditError(RuntimeError): pass
@@ -84,14 +86,21 @@ def bundle_sources(directory):
 def load_runtime(directory):
     # Execute precisely the verified source bytes; no .pyc or added import path.
     sources = bundle_sources(directory)
-    order = ('tenant_profile', 'process_lock', 'queue_availability', 'local_queue_reload',
-             'call_flows', 'flow_runtime', 'sip_trunks', 'sip_trunk_runtime', 'agent')
+    order = ('tenant_profile', 'process_lock', 'queue_availability', 'local_queue_reload', 'call_history',
+             'call_flows', 'flow_runtime', 'sip_trunks', 'recordings', 'recording_agi',
+             'recording_upload', 'recording_runtime', 'sip_trunk_runtime', 'agent', 'inbound_router', 'outbound_router')
     modules = {}
     for name in order:
         module_name = '_sip_audit_agent_' + uuid.uuid4().hex if name == 'agent' else name
         module = types.ModuleType(module_name); module.__file__ = str(directory / (name + '.py'))
         sys.modules[module_name] = module
-        exec(compile(sources[name + '.py'], module.__file__, 'exec'), module.__dict__)
+        source=sources[name + '.py']
+        if name=='inbound_router':
+            # Its pure route generators must bind to this verified worker,
+            # never import an unrelated installed/cached agent module.
+            source=source.replace(b'import agent as pbx',b'# verified pbx supplied by loader')
+            module.__dict__['pbx']=modules['agent']
+        exec(compile(source, module.__file__, 'exec'), module.__dict__)
         modules[name] = module
     worker = modules['agent']; worker.require_root()
     # Fail closed if a future audited implementation accidentally reaches cloud.

@@ -1,9 +1,88 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { createHash } from "node:crypto";
 
 const respond = (data: Record<string, unknown>, status=200) =>
   new Response(JSON.stringify(data), {status, headers: {"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const decode=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+
+type Recording = {id:string;organization_id:string;agent_id:string;event_id:string;scope:string;storage_path:string;status:string;expires_at:string;size_bytes:number;sha256:string;duration_seconds:number};
+const ownRecording=(r:Recording,a:{id:string;organization_id:string})=>r&&uuid.test(r.id)&&r.organization_id===a.organization_id&&r.agent_id===a.id&&r.storage_path===`${a.organization_id}/${r.id}.wav`;
+// Bounded prefix parsing and incremental hashing keep a long call out of memory.
+async function verifyRecording(response:Response,r:Recording):Promise<boolean>{
+  if(!response.ok||!response.body)throw Error('Recording unavailable');
+  const reader=response.body.getReader(),hash=createHash('sha256'),prefix=new Uint8Array(4096);
+  let count=0,prefixLength=0;
+  try{
+    for(;;){const {done,value}=await reader.read();if(done)break;
+      count+=value.length;if(count>128000044||count>Number(r.size_bytes)){await reader.cancel();return false;}
+      hash.update(value);const n=Math.min(value.length,prefix.length-prefixLength);prefix.set(value.subarray(0,n),prefixLength);prefixLength+=n;
+    }
+  }finally{reader.releaseLock();}
+  if(count!==Number(r.size_bytes)||hash.digest('hex')!==r.sha256||prefixLength<44)return false;
+  const view=new DataView(prefix.buffer),tag=(n:number)=>String.fromCharCode(...prefix.subarray(n,n+4));
+  if(tag(0)!=='RIFF'||tag(8)!=='WAVE'||view.getUint32(4,true)+8!==count)return false;
+  let offset=12,format=false;
+  while(offset+8<=prefixLength){
+    const kind=tag(offset),size=view.getUint32(offset+4,true),start=offset+8;
+    if(kind==='fmt '){
+      if(format||size<16||start+size>prefixLength)return false;
+      format=view.getUint16(start,true)===1&&view.getUint16(start+2,true)===1&&view.getUint32(start+4,true)===8000&&view.getUint32(start+8,true)===16000&&view.getUint16(start+12,true)===2&&view.getUint16(start+14,true)===16;
+      if(!format)return false;
+    }
+    if(kind==='data')return format&&size>0&&size%2===0&&start+size===count&&Math.abs(size/16000-Number(r.duration_seconds))<=1/8000;
+    offset=start+size+(size%2);
+  }
+  return false;
+}
+
+async function recordingTransfer(admin:ReturnType<typeof createClient>,agent:{id:string;organization_id:string},transfer:Record<string,unknown>,url:string,key:string,isPlatform=false){
+  const reject=()=>respond({error:'Gravação não confirmada'},400);
+  if(transfer.kind==='prepare'){
+    const record=transfer.record as Record<string,unknown>;
+    if(!record||typeof record!=='object'||Array.isArray(record)||typeof record.event_id!=='string'||record.event_id.length>240||!uuid.test(String(record.policy_revision))||!['internal','inbound','outbound'].includes(String(record.scope))||!Number.isSafeInteger(record.size_bytes)||Number(record.size_bytes)<44||Number(record.size_bytes)>128000044||!/^[a-f0-9]{64}$/.test(String(record.sha256))||typeof record.duration_seconds!=='number'||!Number.isFinite(record.duration_seconds)||record.duration_seconds<=0)return reject();
+    const {data:r,error}=await admin.rpc('pbx_prepare_recording_upload',{p_agent_id:agent.id,p_record:{event_id:record.event_id,policy_revision:record.policy_revision,scope:record.scope,size_bytes:record.size_bytes,sha256:record.sha256,duration_seconds:record.duration_seconds}});
+    if(error||!ownRecording(r,agent))return reject();
+    if(r.status==='ready')return respond({accepted:true,already_ready:true,id:r.id,event_id:r.event_id,scope:r.scope});
+    if(r.status!=='uploading'||Date.parse(r.expires_at)<=Date.now())return reject();
+    const signed=await admin.storage.from('pbx-call-recordings').createSignedUploadUrl(r.storage_path,{upsert:false});
+    if(signed.error||!signed.data?.signedUrl)return respond({error:'Envio indisponível'},503);
+    return respond({accepted:true,id:r.id,path:r.storage_path,signed_url:signed.data.signedUrl,event_id:r.event_id,scope:r.scope,sha256:r.sha256,size_bytes:r.size_bytes});
+  }
+  if(transfer.kind==='complete'){
+    if(!uuid.test(String(transfer.recording_id)))return reject();
+    // This capability-gated RPC precedes even metadata/Storage access. Generic
+    // signed reports alone must never refresh or bypass recording admission.
+    const capability=await admin.rpc('pbx_poll_recording_policy',{p_agent_id:agent.id});
+    if(capability.error||!capability.data)return reject();
+    const {data:r,error}=await admin.from('pbx_call_recordings').select('id,organization_id,agent_id,event_id,scope,storage_path,status,expires_at,size_bytes,sha256,duration_seconds').eq('agent_id',agent.id).eq('organization_id',agent.organization_id).eq('id',transfer.recording_id).maybeSingle();
+    if(error||!ownRecording(r,agent)||Date.parse(r.expires_at)<=Date.now())return reject();
+    if(r.status==='ready')return respond({accepted:true,id:r.id});
+    if(r.status!=='uploading')return reject();
+    let valid:boolean;
+    try{valid=await verifyRecording(await fetch(`${url.replace(/\/$/,'')}/storage/v1/object/authenticated/pbx-call-recordings/${r.storage_path}`,{headers:{Authorization:`Bearer ${key}`,apikey:key},redirect:'error',signal:AbortSignal.timeout(20000)}),r);}catch{return respond({error:'Verificação indisponível'},503);}
+    if(!valid){await admin.storage.from('pbx-call-recordings').remove([r.storage_path]);return reject();}
+    const result=await admin.rpc('pbx_finish_recording_upload',{p_agent_id:agent.id,p_recording_id:r.id});
+    if(result.error)return respond({error:'Gravação não confirmada'},503);
+    return respond({accepted:result.data===true,id:r.id});
+  }
+  if(transfer.kind==='purge'){
+    const claim=await admin.rpc('pbx_claim_recording_purge',{p_agent_id:agent.id});
+    if(claim.error||!Array.isArray(claim.data)||claim.data.length>10)return reject();
+    // Only the trusted platform admission can service global expired claims.
+    // Partners remain restricted to their own org; bodies never supply paths.
+    if(!claim.data.every((r:{id:string;storage_path:string;organization_id?:string})=>{
+      const owner=isPlatform&&typeof r.organization_id==='string'&&uuid.test(r.organization_id)?r.organization_id:agent.organization_id;
+      return uuid.test(r.id)&&r.storage_path===`${owner}/${r.id}.wav`;
+    }))return reject();
+    let acknowledged=0;
+    for(const r of claim.data){const removed=await admin.storage.from('pbx-call-recordings').remove([r.storage_path]);if(removed.error)continue;
+      const done=await admin.rpc('pbx_finish_recording_purge',{p_agent_id:agent.id,p_recording_id:r.id});if(!done.error&&done.data===true)acknowledged++;
+    }
+    return respond({accepted:true,acknowledged});
+  }
+  return reject();
+}
 
 async function loadFlowJobs(admin:ReturnType<typeof createClient>,organizationId:string){
   const {data:flows,error}=await admin.from('pbx_call_flows')
@@ -238,9 +317,32 @@ Deno.serve(async request=>{
           }
         }catch{console.error('PBX SIP configuration unavailable');}
       }
+      let recordingPolicy:unknown=undefined;
+      if((body.protocol_version===2||body.protocol_version===3)&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('recordings_v1')){
+        try{
+          const admitted=await admin.rpc('pbx_admit_recording_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
+          if(!admitted.error&&admitted.data===true){
+            const report=body.recording_report as Record<string,unknown>|undefined;
+            if(report&&uuid.test(String(report.revision))&&['applied','failed'].includes(String(report.status)))await admin.rpc('pbx_report_recording_policy',{p_agent_id:agent.id,p_revision:report.revision,p_status:report.status,p_error:report.status==='failed'?'Recording policy application failed':null});
+            const policy=await admin.rpc('pbx_poll_recording_policy',{p_agent_id:agent.id});
+            if(!policy.error){
+              recordingPolicy=policy.data;
+              const p=policy.data;
+              if(p?.organization_id!==undefined&&p.organization_id!==agent.organization_id)throw Error('Invalid policy');
+              if(p?.notice_enabled&&p.notice_prompt){
+                const prompt=p.notice_prompt;
+                if(!uuid.test(prompt.id)||prompt.storage_path!==`${agent.organization_id}/${prompt.id}.wav`)throw Error('Invalid notice');
+                const signed=await admin.storage.from('pbx-audio-prompts').createSignedUrl(prompt.storage_path,120);
+                if(signed.error||!signed.data?.signedUrl)throw Error('Notice unavailable');
+                recordingPolicy={...p,notice_prompt:{...prompt,url:signed.data.signedUrl}};
+              }
+            }
+          }
+        }catch{recordingPolicy=undefined;console.error('PBX recording configuration unavailable');}
+      }
       return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
         history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs,
-        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks})});
+        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks}),...(recordingPolicy===undefined?{}:{recording_policy:recordingPolicy})});
     }
     if(body.action==='report_sip_trunks'){
       if(!Array.isArray(body.results)||body.results.length<1||body.results.length>200)return respond({error:'Confirmação de troncos inválida'},400);
@@ -258,6 +360,9 @@ Deno.serve(async request=>{
       return respond({accepted:true,acknowledged:data.acknowledged});
     }
     if(body.action==="report_calls"){
+      if(body.records===undefined&&body.recording_transfer&&typeof body.recording_transfer==='object'&&!Array.isArray(body.recording_transfer)){
+        return await recordingTransfer(admin,agent,body.recording_transfer as Record<string,unknown>,url,key,isPlatform);
+      }
       if(!Array.isArray(body.records)||body.records.length<1||body.records.length>10)
         return respond({error:"Lote de chamadas inválido"},400);
       const {data,error}=await admin.rpc("pbx_ingest_call_records",{
@@ -269,6 +374,9 @@ Deno.serve(async request=>{
         return respond({error:"Histórico não confirmado"},["23514","22007","22008","22P02"].includes(error.code)?400:503);
       }
       if(data?.accepted!==true) return respond({error:"Histórico não confirmado"},503);
+      if(body.recording_transfer&&typeof body.recording_transfer==='object'&&!Array.isArray(body.recording_transfer)){
+        return await recordingTransfer(admin,agent,body.recording_transfer as Record<string,unknown>,url,key,isPlatform);
+      }
       return respond({accepted:true,acknowledged:data.acknowledged});
     }
     if(body.action==='report_flow'){

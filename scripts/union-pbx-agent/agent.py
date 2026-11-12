@@ -94,6 +94,16 @@ def trunk_support():
         return None
 
 
+def recording_support():
+    try:
+        import recording_runtime
+        return recording_runtime
+    except ImportError:
+        if any((STATE_DIR/name).exists() for name in ('recordings-runtime.json','recordings.json')):
+            raise AgentError('Reinstale o pacote completo de gravacoes antes de modificar as rotas.') from None
+        return None
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -310,7 +320,7 @@ def render_master(overrides=None):
             parts.append(sip_conf(endpoint, state["number"], state["password"]))
     return "".join(parts).encode()
 
-def render_internal_routes(overrides=None):
+def render_internal_routes(overrides=None, recording_override=None):
     """Generate an exact-number, internal-only dialplan. No public-number patterns."""
     states = {}
     for path in (STATE_DIR / "extensions").glob("*.json"):
@@ -360,7 +370,10 @@ def render_internal_routes(overrides=None):
     if flow_runtime is not None:
         flow_file,flow_dispatch,flow_include=flow_runtime.attachment(runtime_api())
         if flow_file.is_file():lines.extend(['include => '+flow_dispatch+'\n',flow_include+'\n'])
-    return "".join(lines).encode("utf-8"), sorted(routes)
+    raw="".join(lines).encode("utf-8")
+    recording=recording_support()
+    if recording is not None:raw=recording.decorate(runtime_api(),raw,'internal',recording_override)
+    return raw, sorted(routes)
 
 
 def install_internal_routes():
@@ -514,7 +527,7 @@ def queue_states(overrides=None):
     return data
 
 
-def render_queue_configs(overrides=None):
+def render_queue_configs(overrides=None, recording_override=None):
     states=queue_states(overrides)
     queue_lines=["; Filas internas gerenciadas pela Union. Nao modificar manualmente.\n"]
     dial_lines=[
@@ -554,7 +567,10 @@ def render_queue_configs(overrides=None):
                +str(state["max_wait_seconds"])+")\n",
             " same => n,Hangup()\n",
         ])
-    return "".join(queue_lines).encode(), "".join(dial_lines).encode(), active_names, used_numbers
+    routes="".join(dial_lines).encode()
+    recording=recording_support()
+    if recording is not None:routes=recording.decorate(runtime_api(),routes,'internal',recording_override)
+    return "".join(queue_lines).encode(), routes, active_names, used_numbers
 
 
 def validate_queue_member_ownership(job,org_id):
@@ -1218,6 +1234,17 @@ def cycle(dry_run=False):
         trunk_runtime=trunk_support()
         if trunk_runtime is not None:
             capabilities['features'].extend(trunk_runtime.capability(runtime_api(),config['organization_id']))
+    recording=None
+    if capabilities['protocol_version'] in (2,3):
+        try:
+            recording=recording_support()
+            if recording is not None:
+                capabilities['features'].extend(recording.capability(runtime_api(),config['organization_id']))
+                if 'recordings_v1' in capabilities['features']:
+                    pending=recording.report(runtime_api())
+                    if pending is not None:capabilities['recording_report']=pending
+        except Exception:
+            recording=None
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
@@ -1361,6 +1388,37 @@ def cycle(dry_run=False):
                                   'version':flow.get('updated_at'),'status':status,'error':error})
             if not (result.get('accepted') or result.get('stale')):raise AgentError('Ponte nao confirmou o fluxo.')
 
+    # Recording policy and media run last. No capture is enabled by installation,
+    # and a media failure cannot delay this cycle's delivered browser logins.
+    if not dry_run and recording is not None and 'recording_policy' in payload and 'recordings_v1' in capabilities.get('features',[]):
+        try:
+            recording.apply_snapshot(runtime_api(),payload['recording_policy'],config['organization_id'])
+        except Busy:
+            pass
+        except Exception as exc:
+            print('Gravacoes adiadas: '+type(exc).__name__,file=sys.stderr)
+            policy=payload.get('recording_policy')
+            try:
+                if isinstance(policy,dict):recording.report(runtime_api(),{'revision':policy['revision'],'status':'failed','error':'Nao foi possivel aplicar a politica.'})
+            except Exception:
+                pass
+        try:
+            if (recording.CONFIG_ROOT/(config['organization_id']+'.json')).exists():
+                from recording_upload import sync
+                sync(runtime_api(),config['organization_id'],set(payload.get('history_endpoints',[])))
+        except Exception as exc:
+            print('Envio de gravacao adiado: '+type(exc).__name__,file=sys.stderr)
+
+    # Expiry is independent of capture/upload success. In particular, an old
+    # malformed file or failed transfer must never block platform housekeeping.
+    if not dry_run and (STATE_DIR/'recordings-runtime.json').exists():
+        try:
+            from recording_upload import housekeep
+            for error_type in housekeep(runtime_api(),platform=PROFILE_ID is None):
+                print('Retencao adiada: '+error_type,file=sys.stderr)
+        except Exception as exc:
+            print('Retencao adiada: '+type(exc).__name__,file=sys.stderr)
+
 
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")
@@ -1371,6 +1429,7 @@ def main():
     actions.add_parser("internal-routes")
     actions.add_parser("queues-init")
     actions.add_parser("sip-trunks-init")
+    actions.add_parser("recordings-init")
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -1393,6 +1452,9 @@ def main():
                 elif args.action=='sip-trunks-init':
                     from sip_trunk_runtime import init as init_trunks
                     init_trunks(runtime_api(),PROFILE_ID)
+                elif args.action=='recordings-init':
+                    from recording_runtime import init as init_recordings
+                    init_recordings(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'])
                 elif args.action=="configure":
                     configure(args.agent_id,args.organization_id)
                 elif args.action=="once":

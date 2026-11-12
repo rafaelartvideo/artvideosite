@@ -176,12 +176,14 @@ def failure_reports(rows,org):
     return reports
 
 
-def rendered(agent, state):
+def rendered(agent, state, recording_override=None):
     rows=[{key:row[key] for key in FIELDS} for row in state['rows']]
     compiled=compile_trunks(state['organization_id'],rows,state['extensions'],state['transports'])
     includes=['include => '+trunk_names(state['organization_id'],row['id'])['outbound']+'\n'
               for row in state['rows'] if row['enabled']]
     route=('['+paths(agent)[3]+']\n'+''.join(includes)).encode()+compiled.dialplan
+    recording=getattr(agent,'recording_support',lambda:None)()
+    if recording is not None:route=recording.decorate(agent,route,'outbound',recording_override)
     return compiled.pjsip,route
 
 

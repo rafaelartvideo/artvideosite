@@ -69,6 +69,7 @@ const UnionPbxQueuesPage = lazy(() => import("@/features/telephony/presentation/
 const UnionPbxInboundPage = lazy(() => import("@/features/telephony/presentation/UnionPbxInboundPage").then(({ UnionPbxInboundPage }) => ({ default: UnionPbxInboundPage })));
 const UnionPbxHistoryPage = lazy(() => import("@/features/telephony/presentation/UnionPbxHistoryPage").then(({ UnionPbxHistoryPage }) => ({ default: UnionPbxHistoryPage })));
 const UnionPbxTrunksPage = lazy(() => import("@/features/telephony/presentation/UnionPbxTrunksPage").then(({ UnionPbxTrunksPage }) => ({ default: UnionPbxTrunksPage })));
+const UnionPbxRecordingsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxRecordingsPage").then(({ UnionPbxRecordingsPage }) => ({ default: UnionPbxRecordingsPage })));
 const UnionPbxFlowsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxFlowsPage").then(({ UnionPbxFlowsPage }) => ({ default: UnionPbxFlowsPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const WhatsAppAttendanceSettings = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings").then(({ WhatsAppAttendanceSettings }) => ({ default: WhatsAppAttendanceSettings })));
@@ -225,7 +226,7 @@ export function AdminDashboard({
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
-      || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
+      || ((isPlatformOperatorOrganization || hasModule("pbx")) && (hasPermission("pbx.view") || hasPermission("pbx.recordings.view") || hasPermission("pbx.recordings.manage")))
       || ((isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view"))
       || ((isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view"))
     );
@@ -366,6 +367,8 @@ export function AdminDashboard({
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
   const canAccessPbxTool = (isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view");
+  const canAccessPbxRecordings = hasPermission("pbx.recordings.view") || hasPermission("pbx.recordings.manage");
+  const canAccessPbxModule = canAccessPbxTool || ((isPlatformOperatorOrganization || hasModule("pbx")) && canAccessPbxRecordings);
   const canManagePbxTool = canAccessPbxTool && hasPermission("pbx.manage");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
@@ -382,7 +385,7 @@ export function AdminDashboard({
       { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
     ] : []),
     ...(canAccessAiTool ? [{ id: "union-ia", label: "Union IA", icon: Sparkles, description: "Consumo, histórico e limites de inteligência artificial.", href: null }] : []),
-    ...(canAccessPbxTool ? [{ id: "union-pbx", label: "PABX Union", icon: Phone, description: "Conecte o ramal WebRTC e teste o audio sem sair do CRM.", href: null }] : []),
+    ...(canAccessPbxModule ? [{ id: "union-pbx", label: "PABX Union", icon: Phone, description: canAccessPbxTool ? "Conecte o ramal WebRTC e teste o audio sem sair do CRM." : "Consulte as gravações autorizadas da empresa.", href: null }] : []),
     ...(canAccessQueueTool ? [
       {
         id: "union-senhas",
@@ -426,8 +429,8 @@ export function AdminDashboard({
         navigateAdmin("tools", "union-ia");
         return;
       }
-      if (id === "union-pbx" && canAccessPbxTool) {
-        navigateAdmin("tools", "union-pbx");
+      if (id === "union-pbx" && canAccessPbxModule) {
+        navigateAdmin("tools", "union-pbx", canAccessPbxTool ? null : "gravacoes");
         return;
       }
       const tool = toolItems.find(item => item.id === id);
@@ -435,7 +438,8 @@ export function AdminDashboard({
     }}
   />;
   const toolsContent = route.resourceId === "union-pbx"
-    ? !canAccessPbxTool ? <Navigate to={adminPath("tools")} replace />
+    ? !canAccessPbxModule ? <Navigate to={adminPath("tools")} replace />
+      : !canAccessPbxTool && route.subpage !== "gravacoes" ? <Navigate to={adminPath("tools", "union-pbx", "gravacoes")} replace />
       : route.subpage === "ramais"
         ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
         : route.subpage === "filas"
@@ -446,6 +450,8 @@ export function AdminDashboard({
               ? canManagePbxTool ? <UnionPbxFlowsPage onBack={() => navigateAdmin("tools", "union-pbx")} key={activeOrganizationId || 'no-organization'} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
             : route.subpage === "troncos"
               ? canManagePbxTool ? <UnionPbxTrunksPage key={activeOrganizationId || 'no-organization'} onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+            : route.subpage === "gravacoes"
+              ? canAccessPbxRecordings ? <UnionPbxRecordingsPage key={activeOrganizationId || 'no-organization'} onBack={() => canAccessPbxTool ? navigateAdmin("tools", "union-pbx") : navigateAdmin("tools")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
             : route.subpage === "historico"
               ? <UnionPbxHistoryPage key={activeOrganizationId || 'no-organization'} onBack={() => navigateAdmin("tools", "union-pbx")} />
               : null /* Telefone persistente montado fora das rotas. */
@@ -584,11 +590,13 @@ export function AdminDashboard({
              <Route path="site/pedidos-da-loja/*" element={<Navigate to={adminPath("siteRequests", "pedidos")} replace />} />
             <Route path="operation" element={operationHub} />
             <Route path="tools/*" element={
-              route.resourceId === "union-pbx" && route.subpage && canAccessPbxTool
+              route.resourceId === "union-pbx" && route.subpage && canAccessPbxModule
                 ? <div className="min-w-0 space-y-5">
                     <UnionPbxSectionTabs
                       active={route.subpage as UnionPbxSection}
                       canManage={canManagePbxTool}
+                      canAccessRecordings={canAccessPbxRecordings}
+                      canUsePhone={canAccessPbxTool}
                       canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
                       onSelect={section => navigateAdmin("tools", "union-pbx", section === "telefone" ? null : section)}
                     />
@@ -662,6 +670,7 @@ export function AdminDashboard({
               onManageTrunks={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "troncos") : undefined}
               onManageFlows={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "fluxos") : undefined}
               onManageInbound={canManagePbxTool && isPlatformOperatorOrganization ? () => navigateAdmin("tools", "union-pbx", "entrada") : undefined}
+              onRecordings={canAccessPbxRecordings ? () => navigateAdmin("tools", "union-pbx", "gravacoes") : undefined}
               onHistory={() => navigateAdmin("tools", "union-pbx", "historico")}
               onBack={() => navigateAdmin("tools")}
             />

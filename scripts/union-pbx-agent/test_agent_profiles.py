@@ -30,7 +30,7 @@ class AgentProfileTests(unittest.TestCase):
         self.org=str(uuid.uuid4())
         self.runtime=tempfile.TemporaryDirectory()
         self.addCleanup(self.runtime.cleanup)
-        for name,filename in (('LOCAL_MANAGER_CONFIG','absent-manager.json'),('TENANT_CONFIG_ROOT','tenants')):
+        for name,filename in (('LOCAL_MANAGER_CONFIG','absent-manager.json'),('TENANT_CONFIG_ROOT','tenants'),('STATE_DIR','state')):
             replacement=patch.object(self.agent,name,Path(self.runtime.name)/filename)
             replacement.start();self.addCleanup(replacement.stop)
 

@@ -15,6 +15,12 @@ agent = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agent)
 
 class AgentSafetyTests(unittest.TestCase):
+    def setUp(self):
+        runtime=tempfile.TemporaryDirectory()
+        self.addCleanup(runtime.cleanup)
+        state=patch.object(agent,'STATE_DIR',Path(runtime.name))
+        state.start();self.addCleanup(state.stop)
+
     def test_atomic_config_replacement_preserves_existing_owner(self):
         import os
         with tempfile.TemporaryDirectory() as folder:

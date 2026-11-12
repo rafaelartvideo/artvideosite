@@ -13,14 +13,19 @@ ROOT = Path(__file__).parent
 
 
 class SipTrunkInstallerTests(unittest.TestCase):
-    def test_current_bundle_pins_match_the_exact_canonical_sources(self):
+    def test_archived_sip_installer_rejects_the_new_recording_sources(self):
         text = (ROOT / 'activate-sip-trunks.sh').read_text()
         pins = dict(re.findall(r"^    '([a-z_]+\.py)': '([A-Za-z0-9_]+)',", text, re.M))
         self.assertEqual(set(pins), {'agent.py', 'sip_trunk_runtime.py', 'sip_trunks.py'})
         for name, pin in pins.items():
             self.assertRegex(pin, r'^[a-f0-9]{64}$', name + ': finalize release pin')
             canonical = (ROOT / name).read_bytes().replace(b'\r\n', b'\n')
-            self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)
+            if name == 'sip_trunks.py':
+                self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)
+            else:
+                self.assertNotEqual(pin, hashlib.sha256(canonical).hexdigest(), name)
+        self.assertEqual(pins['agent.py'],'d4b1bcf28ffc31cc768bd0b7a72f11efad91a48036c6a2b2099636304c769a42')
+        self.assertEqual(pins['sip_trunk_runtime.py'],'865f1e96b19c56c6f66d0c01c45be477c75b169957a7338da3b20c0e93015d3e')
         self.assertIn("PREVIOUS_SHA = 'd119546868b5581f24c31d2fe365f01e5547aa7b2cd1cd2fe525b504f41aa884'", text)
 
     def test_installer_requires_explicit_gate_and_pins_all_three_sources(self):

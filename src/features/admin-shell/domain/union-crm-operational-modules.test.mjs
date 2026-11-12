@@ -130,7 +130,8 @@ test("PABX chama somente numeros internos cadastrados, sem alterar discagem exte
   assert.match(screen,/registration !== "registered"/);
   assert.match(agent,/DIALPLAN_CONTEXT = "union-pbx-local-extensions"/);
   assert.match(agent,/def install_internal_routes\(\):/);
-  assert.match(agent,/def render_internal_routes\(overrides=None\):/);
+  assert.match(agent,/def render_internal_routes\(overrides=None, recording_override=None\):/);
+  assert.match(agent,/if recording is not None:raw=recording\.decorate\(runtime_api\(\),raw,'internal',recording_override\)/);
   assert.match(agent,/assert_no_calls\(\)/);
   assert.match(agent,/Dial\(PJSIP\/\{endpoint\},25\)/);
   assert.doesNotMatch(agent,/Dial\(PJSIP\/union-fvx/);
