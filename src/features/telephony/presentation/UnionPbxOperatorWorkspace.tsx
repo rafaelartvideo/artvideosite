@@ -320,14 +320,14 @@ export function UnionPbxOperatorWorkspace({
                 className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
             </label>
             <div className="mt-3 min-w-0 flex-1 overflow-x-auto" style={{scrollbarGutter:"stable"}}>
-              <table className="w-full min-w-[460px] border-separate border-spacing-0 text-left text-xs">
+              <table className="w-full min-w-[520px] table-fixed border-separate border-spacing-0 text-left text-xs">
                 <thead><tr className="text-muted-foreground">
-                  <th className="border-b border-border p-2 font-medium">Contato / número</th>
+                  <th className="w-[34%] border-b border-border p-2 font-medium">Contato / número</th>
                   <th className="border-b border-border p-2 font-medium">Tipo</th>
                   <th className="border-b border-border p-2 font-medium">Horário</th>
                   <th className="border-b border-border p-2 font-medium">Duração</th>
                   <th className="border-b border-border p-2 font-medium">Estado</th>
-                  <th className="border-b border-border p-2 font-medium">Ações</th>
+                  <th className="w-[54px] border-b border-border p-2 font-medium">Ações</th>
                 </tr></thead>
                 <tbody>{visibleRows.map(row => {
                   const number = callNumber(row);
@@ -344,7 +344,7 @@ export function UnionPbxOperatorWorkspace({
                         {avatar
                           ? <img src={avatar} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover"
                               onError={() => setBrokenAvatar(old => ({...old, [avatarKey + ":" + avatar]: true}))}/>
-                          : initials(number)}
+                          : initials(name)}
                       </span>
                       <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
