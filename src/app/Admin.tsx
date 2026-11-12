@@ -483,7 +483,7 @@ export function AdminDashboard({
             ? <>
               <UnionWhatsAppInboxPage
                 onBack={() => navigateAdmin("tools")}
-                onConfigure={() => navigateAdmin("tools","union-whatsapp","configuracoes")}
+                onConfigure={() => navigateAdmin("tools","union-whatsapp",route.subpage==="configuracoes" ? null : "configuracoes")}
                 onOpenCustomer={hasPermission("customers.view")
                   ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
                   : undefined}
@@ -492,20 +492,14 @@ export function AdminDashboard({
                   : undefined}
               />
               {route.subpage==="configuracoes" && canViewWhatsAppChannels &&
-                <Suspense fallback={<AdminDialog open title="Configurações dos Atendimentos"
-                  onClose={()=>navigateAdmin("tools","union-whatsapp")}>
-                  <div className="flex min-h-28 items-center justify-center"><LoadingState text="Preparando configurações..."/></div>
-                </AdminDialog>}>
+                <Suspense fallback={null}>
                   <WhatsAppAttendanceSettings open
                     onClose={()=>navigateAdmin("tools","union-whatsapp")}
                     initialSection={new URLSearchParams(location.search).get("section")}/>
                 </Suspense>}
             </>
             : route.subpage==="configuracoes" && canViewWhatsAppChannels
-              ? <Suspense fallback={<AdminDialog open title="Configurações dos Atendimentos"
-                  onClose={()=>navigateAdmin("tools")}>
-                  <div className="flex min-h-28 items-center justify-center"><LoadingState text="Preparando configurações..."/></div>
-                </AdminDialog>}>
+              ? <Suspense fallback={null}>
                   <WhatsAppAttendanceSettings open
                     onClose={()=>navigateAdmin("tools")}
                     initialSection={new URLSearchParams(location.search).get("section")}/>
