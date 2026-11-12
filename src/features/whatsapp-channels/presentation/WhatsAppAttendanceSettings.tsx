@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft, Building2, CircleHelp, Link2, ListFilter, MessageSquareText,
   Plus, Settings2, ShieldCheck, UsersRound,
@@ -9,6 +9,7 @@ import { WhatsAppChannelsPage } from "./WhatsAppChannelsPage";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { WhatsAppQuickRepliesSettings } from "./WhatsAppQuickRepliesSettings";
+import type { WhatsAppSettingsInlinePane, WhatsAppSettingsInlinePaneChange } from "./WhatsAppSettingsInlinePane";
 
 // Dedicated route: /admin/tools/union-whatsapp/configuracoes.
 // The gear opens this menu over the existing Atendimentos conversation.
@@ -48,17 +49,33 @@ export function WhatsAppAttendanceSettings({
   const [canCreateConnection,setCanCreateConnection]=useState(false);
   const [canCreateDepartment,setCanCreateDepartment]=useState(false);
   const [footerTarget,setFooterTarget]=useState<HTMLDivElement|null>(null);
+  const [inlinePane,setInlinePane]=useState<WhatsAppSettingsInlinePane|null>(null);
+  const inlineBackRef=useRef<(()=>void)|null>(null);
+  const onInlinePaneChange=useCallback<WhatsAppSettingsInlinePaneChange>((next,back)=>{
+    inlineBackRef.current=back||null;
+    setInlinePane(previous=>previous?.key===next?.key &&
+      previous?.title===next?.title && previous?.description===next?.description &&
+      previous?.compact===next?.compact ? previous : next);
+  },[]);
   const menuRef=useRef<HTMLDivElement>(null);
   const [menuPosition,setMenuPosition]=useState({top:80,left:12,width:300});
 
   const openSection=(next:AttendanceSettingsSection)=>{
     if(section===next)return;
+    inlineBackRef.current=null;
+    setInlinePane(null);
     setSectionTrail(current=>section?[...current,section]:[]);
     setCanCreateConnection(false);
     setCanCreateDepartment(false);
     setSection(next);
   };
   const backToPrevious=()=>{
+    if(inlinePane){
+      inlineBackRef.current?.();
+      return;
+    }
+    inlineBackRef.current=null;
+    setInlinePane(null);
     setCanCreateConnection(false);
     setCanCreateDepartment(false);
     if(sectionTrail.length){
@@ -72,6 +89,8 @@ export function WhatsAppAttendanceSettings({
     if(open){
       setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);
       setSectionTrail([]);
+      inlineBackRef.current=null;
+      setInlinePane(null);
     }
   },[activeOrganizationId,open,initialSection]);
 
@@ -153,30 +172,30 @@ export function WhatsAppAttendanceSettings({
     </div>}
 
     <AdminDialog open={Boolean(section)} onClose={onClose}
-      title={active?.title||"Configurações"}
-      description={active?.description}
-      className="w-full max-w-5xl"
+      title={inlinePane?.title||active?.title||"Configurações"}
+      description={inlinePane?.description??active?.description}
+      transitionKey={section ? section+":"+(inlinePane?.key||"list") : null}
+      className={inlinePane?.compact ? "w-full max-w-xl" : "w-full max-w-5xl"}
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <AdminButton variant="secondary" onClick={backToPrevious}>
             <ArrowLeft size={16}/> Voltar
           </AdminButton>
-          {section==="connections" && canManage && <AdminButton
+          {!inlinePane && section==="connections" && canManage && <AdminButton
             disabled={!canCreateConnection} onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Nova conexão
           </AdminButton>}
-          {(section==="departments" || section==="queues") && canManage && <AdminButton
+          {!inlinePane && (section==="departments" || section==="queues") && canManage && <AdminButton
             disabled={!canCreateDepartment} onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Novo departamento
           </AdminButton>}
-          {section==="quick-replies" && canManage && <AdminButton
+          {!inlinePane && section==="quick-replies" && canManage && <AdminButton
             onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Nova mensagem
           </AdminButton>}
         </div>
-        {(section==="permissions" || section==="queues") &&
-          <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
+        <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>
       </div>}>
       {section && <div className="min-w-0 space-y-4">
         {(section==="configuration"||section==="connections") ?
@@ -185,14 +204,16 @@ export function WhatsAppAttendanceSettings({
             initialSection={section} embeddedSection={section}
             createConnectionRequest={createRequest}
             onCanCreateChange={setCanCreateConnection}
+            footerTarget={footerTarget} onInlinePaneChange={onInlinePaneChange}
             onSectionChange={next=>{if(isSection(next))openSection(next);}}
             onBack={backToPrevious}/>
           : section==="departments" || section==="queues" || section==="operators"
             ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}
                 createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}
-                footerTarget={footerTarget}/>
+                footerTarget={footerTarget} embedded onInlinePaneChange={onInlinePaneChange}/>
             : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget} footerInParent/>
-            : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded/>}
+            : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded
+                footerTarget={footerTarget} onInlinePaneChange={onInlinePaneChange}/>}
       </div>}
     </AdminDialog>
   </>;
