@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
@@ -52,7 +52,9 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  useEffect(() => { setExpanded(false); setPage(1); setRows([]); setTotal(0); }, [organizationId, number]);
+  const loadedQueryRef = useRef("");
+  useEffect(() => { setExpanded(false); setPage(1); setRows([]); setTotal(0); loadedQueryRef.current = ""; }, [organizationId, number]);
+  const queryKey = `${organizationId || ""}:${number.replace(/\D/g,"")}:${page}`;
   useEffect(() => {
     const controller = new AbortController();
     const digits = number.replace(/\D/g, "");
@@ -66,7 +68,9 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
       direction: "", disposition: "",
       number: digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits,
     };
-    setLoading(true); setFailed(false);
+    const initialLoad = loadedQueryRef.current !== queryKey;
+    if (initialLoad) setLoading(true);
+    setFailed(false);
     void pbxRequest(signal => loadCallHistory(supabase, organizationId, filters, page, 10, signal),
       "Histórico do contato", {signal: controller.signal})
       .then(({data,count,error}) => {
@@ -74,12 +78,18 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
         if (error) throw error;
         setRows((data || []) as CallHistoryRow[]);
         setTotal(count || 0);
+        loadedQueryRef.current = queryKey;
       }).catch(() => {
-        if (!controller.signal.aborted) {setRows([]);setTotal(0);setFailed(true);}
+        if (!controller.signal.aborted) {
+          // Eventos Realtime não apagam os resultados nem reabrem o loading.
+          if (initialLoad) {setRows([]);setTotal(0);setFailed(true);}
+        }
       }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [organizationId, number, active, page, revision]);
-  const shown = expanded ? rows : rows.slice(0,3);
+  }, [organizationId, number, active, page, revision, queryKey]);
+  const ready = loadedQueryRef.current === queryKey;
+  const currentRows = ready ? rows : [];
+  const shown = expanded ? currentRows : currentRows.slice(0,3);
   return <section className="mt-6 space-y-3 border-t border-border pt-4" aria-label="Histórico com o contato">
     <div className="flex items-center justify-between gap-2">
       <h4 className="text-sm font-bold">Histórico com o contato</h4>
@@ -88,10 +98,10 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
         {expanded ? "Ver menos" : "Ver tudo"}
       </button>}
     </div>
-    {loading && <p role="status" className="flex items-center gap-2 py-4 text-xs text-muted-foreground"><LoaderCircle size={14} className="animate-spin"/> Carregando histórico...</p>}
-    {!loading && failed && <p role="status" className="text-xs text-muted-foreground">Histórico indisponível no momento.</p>}
-    {!loading && !failed && rows.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma chamada encontrada com este contato.</p>}
-    {!loading && !failed && <div className="space-y-1.5">
+    {!ready && !failed && <p role="status" className="flex items-center gap-2 py-4 text-xs text-primary"><LoaderCircle size={15} className="animate-spin"/> Preparando histórico...</p>}
+    {failed && !ready && <p role="status" className="text-xs text-muted-foreground">Histórico indisponível no momento.</p>}
+    {ready && !failed && currentRows.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma chamada encontrada com este contato.</p>}
+    {ready && !failed && <div className="space-y-1.5">
       {shown.map(row => {
         const answered = row.disposition === "ANSWERED";
         const extension = responsibleExtension(row);
@@ -113,7 +123,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
         </div>;
       })}
     </div>}
-    {expanded && !loading && total > 10 && <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
+    {expanded && ready && total > 10 && <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
       <span>{page} / {Math.ceil(total / 10)}</span>
       <div className="flex gap-1">
         <button type="button" aria-label="Página anterior do contato" disabled={page <= 1}
