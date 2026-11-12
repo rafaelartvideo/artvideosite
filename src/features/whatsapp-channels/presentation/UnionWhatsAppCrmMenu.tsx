@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { ChevronDown, ChevronUp, ClipboardList, ContactRound, Cpu, UserRound } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, UserRound } from "lucide-react";
 
 type CrmAddress = {
   id: string;
@@ -73,28 +73,37 @@ function dateLabel(value: string | null | undefined) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("pt-BR");
 }
-function Info({ label, value }: { label: string; value?: string | number | null }) {
+
+function LineField({ label, value }: { label: string; value?: string | number | null }) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
-  return <div className="min-w-0">
-    <dt className="text-[10px] font-semibold text-muted-foreground">{label}</dt>
-    <dd className="break-words text-xs text-foreground">{value}</dd>
+  return <div className="min-w-0 break-words text-xs leading-5 text-foreground">
+    <span className="font-semibold text-foreground">{label}:</span>{" "}
+    <span>{value}</span>
   </div>;
 }
-function Address({ address, index }: { address: CrmAddress; index: number }) {
-  const firstLine = [address.street, address.number && "nº " + address.number, address.complement].filter(Boolean).join(", ");
-  const secondLine = [address.neighborhood, [address.city, address.state].filter(Boolean).join(" - ")].filter(Boolean).join(" · ");
-  return <div className="rounded-md border border-border bg-muted/20 p-2.5">
-    <p className="mb-1 text-[11px] font-bold text-foreground">{address.is_default ? "Endereço principal" : "Endereço " + (index + 1)}</p>
-    <p className="break-words text-xs">{firstLine || "Logradouro não informado"}</p>
-    {secondLine && <p className="mt-0.5 break-words text-xs">{secondLine}</p>}
-    {address.zip_code && <Info label="CEP" value={address.zip_code}/>}
-    {address.reference && <Info label="Referência" value={address.reference}/>}
-  </div>;
+
+function addressText(address: CrmAddress) {
+  const street = [address.street, address.number].filter(Boolean).join(", ");
+  return [
+    street,
+    address.complement,
+    address.neighborhood,
+    [address.city, address.state].filter(Boolean).join(" - "),
+    address.zip_code ? "CEP " + address.zip_code : "",
+    address.reference ? "Referência: " + address.reference : "",
+  ].filter(Boolean).join(" · ") || "Endereço não informado";
 }
+
 function technicalValue(value: NonNullable<CrmEquipment["technical_values"]>[number]) {
   if (value.value_text !== null && value.value_text !== undefined && value.value_text !== "") return value.value_text;
   return value.value_number === null || value.value_number === undefined ? "—" : String(value.value_number);
 }
+
+const panelLabels: Record<Panel, string> = {
+  registration: "Dados de cadastro",
+  equipments: "Equipamentos",
+  orders: "OS recentes",
+};
 
 export function UnionWhatsAppCrmMenu({
   context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer,
@@ -108,112 +117,150 @@ export function UnionWhatsAppCrmMenu({
   onOpenCustomer?: (id: string) => void;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const regionId = useId();
   const customer = context?.customer;
-  const togglePanel = (panel: Panel) => setActivePanel(current => current === panel ? null : panel);
-  const menuClass = "flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary";
-  const detailClass = "space-y-2 border-t border-border bg-card px-3 py-3";
-  return <section aria-label="Dados do cliente no CRM" className="shrink-0 border-b border-border bg-muted/20 px-3 py-2">
-    <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
-      className="flex w-full items-center gap-2 text-left text-xs font-semibold text-foreground">
-      <ContactRound size={15} className="shrink-0 text-primary"/>
-      <span className="shrink-0">Dados do CRM</span>
-      <span className="min-w-0 flex-1 truncate font-normal text-muted-foreground">
-        {customer?.name || (context ? "Sem vínculo confirmado" : "Clique para consultar")}
-      </span>
-      {open ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-    </button>
-    {open && <div id={regionId} className="mt-2 max-h-[min(40vh,360px)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-card">
-      {!context ? <div role="status" className="p-3 text-xs text-muted-foreground">Consultando cadastro, equipamentos e OS...</div>
-      : context.error ? <div role="status" className="p-3 text-xs text-muted-foreground">
-          Não foi possível consultar os dados do CRM.
-          <button type="button" onClick={onRetry} className="ml-2 font-semibold text-primary hover:underline">Tentar novamente</button>
+
+  useEffect(() => {
+    if (!open) {
+      setActivePanel(null);
+      return;
+    }
+    const handlePointer = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) onToggle();
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onToggle();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, onToggle]);
+
+  const mainRow = "flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+
+  return <section aria-label="Dados do cliente no CRM" className="relative z-20 shrink-0 border-b border-border bg-muted/20 px-3 py-2">
+    <div ref={menuRef} className="relative">
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
+        aria-haspopup="dialog"
+        className="inline-flex max-w-full items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        <ContactRound size={15} className="shrink-0 text-foreground"/>
+        <span className="shrink-0">Dados do CRM</span>
+        <span className="min-w-0 truncate font-normal text-muted-foreground">
+          {customer?.name || (context ? "Sem vínculo confirmado" : "Clique para consultar")}
+        </span>
+        {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
+      </button>
+
+      {open && <div id={regionId} role="dialog" aria-label="Consultar dados do CRM"
+        className="absolute left-0 top-[calc(100%+9px)] z-50 flex max-h-[min(62vh,470px)] w-[min(90vw,860px)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
+        <div className="mb-2 flex shrink-0 items-center gap-2 border-b border-border pb-2">
+          {activePanel ? <button type="button" onClick={() => setActivePanel(null)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-muted"
+            aria-label="Voltar às opções do CRM" title="Voltar às opções do CRM">
+            <ChevronLeft size={18}/>
+          </button> : null}
+          <p className="min-w-0 flex-1 truncate text-sm font-bold">
+            {activePanel ? panelLabels[activePanel] : "Dados do CRM"}
+          </p>
         </div>
-      : !customer ? <div className="p-3 text-xs text-muted-foreground">
-          {context.ambiguous ? "Mais de um cadastro possui este número. Verifique antes de vincular." : "Nenhum cliente do CRM encontrado para este número."}
-        </div>
-      : <div className="divide-y divide-border">
-          <div>
-            <button type="button" className={menuClass} onClick={() => togglePanel("registration")} aria-expanded={activePanel === "registration"}>
-              <UserRound size={15} className="shrink-0 text-primary"/>
-              <span className="flex-1">Dados de cadastro</span>
-              {activePanel === "registration" ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-            </button>
-            {activePanel === "registration" && <dl className={detailClass}>
-              <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                <Info label="Cliente" value={customer.name}/>
-                <Info label={customer.customer_type === "PJ" || customer.cnpj ? "CNPJ" : "CPF"}
-                  value={customer.cnpj || customer.document ? formatDocument(customer.cnpj || customer.document) : "Não informado"}/>
-                <Info label="Nome fantasia" value={customer.trade_name}/>
-                <Info label="Razão social" value={customer.legal_name}/>
-                <Info label="E-mail" value={customer.email}/>
-                <Info label="Telefone" value={customer.phone}/>
-                <Info label="WhatsApp" value={customer.whatsapp}/>
-                <Info label="Inscrição estadual" value={customer.state_registration}/>
-                <Info label="Inscrição municipal" value={customer.municipal_registration}/>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {!context ? <div role="status" className="px-3 py-5 text-center text-xs text-muted-foreground">
+            Consultando dados do CRM...
+          </div>
+          : context.error ? <div role="status" className="px-3 py-4 text-xs text-muted-foreground">
+              Não foi possível consultar os dados do CRM.
+              <button type="button" onClick={onRetry} className="ml-2 font-semibold text-primary underline underline-offset-2">Tentar novamente</button>
+            </div>
+          : !customer ? <div className="px-3 py-4 text-xs text-muted-foreground">
+              {context.ambiguous ? "Mais de um cadastro possui este número. Verifique antes de vincular." : "Nenhum cliente do CRM encontrado para este número."}
+            </div>
+          : activePanel === null ? <div className="space-y-0.5">
+              <button type="button" className={mainRow} onClick={() => setActivePanel("registration")}>
+                <UserRound size={17} className="shrink-0 text-foreground"/>
+                <span className="min-w-0 flex-1">Dados de cadastro</span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+              </button>
+              <button type="button" className={mainRow} onClick={() => setActivePanel("equipments")}>
+                <Cpu size={17} className="shrink-0 text-foreground"/>
+                <span className="min-w-0 flex-1">Equipamentos</span>
+                <span className="text-[11px] font-normal text-muted-foreground">{context.equipments.length}</span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+              </button>
+              {canViewOrders && <button type="button" className={mainRow} onClick={() => setActivePanel("orders")}>
+                <ClipboardList size={17} className="shrink-0 text-foreground"/>
+                <span className="min-w-0 flex-1">OS recentes</span>
+                <span className="text-[11px] font-normal text-muted-foreground">{context.orders.length}</span>
+                <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+              </button>}
+            </div>
+          : activePanel === "registration" ? <div className="space-y-3 px-1 py-1">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+                <LineField label="Cliente" value={customer.name}/>
+                <LineField label={customer.customer_type === "PJ" || customer.cnpj ? "CNPJ" : "CPF"}
+                  value={formatDocument(customer.cnpj || customer.document || "Não informado")}/>
+                <LineField label="E-mail" value={customer.email || "Não informado"}/>
+                <LineField label="Telefone" value={customer.phone || customer.whatsapp || "Não informado"}/>
+                {customer.whatsapp && customer.whatsapp !== customer.phone && <LineField label="WhatsApp" value={customer.whatsapp}/>}
+                <LineField label="Nome fantasia" value={customer.trade_name}/>
+                <LineField label="Razão social" value={customer.legal_name}/>
+                <LineField label="Inscrição estadual" value={customer.state_registration}/>
+                <LineField label="Inscrição municipal" value={customer.municipal_registration}/>
               </div>
-              <p className="border-t border-border pt-2 text-[11px] font-bold">Endereço completo</p>
-              {customer.addresses?.length ? <div className="space-y-2">
-                {customer.addresses.map((address, index) => <Address key={address.id} address={address} index={index}/>)}
-              </div> : <p className="text-xs text-muted-foreground">Nenhum endereço cadastrado.</p>}
+              <div className="space-y-1 border-t border-border pt-2">
+                {customer.addresses?.length ? customer.addresses.map((address, index) =>
+                  <LineField key={address.id} label={address.is_default ? "Endereço principal" : "Endereço " + (index + 1)} value={addressText(address)}/>
+                ) : <LineField label="Endereço" value="Nenhum endereço cadastrado."/>}
+              </div>
               {onOpenCustomer && <button type="button" onClick={() => onOpenCustomer(customer.id)}
-                className="font-semibold text-primary hover:underline">Abrir cadastro completo</button>}
-            </dl>}
-          </div>
-          <div>
-            <button type="button" className={menuClass} onClick={() => togglePanel("equipments")} aria-expanded={activePanel === "equipments"}>
-              <Cpu size={15} className="shrink-0 text-primary"/>
-              <span className="flex-1">Equipamentos</span>
-              <span className="text-[10px] font-normal text-muted-foreground">{context.equipments.length}</span>
-              {activePanel === "equipments" ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-            </button>
-            {activePanel === "equipments" && <div className={detailClass}>
-              {!context.equipments.length ? <p className="text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
-                : context.equipments.map(equipment => <div key={equipment.id} className="space-y-2 rounded-md border border-border bg-muted/15 p-3">
-                    <p className="break-words text-xs font-bold">{[equipment.equipment_type_name, equipment.equipment_brand_name, equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}</p>
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                      <Info label="Tipo" value={equipment.equipment_type_name}/>
-                      <Info label="Marca" value={equipment.equipment_brand_name}/>
-                      <Info label="Modelo" value={equipment.equipment_model_name}/>
-                      <Info label="Número de série" value={equipment.serial_number || "Não informado"}/>
-                      <Info label="Cadastrado em" value={dateLabel(equipment.created_at)}/>
-                      <Info label="Atualizado em" value={dateLabel(equipment.updated_at)}/>
+                className="text-xs font-normal text-primary underline underline-offset-2 hover:text-primary/80">
+                Abrir cadastro completo
+              </button>}
+            </div>
+          : activePanel === "equipments" ? <div className="px-1 py-1">
+              {!context.equipments.length ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
+              : <div className="divide-y divide-border">
+                  {context.equipments.map(equipment => <div key={equipment.id} className="space-y-2 py-3 first:pt-1">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <LineField label="Tipo" value={equipment.equipment_type_name || "Não informado"}/>
+                      <LineField label="Marca" value={equipment.equipment_brand_name || "Não informada"}/>
+                      <LineField label="Modelo" value={equipment.equipment_model_name || "Não informado"}/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 lg:grid-cols-4">
+                      <LineField label="Nº de série" value={equipment.serial_number || "Não informado"}/>
                       {Array.isArray(equipment.technical_values) && equipment.technical_values.map((value, index) =>
-                        <Info key={value.technical_field_id || index} label={value.label_snapshot || value.field_key_snapshot || "Campo técnico"}
+                        <LineField key={value.technical_field_id || index}
+                          label={value.label_snapshot || value.field_key_snapshot || "Campo técnico"}
                           value={technicalValue(value)}/>)}
-                    </dl>
-                  </div>)}
-              {context.equipments.length === 50 && <p className="text-[11px] text-muted-foreground">Exibindo até 50 equipamentos. Acesse o cadastro para consultar os demais.</p>}
-            </div>}
-          </div>
-          {canViewOrders && <div>
-            <button type="button" className={menuClass} onClick={() => togglePanel("orders")} aria-expanded={activePanel === "orders"}>
-              <ClipboardList size={15} className="shrink-0 text-primary"/>
-              <span className="flex-1">OS recentes</span>
-              <span className="text-[10px] font-normal text-muted-foreground">{context.orders.length}</span>
-              {activePanel === "orders" ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-            </button>
-            {activePanel === "orders" && <div className={detailClass}>
-              {!context.orders.length ? <p className="text-xs text-muted-foreground">Nenhuma OS encontrada.</p>
-                : context.orders.map(order => <div key={order.id} className="rounded-md border border-border bg-muted/15 p-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <a target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline"
-                        href={"/admin/orders/" + encodeURIComponent(order.id) + "?org=" + encodeURIComponent(organizationId)}>
-                        OS {order.os_number}
-                      </a>
-                      <span className="text-[10px] text-muted-foreground">{dateLabel(order.created_at)}</span>
-                    </div>
-                    {order.model && <p className="mt-1 break-words text-xs text-muted-foreground">{order.model}</p>}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">Status:</span>
-                      <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold">{order.order_status?.name || "Não informado"}</span>
-                      <span className="ml-1 text-[10px] text-muted-foreground">Situação:</span>
-                      <span className="rounded-md border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">{order.situation?.name || "Não definida"}</span>
+                      <LineField label="Cadastrado" value={dateLabel(equipment.created_at)}/>
+                      <LineField label="Atualizado" value={dateLabel(equipment.updated_at)}/>
                     </div>
                   </div>)}
+                </div>}
+              {context.equipments.length === 50 && <p className="mt-2 text-[11px] text-muted-foreground">
+                Exibindo até 50 equipamentos. Consulte o cadastro completo para visualizar os demais.
+              </p>}
+            </div>
+          : <div className="divide-y divide-border px-1">
+              {!context.orders.length ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma OS encontrada.</p>
+              : context.orders.map(order => <div key={order.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 text-xs first:pt-1">
+                  <a target="_blank" rel="noopener noreferrer"
+                    href={"/admin/orders/" + encodeURIComponent(order.id) + "?org=" + encodeURIComponent(organizationId)}
+                    className="shrink-0 font-semibold text-primary underline-offset-2 hover:underline">OS {order.os_number}</a>
+                  <LineField label="Status" value={order.order_status?.name || "Não informado"}/>
+                  <LineField label="Situação" value={order.situation?.name || "Não definida"}/>
+                  <LineField label="Abertura" value={dateLabel(order.created_at) || "Não informada"}/>
+                </div>)}
             </div>}
-          </div>}
-        </div>}
-    </div>}
+        </div>
+      </div>}
+    </div>
   </section>;
 }
