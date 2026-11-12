@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { QUICK_REPLY_VARIABLES, renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { MessageSquareText, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -15,7 +15,9 @@ const emptyDraft = (sort_order = 0): Draft => ({
   title: "", message: "", sort_order, is_active: true,
 });
 
-export function WhatsAppQuickRepliesSettings() {
+export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = false }: {
+  createRequest?: number; embedded?: boolean;
+} = {}) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("settings.channels.manage");
   const [items, setItems] = useState<WhatsAppQuickReply[]>([]);
@@ -24,6 +26,15 @@ export function WhatsAppQuickRepliesSettings() {
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const previousCreateRequest = useRef(createRequest);
+  useEffect(() => {
+    if (previousCreateRequest.current === createRequest) return;
+    previousCreateRequest.current = createRequest;
+    if (canManage) {
+      setError("");
+      setDraft(emptyDraft(items.length));
+    }
+  }, [createRequest, canManage, items.length]);
 
   const refresh = useCallback(async () => {
     if (!activeOrganizationId) { setItems([]); setLoading(false); return; }
@@ -65,7 +76,7 @@ export function WhatsAppQuickRepliesSettings() {
             Respostas reutilizáveis pela empresa em Atendimentos e na conversa da OS. Inserir não envia automaticamente.
           </p>
         </div>
-        {canManage && <AdminButton size="sm" onClick={() => { setError(""); setDraft(emptyDraft(items.length)); }}>
+        {canManage && !embedded && <AdminButton size="sm" onClick={() => { setError(""); setDraft(emptyDraft(items.length)); }}>
           <Plus size={16}/> Nova mensagem
         </AdminButton>}
       </div>
