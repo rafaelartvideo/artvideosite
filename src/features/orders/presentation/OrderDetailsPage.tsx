@@ -43,7 +43,7 @@ import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
-import { useWhatsAppConversationModal, TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
+import { useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
@@ -214,7 +214,7 @@ export function OrderDetailsPage(props: Props) {
   const [sacEnabled, setSacEnabled] = useState(false);
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
-  const useTestWhatsAppModal = !monitorView && detail?.organization_id === TESTE_WHATSAPP_OS_ORGANIZATION_ID && hasPermission("whatsapp.inbox.view");
+  const canUseWhatsAppModal = !monitorView && Boolean(detail?.organization_id) && hasPermission("whatsapp.inbox.view");
   const { statuses, situations } = workspace;
   // A rota já conhece o tipo da OS: não aguarde a carga ampla das
   // referências para reconhecer o orçamento e iniciar a consulta da proposta.
@@ -401,7 +401,7 @@ export function OrderDetailsPage(props: Props) {
   };
 
   const openOrderWhatsApp = () => {
-    if (!useTestWhatsAppModal || !detail) {
+    if (!canUseWhatsAppModal || !detail) {
       void openCustomerWhatsApp();
       return;
     }
@@ -773,7 +773,7 @@ export function OrderDetailsPage(props: Props) {
                 detail={detail}
                 hasPermission={hasPermission}
                 onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
-                onWhatsApp={!monitorView && (useTestWhatsAppModal || canSendSac) ? openOrderWhatsApp : undefined}
+                onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac) ? openOrderWhatsApp : undefined}
               />
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
                 orderImages={orderImages} onViewImage={setViewImage} />
@@ -821,7 +821,7 @@ export function OrderDetailsPage(props: Props) {
             orderImages={orderImages}
             onViewImage={setViewImage}
             onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
-            onWhatsApp={!monitorView && (useTestWhatsAppModal || canSendSac)
+            onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac)
               ? openOrderWhatsApp
               : undefined}
           />

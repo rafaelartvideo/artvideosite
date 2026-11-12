@@ -926,13 +926,10 @@ Deno.serve(async request => {
       return json({success:true,channel_connected:ready,staff_role:staffRole,capabilities,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
-    // OS WhatsApp: a company-Teste-only route to join an existing operator's
-    // active chat. Never accepts a phone from the caller as authorization:
+    // OS WhatsApp: join an existing operator's active chat in any enabled
+    // organization. Never accepts a phone from the caller as authorization:
     // service_order_id must belong to this tenant and its registered customer.
     if(action==="os_join") {
-      const TESTE_ORGANIZATION="5bcd7ec7-38f0-4dda-a84c-10429bd46b23";
-      if(org!==TESTE_ORGANIZATION)
-        return json({success:false,error:"Recurso disponível somente na empresa Teste."},403);
       if(!canRead || !permissions.has("orders.details.view"))
         return json({success:false,error:"Sem permissão para acessar a OS e seus atendimentos."},403);
       const orderId=String(body.service_order_id||"");

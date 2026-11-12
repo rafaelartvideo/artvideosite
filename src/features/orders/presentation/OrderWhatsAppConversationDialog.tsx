@@ -4,8 +4,6 @@ import {
   type WhatsAppModalContext,
 } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 
-export { TESTE_WHATSAPP_OS_ORGANIZATION_ID } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
-
 export function OrderWhatsAppConversationDialog({
   open,onClose,organizationId,phone,customerName,serviceOrderId,
 }: {

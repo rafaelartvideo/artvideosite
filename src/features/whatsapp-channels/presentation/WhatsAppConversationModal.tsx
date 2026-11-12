@@ -13,10 +13,6 @@ const EmbeddedWhatsAppConversation = lazy(() =>
     .then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })),
 );
 
-// Temporarily enabled only for the isolated "Teste" CRM organization.
-// No database schema, WhatsApp provider configuration, or other organization is changed.
-export const TESTE_WHATSAPP_OS_ORGANIZATION_ID = "5bcd7ec7-38f0-4dda-a84c-10429bd46b23";
-
 type State =
   | { status: "loading" }
   | { status: "ready"; conversationId: string; participating?: boolean; responsibleName?: string | null }
@@ -66,8 +62,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     set({ status: "loading" });
     setStartError("");
 
-    if (organizationId !== activeOrganizationId || !canViewInbox ||
-      (source.kind==="order" && organizationId !== TESTE_WHATSAPP_OS_ORGANIZATION_ID)) {
+    if (organizationId !== activeOrganizationId || !canViewInbox) {
       set({ status: "unauthorized", message: "Você não possui acesso aos atendimentos WhatsApp desta empresa." });
       return () => { cancelled = true; };
     }
