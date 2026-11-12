@@ -38,9 +38,9 @@ test('recordings UI parses and keeps policy, playback permissions and tenant lif
  const page=readFileSync('src/features/telephony/presentation/UnionPbxRecordingsPage.tsx','utf8');await transformWithEsbuild(page,'UnionPbxRecordingsPage.tsx',{loader:'tsx'});
  assert.match(page,/hasPermission\('pbx.recordings.manage'\)/);assert.match(page,/hasPermission\('pbx.recordings.view'\)/);assert.doesNotMatch(page,/hasPermission\('pbx.manage'\)/);
  assert.match(page,/key=\{`\$\{activeOrganizationId\}/);assert.match(page,/controller\.abort\(\); scope\.current = null;/);assert.match(page,/media\.pause\(\)/);assert.match(page,/audio\.current\.pause\(\)/);assert.match(page,/removeAttribute\('src'\)/);assert.doesNotMatch(page,/autoPlay|\.storage\./);
- const app=readFileSync('src/app/Admin.tsx','utf8');assert.match(app,/route.subpage === "gravacoes"/);assert.match(app,/canAccessRecordings=\{canAccessPbxRecordings\}/);
- const phone=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');assert.match(phone,/section === "gravacoes"\) onRecordings\?\.\(\)/);assert.match(phone,/canAccessRecordings=\{Boolean\(onRecordings\)\}/);assert.equal((app.match(/<UnionPbxToolPage/g)||[]).length,1);
+ const app=readFileSync('src/app/Admin.tsx','utf8');assert.match(app,/route.subpage === "gravacoes"/);assert.match(app,/canAccessPbxRecordings \? <UnionPbxRecordingsPage/);
+ const phone=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');assert.match(phone,/section === "gravacoes"\) onRecordings\?\.\(\)/);assert.match(phone,/canRecordings=\{Boolean\(onRecordings\)\}/);assert.equal((app.match(/<UnionPbxToolPage/g)||[]).length,1);
  assert.match(app,/const canAccessPbxModule = canAccessPbxTool \|\|/);
- assert.match(app,/canUsePhone=\{canAccessPbxTool\}/);
+ assert.match(app,/isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx"\}/);
  assert.match(app,/\{canAccessPbxTool && user\?\.id && activeOrganizationId &&/);
 });
