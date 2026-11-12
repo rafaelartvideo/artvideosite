@@ -5,6 +5,10 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
 import { callDuration, dispositionLabels, directionLabels, loadCallHistory, localHistoryDate, type CallHistoryRow, type HistoryFilters } from "../application/call-history";
+import { formatPbxNumber } from "../domain/pbx-display";
+export { formatPbxNumber } from "../domain/pbx-display";
+import { pbxContactPhoneKey, usePbxSavedContactCards } from "../application/pbx-saved-contact-cards";
+import { PbxContactActivity } from "./PbxContactActivity";
 import type { UnionPbxSection } from "./UnionPbxSectionTabs";
 
 type Extension = { number: number; display_name: string; endpoint_name: string };
@@ -52,16 +56,6 @@ function initials(value: string) {
 }
 
 
-/** Apenas para exibição: a discagem mantém o número original. */
-export function formatPbxNumber(value: string): string {
-  const raw = (value || "").trim();
-  const digits = raw.replace(/\D/g, "");
-  const national = digits.startsWith("55") && (digits.length === 12 || digits.length === 13) ? digits.slice(2) : digits;
-  if (national.length === 11) return `(${national.slice(0,2)}) ${national.slice(2,7)}-${national.slice(7)}`;
-  if (national.length === 10) return `(${national.slice(0,2)}) ${national.slice(2,6)}-${national.slice(6)}`;
-  return raw;
-}
-
 /** Apenas apresentação do operador: o WebRTC e o áudio continuam na instância persistente do telefone. */
 export function UnionPbxOperatorWorkspace({
   isActive, dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
@@ -83,6 +77,7 @@ export function UnionPbxOperatorWorkspace({
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
+  const [brokenAvatar, setBrokenAvatar] = useState<Record<string,true>>({});
   const settingsRef = useRef<HTMLDivElement>(null);
   const directoryCallback = useRef(onDirectoryChange);
   directoryCallback.current = onDirectoryChange;
@@ -108,7 +103,7 @@ export function UnionPbxOperatorWorkspace({
     };
   }, [settingsOpen]);
 
-  useEffect(() => { setPage(1); setRows([]); setSelectedId(null); setSelectedExtension(null); }, [activeOrganizationId]);
+  useEffect(() => { setPage(1); setRows([]); setSelectedId(null); setSelectedExtension(null); setBrokenAvatar({}); }, [activeOrganizationId]);
   useEffect(() => { setPage(1); }, [recentFilter, numberSearch]);
 
   useEffect(() => {
@@ -172,9 +167,15 @@ export function UnionPbxOperatorWorkspace({
 
   const selected = rows.find(row => row.id === selectedId) || null;
   const selectedNumber = selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
-  const selectedName = selectedExtension?.display_name || (selected ? (
+  const savedCards = usePbxSavedContactCards(activeOrganizationId, isActive,
+    [...rows.map(callNumber), ...(selectedNumber ? [selectedNumber] : [])]);
+  const contactCard = savedCards[pbxContactPhoneKey(selectedNumber)];
+  const selectedName = selectedExtension?.display_name || contactCard?.name || (selected ? (
     directory.find(item => String(item.number) === selectedNumber)?.display_name || formatPbxNumber(selectedNumber) || "Número não identificado"
   ) : "");
+  const selectedAvatarKey = pbxContactPhoneKey(selectedNumber);
+  const selectedAvatar = contactCard?.avatarUrl && !brokenAvatar[selectedAvatarKey + ":" + contactCard.avatarUrl]
+    ? contactCard.avatarUrl : null;
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   const nav = [
@@ -268,26 +269,50 @@ export function UnionPbxOperatorWorkspace({
                   <th className="border-b border-border p-2 font-medium">Tipo</th>
                   <th className="border-b border-border p-2 font-medium">Horário</th>
                   <th className="border-b border-border p-2 font-medium">Duração</th>
-                  
+                  <th className="border-b border-border p-2 font-medium">Estado</th>
+                  <th className="border-b border-border p-2 font-medium">Ações</th>
                 </tr></thead>
                 <tbody>{rows.map(row => {
                   const number = callNumber(row);
                   const extension = directory.find(item => String(item.number) === number);
-                  const name = extension?.display_name || formatPbxNumber(number) || "Desconhecido";
+                  const saved = savedCards[pbxContactPhoneKey(number)];
+                  const name = extension?.display_name || saved?.name || formatPbxNumber(number) || "Desconhecido";
+                  const avatarKey = pbxContactPhoneKey(number);
+                  const avatar = saved?.avatarUrl && !brokenAvatar[avatarKey + ":" + saved.avatarUrl] ? saved.avatarUrl : null;
                   const active = row.id === selectedId && !selectedExtension;
                   return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); }}
                     className={`cursor-pointer hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}>
                     <td className="border-b border-border/60 p-2"><div className="flex items-center gap-2">
-                      <span aria-label={callStatus(row)} title={callStatus(row)}
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${row.disposition === "ANSWERED" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-                        {row.disposition !== "ANSWERED" ? <PhoneMissed size={18}/> : row.direction === "outbound" ? <PhoneOutgoing size={18}/> : <PhoneIncoming size={18}/>}
+                      <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {avatar
+                          ? <img src={avatar} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover"
+                              onError={() => setBrokenAvatar(old => ({...old, [avatarKey + ":" + avatar]: true}))}/>
+                          : initials(number)}
                       </span>
                       <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
                     <td className="border-b border-border/60 p-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
                     <td className="border-b border-border/60 p-2 whitespace-nowrap">{displayTime(row.started_at)}</td>
                     <td className="border-b border-border/60 p-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
-                    
+                    <td className="border-b border-border/60 p-2">
+                      <span role="img" aria-label={callStatus(row)} title={callStatus(row)}
+                        className={row.disposition === "ANSWERED" ? "inline-flex text-emerald-600 dark:text-emerald-400" : "inline-flex text-red-600 dark:text-red-400"}>
+                        {row.disposition !== "ANSWERED" ? <PhoneMissed size={19}/> : row.direction === "outbound" ? <PhoneOutgoing size={19}/> : <PhoneIncoming size={19}/>}
+                      </span>
+                    </td>
+                    <td className="border-b border-border/60 p-2">
+                      {row.disposition !== "ANSWERED"
+                        ? <button type="button" title="Retornar chamada" aria-label={`Retornar chamada para ${formatPbxNumber(number)}`}
+                            disabled={callState !== "idle"} onClick={event => {event.stopPropagation();onDialNumber(number);}}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-primary hover:bg-primary/10 disabled:opacity-40">
+                            <Phone size={16}/>
+                          </button>
+                        : <button type="button" title="Ver detalhes" aria-label="Ver detalhes da chamada"
+                            onClick={event => {event.stopPropagation();setSelectedId(row.id);setSelectedExtension(null);}}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-primary">
+                            <ContactRound size={16}/>
+                          </button>}
+                    </td>
                   </tr>;
                 })}</tbody>
               </table>
@@ -306,7 +331,7 @@ export function UnionPbxOperatorWorkspace({
 
           </> : <div className="mt-4 flex-1 space-y-2">
             {directory.map(entry => <button key={entry.number} type="button" onClick={() => {
-              setSelectedExtension(entry); onDialNumber(String(entry.number));
+              setSelectedExtension(entry); setSelectedId(null);
             }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-border p-3 text-left hover:bg-muted">
               <span className="min-w-0 truncate text-sm font-medium">{entry.number} · {entry.display_name}</span>
               <Phone size={15} className="shrink-0 text-primary"/>
@@ -322,7 +347,12 @@ export function UnionPbxOperatorWorkspace({
           </div>
           {selected || selectedExtension ? <>
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">{initials(selectedNumber)}</div>
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-2xl font-bold text-primary">
+                {selectedAvatar
+                  ? <img src={selectedAvatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer"
+                      onError={() => setBrokenAvatar(old => ({...old,[selectedAvatarKey + ":" + selectedAvatar]:true}))}/>
+                  : initials(selectedName || selectedNumber)}
+              </div>
               <div className="min-w-0"><h3 className="break-words text-base font-semibold">{selectedName}</h3>
                 <p className="text-sm text-muted-foreground">{formatPbxNumber(selectedNumber)}</p></div>
               <AdminButton className="w-full" variant="primary" onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
@@ -334,13 +364,15 @@ export function UnionPbxOperatorWorkspace({
                 ["Tipo de ligação", directionLabels[selected.direction] || selected.direction],
                 ["Data e horário", displayTime(selected.started_at)],
                 ["Duração", callDuration(selected.duration_seconds || 0)],
-                ["Resultado", callStatus(selected)],
+                ["Estado", callStatus(selected)],
                 ["Origem", formatPbxNumber(selected.source)],
                 ["Destino", formatPbxNumber(selected.destination)],
               ].map(([key, value]) => <div key={key} className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="break-all text-right font-medium">{value}</span></div>)}
               {canRecordings && <AdminButton variant="secondary" className="mt-3 w-full" onClick={() => onSelectSection("gravacoes")}><Voicemail size={16}/> Consultar gravações</AdminButton>}
               <p className="text-xs text-muted-foreground">Reprodução disponível somente quando a gravação existir e estiver autorizada.</p>
             </div>}
+            <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
+              active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onDialNumber}/>
           </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ContactRound size={32}/><p>Selecione uma chamada ou ramal para ver os detalhes.</p>
           </div>}
