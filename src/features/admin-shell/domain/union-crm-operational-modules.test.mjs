@@ -45,7 +45,12 @@ test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou u
   assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx"\}/);
   assert.match(phone, /<audio ref=\{remoteAudioRef\}/);
   assert.match(phone, /!isPageOpen && \(registration !== "offline" \|\| callState !== "idle"\)/);
-  assert.match(phone, /callState === "incoming" && \(/);
+  const floating=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
+  assert.match(phone, /<UnionPbxFloatingPhone/);
+  assert.match(phone, /\{dialerContent\}<\/UnionPbxFloatingPhone>/);
+  assert.match(floating, /callState!=="idle"/);
+  assert.match(floating, /setExpanded\(true\)/);
+  assert.doesNotMatch(floating, />Desconectar</);
   assert.match(phone, /sessionRef.current\?\.terminate\(\)/);
   assert.match(phone, /uaRef.current\?\.stop\(\)/);
   assert.doesNotMatch(phone, /localStorage|sessionStorage|service_role/);
