@@ -138,10 +138,13 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       <div className="border-b border-border px-4 py-3 text-sm font-semibold">{total} registros no filtro</div>
       {loading ? <AdminWorkspaceSkeleton columns={7} rows={4} />
         : !rows.length && !error ? <AdminSectionEmpty className="gap-2"><History size={28} /><p>Nenhum registro neste período.</p><p>A coleta precisa estar ativa na VPS para receber novas ligações.</p></AdminSectionEmpty>
-          : <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>{['Início', 'Origem', 'Destino', 'Direção', 'Estado', 'Duração', 'Conversa'].map(label => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+          : <div className="overflow-x-auto" style={{scrollbarGutter:"stable"}}><table className="w-full min-w-[1120px] table-fixed text-left text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>
+              {['Início', 'Origem', 'Destino', 'Direção', 'Estado', 'Duração', 'Conversa'].map((label, index) =>
+                <th key={label} className={`whitespace-nowrap px-3 py-3 font-semibold ${index === 0 ? "w-[210px]" : index === 1 || index === 2 ? "w-[200px]" : index === 3 ? "w-[120px]" : index === 4 ? "w-[95px]" : "w-[130px]"}`}>{label}</th>)}
+            </tr></thead>
             <tbody>{rows.map(row => <tr key={row.id} className="border-t border-border">
-              <td className="px-4 py-3"><time dateTime={row.started_at}>{new Date(row.started_at).toLocaleString('pt-BR')}</time><p className="max-w-40 truncate text-[10px] text-muted-foreground" title={row.linked_id}>ID: {row.linked_id}</p></td>
+              <td className="whitespace-nowrap px-3 py-3"><time dateTime={row.started_at}>{new Date(row.started_at).toLocaleString('pt-BR')}</time><p className="max-w-40 truncate text-[10px] text-muted-foreground" title={row.linked_id}>ID: {row.linked_id}</p></td>
               <td className="px-4 py-3">{formatPbxNumber(row.source) || 'Não informado'}{row.source_extension && <p className="text-xs text-muted-foreground">{row.source_extension.display_name} · {row.source_extension.number}</p>}</td>
               <td className="px-4 py-3">{row.destination ? formatPbxNumber(row.destination) : (row.destination_extension ? String(row.destination_extension.number) : row.direction === 'inbound' ? 'Entrada principal' : 'Não informado')}{row.destination_extension && <p className="text-xs text-muted-foreground">{row.destination_extension.display_name} · {row.destination_extension.number}</p>}</td>
               <td className="px-4 py-3">{directionLabels[row.direction] || row.direction}</td>
@@ -151,8 +154,8 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
                    {row.disposition !== "ANSWERED" ? <PhoneMissed size={19}/> : row.direction === "outbound" ? <PhoneOutgoing size={19}/> : <PhoneIncoming size={19}/>}
                  </span>
                </td>
-              <td className="px-4 py-3 tabular-nums">{callDuration(row.duration_seconds)}</td>
-              <td className="px-4 py-3 tabular-nums">{callDuration(row.billable_seconds)}</td>
+              <td className="whitespace-nowrap px-3 py-3 tabular-nums">{callDuration(row.duration_seconds)}</td>
+              <td className="whitespace-nowrap px-3 py-3 tabular-nums">{callDuration(row.billable_seconds)}</td>
             </tr>)}</tbody>
           </table></div>}
       <PaginationBar page={page} pageSize={pageSize} totalItems={total} onPageChange={setPage}
