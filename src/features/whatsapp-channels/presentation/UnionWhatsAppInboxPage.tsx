@@ -865,11 +865,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
 
-  useEffect(()=>{
-    if(!activeOrganizationId || !selectedId || channelReady!==true)return;
-    void operateUnionWhatsAppInbox(activeOrganizationId,selectedId,"presence_subscribe")
-      .catch(()=>undefined);
-  },[activeOrganizationId,selectedId,channelReady]);
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
@@ -986,15 +981,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </span>;
   };
 
-  // A lightweight timer (and tab focus) only re-checks timestamps; it never
-  // downloads photos by itself. Background tabs do not start new lookups.
+  // Refresh avatars only when a user returns to the tab (no periodic WhatsApp polling).
   useEffect(()=>{
     const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
-    const timer=window.setInterval(wake,5*60*1000);
     window.addEventListener("focus",wake);
     document.addEventListener("visibilitychange",wake);
     return()=>{
-      window.clearInterval(timer);
       window.removeEventListener("focus",wake);
       document.removeEventListener("visibilitychange",wake);
     };
@@ -1002,7 +994,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Selected conversation first, then a small visible subset. Keep old photos
   // while refreshing to avoid flicker; never scan the imported contacts.
-  const previewIds=[...new Set([selectedId,...visible.slice(0,12).map(item=>item.id)]
+  const previewIds=[...new Set([selectedId,...visible.slice(0,4).map(item=>item.id)]
     .filter((id):id is string=>Boolean(id)))].join(",");
   useEffect(()=>{
     if(!activeOrganizationId || !activeChannelId || !activeChannelPhone ||
@@ -1997,12 +1989,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
-                  {selected.contact_presence==="online" && selected.contact_presence_at &&
-                    clockNow-Date.parse(selected.contact_presence_at)>=0 &&
-                    clockNow-Date.parse(selected.contact_presence_at)<120000 &&
-                    <span role="status" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Online
-                    </span>}
 
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
@@ -2018,12 +2004,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    </span>
 
                  </p>
-                 {(selected.contact_presence==="composing"||selected.contact_presence==="recording") &&
-                   selected.contact_presence_at &&
-                   clockNow-Date.parse(selected.contact_presence_at)<12000 && clockNow>=Date.parse(selected.contact_presence_at) &&
-                   <p role="status" className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                     {selected.contact_presence==="recording"?"Gravando áudio...":"Digitando..."}
-                   </p>}
 
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&

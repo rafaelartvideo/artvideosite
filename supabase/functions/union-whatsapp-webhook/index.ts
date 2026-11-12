@@ -126,45 +126,10 @@ Deno.serve(async request => {
     // It NEVER inserts a conversation or stores a test message.
     if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
     const eventType = str(get(payload, "type", "Type", "event"), 60);
-    if(eventType==="Presence" || eventType==="events.Presence") {
-      const jid=str(get(payload,"from","From"),160);
-      const state=str(get(payload,"state","State"),30).toLowerCase();
-      if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid) ||
-        !["online","offline"].includes(state))
-        return json({ok:true,ignored:"unrecognized_presence"});
-      const {error:presenceError}=await admin.from("union_whatsapp_conversations")
-        .update({contact_presence:state,contact_presence_at:new Date().toISOString()})
-        .eq("organization_id",channel.organization_id)
-        .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("chat_jid",jid);
-      if(presenceError)throw presenceError;
-      return json({ok:true});
-    }
-    if(["ChatPresence","events.ChatPresence"].includes(eventType)){
-      // Evento transitório do WuzAPI/Whatsmeow. Não cria contatos nem
-      // altera mensagens; em ausência de eventos, não simular digitação.
-      const detail=obj(get(payload,"event","Event"));
-      const compact=obj(get(payload,"data","Data"));
-      const entry=Object.keys(compact).length?compact:detail;
-      const info=obj(get(entry,"Chat","chat"));
-      const rawChat=get(entry,"Chat","chat","ChatJID","chatJid","From","from");
-      const chatJid=typeof rawChat==="string"?str(rawChat,160):
-        str(get(info,"User","user"),30)+"@"+str(get(info,"Server","server"),40);
-      const state=str(get(entry,"State","state") ?? get(payload,"state","State"),32).toLowerCase();
-      const media=str(get(entry,"Media","media"),30).toLowerCase();
-      if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(chatJid) ||
-        !["composing","paused"].includes(state))
-        return json({ok:true,ignored:"invalid_chat_presence"});
-      const presence=state==="paused"?"paused":
-        media==="audio"?"recording":"composing";
-      // Segundos depois a interface desconsidera o sinal, mesmo se o
-      // evento paused for perdido por desconexão.
-      const {error:typingError}=await admin.from("union_whatsapp_conversations")
-        .update({contact_presence:presence,contact_presence_at:new Date().toISOString()})
-        .eq("organization_id",channel.organization_id).eq("channel_id",channelId)
-        .eq("account_phone",accountPhone).eq("chat_jid",chatJid);
-      if(typingError)throw typingError;
-      return json({ok:true});
-    }
+    // Presence / typing are intentionally disabled. Ignore existing webhook
+    // events without database writes until each VPS bridge is reconfigured.
+    if(["Presence","events.Presence","ChatPresence","events.ChatPresence"].includes(eventType))
+      return json({ok:true,ignored:"presence_disabled"});
     if (["ReadReceipt","events.ReadReceipt","Receipt","events.Receipt"].includes(eventType)) {
       // WuzAPI serializes receipts as { type:"ReadReceipt", state:"Delivered"
       // | "Read" | "ReadSelf", event:{ MessageIDs, Chat, Sender, Type } }.

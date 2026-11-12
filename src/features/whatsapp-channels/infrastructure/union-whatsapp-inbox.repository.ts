@@ -12,8 +12,6 @@ export type UnionWhatsAppConversation = {
   assigned_to: string | null;
   department_id: string | null;
   service_order_id: string | null;
-  contact_presence: "online"|"offline"|"composing"|"paused"|"recording"|null;
-  contact_presence_at: string|null;
   last_message: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -113,7 +111,7 @@ export type UnionWhatsAppProtocolPage={
 const INBOX_PAGE_SIZE=50;
 const MESSAGE_PAGE_SIZE=60;
 const PROTOCOL_PAGE_SIZE=25;
-const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
+const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
 
 export async function listUnionWhatsAppConversationCounts(
   organizationId:string,channelId:string,accountPhone:string,

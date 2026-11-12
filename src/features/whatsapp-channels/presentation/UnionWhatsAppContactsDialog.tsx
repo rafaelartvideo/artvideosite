@@ -96,14 +96,12 @@ export function UnionWhatsAppContactsDialog({
     previouslyVisibleJidsRef.current.clear();
     setListAvatars({});
   },[organizationId,channelId,accountPhone]);
-  // Refresh only visible contacts when the tab returns or an avatar TTL expires.
+  // Refresh only visible contacts when the user returns to the tab.
   useEffect(()=>{
     const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
-    const timer=window.setInterval(wake,5*60*1000);
     window.addEventListener("focus",wake);
     document.addEventListener("visibilitychange",wake);
     return()=>{
-      window.clearInterval(timer);
       window.removeEventListener("focus",wake);
       document.removeEventListener("visibilitychange",wake);
     };

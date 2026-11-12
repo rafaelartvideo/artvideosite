@@ -51,7 +51,6 @@ function saveAvatarCacheEntry(key, entry) {
     removeAvatarCacheEntry(avatarCache.keys().next().value);
   }
 }
-const presenceSubscriptions = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
 // Browser recordings arrive as WebM/Opus or MP4/AAC. WhatsApp recipients
 // have reported unplayable PTT voice notes, despite provider delivery ACKs.
@@ -348,16 +347,8 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
   }
-  if (action === "presence_subscribe") {
-    const jid=String(chatJid||"");
-    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)) throw new Error("bad_request");
-    const key=id+"|"+jid;
-    if(Date.now()-(presenceSubscriptions.get(key)||0)<300000) return {ok:true};
-    await wuzapi("/user/presence/subscribe",session.token,"POST",{Phone:jid});
-    presenceSubscriptions.set(key,Date.now());
-    if(presenceSubscriptions.size>1000) presenceSubscriptions.delete(presenceSubscriptions.keys().next().value);
-    return {ok:true};
-  }
+  // Compatibility only: presence subscriptions were removed for account safety.
+  if (action === "presence_subscribe") return {ok:true,presence_disabled:true};
   if(action==="contacts_export") {
     const reply=await wuzapi("/user/contacts",session.token);
     const entries=reply?.data && typeof reply.data==="object" &&
@@ -669,14 +660,14 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
       + "?channel=" + encodeURIComponent(id);
     await wuzapi("/webhook", session.token, "POST", {
-      webhookurl: url, events: ["Message", "ReadReceipt", "Receipt", "Presence", "ChatPresence"],
+      webhookurl: url, events: ["Message", "ReadReceipt", "Receipt"],
     });
     return { ok: true, auth_mode: "hmac-sha256",
       token_sha256: createHash("sha256").update(session.token).digest("hex") };
   }
   if (action === "connect") {
     await wuzapi("/session/connect", session.token, "POST", {
-      Subscribe: ["Message", "ReadReceipt", "Receipt", "HistorySync", "ChatPresence"], Immediate: true,
+      Subscribe: ["Message", "ReadReceipt", "Receipt", "HistorySync"], Immediate: true,
     });
   }
   if (action === "disconnect") {

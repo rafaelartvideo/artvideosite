@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -45,4 +46,30 @@ test("refreshing an avatar moves it to the most recent position",()=>{
 test("found, private and transient error refresh windows stay ordered",()=>{
   assert.ok(VISIBLE_AVATAR_RETRY_MS<VISIBLE_AVATAR_MISSING_TTL_MS);
   assert.ok(VISIBLE_AVATAR_MISSING_TTL_MS<VISIBLE_AVATAR_FOUND_TTL_MS);
+});
+
+const sourceAt = relative => readFileSync(new URL(relative, import.meta.url), "utf8");
+
+test("Union WhatsApp no longer requests online or typing subscriptions", () => {
+  const inbox = sourceAt("../presentation/UnionWhatsAppInboxPage.tsx");
+  const transport = sourceAt("../infrastructure/union-whatsapp-inbox.repository.ts");
+  const webhook = sourceAt("../../../../supabase/functions/union-whatsapp-webhook/index.ts");
+  const bridge = sourceAt("../../../../services/union-wuzapi-bridge/server.mjs");
+  assert.doesNotMatch(inbox, /presence_subscribe|contact_presence|Digitando\.\.\.|>Online/);
+  assert.doesNotMatch(transport, /contact_presence/);
+  assert.doesNotMatch(bridge, /\/user\/presence\/subscribe/);
+  assert.doesNotMatch(bridge, /"ChatPresence"/);
+  assert.match(webhook, /ignored:"presence_disabled"/);
+});
+
+test("provider avatar bytes and number checks are cached per company/channel", () => {
+  const edge = sourceAt("../../../../supabase/functions/union-whatsapp-inbox/index.ts");
+  const avatars = sourceAt("../../../../supabase/functions/union-whatsapp-inbox/avatar-cache.ts");
+  assert.match(edge, /cachedWhatsAppAvatar/);
+  assert.match(edge, /union_whatsapp_number_check_cache/);
+  assert.match(avatars, /organization_id:organizationId/);
+  assert.match(avatars, /account_phone:channel.phone/);
+  assert.match(avatars, /createSignedUrl/);
+  assert.match(avatars, /IMAGE_TTL_MS = 7 \* 24/);
+  assert.doesNotMatch(avatars, /storage\/v1\/object\/public/);
 });
