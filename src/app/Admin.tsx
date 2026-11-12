@@ -15,7 +15,6 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { OrdersWorkspaceSkeleton } from "@/features/orders/presentation/OrdersSkeletons";
 import { AdminDialog, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { UnionPbxSectionTabs, type UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
@@ -590,18 +589,21 @@ export function AdminDashboard({
              <Route path="site/pedidos-da-loja/*" element={<Navigate to={adminPath("siteRequests", "pedidos")} replace />} />
             <Route path="operation" element={operationHub} />
             <Route path="tools/*" element={
-              route.resourceId === "union-pbx" && route.subpage && canAccessPbxModule
-                ? <div className="min-w-0 space-y-5">
-                    <UnionPbxSectionTabs
-                      active={route.subpage as UnionPbxSection}
-                      canManage={canManagePbxTool}
-                      canAccessRecordings={canAccessPbxRecordings}
-                      canUsePhone={canAccessPbxTool}
-                      canManageInbound={canManagePbxTool && isPlatformOperatorOrganization}
-                      onSelect={section => navigateAdmin("tools", "union-pbx", section === "telefone" ? null : section)}
-                    />
+              route.resourceId === "union-pbx" && route.subpage && canAccessPbxModule && canAccessPbxTool
+                ? <AdminDialog
+                    open={true}
+                    onClose={() => navigateAdmin("tools", "union-pbx")}
+                    title={({
+                      ramais: "Gerenciar ramais", filas: "Configurar filas", fluxos: "URA e horários",
+                      entrada: "Entrada de chamadas", troncos: "Troncos SIP",
+                      historico: "Histórico de chamadas", gravacoes: "Gravações",
+                    } as Record<string, string>)[route.subpage] || "PABX Union"}
+                    className="!w-[calc(100vw-1.5rem)] !max-w-[1100px]"
+                    bodyClassName="!p-4 sm:!p-5"
+                    minimizable={false}
+                  >
                     {toolsContent}
-                  </div>
+                  </AdminDialog>
                 : toolsContent
             } />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
@@ -663,7 +665,7 @@ export function AdminDashboard({
             <UnionPbxToolPage
               allowExternalCalls={isPlatformOperatorOrganization}
               key={`${user.id}:${activeOrganizationId}`}
-              isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null}
+              isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx"}
               onOpen={() => navigateAdmin("tools", "union-pbx")}
               onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
               onManageQueues={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "filas") : undefined}
