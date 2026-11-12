@@ -12,6 +12,7 @@ test("PBX formats Brazilian numbers without changing internal extensions", async
   assert.equal(formatPbxNumber("11999888777"), "(11) 99988-8777");
   assert.equal(formatPbxNumber("1133332222"), "(11) 3333-2222");
   assert.equal(formatPbxNumber("301"), "301");
+  assert.equal(formatPbxNumber("079988037605"), "(79) 98803-7605");
 });
 
 test("operator has Estado column, missed callback, cached avatar fallback and contact history", async () => {
@@ -106,4 +107,25 @@ test("PBX keeps recent table columns separate and does not refetch agenda on eve
     "src/features/telephony/presentation/PbxContactActivity.tsx"]) {
     assert.ok((await transformWithEsbuild(read(path),path,{loader:"tsx"})).code.length > 100);
   }
+});
+
+test("incoming phone resolves cached PBX name before call history exists and loads CRM context securely", async () => {
+  const page=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const workspace=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
+  const cards=read("src/features/telephony/application/pbx-saved-contact-cards.ts");
+  const edge=read("supabase/functions/union-pbx-contact-cards/index.ts");
+  const panel=read("src/features/telephony/presentation/PbxCrmContactPanel.tsx");
+  assert.match(cards,/\^0\(\?:55/);
+  assert.match(page,/currentCallerCard\?\.name/);
+  assert.match(page,/callerCard=\{currentCallerCard\}/);
+  assert.match(page,/grid grid-cols-2 gap-2.*Responder chamada recebida/);
+  assert.match(workspace,/inCallNumber/);
+  assert.match(workspace,/<PbxCrmContactPanel/);
+  assert.match(edge,/action==="context"/);
+  assert.match(edge,/permissions\.has\("customers\.view"\)/);
+  assert.match(edge,/union_whatsapp_find_customer_by_phone/);
+  assert.match(edge,/matches\.length!==1/);
+  assert.match(edge,/permissions\.has\("orders\.details\.view"\)/);
+  assert.doesNotMatch(edge,/WuzAPI\(/);
+  assert.ok((await transformWithEsbuild(panel,"PbxCrmContactPanel.tsx",{loader:"tsx"})).code.length>100);
 });
