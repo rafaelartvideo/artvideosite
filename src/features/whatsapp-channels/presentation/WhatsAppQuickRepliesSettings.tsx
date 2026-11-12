@@ -89,8 +89,9 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
       description:inlineStage==="reply-delete" ?
         "Confirme a exclusão da resposta selecionada." : "Configure o conteúdo e as variáveis automáticas.",
       compact:true,
+      blocked:Boolean(busy||deleting),
     }:null,closeInline);
-  },[embedded,inlineStage,draft?.id,confirmDelete?.id,onInlinePaneChange]);
+  },[embedded,inlineStage,draft?.id,confirmDelete?.id,busy,deleting,onInlinePaneChange]);
 
   return <>
     {embedded && inlineStage && <div className="space-y-4" data-whatsapp-inline-stage={inlineStage}>
