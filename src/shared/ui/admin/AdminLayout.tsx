@@ -413,6 +413,22 @@ export function AdminDialog({
     previousPanelSizeRef.current={key:transitionKey,width:bounds.width,height:bounds.height};
   },[open,showPreparation,transitionKey]);
 
+  // Cacheia o tamanho real após consultas e carregamentos internos. Assim a
+  // próxima etapa anima a partir da medida atual, e não do skeleton inicial.
+  React.useEffect(() => {
+    const node=contentRef.current;
+    if(!open || !node || typeof ResizeObserver==="undefined")return;
+    const observer=new ResizeObserver(()=>{
+      if(resizeAnimationRef.current?.playState==="running")return;
+      const bounds=node.getBoundingClientRect();
+      if(bounds.width>0 && bounds.height>0){
+        previousPanelSizeRef.current={key:transitionKey,width:bounds.width,height:bounds.height};
+      }
+    });
+    observer.observe(node);
+    return()=>observer.disconnect();
+  },[open,transitionKey]);
+
   React.useEffect(() => () => resizeAnimationRef.current?.cancel(), []);
 
   React.useEffect(() => {
