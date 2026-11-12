@@ -20,7 +20,8 @@ function envKey(legacy:string, modern:string) {
 }
 type IdentityRow={number:string;display_name:string|null;source:string|null;avatar_path:string|null};
 function phoneKey(value:string):string {
-  const digits=String(value||"").replace(/\D/g,"");
+  let digits=String(value||"").replace(/\D/g,"");
+  if(/^0(?:55[1-9][0-9]{9,10}|[1-9][0-9]{9,10})$/.test(digits))digits=digits.slice(1);
   if (/^55[1-9][0-9]{9,10}$/.test(digits)) return digits;
   if (/^[1-9][0-9]{9,10}$/.test(digits)) return "55"+digits;
   return "";
