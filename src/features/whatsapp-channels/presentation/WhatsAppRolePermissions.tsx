@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, AdminSegmentedControl, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
@@ -24,7 +25,10 @@ const emptyValues = (): Values => ({ manager: {}, operator: {} });
 const notifyError=(message:string)=>{if(message)notifyAdmin(message,"error");};
 const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success");};
 
-export function WhatsAppRolePermissions({ onSaved, onClose, onBack }: { onSaved?: () => void; onClose?: () => void; onBack?: () => void }) {
+export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget }: {
+  onSaved?: () => void; onClose?: () => void; onBack?: () => void;
+  footerTarget?: HTMLElement | null;
+}) {
   const { activeOrganizationId } = useAuth();
   const [profile, setProfile] = useState<Profile>("operator");
   const [rows, setRows] = useState<Permission[]>([]);
@@ -179,7 +183,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack }: { onSaved?
 
   return <div className="space-y-4">
     {content}
-    {onBack ? <AdminStickyToolbar className="justify-between">
+    {footerTarget ? createPortal(footer, footerTarget) : onBack ? <AdminStickyToolbar className="justify-between">
       <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>Descartar</AdminButton>
