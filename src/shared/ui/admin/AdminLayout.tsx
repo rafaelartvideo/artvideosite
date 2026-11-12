@@ -312,6 +312,7 @@ export function AdminDialog({
   hideHeader = false,
   preparing = false,
   preparingKey,
+  transitionKey,
   preparingText = "Preparando informações...",
   preparingError,
   onRetryPreparing,
@@ -335,6 +336,8 @@ export function AdminDialog({
   preparing?: boolean;
   /** Identifica o registro para repetir a preparação apenas ao trocar de entidade. */
   preparingKey?: string | number | null;
+  /** Identifica uma etapa interna: anima o mesmo modal quando o conteúdo muda. */
+  transitionKey?: string | number | null;
   preparingText?: string;
   preparingError?: string | null;
   onRetryPreparing?: () => void;
@@ -355,6 +358,7 @@ export function AdminDialog({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const preparedSizeRef = React.useRef<{ width: number; height: number } | null>(null);
   const resizeAnimationRef = React.useRef<Animation | null>(null);
+  const previousPanelSizeRef = React.useRef<{key:string|number|null|undefined;width:number;height:number}|null>(null);
 
   // Uma única instância do DialogContent: enquanto prepara, guarda seu tamanho
   // real; quando os dados ficam prontos, anima até o tamanho final do conteúdo.
@@ -385,6 +389,29 @@ export function AdminDialog({
       { width: `${after.width}px`, height: `${after.height}px` },
     ], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
   }, [open, showPreparation, preparingKey]);
+
+  // Etapas do mesmo modal (formulário, confirmação, QR etc.) não remontam o
+  // Dialog. Interpolamos o tamanho real da mesma janela, sem outro overlay.
+  React.useLayoutEffect(() => {
+    const node=contentRef.current;
+    if (!open || !node || showPreparation) {
+      previousPanelSizeRef.current=null;
+      return;
+    }
+    const bounds=node.getBoundingClientRect();
+    const previous=previousPanelSizeRef.current;
+    if (previous && previous.key!==transitionKey && transitionKey!=null &&
+        previous.width>0 && previous.height>0 && bounds.width>0 && bounds.height>0 &&
+        (Math.abs(previous.width-bounds.width)>1 || Math.abs(previous.height-bounds.height)>1) &&
+        !(typeof window.matchMedia==="function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+      resizeAnimationRef.current?.cancel();
+      resizeAnimationRef.current=node.animate([
+        {width:`${previous.width}px`,height:`${previous.height}px`},
+        {width:`${bounds.width}px`,height:`${bounds.height}px`},
+      ],{duration:260,easing:"cubic-bezier(0.22, 1, 0.36, 1)"});
+    }
+    previousPanelSizeRef.current={key:transitionKey,width:bounds.width,height:bounds.height};
+  },[open,showPreparation,transitionKey]);
 
   React.useEffect(() => () => resizeAnimationRef.current?.cancel(), []);
 
