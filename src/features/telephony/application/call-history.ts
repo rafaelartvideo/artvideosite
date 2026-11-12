@@ -40,7 +40,7 @@ export function queryCallHistory(client: any, organizationId: string | null, fil
   page: number, pageSize: number, signal: AbortSignal, extensionIds: string[] = []) {
   const {from,to,number}=historyFilterValues(organizationId,filters);
   if (extensionIds.length > 1 || extensionIds.some(id => !/^[a-f0-9-]{36}$/i.test(id))) throw new Error('Ramal inválido.');
-  if (!Number.isInteger(page) || page < 1 || ![25, 50, 100].includes(pageSize)) throw new Error('Página inválida.');
+  if (!Number.isInteger(page) || page < 1 || ![10, 25, 50, 100].includes(pageSize)) throw new Error('Página inválida.');
   let query = client.from('pbx_call_logs').select(
     'id,linked_id,started_at,answered_at,ended_at,source,destination,direction,disposition,duration_seconds,billable_seconds,' +
     'source_extension:pbx_extensions!pbx_call_logs_source_extension_id_fkey(number,display_name),' +
