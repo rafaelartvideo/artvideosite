@@ -55,7 +55,7 @@ export function WhatsAppAttendanceSettings({
     inlineBackRef.current=back||null;
     setInlinePane(previous=>previous?.key===next?.key &&
       previous?.title===next?.title && previous?.description===next?.description &&
-      previous?.compact===next?.compact ? previous : next);
+      previous?.compact===next?.compact && previous?.blocked===next?.blocked ? previous : next);
   },[]);
   const menuRef=useRef<HTMLDivElement>(null);
   const [menuPosition,setMenuPosition]=useState({top:80,left:12,width:300});
@@ -70,6 +70,7 @@ export function WhatsAppAttendanceSettings({
     setSection(next);
   };
   const backToPrevious=()=>{
+    if(inlinePane?.blocked)return;
     if(inlinePane){
       inlineBackRef.current?.();
       return;
@@ -171,7 +172,8 @@ export function WhatsAppAttendanceSettings({
       </p>}
     </div>}
 
-    <AdminDialog open={Boolean(section)} onClose={onClose}
+    <AdminDialog open={Boolean(section)} onClose={()=>{if(!inlinePane?.blocked)onClose();}}
+      closable={!inlinePane?.blocked}
       title={inlinePane?.title||active?.title||"Configurações"}
       description={inlinePane?.description??active?.description}
       transitionKey={section ? section+":"+(inlinePane?.key||"list") : null}
@@ -179,7 +181,7 @@ export function WhatsAppAttendanceSettings({
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <AdminButton variant="secondary" onClick={backToPrevious}>
+          <AdminButton variant="secondary" disabled={Boolean(inlinePane?.blocked)} onClick={backToPrevious}>
             <ArrowLeft size={16}/> Voltar
           </AdminButton>
           {!inlinePane && section==="connections" && canManage && <AdminButton
