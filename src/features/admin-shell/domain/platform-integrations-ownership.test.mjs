@@ -60,7 +60,7 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   assert.match(platform, /Gerenciar motor WuzAPI/);
   assert.match(admin, /route\.subpage === "canais"/);
   assert.match(admin, /route\.subpage\s*===\s*"configuracoes"/);
-  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools","union-whatsapp","configuracoes"\)\}/);
+  assert.match(admin, /onConfigure=\{\(\) => navigateAdmin\("tools","union-whatsapp",route\.subpage==="configuracoes" \? null : "configuracoes"\)\}/);
   assert.doesNotMatch(admin, /onConfigure=\{\(\) => navigateAdmin\("tools", "sac-digital", "configuracoes"\)\}/);
   assert.match(admin, /<WhatsAppAttendanceSettings/);
   assert.doesNotMatch(admin, /<SacDigitalSettingsPage/);
@@ -72,6 +72,15 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   assert.match(attendanceSettings, /onClick=\{\(\)=>openSection\(item.id\)\}/);
   assert.match(attendanceSettings, /sectionTrail/);
   assert.match(attendanceSettings, /backToPrevious/);
+  assert.match(attendanceSettings, /role="menu"/);
+  assert.match(attendanceSettings, /onClose=\{onClose\}/);
+  assert.match(attendanceSettings, /Nova conexão/);
+  assert.match(attendanceSettings, /Novo departamento/);
+  assert.match(attendanceSettings, /ref=\{setFooterTarget\}/);
+  assert.doesNotMatch(attendanceSettings, /<AdminDialog open=\{!section\}/);
+  assert.match(inbox, /data-whatsapp-attendance-settings-trigger/);
+  assert.match(channels, /createConnectionRequest/);
+  assert.match(channels, /\{!embeddedSection && section !== "permissions"/);
   assert.match(permissions, /onBack \? <AdminStickyToolbar/);
   assert.match(permissions, /Salvar permissões/);
   assert.match(admin, /route\.resourceId === "sac-digital"[\s\S]*?<Navigate to=\{adminPath\("tools"\)\} replace/);
