@@ -4,6 +4,8 @@ export type WhatsAppSettingsInlinePane = {
   title: string;
   description?: string;
   compact?: boolean;
+  /** Impede sair de uma operação irreversível em execução. */
+  blocked?: boolean;
 };
 export type WhatsAppSettingsInlinePaneChange = (
   pane: WhatsAppSettingsInlinePane | null,
