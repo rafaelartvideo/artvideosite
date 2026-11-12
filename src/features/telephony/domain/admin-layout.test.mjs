@@ -37,11 +37,17 @@ test('PABX usa console do operador e modais protegidos mantendo a chamada', asyn
   const adminPath = 'src/app/Admin.tsx';
   const admin = readFileSync(adminPath, 'utf8');
   assert.match(nav, /PageHeader/);
-  assert.match(nav, /lg:grid-cols-\[76px_minmax\(0,1fr\)\]/);
+  assert.match(nav, /lg:grid-cols-\[72px_minmax\(0,1fr\)\]/);
   assert.match(nav, /xl:grid-cols-\[minmax\(270px,0\.85fr\)_minmax\(340px,1\.55fr\)_minmax\(255px,0\.9fr\)\]/);
-  for (const item of ['"chamadas"', '"contatos"', '"filas"', '"ramais"', '"historico"', '"gravacoes"', '"fluxos"', '"troncos"', '"entrada"']) {
+  for (const item of ['"chamadas"', '"contatos"', '"historico"', '"gravacoes"', '"fluxos"', '"troncos"', '"entrada"']) {
     assert.ok(nav.includes(item), item);
   }
+  assert.doesNotMatch(nav, /id: "filas" as const|id: "ramais" as const/);
+  assert.match(nav, /aria-label="Configurações gerais do PABX"/);
+  assert.match(nav, /aria-label="Dispositivos e testes de áudio"/);
+  assert.match(nav, /const pageSize = 10/);
+  assert.match(nav, /table: "pbx_call_logs", filter/);
+  assert.doesNotMatch(nav, /Atualizar chamadas|setPageSize\(/);
   assert.match(nav, /canManage \?/);
   assert.match(nav, /canManageInbound \?/);
   assert.match(nav, /loadCallHistory/);
