@@ -226,14 +226,14 @@ export function PlatformProvidersPage() {
   const openNew = () => {
     setEditing(null); setDraft(emptyProviderDraft()); setSelectedServiceIds([]);
     setPendingFiles([]); setPersistedProviderId(null); setEditorOpen(true);
-    void servicesQuery.refetch();
+    if (servicesQuery.isStale) void servicesQuery.refetch();
   };
   const openEdit = (provider: PlatformProvider) => {
     if (!canManage) return;
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
     setPersistedProviderId(provider.id); setEditorOpen(true);
-    void servicesQuery.refetch();
+    if (servicesQuery.isStale) void servicesQuery.refetch();
   };
   const openServiceModal = (equipmentName = "", selectNew = false, mode: "equipment" | "standalone" = "equipment", professionName = "") => {
     if (!canManage) return;
