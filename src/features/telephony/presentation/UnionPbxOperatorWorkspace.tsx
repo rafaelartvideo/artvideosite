@@ -159,13 +159,14 @@ export function UnionPbxOperatorWorkspace({
     directory.find(item => String(item.number) === selectedNumber)?.display_name || selectedNumber || "Número não identificado"
   ) : "");
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
   const nav = [
     { id: "chamadas" as const, label: "Chamadas", Icon: Phone },
     { id: "contatos" as const, label: "Contatos", Icon: ContactRound },
-    { id: "filas" as const, label: "Filas", Icon: ListTree },
-    { id: "ramais" as const, label: "Ramais", Icon: UsersRound },
   ];
   const settingItems: { label: string; section: UnionPbxSection }[] = [
+    { label: "Histórico de chamadas", section: "historico" },
+    ...(canRecordings ? [{ label: "Gravações", section: "gravacoes" as const }] : []),
     ...(canManage ? [
       { label: "Gerenciar ramais", section: "ramais" as const },
       { label: "Configurar filas", section: "filas" as const },
@@ -174,41 +175,40 @@ export function UnionPbxOperatorWorkspace({
     ] : []),
     ...(canManageInbound ? [{ label: "Entrada de chamadas", section: "entrada" as const }] : []),
   ];
-
   return <div className="min-w-0 space-y-4 text-foreground">
-    <PageHeader title="Chamadas" subtitle="PABX Union · Central de atendimento"
+    <PageHeader title={<div className="flex items-center gap-3">
+      <span>Chamadas</span>
+      <div className="relative">
+        <button type="button" title="Configurações gerais do módulo" aria-label="Configurações gerais do PABX"
+          aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
+          onClick={() => setSettingsOpen(value => !value)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <Settings2 size={18}/>
+        </button>
+        {settingsOpen && <div id="pbx-module-settings" className="absolute left-0 top-full z-40 mt-2 w-[250px] rounded-xl border border-border bg-card p-2 text-sm shadow-xl">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-2 pb-2">
+            <span className="text-xs font-semibold">Configurações gerais</span>
+            <button type="button" aria-label="Fechar menu" onClick={() => setSettingsOpen(false)}><X size={15}/></button>
+          </div>
+          {settingItems.map(item => <button key={item.section} type="button"
+            className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium hover:bg-muted"
+            onClick={() => { setSettingsOpen(false); onSelectSection(item.section); }}>{item.label}</button>)}
+        </div>}
+      </div>
+    </div>} subtitle="PABX Union · Central de atendimento"
       actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Ferramentas</AdminButton>} />
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[76px_minmax(0,1fr)]">
-      <aside aria-label="Navegação do PABX" className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card p-2 lg:flex-col lg:items-stretch">
-        {nav.map(item => <button key={item.id} type="button" onClick={() => { setMode(item.id); setSettingsOpen(false); setSelectedExtension(null); }}
-          aria-current={mode === item.id ? "page" : undefined}
-          className={`flex min-h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${mode === item.id ? "border-l-[3px] border-primary bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[72px_minmax(0,1fr)]">
+      <aside aria-label="Navegação do operador" className="flex min-w-0 flex-row items-center gap-2 rounded-xl border border-border bg-card p-2 lg:min-h-[640px] lg:flex-col">
+        {nav.map(item => <button key={item.id} type="button" aria-current={mode === item.id ? "page" : undefined}
+          title={item.label} onClick={() => { setMode(item.id); setSettingsOpen(false); setSelectedExtension(null); }}
+          className={`flex h-14 min-w-[62px] flex-col items-center justify-center gap-1 rounded-lg border text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:w-full ${mode === item.id ? "border-primary/25 bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:bg-muted"}`}>
           <item.Icon size={20} aria-hidden="true"/>{item.label}
         </button>)}
-        <button type="button" onClick={() => onSelectSection("historico")}
-          className="flex min-h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] text-muted-foreground hover:bg-muted">
-          <History size={20}/> Histórico
+        <button type="button" title="Dispositivos e testes de áudio" aria-label="Dispositivos e testes de áudio"
+          onClick={onDeviceSettings}
+          className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:mb-1 lg:ml-0 lg:mt-auto">
+          <Settings2 size={21}/>
         </button>
-        {canRecordings && <button type="button" onClick={() => onSelectSection("gravacoes")}
-          className="flex min-h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] text-muted-foreground hover:bg-muted">
-          <Voicemail size={20}/> Gravações
-        </button>}
-        <div className="relative mt-auto w-full">
-          <button type="button" aria-expanded={settingsOpen} aria-controls="pbx-operator-settings"
-            onClick={() => setSettingsOpen(value => !value)}
-            className="flex min-h-16 w-full min-w-16 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] text-muted-foreground hover:bg-muted">
-            <Settings2 size={20}/> Configurações
-          </button>
-          {settingsOpen && <div id="pbx-operator-settings" className="absolute bottom-full left-0 z-30 mb-2 w-[240px] rounded-xl border border-border bg-card p-2 shadow-lg lg:left-full lg:bottom-0 lg:mb-0 lg:ml-2">
-            <div className="flex items-center justify-between px-2 py-1"><span className="text-xs font-semibold">Configurações</span>
-              <button type="button" aria-label="Fechar menu" onClick={() => setSettingsOpen(false)}><X size={15}/></button>
-            </div>
-            <button type="button" className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
-              onClick={() => { setSettingsOpen(false); onConnectionSettings(); }}>Conexão e dispositivos</button>
-            {settingItems.map(item => <button key={item.section} type="button" className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
-              onClick={() => { setSettingsOpen(false); onSelectSection(item.section); }}>{item.label}</button>)}
-          </div>}
-        </div>
       </aside>
       <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,0.85fr)_minmax(340px,1.55fr)_minmax(255px,0.9fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
