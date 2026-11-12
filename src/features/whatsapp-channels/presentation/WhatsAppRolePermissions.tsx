@@ -25,9 +25,9 @@ const emptyValues = (): Values => ({ manager: {}, operator: {} });
 const notifyError=(message:string)=>{if(message)notifyAdmin(message,"error");};
 const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success");};
 
-export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget }: {
+export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget, footerInParent = false }: {
   onSaved?: () => void; onClose?: () => void; onBack?: () => void;
-  footerTarget?: HTMLElement | null;
+  footerTarget?: HTMLElement | null; footerInParent?: boolean;
 }) {
   const { activeOrganizationId } = useAuth();
   const [profile, setProfile] = useState<Profile>("operator");
@@ -183,7 +183,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
 
   return <div className="space-y-4">
     {content}
-    {footerTarget ? createPortal(footer, footerTarget) : onBack ? <AdminStickyToolbar className="justify-between">
+    {footerTarget ? createPortal(footer, footerTarget) : footerInParent ? null : onBack ? <AdminStickyToolbar className="justify-between">
       <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>Descartar</AdminButton>
