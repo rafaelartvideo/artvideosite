@@ -8,7 +8,21 @@ bash scripts/union-pbx-agent/test_sip_trunks_pg.sh --disposable-cluster
 psql -X -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261111163048_pbx_managed_sip_history.sql
 psql -X -d postgres -v ON_ERROR_STOP=1 -f scripts/union-pbx-agent/test_call_flows_storage_bootstrap.sql
 psql -X -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261110202521_pbx_private_prompts_and_call_flows.sql
+psql -X -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+-- Existing owner without PABX must not receive new module permissions.
+insert into public.organizations(id,name,slug) values('77777777-7777-4777-8777-777777777777','No PABX fixture','recording-no-pbx');
+insert into public.organization_members(organization_id,user_id,is_owner,status)
+select '77777777-7777-4777-8777-777777777777',id,true,'active' from public.profiles limit 1;
+SQL
 psql -X -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261111174408_pbx_automatic_recordings.sql
+psql -X -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+do $$begin
+if exists(select 1 from public.user_permission_overrides o join public.permissions p on p.id=o.permission_id where o.organization_id='77777777-7777-4777-8777-777777777777' and p.key like 'pbx.recordings.%') then raise exception 'Disabled module received recording permission';end if;
+update public.organization_members set status='active' where organization_id='77777777-7777-4777-8777-777777777777';
+insert into public.organization_modules(organization_id,module_key,is_enabled) values('77777777-7777-4777-8777-777777777777','pbx',true);
+if (select count(*) from public.user_permission_overrides o join public.permissions p on p.id=o.permission_id where o.organization_id='77777777-7777-4777-8777-777777777777' and p.key in ('pbx.recordings.manage','pbx.recordings.view'))<>2 then raise exception 'Enabled module did not receive owner permissions';end if;
+end;$$;
+SQL
 psql -X -d postgres -v ON_ERROR_STOP=1 -f scripts/union-pbx-agent/test_automatic_recordings_database.sql
 # Two different exact CDRs compete for 64MiB: each reserves 40MiB.
 psql -X -d postgres -v ON_ERROR_STOP=1 -f scripts/union-pbx-agent/test_automatic_recordings_quota_fixture.sql

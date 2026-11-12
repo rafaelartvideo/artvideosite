@@ -4,15 +4,15 @@ insert into public.permissions(key,label,description,module_name,sort_order) val
 ('pbx.recordings.manage','Gerenciar gravações','Configurar gravação automática por empresa.','pbx',5030),
 ('pbx.recordings.view','Ouvir gravações','Consultar e ouvir gravações autorizadas.','pbx',5031) on conflict(key) do nothing;
 insert into public.role_permissions(role_id,permission_id)
-select distinct rp.role_id,p.id from public.role_permissions rp join public.permissions prior_permission on prior_permission.id=rp.permission_id and prior_permission.key='pbx.manage' cross join public.permissions p where p.key in ('pbx.recordings.manage','pbx.recordings.view') on conflict do nothing;
+select distinct rp.role_id,p.id from public.role_permissions rp join public.permissions prior_permission on prior_permission.id=rp.permission_id and prior_permission.key='pbx.manage' join public.roles r on r.id=rp.role_id cross join public.permissions p where p.key in ('pbx.recordings.manage','pbx.recordings.view') and private.permission_belongs_to_organization(r.organization_id,p.key) on conflict do nothing;
 insert into public.user_permission_overrides(organization_id,user_id,permission_id,is_allowed)
-select m.organization_id,m.user_id,p.id,true from public.organization_members m cross join public.permissions p where m.is_owner and m.status='active' and p.key in ('pbx.recordings.manage','pbx.recordings.view') on conflict do nothing;
+select m.organization_id,m.user_id,p.id,true from public.organization_members m cross join public.permissions p where m.is_owner and m.status='active' and p.key in ('pbx.recordings.manage','pbx.recordings.view') and private.permission_belongs_to_organization(m.organization_id,p.key) on conflict do nothing;
 -- Preserve explicit user denies while bootstrapping future owners/manager roles.
 create function private.pbx_seed_recording_permissions() returns trigger language plpgsql security definer set search_path='' as $$begin
 insert into public.role_permissions(role_id,permission_id)
-select distinct rp.role_id,p.id from public.role_permissions rp join public.permissions prior_permission on prior_permission.id=rp.permission_id and prior_permission.key='pbx.manage' join public.roles r on r.id=rp.role_id cross join public.permissions p where r.organization_id=new.organization_id and p.key in ('pbx.recordings.manage','pbx.recordings.view') on conflict do nothing;
+select distinct rp.role_id,p.id from public.role_permissions rp join public.permissions prior_permission on prior_permission.id=rp.permission_id and prior_permission.key='pbx.manage' join public.roles r on r.id=rp.role_id cross join public.permissions p where r.organization_id=new.organization_id and p.key in ('pbx.recordings.manage','pbx.recordings.view') and private.permission_belongs_to_organization(r.organization_id,p.key) on conflict do nothing;
 insert into public.user_permission_overrides(organization_id,user_id,permission_id,is_allowed)
-select m.organization_id,m.user_id,p.id,true from public.organization_members m cross join public.permissions p where m.organization_id=new.organization_id and m.is_owner and m.status='active' and p.key in ('pbx.recordings.manage','pbx.recordings.view') on conflict do nothing;
+select m.organization_id,m.user_id,p.id,true from public.organization_members m cross join public.permissions p where m.organization_id=new.organization_id and m.is_owner and m.status='active' and p.key in ('pbx.recordings.manage','pbx.recordings.view') and private.permission_belongs_to_organization(m.organization_id,p.key) on conflict do nothing;
 return new;end;$$;
 revoke all on function private.pbx_seed_recording_permissions() from public,anon,authenticated;
 create trigger pbx_recording_owner_bootstrap after insert or update of is_owner,role_id,status on public.organization_members for each row execute function private.pbx_seed_recording_permissions();
@@ -20,7 +20,7 @@ create trigger pbx_recording_role_bootstrap after insert or update of is_active,
 create trigger pbx_recording_module_bootstrap after insert or update of is_enabled on public.organization_modules for each row when(new.module_key='pbx' and new.is_enabled) execute function private.pbx_seed_recording_permissions();
 create function private.pbx_seed_recording_manager_grant() returns trigger language plpgsql security definer set search_path='' as $$begin
 if exists(select 1 from public.permissions where id=new.permission_id and key='pbx.manage') then
-insert into public.role_permissions(role_id,permission_id) select new.role_id,id from public.permissions where key in ('pbx.recordings.manage','pbx.recordings.view') on conflict do nothing;
+insert into public.role_permissions(role_id,permission_id) select new.role_id,p.id from public.permissions p join public.roles r on r.id=new.role_id where p.key in ('pbx.recordings.manage','pbx.recordings.view') and private.permission_belongs_to_organization(r.organization_id,p.key) on conflict do nothing;
 end if;return new;end;$$;
 revoke all on function private.pbx_seed_recording_manager_grant() from public,anon,authenticated;
 create trigger pbx_recording_manager_grant after insert on public.role_permissions for each row execute function private.pbx_seed_recording_manager_grant();
