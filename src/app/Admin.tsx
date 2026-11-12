@@ -12,6 +12,8 @@ import { PlatformCrmHub } from "@/features/admin-shell/presentation/PlatformCrmH
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
+import { OrdersWorkspaceSkeleton } from "@/features/orders/presentation/OrdersSkeletons";
 import { AdminDialog, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { UnionPbxSectionTabs, type UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
@@ -539,7 +541,20 @@ export function AdminDashboard({
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
-        <Suspense fallback={<LoadingState text="Carregando módulo..." />}>
+        <Suspense fallback={
+          activeTab === "orders" && !route.resourceId && !(isPlatformOperatorOrganization && !crmMode)
+            ? <OrdersWorkspaceSkeleton displayMode="list" sharedView={false} hasPermission={hasPermission}
+                hasActiveFilters={false} pageSize={10} totalItems={0} />
+            : <AdminWorkspaceSkeleton
+                variant={activeTab === "orders" || activeTab === "customers" || activeTab === "finance" || activeTab === "sales" || activeTab === "pdv"
+                  ? (route.resourceId ? "details" : "table")
+                  : activeTab === "inventory" ? "grid" : "details"}
+                pageHeader
+                searchFields={activeTab === "orders" && !route.resourceId ? 12 : 0}
+                columns={8}
+                rows={activeTab === "orders" && !route.resourceId ? 10 : 3}
+              />
+        }>
         <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
             <Route index element={<AdminHomePage
