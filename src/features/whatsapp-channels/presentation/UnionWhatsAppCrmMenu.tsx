@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, UserRound } from "lucide-react";
+import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-palette";
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 
 type CrmAddress = {
   id: string;
@@ -49,7 +51,17 @@ type CrmOrder = {
   os_number: string;
   created_at: string;
   completed_at: string | null;
+  cancelled_at?: string | null;
+  return_root_id?: string | null;
   model: string | null;
+  customer_equipment?: {
+    equipment_type_name: string | null;
+    equipment_brand_name: string | null;
+    equipment_model_name: string | null;
+  } | null;
+  equipment_type?: { name: string } | null;
+  equipment_brand?: { name: string } | null;
+  equipment_model?: { name: string } | null;
   order_status?: { name: string; color?: string | null } | null;
   situation?: { name: string; color?: string | null } | null;
 };
@@ -100,6 +112,21 @@ function addressText(address: CrmAddress) {
     address.zip_code ? "CEP " + address.zip_code : "",
     address.reference ? "Referência: " + address.reference : "",
   ].filter(Boolean).join(" · ") || "Endereço não informado";
+}
+
+/** Mostra o equipamento efetivamente vinculado à OS, com fallback para os dados históricos da OS. */
+function orderEquipmentLabel(order: CrmOrder) {
+  const equipment = order.customer_equipment;
+  const type = equipment?.equipment_type_name || order.equipment_type?.name || "";
+  const brand = equipment?.equipment_brand_name || order.equipment_brand?.name || "";
+  const model = equipment?.equipment_model_name || order.equipment_model?.name || order.model || "";
+  return [brand, model].filter(Boolean).join(" · ") || type || "Equipamento não informado";
+}
+
+function orderLifecycleStatus(order: CrmOrder) {
+  if (order.cancelled_at) return "Cancelada";
+  if (order.completed_at) return "Fechada";
+  return order.order_status?.name || "Não informado";
 }
 
 function technicalValue(value: NonNullable<CrmEquipment["technical_values"]>[number]) {
@@ -284,14 +311,22 @@ export function UnionWhatsAppCrmMenu({
             </div>
           : <div className="divide-y divide-border px-1">
               {!context.orders.length ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma OS encontrada.</p>
-              : context.orders.map(order => <div key={order.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 text-xs first:pt-1">
-                  <a target="_blank" rel="noopener noreferrer"
-                    href={"/admin/orders/" + encodeURIComponent(order.id) + "?org=" + encodeURIComponent(organizationId)}
-                    className="shrink-0 font-semibold text-primary underline-offset-2 hover:underline">OS {order.os_number}</a>
-                  <LineField label="Status" value={order.order_status?.name || "Não informado"}/>
-                  <LineField label="Situação" value={order.situation?.name || "Não definida"}/>
-                  <LineField label="Abertura" value={dateLabel(order.created_at) || "Não informada"}/>
-                </div>)}
+              : context.orders.map(order => {
+                  const status = orderLifecycleStatus(order);
+                  const equipmentName = orderEquipmentLabel(order);
+                  return <div key={order.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-xs first:pt-1">
+                    <a target="_blank" rel="noopener noreferrer"
+                      href={"/admin/orders/" + encodeURIComponent(order.id) + "?org=" + encodeURIComponent(organizationId)}
+                      className="min-w-0 max-w-full font-semibold text-primary underline-offset-2 hover:underline"
+                      title={`Abrir OS ${order.os_number} — ${equipmentName}`}>
+                      OS {order.os_number} <span className="font-normal text-muted-foreground">— {equipmentName}</span>
+                    </a>
+                    {order.return_root_id && <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${STATUS_TONE_CLASSES.waiting.badge}`}>Retorno</span>}
+                    <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${getOrderStatusBadgeClass(status)}`}>{status}</span>
+                    <LineField label="Situação" value={order.situation?.name || "Não definida"}/>
+                    <LineField label="Abertura" value={dateLabel(order.created_at) || "Não informada"}/>
+                  </div>;
+                })}
             </div>}
         </div>
       </div>}
