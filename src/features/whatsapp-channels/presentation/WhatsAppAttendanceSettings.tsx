@@ -41,8 +41,22 @@ export function WhatsAppAttendanceSettings({
   const [section,setSection]=useState<AttendanceSettingsSection|null>(
     isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null,
   );
+  // Preserve the route inside the settings modal so "Gerenciar conexões"
+  // returns to Configuração do canal, not to the top-level settings menu.
+  const [sectionTrail,setSectionTrail]=useState<AttendanceSettingsSection[]>([]);
+  const openSection=(next:AttendanceSettingsSection)=>{
+    if(section===next)return;
+    setSectionTrail(current=>section?[...current,section]:[]);
+    setSection(next);
+  };
+  const backToPrevious=()=>{
+    if(sectionTrail.length){
+      setSection(sectionTrail[sectionTrail.length-1]);
+      setSectionTrail(previous=>previous.slice(0,-1));
+    }else setSection(null);
+  };
   useEffect(()=>{
-    if(open)setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);
+    if(open){setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);setSectionTrail([]);}
   },[activeOrganizationId,open,initialSection]);
 
   if(!open)return null;
@@ -60,7 +74,7 @@ export function WhatsAppAttendanceSettings({
       className="w-full max-w-xl"
       bodyClassName="max-h-[70dvh] overflow-y-auto">
       <nav aria-label="Opções de configuração dos Atendimentos" className="space-y-2 p-1">
-        {available.map(item=><button key={item.id} type="button" onClick={()=>setSection(item.id)}
+        {available.map(item=><button key={item.id} type="button" onClick={()=>openSection(item.id)}
           className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/50">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <item.icon size={19}/>
@@ -76,21 +90,24 @@ export function WhatsAppAttendanceSettings({
         </p>}
       </nav>
     </AdminDialog>
-    <AdminDialog open={Boolean(section)} onClose={()=>setSection(null)}
+    <AdminDialog open={Boolean(section)} onClose={backToPrevious}
       title={active?.title||"Configurações"}
       description={active?.description}
       className="w-full max-w-5xl"
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
       footer={<div className="flex justify-start">
-        <AdminButton variant="secondary" onClick={()=>setSection(null)}>Voltar às opções</AdminButton>
+        <AdminButton variant="secondary" onClick={backToPrevious}>
+          {sectionTrail.length ? "Voltar para " + (sections.find(item=>item.id===sectionTrail[sectionTrail.length-1])?.title||"configuração")
+            : "Voltar às opções"}
+        </AdminButton>
       </div>}>
       {section && <div className="min-w-0 space-y-4">
         {(section==="configuration"||section==="connections") ?
           <WhatsAppChannelsPage
             key={activeOrganizationId+":"+section}
             initialSection={section} embeddedSection={section}
-            onSectionChange={next=>{if(isSection(next))setSection(next);}}
-            onBack={()=>setSection(null)}/>
+            onSectionChange={next=>{if(isSection(next))openSection(next);}}
+            onBack={backToPrevious}/>
           : section==="departments" || section==="queues" || section==="operators"
             ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}/>
             : section==="permissions" ? <WhatsAppRolePermissions/>
