@@ -174,7 +174,7 @@ export function WhatsAppAttendanceSettings({
             onClick={()=>setCreateRequest(value=>value+1)}>
             <Plus size={16}/> Nova mensagem
           </AdminButton>}
-          {section==="permissions" && <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
+          {(section==="permissions" || section==="queues") && <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
         </div>
       </div>}>
       {section && <div className="min-w-0 space-y-4">
@@ -188,7 +188,8 @@ export function WhatsAppAttendanceSettings({
             onBack={backToPrevious}/>
           : section==="departments" || section==="queues" || section==="operators"
             ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}
-                createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}/>
+                createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}
+                footerTarget={footerTarget}/>
             : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget}/>
             : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded/>}
       </div>}
