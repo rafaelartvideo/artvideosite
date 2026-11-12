@@ -54,6 +54,9 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   const permissions = read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
   const attendanceSettings=read("src/features/whatsapp-channels/presentation/WhatsAppAttendanceSettings.tsx");
   const inbox = read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const operations=read("src/features/whatsapp-channels/presentation/WhatsAppOperationsSettings.tsx");
+  const replies=read("src/features/whatsapp-channels/presentation/WhatsAppQuickRepliesSettings.tsx");
+  const layout=read("src/shared/ui/admin/AdminLayout.tsx");
 
   assert.doesNotMatch(platform, /showingOwnChannels|<WhatsAppChannelsPage|Canais da Union/);
   assert.match(platform, /Atendimentos da Union/);
@@ -76,6 +79,18 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   assert.match(attendanceSettings, /onClose=\{onClose\}/);
   assert.match(attendanceSettings, /Nova conexão/);
   assert.match(attendanceSettings, /Novo departamento/);
+  assert.match(attendanceSettings, /transitionKey=\{section/);
+  assert.match(attendanceSettings, /onInlinePaneChange=\{onInlinePaneChange\}/);
+  assert.match(attendanceSettings, /disabled=\{Boolean\(inlinePane\?\.blocked\)\}/);
+  assert.match(channels, /if\(embeddedSection && inlineStage\)/);
+  assert.match(channels, /data-whatsapp-inline-stage/);
+  assert.match(channels, /createPortal\(/);
+  assert.match(operations, /embedded && inlineStage/);
+  assert.match(operations, /!embedded && <AdminDialog/);
+  assert.match(replies, /inlineStage==="reply-delete"/);
+  assert.match(replies, /!embedded && <AdminDialog/);
+  assert.match(layout, /transitionKey\?: string \| number \| null/);
+  assert.match(layout, /previousPanelSizeRef/);
   assert.match(attendanceSettings, /ref=\{setFooterTarget\}/);
   assert.doesNotMatch(attendanceSettings, /<AdminDialog open=\{!section\}/);
   assert.match(inbox, /data-whatsapp-attendance-settings-trigger/);
