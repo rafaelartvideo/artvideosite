@@ -10,7 +10,7 @@ import { UnionPbxCallActions } from "./UnionPbxCallActions";
 import { UnionPbxDtmfPad } from "./UnionPbxDtmfPad";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import type { UnionPbxSection } from "./UnionPbxSectionTabs";
-import { UnionPbxOperatorWorkspace } from "./UnionPbxOperatorWorkspace";
+import { UnionPbxOperatorWorkspace, formatPbxNumber } from "./UnionPbxOperatorWorkspace";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
 import {externalDialingAllowed,type ExternalDialGrant} from '../application/external-access';
@@ -660,9 +660,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             <div className="relative">
               <FInput type="tel" inputMode="tel" autoComplete="off"
                 aria-label="Digite nome ou número" placeholder={dialMode === "external" && canUseExternal ? "DDD + telefone" : "Digite um número"}
-                value={dialMode === "external" && canUseExternal ? externalTarget : dialTarget}
+                value={dialMode === "external" && canUseExternal ? formatPbxNumber(externalTarget) : dialTarget}
                 onChange={event => {
-                  if (dialMode === "external" && canUseExternal) setExternalTarget(event.target.value.slice(0,32));
+                  if (dialMode === "external" && canUseExternal) setExternalTarget(event.target.value.replace(/[^\d+()\s-]/g, "").slice(0,32));
                   else setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6));
                 }} />
               <button type="button" aria-label="Apagar último dígito" title="Apagar último dígito"
@@ -885,7 +885,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         {pendingDialRequest && !normalizeNationalDestination(pendingDialRequest.phone) && <p role="alert" className="text-xs text-destructive">Informe um telefone nacional válido com DDD.</p>}
         <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
           <p className="font-semibold text-foreground">Ramal {sipUser || managedExtension?.number || "Union"}</p>
-          <p role="status" className="mt-1 text-xs text-muted-foreground">{registration === "registered" ? "Conectado. Confirme a ligação abaixo." : registration === "connecting" ? "Conectando o ramal..." : registration === "error" ? notice : "Ramal desconectado."}</p>
+          <p role="status" className="mt-1 text-xs text-muted-foreground">{registration === "registered" ? "Conectado. Confirme a ligação abaixo." : registration === "connecting" ? "Conectando o ramal..." : registration === "error" ? notice : "Conecte seu ramal para continuar."}</p>
         </div>
         {registration === "connecting" && <div role="status" className="flex items-center gap-2 text-sm text-primary"><LoaderCircle size={16} className="animate-spin"/> Conectando...</div>}
         {registration === "error" && <AdminButton variant="secondary" onClick={stop}>Tentar conectar novamente</AdminButton>}
