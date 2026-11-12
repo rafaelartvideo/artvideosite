@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { QUICK_REPLY_VARIABLES, renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { MessageSquareText, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import type { WhatsAppSettingsInlinePaneChange } from "./WhatsAppSettingsInlinePane";
 import {
   deleteWhatsAppQuickReply, listWhatsAppQuickReplies, saveWhatsAppQuickReply,
   type WhatsAppQuickReply,
@@ -15,8 +17,9 @@ const emptyDraft = (sort_order = 0): Draft => ({
   title: "", message: "", sort_order, is_active: true,
 });
 
-export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = false }: {
-  createRequest?: number; embedded?: boolean;
+export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = false, footerTarget, onInlinePaneChange }: {
+  createRequest?: number; embedded?: boolean; footerTarget?: HTMLElement|null;
+  onInlinePaneChange?: WhatsAppSettingsInlinePaneChange;
 } = {}) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("settings.channels.manage");
@@ -25,6 +28,7 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete,setConfirmDelete]=useState<WhatsAppQuickReply|null>(null);
   const [error, setError] = useState("");
   const previousCreateRequest = useRef(createRequest);
   useEffect(() => {
@@ -62,12 +66,90 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
     try {
       await deleteWhatsAppQuickReply(activeOrganizationId, id);
       setItems(current => current.filter(item => item.id !== id));
+      setConfirmDelete(null);
       notifyAdmin("Mensagem rápida excluída.", "success");
     } catch (reason) { notifyAdmin(systemErrorMessage(reason, "Não foi possível excluir."), "error"); }
     finally { setDeleting(null); }
   };
 
+  const inlineStage=embedded ? (draft ? (draft.id ? "reply-edit" : "reply-new") :
+    confirmDelete ? "reply-delete" : null) : null;
+  const closeInline=()=>{
+    if(busy || deleting)return;
+    setDraft(null);
+    setConfirmDelete(null);
+    setError("");
+  };
+  useLayoutEffect(()=>{
+    if(!embedded || !onInlinePaneChange)return;
+    onInlinePaneChange(inlineStage ? {
+      key:inlineStage+(draft?.id||confirmDelete?.id||""),
+      title:inlineStage==="reply-delete" ? "Excluir mensagem rápida?"
+        : inlineStage==="reply-edit" ? "Editar mensagem rápida" : "Nova mensagem rápida",
+      description:inlineStage==="reply-delete" ?
+        "Confirme a exclusão da resposta selecionada." : "Configure o conteúdo e as variáveis automáticas.",
+      compact:true,
+    }:null,closeInline);
+  },[embedded,inlineStage,draft?.id,confirmDelete?.id,onInlinePaneChange]);
+
   return <>
+    {embedded && inlineStage && <div className="space-y-4" data-whatsapp-inline-stage={inlineStage}>
+      {draft ? <div className="space-y-4">
+        <label className="block text-xs font-semibold">Título
+          <input autoFocus value={draft.title} maxLength={70}
+            onChange={event=>setDraft(current=>current && ({...current,title:event.target.value}))}
+            placeholder="Ex.: Saudação, Endereço"
+            className="mt-1.5 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm"/>
+        </label>
+        <label className="block text-xs font-semibold">Mensagem
+          <textarea value={draft.message} maxLength={4000} rows={6}
+            onChange={event=>setDraft(current=>current && ({...current,message:event.target.value}))}
+            placeholder="Texto que será inserido na conversa para revisão"
+            className="mt-1.5 w-full resize-y rounded-lg border border-border bg-background px-3 py-3 text-sm"/>
+        </label>
+        <section aria-label="Variáveis disponíveis" className="space-y-2">
+          <p className="text-xs font-bold">Variáveis automáticas</p>
+          <p className="text-xs text-muted-foreground">
+            Clique numa variável para inseri-la na mensagem. Ela será preenchida ao selecionar a resposta.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_REPLY_VARIABLES.map(item=><button type="button" key={item.token} title={item.label}
+              onClick={()=>setDraft(current=>current&&({...current,message:(current.message+" "+item.token).trimStart().slice(0,4000)}))}
+              className="rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs font-semibold text-primary hover:border-primary/50 hover:bg-primary/10">
+              {item.token}
+            </button>)}
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="mb-1 text-[11px] font-bold text-muted-foreground">Prévia com dados de exemplo</p>
+            <p className="whitespace-pre-wrap break-words text-xs leading-5">
+              {renderWhatsAppQuickReply(draft.message,{
+                operatorName:"Rafael Ferreira",customerName:"Cliente de exemplo",protocol:"ATD-000001",
+              })||"Escreva a mensagem para visualizar."}
+            </p>
+          </div>
+        </section>
+        <label className="flex items-center gap-2 text-xs font-semibold">
+          <input type="checkbox" checked={draft.is_active}
+            onChange={event=>setDraft(current=>current&&({...current,is_active:event.target.checked}))}/>
+          Disponível aos operadores
+        </label>
+        {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      </div> : <div className="flex items-start gap-3 rounded-lg border border-destructive/25 p-4">
+        <Trash2 size={19} className="shrink-0 text-destructive"/>
+        <p className="text-sm text-muted-foreground">
+          Excluir definitivamente <strong>{confirmDelete?.title}</strong>? Esta mensagem deixará de aparecer para os operadores.
+        </p>
+      </div>}
+      {footerTarget && createPortal(<div className="flex flex-wrap gap-2">
+        <AdminButton variant="secondary" disabled={Boolean(busy||deleting)} onClick={closeInline}>Cancelar</AdminButton>
+        {draft ?
+          <AdminButton loading={busy} disabled={busy||!draft.title.trim()||!draft.message.trim()}
+            onClick={()=>void save()}>Salvar</AdminButton>
+          : <AdminButton variant="danger" loading={Boolean(deleting)} disabled={Boolean(deleting)}
+              onClick={()=>{if(confirmDelete)void remove(confirmDelete.id);}}>Excluir definitivamente</AdminButton>}
+      </div>,footerTarget)}
+    </div>}
+    <div className={embedded && inlineStage ? "hidden" : "contents"}>
     <AdminCard>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4">
         <div>
@@ -99,13 +181,17 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
                 onClick={() => { setError(""); setDraft({id:item.id,title:item.title,message:item.message,sort_order:item.sort_order,is_active:item.is_active}); }}
                 className="rounded-md p-2 text-muted-foreground hover:bg-muted"><Pencil size={16}/></button>
               <button type="button" aria-label={`Excluir ${item.title}`} title="Excluir"
-                disabled={deleting===item.id} onClick={() => void remove(item.id)}
+                disabled={deleting===item.id} onClick={() => {
+                  if(embedded)setConfirmDelete(item);
+                  else void remove(item.id);
+                }}
                 className="rounded-md p-2 text-destructive hover:bg-muted disabled:opacity-50"><Trash2 size={16}/></button>
             </div>}
           </div>)}
         </div>}
     </AdminCard>
-    <AdminDialog open={Boolean(draft)} onClose={() => { if(!busy)setDraft(null); }}
+    </div>
+    {!embedded && <AdminDialog open={Boolean(draft)} onClose={() => { if(!busy)setDraft(null); }}
       title={draft?.id ? "Editar mensagem rápida" : "Nova mensagem rápida"}
       className="max-w-lg"
       footer={<div className="flex justify-end gap-2">
@@ -145,6 +231,6 @@ export function WhatsAppQuickRepliesSettings({ createRequest = 0, embedded = fal
         </label>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>}
-    </AdminDialog>
+    </AdminDialog>}
   </>;
 }
