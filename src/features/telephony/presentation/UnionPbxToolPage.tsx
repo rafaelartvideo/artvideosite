@@ -7,7 +7,7 @@ import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
-import { UnionPbxDtmfPad } from "./UnionPbxDtmfPad";
+import { UnionPbxFloatingPhone } from "./UnionPbxFloatingPhone";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import type { UnionPbxSection } from "./UnionPbxSectionTabs";
 import { UnionPbxOperatorWorkspace, formatPbxNumber } from "./UnionPbxOperatorWorkspace";
@@ -654,51 +654,7 @@ setTestFlowError('');
     }
   };
 
-  return <>
-    {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
-    {/* Audio fica montado durante toda a navegação para não interromper chamadas. */}
-    <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Áudio da ligação" className="hidden" />
-    <div className={isPageOpen ? "min-w-0" : "hidden"} aria-hidden={!isPageOpen}>
-      <UnionPbxOperatorWorkspace
-        isActive={isPageOpen}
-        lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
-        extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
-        connectionStatus={registration} callState={callState} remoteParty={remoteParty} callerCard={currentCallerCard} completedCall={completedCall}
-        directory={directory} queues={testQueues} directoryLoading={directoryLoading}
-        onBack={onBack} onConnectionSettings={connectDirectly}
-        onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
-        onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
-        canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
-        canRecordings={Boolean(onRecordings)}
-        onReturnCall={rawPhone => {
-          if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
-          const digits = rawPhone.replace(/\D/g, "");
-          const internal = digits.length <= 6 && dialableNumbers.has(Number(digits));
-          if (internal) {
-            setDialMode("internal"); setDialTarget(digits);
-          } else {
-            setDialMode("external"); setExternalTarget(rawPhone);
-          }
-          if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
-            setNotice("Conecte seu ramal para retornar a chamada.");
-            return;
-          }
-          if (internal) {
-            try {
-              uaRef.current.call(`sip:${digits}@${SIP_HOST}`, {
-                mediaConstraints: microphoneConstraints(microphoneId), pcConfig: {iceServers: []},
-              });
-            } catch { setNotice("Não foi possível retornar a ligação interna."); }
-            return;
-          }
-          const destination = normalizeNationalDestination(rawPhone);
-          if (!canUseExternal || !destination) {
-            setNotice("Este número não está autorizado para ligação externa.");
-            return;
-          }
-          originateExternal(destination, rawPhone);
-        }}
-        dialer={<div className="space-y-3">
+  const dialerContent = <div className="space-y-3">
           {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
             <p className={`mb-2 text-center text-sm font-semibold ${held && callState === "active"
@@ -799,7 +755,53 @@ setTestFlowError('');
           </div>}
           {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação|nenhum ramal/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
           {(directoryError || testQueueError || testFlowError) && <p className="text-xs text-muted-foreground">{directoryError || testQueueError || testFlowError}</p>}
-        </div>}
+        </div>;
+
+  return <>
+    {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
+    {/* Audio fica montado durante toda a navegação para não interromper chamadas. */}
+    <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Áudio da ligação" className="hidden" />
+    <div className={isPageOpen ? "min-w-0" : "hidden"} aria-hidden={!isPageOpen}>
+      <UnionPbxOperatorWorkspace
+        isActive={isPageOpen}
+        lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
+        extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
+        connectionStatus={registration} callState={callState} remoteParty={remoteParty} callerCard={currentCallerCard} completedCall={completedCall}
+        directory={directory} queues={testQueues} directoryLoading={directoryLoading}
+        onBack={onBack} onConnectionSettings={connectDirectly}
+        onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
+        onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
+        canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
+        canRecordings={Boolean(onRecordings)}
+        onReturnCall={rawPhone => {
+          if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
+          const digits = rawPhone.replace(/\D/g, "");
+          const internal = digits.length <= 6 && dialableNumbers.has(Number(digits));
+          if (internal) {
+            setDialMode("internal"); setDialTarget(digits);
+          } else {
+            setDialMode("external"); setExternalTarget(rawPhone);
+          }
+          if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
+            setNotice("Conecte seu ramal para retornar a chamada.");
+            return;
+          }
+          if (internal) {
+            try {
+              uaRef.current.call(`sip:${digits}@${SIP_HOST}`, {
+                mediaConstraints: microphoneConstraints(microphoneId), pcConfig: {iceServers: []},
+              });
+            } catch { setNotice("Não foi possível retornar a ligação interna."); }
+            return;
+          }
+          const destination = normalizeNationalDestination(rawPhone);
+          if (!canUseExternal || !destination) {
+            setNotice("Este número não está autorizado para ligação externa.");
+            return;
+          }
+          originateExternal(destination, rawPhone);
+        }}
+        dialer={isPageOpen ? dialerContent : null}
       />
     </div>
     <AdminDialog open={isPageOpen && deviceDialogOpen} onClose={() => setDeviceDialogOpen(false)}
@@ -818,61 +820,12 @@ setTestFlowError('');
       </div>
     </AdminDialog>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
-      <section
-        role={callState === "incoming" ? "alert" : "region"}
-        aria-label="Telefone PABX Union"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 right-3 z-[95] max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] space-y-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-foreground shadow-[0_15px_50px_rgba(0,0,0,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:w-[350px]"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">PABX Union <span className="ml-1 text-xs font-normal text-muted-foreground">· {sipUser}</span></p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {callState === "incoming" ? "Chamada recebida" : callState === "active" ? held ? "Em espera" : "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
-            </p>
-          </div>
-          <AdminButton variant="secondary" type="button" onClick={onOpen} className="shrink-0" aria-label="Abrir telefone completo">
-            Abrir
-          </AdminButton>
-        </div>
-        {callState !== "idle" && <p className="truncate text-sm font-semibold">{formatPbxNumber(remoteParty) || "Chamada"}</p>}
-        {callState === "active" && <>
-          {/falha|erro|não foi possível|sem confirmação|indisponível|bloquead/i.test(notice) &&
-            <p role="alert" className="text-xs leading-5 text-destructive">{notice}</p>}
-          <UnionPbxCallActions idPrefix="pbx-floating" held={held} muted={muted}
-            holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
-            destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
-            onMute={toggleMute} onHangup={hangup} onHold={() => void runControl('hold')}
-            onTransfer={() => void runControl('transfer')} />
-          <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />
-        </>}
-        {outputPending && <p role="status" className="text-xs text-muted-foreground">Saída de áudio em confirmação. Aguarde antes de atender.</p>}
-        {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          {callState === "incoming" && (
-            <AdminButton variant="success" type="button" onClick={answer} disabled={outputPending} className="flex-1">
-              <PhoneIncoming size={16} /> Atender
-            </AdminButton>
-          )}
-          {(callState === "incoming" || callState === "dialing") && (
-            <AdminButton variant="danger" type="button" onClick={hangup} className="flex-1">
-              <PhoneOff size={16} /> {callState === "incoming" ? "Recusar" : "Cancelar"}
-            </AdminButton>
-          )}
-          {callState === "idle" && (
-            <AdminButton variant="secondary" type="button" onClick={stop} >
-              <Unplug size={15} /> {registration === "registered" ? "Desconectar" : "Reiniciar conexão"}
-            </AdminButton>
-          )}
-          {registration === "connecting" && <LoaderCircle size={18} className="animate-spin text-primary" />}
-        </div>
-        {audioBlocked && (
-          <AdminButton variant="secondary" type="button" onClick={() => {
-            void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o audio do site nas configuracoes do navegador."));
-          }} className="w-full">
-            Habilitar áudio da chamada
-          </AdminButton>
-        )}
-      </section>
+      <UnionPbxFloatingPhone
+        registration={registration} callState={callState}
+        extension={managedExtension?.number ?? ownNumber ?? null}
+        caller={callState !== "idle" ? currentCallerCard?.name || formatPbxNumber(remoteParty) : undefined}
+        onOpenFull={onOpen}
+      >{dialerContent}</UnionPbxFloatingPhone>
     )}
     <AdminDialog
       open={Boolean(pendingDialRequest)}
@@ -897,7 +850,7 @@ setTestFlowError('');
           value={pendingDialRequest?.phone || ""} onChange={event => setPendingDialRequest(current => current ? { ...current, phone: event.target.value } : null)} />
         {pendingDialRequest && !normalizeNationalDestination(pendingDialRequest.phone) && <p role="alert" className="text-xs text-destructive">Informe um telefone nacional válido com DDD.</p>}
         <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-          <p className="font-semibold text-foreground">Ramal {sipUser || managedExtension?.number || "Union"}</p>
+          <p className="font-semibold text-foreground">Ramal {managedExtension?.number ?? ownNumber ?? "não vinculado"}</p>
           <p role="status" className="mt-1 text-xs text-muted-foreground">{registration === "registered" ? "Conectado. Confirme a ligação abaixo." : registration === "connecting" ? "Conectando o ramal..." : registration === "error" ? notice : "Conecte seu ramal para continuar."}</p>
         </div>
         {registration === "connecting" && <div role="status" className="flex items-center gap-2 text-sm text-primary"><LoaderCircle size={16} className="animate-spin"/> Conectando...</div>}
