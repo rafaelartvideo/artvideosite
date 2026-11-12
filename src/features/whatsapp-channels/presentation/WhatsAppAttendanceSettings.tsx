@@ -135,7 +135,7 @@ export function WhatsAppAttendanceSettings({
 
   return <>
     {!section && <div ref={menuRef} role="menu" aria-label="Configurações dos Atendimentos"
-      className="admin-crm fixed z-[200] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+      className="admin-crm fixed z-[200] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
       style={{top:menuPosition.top,left:menuPosition.left,width:menuPosition.width,
         maxHeight:"calc(100dvh - " + (menuPosition.top+12) + "px)"}}>
       {available.map((item,index)=><div key={item.id}>
