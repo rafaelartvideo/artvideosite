@@ -113,11 +113,16 @@ test('teclado desabilitado mantém todas as teclas bloqueadas e não chama onDig
 test('telefone completo e flutuante compartilham handler e bloqueio de DTMF', async () => {
   const path = 'src/features/telephony/presentation/UnionPbxToolPage.tsx';
   const page = readFileSync(path, 'utf8');
-  assert.equal((page.match(/<UnionPbxDtmfPad disabled=\{dtmfDisabled\} onDigit=\{sendDigit\}/g) || []).length, 1);
+  // A mesma árvore de teclas e callbacks funciona tanto no módulo quanto no mini-PABX.
+  assert.equal((page.match(/if \(callState === "active"\) sendDigit\(digit\)/g) || []).length, 1);
+  assert.match(page, /dialer=\{isPageOpen \? dialerContent : null\}/);
+  assert.match(page, /<UnionPbxFloatingPhone[\s\S]*?\{dialerContent\}<\/UnionPbxFloatingPhone>/);
   assert.match(page, /if \(callState === "active"\) sendDigit\(digit\)/);
   assert.match(page, /type SipSession = CallControlSession & PbxDigitSession/);
   assert.match(page, /const dtmfDisabled = callState !== 'active' \|\| held \|\| holdUncertain \|\| transferUncertain \|\| Boolean\(controlBusy\)/);
-  assert.match(page, /max-h-\[calc\(100dvh-2rem-env\(safe-area-inset-bottom\)\)\][^"]*overflow-y-auto/, 'telefone flutuante com teclado deve caber em telas baixas');
+  const floating = readFileSync('src/features/telephony/presentation/UnionPbxFloatingPhone.tsx', 'utf8');
+  assert.match(floating, /max-h-\[calc\(100dvh-1\.5rem\)\]/, 'mini-PABX deve caber em telas baixas');
+  assert.match(floating, /overflow-y-auto/, 'mini-PABX deve rolar o discador sem cortar controles');
   assert.ok((await transformWithEsbuild(page, path, { loader: 'tsx' })).code);
 });
 
