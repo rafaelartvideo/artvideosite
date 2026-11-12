@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -11,7 +12,9 @@ import {
 
 const numeric=(value:number)=>Number.isFinite(value)?value:0;
 
-export function WhatsAppQueueSettings() {
+export function WhatsAppQueueSettings({footerTarget,footerInParent=false}: {
+  footerTarget?: HTMLElement|null;footerInParent?: boolean;
+} = {}) {
   const {activeOrganizationId}=useAuth();
   const [values,setValues]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
   const [saved,setSaved]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
@@ -43,6 +46,10 @@ export function WhatsAppQueueSettings() {
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível salvar a configuração."),"error");}
     finally{setSaving(false);}
   };
+  const actions=<div className="flex flex-wrap justify-end gap-2">
+    <AdminButton variant="secondary" disabled={!dirty||saving} onClick={()=>setValues({...saved})}>Descartar</AdminButton>
+    <AdminButton disabled={!dirty||!valid||saving||loading} loading={saving} onClick={()=>void save()}>Salvar configurações</AdminButton>
+  </div>;
   return <section className="space-y-4 border-t border-border pt-4">
     <h3 className="text-sm font-bold text-foreground">Preferências da fila</h3>
     {loading ? <LoadingState text="Carregando preferências da fila..."/> : <>
@@ -75,10 +82,8 @@ export function WhatsAppQueueSettings() {
               <span className="mt-1 block text-xs text-muted-foreground">{description}</span></span>
           </label>)}
       </div>
-      <div className="flex justify-end gap-2 border-t border-border pt-3">
-        <AdminButton variant="secondary" disabled={!dirty||saving} onClick={()=>setValues({...saved})}>Descartar</AdminButton>
-        <AdminButton disabled={!dirty||!valid||saving} loading={saving} onClick={()=>void save()}>Salvar configurações</AdminButton>
-      </div>
     </>}
+    {footerTarget ? createPortal(actions,footerTarget) : !footerInParent && !loading ?
+      <div className="border-t border-border pt-3">{actions}</div> : null}
   </section>;
 }
