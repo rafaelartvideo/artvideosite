@@ -100,8 +100,9 @@ export function installCrmAutofillPolicy(): void {
     if (!inCrm()) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const label = target.closest("label");
     const control = asTextControl(target)
-      ?? asTextControl(target.closest("label")?.control ?? null);
+      ?? asTextControl(label instanceof HTMLLabelElement ? label.control : null);
     activate(control);
   }, true);
 
