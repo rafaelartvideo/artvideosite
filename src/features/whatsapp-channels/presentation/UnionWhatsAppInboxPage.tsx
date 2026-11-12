@@ -487,7 +487,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
   const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
   useEffect(()=>{setCrmDetailsOpen(false);},[selectedId]);
-  useEffect(()=>{setLinkedCustomers({});},[activeOrganizationId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
