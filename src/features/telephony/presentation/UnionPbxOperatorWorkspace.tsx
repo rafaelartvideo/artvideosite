@@ -32,6 +32,7 @@ type Props = {
   onDirectoryChange: () => void;
   onSelectSection: (section: UnionPbxSection) => void;
   onDialNumber: (number: string) => void;
+  onReturnCall: (number: string) => void;
   canManage: boolean;
   canManageInbound: boolean;
   canRecordings: boolean;
@@ -65,7 +66,7 @@ function initials(value: string) {
 export function UnionPbxOperatorWorkspace({
   isActive, dialer, connectionStatus, callState, remoteParty, lineLabel, extensionLabel,
   directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
-  onSelectSection, onDialNumber, canManage, canManageInbound, canRecordings,
+  onSelectSection, onDialNumber, onReturnCall, canManage, canManageInbound, canRecordings,
 }: Props) {
   const { activeOrganizationId } = useAuth();
   const [mode, setMode] = useState<WorkspaceMode>("chamadas");
@@ -308,7 +309,7 @@ export function UnionPbxOperatorWorkspace({
                     <td className="border-b border-border/60 p-2">
                       {row.disposition !== "ANSWERED"
                         ? <button type="button" title="Retornar chamada" aria-label={`Retornar chamada para ${formatPbxNumber(number)}`}
-                            disabled={callState !== "idle"} onClick={event => {event.stopPropagation();onDialNumber(number);}}
+                            disabled={callState !== "idle"} onClick={event => {event.stopPropagation();onReturnCall(number);}}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-primary hover:bg-primary/10 disabled:opacity-40">
                             <Phone size={16}/>
                           </button>
@@ -360,7 +361,7 @@ export function UnionPbxOperatorWorkspace({
               </div>
               <div className="min-w-0"><h3 className="break-words text-base font-semibold">{selectedName}</h3>
                 <p className="text-sm text-muted-foreground">{formatPbxNumber(selectedNumber)}</p></div>
-              <AdminButton className="w-full" variant="primary" onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
+              <AdminButton className="w-full" variant="primary" disabled={callState !== "idle"} onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
               <p className="text-xs text-muted-foreground">O número será preenchido no discador. Confirme para ligar.</p>
             </div>
             {selected && !selectedExtension && <div className="mt-6 space-y-3 border-t border-border pt-5">
@@ -377,7 +378,7 @@ export function UnionPbxOperatorWorkspace({
               <p className="text-xs text-muted-foreground">Reprodução disponível somente quando a gravação existir e estiver autorizada.</p>
             </div>}
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
-              active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onDialNumber}/>
+              active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
           </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ContactRound size={32}/><p>Selecione uma chamada ou ramal para ver os detalhes.</p>
           </div>}
