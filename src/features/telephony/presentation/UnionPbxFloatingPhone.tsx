@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, PhoneIncoming, PhoneCall } from "lucide-react";
 
 type CallState = "idle" | "dialing" | "incoming" | "active";
 type Connection = "offline" | "connecting" | "registered" | "error";
 type Point = { x: number; y: number };
 type DragState = { id: number; startX: number; startY: number; x: number; y: number; moved: boolean };
+type DockedSide = "top" | "right" | "bottom" | "left";
+type Dock = { side: DockedSide; progress: number };
 
 const MARGIN = 12;
 const DEFAULT_MARGIN = 20;
@@ -17,21 +19,33 @@ function bounds(node: HTMLElement) {
     maxX: Math.max(MARGIN, window.innerWidth - box.width - MARGIN),
     maxY: Math.max(MARGIN, window.innerHeight - box.height - MARGIN) };
 }
-function snapToEdge(point: Point, node: HTMLElement): Point {
+function snapToEdge(point: Point, node: HTMLElement): {point: Point;dock: Dock} {
   const { maxX, maxY } = bounds(node);
   const x = clamp(point.x, MARGIN, maxX);
   const y = clamp(point.y, MARGIN, maxY);
-  const distances = [
-    { edge: "left", distance: x },
-    { edge: "right", distance: maxX - x },
-    { edge: "top", distance: y },
-    { edge: "bottom", distance: maxY - y },
-  ].sort((a,b)=>a.distance-b.distance);
-  switch(distances[0].edge) {
+  const distances: { side: DockedSide; distance: number }[] = [
+    { side: "left", distance: x - MARGIN },
+    { side: "right", distance: maxX - x },
+    { side: "top", distance: y - MARGIN },
+    { side: "bottom", distance: maxY - y },
+  ];
+  distances.sort((a,b)=>a.distance-b.distance);
+  const side=distances[0].side;
+  const horizontal=side==="top" || side==="bottom";
+  const progress=clamp(horizontal ? (x-MARGIN)/Math.max(1,maxX-MARGIN)
+    : (y-MARGIN)/Math.max(1,maxY-MARGIN),0,1);
+  const dock={side,progress};
+  return {point:positionForDock(dock,node),dock};
+}
+function positionForDock(dock: Dock, node: HTMLElement): Point {
+  const {maxX,maxY}=bounds(node);
+  const x=MARGIN+(maxX-MARGIN)*dock.progress;
+  const y=MARGIN+(maxY-MARGIN)*dock.progress;
+  switch(dock.side){
     case "left": return {x:MARGIN,y};
     case "right": return {x:maxX,y};
     case "top": return {x,y:MARGIN};
-    default: return {x,y:maxY};
+    case "bottom": return {x,y:maxY};
   }
 }
 
@@ -57,33 +71,28 @@ export function UnionPbxFloatingPhone({
     }
     lastCallState.current=callState;
   },[callState]);
-  useEffect(()=>{
-    if(!position)return;
-    const sync=()=>{
-      const node=nodeRef.current;
-      if(!node)return;
-      setPosition(current=>current?{
-        x:clamp(current.x,MARGIN,bounds(node).maxX),
-        y:clamp(current.y,MARGIN,bounds(node).maxY),
-      }:null);
-    };
-    window.addEventListener("resize",sync);
-    return()=>window.removeEventListener("resize",sync);
-  },[position!==null]);
-  useEffect(()=>{
-    if(!position)return;
+  const dockRef=useRef<Dock|null>(null);
+  // The floating panel changes height between Internal/External and during a call.
+  // Reapply the chosen edge whenever its intrinsic size changes; never let buttons
+  // fall behind the bottom of the viewport, nor leave the panel in its old position.
+  useLayoutEffect(()=>{
     const node=nodeRef.current;
     if(!node)return;
-    const raf=requestAnimationFrame(()=>{
-      setPosition(current=>{
-        if(!current)return current;
-        const {maxX,maxY}=bounds(node);
-        const next={x:clamp(current.x,MARGIN,maxX),y:clamp(current.y,MARGIN,maxY)};
-        return next.x===current.x && next.y===current.y?current:next;
+    let frame=0;
+    const update=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{
+        const dock=dockRef.current;
+        if(!dock)return;
+        const next=positionForDock(dock,node);
+        setPosition(current=>current && current.x===next.x && current.y===next.y?current:next);
       });
-    });
-    return()=>cancelAnimationFrame(raf);
-  },[expanded]);
+    };
+    const observer=typeof ResizeObserver==="undefined"?null:new ResizeObserver(update);
+    observer?.observe(node);
+    window.addEventListener("resize",update);
+    return()=>{observer?.disconnect();window.removeEventListener("resize",update);cancelAnimationFrame(frame);};
+  },[]);
 
   const pointerDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
     if(event.button!==0)return;
@@ -92,6 +101,7 @@ export function UnionPbxFloatingPhone({
     const box=node.getBoundingClientRect();
     const state={id:event.pointerId,startX:event.clientX,startY:event.clientY,
       x:box.left,y:box.top,moved:false};
+    dockRef.current=null;
     drag.current=state;
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
@@ -116,9 +126,11 @@ export function UnionPbxFloatingPhone({
     const {maxX,maxY}=bounds(nodeRef.current);
     const point={x:clamp(state.x+event.clientX-state.startX,MARGIN,maxX),
       y:clamp(state.y+event.clientY-state.startY,MARGIN,maxY)};
-    setPosition(snapToEdge(point,nodeRef.current));
+    const snapped=snapToEdge(point,nodeRef.current);
+    dockRef.current=snapped.dock;
+    setPosition(snapped.point);
   };
-  const reset=()=>setPosition(null);
+  const reset=()=>{dockRef.current=null;setPosition(null);};
   const status=callState==="incoming"?"Chamada recebida":
     callState==="dialing"?"Chamando...":callState==="active"?"Em ligação":
     registration==="registered"?"Conectado":registration==="connecting"?"Conectando...":"Desconectado";
@@ -138,6 +150,7 @@ export function UnionPbxFloatingPhone({
     const x=box.left+(event.key==="ArrowLeft"?-delta:event.key==="ArrowRight"?delta:0);
     const y=box.top+(event.key==="ArrowUp"?-delta:event.key==="ArrowDown"?delta:0);
     const {maxX,maxY}=bounds(node);
+    dockRef.current=null;
     setPosition({x:clamp(x,MARGIN,maxX),y:clamp(y,MARGIN,maxY)});
   };
 
@@ -148,7 +161,7 @@ export function UnionPbxFloatingPhone({
     data-pbx-floating="true"
     data-pbx-expanded={expanded?"true":"false"}
     style={style}
-    className={`fixed z-[105] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] ${expanded?"w-[min(390px,calc(100vw-1.5rem))]":"w-[min(295px,calc(100vw-1.5rem))]"}`}
+    className={`admin-crm fixed z-[105] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] ${expanded?"w-[min(430px,calc(100vw-1.5rem))]":"w-[min(370px,calc(100vw-1.5rem))]"}`}
   >
     <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-2">
       <div role="button" tabIndex={0} aria-label="Arrastar mini-PABX; use as setas para mover e Home para reposicionar"
@@ -161,8 +174,8 @@ export function UnionPbxFloatingPhone({
           <span className={`absolute inset-0 animate-ping rounded-full opacity-30 ${tone}`}/>
           <span className={`relative h-2.5 w-2.5 rounded-full ${tone}`}/>
         </span>
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-bold">PABX Union · {extension?"Ramal "+extension:"Ramal"}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block whitespace-nowrap text-xs font-bold">PABX Union · {extension?"Ramal "+extension:"Ramal"}</span>
           <span className="block truncate text-[11px] text-muted-foreground">{status}{caller && callState!=="idle"?" · "+caller:""}</span>
         </span>
       </div>
