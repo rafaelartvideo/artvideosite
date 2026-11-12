@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Building2, ChevronRight, CircleHelp, Link2, ListFilter, MessageSquareText,
-  Settings2, ShieldCheck, UsersRound,
+  ArrowLeft, Building2, CircleHelp, Link2, ListFilter, MessageSquareText,
+  Plus, Settings2, ShieldCheck, UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -41,23 +41,88 @@ export function WhatsAppAttendanceSettings({
   const [section,setSection]=useState<AttendanceSettingsSection|null>(
     isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null,
   );
-  // Preserve the route inside the settings modal so "Gerenciar conexões"
-  // returns to Configuração do canal, not to the top-level settings menu.
+  // Opening connections from channel configuration must return to that step,
+  // while opening connections directly from the gear returns to the menu.
   const [sectionTrail,setSectionTrail]=useState<AttendanceSettingsSection[]>([]);
+  const [createRequest,setCreateRequest]=useState(0);
+  const [canCreateConnection,setCanCreateConnection]=useState(false);
+  const [canCreateDepartment,setCanCreateDepartment]=useState(false);
+  const [footerTarget,setFooterTarget]=useState<HTMLDivElement|null>(null);
+  const menuRef=useRef<HTMLDivElement>(null);
+  const [menuPosition,setMenuPosition]=useState({top:80,left:12,width:300});
+
   const openSection=(next:AttendanceSettingsSection)=>{
     if(section===next)return;
     setSectionTrail(current=>section?[...current,section]:[]);
+    setCanCreateConnection(false);
+    setCanCreateDepartment(false);
     setSection(next);
   };
   const backToPrevious=()=>{
+    setCanCreateConnection(false);
+    setCanCreateDepartment(false);
     if(sectionTrail.length){
       setSection(sectionTrail[sectionTrail.length-1]);
       setSectionTrail(previous=>previous.slice(0,-1));
-    }else setSection(null);
+    }else{
+      setSection(null);
+    }
   };
   useEffect(()=>{
-    if(open){setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);setSectionTrail([]);}
+    if(open){
+      setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);
+      setSectionTrail([]);
+    }
   },[activeOrganizationId,open,initialSection]);
+
+  // Keep the dropdown physically aligned with the settings button on the inbox.
+  // It is not a dialog: clicking outside or pressing Escape closes it entirely.
+  useLayoutEffect(()=>{
+    if(!open || section || !canView)return;
+    const place=()=>{
+      const anchor=document.querySelector<HTMLElement>("[data-whatsapp-attendance-settings-trigger]");
+      const rect=anchor?.getBoundingClientRect();
+      const width=Math.min(320,Math.max(200,window.innerWidth-24));
+      const left=rect
+        ? Math.max(12,Math.min(rect.right-width,window.innerWidth-width-12))
+        : Math.max(12,window.innerWidth-width-20);
+      const below=rect ? window.innerHeight-rect.bottom : window.innerHeight-80;
+      const top=rect
+        ? (below<332 && rect.top>below ? Math.max(12,rect.top-324) : rect.bottom+8)
+        : 80;
+      setMenuPosition(previous=>previous.top===top && previous.left===left && previous.width===width
+        ? previous : {top,left,width});
+    };
+    place();
+    window.addEventListener("resize",place);
+    window.addEventListener("scroll",place,true);
+    return()=>{
+      window.removeEventListener("resize",place);
+      window.removeEventListener("scroll",place,true);
+    };
+  },[open,section,canView]);
+
+  useEffect(()=>{
+    if(!open || section || !canView)return;
+    const onPointerDown=(event:PointerEvent)=>{
+      const target=event.target as Node;
+      if(menuRef.current?.contains(target))return;
+      const anchor=document.querySelector<HTMLElement>("[data-whatsapp-attendance-settings-trigger]");
+      // The gear toggles its own route; do not race that click.
+      if(anchor?.contains(target))return;
+      onClose();
+    };
+    const onKeyDown=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"){event.preventDefault();onClose();}
+    };
+    document.addEventListener("pointerdown",onPointerDown,true);
+    document.addEventListener("keydown",onKeyDown);
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus({preventScroll:true});
+    return()=>{
+      document.removeEventListener("pointerdown",onPointerDown,true);
+      document.removeEventListener("keydown",onKeyDown);
+    };
+  },[open,section,canView,onClose]);
 
   if(!open)return null;
   if(!canView)return <AdminDialog open onClose={onClose} title="Configurações dos Atendimentos">
@@ -67,51 +132,65 @@ export function WhatsAppAttendanceSettings({
   const available=sections.filter(item=>canManage ||
     item.id==="configuration"||item.id==="connections"||item.id==="quick-replies");
   const active=sections.find(item=>item.id===section);
+
   return <>
-    <AdminDialog open={!section} onClose={onClose}
-      title="Configurações dos Atendimentos"
-      description="Escolha o que deseja configurar. Cada área será aberta em um modal próprio."
-      className="w-full max-w-xl"
-      bodyClassName="max-h-[70dvh] overflow-y-auto">
-      <nav aria-label="Opções de configuração dos Atendimentos" className="space-y-2 p-1">
-        {available.map(item=><button key={item.id} type="button" onClick={()=>openSection(item.id)}
-          className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/50">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <item.icon size={19}/>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold">{item.title}</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">{item.description}</span>
-          </span>
-          <ChevronRight size={17} className="shrink-0 text-muted-foreground"/>
-        </button>)}
-        {!canManage && <p className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-          <CircleHelp size={15}/> Outras configurações exigem a permissão Configurar Atendimentos.
-        </p>}
-      </nav>
-    </AdminDialog>
-    <AdminDialog open={Boolean(section)} onClose={backToPrevious}
+    {!section && <div ref={menuRef} role="menu" aria-label="Configurações dos Atendimentos"
+      className="admin-crm fixed z-[200] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+      style={{top:menuPosition.top,left:menuPosition.left,width:menuPosition.width,
+        maxHeight:"calc(100dvh - " + (menuPosition.top+12) + "px)"}}>
+      {available.map((item,index)=><div key={item.id}>
+        {index===5 && <div className="mx-2 my-1 h-px bg-border"/>}
+        <button type="button" role="menuitem" onClick={()=>openSection(item.id)}
+          className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:bg-muted">
+          <item.icon size={17} className="shrink-0 text-muted-foreground"/>
+          <span className="min-w-0 flex-1">{item.title}</span>
+        </button>
+      </div>)}
+      {!canManage && <p className="mx-2 mt-1 flex gap-2 border-t border-border px-1 py-2 text-[11px] leading-4 text-muted-foreground">
+        <CircleHelp size={14} className="shrink-0"/>
+        Outras opções exigem permissão para configurar atendimentos.
+      </p>}
+    </div>}
+
+    <AdminDialog open={Boolean(section)} onClose={onClose}
       title={active?.title||"Configurações"}
       description={active?.description}
       className="w-full max-w-5xl"
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
-      footer={<div className="flex justify-start">
+      footer={<div className="flex w-full flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={backToPrevious}>
-          {sectionTrail.length ? "Voltar para " + (sections.find(item=>item.id===sectionTrail[sectionTrail.length-1])?.title||"configuração")
-            : "Voltar às opções"}
+          <ArrowLeft size={16}/> Voltar
         </AdminButton>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {section==="connections" && canManage && <AdminButton
+            disabled={!canCreateConnection} onClick={()=>setCreateRequest(value=>value+1)}>
+            <Plus size={16}/> Nova conexão
+          </AdminButton>}
+          {(section==="departments" || section==="queues") && canManage && <AdminButton
+            disabled={!canCreateDepartment} onClick={()=>setCreateRequest(value=>value+1)}>
+            <Plus size={16}/> Novo departamento
+          </AdminButton>}
+          {section==="quick-replies" && canManage && <AdminButton
+            onClick={()=>setCreateRequest(value=>value+1)}>
+            <Plus size={16}/> Nova mensagem
+          </AdminButton>}
+          {section==="permissions" && <div ref={setFooterTarget} className="flex flex-wrap items-center justify-end gap-2"/>}
+        </div>
       </div>}>
       {section && <div className="min-w-0 space-y-4">
         {(section==="configuration"||section==="connections") ?
           <WhatsAppChannelsPage
             key={activeOrganizationId+":"+section}
             initialSection={section} embeddedSection={section}
+            createConnectionRequest={createRequest}
+            onCanCreateChange={setCanCreateConnection}
             onSectionChange={next=>{if(isSection(next))openSection(next);}}
             onBack={backToPrevious}/>
           : section==="departments" || section==="queues" || section==="operators"
-            ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}/>
-            : section==="permissions" ? <WhatsAppRolePermissions/>
-            : <WhatsAppQuickRepliesSettings/>}
+            ? <WhatsAppOperationsSettings key={activeOrganizationId+":"+section} section={section}
+                createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}/>
+            : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget}/>
+            : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded/>}
       </div>}
     </AdminDialog>
   </>;
