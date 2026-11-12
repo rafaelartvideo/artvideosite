@@ -114,7 +114,6 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
   if (key === "agenda.menu.view" || key === "whatsapp.inbox.menu.view") return "Navegação";
   if (module === "tools") {
-    if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
     return "Acesso geral";
   }
@@ -293,7 +292,6 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "sac_digital.protocols.manage": ["sac_digital.messages.view", "sac_digital.view", "tools.view"],
   "sac_digital.settings.manage": ["sac_digital.view", "tools.view"],
   "tools.sac_digital.use": ["tools.view"],
-  "tools.uniq.use": ["tools.view"],
   "orders.view_all": ["orders.view"], "orders.table.view": ["orders.view"], "orders.kanban.view": ["orders.view"], "orders.details.view": ["orders.view"],
   "orders.unlock.view": ["orders.details.view", "orders.view"], "orders.unlock.manage": ["orders.unlock.view", "orders.edit", "orders.view"],
   "orders.situation.change": ["orders.edit", "orders.view"], "orders.cancel": ["orders.edit", "orders.view"],

@@ -90,7 +90,6 @@ function accessFormFromResponse(access: any): EmployeeAccessFormState {
     email: String(access?.email || ""),
     password: "",
     role_id: String(access?.role_id || ""),
-    uniq_subscriber_id: String(access?.uniq_subscriber_id || ""),
     restrict_by_ip: access?.restrict_by_ip === true,
     allowed_ips: Array.isArray(access?.allowed_ips) ? access.allowed_ips.map(String).join("\n") : "",
   };
@@ -582,7 +581,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           email: accessForm.email,
           password: accessForm.password,
           roleId: accessForm.role_id,
-          uniqSubscriberId: accessForm.uniq_subscriber_id,
           restrictByIp: accessForm.restrict_by_ip,
           allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });
@@ -595,7 +593,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           enabled: false,
           email: accessForm.email,
           roleId: accessForm.role_id,
-          uniqSubscriberId: accessForm.uniq_subscriber_id,
           restrictByIp: accessForm.restrict_by_ip,
           allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });

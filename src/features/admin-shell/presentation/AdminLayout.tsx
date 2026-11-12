@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { AdminFeedbackHost } from "@/shared/ui/admin/AdminFeedback";
-import { UniqCallOverlay } from "@/features/telephony/presentation/UniqCallOverlay";
 
 type AdminSidebarLayoutContextValue = {
   collapsed: boolean;
@@ -86,7 +85,6 @@ export function AdminLayout({
     <AdminThemeContext.Provider value={{ theme, setTheme }}>
       <div className={`admin-crm ${theme === "dark" ? "dark" : ""} flex h-screen min-w-0 overflow-hidden bg-background text-foreground`} data-theme={theme}>
         <AdminFeedbackHost />
-        <UniqCallOverlay />
 
         <aside
           className={`fixed left-0 top-0 z-40 hidden h-full flex-shrink-0 flex-col bg-[#0d1b2e] transition-[width] duration-200 ease-out md:flex ${sidebarCollapsed ? "w-[72px]" : "w-60"}`}

@@ -53,3 +53,14 @@ test('click-to-call da OS e demais links tel usa a sessao SIP da Union, sem cruz
   assert.ok(completion.includes('notifyPhoneCallIntegration(callContact.phone, orderId, organizationId)'));
   assert.ok(monitor.includes('notifyPhoneCallIntegration(phoneContactLinks(contactPhone).phone, detail.id)'));
 });
+
+test('ao ligar com ramal desconectado abre modal de conexao no proprio cadastro ou OS', () => {
+  const page = readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx', 'utf8');
+  assert.ok(page.includes('setPendingDialRequest({ phone: rawPhone })'));
+  assert.ok(page.includes('title="Ligar pelo PABX Union"'));
+  assert.ok(page.includes('Conecte seu ramal aqui, sem sair da tela atual'));
+  assert.ok(page.includes('onClick={() => void connectManaged()}'));
+  assert.ok(page.includes('onClick={connect}'));
+  assert.ok(page.includes('registration !== "registered" || callState !== "idle"'));
+  assert.ok(page.includes('originateExternal(destination, raw)'));
+});

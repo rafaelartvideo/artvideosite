@@ -25,7 +25,7 @@ test("document signature actions depend on signature viewing", () => {
 test("groups Ferramentas permissions by integrated module", () => {
   assert.ok(taxonomy, "permission taxonomy must load");
   const keys = [
-    "tools.view", "tools.uniq.use", "field_tracking.view",
+    "tools.view", "field_tracking.view",
     "queue.view", "queue.manage", "pbx.view", "marketplace.view",
     "ai.view", "sac_digital.view", "sac_digital.messages.view",
     "sac_digital.messages.send", "sac_digital.settings.manage", "agenda.view",
@@ -39,7 +39,7 @@ test("groups Ferramentas permissions by integrated module", () => {
   assert.deepEqual(
     ferramentas.sections.map(section => section.name),
     ["Acesso geral", "Mapa de Campo", "Marketplace Union", "PABX Union",
-      "SAC Digital", "Union Fila", "Union IA", "UNIQ"],
+      "SAC Digital", "Union Fila", "Union IA"],
   );
   assert.equal(groups.find(group => group.name === "Agenda")?.permissions.length, 1);
 });

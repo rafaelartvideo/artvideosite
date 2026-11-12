@@ -5,7 +5,7 @@ import {
   dispatchCompatibleEvent,
 } from "@/lib/platform-identifiers";
 
-const employeeColumns = "id,organization_id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,uniq_subscriber_id,created_at,updated_at,role:roles(id,name)";
+const employeeColumns = "id,organization_id,profile_id,role_id,full_name,cpf,phone,function_name,is_active,created_at,updated_at,role:roles(id,name)";
 const notifyPermissionChange = () => { dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT); };
 
 export const getEmployees = (organizationId: string) =>
@@ -38,12 +38,6 @@ export async function removeRolePermission(roleId: string, permissionId: string)
   return result;
 }
 
-export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
-export const setEmployeeUniqSubscriber = (employeeId: string, subscriberId?: string | null) =>
-  supabase.rpc("set_employee_uniq_subscriber", {
-    p_employee_id: employeeId,
-    p_uniq_subscriber_id: subscriberId?.trim() || null,
-  });
 
 export const setEmployeeActive = (organizationId: string, employeeId: string, isActive: boolean) =>
   supabase.rpc("set_employee_active_state", {

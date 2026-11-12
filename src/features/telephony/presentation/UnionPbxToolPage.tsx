@@ -1,7 +1,7 @@
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
-import { PageHeader, AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { PageHeader, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions";
 import { supabase } from "@/lib/supabase";
@@ -75,6 +75,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [dialTarget, setDialTarget] = useState("");
   const [dialMode, setDialMode] = useState<"internal" | "external">("internal");
   const [externalTarget, setExternalTarget] = useState("");
+  const [pendingDialRequest, setPendingDialRequest] = useState<{ phone: string } | null>(null);
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
@@ -103,7 +104,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    if (!isPageOpen || !activeOrganizationId) { setCheckingManaged(false); return () => { cancelled = true; }; }
+    if ((!isPageOpen && !pendingDialRequest) || !activeOrganizationId) { setCheckingManaged(false); return () => { cancelled = true; }; }
     setCheckingManaged(true);
     setManagedLookupError("");
     void findMyManagedPbxExtension(activeOrganizationId, controller.signal)
@@ -114,7 +115,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
       } })
       .finally(() => { if (!cancelled) setCheckingManaged(false); });
     return () => { cancelled = true; controller.abort(); };
-  }, [activeOrganizationId,isPageOpen,directoryRevision]);
+  }, [activeOrganizationId,isPageOpen,Boolean(pendingDialRequest),directoryRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -473,12 +474,12 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
       if (!destination) {
         setNotice("Telefone inválido. Informe um número nacional com DDD.");
-        onOpen();
+        setPendingDialRequest({ phone: rawPhone });
         return true;
       }
       if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
-        setNotice("Número preenchido. Conecte seu ramal e clique em Ligar para confirmar a chamada.");
-        onOpen();
+        setNotice("Conecte seu ramal para ligar.");
+        setPendingDialRequest({ phone: rawPhone });
         return true;
       }
       if (callState !== "idle" || sessionRef.current || outputPendingRef.current) {
@@ -871,5 +872,52 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         )}
       </section>
     )}
+    <AdminDialog
+      open={Boolean(pendingDialRequest)}
+      onClose={() => { setPendingDialRequest(null); setPassword(""); }}
+      title="Ligar pelo PABX Union"
+      description="Conecte seu ramal aqui, sem sair da tela atual. A ligação só será iniciada ao confirmar."
+      minimizable={false}
+      footer={<div className="flex flex-wrap justify-end gap-2">
+        <AdminButton variant="secondary" onClick={() => setPendingDialRequest(null)}>Cancelar</AdminButton>
+        <AdminButton variant="primary" disabled={registration !== "registered" || callState !== "idle" || outputPending || !normalizeNationalDestination(pendingDialRequest?.phone || "")}
+          onClick={() => {
+            const raw = pendingDialRequest?.phone || "";
+            const destination = normalizeNationalDestination(raw);
+            if (!canUseExternal || !destination || !uaRef.current?.isRegistered?.() || sessionRef.current || outputPendingRef.current) return;
+            setPendingDialRequest(null);
+            originateExternal(destination, raw);
+          }}><Phone size={16}/> Ligar</AdminButton>
+      </div>}
+    >
+      <div className="space-y-4">
+        <FInput label="Número com DDD" type="tel" inputMode="tel" autoComplete="off" maxLength={32}
+          value={pendingDialRequest?.phone || ""} onChange={event => setPendingDialRequest(current => current ? { ...current, phone: event.target.value } : null)} />
+        {pendingDialRequest && !normalizeNationalDestination(pendingDialRequest.phone) && <p role="alert" className="text-xs text-destructive">Informe um telefone nacional válido com DDD.</p>}
+        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <p className="font-semibold text-foreground">Ramal {sipUser || managedExtension?.number || "Union"}</p>
+          <p role="status" className="mt-1 text-xs text-muted-foreground">{registration === "registered" ? "Conectado. Confirme a ligação abaixo." : registration === "connecting" ? "Conectando o ramal..." : registration === "error" ? notice : "Ramal desconectado."}</p>
+        </div>
+        {registration === "connecting" && <div role="status" className="flex items-center gap-2 text-sm text-primary"><LoaderCircle size={16} className="animate-spin"/> Conectando...</div>}
+        {registration === "error" && <AdminButton variant="secondary" onClick={stop}>Tentar conectar novamente</AdminButton>}
+        {registration === "offline" && <>
+          {checkingManaged && <p className="text-xs text-muted-foreground">Consultando seu ramal...</p>}
+          {managedLookupError && <p role="alert" className="text-xs text-destructive">{managedLookupError}</p>}
+          {managedExtension && !manualMode && <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">{managedExtension.number} · {managedExtension.display_name}</p>
+            <AdminButton variant="primary" disabled={managedExtension.provisioning_status !== "applied"} onClick={() => void connectManaged()}>
+              <Phone size={16}/> Conectar meu ramal
+            </AdminButton>
+            <AdminButton variant="ghost" onClick={() => setManualMode(true)}>Usar ramal manual 301</AdminButton>
+          </div>}
+          {(!managedExtension || manualMode) && <>
+            <FInput label="Senha SIP do ramal 301" type="password" autoComplete="off" spellCheck={false}
+              value={password} onChange={event => setPassword(event.target.value)} placeholder="Senha do ramal, não do tronco FVX" />
+            <AdminButton variant="primary" disabled={!password.trim()} onClick={connect}><Phone size={16}/> Conectar ramal 301</AdminButton>
+            {managedExtension && <AdminButton variant="ghost" onClick={() => setManualMode(false)}>Usar meu ramal vinculado</AdminButton>}
+          </>}
+        </>}
+      </div>
+    </AdminDialog>
   </>;
 }

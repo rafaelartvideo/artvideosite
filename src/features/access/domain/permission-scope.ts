@@ -71,8 +71,7 @@ export function isArtvideoOnlyPermissionKey(key: string) {
     || key.startsWith("site.")
     || key.startsWith("site_settings.")
     || key.startsWith("contact.")
-    || key === "tools.sac_digital.use"
-    || key === "tools.uniq.use";
+    || key === "tools.sac_digital.use";
 }
 
 function requiredModuleKeys(key: string): readonly string[] | null {
@@ -107,7 +106,7 @@ function requiredModuleKeys(key: string): readonly string[] | null {
   if (key.startsWith("site.")) return SITE_MODULES;
 
   if (key === "tools.view") return TOOL_MODULES;
-  if (key === "tools.sac_digital.use" || key === "tools.uniq.use") return null;
+  if (key === "tools.sac_digital.use") return null;
   if (key.startsWith("queue.")) return ["queue"];
   if (key.startsWith("pbx.")) return ["pbx"];
   if (key.startsWith("marketplace.")) return ["marketplace"];

@@ -42,7 +42,6 @@ export type Registration = {
     admission_date: string | null;
     profile_id: string | null;
     role_id: string | null;
-    uniq_subscriber_id: string | null;
   }> | null;
   legacy_employee?: {
     id: string;
@@ -82,7 +81,7 @@ const REGISTRATION_SELECT = `
   created_by,registration_source,created_at,updated_at,
   created_by_profile:profiles!entities_created_by_fkey(full_name),
   roles:entity_roles(role,is_active),
-  employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
+  employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id),
   legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active,field_tracking_prompt_on_login),
   addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;

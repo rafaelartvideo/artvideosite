@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, LoaderCircle, XCircle } from "lucide-react";
-import { isArtVideoOrganizationId } from "@/lib/organization-identity";
 import { listActiveRoles } from "@/features/roles/infrastructure/roles.repository";
-import { checkEmployeeUsernameAvailability, listObservedUniqSubscribers } from "../infrastructure/user-access.repository";
+import { checkEmployeeUsernameAvailability } from "../infrastructure/user-access.repository";
 import { invalidAllowedIps } from "../domain/ip-access";
 import { authEmailForUsername, isValidUsername, normalizeUsername, usernameFromAuthEmail } from "@/features/auth/domain/username";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -19,7 +18,6 @@ export type EmployeeAccessFormState = {
   email: string;
   password: string;
   role_id: string;
-  uniq_subscriber_id: string;
   restrict_by_ip: boolean;
   allowed_ips: string;
 };
@@ -31,7 +29,6 @@ export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
   email: "",
   password: "",
   role_id: "",
-  uniq_subscriber_id: "",
   restrict_by_ip: false,
   allowed_ips: "",
 });
@@ -39,7 +36,6 @@ export const emptyEmployeeAccessForm = (): EmployeeAccessFormState => ({
 type RoleOption = { id: string; name: string };
 type Availability = "idle" | "checking" | "available" | "unavailable" | "error";
 const rolesCache = new Map<string, RoleOption[]>();
-let uniqCache: Array<{ subscriber_id: string | number; call_count?: number }> | null = null;
 
 export function UserAccessSection({ organizationId, value, onChange, existingAccess, disabled = false, loading = false, embedded = false }: {
   organizationId: string | null;
@@ -52,23 +48,11 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   embedded?: boolean;
 }) {
   const [roles, setRoles] = useState<RoleOption[]>(organizationId ? rolesCache.get(organizationId) || [] : []);
-  const [uniq, setUniq] = useState(uniqCache || []);
   const [showPassword, setShowPassword] = useState(false);
   const [availability, setAvailability] = useState<Availability>("idle");
   const initialUsername = useRef("");
-  const [isArtVideo, setIsArtVideo] = useState(false);
   const username = normalizeUsername(value.username || ((value.email === PENDING_USERNAME_AUTH_EMAIL || value.email === LEGACY_PENDING_USERNAME_AUTH_EMAIL) ? "" : usernameFromAuthEmail(value.email)));
   const valid = isValidUsername(username);
-
-  useEffect(() => {
-    let cancelled = false;
-    void isArtVideoOrganizationId(organizationId).then(result => {
-      if (!cancelled) setIsArtVideo(result);
-    }).catch(() => {
-      if (!cancelled) setIsArtVideo(false);
-    });
-    return () => { cancelled = true; };
-  }, [organizationId]);
 
   useEffect(() => {
     if (existingAccess && username && !initialUsername.current) initialUsername.current = username;
@@ -86,16 +70,8 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
       rolesCache.set(organizationId, next);
       setRoles(next);
     });
-    if (isArtVideo) {
-      if (uniqCache) setUniq(uniqCache);
-      else void listObservedUniqSubscribers().then(({ data }) => {
-        if (cancelled) return;
-        uniqCache = (data || []) as typeof uniq;
-        setUniq(uniqCache);
-      });
-    } else setUniq([]);
     return () => { cancelled = true; };
-  }, [organizationId, isArtVideo]);
+  }, [organizationId]);
 
   useEffect(() => {
     if (!organizationId || !value.enabled || !username || !valid) return setAvailability("idle");
@@ -110,11 +86,6 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
   }, [existingAccess, organizationId, username, valid, value.enabled]);
 
   const roleOptions = useMemo(() => [{ value: "", label: "Selecionar função..." }, ...roles.map(item => ({ value: item.id, label: item.name }))], [roles]);
-  const uniqOptions = useMemo(() => {
-    const options = [{ value: "", label: "Sem vínculo com a Uniq" }, ...uniq.map(item => ({ value: String(item.subscriber_id), label: `Usuário Uniq • ${String(item.subscriber_id)}${item.call_count == null ? "" : ` (${item.call_count} chamadas)`}` }))];
-    if (value.uniq_subscriber_id && !options.some(item => item.value === value.uniq_subscriber_id)) options.push({ value: value.uniq_subscriber_id, label: `Usuário Uniq • ${value.uniq_subscriber_id}` });
-    return options;
-  }, [uniq, value.uniq_subscriber_id]);
 
   const feedback = !username
     ? <span className="text-[#6b7c93]">Use 3 a 32 caracteres: letras, números, ponto, hífen ou sublinhado.</span>
@@ -140,7 +111,6 @@ export function UserAccessSection({ organizationId, value, onChange, existingAcc
         {value.enabled && !disabled && <button type="button" onClick={() => setShowPassword(current => !current)} className={cn("absolute right-3 top-[35px] rounded p-1 text-[#5a6a82] hover:text-[#0057e7]")} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
       </div>
       <FSelect label="Função" required={value.enabled} disabled={disabled || loading || !value.enabled} value={value.role_id} onChange={(event: any) => onChange({ ...value, role_id: event.target.value })} options={roleOptions} />
-      {isArtVideo && <FSelect label="Usuário / ramal Uniq" disabled={disabled || loading} value={value.uniq_subscriber_id} onChange={(event: any) => onChange({ ...value, uniq_subscriber_id: event.target.value })} options={uniqOptions} />}
       <div className="space-y-3 rounded-lg border border-[#0d1b2e]/10 bg-[#f8fafc] p-3 sm:col-span-2">
         <FToggle
           label="Restringir acesso por IP"

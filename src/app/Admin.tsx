@@ -222,7 +222,6 @@ export function AdminDashboard({
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
-      || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
       || ((isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view"))
@@ -382,9 +381,6 @@ export function AdminDashboard({
     ] : []),
     ...(canAccessAiTool ? [{ id: "union-ia", label: "Union IA", icon: Sparkles, description: "Consumo, histórico e limites de inteligência artificial.", href: null }] : []),
     ...(canAccessPbxTool ? [{ id: "union-pbx", label: "PABX Union", icon: Phone, description: "Conecte o ramal WebRTC e teste o audio sem sair do CRM.", href: null }] : []),
-    ...((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use") ? [
-      { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
-    ] : []),
     ...(canAccessQueueTool ? [
       {
         id: "union-senhas",

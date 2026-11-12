@@ -19,7 +19,6 @@ export type EmployeeAccess = {
   username: string | null;
   email: string | null;
   role_id: string | null;
-  uniq_subscriber_id: string | null;
   is_owner: boolean;
   restrict_by_ip: boolean;
   allowed_ips: string[];
@@ -33,7 +32,6 @@ export type SaveEmployeeAccessInput = {
   email?: string | null;
   password?: string | null;
   roleId?: string | null;
-  uniqSubscriberId?: string | null;
   restrictByIp?: boolean;
   allowedIps?: string[];
 };
@@ -139,7 +137,6 @@ export async function saveEmployeeAccess(input: SaveEmployeeAccessInput) {
     email: username ? authEmailForUsername(username) : emailInput || null,
     password: input.password || undefined,
     role_id: input.roleId || null,
-    uniq_subscriber_id: input.uniqSubscriberId === undefined ? undefined : input.uniqSubscriberId,
     restrict_by_ip: input.restrictByIp === undefined ? undefined : input.restrictByIp,
     allowed_ips: input.allowedIps,
   });
@@ -153,7 +150,6 @@ export async function setEmployeeAccessActive(organizationId: string, employeeId
   });
 }
 
-export const listObservedUniqSubscribers = () => supabase.rpc("observed_uniq_subscribers");
 
 export type PermissionAccess = {
   roleId: string | null;
