@@ -82,6 +82,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
+  const [completedCall, setCompletedCall] = useState<{sequence:number;number:string;at:number}>({sequence:0,number:"",at:0});
   const [muted, setMuted] = useState(false);
   const [microphoneId, setMicrophoneId] = useState("");
   const [outputPending, setOutputPending] = useState(false);
@@ -350,6 +351,12 @@ setTestFlowError('');
           setMuted(false);
           clearAudio();
           setNotice(failed ? "Nao foi possivel completar a chamada. Consulte o console do Asterisk." : "Chamada encerrada.");
+          // A seleção dos detalhes é resolvida pelo histórico atualizado, nunca pela primeira linha.
+          setCompletedCall(previous => ({
+            sequence: previous.sequence + 1,
+            number: session.remote_identity?.uri?.user || "",
+            at: Date.now(),
+          }));
         };
         session.on("ended", () => finish(false));
         session.on("failed", () => finish(true));
@@ -649,7 +656,7 @@ setTestFlowError('');
         isActive={isPageOpen}
         lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
         extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
-        connectionStatus={registration} callState={callState} remoteParty={remoteParty}
+        connectionStatus={registration} callState={callState} remoteParty={remoteParty} completedCall={completedCall}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}
         onBack={onBack} onConnectionSettings={connectDirectly}
         onDeviceSettings={() => setDeviceDialogOpen(true)} onDirectoryChange={() => setDirectoryRevision(value => value + 1)}
@@ -695,9 +702,12 @@ setTestFlowError('');
           originateExternal(destination, rawPhone);
         }}
         dialer={<div className="space-y-3">
-          {callState !== "idle" && <div role="status" className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-center">
-            <p className="text-sm font-semibold">{callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : "Em ligação"}</p>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{remoteParty}</p>
+          {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 text-center ${held && callState === "active"
+            ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
+            <p className={`text-sm font-semibold ${held && callState === "active" ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
+              {callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : held ? "Em espera" : "Em ligação"}
+            </p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{formatPbxNumber(remoteParty)}</p>
           </div>}
           {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
@@ -752,15 +762,17 @@ setTestFlowError('');
           {callState === "incoming" && <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
             <PhoneIncoming size={17}/> Atender chamada
           </AdminButton>}
-          {callState === "active" && <AdminButton variant="secondary" className="!w-full" onClick={toggleMute}>
-            {muted ? <MicOff size={16}/> : <Mic size={16}/>} {muted ? "Ativar microfone" : "Silenciar"}
-          </AdminButton>}
-          {callState !== "idle" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
-            <PhoneOff size={17}/> Desligar
-          </AdminButton>}
-          {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
+          {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} muted={muted}
+            holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
-            onHold={() => void runControl("hold")} onTransfer={() => void runControl("transfer")} />}
+            onMute={toggleMute} onHold={() => void runControl("hold")}
+            onHangup={hangup} onTransfer={() => void runControl("transfer")} />}
+          {callState === "dialing" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
+            <PhoneOff size={17}/> Cancelar chamada
+          </AdminButton>}
+          {callState === "incoming" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
+            <PhoneOff size={17}/> Recusar
+          </AdminButton>}
           {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
           }}>Habilitar áudio da chamada</AdminButton>}
@@ -802,19 +814,21 @@ setTestFlowError('');
           <div className="min-w-0">
             <p className="text-sm font-semibold">PABX Union <span className="ml-1 text-xs font-normal text-muted-foreground">· {sipUser}</span></p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
+              {callState === "incoming" ? "Chamada recebida" : callState === "active" ? held ? "Em espera" : "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
             </p>
           </div>
           <AdminButton variant="secondary" type="button" onClick={onOpen} className="shrink-0" aria-label="Abrir telefone completo">
             Abrir
           </AdminButton>
         </div>
-        {callState !== "idle" && <p className="truncate text-sm font-semibold">{remoteParty || "Chamada"}</p>}
+        {callState !== "idle" && <p className="truncate text-sm font-semibold">{formatPbxNumber(remoteParty) || "Chamada"}</p>}
         {callState === "active" && <>
           <p role="status" className="text-xs leading-5 text-muted-foreground">{notice}</p>
-          <UnionPbxCallActions idPrefix="pbx-floating" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
+          <UnionPbxCallActions idPrefix="pbx-floating" held={held} muted={muted}
+            holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
             destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
-            onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />
+            onMute={toggleMute} onHangup={hangup} onHold={() => void runControl('hold')}
+            onTransfer={() => void runControl('transfer')} />
           <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />
         </>}
         {outputPending && <p role="status" className="text-xs text-muted-foreground">Saída de áudio em confirmação. Aguarde antes de atender.</p>}
@@ -825,14 +839,9 @@ setTestFlowError('');
               <PhoneIncoming size={16} /> Atender
             </AdminButton>
           )}
-          {callState === "active" && (
-            <AdminButton variant="secondary" type="button" onClick={toggleMute} className="flex-1">
-              {muted ? <MicOff size={16} /> : <Mic size={16} />} {muted ? "Ativar microfone" : "Silenciar"}
-            </AdminButton>
-          )}
-          {callState !== "idle" && (
+          {(callState === "incoming" || callState === "dialing") && (
             <AdminButton variant="danger" type="button" onClick={hangup} className="flex-1">
-              <PhoneOff size={16} /> Desligar
+              <PhoneOff size={16} /> {callState === "incoming" ? "Recusar" : "Cancelar"}
             </AdminButton>
           )}
           {callState === "idle" && (
