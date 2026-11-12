@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingSpinner, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
