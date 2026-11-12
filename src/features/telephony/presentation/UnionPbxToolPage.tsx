@@ -9,7 +9,8 @@ import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
 import { UnionPbxDtmfPad } from "./UnionPbxDtmfPad";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
-import { UnionPbxSectionTabs, type UnionPbxSection } from "./UnionPbxSectionTabs";
+import type { UnionPbxSection } from "./UnionPbxSectionTabs";
+import { UnionPbxOperatorWorkspace } from "./UnionPbxOperatorWorkspace";
 import { microphoneConstraints } from "../application/audio-devices";
 import { normalizeNationalDestination } from "../application/outbound-dialing";
 import {externalDialingAllowed,type ExternalDialGrant} from '../application/external-access';
@@ -44,6 +45,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const { activeOrganizationId, organizations } = useAuth();
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const [password, setPassword] = useState("");
+  const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
   const [sipUser, setSipUser] = useState(isPlatformOperatorOrganization ? SIP_USER : "");
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
   const [externalGrant,setExternalGrant]=useState<ExternalDialGrant|null>(null);
@@ -618,34 +620,113 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   return <>
     {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
-    <div className={isPageOpen ? "min-w-0 space-y-5" : "hidden"} aria-hidden={!isPageOpen}>
-    <PageHeader title="PABX Union" subtitle="Central telefônica da sua empresa. Seu ramal permanece conectado enquanto você navega pelo CRM."
-      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Ferramentas</AdminButton>} />
-    <UnionPbxSectionTabs active="telefone" onSelect={selectSection}
-      canManage={Boolean(onManage || onManageQueues || onManageFlows)}
-      canAccessRecordings={Boolean(onRecordings)}
-      canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}/>
-    <div className="grid gap-3 sm:grid-cols-3" aria-label="Estado da central">
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <Phone className="shrink-0 text-primary" size={23}/>
-        <div className="min-w-0"><p className="text-xs text-muted-foreground">Linha telefônica</p>
-          <p className="truncate text-sm font-semibold">{isPlatformOperatorOrganization ? "(11) 4290-1575" : "Telefonia interna"}</p></div>
-      </div>
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <Headphones className="shrink-0 text-primary" size={23}/>
-        <div className="min-w-0"><p className="text-xs text-muted-foreground">Meu ramal</p>
-          <p className="truncate text-sm font-semibold">{sipUser || (checkingManaged ? "Consultando..." : managedExtension ? String(managedExtension.number) : "Não vinculado")}</p></div>
-      </div>
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <Radio className={registration === "registered" ? "shrink-0 text-emerald-600 dark:text-emerald-400" : "shrink-0 text-primary"} size={23}/>
-        <div className="min-w-0"><p className="text-xs text-muted-foreground">Registro SIP</p>
-          <p role="status" className="truncate text-sm font-semibold">{registration === "registered" ? "Conectado" : registration === "connecting" ? "Conectando..." : registration === "error" ? "Falha na conexão" : "Offline"}</p></div>
-      </div>
+    {/* Audio fica montado durante toda a navegação para não interromper chamadas. */}
+    <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Áudio da ligação" className="hidden" />
+    <div className={isPageOpen ? "min-w-0" : "hidden"} aria-hidden={!isPageOpen}>
+      <UnionPbxOperatorWorkspace
+        lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
+        extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
+        connectionStatus={registration} callState={callState} remoteParty={remoteParty}
+        directory={directory} queues={testQueues} directoryLoading={directoryLoading}
+        onBack={onBack} onConnectionSettings={() => setConnectionDialogOpen(true)}
+        onSelectSection={selectSection} canManage={Boolean(onManage || onManageQueues || onManageFlows)}
+        canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
+        canRecordings={Boolean(onRecordings)}
+        onDialNumber={number => {
+          if (callState !== "idle") return;
+          const digits = number.replace(/\D/g, "");
+          if (digits.length <= 6 && (digits === "900" || dialableNumbers.has(Number(digits)))) {
+            setDialMode("internal"); setDialTarget(digits);
+          } else if (canUseExternal) {
+            setDialMode("external"); setExternalTarget(number);
+          } else setNotice("O número selecionado não é um destino interno permitido.");
+        }}
+        dialer={<div className="space-y-3">
+          {callState !== "idle" && <div role="status" className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-center">
+            <p className="text-sm font-semibold">{callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : "Em ligação"}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{remoteParty}</p>
+          </div>}
+          {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <button type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
+              className={`rounded-md px-2 py-2 text-sm font-semibold ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</button>
+            <button type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
+              className={`rounded-md px-2 py-2 text-sm font-semibold ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</button>
+          </div>}
+          {callState === "idle" && <div className="space-y-2">
+            <AdminFieldLabel label={dialMode === "external" && canUseExternal ? "Número com DDD" : "Ramal, fila ou URA"} />
+            <div className="relative">
+              <FInput type="tel" inputMode="tel" autoComplete="off"
+                aria-label="Digite nome ou número" placeholder={dialMode === "external" && canUseExternal ? "DDD + telefone" : "Digite um número"}
+                value={dialMode === "external" && canUseExternal ? externalTarget : dialTarget}
+                onChange={event => {
+                  if (dialMode === "external" && canUseExternal) setExternalTarget(event.target.value.slice(0,32));
+                  else setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6));
+                }} />
+              <AdminButton variant="secondary" type="button" aria-label="Apagar último dígito"
+                onClick={() => dialMode === "external" && canUseExternal ? setExternalTarget(value => value.slice(0,-1)) : setDialTarget(value => value.slice(0,-1))}
+                className="absolute right-1 top-1/2 !-translate-y-1/2 !p-2"><Delete size={17}/></AdminButton>
+            </div>
+            {(dialMode === "internal" || !canUseExternal) && <div>
+              <AdminSelect value={dialableNumbers.has(Number(dialTarget)) ? dialTarget : ""}
+                onValueChange={setDialTarget} ariaLabel="Selecionar ramal ou fila"
+                disabled={directoryLoading}
+                options={[{value:"",label:"Selecionar destino interno"},
+                  ...dialableExtensions.map(item => ({value:String(item.number),label:`${item.number} · Ramal · ${item.display_name}`})),
+                  ...testQueues.map(item => ({value:String(item.number),label:`${item.number} · Fila · ${item.name}`})),
+                  ...testFlows.map(item => ({value:String(item.number),label:`${item.number} · URA · ${item.name}`}))]} />
+            </div>}
+          </div>}
+          <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
+            {([["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]] as const).map(([digit, letters]) =>
+              <button key={digit} type="button" aria-label={`Tecla ${digit}`}
+                disabled={callState === "idle" && (digit === "*" || digit === "#") || (callState !== "idle" && callState !== "active") || (callState === "active" && dtmfDisabled)}
+                onClick={() => {
+                  if (callState === "active") sendDigit(digit);
+                  else if (dialMode === "external" && canUseExternal) setExternalTarget(value => (value.replace(/\D/g, "") + digit).slice(0,11));
+                  else setDialTarget(value => (value + digit).slice(0,6));
+                }}
+                className="flex h-[60px] flex-col items-center justify-center rounded-lg border border-border bg-background text-xl font-semibold text-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-35">
+                {digit}<span className="text-[10px] font-normal tracking-wide text-muted-foreground">{letters || "\u00a0"}</span>
+              </button>)}
+          </div>
+          {callState === "idle" && <>
+            <AdminButton variant="primary" className="!w-full" disabled={!registeredAndIdle || (dialMode === "external" && canUseExternal ? !normalizeNationalDestination(externalTarget) : !internalDestinationReady)}
+              onClick={dialMode === "external" && canUseExternal ? callExternal : callInternal}>
+              <Phone size={17}/> Ligar
+            </AdminButton>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <button type="button" onClick={callEcho} disabled={!registeredAndIdle} className="font-semibold text-primary underline underline-offset-2 disabled:opacity-40">Testar áudio (900)</button>
+              <button type="button" onClick={() => setDirectoryRevision(value => value + 1)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"><RefreshCw size={13}/> Atualizar destinos</button>
+            </div>
+          </>}
+          {callState === "incoming" && <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
+            <PhoneIncoming size={17}/> Atender chamada
+          </AdminButton>}
+          {callState === "active" && <AdminButton variant="secondary" className="!w-full" onClick={toggleMute}>
+            {muted ? <MicOff size={16}/> : <Mic size={16}/>} {muted ? "Ativar microfone" : "Silenciar"}
+          </AdminButton>}
+          {callState !== "idle" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
+            <PhoneOff size={17}/> Desligar
+          </AdminButton>}
+          {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
+            destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
+            onHold={() => void runControl("hold")} onTransfer={() => void runControl("transfer")} />}
+          {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
+          {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
+            void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
+          }}>Habilitar áudio da chamada</AdminButton>}
+          {registration !== "registered" && <AdminButton variant="secondary" className="!w-full" onClick={() => setConnectionDialogOpen(true)}>
+            <Headphones size={16}/> {registration === "connecting" ? "Ver conexão" : "Conectar ramal"}
+          </AdminButton>}
+          <p role="status" className="break-words text-xs leading-5 text-muted-foreground">{notice}</p>
+          {(directoryError || testQueueError || testFlowError) && <p className="text-xs text-muted-foreground">{directoryError || testQueueError || testFlowError}</p>}
+        </div>}
+      />
     </div>
-
-    <div className="w-full min-w-0 space-y-4">
-      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="min-w-0 space-y-4">
+    <AdminDialog open={isPageOpen && connectionDialogOpen} onClose={() => setConnectionDialogOpen(false)}
+      title="Conexão e dispositivos" description="Gerencie o ramal e os dispositivos de áudio do operador."
+      className="w-[min(680px,calc(100vw-1.5rem))] max-w-[680px]" minimizable={false}>
+      <div className="space-y-4">
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -706,115 +787,12 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         </div>}
       </section>
 
-      <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
-        onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
-      {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio. Ligar e atender ficam bloqueados até terminar.</p>}
-        </div>
-        <div className="min-w-0 space-y-4">
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-live="polite" aria-label="Discador e chamada atual">
-        <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-lg bg-muted/30 p-5 text-center">
-          <Headphones className="text-primary" size={30} />
-          <p className="text-lg font-semibold text-foreground">{callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligacao" : callState === "dialing" ? "Chamando" : "Teste de audio"}</p>
-          <p className="text-sm text-muted-foreground">{callState === "idle" ? "Teste o áudio no 900 ou ligue para outro ramal da Union." : remoteParty}</p>
-          <p className="max-w-md text-xs leading-5 text-muted-foreground">{notice}</p>
-        </div>
 
-        <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Audio da ligacao" />
-        {audioBlocked && <AdminButton variant="secondary" type="button" onClick={() => {
-          void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o audio do site nas configuracoes do navegador."));
-        }} className="w-full">
-          Habilitar audio da chamada
-        </AdminButton>}
-
-        {callState === "idle" && canUseExternal && <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-1" role="group" aria-label="Tipo de ligação">
-          <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "internal"} onClick={() => setDialMode("internal")}
-            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "internal" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Interna</AdminButton>
-          <AdminButton variant="secondary" type="button" aria-pressed={dialMode === "external"} onClick={() => setDialMode("external")}
-            className={`min-h-10 rounded-md text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary ${dialMode === "external" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}>Externa</AdminButton>
-        </div>}
-        {callState === "idle" && (dialMode === "internal" || !canUseExternal) && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
-          <AdminFieldLabel label="Ramal, fila ou URA" />
-          <div className="relative">
-            <FInput type="tel" inputMode="numeric" aria-label="Discar ramal, fila ou fluxo" value={dialTarget}
-              maxLength={6} placeholder="Digite o número" onChange={event => setDialTarget(event.target.value.replace(/\D/g,"").slice(0,6))}/>
-            <AdminButton variant="secondary" type="button" aria-label="Apagar último dígito" onClick={() => setDialTarget(value => value.slice(0,-1))}
-              disabled={!dialTarget} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-30"><Delete size={17}/></AdminButton>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1"><AdminSelect value={dialableNumbers.has(Number(dialTarget)) ? dialTarget : ""} onValueChange={setDialTarget}
-              ariaLabel="Destino interno ou fila" disabled={directoryLoading || registration !== "registered"}
-              options={[{value:'',label:'Selecione um ramal ou fila'},
-                ...dialableExtensions.map(item=>({value:String(item.number),label:`${item.number} · Ramal · ${item.display_name}`})),
-                ...testQueues.map(item=>({value:String(item.number),label:`${item.number} · Fila · ${item.name}`})),
-                ...testFlows.map(item=>({value:String(item.number),label:`${item.number} · Fluxo · ${item.name}`}))]} /></div>
-            <AdminButton variant="primary" type="button" onClick={callInternal}
-              disabled={!registeredAndIdle || !internalDestinationReady}
-              >
-              <Phone size={16}/> Ligar
-            </AdminButton>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais..." : directoryError || testQueueError || testFlowError || (dialTarget && !internalDestinationReady ? "Destino não autorizado. Escolha um destino cadastrado ou disque 900." : "Disponibilidade confirmada somente ao realizar a chamada.")}
-          </p>
-          <AdminButton variant="secondary" size="sm" onClick={() => setDirectoryRevision(value => value + 1)}><RefreshCw size={15}/> Atualizar destinos</AdminButton>
-        </div>}
-        {canUseExternal && callState === "idle" && dialMode === "external" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
-          <AdminFieldLabel label="Ligar para telefone" />
-          <div className="flex items-center gap-2">
-            <FInput type="tel" inputMode="tel" autoComplete="off" aria-label="Telefone com DDD"
-              placeholder="DDD + número" value={externalTarget} maxLength={32}
-              onChange={event => setExternalTarget(event.target.value)} />
-            <AdminButton variant="primary" type="button" onClick={callExternal}
-              disabled={outputPending || registration !== "registered" || !normalizeNationalDestination(externalTarget)}>
-              <Phone size={16} /> Ligar
-            </AdminButton>
-          </div>
-          <p className="text-xs text-muted-foreground">Fixos e celulares do Brasil. Cobrança conforme o plano FVX.</p>
-          {externalTarget && !normalizeNationalDestination(externalTarget) &&
-            <p role="status" className="text-xs text-muted-foreground">Informe um telefone válido com DDD, sem zero ou código de operadora.</p>}
-        </div>}
-        {callState === "idle" && <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
-          <UnionPbxDtmfPad disabled={false} title="Teclado de discagem" allowSymbols={false}
-            onDigit={digit => {
-              if (dialMode === "external" && canUseExternal)
-                setExternalTarget(value => (value.replace(/\D/g, "") + digit).slice(0,11));
-              else setDialTarget(value => (value + digit).slice(0,6));
-            }}/>
-        </div>}
-        <div className="mt-4 flex flex-wrap justify-center gap-3">
-          {callState === "idle" && <AdminButton variant="primary" size="lg" type="button" disabled={outputPending || registration !== "registered"} onClick={callEcho}
-            >
-            <Phone size={17} /> Testar ramal 900
-          </AdminButton>}
-          {callState === "incoming" && <AdminButton variant="success" size="lg" type="button" onClick={answer} disabled={outputPending}
-            >
-            <PhoneIncoming size={17} /> Atender
-          </AdminButton>}
-          {callState === "active" && <AdminButton variant="secondary" size="lg" type="button" onClick={toggleMute}
-            >
-            {muted ? <MicOff size={17} /> : <Mic size={17} />} {muted ? "Ativar microfone" : "Silenciar"}
-          </AdminButton>}
-          {callState !== "idle" && <AdminButton variant="danger" size="lg" type="button" onClick={hangup}
-            >
-            <PhoneOff size={17} /> Desligar
-          </AdminButton>}
-        </div>
-      </section>
-
-      {callState === "active" && <UnionPbxCallActions idPrefix="pbx-full" held={held} holdUncertain={holdUncertain} transferUncertain={transferUncertain} busy={controlBusy}
-        destination={transferDestination} extensions={transferExtensions} onDestination={setTransferDestination}
-        onHold={() => void runControl('hold')} onTransfer={() => void runControl('transfer')} />}
-      {callState === "active" && <UnionPbxDtmfPad disabled={dtmfDisabled} onDigit={sendDigit} />}
-      {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
-        </div>
+        <UnionPbxAudioDevices locked={callState !== "idle"} microphoneId={microphoneId} onMicrophone={setMicrophoneId}
+          onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
+        {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio.</p>}
       </div>
-      <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
-        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>Use os destinos listados para ligações internas e o 900 para testar o áudio. {canUseExternal ? 'Para telefones externos, informe o DDD e o número no campo acima.' : 'As ligações externas dependem da configuração da sua empresa.'} A conexão fica ativa ao navegar entre as páginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
-      </div>
-
-    </div>
-    </div>
+    </AdminDialog>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
       <section
         role={callState === "incoming" ? "alert" : "region"}
