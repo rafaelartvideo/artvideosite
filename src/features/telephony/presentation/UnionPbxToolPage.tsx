@@ -624,6 +624,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Áudio da ligação" className="hidden" />
     <div className={isPageOpen ? "min-w-0" : "hidden"} aria-hidden={!isPageOpen}>
       <UnionPbxOperatorWorkspace
+        isActive={isPageOpen}
         lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
         extensionLabel={sipUser ? `Ramal ${ownNumber || sipUser}` : managedExtension ? `Ramal ${managedExtension.number}` : "Ramal não conectado"}
         connectionStatus={registration} callState={callState} remoteParty={remoteParty}
