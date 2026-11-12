@@ -72,6 +72,7 @@ export function UnionPbxOperatorWorkspace({
 }: Props) {
   const { activeOrganizationId } = useAuth();
   const [mode, setMode] = useState<WorkspaceMode>("chamadas");
+  const [contactsVisited, setContactsVisited] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recentFilter, setRecentFilter] = useState<RecentFilter>("todas");
   const [search, setSearch] = useState("");
@@ -312,7 +313,7 @@ export function UnionPbxOperatorWorkspace({
     <div className="grid min-w-0 gap-3 lg:grid-cols-[72px_minmax(0,1fr)]">
       <aside aria-label="Navegação do operador" className="flex min-w-0 flex-row flex-wrap items-start gap-1 px-1 lg:min-h-[640px] lg:flex-col">
         {nav.map(item=><button key={item.id} type="button" aria-current={mode===item.id?"page":undefined}
-          onClick={()=>{setMode(item.id);setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);}}
+          onClick={()=>{setMode(item.id);if(item.id==="contatos")setContactsVisited(true);setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);}}
           className={`flex min-h-[62px] min-w-[66px] flex-col items-center justify-center gap-1 border-l-[3px] px-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:w-full ${mode===item.id?"border-primary text-primary":"border-transparent text-muted-foreground hover:text-primary"}`}>
           <item.Icon size={20}/>{item.label}
         </button>)}
@@ -362,14 +363,14 @@ export function UnionPbxOperatorWorkspace({
                 className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
             </label>
             <div className="mt-3 min-w-0 flex-1 overflow-x-auto" style={{scrollbarGutter:"stable"}}>
-              <table className="w-full min-w-[520px] table-fixed border-separate border-spacing-0 text-left text-xs">
+              <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0 text-left text-xs">
                 <thead><tr className="text-muted-foreground">
-                  <th className="w-[34%] border-b border-border p-2 font-medium">Contato / número</th>
-                  <th className="border-b border-border p-2 font-medium">Tipo</th>
-                  <th className="border-b border-border p-2 font-medium">Horário</th>
-                  <th className="border-b border-border p-2 font-medium">Duração</th>
-                  <th className="border-b border-border p-2 font-medium">Estado</th>
-                  <th className="w-[54px] border-b border-border p-2 font-medium">Ações</th>
+                  <th className="w-[29%] border-b border-border p-2 font-medium">Contato / número</th>
+                  <th className="w-[11%] border-b border-border p-2 font-medium">Tipo</th>
+                  <th className="w-[25%] border-b border-border p-2 font-medium">Horário</th>
+                  <th className="w-[13%] border-b border-border p-2 font-medium">Duração</th>
+                  <th className="w-[12%] border-b border-border p-2 font-medium">Estado</th>
+                  <th className="w-[10%] border-b border-border p-2 font-medium">Ações</th>
                 </tr></thead>
                 <tbody>{visibleRows.map(row => {
                   const number = callNumber(row);
@@ -391,8 +392,8 @@ export function UnionPbxOperatorWorkspace({
                       <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
                     <td className="border-b border-border/60 p-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
-                    <td className="border-b border-border/60 p-2 whitespace-nowrap">{displayTime(row.started_at)}</td>
-                    <td className="border-b border-border/60 p-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
+                    <td className="whitespace-nowrap border-b border-border/60 p-2" title={new Date(row.started_at).toLocaleString("pt-BR")}>{displayTime(row.started_at)}</td>
+                    <td className="whitespace-nowrap border-b border-border/60 p-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
                     <td className="border-b border-border/60 p-2">
                       <span role="img" aria-label={callStatus(row)} title={callStatus(row)}
                         className={row.disposition === "ANSWERED" ? "inline-flex text-emerald-600 dark:text-emerald-400" : "inline-flex text-red-600 dark:text-red-400"}>
@@ -428,11 +429,12 @@ export function UnionPbxOperatorWorkspace({
               </div>
             </div>
 
-          </> : <PbxContactDirectory
-              organizationId={activeOrganizationId} active={isActive && mode==="contatos"} revision={contactRevision}
-              extensions={directory} onNew={()=>openContactEditor()}
-              onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);}}
-            />}
+          </> : null}
+          <div className={mode==="contatos" ? "contents" : "hidden"}>
+            <PbxContactDirectory organizationId={activeOrganizationId} active={isActive && contactsVisited}
+              revision={contactRevision} extensions={directory} onNew={()=>openContactEditor()}
+              onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);}}/>
+          </div>
         </section>
         <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
