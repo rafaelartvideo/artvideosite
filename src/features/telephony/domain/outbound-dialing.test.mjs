@@ -46,7 +46,8 @@ test('click-to-call da OS e demais links tel usa a sessao SIP da Union, sem cruz
   assert.ok(pbx.includes('document.addEventListener("click", handlePhoneAnchorClick, true)'));
   assert.ok(pbx.includes('anchor.hasAttribute("data-phone-number")'));
   assert.ok(pbx.includes('originateExternal(destination, rawPhone)'));
-  assert.ok(pbx.includes('Conecte seu ramal e clique em Ligar'));
+  assert.ok(pbx.includes('title="Ligar pelo PABX Union"'));
+  assert.ok(pbx.includes('Conecte seu ramal aqui, sem sair da tela atual'));
   assert.ok(pbx.includes('uaRef.current.call(`sip:${destination}@${SIP_HOST}`'));
   assert.ok(event.includes('organizationId: organizationId || null'));
   assert.ok(os.includes('notifyPhoneCallIntegration(callContact.phone, detail.id, detail.organization_id)'));
