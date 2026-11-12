@@ -644,6 +644,35 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
             setDialMode("external"); setExternalTarget(number);
           } else setNotice("O número selecionado não é um destino interno permitido.");
         }}
+        onReturnCall={rawPhone => {
+          if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
+          const digits = rawPhone.replace(/\D/g, "");
+          const internal = digits.length <= 6 && dialableNumbers.has(Number(digits));
+          if (internal) {
+            setDialMode("internal"); setDialTarget(digits);
+          } else {
+            setDialMode("external"); setExternalTarget(rawPhone);
+          }
+          if (registration !== "registered" || !uaRef.current?.isRegistered?.()) {
+            setNotice("Conecte o ramal para retornar a chamada.");
+            setConnectionDialogOpen(true);
+            return;
+          }
+          if (internal) {
+            try {
+              uaRef.current.call(`sip:${digits}@${SIP_HOST}`, {
+                mediaConstraints: microphoneConstraints(microphoneId), pcConfig: {iceServers: []},
+              });
+            } catch { setNotice("Não foi possível retornar a ligação interna."); }
+            return;
+          }
+          const destination = normalizeNationalDestination(rawPhone);
+          if (!canUseExternal || !destination) {
+            setNotice("Este número não está autorizado para ligação externa.");
+            return;
+          }
+          originateExternal(destination, rawPhone);
+        }}
         dialer={<div className="space-y-3">
           {callState !== "idle" && <div role="status" className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-center">
             <p className="text-sm font-semibold">{callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : "Em ligação"}</p>
