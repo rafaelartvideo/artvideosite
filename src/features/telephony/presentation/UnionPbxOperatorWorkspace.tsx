@@ -33,7 +33,6 @@ type Props = {
   onDeviceSettings: () => void;
   onDirectoryChange: () => void;
   onSelectSection: (section: UnionPbxSection) => void;
-  onDialNumber: (number: string) => void;
   onReturnCall: (number: string) => void;
   canManage: boolean;
   canManageInbound: boolean;
@@ -68,7 +67,7 @@ function initials(value: string) {
 export function UnionPbxOperatorWorkspace({
   isActive, dialer, connectionStatus, callState, remoteParty, completedCall, lineLabel, extensionLabel,
   directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
-  onSelectSection, onDialNumber, onReturnCall, canManage, canManageInbound, canRecordings,
+  onSelectSection, onReturnCall, canManage, canManageInbound, canRecordings,
 }: Props) {
   const { activeOrganizationId } = useAuth();
   const [mode, setMode] = useState<WorkspaceMode>("chamadas");
