@@ -450,8 +450,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       "disconnect":{title:"Desconectar WhatsApp?",description:"A sessão e o número permanecerão vinculados.",compact:true},
       "switch":{title:"Trocar o número do WhatsApp?",description:"O número atual será desconectado.",compact:true},
     }[inlineStage];
-    onInlinePaneChange({key:inlineStage,...details},closeInlineStage);
-  },[embeddedSection,inlineStage,deleteTarget?.display_name,onInlinePaneChange]);
+    onInlinePaneChange({key:inlineStage,...details,
+      blocked:["register","delete","disconnect","logout"].includes(action||"")},closeInlineStage);
+  },[embeddedSection,inlineStage,deleteTarget?.display_name,action,onInlinePaneChange]);
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
