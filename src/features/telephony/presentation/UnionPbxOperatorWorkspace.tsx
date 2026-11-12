@@ -398,15 +398,19 @@ export function UnionPbxOperatorWorkspace({
             {(selected || selectedExtension || selectedExternal) && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); }}><X size={16}/></button>}
           </div>
           {selected || selectedExtension || selectedExternal ? <>
-            <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-2xl font-bold text-primary">
-                {selectedAvatar
-                  ? <img src={selectedAvatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer"
-                      onError={() => setBrokenAvatar(old => ({...old,[selectedAvatarKey + ":" + selectedAvatar]:true}))}/>
-                  : initials(selectedName || selectedNumber)}
+            <div className="flex flex-col items-stretch gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
+                  {selectedAvatar
+                    ? <img src={selectedAvatar} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer"
+                        onError={() => setBrokenAvatar(old => ({...old,[selectedAvatarKey + ":" + selectedAvatar]:true}))}/>
+                    : initials(selectedName || selectedNumber)}
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <h3 className="break-words text-sm font-semibold leading-5">{selectedName}</h3>
+                  <p className="mt-0.5 break-all text-xs text-muted-foreground">{formatPbxNumber(selectedNumber)}</p>
+                </div>
               </div>
-              <div className="min-w-0"><h3 className="break-words text-base font-semibold">{selectedName}</h3>
-                <p className="text-sm text-muted-foreground">{formatPbxNumber(selectedNumber)}</p></div>
               <AdminButton className="w-full" variant="primary" disabled={callState !== "idle"} onClick={() => onDialNumber(selectedNumber)}><Phone size={16}/> Discar número</AdminButton>
               <p className="text-xs text-muted-foreground">O número será preenchido no discador. Confirme para ligar.</p>
               {pbxContactPhoneKey(selectedNumber) && contactCard?.source!=="crm" && selectedExternal?.source!=="crm" &&
@@ -417,17 +421,6 @@ export function UnionPbxOperatorWorkspace({
               {contactCard?.source==="crm"&&<p className="text-[11px] text-muted-foreground">Identificado pelo cadastro do CRM</p>}
 
             </div>
-            {selected && !selectedExternal && !selectedExtension && <div className="mt-6 space-y-3 border-t border-border pt-5">
-              <h4 className="text-sm font-semibold">Última interação</h4>
-              {[
-                ["Tipo de ligação", directionLabels[selected.direction] || selected.direction],
-                ["Data e horário", displayTime(selected.started_at)],
-                ["Duração", callDuration(selected.duration_seconds || 0)],
-                ["Estado", callStatus(selected)],
-                ["Origem", formatPbxNumber(selected.source)],
-                ["Destino", formatPbxNumber(selected.destination)],
-              ].map(([key, value]) => <div key={key} className="flex items-start justify-between gap-3 text-xs"><span className="text-muted-foreground">{key}</span><span className="break-all text-right font-medium">{value}</span></div>)}
-            </div>}
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
               active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
           </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
