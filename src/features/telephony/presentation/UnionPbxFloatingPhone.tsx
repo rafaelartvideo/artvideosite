@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, LoaderCircle, PhoneIncoming, PhoneCall } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, PhoneIncoming, PhoneCall } from "lucide-react";
 
 type CallState = "idle" | "dialing" | "incoming" | "active";
 type Connection = "offline" | "connecting" | "registered" | "error";
@@ -127,7 +127,7 @@ export function UnionPbxFloatingPhone({
   const style:CSSProperties=position?{
     left:position.x,top:position.y,right:"auto",bottom:"auto",
   }:{right:DEFAULT_MARGIN,bottom:DEFAULT_MARGIN};
-  const keyboardMove=(event:React.KeyboardEvent<HTMLDivElement>)=>{
+  const keyboardMove=(event:ReactKeyboardEvent<HTMLDivElement>)=>{
     if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home"].includes(event.key))return;
     event.preventDefault();
     if(event.key==="Home"){reset();return;}
