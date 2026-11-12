@@ -10,7 +10,7 @@ export function UnionPbxAudioDevices({ locked, microphoneId, onMicrophone, onOut
   const [inputs, setInputs] = useState<AudioDevice[]>([]), [outputs, setOutputs] = useState<AudioDevice[]>([]);
   const [outputId, setOutputId] = useState(''), [busy, setBusy] = useState(false);
   const [nativePending, setNativePending] = useState(false);
-  const [notice, setNotice] = useState('Atualize a lista para escolher os dispositivos. A permissão de microfone é solicitada ao iniciar ou atender uma ligação.');
+  const [notice, setNotice] = useState('Os dispositivos disponíveis são identificados automaticamente. A permissão de microfone é solicitada ao iniciar ou atender uma ligação.');
   const [supportsOutput, setSupportsOutput] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const nativeOutputPending = useRef(false);
@@ -29,11 +29,21 @@ export function UnionPbxAudioDevices({ locked, microphoneId, onMicrophone, onOut
       if (controller.signal.aborted) return;
       setInputs(devices.inputs); setOutputs(devices.outputs);
       if (microphoneId && !devices.inputs.some(device => device.id === microphoneId)) onMicrophone('');
-      setNotice('Dispositivos atualizados. Se os nomes estiverem ocultos, autorize o microfone numa ligação e atualize novamente. Microfones selecionados serão usados na próxima chamada.');
+      setNotice('Os dispositivos estão sincronizados. Se os nomes estiverem ocultos, autorize o microfone numa ligação.');
     } catch (error) {
       if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : 'Falha ao listar dispositivos.');
     } finally { if (!controller.signal.aborted) setBusy(false); }
   };
+
+  useEffect(() => {
+    // Atualiza ao abrir o modal e quando um dispositivo é conectado ou removido.
+    if (locked) return;
+    const media = navigator.mediaDevices;
+    const onChange = () => { void refresh(); };
+    void refresh();
+    media?.addEventListener?.('devicechange', onChange);
+    return () => { media?.removeEventListener?.('devicechange', onChange); };
+  }, [locked]);
 
   const chooseOutput = async (id: string) => {
     if (locked || busy || nativeOutputPending.current || (id && !outputs.some(device => device.id === id))) return;
@@ -59,8 +69,7 @@ export function UnionPbxAudioDevices({ locked, microphoneId, onMicrophone, onOut
   };
 
   return <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label="Dispositivos de áudio">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">Dispositivos de áudio</h2>
-      <AdminButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={locked || busy || nativePending}>Atualizar dispositivos</AdminButton></div>
+    <h2 className="text-sm font-semibold">Dispositivos de áudio</h2>
     <div className="grid gap-3 sm:grid-cols-2">
       <div><AdminFieldLabel label="Microfone" /><AdminSelect ariaLabel="Microfone da chamada" value={microphoneId} disabled={locked || busy || nativePending}
         onValueChange={id => { if (!locked && !nativeOutputPending.current && (!id || inputs.some(device => device.id === id))) onMicrophone(id); }}
