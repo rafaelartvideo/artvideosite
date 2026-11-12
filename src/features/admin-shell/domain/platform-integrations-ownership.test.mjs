@@ -65,11 +65,13 @@ test("configurações do WhatsApp Union permanecem e rotas da SAC legada são bl
   assert.match(admin, /<WhatsAppAttendanceSettings/);
   assert.doesNotMatch(admin, /<SacDigitalSettingsPage/);
   assert.match(channels, /<WhatsAppRolePermissions onBack=\{onBack\}/);
-  assert.match(channels, /section !== "permissions" && \(!embeddedSection/);
+  assert.match(channels, /!embeddedSection && section !== "permissions" && <AdminStickyToolbar/);
   assert.match(attendanceSettings, /<WhatsAppChannelsPage/);
   assert.match(attendanceSettings, /<WhatsAppQuickRepliesSettings/);
   assert.match(attendanceSettings, /<WhatsAppRolePermissions/);
-  assert.match(attendanceSettings, /onClick=\{\(\)=>setSection\(item.id\)\}/);
+  assert.match(attendanceSettings, /onClick=\{\(\)=>openSection\(item.id\)\}/);
+  assert.match(attendanceSettings, /sectionTrail/);
+  assert.match(attendanceSettings, /backToPrevious/);
   assert.match(permissions, /onBack \? <AdminStickyToolbar/);
   assert.match(permissions, /Salvar permissões/);
   assert.match(admin, /route\.resourceId === "sac-digital"[\s\S]*?<Navigate to=\{adminPath\("tools"\)\} replace/);
