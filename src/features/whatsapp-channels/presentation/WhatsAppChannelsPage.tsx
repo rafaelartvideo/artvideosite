@@ -1,7 +1,8 @@
 import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -11,6 +12,7 @@ import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { WhatsAppQuickRepliesSettings } from "./WhatsAppQuickRepliesSettings";
+import type { WhatsAppSettingsInlinePaneChange } from "./WhatsAppSettingsInlinePane";
 
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
@@ -51,10 +53,11 @@ const channelSections: Array<{ id: ChannelSection; label: string }> = [
 const showSuccess = (message: string) => { if (message) notifyAdmin(message, "success"); };
 const showError = (message: string) => { if (message) notifyAdmin(message, "error"); };
 
-export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration", embeddedSection, onSectionChange, createConnectionRequest = 0, onCanCreateChange }: {
+export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration", embeddedSection, onSectionChange, createConnectionRequest = 0, onCanCreateChange, footerTarget, onInlinePaneChange }: {
   onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection;
   embeddedSection?: ChannelSection; onSectionChange?: (section:ChannelSection)=>void;
   createConnectionRequest?: number; onCanCreateChange?: (ready:boolean)=>void;
+  footerTarget?: HTMLElement|null; onInlinePaneChange?: WhatsAppSettingsInlinePaneChange;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete");
@@ -418,6 +421,38 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     }
   }, [embeddedSection, onCanCreateChange, canManage, loading, channel, channels.length, action]);
 
+  const inlineStage=embeddedSection ? (
+    createConnectionOpen ? (action==="register" ? "connection-progress" :
+      creatingWhatsApp ? "connection-form" : "connection-provider") :
+    qrOpen ? "qr" : deleteTarget ? "delete" : confirmLogout ? "disconnect" :
+    confirmSwitch ? "switch" : null
+  ) : null;
+  const closeInlineStage=()=>{
+    if(action==="register" || action==="delete" || action==="disconnect" || action==="logout")return;
+    if(createConnectionOpen){
+      if(creatingWhatsApp){setCreatingWhatsApp(false);return;}
+      closeCreateConnection();return;
+    }
+    if(qrOpen){setQrOpen(false);setQr(null);return;}
+    if(deleteTarget){setDeleteTarget(null);return;}
+    if(confirmLogout){setConfirmLogout(false);return;}
+    if(confirmSwitch){setConfirmSwitch(false);}
+  };
+  useLayoutEffect(()=>{
+    if(!embeddedSection || !onInlinePaneChange)return;
+    if(!inlineStage){onInlinePaneChange(null);return;}
+    const details={
+      "connection-progress":{title:"Criando conexão",description:"Preparando a nova sessão do WhatsApp.",compact:true},
+      "connection-provider":{title:"Nova conexão",description:"Selecione a rede social que deseja conectar.",compact:true},
+      "connection-form":{title:"Nova conexão",description:"Informe o nome para identificar a sessão.",compact:true},
+      "qr":{title:"Conectar número",description:"No WhatsApp, acesse Aparelhos conectados e leia o QR Code.",compact:true},
+      "delete":{title:"Excluir conexão permanentemente?",description:deleteTarget?.display_name || "Confirme a exclusão da sessão.",compact:true},
+      "disconnect":{title:"Desconectar WhatsApp?",description:"A sessão e o número permanecerão vinculados.",compact:true},
+      "switch":{title:"Trocar o número do WhatsApp?",description:"O número atual será desconectado.",compact:true},
+    }[inlineStage];
+    onInlinePaneChange({key:inlineStage,...details},closeInlineStage);
+  },[embeddedSection,inlineStage,deleteTarget?.display_name,onInlinePaneChange]);
+
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
@@ -427,6 +462,101 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const canStartConnection = canManage && enabled && channels.length<3 && !Boolean(action);
   const anotherActive=(id:string)=>channels.some(c=>c.id!==id &&
     (c.state==="connected" || c.state==="connecting"));
+
+  // No módulo de Atendimentos, o formulário ocupa a MESMA instância do modal.
+  // As janelas independentes abaixo permanecem apenas para o uso como página.
+  if(embeddedSection && inlineStage){
+    const cancel=<AdminButton variant="secondary" disabled={Boolean(action)} onClick={closeInlineStage}>Cancelar</AdminButton>;
+    const actions=inlineStage==="connection-form" ? <>
+      {cancel}
+      <AdminButton disabled={Boolean(action)||connectionName.trim().length<2}
+        loading={action==="register"} onClick={()=>void addConnection()}>Criar sessão</AdminButton>
+    </> : inlineStage==="connection-progress" ? <AdminButton disabled>Preparando...</AdminButton>
+      : inlineStage==="delete" ? <>
+        {cancel}
+        <AdminButton variant="danger" disabled={Boolean(action)} loading={action==="delete"}
+          onClick={()=>void deleteConnection()}><Trash2 size={15}/> Excluir definitivamente</AdminButton>
+      </> : inlineStage==="disconnect" ? <>
+        {cancel}
+        <AdminButton variant="danger" disabled={Boolean(action)} loading={action==="disconnect"}
+          onClick={()=>void perform("disconnect")}>Desconectar</AdminButton>
+      </> : inlineStage==="switch" ? <>
+        {cancel}
+        <AdminButton variant="danger" disabled={Boolean(action)} loading={action==="logout"}
+          onClick={()=>void perform("logout")}>Encerrar sessão</AdminButton>
+      </> : inlineStage==="qr" ? <AdminButton variant="secondary" onClick={closeInlineStage}>Fechar QR Code</AdminButton>
+      : null;
+    return <div className="min-w-0 space-y-4" data-whatsapp-inline-stage={inlineStage}>
+      {inlineStage==="connection-progress" ?
+        <div role="status" aria-live="polite" aria-busy="true"
+          className="flex min-h-48 flex-col items-center justify-center gap-3 px-3 py-8 text-center">
+          <p className="text-sm font-semibold">Criando sessão de WhatsApp...</p>
+          <LoadingSpinner size="md"/>
+          <p className="text-xs text-muted-foreground">Preparando a conexão {connectionName.trim()}.</p>
+        </div>
+      : inlineStage==="connection-form" ?
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><WhatsAppIcon/></span>
+            <div><p className="text-sm font-bold">WhatsApp</p>
+              <p className="text-xs text-muted-foreground">Nome de identificação da sessão</p></div>
+          </div>
+          <label className="block text-sm font-semibold">
+            Nome da sessão <span className="text-red-600">*</span>
+            <input autoFocus type="text" maxLength={80} value={connectionName}
+              onChange={event=>setConnectionName(event.target.value)}
+              onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void addConnection();}}}
+              placeholder="Ex.: Atendimento principal"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none focus:border-primary"/>
+          </label>
+          {channels.some(item=>item.state==="connected"||item.state==="connecting") &&
+            <p className="text-xs text-muted-foreground">Desconecte a sessão ativa antes de conectar o novo número.</p>}
+        </div>
+      : inlineStage==="connection-provider" ?
+        <div className="grid gap-3 sm:grid-cols-3">
+          <button type="button" disabled={!canStartConnection}
+            onClick={()=>{setCreatingWhatsApp(true);setConnectionName("");}}
+            className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 py-5 text-primary hover:border-primary hover:bg-primary/15">
+            <WhatsAppIcon/><span className="text-sm font-bold">WhatsApp</span>
+            <span className="text-xs">Disponível</span>
+          </button>
+          <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 p-4 text-muted-foreground opacity-65">
+            <Instagram size={19}/><span className="text-sm font-semibold">Instagram</span><span className="text-xs">Em breve</span>
+          </div>
+          <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 p-4 text-muted-foreground opacity-65">
+            <Facebook size={19}/><span className="text-sm font-semibold">Facebook</span><span className="text-xs">Em breve</span>
+          </div>
+        </div>
+      : inlineStage==="qr" ?
+        <div className="flex min-h-[300px] flex-col items-center justify-center gap-4 p-3">
+          {qr ? <img src={qr} width={240} height={240} alt="QR Code para conectar WhatsApp"
+            className="rounded-lg bg-white p-3"/> :
+            <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+              <LoaderCircle size={40} className="animate-spin text-primary motion-reduce:animate-none"/>
+              <span>{action==="connect"?"Gerando QR Code...":"Aguardando QR Code ou confirmação..."}</span>
+            </div>}
+          <p className="max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
+            Após escanear, a Union reconhece a conexão e ativa o recebimento automaticamente.
+          </p>
+        </div>
+      : inlineStage==="delete" ?
+        <div className="flex items-start gap-3 p-3 text-sm text-muted-foreground">
+          <CircleAlert size={23} className="shrink-0 text-destructive"/>
+          <p>Esta ação é irreversível: removerá a sessão, contatos importados, conversas, mensagens e protocolos vinculados.
+            Para manter o histórico, use <strong>Desconectar</strong>.</p>
+        </div>
+      : inlineStage==="disconnect" ?
+        <div className="flex items-start gap-3 p-3 text-sm text-muted-foreground">
+          <CircleAlert size={22} className="shrink-0"/>
+          O recebimento será pausado, mas a sessão será preservada para reconectar sem QR Code se o WhatsApp não a revogar.
+        </div>
+      : <div className="flex items-start gap-3 p-3 text-sm text-muted-foreground">
+          <CircleAlert size={22} className="shrink-0"/>
+          As conversas anteriores permanecerão arquivadas. Para usar outro número, conecte uma nova sessão após encerrar esta.
+        </div>}
+      {footerTarget && actions && createPortal(<div className="flex flex-wrap gap-2">{actions}</div>,footerTarget)}
+    </div>;
+  }
 
   return <div className="space-y-5">
     {!embeddedSection && <>
