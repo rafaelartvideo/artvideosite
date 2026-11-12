@@ -8,6 +8,7 @@ import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPick
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -35,13 +36,6 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = "waiting" | "in_att" | "forwarded" | "finished";
-type CrmConversationContext = {
-  customer: {id:string;name:string}|null;
-  equipments: Array<{id:string;equipment_type_name:string|null;equipment_brand_name:string|null;equipment_model_name:string|null;serial_number:string|null}>;
-  orders: Array<{id:string;os_number:string;created_at:string;completed_at:string|null;model:string|null}>;
-  ambiguous?: boolean;
-  error?: boolean;
-};
 // Photo lookups are only for contacts currently displayed, never the imported
 // address book. Refresh lazily to notice profile-photo/privacy changes.
 const hasForwarding=(item:UnionWhatsAppConversation)=>
@@ -491,8 +485,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const avatarScopeGenerationRef=useRef(0);
   const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
-  const [crmDetailsOpen,setCrmDetailsOpen]=useState(true);
-  useEffect(()=>{setCrmDetailsOpen(true);},[selectedId]);
+  const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
+  useEffect(()=>{setCrmDetailsOpen(false);},[selectedId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
@@ -847,7 +841,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
    useEffect(() => {
-    if(!hasPermission("customers.view") || !selectedId ||
+    if(!crmDetailsOpen || !hasPermission("customers.view") || !selectedId ||
        !activeOrganizationId || channelReady!==true ||
        Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
     let cancelled=false;
@@ -863,7 +857,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         customer:null,equipments:[],orders:[],error:true,
       }}));});
     return()=>{cancelled=true;};
-  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
+  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen]);
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
@@ -2049,60 +2043,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
-            {hasPermission("customers.view") && <section aria-label="Dados do cliente no CRM"
-              className="shrink-0 border-b border-border bg-muted/20 px-3 py-2">
-              <button type="button" onClick={()=>setCrmDetailsOpen(open=>!open)}
-                aria-expanded={crmDetailsOpen}
-                className="flex w-full items-center gap-2 text-left text-xs font-semibold text-foreground">
-                <ContactRound size={15} className="shrink-0 text-primary"/>
-                <span className="shrink-0">Dados do CRM</span>
-                <span className="min-w-0 flex-1 truncate font-normal text-muted-foreground">
-                  {linkedCustomers[selected.id]?.customer?.name || (linkedCustomers[selected.id]
-                    ? "Sem vínculo confirmado" : "Consultando cadastro...")}
-                </span>
-                {crmDetailsOpen?<ChevronUp size={15}/>:<ChevronDown size={15}/>}
-              </button>
-              {crmDetailsOpen && <div className="mt-2 grid max-h-48 grid-cols-1 gap-2 overflow-y-auto text-xs sm:grid-cols-3">
-                {!linkedCustomers[selected.id] ? <span className="text-muted-foreground">Buscando cliente, equipamentos e OS...</span>
-                : linkedCustomers[selected.id].error ? <span role="status" className="text-muted-foreground">
-                    Não foi possível consultar os dados do CRM.
-                  </span>
-                : !linkedCustomers[selected.id].customer ? <span className="text-muted-foreground">
-                    {linkedCustomers[selected.id].ambiguous
-                      ? "Mais de um cadastro possui este número. Verifique antes de vincular."
-                      : "Nenhum cliente do CRM encontrado para este número."}
-                  </span>
-                : <>
-                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
-                    <p className="mb-1 font-bold">Cliente</p>
-                    <p className="truncate" title={linkedCustomers[selected.id].customer!.name}>
-                      {linkedCustomers[selected.id].customer!.name}</p>
-                    {onOpenCustomer && <button type="button" className="mt-1 font-semibold text-primary hover:underline"
-                      onClick={()=>onOpenCustomer(linkedCustomers[selected.id].customer!.id)}>Abrir cadastro</button>}
-                  </div>
-                  <div className="min-w-0 rounded-md border border-border bg-card p-2">
-                    <p className="mb-1 font-bold">Equipamentos</p>
-                    {linkedCustomers[selected.id].equipments.length===0
-                      ? <p className="text-muted-foreground">Nenhum equipamento cadastrado.</p>
-                      : linkedCustomers[selected.id].equipments.map(equipment=>
-                          <p key={equipment.id} className="truncate py-0.5"
-                            title={[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ")}>
-                            {[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
-                          </p>)}
-                  </div>
-                  {hasPermission("orders.details.view") && <div className="min-w-0 rounded-md border border-border bg-card p-2">
-                    <p className="mb-1 font-bold">OS recentes</p>
-                    {linkedCustomers[selected.id].orders.length===0
-                      ? <p className="text-muted-foreground">Nenhuma OS encontrada.</p>
-                      : linkedCustomers[selected.id].orders.map(order=>
-                          <a key={order.id} target="_blank" rel="noopener noreferrer"
-                            href={"/admin/orders/"+encodeURIComponent(order.id)+"?org="+encodeURIComponent(activeOrganizationId||"")}
-                            className="block truncate py-0.5 font-semibold text-primary hover:underline"
-                            title={order.model||""}>OS {order.os_number}{order.model?" · "+order.model:""}</a>)}
-                  </div>}
-                </>}
-              </div>}
-            </section>}
+            {hasPermission("customers.view") && <UnionWhatsAppCrmMenu key={selected.id}
+              context={linkedCustomers[selected.id]}
+              open={crmDetailsOpen}
+              onToggle={()=>setCrmDetailsOpen(open=>!open)}
+              onRetry={()=>setLinkedCustomers(previous=>{
+                const next={...previous};delete next[selected.id];return next;
+              })}
+              organizationId={activeOrganizationId || ""}
+              canViewOrders={hasPermission("orders.details.view")}
+              onOpenCustomer={onOpenCustomer}
+            />}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
               <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
