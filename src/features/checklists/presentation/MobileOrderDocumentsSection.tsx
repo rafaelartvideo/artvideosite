@@ -51,9 +51,12 @@ export function MobileOrderDocumentsSection({
   const [attachmentTypeId, setAttachmentTypeId] = useState("");
   const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
   const busy = uploadingTarget !== null;
-  const paymentProofType = documents.attachment_types.find(type =>
-    type.name.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR") === "comprovante de pagamento");
-  const effectiveTypeId = paymentProofOnly ? paymentProofType?.id || "" : attachmentTypeId;
+  const evidenceTypes = documents.attachment_types.filter(type => {
+    const normalized = type.name.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    return (normalized === "comprovante de pagamento" && documents.completion_evidence?.payment_enabled !== false)
+      || (normalized === "evidencia de entrega" && documents.completion_evidence?.delivery_enabled === true);
+  });
+  const effectiveTypeId = attachmentTypeId;
 
   const upload = async (kind: "attachment" | "situation", targetId: string, files: File[]) => {
     if (busy || !targetId || !files.length) return;
@@ -81,55 +84,62 @@ export function MobileOrderDocumentsSection({
     }
   };
 
+  if (section === "attachments" && paymentProofOnly) return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-[#d9e1ec] bg-white p-4">
+        <h2 className="text-base font-black text-[#0d1b2e]">Evidências de conclusão</h2>
+        <p className="mt-1 text-xs leading-5 text-[#64748b]">Envie o comprovante de pagamento e a evidência de entrega habilitados para esta OS. Os arquivos serão classificados automaticamente.</p>
+      </div>
+      {evidenceTypes.length ? evidenceTypes.map(type => (
+        <section key={type.id} className="space-y-3 rounded-2xl border border-[#d9e1ec] bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-black text-[#0d1b2e]">{type.name}</h3>
+          <p className="text-xs text-[#64748b]">O anexo ficará disponível em Documentos → Anexos da OS.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <UploadAction title="Adicionar arquivo" accept=".jpg,.jpeg,.png,.webp,.pdf"
+              disabled={busy} loading={uploadingTarget === "attachment:" + type.id}
+              onFiles={files => void upload("attachment", type.id, files.slice(0, 1))} />
+            <UploadAction title="Tirar foto" camera accept="image/*"
+              disabled={busy} loading={uploadingTarget === "attachment:" + type.id}
+              onFiles={files => void upload("attachment", type.id, files.slice(0, 1))} />
+          </div>
+        </section>
+      )) : <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-semibold text-amber-700">
+        Nenhuma evidência habilitada para este tipo de atendimento.
+      </p>}
+    </div>
+  );
+
   if (section === "attachments") return (
     <section className="space-y-4 rounded-2xl border border-[#d9e1ec] bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-black text-[#0d1b2e]">{paymentProofOnly ? "Comprovante de pagamento" : "Anexos"}</h2>
-          <p className="mt-1 text-xs leading-5 text-[#64748b]">{paymentProofOnly ? "Anexe uma foto ou PDF. O tipo Comprovante de pagamento será aplicado automaticamente à OS." : "Envie fotos ou documentos diretamente à OS."}</p>
+          <h2 className="text-base font-black text-[#0d1b2e]">Anexos</h2>
+          <p className="mt-1 text-xs leading-5 text-[#64748b]">Envie fotos ou documentos diretamente à OS.</p>
         </div>
-        {!paymentProofOnly && <span className="rounded-lg bg-[#edf3ff] px-2.5 py-1.5 text-xs font-black text-[#0057e7]">{documents.attachment_count}</span>}
+        <span className="rounded-lg bg-[#edf3ff] px-2.5 py-1.5 text-xs font-black text-[#0057e7]">{documents.attachment_count}</span>
       </div>
-      {paymentProofOnly && !paymentProofType ? (
-        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-semibold text-amber-700">O tipo Comprovante de pagamento não está habilitado nesta empresa. Configure-o no CRM antes do envio.</p>
-      ) : documents.attachment_types.length ? (
-        <>
-          {!paymentProofOnly && <label className="block">
-            <span className="mb-1.5 block text-xs font-black text-[#334155]">Tipo de anexo</span>
-            <select
-              value={attachmentTypeId}
-              onChange={event => setAttachmentTypeId(event.target.value)}
-              disabled={busy}
-              className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm font-semibold text-[#0d1b2e] outline-none focus:border-[#0057e7]"
-            >
-              <option value="">Selecione o tipo de anexo</option>
-              {documents.attachment_types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
-            </select>
-          </label>}
-          <div className="grid grid-cols-2 gap-2">
-            <UploadAction
-              title="Adicionar arquivo"
-              accept={paymentProofOnly ? ".jpg,.jpeg,.png,.webp,.pdf" : ".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"}
-              disabled={!effectiveTypeId || busy}
-              loading={uploadingTarget === "attachment:" + effectiveTypeId}
-              onFiles={files => void upload("attachment", effectiveTypeId, paymentProofOnly ? files.slice(0,1) : files)}
-            />
-            <UploadAction
-              title="Tirar foto"
-              camera
-              accept="image/*"
-              disabled={!effectiveTypeId || busy}
-              loading={uploadingTarget === "attachment:" + effectiveTypeId}
-              onFiles={files => void upload("attachment", effectiveTypeId, paymentProofOnly ? files.slice(0,1) : files)}
-            />
-          </div>
-          <p className="text-xs text-[#64748b]">{paymentProofOnly ? "JPG, PNG, WebP ou PDF até 20 MB. O comprovante enviado ficará em Documentos → Anexos da OS." : "Imagens, PDF e documentos de até 20 MB por arquivo."}</p>
-        </>
-      ) : (
-        <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-5 text-center text-xs font-semibold text-[#64748b]">
-          Nenhum tipo de anexo ativo. Cadastre um tipo no CRM para enviar arquivos.
+      {documents.attachment_types.length ? <>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-black text-[#334155]">Tipo de anexo</span>
+          <select value={attachmentTypeId} onChange={event => setAttachmentTypeId(event.target.value)}
+            disabled={busy}
+            className="h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-3 text-sm font-semibold text-[#0d1b2e] outline-none focus:border-[#0057e7]">
+            <option value="">Selecione o tipo de anexo</option>
+            {documents.attachment_types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+          </select>
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <UploadAction title="Adicionar arquivo" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+            disabled={!effectiveTypeId || busy} loading={uploadingTarget === "attachment:" + effectiveTypeId}
+            onFiles={files => void upload("attachment", effectiveTypeId, files)} />
+          <UploadAction title="Tirar foto" camera accept="image/*"
+            disabled={!effectiveTypeId || busy} loading={uploadingTarget === "attachment:" + effectiveTypeId}
+            onFiles={files => void upload("attachment", effectiveTypeId, files)} />
         </div>
-      )}
+        <p className="text-xs text-[#64748b]">Imagens, PDF e documentos de até 20 MB por arquivo.</p>
+      </> : <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-5 text-center text-xs font-semibold text-[#64748b]">
+        Nenhum tipo de anexo ativo. Cadastre um tipo no CRM para enviar arquivos.
+      </div>}
     </section>
   );
 
