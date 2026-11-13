@@ -13,8 +13,8 @@ test("Concluir OS exibe Usar celular no cabeçalho da seção de evidências", a
   assert.ok(header > 0 && mobile > header && mobile < modal.indexOf("<OrderCompletionEvidenceSection", mobile));
   assert.doesNotMatch(proof, /<OrderChecklistMobileBridge/);
   assert.match(modal, /scope="payment-proof"/);
-  assert.match(modal, /disabled=\\{saving\\}/);
-  assert.match(modal, /onDocumentsUpdated=\\{completion\\.refreshPaymentProofFromMobile\\}/);
+  assert.match(modal, /disabled=\{saving\}/);
+  assert.match(modal, /onDocumentsUpdated=\{completion\.refreshPaymentProofFromMobile\}/);
   assert.ok((await transformWithEsbuild(proof,"OrderCompletionPaymentSection.tsx",{loader:"tsx"})).code.length > 200);
   assert.ok((await transformWithEsbuild(modal,"OrderCompletionModal.tsx",{loader:"tsx"})).code.length > 200);
 });
