@@ -8,6 +8,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceDocumentsPanel } from "./FinanceDocumentsPanel";
+import { FinanceOrderEvidenceGallery } from "./FinanceOrderEvidenceGallery";
 import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
@@ -188,6 +189,8 @@ function EntryDetailContent({
 
       {["service_order", "inventory_purchase"].includes(detail.origin_type)
         && <FinanceEntrySourceBlock detail={detail} showIcon={false} />}
+      {isReceivable && detail.origin_type === "service_order" &&
+        <FinanceOrderEvidenceGallery entryId={detail.id} kind="delivery_evidence" />}
 
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
