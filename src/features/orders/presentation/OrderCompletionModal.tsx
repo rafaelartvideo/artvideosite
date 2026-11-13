@@ -404,10 +404,8 @@ export function OrderCompletionModal({
       {completion.returnAwaitingClassification && <p role="alert" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
         Classifique a garantia do retorno antes de concluir.
       </p>}
-      <div className={completion.generatesWarranty ? "grid min-w-0 items-stretch gap-4 lg:grid-cols-2" : "grid min-w-0 items-stretch gap-4"}>
-        <Section title="Produtos e serviços"
-          className="flex h-[360px] min-h-0 flex-col"
-          contentClassName="min-h-0 flex-1 overflow-y-auto">
+      <div className={completion.generatesWarranty ? "grid min-w-0 items-start gap-4 lg:grid-cols-2" : "grid min-w-0 items-start gap-4"}>
+        <Section title="Produtos e serviços" className="self-start">
           <div className="min-w-0">
             {completion.commercialItemsError && <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="min-w-0 text-sm font-semibold text-red-700">
@@ -419,7 +417,7 @@ export function OrderCompletionModal({
             </div>}
 
             {!completion.commercialItemsError && !completion.commercialItemsLoading && !hasServices && !hasProducts &&
-              <AdminSectionEmpty className="min-h-[240px] text-sm">Nenhum produto ou serviço utilizado.</AdminSectionEmpty>}
+              <AdminSectionEmpty compact className="text-sm">Nenhum produto ou serviço utilizado.</AdminSectionEmpty>}
 
             {!completion.commercialItemsError && !completion.commercialItemsLoading && (hasServices || hasProducts) && <>
               {hasServices && <div>
@@ -454,9 +452,7 @@ export function OrderCompletionModal({
           </div>
         </Section>
 
-        {completion.generatesWarranty && <Section title="Certificado de garantia"
-          className="flex h-[360px] min-h-0 flex-col"
-          contentClassName="min-h-0 flex-1 overflow-y-auto">
+        {completion.generatesWarranty && <Section title="Certificado de garantia" className="self-start">
           <div className="space-y-3">
             <p className="text-sm leading-relaxed text-muted-foreground">
               Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão.
