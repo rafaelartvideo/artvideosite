@@ -38,13 +38,14 @@ test("campos da OS são apresentados em duas colunas com descrições e selects 
   assert.doesNotMatch(rules, /Salvar regras/);
 });
 
-test("salvamento único grava somente alterações de regras e comprovante", async () => {
+test("salvamento único grava somente alterações de regras e evidências de conclusão", async () => {
   const dialog = read("src/features/orders/presentation/OrderSettingsDialog.tsx");
   const rules = read("src/features/orders/presentation/OrderRulesSettings.tsx");
   assert.ok((await transformWithEsbuild(dialog, "OrderSettingsDialog.tsx", { loader: "tsx" })).code);
-  assert.match(dialog, /const anyChanges = rulesDirty \|\| proofDirty/);
+  assert.match(dialog, /const anyChanges = rulesDirty \|\| proofDirty \|\| deliveryDirty/);
   assert.match(dialog, /if \(rulesDirty\) await rulesRef\.current\?\.saveChanges\(\)/);
-  assert.match(dialog, /if \(proofDirty\)/);
+  assert.match(dialog, /if \(proofDirty \|\| deliveryDirty\)/);
+  assert.match(dialog, /require_delivery_evidence_on_completion: requireDeliveryEvidence/);
   assert.match(dialog, /scope: "orders"/);
   assert.match(dialog, /disabled=\{!anyChanges/);
   assert.equal((dialog.match(/>Salvar<\/BtnPrimary>/g) || []).length, 1);
