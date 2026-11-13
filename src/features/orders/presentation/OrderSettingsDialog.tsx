@@ -23,6 +23,7 @@ export function OrderSettingsDialog({
   const rulesRef = useRef<OrderRulesSettingsHandle>(null);
   const loadedOrganizationRef = useRef<string | null>(null);
   const [requireProof, setRequireProof] = useState(false);
+  const [requireDeliveryEvidence, setRequireDeliveryEvidence] = useState(false);
   const [rulesDirty, setRulesDirty] = useState(false);
   const [rulesLoading, setRulesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,11 +33,14 @@ export function OrderSettingsDialog({
     if (!open || !companySettings.data || loadedOrganizationRef.current === organizationId) return;
     loadedOrganizationRef.current = organizationId;
     setRequireProof(companySettings.data.require_payment_proof_on_completion === true);
+    setRequireDeliveryEvidence(companySettings.data.require_delivery_evidence_on_completion === true);
   }, [open, companySettings.data, organizationId]);
 
   const proofDirty = Boolean(companySettings.data &&
     requireProof !== (companySettings.data.require_payment_proof_on_completion === true));
-  const anyChanges = rulesDirty || proofDirty;
+  const deliveryDirty = Boolean(companySettings.data &&
+    requireDeliveryEvidence !== (companySettings.data.require_delivery_evidence_on_completion === true));
+  const anyChanges = rulesDirty || proofDirty || deliveryDirty;
   const busy = saving || saveSettings.isPending;
 
   const saveAll = async () => {
@@ -47,7 +51,7 @@ export function OrderSettingsDialog({
       // Somente os escopos de regras modificados serão gravados.
       if (rulesDirty) await rulesRef.current?.saveChanges();
       // Não altera os dados cadastrais, nem regrava a exigência de comprovante sem mudanças.
-      if (proofDirty) {
+      if (proofDirty || deliveryDirty) {
         await saveSettings.mutateAsync({
           organizationId,
           updatedBy: user?.id || null,
@@ -55,6 +59,7 @@ export function OrderSettingsDialog({
           settings: {
             ...companySettings.data,
             require_payment_proof_on_completion: requireProof,
+            require_delivery_evidence_on_completion: requireDeliveryEvidence,
           },
         });
       }
@@ -103,10 +108,20 @@ export function OrderSettingsDialog({
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground">Exigir comprovante de pagamento para concluir a OS</span>
             <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-              Quando ativado, é obrigatório anexar uma foto ou PDF classificado como comprovante de pagamento antes da conclusão.
+              Quando ativado, o comprovante é obrigatório nos tipos de atendimento que habilitam este anexo. Quando desativado, será opcional.
             </span>
           </span>
         </label>}
+      {!companySettings.isPending && !companySettings.error && <label className="flex min-w-0 items-start gap-3">
+        <input type="checkbox" checked={requireDeliveryEvidence}
+          onChange={event => { setRequireDeliveryEvidence(event.target.checked); setFeedback(null); }}
+          disabled={!canEdit || busy}
+          className="mt-1 h-4 w-4 shrink-0 accent-primary disabled:opacity-50" />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-foreground">Exigir evidência de entrega para concluir a OS</span>
+          <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">Quando ativado, a evidência de entrega é obrigatória nos tipos de atendimento que habilitam este anexo. Caso contrário, será opcional.</span>
+        </span>
+      </label>}
     </section>
     <OrderRulesSettings
       ref={rulesRef}
