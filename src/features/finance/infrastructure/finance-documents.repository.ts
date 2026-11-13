@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 
-const ATTACHMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_settlement_id,attachment_type,file_name,storage_path,storage_bucket,source_media_id,mime_type,size_bytes,created_by,created_at,archived_at,archived_by,archive_reason";
+const ATTACHMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_settlement_id,attachment_type,file_name,storage_path,storage_bucket,source_media_id,source_document_kind,mime_type,size_bytes,created_by,created_at,archived_at,archived_by,archive_reason";
 
 function requiredOrganizationId(organizationId: string) {
   const normalized = String(organizationId || "").trim();
@@ -82,7 +82,7 @@ export async function createFinancialAttachmentSignedUrl(
 // cada linha da tabela e não duplica arquivos no Storage.
 export async function getFinancialEntryProofUrl(organizationId: string, entryId: string): Promise<string | null> {
   const attachments = await listFinancialAttachments(organizationId, entryId);
-  const latestProof = attachments.find(attachment => attachment.attachment_type === "proof");
+  const latestProof = attachments.find(attachment => attachment.attachment_type === "proof" && attachment.source_document_kind !== "delivery_evidence");
   if (!latestProof) return null;
   return createFinancialAttachmentSignedUrl(latestProof.storage_path, latestProof.storage_bucket || "financial-documents");
 }
