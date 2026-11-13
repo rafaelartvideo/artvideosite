@@ -35,12 +35,13 @@ test("tela de conclusão espera dados essenciais e mostra certificação na segu
   assert.match(modal, /const preparingConclusion = preparing \|\| \(/);
   assert.match(modal, /completion\.paymentProofRequirementLoading/);
   assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
-  assert.match(modal, /grid min-w-0 items-stretch gap-4 lg:grid-cols-2/);
+  assert.match(modal, /grid min-w-0 items-start gap-4 lg:grid-cols-2/);
   assert.match(modal, /<Section title="Produtos e serviços"/);
   assert.match(modal, /<Section title="Certificado de garantia"/);
   assert.match(modal, /Nenhum produto ou serviço utilizado\./);
   assert.match(modal, /!hasServices && !hasProducts/);
-  assert.match(modal, /min-h-\[240px\] text-sm/);
+  assert.match(modal, /<AdminSectionEmpty compact className="text-sm">/);
+  assert.doesNotMatch(modal, /h-\[360px\]/);
   assert.match(modal, /hasServices \? "border-t border-border pt-2" : ""/);
   assert.doesNotMatch(modal, /Nenhum serviço foi adicionado à composição desta OS/);
 });
@@ -90,12 +91,14 @@ test("um único diálogo mantém Preparando conclusão sem remount ou segunda te
   assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
 });
 
-test("produtos e serviços mantêm uma divisória e altura idêntica à garantia", async () => {
+test("produtos e serviços mantêm a divisória, mas cada section tem altura do conteúdo", async () => {
   const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
   const transformed = await transformWithEsbuild(modal, "OrderCompletionModal.tsx", { loader: "tsx" });
   assert.ok(transformed.code.length);
-  assert.match(modal, /<Section title="Produtos e serviços"\s+className="flex h-\[360px\] min-h-0 flex-col"\s+contentClassName="min-h-0 flex-1 overflow-y-auto"/);
-  assert.match(modal, /<Section title="Certificado de garantia"\s+className="flex h-\[360px\] min-h-0 flex-col"\s+contentClassName="min-h-0 flex-1 overflow-y-auto"/);
+  assert.match(modal, /<Section title="Produtos e serviços" className="self-start">/);
+  assert.match(modal, /<Section title="Certificado de garantia" className="self-start">/);
+  assert.match(modal, /grid min-w-0 items-start gap-4 lg:grid-cols-2/);
+  assert.doesNotMatch(modal, /h-\[360px\]/);
   assert.match(modal, /hasServices \? "border-t border-border pt-2" : ""/);
   assert.doesNotMatch(modal, /divide-y divide-border/);
   assert.doesNotMatch(modal, /Serviços registrados na composição da OS/);
