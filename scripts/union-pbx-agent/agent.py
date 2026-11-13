@@ -104,6 +104,17 @@ def recording_support():
         return None
 
 
+def legacy_trunk_support():
+    if PROFILE_ID is not None:return None
+    try:
+        import legacy_trunks
+        return legacy_trunks
+    except ImportError:
+        if (STATE_DIR/'legacy-trunks-runtime.json').exists():
+            raise AgentError('Reinstale o pacote completo de controle do tronco existente.') from None
+        return None
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -1245,6 +1256,16 @@ def cycle(dry_run=False):
                     if pending is not None:capabilities['recording_report']=pending
         except Exception:
             recording=None
+    legacy=None
+    if capabilities['protocol_version']==2 and PROFILE_ID is None:
+        try:
+            legacy=legacy_trunk_support()
+            if legacy is not None:
+                capabilities['features'].extend(legacy.capability(runtime_api(),config['organization_id']))
+                if 'legacy_trunks_v1' in capabilities['features']:
+                    capabilities['legacy_trunk_reports']=legacy.report(runtime_api(),config['organization_id'])
+        except Exception:
+            legacy=None
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
@@ -1366,6 +1387,16 @@ def cycle(dry_run=False):
             if results:
                 signed_request({'action':'report_sip_trunks','results':results})
 
+    # Existing line controls are signed and prepared explicitly. They never
+    # rewrite credentials, dialplan, or another organization's files.
+    if not dry_run and legacy is not None and 'legacy_trunks' in payload and 'legacy_trunks_v1' in capabilities.get('features',[]):
+        try:
+            legacy.apply_snapshot(runtime_api(),payload['legacy_trunks'],config['organization_id'])
+        except Busy:
+            pass
+        except Exception as exc:
+            print('Controle do tronco existente adiado: '+type(exc).__name__,file=sys.stderr)
+
     # Media work runs last so slow downloads cannot delay browser credentials.
     flow_jobs=payload.get('flow_jobs',[])
     if not isinstance(flow_jobs,list) or len(flow_jobs)>10:raise AgentError('Resposta de fluxos invalida.')
@@ -1430,6 +1461,8 @@ def main():
     actions.add_parser("queues-init")
     actions.add_parser("sip-trunks-init")
     actions.add_parser("recordings-init")
+    legacy_init=actions.add_parser("legacy-trunks-init")
+    legacy_init.add_argument('--trunk-id',required=True)
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -1455,6 +1488,9 @@ def main():
                 elif args.action=='recordings-init':
                     from recording_runtime import init as init_recordings
                     init_recordings(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'])
+                elif args.action=='legacy-trunks-init':
+                    from legacy_trunks import init as init_legacy_trunk
+                    init_legacy_trunk(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'],args.trunk_id)
                 elif args.action=="configure":
                     configure(args.agent_id,args.organization_id)
                 elif args.action=="once":

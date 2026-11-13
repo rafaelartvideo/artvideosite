@@ -43,3 +43,22 @@ test('mutation lock is acquired synchronously before IO and errors do not echo p
   assert.match(source, /Configuração aplicada não confirma registro/);
   assert.match(source, /quando não houver chamadas ativas/);
 });
+
+test('legacy cards preserve VPS configuration and require deliberate disable confirmation',()=>{
+ assert.match(source,/listLegacySipTrunks\(supabase, organizationId, controller.signal\)/);
+ assert.match(source,/setLegacyTrunks\(legacyRows.filter\(item => item.organization_id === organizationId\)\)/);
+ assert.match(source,/Configurada na VPS/);
+ assert.match(source,/Desativar interrompe entrada e saída desta linha quando não houver chamadas em andamento/);
+ assert.match(source,/p_expected_revision|item.revision/);
+ assert.match(source,/!item.can_control \|\| item.status === 'pending'/);
+ assert.match(source,/Confirmar desativação/);
+ assert.match(source,/aguarde a desativação aplicada/);
+ assert.match(source,/saveSipTrunk\(supabase, organizationId, .*enabled: !item.enabled.*'', controller.signal\)/);
+});
+
+test('failed legacy control retries the same desired state and revision',()=>{
+ assert.match(source,/retry \? item.enabled : !item.enabled, item.revision/);
+ assert.match(source,/toggle\(item, true, true\)/);
+ assert.match(source,/Tentar novamente/);
+ assert.match(source,/Estado observado ainda difere/);
+});

@@ -317,6 +317,28 @@ Deno.serve(async request=>{
           }
         }catch{console.error('PBX SIP configuration unavailable');}
       }
+      let legacyTrunks:unknown[]|undefined;
+      if(isPlatform&&body.protocol_version===2&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('legacy_trunks_v1')){
+        try{
+          const reports=body.legacy_trunk_reports===undefined?[]:body.legacy_trunk_reports;
+          if(!Array.isArray(reports)||reports.length>1)throw Error('Invalid report');
+          const safeReports=reports.map(report=>{
+            if(!report||!uuid.test(String(report.id))||!Number.isSafeInteger(report.revision)||report.revision<1||
+              !['applied','failed'].includes(report.status)||typeof report.enabled!=='boolean'||
+              !['registered','unregistered','unknown'].includes(report.registration_state)||
+              typeof report.host!=='string'||report.host.length>253||typeof report.username!=='string'||report.username.length>128||
+              !Number.isInteger(report.port)||report.port<1||report.port>65535)throw Error('Invalid report');
+            return {id:report.id,revision:report.revision,status:report.status,enabled:report.enabled,
+              registration_state:report.registration_state,host:report.host,username:report.username,port:report.port};
+          });
+          const admitted=await admin.rpc('pbx_admit_legacy_trunk_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
+          if(!admitted.error&&admitted.data===true){
+            const synced=await admin.rpc('pbx_sync_legacy_trunks',{p_agent_id:agent.id,p_sequence:seq,p_reports:safeReports});
+            if(!synced.error&&Array.isArray(synced.data)&&synced.data.length<=1&&synced.data.every(job=>
+              job.organization_id===agent.organization_id&&uuid.test(String(job.id))&&Number.isSafeInteger(job.revision)&&job.revision>0&&typeof job.enabled==='boolean'))legacyTrunks=synced.data;
+          }
+        }catch{console.error('PBX existing trunk controls unavailable');}
+      }
       let recordingPolicy:unknown=undefined;
       if((body.protocol_version===2||body.protocol_version===3)&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('recordings_v1')){
         try{
@@ -342,7 +364,7 @@ Deno.serve(async request=>{
       }
       return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
         history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs,
-        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks}),...(recordingPolicy===undefined?{}:{recording_policy:recordingPolicy})});
+        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks}),...(legacyTrunks===undefined?{}:{legacy_trunks:legacyTrunks}),...(recordingPolicy===undefined?{}:{recording_policy:recordingPolicy})});
     }
     if(body.action==='report_sip_trunks'){
       if(!Array.isArray(body.results)||body.results.length<1||body.results.length>200)return respond({error:'Confirmação de troncos inválida'},400);

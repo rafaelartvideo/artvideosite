@@ -30,8 +30,8 @@ BUNDLE_NAMES = ('agent.py', 'tenant_profile.py', 'process_lock.py', 'queue_avail
                 'local_queue_reload.py', 'call_flows.py', 'flow_runtime.py',
                 'sip_trunks.py', 'sip_trunk_runtime.py', 'call_history.py',
                 'recordings.py', 'recording_agi.py', 'recording_upload.py', 'recording_runtime.py',
-                'inbound_router.py', 'outbound_router.py')
-REVIEWED_BUNDLE_SHA = 'e2606166bebe96e4559e5bae0d06ddd4732ae0c79a18dcfd589eae290b0bd1f7'
+                'inbound_router.py', 'outbound_router.py', 'legacy_trunks.py')
+REVIEWED_BUNDLE_SHA = 'a5a2736ce089c5a041a26baede412b99e929273469be4341bdc969e8df9cc589'
 
 
 class AuditError(RuntimeError): pass
@@ -88,7 +88,7 @@ def load_runtime(directory):
     sources = bundle_sources(directory)
     order = ('tenant_profile', 'process_lock', 'queue_availability', 'local_queue_reload', 'call_history',
              'call_flows', 'flow_runtime', 'sip_trunks', 'recordings', 'recording_agi',
-             'recording_upload', 'recording_runtime', 'sip_trunk_runtime', 'agent', 'inbound_router', 'outbound_router')
+             'recording_upload', 'recording_runtime', 'sip_trunk_runtime', 'legacy_trunks', 'agent', 'inbound_router', 'outbound_router')
     modules = {}
     for name in order:
         module_name = '_sip_audit_agent_' + uuid.uuid4().hex if name == 'agent' else name
