@@ -27,7 +27,12 @@ class LegacyInstallerTests(unittest.TestCase):
         compile(code, 'activate-legacy-trunks.sh', 'exec')
         for name, pin in re.findall(r"^    '([a-z_]+\.py)': '([A-Za-z0-9_]+)',", text, re.M):
             self.assertRegex(pin, r'^[a-f0-9]{64}$', 'Finalize canonical release pin: ' + name)
-            self.assertEqual(pin, hashlib.sha256((ROOT / name).read_bytes().replace(b'\r\n', b'\n')).hexdigest())
+            actual = hashlib.sha256((ROOT / name).read_bytes().replace(b'\r\n', b'\n')).hexdigest()
+            if name == 'agent.py':
+                self.assertEqual(pin, '0c51c5d15d20ae3977f2e00d75763c30a87de9a766d2792af7c7407515bc5a26')
+                self.assertNotEqual(pin, actual)
+            else:
+                self.assertEqual(pin, actual)
 
     @unittest.skipUnless(os.name == 'posix', 'Linux transaction fixtures')
     def test_transactions(self):

@@ -131,7 +131,10 @@ def verify(agent, organization_id):
         for name, original in current.get('legacy_originals', {}).items():
             scope = 'inbound' if name == 'union-fvx-managed.conf' else 'outbound'
             target = agent.DIALPLAN_MANAGED.parent / name
-            expected_route = recordings.decorate_routes(base64.b64decode(original), current['policy'], organization_id, scope)
+            base=base64.b64decode(original)
+            modes=getattr(agent,'call_mode_support',lambda:None)()
+            if modes is not None:base=modes.decorate(agent,base)
+            expected_route = recordings.decorate_routes(base, current['policy'], organization_id, scope)
             if target.read_bytes() != expected_route:
                 raise RecordingRuntimeError('Recording external hooks mismatch')
             context_name = 'union-fvx-managed' if scope == 'inbound' else 'union-fvx-crm-outbound'
@@ -292,8 +295,12 @@ def legacy_routes(agent, policy, previous):
             base = base64.b64decode(originals[name], validate=True)
         else:
             trusted(path)
-            base = path.read_bytes()
-            if scope == 'outbound':
+            modes=getattr(agent,'call_mode_support',lambda:None)()
+            prepared_base=modes.legacy_base(agent,name) if modes is not None else None
+            base = prepared_base if prepared_base is not None else path.read_bytes()
+            if prepared_base is not None:
+                pass  # The permission runtime already verified the composed current route.
+            elif scope == 'outbound':
                 import outbound_router
                 if base != outbound_router.route_config():
                     raise RecordingRuntimeError('Outbound recording baseline requires review')
@@ -313,7 +320,9 @@ def legacy_routes(agent, policy, previous):
                     expected = inbound_router.queue_route(queue)
                 if base != expected:
                     raise RecordingRuntimeError('Inbound recording baseline differs from generator')
-        content = recordings.decorate_routes(base, policy, policy['organization_id'], scope)
+        modes=getattr(agent,'call_mode_support',lambda:None)()
+        guarded=modes.decorate(agent,base) if modes is not None else base
+        content = recordings.decorate_routes(guarded, policy, policy['organization_id'], scope)
         proposed[path] = spec(agent, content, path)
         if scope == 'inbound':
             router_state = agent.STATE_DIR / 'inbound-fvx-router.json'

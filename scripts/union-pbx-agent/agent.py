@@ -115,6 +115,16 @@ def legacy_trunk_support():
         return None
 
 
+def call_mode_support():
+    try:
+        import call_mode_runtime
+        return call_mode_runtime
+    except ImportError:
+        if (STATE_DIR/'call-modes.json').exists():
+            raise AgentError('Reinstale o pacote de permissoes dos ramais.') from None
+        return None
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -283,7 +293,9 @@ def signed_request(body):
 def sip_conf(endpoint, number, password):
     auth = endpoint + "-auth"
     context=DIALPLAN_CONTEXT if PROFILE_ID is not None else 'union-internal'
-    transfer=('set_var=TRANSFER_CONTEXT='+context+'\n') if PROFILE_ID is not None else ''
+    modes=call_mode_support()
+    if modes is not None:context=modes.source_context(runtime_api())
+    transfer=('set_var=TRANSFER_CONTEXT='+context+'\n') if PROFILE_ID is not None or context.startswith('uwcm-') else ''
     return (f"[{endpoint}]\n"
         "type=aor\nmax_contacts=1\nremove_existing=yes\nqualify_frequency=30\n\n"
         f"[{auth}]\ntype=auth\nauth_type=userpass\nusername={endpoint}\npassword={password}\n\n"
@@ -382,6 +394,8 @@ def render_internal_routes(overrides=None, recording_override=None):
         flow_file,flow_dispatch,flow_include=flow_runtime.attachment(runtime_api())
         if flow_file.is_file():lines.extend(['include => '+flow_dispatch+'\n',flow_include+'\n'])
     raw="".join(lines).encode("utf-8")
+    modes=call_mode_support()
+    if modes is not None:raw=modes.decorate(runtime_api(),raw)
     recording=recording_support()
     if recording is not None:raw=recording.decorate(runtime_api(),raw,'internal',recording_override)
     return raw, sorted(routes)
@@ -579,6 +593,8 @@ def render_queue_configs(overrides=None, recording_override=None):
             " same => n,Hangup()\n",
         ])
     routes="".join(dial_lines).encode()
+    modes=call_mode_support()
+    if modes is not None:routes=modes.decorate(runtime_api(),routes)
     recording=recording_support()
     if recording is not None:routes=recording.decorate(runtime_api(),routes,'internal',recording_override)
     return "".join(queue_lines).encode(), routes, active_names, used_numbers
@@ -1170,7 +1186,9 @@ def endpoint_matches_profile(detail):
     for value in re.findall(r'(?m)^\s*set_var\s*:\s*([^\r\n]*)$',detail):
         transfers.extend(item.strip().split('=',1)[1] for item in value.split(',')
                          if item.strip().startswith('TRANSFER_CONTEXT='))
-    return contexts==[DIALPLAN_CONTEXT] and transfers==[DIALPLAN_CONTEXT]
+    modes=call_mode_support()
+    expected=modes.source_context(runtime_api()) if modes is not None else DIALPLAN_CONTEXT
+    return contexts==[expected] and transfers==[expected]
 
 
 def _verify_profile_runtime_locked():
@@ -1266,6 +1284,17 @@ def cycle(dry_run=False):
                     capabilities['legacy_trunk_reports']=legacy.report(runtime_api(),config['organization_id'])
         except Exception:
             legacy=None
+    modes=None
+    if capabilities['protocol_version'] in (2,3):
+        try:
+            modes=call_mode_support()
+            if modes is not None:
+                capabilities['features'].extend(modes.capability(runtime_api(),config['organization_id']))
+                if 'call_modes_v1' in capabilities['features']:
+                    pending=modes.report(runtime_api())
+                    if pending is not None:capabilities['call_modes_report']=pending
+        except Exception:
+            modes=None
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
@@ -1397,6 +1426,19 @@ def cycle(dry_run=False):
         except Exception as exc:
             print('Controle do tronco existente adiado: '+type(exc).__name__,file=sys.stderr)
 
+    if not dry_run and modes is not None and 'call_modes' in payload and 'call_modes_v1' in capabilities.get('features',[]):
+        snapshot=payload['call_modes']
+        prior=modes.report(runtime_api())
+        try:
+            if not (prior and prior['status']=='failed' and prior['revision']==snapshot['revision']):
+                modes.apply_snapshot(runtime_api(),snapshot,config['organization_id'])
+                modes.report(runtime_api(),{'revision':snapshot['revision'],'status':'applied'})
+        except Busy:
+            pass
+        except Exception as exc:
+            print('Permissoes dos ramais adiadas: '+type(exc).__name__,file=sys.stderr)
+            modes.report(runtime_api(),{'revision':snapshot['revision'],'status':'failed'})
+
     # Media work runs last so slow downloads cannot delay browser credentials.
     flow_jobs=payload.get('flow_jobs',[])
     if not isinstance(flow_jobs,list) or len(flow_jobs)>10:raise AgentError('Resposta de fluxos invalida.')
@@ -1461,6 +1503,8 @@ def main():
     actions.add_parser("queues-init")
     actions.add_parser("sip-trunks-init")
     actions.add_parser("recordings-init")
+    mode_init=actions.add_parser('call-modes-init')
+    mode_init.add_argument('--snapshot-file',required=True)
     legacy_init=actions.add_parser("legacy-trunks-init")
     legacy_init.add_argument('--trunk-id',required=True)
     configure_action=actions.add_parser("configure")
@@ -1488,6 +1532,12 @@ def main():
                 elif args.action=='recordings-init':
                     from recording_runtime import init as init_recordings
                     init_recordings(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'])
+                elif args.action=='call-modes-init':
+                    from call_mode_runtime import init as init_call_modes
+                    from recording_runtime import trusted
+                    snapshot_file=Path(args.snapshot_file)
+                    trusted(snapshot_file,True)
+                    init_call_modes(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'],json.loads(snapshot_file.read_text()))
                 elif args.action=='legacy-trunks-init':
                     from legacy_trunks import init as init_legacy_trunk
                     init_legacy_trunk(runtime_api(),json.loads(AGENT_CONFIG.read_text())['organization_id'],args.trunk_id)

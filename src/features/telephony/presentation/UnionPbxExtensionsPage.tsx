@@ -1,3 +1,4 @@
+import { listExtensionCallModes, setExtensionCallMode, callModeLabel, callModeOptions, type CallMode, type ExtensionCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { pbxRequest, pbxOperationError } from "../application/pbx-request";
 import { useEffect, useRef, useMemo, useState } from "react";
@@ -33,14 +34,16 @@ function statusText(extension: Extension) {
 
 
 export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
+  const { activeOrganizationId, hasPermission, organizations } = useAuth();
   const requestScope = useRef(new AbortController());
   useEffect(() => {
     const scope = new AbortController(); requestScope.current = scope;
     return () => scope.abort();
-  }, []);
-  const { activeOrganizationId, hasPermission, organizations } = useAuth();
+  }, [activeOrganizationId]);
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const canManage = hasPermission("pbx.manage");
+  const [callModes, setCallModes] = useState<ExtensionCallMode[]>([]);
+  const [modeDrafts, setModeDrafts] = useState<Record<string, CallMode>>({});
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    setCallModes([]); setModeDrafts({}); setSaving(false);
     setLoading(true);
     setError("");
     setExtensions([]);
@@ -65,33 +70,45 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
       return () => { cancelled = true; };
     }
     void (async () => {
-      const result = await pbxRequest(signal => supabase.from("pbx_extensions")
-        .select("id,organization_id,number,display_name,employee_id,endpoint_name,desired_enabled,provisioning_status,is_managed,updated_at")
-        .eq("organization_id", activeOrganizationId).order("number").abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
+      const [extensionResult, employeeResult, modeResult] = await Promise.all([
+        pbxRequest(signal => supabase.from("pbx_extensions")
+          .select("id,organization_id,number,display_name,employee_id,endpoint_name,desired_enabled,provisioning_status,is_managed,updated_at")
+          .eq("organization_id", activeOrganizationId).order("number").abortSignal(signal), "Consulta PABX", { signal: controller.signal }).catch(pbxOperationError),
+        canManage ? pbxRequest(signal => supabase.from("employees").select("id,full_name,is_active")
+          .eq("organization_id", activeOrganizationId).eq("is_active", true).order("full_name").limit(300).abortSignal(signal),
+          "Consulta PABX", {signal:controller.signal}).catch(pbxOperationError) : Promise.resolve({data:[],error:null}),
+        listExtensionCallModes(supabase, activeOrganizationId, {signal:controller.signal})
+          .then(data => ({data,error:null})).catch(() => ({data:[],error:true})),
+      ]);
       if (cancelled) return;
-      if (result.error) setError("Não foi possível carregar os ramais. " + result.error.message);
-      else setExtensions((result.data || []) as Extension[]);
+      if (extensionResult.error) setError("Não foi possível carregar os ramais. Atualize os dados.");
+      else setExtensions((extensionResult.data || []) as Extension[]);
+      if (employeeResult.error) setError('Não foi possível consultar os funcionários. Atualize antes de editar vínculos.');
+      else setEmployees((employeeResult.data || []) as EmployeeOption[]);
+      if (modeResult.error) setError('Não foi possível consultar os modos de chamada. Atualize antes de alterar permissões.');
+      else setCallModes(modeResult.data);
       setLoading(false);
     })();
-    if (canManage) {
-      void (async () => {
-        const result = await pbxRequest(signal => supabase.from("employees")
-          .select("id,full_name,is_active")
-          .eq("organization_id", activeOrganizationId)
-          .eq("is_active", true)
-          .order("full_name")
-          .limit(300).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
-        if (!cancelled) {
-          if (result.error) setError('Não foi possível consultar os funcionários. Atualize antes de editar vínculos.');
-          else setEmployees((result.data || []) as EmployeeOption[]);
-        }
-      })();
-    }
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [activeOrganizationId, canManage, reloadKey]);
 
   const employeeNames = useMemo(() => new Map(employees.map(employee => [employee.id, employee.full_name])), [employees]);
   const linkedEmployees = useMemo(() => new Set(extensions.filter(item => item.employee_id && item.id !== editingId).map(item => item.employee_id)), [extensions, editingId]);
+
+  async function saveCallMode(item: ExtensionCallMode) {
+    if (!activeOrganizationId || !canManage || !item.can_manage || item.organization_id !== activeOrganizationId || saving) return;
+    const organizationId = activeOrganizationId;
+    const controller = requestScope.current;
+    setSaving(true); setError(""); setMessage("");
+    try {
+      await setExtensionCallMode(supabase, organizationId, item.extension_id, modeDrafts[item.extension_id] ?? item.mode, item.revision, {signal:controller.signal});
+      if (!controller.signal.aborted) setMessage("Modo solicitado. O modo em uso permanece até a confirmação da central, sem interromper chamadas.");
+    } catch {
+      if (!controller.signal.aborted) setError("Alteração sem confirmação ou revisão desatualizada. Lista atualizada; confira o estado antes de salvar novamente.");
+    } finally {
+      if (!controller.signal.aborted) { setSaving(false); setReloadKey(key => key + 1); }
+    }
+  }
 
   function beginNew() {
     setEditingId(null);
@@ -258,6 +275,22 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
               <p className="mt-0.5 text-xs text-muted-foreground">{item.employee_id ? employeeNames.get(item.employee_id) || "Funcionário vinculado" : "Sem funcionário vinculado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">{statusText(item)}{item.desired_enabled ? "" : " · desativação solicitada"}</p>
             </div>
+            {(() => {
+              const policy = callModes.find(mode => mode.extension_id === item.id && mode.organization_id === activeOrganizationId);
+              return <div className="w-full space-y-2 rounded-lg border border-border bg-muted/20 p-3 sm:order-last" aria-label={`Modo de chamada do ramal ${item.number}`}>
+                <p className="text-xs font-semibold">Chamadas internas e externas</p>
+                {policy ? <>
+                  <p className="text-xs text-muted-foreground">Em uso: {callModeLabel(policy.applied_mode)} · Solicitado: {callModeLabel(policy.mode)} · {policy.status === "pending" ? "Aguardando a central" : policy.status === "failed" ? "Falha na aplicação" : "Aplicado"}</p>
+                  {policy.last_error && <p role="status" className="text-xs text-destructive">{policy.last_error}</p>}
+                  {canManage && policy.can_manage ? <div className="flex flex-wrap items-center gap-2">
+                    <div className="min-w-40"><AdminSelect ariaLabel={`Modo do ramal ${item.number}`} value={modeDrafts[item.id] ?? policy.mode}
+                      options={callModeOptions} disabled={saving} onValueChange={value => setModeDrafts(current => ({...current,[item.id]:value as CallMode}))} /></div>
+                    <AdminButton variant="secondary" size="sm" type="button" disabled={saving || (policy.status !== "failed" && (modeDrafts[item.id] ?? policy.mode) === policy.mode)}
+                      onClick={() => void saveCallMode(policy)}><Save size={14}/> {policy.status === "failed" ? "Tentar novamente" : "Salvar modo"}</AdminButton>
+                  </div> : <p className="text-xs text-muted-foreground">{policy.can_manage ? "Consulta de permissões do ramal." : "O controle ficará disponível quando o ramal e o agente estiverem preparados."}</p>}
+                </> : <p className="text-xs text-muted-foreground">Modo sem confirmação. Atualize a lista para consultar.</p>}
+              </div>;
+            })()}
             {canManage && <div className="flex items-center gap-2">
               <AdminButton variant="secondary" size="sm" type="button" onClick={() => beginEdit(item)} disabled={saving}  title="Editar ramal">
                 <Pencil size={14} /> Editar

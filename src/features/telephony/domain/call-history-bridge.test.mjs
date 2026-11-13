@@ -8,7 +8,7 @@ const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[] } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -37,6 +37,9 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         return admissionError ? { error: { code: 'XX000' } } : { data: { allowed: admitted, is_platform: platform } };
       }
       calls.push({ name, args });
+      if(name==='pbx_admit_call_modes_poll')return {data:callModesAdmitted};
+      if(name==='pbx_poll_call_modes')return {data:callModes};
+      if(name==='pbx_report_call_modes')return {data:true};
       if(name==='pbx_admit_recording_poll')return {data:recordingAdmitted};
       if(name==='pbx_poll_recording_policy')return {data:policy};
       if(name==='pbx_prepare_recording_upload')return recordingAdmitted?{data:recording}:{error:{code:'42501'}};
@@ -286,4 +289,12 @@ test('platform housekeeping can purge expired server claims for offline companie
  const partner=await bridge({platform:false,purge:[claim]});
  assert.equal((await partner.send({action:'report_calls',recording_transfer:{kind:'purge'}})).status,400);
  assert.equal(partner.storage.length,0);
+});
+
+test('call modes require signed fresh opt-in and discard foreign catalogs',async()=>{
+ const snapshot={organization_id:organizationId,revision:2,extensions:[{id:agentId,endpoint_name:'union-301',number:301,mode:'receive_only',enabled:true,is_managed:false,password:'must-not-leave-bridge'}]};
+ const old=await bridge({callModes:snapshot});const oldBody=await (await old.send({action:'poll',protocol_version:2})).json();assert.equal('call_modes' in oldBody,false);
+ const denied=await bridge({callModes:snapshot,callModesAdmitted:false});const deniedBody=await(await denied.send({action:'poll',protocol_version:2,features:['call_modes_v1']})).json();assert.equal('call_modes' in deniedBody,false);assert.equal(denied.calls.some(c=>c.name==='pbx_poll_call_modes'),false);
+ const valid=await bridge({callModes:snapshot});const body=await(await valid.send({action:'poll',protocol_version:2,features:['call_modes_v1'],call_modes_report:{revision:1,status:'applied',organization_id:'foreign'}})).json();assert.equal(body.call_modes.extensions[0].mode,'receive_only');assert.equal('password' in body.call_modes.extensions[0],false);const report=valid.calls.find(c=>c.name==='pbx_report_call_modes');assert.deepEqual(report.args,{p_agent_id:agentId,p_revision:1,p_status:'applied'});
+ const foreign=await bridge({callModes:{...snapshot,organization_id:'00000000-0000-4000-8000-000000000001'}});const foreignBody=await(await foreign.send({action:'poll',protocol_version:2,features:['call_modes_v1']})).json();assert.equal('call_modes' in foreignBody,false);
 });

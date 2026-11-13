@@ -1,3 +1,4 @@
+import { myCallMode, boundCallMode, callModeLabel, type BoundCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
@@ -112,6 +113,25 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const transferUncertainRef = useRef(false);
   const credentialAbortRef = useRef<AbortController | null>(null);
   const registrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uaOrganizationRef = useRef<string | null>(null);
+  const [callModeGrant, setCallModeGrant] = useState<BoundCallMode | null>(null);
+  const [callModeUnavailable, setCallModeUnavailable] = useState(false);
+  const appliedCallMode = boundCallMode(activeOrganizationId, sipUser, callModeGrant);
+  const canMakeCalls = appliedCallMode?.can_make_calls ?? true;
+  useEffect(() => {
+    const controller = new AbortController();
+    const organizationId = activeOrganizationId, endpoint = sipUser, generation = generationRef.current;
+    setCallModeUnavailable(false);
+    if (!organizationId || !endpoint || uaOrganizationRef.current !== organizationId || registration !== "registered") return () => controller.abort();
+    const refresh = () => void myCallMode(supabase, organizationId, endpoint, {signal:controller.signal})
+      .then(value => {
+        if (controller.signal.aborted || generation !== generationRef.current) return;
+        setCallModeGrant({organizationId, endpoint, value}); setCallModeUnavailable(false);
+      }).catch(() => { if (!controller.signal.aborted && generation === generationRef.current) setCallModeUnavailable(true); });
+    refresh(); const timer = setInterval(refresh, 30_000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [activeOrganizationId, sipUser, registration]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +215,7 @@ setTestFlowError('');
   ]);
 
   const internalDestinationReady = dialTarget === "900" || dialableNumbers.has(Number(dialTarget));
-  const registeredAndIdle = registration === "registered" && callState === "idle" && !outputPending;
+  const registeredAndIdle = canMakeCalls && registration === "registered" && callState === "idle" && !outputPending;
   const selectSection = (section: UnionPbxSection) => {
     if (section === "historico") onHistory?.();
     else if (section === "gravacoes") onRecordings?.();
@@ -291,6 +311,7 @@ setTestFlowError('');
         register: true,
         session_timers: false,
       });
+      uaOrganizationRef.current = activeOrganizationId;
       uaRef.current = ua;
       setPassword(""); // O segredo fica apenas na instancia SIP enquanto conectada.
 
@@ -471,6 +492,7 @@ setTestFlowError('');
   };
 
   const callEcho = () => {
+    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     if (registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando extensao de teste 900...");
@@ -488,6 +510,7 @@ setTestFlowError('');
 
   const callInternal = () => {
     if (dialTarget === "900") { callEcho(); return; }
+    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     const destination = Number(dialTarget);
     if (!dialTarget || !Number.isInteger(destination) ||
@@ -507,6 +530,7 @@ setTestFlowError('');
   };
 
   const originateExternal = (destination: string, label: string) => {
+    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
     setNotice("Chamando " + label + " pela operadora configurada...");
     try {
       prepareRingback();
@@ -534,6 +558,7 @@ setTestFlowError('');
 
     const requestCall = (rawPhone: string, requestedOrganizationId?: string | null) => {
       if (requestedOrganizationId && requestedOrganizationId !== activeOrganizationId) return false;
+      if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); onOpen(); return true; }
       const destination = normalizeNationalDestination(rawPhone);
       setExternalTarget(rawPhone);
       setDialMode("external");
@@ -576,7 +601,7 @@ setTestFlowError('');
       window.removeEventListener(PHONE_CALL_EVENT, handleIntegrationCall);
       document.removeEventListener("click", handlePhoneAnchorClick, true);
     };
-  }, [activeOrganizationId, isPlatformOperatorOrganization, canUseExternal, registration, callState, microphoneId, onOpen]);
+  }, [activeOrganizationId, isPlatformOperatorOrganization, canUseExternal, canMakeCalls, registration, callState, microphoneId, onOpen]);
 
   const answer = () => {
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de atender.'); return; }
@@ -683,6 +708,10 @@ setTestFlowError('');
   };
 
   const dialerContent = <div className="space-y-3">
+    {!canMakeCalls && <p role="status" className="rounded-lg bg-muted p-3 text-sm">Só recebe: atendimento disponível; novas ligações internas e externas estão bloqueadas.</p>}
+    {appliedCallMode && !appliedCallMode.can_receive_calls && <p className="text-xs text-muted-foreground">Só faz: a central não encaminha novas ligações para este ramal.</p>}
+    {appliedCallMode?.status === "pending" && <p className="text-xs text-muted-foreground">Alteração aguardando a central. Modo em uso: {callModeLabel(appliedCallMode.mode)}.</p>}
+    {callModeUnavailable && <p role="status" className="text-xs text-muted-foreground">Modo de chamada sem atualização. A central continua verificando as permissões.</p>}
           {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
             <p className={`mb-2 text-center text-sm font-semibold ${held && callState === "active"
@@ -808,6 +837,7 @@ setTestFlowError('');
         canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
         canRecordings={Boolean(onRecordings)}
         onReturnCall={rawPhone => {
+          if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
           if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
           const digits = rawPhone.replace(/\D/g, "");
           const internal = digits.length <= 6 && dialableNumbers.has(Number(digits));
@@ -870,11 +900,11 @@ setTestFlowError('');
       minimizable={false}
       footer={<div className="flex flex-wrap justify-end gap-2">
         <AdminButton variant="secondary" onClick={() => setPendingDialRequest(null)}>Cancelar</AdminButton>
-        <AdminButton variant="primary" disabled={registration !== "registered" || callState !== "idle" || outputPending || !normalizeNationalDestination(pendingDialRequest?.phone || "")}
+        <AdminButton variant="primary" disabled={!canMakeCalls || registration !== "registered" || callState !== "idle" || outputPending || !normalizeNationalDestination(pendingDialRequest?.phone || "")}
           onClick={() => {
             const raw = pendingDialRequest?.phone || "";
             const destination = normalizeNationalDestination(raw);
-            if (!canUseExternal || !destination || !uaRef.current?.isRegistered?.() || sessionRef.current || outputPendingRef.current) return;
+            if (!canMakeCalls || !canUseExternal || !destination || !uaRef.current?.isRegistered?.() || sessionRef.current || outputPendingRef.current) return;
             setPendingDialRequest(null);
             originateExternal(destination, raw);
           }}><Phone size={16}/> Ligar</AdminButton>

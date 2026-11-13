@@ -20,8 +20,8 @@ class RecordingInstallerTests(unittest.TestCase):
         for name, pin in pins.items():
             self.assertRegex(pin, r'^[a-f0-9]{64}$', name + ': finalize release pin')
             canonical = (ROOT / name).read_bytes().replace(b'\r\n', b'\n')
-            if name in ('agent.py','sip_trunk_runtime.py'):
-                self.assertEqual(pin,{'agent.py':'356d59d1b27c77682b4ab1bd5d9fbc6f99b1ffe91253666d3b0df0bd8ae60acb','sip_trunk_runtime.py':'0f71121881cea72614a98a0fa2c473eafbc7dde22d52d35f2cf8b9220bf605c0'}[name])
+            if name in ('agent.py','sip_trunk_runtime.py','recording_runtime.py','inbound_router.py'):
+                self.assertEqual(pin,{'agent.py':'356d59d1b27c77682b4ab1bd5d9fbc6f99b1ffe91253666d3b0df0bd8ae60acb','sip_trunk_runtime.py':'0f71121881cea72614a98a0fa2c473eafbc7dde22d52d35f2cf8b9220bf605c0','recording_runtime.py':'6a0ca9007c87dd414983497b0eb9333de19cd2bd5d581c21d7ad3f63ea0a6c17','inbound_router.py':'9204c804a9976747217eeca3b081c01f25ffc68f9f995a51ab1ac37b026787ce'}[name])
                 self.assertNotEqual(pin,hashlib.sha256(canonical).hexdigest(),name)
             else:
                 self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)

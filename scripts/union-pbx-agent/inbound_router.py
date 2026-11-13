@@ -129,7 +129,7 @@ def verify_dialplan(mode, queue_name=None):
     )):
         raise pbx.AgentError("O dialplan nao preservou as rotas originais FVX.")
     if "[ Context 'union-fvx-managed'" not in delegated or \
-       "Dial(PJSIP/union-301,25)" not in delegated:
+       "Dial(PJSIP/union-301,25" not in delegated:
         raise pbx.AgentError("A rota de emergencia para 301 nao foi carregada.")
     if mode=="queue" and (not queue_name or "Queue("+queue_name+"," not in delegated):
         raise pbx.AgentError("O Asterisk nao confirmou a fila selecionada.")
@@ -267,6 +267,21 @@ def change(mode,number=None):
     generated=queue_route(queue) if queue else direct_route()
     old=TARGET.read_bytes()
     stat=TARGET.stat()
+    modes=getattr(pbx,'call_mode_support',lambda:None)()
+    if modes is not None and modes.state(pbx.runtime_api()):
+        import recording_runtime
+        api=pbx.runtime_api()
+        modes.verify(api,json.loads(pbx.AGENT_CONFIG.read_text())['organization_id'])
+        composed,proposed=modes.external_proposal(api,TARGET.name,generated)
+        next_state={**state,'route_sha':digest(composed),'mode':mode,'number':number if queue else None}
+        proposed[TARGET]=recording_runtime.spec(api,composed,TARGET)
+        proposed[STATE]=recording_runtime.spec(api,pbx.json_bytes(next_state),STATE,True)
+        def verify_after():
+            verify_dialplan(mode,name)
+            modes.verify(api,json.loads(pbx.AGENT_CONFIG.read_text())['organization_id'])
+        recording_runtime.transaction(api,proposed,verify_after)
+        print('Rota FVX ativa com permissoes preservadas.')
+        return
     try:
         write(TARGET,generated,stat=stat)
         if "reloaded" not in pbx.asterisk("dialplan reload").lower():
@@ -287,6 +302,9 @@ def change(mode,number=None):
 
 
 def restore_original():
+    modes=getattr(pbx,'call_mode_support',lambda:None)()
+    if modes is not None and modes.state(pbx.runtime_api()):
+        raise pbx.AgentError('Use restore-301 para preservar as permissoes dos ramais; a restauracao integral exige reversao coordenada.')
     state=read_state()
     if not state:
         raise pbx.AgentError("Preparacao FVX nao encontrada.")
