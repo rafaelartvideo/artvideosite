@@ -61,12 +61,14 @@ test("conclusão bloqueia apenas quando obrigatório e não existe comprovante",
   ]) {
     assert.ok((await transformWithEsbuild(source, file, { loader: "tsx" })).code);
   }
-  assert.match(hook, /getOrderPaymentProofRequirement\(organizationId\)/);
-  assert.match(hook, /hasOrderPaymentProof\(organizationId, serviceOrderId/);
+  assert.match(hook, /getOrderCompletionEvidenceConfig\(organizationId, serviceOrderId\)/);
+  assert.match(hook, /hasOrderCompletionEvidence\(organizationId, serviceOrderId/);
   assert.match(hook, /paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder/);
   assert.match(modal, /completion\.paymentProofRequired && !completion\.paymentProofFile/);
   assert.match(payment, /\(obrigatório\)/);
   assert.match(payment, /paymentProofAlreadyOnOrder/);
+  assert.match(payment, /deliveryEvidenceAlreadyOnOrder/);
+  assert.match(dialog, /Exigir evidência de entrega para concluir a OS/);
   assert.match(repository, /get_order_payment_proof_requirement_v1/);
   assert.match(repository, /attachmentTypeIds/);
 });
