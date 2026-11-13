@@ -382,6 +382,17 @@ async function loadMobileDocuments(admin: AdminClient, session: MobileSession) {
     if (result.error) throw result.error;
   }
   let situations = situationsResult.data || [];
+  let completionEvidence = { payment_enabled: true, delivery_enabled: false };
+  if (session.mobile_flow === "payment_proof" && order.service_type_id) {
+    const { data: type, error: typeError } = await admin.from("service_types")
+      .select("enable_payment_proof_on_completion,enable_delivery_evidence_on_completion")
+      .eq("id", order.service_type_id).eq("organization_id", organizationId).maybeSingle();
+    if (typeError) throw typeError;
+    completionEvidence = {
+      payment_enabled: type?.enable_payment_proof_on_completion !== false,
+      delivery_enabled: type?.enable_delivery_evidence_on_completion === true,
+    };
+  }
   if (order.service_type_id) {
     const { data: links, error } = await admin.from("service_type_situations")
       .select("situation_id,sort_order").eq("organization_id", organizationId)
@@ -408,6 +419,7 @@ async function loadMobileDocuments(admin: AdminClient, session: MobileSession) {
     attachment_types: attachmentTypesResult.data || [],
     attachment_count: attachmentCount,
     situations: permittedSituations,
+    completion_evidence: completionEvidence,
   };
 }
 
@@ -419,7 +431,7 @@ async function uploadMobileDocument(context: any) {
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
   const kind = text(input.kind, 20);
   if (session.mobile_flow === "payment_proof" && kind !== "attachment") {
-    throw Object.assign(new Error("Esta sessão aceita somente o comprovante de pagamento."), { status: 403 });
+    throw Object.assign(new Error("Esta sessão aceita somente as evidências de conclusão."), { status: 403 });
   }
   if (kind !== "attachment" && kind !== "situation") {
     throw Object.assign(new Error("Tipo de documento inválido."), { status: 400 });
@@ -432,7 +444,7 @@ async function uploadMobileDocument(context: any) {
     throw Object.assign(new Error("Use JPG, PNG ou WebP com até 10 MB para situações."), { status: 400 });
   }
   if (session.mobile_flow === "payment_proof" && !ACCEPTED_IMAGE_TYPES.has(file.type) && file.type !== "application/pdf") {
-    throw Object.assign(new Error("Comprovantes devem ser JPG, PNG, WebP ou PDF."), { status: 422 });
+    throw Object.assign(new Error("Evidências devem ser JPG, PNG, WebP ou PDF."), { status: 422 });
   }
   if (kind === "attachment" && (!ACCEPTED_ATTACHMENT_TYPES.has(file.type) || file.size > MAX_ATTACHMENT_BYTES
       || /\.(?:html?|svg|js|exe|bat|cmd|sh|php|apk)$/i.test(file.name))) {
@@ -448,8 +460,21 @@ async function uploadMobileDocument(context: any) {
       .eq("is_active", true).maybeSingle();
     if (error) throw error;
     if (!data) throw Object.assign(new Error("Tipo de anexo inválido."), { status: 422 });
-    if (session.mobile_flow === "payment_proof" && data.name.trim().toLocaleLowerCase("pt-BR") !== "comprovante de pagamento") {
-      throw Object.assign(new Error("Esta sessão permite somente o tipo Comprovante de pagamento."), { status: 403 });
+    if (session.mobile_flow === "payment_proof") {
+      const normalizedType = data.name.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+      const proof = normalizedType === "comprovante de pagamento";
+      const delivery = normalizedType === "evidencia de entrega";
+      if (!proof && !delivery) {
+        throw Object.assign(new Error("Esta sessão aceita somente comprovante de pagamento e evidência de entrega."), { status: 403 });
+      }
+      const { data: serviceType, error: typeError } = await admin.from("service_types")
+        .select("enable_payment_proof_on_completion,enable_delivery_evidence_on_completion")
+        .eq("organization_id", session.organization_id).eq("id", order.service_type_id).maybeSingle();
+      if (typeError) throw typeError;
+      if ((proof && serviceType?.enable_payment_proof_on_completion === false)
+        || (delivery && serviceType?.enable_delivery_evidence_on_completion !== true)) {
+        throw Object.assign(new Error("Esta evidência não está habilitada para o tipo de atendimento da OS."), { status: 403 });
+      }
     }
   } else {
     situationId = requireUuid(input.situation_id, "Situação");
