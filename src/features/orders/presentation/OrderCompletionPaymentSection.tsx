@@ -5,7 +5,6 @@ import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatNumber } from "@/shared/domain/formatters";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
-import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 
 type CompletionController = ReturnType<typeof useOrderCompletion>;
 
@@ -115,17 +114,6 @@ export function OrderCompletionEvidenceSection({ completion, saving }: {
 }) {
   if (!completion.paymentProofEnabled && !completion.deliveryEvidenceEnabled) return null;
   return <div className="space-y-3">
-    <div className="flex min-w-0 justify-end">
-      {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
-        <OrderChecklistMobileBridge
-          orderId={completion.paymentProofOrderId}
-          osNumber={completion.paymentProofOsNumber}
-          scope="payment-proof"
-          disabled={saving}
-          onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
-        />
-      )}
-    </div>
     {completion.paymentProofRequirementLoading && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
       <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> Carregando comprovante e evidência de entrega...
     </p>}
