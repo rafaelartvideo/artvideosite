@@ -19,6 +19,7 @@ import type { FinancialMovement, FinancialMovementType, FinancialTransferDraft }
 import { FinanceTransferDialog } from "./FinanceTransferDialog";
 import { formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
+import { FinanceOrderEvidenceGallery } from "./FinanceOrderEvidenceGallery";
 
 const MOVEMENT_LABELS: Record<FinancialMovementType, string> = {
   opening_balance: "Saldo inicial",
@@ -157,14 +158,17 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
 
     <AdminDialog open={Boolean(selectedMovement)} onClose={() => setSelectedMovement(null)} title="Detalhes da movimentação" className="max-w-lg"
       footer={<div className="flex justify-end"><AdminButton variant="secondary" onClick={() => setSelectedMovement(null)}>Fechar</AdminButton></div>}>
-      {selectedMovement && <dl className="grid gap-4 sm:grid-cols-2">
+      {selectedMovement && <div className="space-y-4"><dl className="grid gap-4 sm:grid-cols-2">
         <div><dt className="text-xs text-muted-foreground">Data</dt><dd className="text-sm font-semibold text-foreground">{formatDateTime(selectedMovement.occurred_at)}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Conta</dt><dd className="text-sm font-semibold text-foreground">{accountById.get(selectedMovement.financial_account_id)?.name || "—"}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Tipo</dt><dd className="text-sm font-semibold text-foreground">{MOVEMENT_LABELS[selectedMovement.movement_type]}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Origem</dt><dd className="text-sm font-semibold text-foreground">{selectedMovement.origin_order_id ? <FinanceServiceOrderLink orderId={selectedMovement.origin_order_id} label={formatFinanceOriginLabel(selectedMovement.origin_label || "Ordem de Serviço")} /> : formatFinanceOriginLabel(selectedMovement.origin_label || "Movimentação financeira")}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className={`text-sm font-semibold ${selectedMovement.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{selectedMovement.direction === "credit" ? "+" : "-"}{formatCurrency(selectedMovement.amount)}</dd></div>
         <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Descrição</dt><dd className="break-words text-sm font-semibold text-foreground">{selectedMovement.description_snapshot}</dd></div>
-      </dl>}
+      </dl>
+        {selectedMovement.movement_type === "receipt" && selectedMovement.origin_order_id && selectedMovement.origin_entry_id &&
+          <FinanceOrderEvidenceGallery entryId={selectedMovement.origin_entry_id} kind="payment_proof" />}
+      </div>}
     </AdminDialog>
 
     <FinanceTransferDialog open={transferOpen} accounts={accounts} saving={finance.transferMutation.isPending} onClose={() => { if (!finance.transferMutation.isPending) setTransferOpen(false); }} onSave={saveTransfer} />
