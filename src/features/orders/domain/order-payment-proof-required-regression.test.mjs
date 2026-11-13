@@ -53,6 +53,7 @@ test("conclusão bloqueia apenas quando obrigatório e não existe comprovante",
   const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
   const payment = read("src/features/orders/presentation/OrderCompletionPaymentSection.tsx");
   const repository = read("src/features/orders/infrastructure/order-documents.repository.ts");
+  const dialog = read("src/features/orders/presentation/OrderSettingsDialog.tsx");
 
   for (const [file, source] of [
     ["useOrderCompletion.ts", hook],
@@ -62,7 +63,7 @@ test("conclusão bloqueia apenas quando obrigatório e não existe comprovante",
     assert.ok((await transformWithEsbuild(source, file, { loader: "tsx" })).code);
   }
   assert.match(hook, /getOrderCompletionEvidenceConfig\(organizationId, serviceOrderId\)/);
-  assert.match(hook, /hasOrderCompletionEvidence\(organizationId, serviceOrderId/);
+  assert.match(hook, /setPaymentProofAlreadyOnOrder\(config\.payment_attached\)/);
   assert.match(hook, /paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder/);
   assert.match(modal, /completion\.paymentProofRequired && !completion\.paymentProofFile/);
   assert.match(payment, /\(obrigatório\)/);
