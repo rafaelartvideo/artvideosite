@@ -133,7 +133,7 @@ def verify(agent, organization_id):
             target = agent.DIALPLAN_MANAGED.parent / name
             base=base64.b64decode(original)
             modes=getattr(agent,'call_mode_support',lambda:None)()
-            if modes is not None:base=modes.decorate(agent,base)
+            if modes is not None:base=modes.decorate(agent,base,external=True)
             expected_route = recordings.decorate_routes(base, current['policy'], organization_id, scope)
             if target.read_bytes() != expected_route:
                 raise RecordingRuntimeError('Recording external hooks mismatch')
@@ -321,7 +321,7 @@ def legacy_routes(agent, policy, previous):
                 if base != expected:
                     raise RecordingRuntimeError('Inbound recording baseline differs from generator')
         modes=getattr(agent,'call_mode_support',lambda:None)()
-        guarded=modes.decorate(agent,base) if modes is not None else base
+        guarded=modes.decorate(agent,base,external=True) if modes is not None else base
         content = recordings.decorate_routes(guarded, policy, policy['organization_id'], scope)
         proposed[path] = spec(agent, content, path)
         if scope == 'inbound':

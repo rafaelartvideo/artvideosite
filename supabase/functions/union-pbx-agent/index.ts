@@ -340,22 +340,22 @@ Deno.serve(async request=>{
         }catch{console.error('PBX existing trunk controls unavailable');}
       }
       let callModes:unknown=undefined;
-      if(((isPlatform&&body.protocol_version===2)||(!isPlatform&&body.protocol_version===3))&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('call_modes_v1')){
+      if(((isPlatform&&body.protocol_version===2)||(!isPlatform&&body.protocol_version===3))&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('call_modes_v2')){
         try{
-          const admitted=await admin.rpc('pbx_admit_call_modes_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
+          const admitted=await admin.rpc('pbx_admit_call_modes_poll_v2',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
           if(!admitted.error&&admitted.data===true){
             const report=body.call_modes_report;
             if(report!==undefined){
               if(!report||!Number.isSafeInteger(report.revision)||report.revision<1||!['applied','failed'].includes(report.status))throw Error('Invalid report');
-              const acknowledged=await admin.rpc('pbx_report_call_modes',{p_agent_id:agent.id,p_revision:report.revision,p_status:report.status});
+              const acknowledged=await admin.rpc('pbx_report_call_modes_v2',{p_agent_id:agent.id,p_revision:report.revision,p_status:report.status});
               if(acknowledged.error)throw Error('Report unavailable');
             }
-            const result=await admin.rpc('pbx_poll_call_modes',{p_agent_id:agent.id});
+            const result=await admin.rpc('pbx_poll_call_modes_v2',{p_agent_id:agent.id});
             const snapshot=result.data;
             if(result.error||!snapshot||snapshot.organization_id!==agent.organization_id||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<1||!Array.isArray(snapshot.extensions)||snapshot.extensions.length>1000)throw Error('Invalid catalog');
             const extensions=snapshot.extensions.map(row=>{
-              if(!row||!uuid.test(String(row.id))||typeof row.endpoint_name!=='string'||row.endpoint_name.length>80||!Number.isInteger(row.number)||!['both','receive_only','make_only'].includes(row.mode)||typeof row.enabled!=='boolean'||typeof row.is_managed!=='boolean')throw Error('Invalid extension');
-              return {id:row.id,endpoint_name:row.endpoint_name,number:row.number,mode:row.mode,enabled:row.enabled,is_managed:row.is_managed};
+              if(!row||!uuid.test(String(row.id))||typeof row.endpoint_name!=='string'||row.endpoint_name.length>80||!Number.isInteger(row.number)||!['mode','internal_mode','external_mode'].every(key=>['both','receive_only','make_only'].includes(row[key]))||typeof row.enabled!=='boolean'||typeof row.is_managed!=='boolean')throw Error('Invalid extension');
+              return {id:row.id,endpoint_name:row.endpoint_name,number:row.number,mode:row.mode,internal_mode:row.internal_mode,external_mode:row.external_mode,enabled:row.enabled,is_managed:row.is_managed};
             });
             callModes={organization_id:agent.organization_id,revision:snapshot.revision,extensions};
           }

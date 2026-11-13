@@ -27,9 +27,10 @@ def state(agent):
 def source_context(agent):
     current=state(agent)
     return call_modes.context_name(current['snapshot']['organization_id']) if current else (agent.DIALPLAN_CONTEXT if agent.PROFILE_ID else 'union-internal')
-def decorate(agent,raw):
+def decorate(agent,raw,external=False):
     current=state(agent)
-    return call_modes.decorate_routes(raw,current['snapshot']['organization_id']) if current else raw
+    scoped=current and any('internal_mode' in row for row in current['snapshot']['extensions'])
+    return call_modes.decorate_routes(raw,current['snapshot']['organization_id'],external=external and scoped) if current else raw
 
 @contextmanager
 def preview(agent,snapshot):
@@ -46,7 +47,7 @@ def validate_catalog(agent,snapshot,org):
     for path in (agent.STATE_DIR/'extensions').glob('*.json'):
         rr.trusted(path,True); row=json.loads(path.read_text()); agent.validate_local_owner(row)
         local[row['id']]={'id':row['id'],'endpoint_name':row['endpoint'],'number':row['number'],'enabled':row['enabled'],'is_managed':True}
-    supplied={r['id']:{k:v for k,v in r.items() if k!='mode'} for r in snapshot['extensions'] if r['is_managed']}
+    supplied={r['id']:{k:v for k,v in r.items() if k not in ('mode','internal_mode','external_mode')} for r in snapshot['extensions'] if r['is_managed']}
     if any(supplied.get(identity)!=row for identity,row in local.items()) or any(row['enabled'] for identity,row in supplied.items() if identity not in local): raise CallModeRuntimeError('Call mode catalog differs from owned extensions')
     manual=[r for r in snapshot['extensions'] if not r['is_managed']]
     if (agent.PROFILE_ID is None and (len(manual)!=1 or not manual[0]['enabled'])) or (agent.PROFILE_ID is not None and manual): raise CallModeRuntimeError('Manual call mode binding mismatch')
@@ -93,7 +94,7 @@ def legacy_capture(agent):
 
 def external_proposal(agent,name,raw,recording_policy=None):
     if name not in ('union-fvx-managed.conf','union-fvx-crm-outbound.conf'):raise CallModeRuntimeError('Unknown external route')
-    current=state(agent); content=decorate(agent,raw); proposals={}
+    current=state(agent); content=decorate(agent,raw,external=True); proposals={}
     recording=rr.state(agent); policy=recording_policy if recording_policy is not None else (recording['policy'] if recording else None)
     if policy:
         import recordings
@@ -193,7 +194,7 @@ def init(agent,org,snapshot):
     agent.require_root()
     with agent.operation_lock():
         if state(agent): return verify(agent,org)
-        if snapshot['revision']!=1 or any(r['mode']!='both' for r in snapshot['extensions']): raise CallModeRuntimeError('Initial call modes must preserve both directions')
+        if snapshot['revision']!=1 or any(any(r.get(k,r['mode'])!='both' for k in ('mode','internal_mode','external_mode')) for r in snapshot['extensions']): raise CallModeRuntimeError('Initial call modes must preserve both directions')
         return reconcile(agent,snapshot,org,True)
 def apply_snapshot(agent,snapshot,org):
     if snapshot is None:return
@@ -202,7 +203,7 @@ def capability(agent,org):
     if not file(agent).exists():return []
     try:
         with agent.operation_lock():verify(agent,org)
-        return ['call_modes_v1']
+        return ['call_modes_v2']
     except Exception:return []
 def report(agent,value=None):
     path=agent.STATE_DIR/'call-modes-report.json'

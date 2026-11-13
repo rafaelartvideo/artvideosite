@@ -1,4 +1,4 @@
-import { listExtensionCallModes, setExtensionCallMode, callModeLabel, callModeOptions, type CallMode, type ExtensionCallMode } from "../application/call-modes";
+import { listExtensionCallModes, setExtensionCallMode, callModeLabel, callModeOptions, type CallMode, type CallModePair, type ExtensionCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { pbxRequest, pbxOperationError } from "../application/pbx-request";
 import { useEffect, useRef, useMemo, useState } from "react";
@@ -43,7 +43,7 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const canManage = hasPermission("pbx.manage");
   const [callModes, setCallModes] = useState<ExtensionCallMode[]>([]);
-  const [modeDrafts, setModeDrafts] = useState<Record<string, CallMode>>({});
+  const [modeDrafts, setModeDrafts] = useState<Record<string, CallModePair>>({});
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +101,7 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     const controller = requestScope.current;
     setSaving(true); setError(""); setMessage("");
     try {
-      await setExtensionCallMode(supabase, organizationId, item.extension_id, modeDrafts[item.extension_id] ?? item.mode, item.revision, {signal:controller.signal});
+      await setExtensionCallMode(supabase, organizationId, item.extension_id, modeDrafts[item.extension_id] ?? {internal_mode:item.internal_mode,external_mode:item.external_mode}, item.revision, {signal:controller.signal});
       if (!controller.signal.aborted) setMessage("Modo solicitado. O modo em uso permanece até a confirmação da central, sem interromper chamadas.");
     } catch {
       if (!controller.signal.aborted) setError("Alteração sem confirmação ou revisão desatualizada. Lista atualizada; confira o estado antes de salvar novamente.");
@@ -278,16 +278,27 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
             {(() => {
               const policy = callModes.find(mode => mode.extension_id === item.id && mode.organization_id === activeOrganizationId);
               return <div className="w-full space-y-2 rounded-lg border border-border bg-muted/20 p-3 sm:order-last" aria-label={`Modo de chamada do ramal ${item.number}`}>
-                <p className="text-xs font-semibold">Chamadas internas e externas</p>
+                <p className="text-xs font-semibold">Permissões de chamada</p>
                 {policy ? <>
-                  <p className="text-xs text-muted-foreground">Em uso: {callModeLabel(policy.applied_mode)} · Solicitado: {callModeLabel(policy.mode)} · {policy.status === "pending" ? "Aguardando a central" : policy.status === "failed" ? "Falha na aplicação" : "Aplicado"}</p>
+                  <p className="text-xs text-muted-foreground">{policy.status === "pending" ? "Aguardando a central" : policy.status === "failed" ? "Falha na aplicação" : "Aplicado"}</p>
                   {policy.last_error && <p role="status" className="text-xs text-destructive">{policy.last_error}</p>}
-                  {canManage && policy.can_manage ? <div className="flex flex-wrap items-center gap-2">
-                    <div className="min-w-40"><AdminSelect ariaLabel={`Modo do ramal ${item.number}`} value={modeDrafts[item.id] ?? policy.mode}
-                      options={callModeOptions} disabled={saving} onValueChange={value => setModeDrafts(current => ({...current,[item.id]:value as CallMode}))} /></div>
-                    <AdminButton variant="secondary" size="sm" type="button" disabled={saving || (policy.status !== "failed" && (modeDrafts[item.id] ?? policy.mode) === policy.mode)}
-                      onClick={() => void saveCallMode(policy)}><Save size={14}/> {policy.status === "failed" ? "Tentar novamente" : "Salvar modo"}</AdminButton>
-                  </div> : <p className="text-xs text-muted-foreground">{policy.can_manage ? "Consulta de permissões do ramal." : "O controle ficará disponível quando o ramal e o agente estiverem preparados."}</p>}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(["internal", "external"] as const).map(scope => {
+                      const field = `${scope}_mode` as const;
+                      const label = scope === "internal" ? "Chamadas internas" : "Chamadas externas";
+                      return <div key={scope} className="space-y-1">
+                        <p className="text-xs font-semibold">{label}</p>
+                        <p className="text-xs text-muted-foreground">Em uso: {callModeLabel(policy[`applied_${scope}_mode`])} · Solicitado: {callModeLabel(policy[field])}</p>
+                        {canManage && policy.can_manage && <AdminSelect ariaLabel={`${label} do ramal ${item.number}`}
+                          value={modeDrafts[item.id]?.[field] ?? policy[field]} options={callModeOptions} disabled={saving}
+                          onValueChange={value => setModeDrafts(current => ({...current,[item.id]:{internal_mode:policy.internal_mode,external_mode:policy.external_mode,...current[item.id],[field]:value as CallMode}}))} />}
+                      </div>;
+                    })}
+                  </div>
+                  {canManage && policy.can_manage ? <AdminButton variant="secondary" size="sm" type="button"
+                    disabled={saving || (policy.status !== "failed" && (modeDrafts[item.id]?.internal_mode ?? policy.internal_mode) === policy.internal_mode && (modeDrafts[item.id]?.external_mode ?? policy.external_mode) === policy.external_mode)}
+                    onClick={() => void saveCallMode(policy)}><Save size={14}/> {policy.status === "failed" ? "Tentar novamente" : "Salvar modos"}</AdminButton>
+                    : <p className="text-xs text-muted-foreground">{policy.can_manage ? "Consulta de permissões do ramal." : "O controle ficará disponível quando o ramal e o agente estiverem preparados."}</p>}
                 </> : <p className="text-xs text-muted-foreground">Modo sem confirmação. Atualize a lista para consultar.</p>}
               </div>;
             })()}

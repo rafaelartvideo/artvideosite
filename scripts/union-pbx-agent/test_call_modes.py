@@ -33,4 +33,20 @@ class CompilerTests(unittest.TestCase):
   with self.assertRaises(cm.CallModeError):cm.validate_snapshot(s,ORG)
   cm.validate_snapshot(s,ORG,True);s['extensions'][0]['enabled']=False
   self.assertNotIn('="union-301"',cm.compile_context(s,ORG,'union-internal',True).decode())
+ def test_split_modes_keep_internal_and_external_allowlists_separate(self):
+  s=snapshot()
+  for row in s['extensions']:row.update(internal_mode='receive_only',external_mode='make_only')
+  raw=cm.compile_context(s,ORG,BASE).decode()
+  self.assertIn('UWCM_EXTERNAL',raw)
+  self.assertIn('external_source',raw);self.assertIn('internal_source',raw)
+  internal=raw.split('n(internal_source)')[1].split('n(external_source)')[0]
+  external=raw.split('n(external_source)')[1].split('n(allow)')[0]
+  self.assertNotIn(s['extensions'][0]['endpoint_name'],internal)
+  self.assertIn(s['extensions'][0]['endpoint_name'],external)
+  receiving=raw.split('['+cm.context_name(ORG)+'-receive]')[1]
+  self.assertIn(s['extensions'][0]['endpoint_name'],receiving.split('n(external_receive)')[0])
+  self.assertNotIn(s['extensions'][0]['endpoint_name'],receiving.split('n(external_receive)')[1])
+  marked=cm.decorate_routes(b'[own]\n same => n(allowed),Dial(PJSIP/trunk,30)\n',ORG,external=True)
+  self.assertIn(b'n(allowed),Set(__UWCM_EXTERNAL=1)',marked)
+  self.assertEqual(cm.decorate_routes(marked,ORG,external=True),marked)
 if __name__=='__main__':unittest.main()

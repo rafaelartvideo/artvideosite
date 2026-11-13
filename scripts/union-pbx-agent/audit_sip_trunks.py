@@ -31,7 +31,7 @@ BUNDLE_NAMES = ('agent.py', 'tenant_profile.py', 'process_lock.py', 'queue_avail
                 'sip_trunks.py', 'sip_trunk_runtime.py', 'call_history.py',
                 'recordings.py', 'recording_agi.py', 'recording_upload.py', 'recording_runtime.py',
                 'inbound_router.py', 'outbound_router.py', 'legacy_trunks.py', 'call_modes.py', 'call_mode_runtime.py')
-REVIEWED_BUNDLE_SHA = 'fa8a1cacaa9fbaa6f1767ed5f4105e668562ced98657ba2e60fa6e8a2b385866'
+REVIEWED_BUNDLE_SHA = '9cec9385e6fc270fdc206ba4686c5759713d40c8e7d042b24bd55e10b931049c'
 
 
 class AuditError(RuntimeError): pass

@@ -1290,7 +1290,7 @@ def cycle(dry_run=False):
             modes=call_mode_support()
             if modes is not None:
                 capabilities['features'].extend(modes.capability(runtime_api(),config['organization_id']))
-                if 'call_modes_v1' in capabilities['features']:
+                if 'call_modes_v2' in capabilities['features']:
                     pending=modes.report(runtime_api())
                     if pending is not None:capabilities['call_modes_report']=pending
         except Exception:
@@ -1426,7 +1426,7 @@ def cycle(dry_run=False):
         except Exception as exc:
             print('Controle do tronco existente adiado: '+type(exc).__name__,file=sys.stderr)
 
-    if not dry_run and modes is not None and 'call_modes' in payload and 'call_modes_v1' in capabilities.get('features',[]):
+    if not dry_run and modes is not None and 'call_modes' in payload and 'call_modes_v2' in capabilities.get('features',[]):
         snapshot=payload['call_modes']
         prior=modes.report(runtime_api())
         try:

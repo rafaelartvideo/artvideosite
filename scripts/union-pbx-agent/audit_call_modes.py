@@ -138,7 +138,27 @@ def run(directory,restore=None):
    delta={ep:sink.counts.get(ep,0)-before.get(ep,0) for ep in eps[:3]}
    if delta[eps[1]]!=0 or not delta[eps[0]] or not delta[eps[2]]:raise ValueError('Synthetic queue admission failed')
    results.append(dict(name='queue',permitted_invites=delta[eps[0]]+delta[eps[2]],blocked_invites=delta[eps[1]],sip_status=status))
-   state.update(passed=True,results=results,synthetic_calls=len(tests)+1);save(worker,folder,state)
+   for row,internal,external in zip(snapshot['extensions'],('both','make_only','receive_only'),('receive_only','receive_only','make_only')):
+    row.update(internal_mode=internal,external_mode=external)
+   snapshot['revision']=2
+   extra='['+base+']\n'
+   for number,ep in zip((704,705,706),eps):extra+='exten => '+str(number)+',1,Dial(PJSIP/'+ep+',1)\n same => n,Hangup()\n'
+   extra+='exten => 712,1,Queue('+queue+',,,,2)\n same => n,Hangup()\nexten => 5511999999999,1,Dial(PJSIP/'+eps[0]+',1)\n same => n,Hangup()\n'
+   extra+='exten => 713,1,Set(__UWCM_EXTERNAL=1)\n same => n,Goto('+base+',703,1)\n'
+   scoped=cm.compile_context(snapshot,org,base)+cm.decorate_routes(body.encode(),org)+cm.decorate_routes(extra.encode(),org,external=True)
+   dial_path=Path('/etc/asterisk/extensions.d')/('audit-call-modes-'+identity+'.conf')
+   for entry in state['files']:
+    if entry['path']==str(dial_path):entry['sha']=digest(scoped)
+   save(worker,folder,state);worker.write_atomic(dial_path,scoped,0o640,gid);worker.guarded_reload('dialplan reload')
+   scoped_tests=[('internal_both_to_receive_only',eps[0],703,eps[2],True),('external_make_only_origin',eps[2],5511999999999,eps[0],True),('external_receive_only_origin',eps[0],5511999999999,eps[0],False),('internal_receive_only_origin',eps[2],701,eps[0],False),('external_receive_only_target',eps[0],705,eps[1],True),('external_make_only_target',eps[0],706,eps[2],False),('internal_make_only_target',eps[0],702,eps[1],False),('external_transfer_preserves_scope',eps[0],713,eps[2],False)]
+   for name,caller,target,callee,allowed in scoped_tests:
+    worker.assert_no_calls();before=sink.counts.get(callee,0);status=invite(caller,target,password);received=sink.counts.get(callee,0)-before
+    if bool(received)!=allowed or status<300:raise ValueError('Scoped admission failed: '+name+' status='+str(status)+' invites='+str(received))
+    results.append(dict(name=name,invite_count=received,sip_status=status))
+   before=dict(sink.counts);status=invite(eps[0],712,password);delta={ep:sink.counts.get(ep,0)-before.get(ep,0) for ep in eps[:3]}
+   if not delta[eps[0]] or not delta[eps[1]] or delta[eps[2]]:raise ValueError('External queue scopes not preserved')
+   results.append(dict(name='external_queue',permitted_invites=delta[eps[0]]+delta[eps[1]],blocked_invites=delta[eps[2]],sip_status=status))
+   state.update(passed=True,results=results,synthetic_calls=len(tests)+len(scoped_tests)+2);save(worker,folder,state)
  except Exception:
   print(json.dumps({'id':identity,'passed':False,'recovery':'--cleanup '+identity}),file=sys.stderr);raise
  finally:
@@ -147,7 +167,7 @@ def run(directory,restore=None):
  print(json.dumps({k:state[k] for k in ('id','passed','cleaned','results','synthetic_calls','external_calls','human_calls')}))
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--apply',action='store_true');p.add_argument('--acknowledge-call-mode-audit',action='store_true');p.add_argument('--runtime-directory',type=Path,default=Path('/opt/union-pbx-agent'));p.add_argument('--cleanup');a=p.parse_args()
- if not a.apply:print(json.dumps({'preview':True,'human_calls':0,'external_calls':0,'synthetic_calls':7}));return 0
+ if not a.apply:print(json.dumps({'preview':True,'human_calls':0,'external_calls':0,'synthetic_calls':16}));return 0
  if not a.acknowledge_call_mode_audit:return 2
  try:run(a.runtime_directory,a.cleanup);return 0
  except Exception as exc:print(json.dumps({'passed':False,'error_type':type(exc).__name__,'detail':str(exc) if isinstance(exc,ValueError) else 'Native audit failed'}),file=sys.stderr);return 1

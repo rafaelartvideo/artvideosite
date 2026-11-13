@@ -1,4 +1,4 @@
-import { myCallMode, boundCallMode, callModeLabel, type BoundCallMode } from "../application/call-modes";
+import { myCallMode, boundCallMode, canOriginate, callModeLabel, type BoundCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
@@ -117,7 +117,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [callModeGrant, setCallModeGrant] = useState<BoundCallMode | null>(null);
   const [callModeUnavailable, setCallModeUnavailable] = useState(false);
   const appliedCallMode = boundCallMode(activeOrganizationId, sipUser, callModeGrant);
-  const canMakeCalls = appliedCallMode?.can_make_calls ?? true;
+  const canMakeInternalCalls = canOriginate(appliedCallMode, "internal");
+  const canMakeExternalCalls = canOriginate(appliedCallMode, "external");
+  const canMakeCalls = dialMode === "external" ? canMakeExternalCalls : canMakeInternalCalls;
   useEffect(() => {
     const controller = new AbortController();
     const organizationId = activeOrganizationId, endpoint = sipUser, generation = generationRef.current;
@@ -215,7 +217,7 @@ setTestFlowError('');
   ]);
 
   const internalDestinationReady = dialTarget === "900" || dialableNumbers.has(Number(dialTarget));
-  const registeredAndIdle = canMakeCalls && registration === "registered" && callState === "idle" && !outputPending;
+  const registeredAndIdle = registration === "registered" && callState === "idle" && !outputPending;
   const selectSection = (section: UnionPbxSection) => {
     if (section === "historico") onHistory?.();
     else if (section === "gravacoes") onRecordings?.();
@@ -492,7 +494,7 @@ setTestFlowError('');
   };
 
   const callEcho = () => {
-    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
+    if (!canMakeInternalCalls) { setNotice("Só recebe: este tipo de ligação está bloqueado para o ramal."); return; }
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     if (registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando extensao de teste 900...");
@@ -510,7 +512,7 @@ setTestFlowError('');
 
   const callInternal = () => {
     if (dialTarget === "900") { callEcho(); return; }
-    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
+    if (!canMakeInternalCalls) { setNotice("Só recebe: este tipo de ligação está bloqueado para o ramal."); return; }
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     const destination = Number(dialTarget);
     if (!dialTarget || !Number.isInteger(destination) ||
@@ -530,7 +532,7 @@ setTestFlowError('');
   };
 
   const originateExternal = (destination: string, label: string) => {
-    if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
+    if (!canMakeExternalCalls) { setNotice("Só recebe: este tipo de ligação está bloqueado para o ramal."); return; }
     setNotice("Chamando " + label + " pela operadora configurada...");
     try {
       prepareRingback();
@@ -558,7 +560,7 @@ setTestFlowError('');
 
     const requestCall = (rawPhone: string, requestedOrganizationId?: string | null) => {
       if (requestedOrganizationId && requestedOrganizationId !== activeOrganizationId) return false;
-      if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); onOpen(); return true; }
+      if (!canMakeExternalCalls) { setNotice("Só recebe: este tipo de ligação está bloqueado para o ramal."); onOpen(); return true; }
       const destination = normalizeNationalDestination(rawPhone);
       setExternalTarget(rawPhone);
       setDialMode("external");
@@ -601,7 +603,7 @@ setTestFlowError('');
       window.removeEventListener(PHONE_CALL_EVENT, handleIntegrationCall);
       document.removeEventListener("click", handlePhoneAnchorClick, true);
     };
-  }, [activeOrganizationId, isPlatformOperatorOrganization, canUseExternal, canMakeCalls, registration, callState, microphoneId, onOpen]);
+  }, [activeOrganizationId, isPlatformOperatorOrganization, canUseExternal, canMakeExternalCalls, registration, callState, microphoneId, onOpen]);
 
   const answer = () => {
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de atender.'); return; }
@@ -708,9 +710,7 @@ setTestFlowError('');
   };
 
   const dialerContent = <div className="space-y-3">
-    {!canMakeCalls && <p role="status" className="rounded-lg bg-muted p-3 text-sm">Só recebe: atendimento disponível; novas ligações internas e externas estão bloqueadas.</p>}
-    {appliedCallMode && !appliedCallMode.can_receive_calls && <p className="text-xs text-muted-foreground">Só faz: a central não encaminha novas ligações para este ramal.</p>}
-    {appliedCallMode?.status === "pending" && <p className="text-xs text-muted-foreground">Alteração aguardando a central. Modo em uso: {callModeLabel(appliedCallMode.mode)}.</p>}
+    {appliedCallMode && <p className="text-xs text-muted-foreground">Internas: {callModeLabel(appliedCallMode.internal_mode)} · Externas: {callModeLabel(appliedCallMode.external_mode)}{appliedCallMode.status === "pending" ? " · Alteração aguardando a central" : ""}</p>}
     {callModeUnavailable && <p role="status" className="text-xs text-muted-foreground">Modo de chamada sem atualização. A central continua verificando as permissões.</p>}
           {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
@@ -782,7 +782,7 @@ setTestFlowError('');
               </button>)}
           </div>}
           {callState === "idle" && <>
-            <AdminButton variant="primary" className="!w-full" disabled={!registeredAndIdle || (dialMode === "external" && canUseExternal ? !normalizeNationalDestination(externalTarget) : !internalDestinationReady)}
+            <AdminButton variant="primary" className="!w-full" disabled={!registeredAndIdle || !canMakeCalls || (dialMode === "external" && canUseExternal ? !normalizeNationalDestination(externalTarget) : !internalDestinationReady)}
               onClick={dialMode === "external" && canUseExternal ? callExternal : callInternal}>
               <Phone size={17}/> Ligar
             </AdminButton>
@@ -837,10 +837,10 @@ setTestFlowError('');
         canManageInbound={Boolean(isPlatformOperatorOrganization && onManageInbound)}
         canRecordings={Boolean(onRecordings)}
         onReturnCall={rawPhone => {
-          if (!canMakeCalls) { setNotice("Só recebe: este ramal não pode iniciar ligações."); return; }
           if (callState !== "idle" || sessionRef.current || outputPendingRef.current) return;
           const digits = rawPhone.replace(/\D/g, "");
-          const internal = digits.length <= 6 && dialableNumbers.has(Number(digits));
+          const internal = digits.length <= 4 && dialableNumbers.has(Number(digits));
+          if (!(internal ? canMakeInternalCalls : canMakeExternalCalls)) { setNotice("Só recebe: este tipo de ligação está bloqueado para o ramal."); return; }
           if (internal) {
             setDialMode("internal"); setDialTarget(digits);
           } else {
@@ -877,7 +877,7 @@ setTestFlowError('');
           onOutputPending={pending => { outputPendingRef.current = pending; setOutputPending(pending); }} getAudio={() => remoteAudioRef.current} />
         {outputPending && <p role="status" className="text-sm text-muted-foreground">Aguardando confirmação da saída de áudio.</p>}
 
-        <AdminButton variant="secondary" disabled={!registeredAndIdle} onClick={callEcho}>
+        <AdminButton variant="secondary" disabled={!registeredAndIdle || !canMakeInternalCalls} onClick={callEcho}>
           <Headphones size={16}/> Testar áudio no ramal 900
         </AdminButton>
         {callState === "active" && <UnionPbxAudioDiagnostics connection={sessionRef.current?.connection} />}
@@ -900,11 +900,11 @@ setTestFlowError('');
       minimizable={false}
       footer={<div className="flex flex-wrap justify-end gap-2">
         <AdminButton variant="secondary" onClick={() => setPendingDialRequest(null)}>Cancelar</AdminButton>
-        <AdminButton variant="primary" disabled={!canMakeCalls || registration !== "registered" || callState !== "idle" || outputPending || !normalizeNationalDestination(pendingDialRequest?.phone || "")}
+        <AdminButton variant="primary" disabled={!canMakeExternalCalls || registration !== "registered" || callState !== "idle" || outputPending || !normalizeNationalDestination(pendingDialRequest?.phone || "")}
           onClick={() => {
             const raw = pendingDialRequest?.phone || "";
             const destination = normalizeNationalDestination(raw);
-            if (!canMakeCalls || !canUseExternal || !destination || !uaRef.current?.isRegistered?.() || sessionRef.current || outputPendingRef.current) return;
+            if (!canMakeExternalCalls || !canUseExternal || !destination || !uaRef.current?.isRegistered?.() || sessionRef.current || outputPendingRef.current) return;
             setPendingDialRequest(null);
             originateExternal(destination, raw);
           }}><Phone size={16}/> Ligar</AdminButton>
