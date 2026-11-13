@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Image as ImageIcon } from "lucide-react";
+import { useState } from "react";
+import { FileText, Image as ImageIcon, LoaderCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   createFinancialAttachmentSignedUrl,
@@ -15,6 +16,24 @@ function matchesKind(attachment: FinancialAttachment, kind: EvidenceKind) {
   // Compatibilidade com comprovantes vinculados antes da coluna de classificação.
   return kind === "payment_proof" && attachment.source_document_kind == null
     && Boolean(attachment.source_media_id) && attachment.attachment_type === "proof";
+}
+
+function EvidencePhoto({ url, label }: { url: string; label: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return <div className="relative h-32 w-full overflow-hidden rounded-md bg-muted/30">
+    {!loaded && !failed && <div role="status" aria-label={`Carregando foto de ${label.toLowerCase()}`}
+      className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/50 text-muted-foreground">
+      <LoaderCircle size={19} className="animate-spin" aria-hidden="true" />
+      <span className="text-[11px] font-medium">Carregando foto...</span>
+    </div>}
+    {failed ? <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
+      <FileText size={20} /> Prévia indisponível
+    </div> : <img src={url} alt={label}
+      loading="eager" onLoad={() => setLoaded(true)} onError={() => setFailed(true)}
+      className={`h-full w-full object-contain transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`} />}
+  </div>;
 }
 
 export function FinanceOrderEvidenceGallery({
@@ -50,12 +69,20 @@ export function FinanceOrderEvidenceGallery({
     },
   });
 
-  if (!canView || !query.data?.length) {
-    if (query.isError) return <p role="alert" className="text-xs text-destructive">
-      Não foi possível carregar {label.toLowerCase()}.
-    </p>;
-    return null;
-  }
+  if (!canView) return null;
+  if (query.isPending) return <section aria-label={label} aria-busy="true"
+    className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+    <h3 className="text-sm font-bold text-foreground">{label}</h3>
+    <div role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+      <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />
+      Carregando {label.toLowerCase()}...
+    </div>
+    <div className="h-32 animate-pulse rounded-lg bg-muted/60" aria-hidden="true" />
+  </section>;
+  if (query.isError) return <p role="alert" className="text-xs text-destructive">
+    Não foi possível carregar {label.toLowerCase()}.
+  </p>;
+  if (!query.data?.length) return null;
 
   return <section aria-label={label} className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
     <div className="flex items-center gap-2">
@@ -68,7 +95,7 @@ export function FinanceOrderEvidenceGallery({
           || /\.(?:jpe?g|png|webp)$/i.test(document.file_name);
         const body = <>
           {isImage && url
-            ? <img src={url} alt={label} loading="lazy" className="h-32 w-full rounded-md object-contain bg-muted/30" />
+            ? <EvidencePhoto url={url} label={label} />
             : <div className="flex h-32 items-center justify-center rounded-md bg-muted/40">
               <FileText size={32} className="text-muted-foreground" />
             </div>}
@@ -80,7 +107,7 @@ export function FinanceOrderEvidenceGallery({
           </span>
         </>;
         return url
-          ? <a key={document.id} href={url} target="_blank" rel="noopener noreferrer"
+          ? <a key={`${document.id}-${url}`} href={url} target="_blank" rel="noopener noreferrer"
               className="min-w-0 space-y-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary/40">
               {body}
             </a>
