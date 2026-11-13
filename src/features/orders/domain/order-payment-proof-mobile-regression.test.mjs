@@ -5,15 +5,18 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Concluir OS exibe Usar celular após o selo obrigatório/opcional", async () => {
+test("Concluir OS exibe Usar celular no cabeçalho da seção de evidências", async () => {
   const proof = read("src/features/orders/presentation/OrderCompletionPaymentSection.tsx");
-  const badge = proof.indexOf("const required = payment ? completion.paymentProofRequired");
-  const mobile = proof.indexOf("<OrderChecklistMobileBridge", badge);
-  assert.ok(badge > 0 && mobile > badge && mobile < proof.indexOf("</div>", mobile));
-  assert.match(proof, /scope="payment-proof"/);
-  assert.match(proof, /disabled=\{saving\}/);
-  assert.match(proof, /onDocumentsUpdated=\{completion\.refreshPaymentProofFromMobile\}/);
+  const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
+  const header = modal.indexOf('<Section title="Evidências de conclusão" actions={');
+  const mobile = modal.indexOf("<OrderChecklistMobileBridge", header);
+  assert.ok(header > 0 && mobile > header && mobile < modal.indexOf("<OrderCompletionEvidenceSection", mobile));
+  assert.doesNotMatch(proof, /<OrderChecklistMobileBridge/);
+  assert.match(modal, /scope="payment-proof"/);
+  assert.match(modal, /disabled=\\{saving\\}/);
+  assert.match(modal, /onDocumentsUpdated=\\{completion\\.refreshPaymentProofFromMobile\\}/);
   assert.ok((await transformWithEsbuild(proof,"OrderCompletionPaymentSection.tsx",{loader:"tsx"})).code.length > 200);
+  assert.ok((await transformWithEsbuild(modal,"OrderCompletionModal.tsx",{loader:"tsx"})).code.length > 200);
 });
 
 test("QR e código reutilizam sessão temporária de documentos e enviam comprovante de pagamento", async () => {
