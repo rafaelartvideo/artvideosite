@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, CheckCircle2, ChevronDown, FileText, Plus, Trash2, Upload, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, ChevronDown, FileText, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
@@ -21,6 +21,7 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
   const payment = kind === "payment";
   const title = payment ? "Comprovante de pagamento" : "Evidência de entrega";
   const required = payment ? completion.paymentProofRequired : completion.deliveryEvidenceRequired;
@@ -31,6 +32,7 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
   const choose = payment ? completion.choosePaymentProof : completion.chooseDeliveryEvidence;
 
   useEffect(() => {
+    setPreviewLoaded(false);
     if (!file?.type.startsWith("image/")) { setPreviewUrl(null); return; }
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
@@ -81,8 +83,14 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
         </button>
       </div>
       {file && <div className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/20 bg-card p-2.5">
-        {previewUrl ? <img src={previewUrl} alt={`Prévia: ${title}`} className="h-14 w-14 shrink-0 rounded-md object-cover" />
-          : <FileText size={22} className="shrink-0 text-primary" />}
+        {previewUrl ? <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted/60">
+          {!previewLoaded && <span role="status" aria-label={`Carregando prévia de ${title.toLowerCase()}`}
+            className="absolute inset-0 flex items-center justify-center">
+            <LoaderCircle size={18} className="animate-spin text-muted-foreground" aria-hidden="true" />
+          </span>}
+          <img src={previewUrl} alt={`Prévia: ${title}`} onLoad={() => setPreviewLoaded(true)}
+            className={`h-full w-full object-cover transition-opacity ${previewLoaded ? "opacity-100" : "opacity-0"}`} />
+        </div> : <FileText size={22} className="shrink-0 text-primary" />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-bold text-foreground" title={file.name}>{file.name}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -118,8 +126,13 @@ export function OrderCompletionEvidenceSection({ completion, saving }: {
         />
       )}
     </div>
-    {completion.paymentProofRequirementLoading && <p role="status" className="text-xs text-muted-foreground">Verificando exigências dos anexos...</p>}
+    {completion.paymentProofRequirementLoading && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+      <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> Carregando comprovante e evidência de entrega...
+    </p>}
     {completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">Não foi possível verificar as evidências: {completion.paymentProofRequirementError}</p>}
+    {saving && (completion.paymentProofFile || completion.deliveryEvidenceFile) && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+      <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> Salvando as evidências da OS...
+    </p>}
     <div className="grid min-w-0 gap-3 md:grid-cols-2">
       {completion.paymentProofEnabled && !completion.coverageFree && <OrderCompletionEvidencePicker completion={completion} saving={saving} kind="payment" />}
       {completion.deliveryEvidenceEnabled && <OrderCompletionEvidencePicker completion={completion} saving={saving} kind="delivery" />}
