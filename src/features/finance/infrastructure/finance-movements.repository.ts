@@ -78,16 +78,21 @@ export async function listFinancialMovementsPage(
   const originBySettlement = new Map<string, string>();
   const orderIdBySettlement = new Map<string, string>();
   const entryIdBySettlement = new Map<string, string>();
+  const settlementActorById = new Map<string, string>();
+  const completedActorByOrder = new Map<string, string>();
 
   // A origem real fica no título vinculado à baixa, não no tipo do lançamento bancário.
   // Uma falha na consulta complementar não deve impedir a visualização do extrato.
   if (settlementIds.length) {
     const { data: settlements, error: settlementsError } = await supabase
       .from("financial_settlements")
-      .select("id,financial_entry_id")
+      .select("id,financial_entry_id,created_by")
       .eq("organization_id", org)
       .in("id", settlementIds);
     if (!settlementsError && settlements?.length) {
+      for (const settlement of settlements) {
+        if (settlement.created_by) settlementActorById.set(settlement.id, settlement.created_by);
+      }
       const entryIds = Array.from(new Set(settlements.map(item => item.financial_entry_id).filter(Boolean)));
       if (entryIds.length) {
         const { data: entries, error: entriesError } = await supabase
@@ -119,11 +124,52 @@ export async function listFinancialMovementsPage(
     }
   }
 
+  // Resolve a autoria em lote somente para os movimentos desta página.
+  // Não confunde o responsável pela OS com quem realmente registrou a baixa.
+  const orderIds = [...new Set(orderIdBySettlement.values())];
+  if (orderIds.length) {
+    const { data: orders, error: ordersError } = await supabase
+      .from("service_orders")
+      .select("id,completed_by")
+      .eq("organization_id", org)
+      .in("id", orderIds);
+    if (!ordersError) {
+      for (const order of orders || []) {
+        if (order.completed_by) completedActorByOrder.set(order.id, order.completed_by);
+      }
+    }
+  }
+  const actorIds = [...new Set([
+    ...settlementActorById.values(),
+    ...completedActorByOrder.values(),
+    ...items.filter(item => item.source_type === "settlement").map(item => item.created_by).filter((id): id is string => Boolean(id)),
+  ])];
+  const actorNames = new Map<string, string>();
+  if (actorIds.length) {
+    const [profilesResult, employeesResult] = await Promise.all([
+      supabase.from("profiles").select("id,full_name").in("id", actorIds),
+      supabase.from("employees").select("profile_id,full_name").eq("organization_id", org).in("profile_id", actorIds),
+    ]);
+    if (!profilesResult.error) {
+      for (const actor of profilesResult.data || []) {
+        if (actor.full_name) actorNames.set(actor.id, actor.full_name);
+      }
+    }
+    if (!employeesResult.error) {
+      for (const employee of employeesResult.data || []) {
+        if (employee.profile_id && employee.full_name) actorNames.set(employee.profile_id, employee.full_name);
+      }
+    }
+  }
+
   return {
     items: items.map(item => ({
       ...item,
       origin_order_id: orderIdBySettlement.get(item.source_id) || null,
       origin_entry_id: entryIdBySettlement.get(item.source_id) || null,
+      completed_by_name: actorNames.get(completedActorByOrder.get(orderIdBySettlement.get(item.source_id) || "") || "") || null,
+      settlement_by_name: actorNames.get(settlementActorById.get(item.source_id) || "") ||
+        (item.source_type === "settlement" ? actorNames.get(item.created_by || "") : null) || null,
       origin_label: originBySettlement.get(item.source_id) || (
         item.source_type === "transfer" || item.source_type === "transfer_reversal" ? "Transferência entre contas"
         : item.source_type === "cash_session" ? "Caixa físico"
