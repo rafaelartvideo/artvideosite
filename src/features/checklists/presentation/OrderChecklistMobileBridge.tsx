@@ -112,7 +112,7 @@ export function OrderChecklistMobileBridge({
       lastChecklistUpdateRef.current = updatedAt;
       if (scope === "payment-proof") {
         void Promise.resolve().then(() => onDocumentsUpdated?.()).catch(error => {
-          setError(error instanceof Error ? error.message : "Não foi possível confirmar o comprovante recebido.");
+          setError(error instanceof Error ? error.message : "Não foi possível atualizar as evidências recebidas.");
         });
       }
       void Promise.all([
@@ -182,14 +182,14 @@ export function OrderChecklistMobileBridge({
         showOnMobile={scope === "payment-proof"}
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        title={scope === "payment-proof" ? "Anexar comprovante de pagamento pelo celular" : scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
+        title={scope === "payment-proof" ? "Registrar comprovante e evidência de entrega pelo celular" : scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
       />
 
       <AdminDialog
         open={open}
         onClose={() => setOpen(false)}
-        title={`${scope === "payment-proof" ? "Comprovante de pagamento" : scope === "documents" ? "Documentos" : "Checklist"} da OS ${osNumber ? `#${osNumber}` : ""} pelo celular`}
-        description={scope === "payment-proof" ? "Escaneie o QR ou informe o código na página de captura. Envie a foto ou PDF do comprovante com vinculação automática à OS."
+        title={`${scope === "payment-proof" ? "Evidências da conclusão" : scope === "documents" ? "Documentos" : "Checklist"} da OS ${osNumber ? `#${osNumber}` : ""} pelo celular`}
+        description={scope === "payment-proof" ? "Escaneie o QR ou informe o código na página de captura. Envie comprovante de pagamento e evidência de entrega pelo mesmo acesso, com classificação automática na OS."
           : scope === "documents"
           ? "Escaneie o QR Code para acessar os documentos da OS pelo celular, sem precisar fazer login."
           : "Escaneie o QR no celular. A conexão é temporária e abre somente o checklist desta OS, sem exigir login no celular."}
@@ -233,7 +233,7 @@ export function OrderChecklistMobileBridge({
                     {connected ? "Celular conectado" : "Aguardando o celular"}
                   </p>
                   <p className="mt-0.5 text-xs text-[#5a6a82]">
-                    {connected ? "Os registros enviados pelo celular aparecem automaticamente na OS." : scope === "payment-proof" ? "O comprovante aparece automaticamente na conclusão da OS." : scope === "documents" ? "O QR abre anexos, checklist e fotos das situações desta OS." : "O QR abre diretamente o checklist desta OS."}
+                    {connected ? "Os registros enviados pelo celular aparecem automaticamente na OS." : scope === "payment-proof" ? "As evidências aparecem automaticamente na conclusão da OS." : scope === "documents" ? "O QR abre anexos, checklist e fotos das situações desta OS." : "O QR abre diretamente o checklist desta OS."}
                   </p>
                 </div>
               </div>
