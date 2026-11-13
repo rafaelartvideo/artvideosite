@@ -35,11 +35,28 @@ test("conclusão valida e envia dois anexos distintos, exibidos lado a lado", as
   assert.match(payment, /kind="delivery"/);
   assert.equal((payment.match(/<OrderChecklistMobileBridge/g) || []).length, 1);
   assert.match(modal, /OrderCompletionEvidenceSection/);
+  assert.match(modal, /<Section title="Evidências de conclusão">/);
+  assert.doesNotMatch(payment, /JPG, PNG, WebP ou PDF\. Fotos comprimidas com qualidade adequada para leitura; PDF sem alterações\./);
+  assert.doesNotMatch(payment, /<p className="text-sm font-bold text-foreground">Evidências de conclusão<\/p>/);
   assert.match(modal, /completion\.deliveryEvidenceRequired && !completion\.deliveryEvidenceFile/);
   assert.match(hook, /Anexe a evidência de entrega antes de concluir a OS/);
   assert.match(hook, /attachmentTypeId: deliveryEvidenceAttachmentTypeId/);
   assert.match(hook, /setDeliveryEvidenceAttached\(true\)/);
   assert.match(documents, /get_order_completion_evidence_config_v1/);
+  assert.match(documents, /delivery_attachment_type_id: string \| null/);
+  assert.match(hook, /setDeliveryEvidenceAttachmentTypeId\(config\.delivery_attachment_type_id \|\| ""\)/);
+  assert.doesNotMatch(hook, /listAttachmentTypes/);
+});
+
+test("tipos ativos são resolvidos pela configuração da OS e não pelo cache de Documentos", () => {
+  const migration = read("supabase/migrations/20261113123500_fix_os_evidence_type_resolution.sql");
+  assert.match(migration, /private\.can_access_shared_organization_resource\(p_organization_id,'orders','read'\)/);
+  assert.match(migration, /private\.has_effective_organization_permission\(p_organization_id,'orders.complete'\)/);
+  assert.match(migration, /'payment_attachment_type_id',v_payment_type_id/);
+  assert.match(migration, /'delivery_attachment_type_id',v_delivery_type_id/);
+  assert.match(migration, /'payment_attached',v_payment_attached/);
+  assert.match(migration, /'delivery_attached',v_delivery_attached/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.get_order_completion_evidence_config_v1/);
 });
 
 test("um único QR de conclusão recebe apenas tipos autorizados", async () => {
