@@ -6,6 +6,7 @@ type AudioBinding = {
   isCurrent: () => boolean;
   getAudio: () => HTMLAudioElement | null;
   onBlocked: (blocked: boolean) => void;
+  onStream?: (stream: MediaStream) => void;
 };
 
 export function bindRemoteAudio(session: MediaSession, binding: AudioBinding) {
@@ -17,6 +18,7 @@ export function bindRemoteAudio(session: MediaSession, binding: AudioBinding) {
     const audio = binding.getAudio();
     if (!audio) return;
     audio.srcObject = stream;
+    binding.onStream?.(stream);
     void audio.play().then(() => {
       if (current() && audio.srcObject === stream) binding.onBlocked(false);
     }).catch(() => {

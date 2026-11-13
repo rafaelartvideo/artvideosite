@@ -19,6 +19,7 @@ import { holdCall, transferCall, type CallControlSession } from "../application/
 import { sendPbxDigit, type PbxDigitSession } from "../application/dtmf";
 import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
+import { bindOutgoingRingback, createCallRingback } from "../application/call-ringback";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
 // Acesso piloto da Union World; diretório e filas são consultados por organização.
@@ -94,6 +95,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const outputPendingRef = useRef(false);
   const [notice, setNotice] = useState("");
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [ringbackBlocked, setRingbackBlocked] = useState(false);
   const [held, setHeld] = useState(false);
   const [holdUncertain, setHoldUncertain] = useState(false);
   const [transferUncertain, setTransferUncertain] = useState(false);
@@ -103,6 +105,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const uaRef = useRef<any>(null);
   const sessionRef = useRef<SipSession | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ringbackRef = useRef<ReturnType<typeof createCallRingback> | null>(null);
   const generationRef = useRef(0);
   const controlAbortRef = useRef<AbortController | null>(null);
   const controlLockRef = useRef(false);
@@ -204,6 +207,9 @@ setTestFlowError('');
   };
 
   const clearAudio = () => {
+    ringbackRef.current?.dispose();
+    ringbackRef.current = null;
+    setRingbackBlocked(false);
     const element = remoteAudioRef.current;
     if (element) {
       element.pause();
@@ -241,6 +247,7 @@ setTestFlowError('');
   };
 
   useEffect(() => () => {
+    ringbackRef.current?.dispose();
     generationRef.current += 1;
     credentialAbortRef.current?.abort();
     if (registrationTimerRef.current) clearTimeout(registrationTimerRef.current);
@@ -256,6 +263,7 @@ setTestFlowError('');
       isCurrent: () => generationRef.current === generation && sessionRef.current === session,
       getAudio: () => remoteAudioRef.current,
       onBlocked: setAudioBlocked,
+      onStream: stream => ringbackRef.current?.observe(stream),
     });
   };
 
@@ -309,6 +317,7 @@ setTestFlowError('');
       });
       ua.on("disconnected", () => {
         if (!isCurrent()) return;
+        ringbackRef.current?.dispose();
         setRegistration("error");
         setNotice("Conexao WebSocket interrompida. Desconecte e tente novamente.");
       });
@@ -322,6 +331,9 @@ setTestFlowError('');
           return;
         }
         sessionRef.current = session;
+        if (session.direction === 'outgoing' && ringbackRef.current) {
+          bindOutgoingRingback(session, ringbackRef.current, () => isCurrent() && sessionRef.current === session);
+        }
         const sessionStartedAt = Date.now();
         controlAbortRef.current?.abort();
         controlAbortRef.current = new AbortController();
@@ -449,16 +461,27 @@ setTestFlowError('');
     }
   };
 
+  const prepareRingback = () => {
+    ringbackRef.current?.dispose();
+    setRingbackBlocked(false);
+    try {
+      ringbackRef.current = createCallRingback({ getOutput: () => remoteAudioRef.current, onBlocked: setRingbackBlocked });
+      ringbackRef.current.prepare();
+    } catch { ringbackRef.current = null; setRingbackBlocked(true); }
+  };
+
   const callEcho = () => {
     if (outputPendingRef.current) { setNotice('Aguarde a confirmação da saída de áudio antes de ligar.'); return; }
     if (registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando extensao de teste 900...");
     try {
+      prepareRingback();
       uaRef.current.call(`sip:900@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
+      ringbackRef.current?.dispose();
       setNotice("Falha ao iniciar o teste. Confira a permissao de microfone.");
     }
   };
@@ -472,11 +495,13 @@ setTestFlowError('');
         registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando destino interno " + destination + "...");
     try {
+      prepareRingback();
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
+      ringbackRef.current?.dispose();
       setNotice("Não foi possível ligar para o ramal. Verifique o microfone e o PABX.");
     }
   };
@@ -484,11 +509,13 @@ setTestFlowError('');
   const originateExternal = (destination: string, label: string) => {
     setNotice("Chamando " + label + " pela operadora configurada...");
     try {
+      prepareRingback();
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
+      ringbackRef.current?.dispose();
       setNotice("Não foi possível iniciar a ligação. Confira o ramal e o microfone.");
     }
   };
@@ -563,6 +590,7 @@ setTestFlowError('');
   };
 
   const hangup = () => {
+    ringbackRef.current?.dispose();
     try { sessionRef.current?.terminate(); }
     catch { setNotice("Nao foi possivel encerrar a chamada."); }
   };
@@ -747,7 +775,8 @@ setTestFlowError('');
           {callState === "dialing" && <AdminButton variant="danger" className="!w-full" onClick={hangup}>
             <PhoneOff size={17}/> Cancelar chamada
           </AdminButton>}
-          {audioBlocked && <AdminButton variant="secondary" className="!w-full" onClick={() => {
+          {(audioBlocked || ringbackBlocked) && <AdminButton variant="secondary" className="!w-full" onClick={() => {
+            ringbackRef.current?.prepare();
             void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o áudio do site nas configurações do navegador."));
           }}>Habilitar áudio da chamada</AdminButton>}
           {manualMode && isPlatformOperatorOrganization && registration !== "registered" && registration !== "connecting" && (!managedExtension || managedExtension.provisioning_status !== "applied") && <div className="space-y-2 rounded-lg border border-border p-3">
@@ -793,10 +822,11 @@ setTestFlowError('');
           }
           if (internal) {
             try {
+              prepareRingback();
               uaRef.current.call(`sip:${digits}@${SIP_HOST}`, {
                 mediaConstraints: microphoneConstraints(microphoneId), pcConfig: {iceServers: []},
               });
-            } catch { setNotice("Não foi possível retornar a ligação interna."); }
+            } catch { ringbackRef.current?.dispose(); setNotice("Não foi possível retornar a ligação interna."); }
             return;
           }
           const destination = normalizeNationalDestination(rawPhone);
