@@ -59,7 +59,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   const loading = configurationQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, generates_warranty: false, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
+  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, generates_warranty: false, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string; situations?: string; sla?: Record<string, string> }>({});
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
@@ -77,13 +77,13 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
-  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setForm({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, generates_warranty: false, selectedSituations: [] }); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setForm({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, generates_warranty: false, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] }); setFormOpen(true); };
   const openEdit = (item: any) => {
     if (!(canViewDetails && canEdit)) return;
     setEditItem(item);
     setFieldErrors({});
     const links = situationLinks.filter(link => link.service_type_id === item.id);
-    setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false, quote_workflow_enabled: item.quote_workflow_enabled === true, generates_warranty: item.quote_workflow_enabled === true && item.generates_warranty === true, selectedSituations: links.map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })) });
+    setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false, quote_workflow_enabled: item.quote_workflow_enabled === true, generates_warranty: item.quote_workflow_enabled === true && item.generates_warranty === true, enable_payment_proof_on_completion: item.enable_payment_proof_on_completion !== false, enable_delivery_evidence_on_completion: item.enable_delivery_evidence_on_completion === true, selectedSituations: links.map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })) });
     setFormOpen(true);
   };
   const closeForm = () => { if (saving) return; setFormOpen(false); onRouteChange?.(null, null); };
@@ -140,6 +140,8 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             is_active: editItem.is_active !== false,
             quote_workflow_enabled: form.quote_workflow_enabled,
             generates_warranty: form.quote_workflow_enabled && form.generates_warranty,
+            enable_payment_proof_on_completion: form.enable_payment_proof_on_completion,
+            enable_delivery_evidence_on_completion: form.enable_delivery_evidence_on_completion,
           }
         : {
             title: form.title.trim(),
@@ -225,6 +227,14 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
               checked={form.generates_warranty} disabled={saving}
               onChange={value => setForm(current => ({ ...current, generates_warranty: value }))} />
           </div>}
+          <div className="border-t border-border pt-4"><FToggle label="Habilitar comprovante de pagamento"
+            description="Exibe o campo de comprovante na conclusão das OS deste tipo. A obrigatoriedade é definida em Configurações da OS."
+            checked={form.enable_payment_proof_on_completion} disabled={saving}
+            onChange={value => setForm(current => ({ ...current, enable_payment_proof_on_completion: value }))} /></div>
+          <div className="border-t border-border pt-4"><FToggle label="Habilitar evidência de entrega"
+            description="Exibe o campo de evidência de entrega na conclusão das OS deste tipo. A obrigatoriedade é definida em Configurações da OS."
+            checked={form.enable_delivery_evidence_on_completion} disabled={saving}
+            onChange={value => setForm(current => ({ ...current, enable_delivery_evidence_on_completion: value }))} /></div>
         </AdminCard>
         <AdminCard className={canManageSla ? "p-5 shadow-none" : "p-5 opacity-60 shadow-none"}><div className="mb-4"><p className="text-sm font-bold text-[#0d1b2e]">Situações e SLA</p><p className="mt-1 break-words text-xs leading-relaxed text-[#5a6a82]">Selecione as situações permitidas e configure o prazo máximo de cada etapa.</p>{!canManageSla && <p className="mt-1 text-xs font-semibold text-amber-700">Sem permissão para alterar o SLA.</p>}{fieldErrors.situations && <p className="mt-2 text-[11px] font-semibold text-red-600">{fieldErrors.situations}</p>}</div><div className="columns-1 gap-3 sm:columns-2">{situations.map(situation => { const selected = form.selectedSituations.find(item => item.situation_id === situation.id); const defaultHours = Number(situation.hours); const hasDefaultHours = Number.isFinite(defaultHours) && defaultHours > 0; return <AdminCard key={situation.id} className="mb-3 w-full break-inside-avoid bg-[#f8fafc] p-3 shadow-none"><label className="flex cursor-default items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><Checkbox disabled={!canManageSla || saving} checked={Boolean(selected)} onCheckedChange={checked => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: checked === true ? [...current.selectedSituations, { situation_id: situation.id, use_default_hours: hasDefaultHours, sla_hours: "" }] : current.selectedSituations.filter(item => item.situation_id !== situation.id) }))} /><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: situation.color || "#0057e7" }} /><span className="min-w-0 break-words">{situation.name}</span>{hasDefaultHours && <span className="text-xs font-normal text-[#5a6a82]">({formatDurationHours(defaultHours)})</span>}</label>{!hasDefaultHours && <p className="ml-6 mt-1 break-words text-xs text-amber-700">Esta situação não possui horas padrão</p>}{selected && <div className="ml-6 mt-3 space-y-2 text-xs text-[#0d1b2e]"><p className="font-bold">Horas:</p><RadioGroup disabled={!canManageSla || saving} value={selected.use_default_hours ? "default" : "custom"} onValueChange={value => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, use_default_hours: value === "default", ...(value === "default" ? { sla_hours: "" } : {}) } : item) }))} className="gap-2"><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="default" disabled={!hasDefaultHours || !canManageSla || saving} /> Manter padrão ({hasDefaultHours ? formatDurationHours(defaultHours) : "—"})</label><label className="flex cursor-default items-center gap-2"><RadioGroupItem value="custom" disabled={!canManageSla || saving} /> Definir novo prazo</label></RadioGroup>{!selected.use_default_hours && <FHoursInput label="Prazo em horas" placeholder="00:00" disabled={!canManageSla || saving} error={fieldErrors.sla?.[situation.id]} value={selected.sla_hours} onChange={(e: any) => canManageSla && !saving && setForm(current => ({ ...current, selectedSituations: current.selectedSituations.map(item => item.situation_id === situation.id ? { ...item, sla_hours: e.target.value } : item) }))} />}</div>}</AdminCard>; })}</div></AdminCard>
         <FToggle label="Tipo ativo" checked={form.is_active} disabled={saving || Boolean(editItem?.id && monitoredServiceTypeIds.has(editItem.id))} onChange={is_active => setForm({ ...form, is_active })} />
