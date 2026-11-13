@@ -57,7 +57,10 @@ test("upload móvel valida existência do arquivo e atualiza a conclusão em tem
   const hook = read("src/features/orders/application/useOrderCompletion.ts");
   const bridge = read("src/features/checklists/presentation/OrderChecklistMobileBridge.tsx");
   assert.match(hook,/const refreshPaymentProofFromMobile = useCallback/);
-  assert.match(hook,/hasOrderCompletionEvidence\(organizationId, String\(detail\.id\), receiptTypes\.map/);
+  assert.match(hook,/getOrderCompletionEvidenceConfig\(organizationId, String\(detail\.id\)\)/);
+  assert.match(hook,/config\.payment_attached/);
+  assert.match(hook,/config\.delivery_attached/);
+  assert.doesNotMatch(hook, /"attachment-types", "active"/);
   assert.match(hook,/setPaymentProofAlreadyOnOrder\(true\)/);
   assert.match(hook,/setPaymentProofFile\(null\)/);
   assert.match(hook,/paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder/);
