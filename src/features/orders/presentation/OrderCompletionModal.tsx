@@ -478,7 +478,11 @@ export function OrderCompletionModal({
         : <Section title="Pagamento">
             <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
           </Section>}
-      <OrderCompletionEvidenceSection completion={completion} saving={saving} />
+      {(completion.paymentProofEnabled || completion.deliveryEvidenceEnabled) && (
+        <Section title="Evidências de conclusão">
+          <OrderCompletionEvidenceSection completion={completion} saving={saving} />
+        </Section>
+      )}
     </div>
   </AdminDialog>;
 }
