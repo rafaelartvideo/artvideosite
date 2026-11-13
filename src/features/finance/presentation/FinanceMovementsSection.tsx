@@ -164,6 +164,14 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
         <div><dt className="text-xs text-muted-foreground">Tipo</dt><dd className="text-sm font-semibold text-foreground">{MOVEMENT_LABELS[selectedMovement.movement_type]}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Origem</dt><dd className="text-sm font-semibold text-foreground">{selectedMovement.origin_order_id ? <FinanceServiceOrderLink orderId={selectedMovement.origin_order_id} label={formatFinanceOriginLabel(selectedMovement.origin_label || "Ordem de Serviço")} /> : formatFinanceOriginLabel(selectedMovement.origin_label || "Movimentação financeira")}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className={`text-sm font-semibold ${selectedMovement.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{selectedMovement.direction === "credit" ? "+" : "-"}{formatCurrency(selectedMovement.amount)}</dd></div>
+        {selectedMovement.origin_order_id && <div>
+          <dt className="text-xs text-muted-foreground">OS concluída por</dt>
+          <dd className="text-sm font-semibold text-foreground">{selectedMovement.completed_by_name || "Não identificado"}</dd>
+        </div>}
+        {["receipt", "payment"].includes(selectedMovement.movement_type) && selectedMovement.source_type === "settlement" && <div>
+          <dt className="text-xs text-muted-foreground">Baixa registrada por</dt>
+          <dd className="text-sm font-semibold text-foreground">{selectedMovement.settlement_by_name || "Não identificado"}</dd>
+        </div>}
         <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Descrição</dt><dd className="break-words text-sm font-semibold text-foreground">{selectedMovement.description_snapshot}</dd></div>
       </dl>
         {selectedMovement.movement_type === "receipt" && selectedMovement.origin_order_id && selectedMovement.origin_entry_id &&
