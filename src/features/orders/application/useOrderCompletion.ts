@@ -6,8 +6,6 @@ import { assertOrderRulesForStage } from "../infrastructure/order-rules-validati
 import {
   attachOrderSituationDocument,
   getOrderCompletionEvidenceConfig,
-  hasOrderCompletionEvidence,
-  listAttachmentTypes,
 } from "../infrastructure/order-documents.repository";
 import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate, type WarrantyOption, type WarrantyCertificate } from "./order-warranty";
 import {
@@ -302,32 +300,22 @@ export function useOrderCompletion({
     }
   };
 
-  // Consulta o catálogo somente quando o operador escolhe um comprovante.
-  // Reutiliza o cache da aba Documentos, evitando requests em toda abertura do modal.
+  // Reserva para um arquivo selecionado antes da verificação inicial.
+  // O RPC autorizado retorna o tipo desta OS sem consultar o catálogo geral.
   const loadPaymentProofType = async (organizationId: string, requestId: number) => {
+    if (!detail?.id) return;
     setPaymentProofTypeLoading(true);
     setPaymentProofTypeError("");
     try {
-      const types = await queryClient.fetchQuery({
-        queryKey: ["documents", organizationId, "attachment-types", "active"],
-        queryFn: async () => {
-          const { data, error } = await listAttachmentTypes(true, organizationId);
-          if (error) throw error;
-          return data || [];
-        },
-        staleTime: 10 * 60_000,
-      });
+      const config = await getOrderCompletionEvidenceConfig(organizationId, String(detail.id));
       if (paymentProofRequestRef.current !== requestId) return;
-      const type = types.find(candidate => candidate.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento");
-      if (!type) {
-        setPaymentProofTypeError("Tipo Comprovante de pagamento não disponível para esta empresa.");
+      if (!config.payment_attachment_type_id) {
+        setPaymentProofTypeError("O comprovante não está configurado para este atendimento.");
         return;
       }
-      setPaymentProofAttachmentTypeId(type.id);
+      setPaymentProofAttachmentTypeId(config.payment_attachment_type_id);
     } catch (error) {
-      if (paymentProofRequestRef.current === requestId) {
-        setPaymentProofTypeError(formatError(error));
-      }
+      if (paymentProofRequestRef.current === requestId) setPaymentProofTypeError(formatError(error));
     } finally {
       if (paymentProofRequestRef.current === requestId) setPaymentProofTypeLoading(false);
     }
@@ -345,33 +333,16 @@ export function useOrderCompletion({
       setPaymentProofRequired(config.payment_required && !freeCoverage);
       setDeliveryEvidenceEnabled(config.delivery_enabled);
       setDeliveryEvidenceRequired(config.delivery_required);
-      if (!config.payment_enabled && !config.delivery_enabled) return;
-
-      const types = await queryClient.fetchQuery({
-        queryKey: ["documents", organizationId, "attachment-types", "active"],
-        queryFn: async () => {
-          const { data, error } = await listAttachmentTypes(true, organizationId);
-          if (error) throw error;
-          return data || [];
-        },
-        staleTime: 10 * 60_000,
-      });
-      if (paymentProofRequirementRequestRef.current !== requestId) return;
-      const normalized = (value: string) => value.trim().normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
-      const receiptTypes = types.filter(type => normalized(type.name) === "comprovante de pagamento");
-      const deliveryTypes = types.filter(type => normalized(type.name) === "evidencia de entrega");
-      if (config.payment_enabled && !receiptTypes.length) throw new Error("O tipo de anexo Comprovante de pagamento não está disponível nesta empresa.");
-      if (config.delivery_enabled && !deliveryTypes.length) throw new Error("O tipo de anexo Evidência de entrega não está disponível nesta empresa.");
-      setPaymentProofAttachmentTypeId(receiptTypes[0]?.id || "");
-      setDeliveryEvidenceAttachmentTypeId(deliveryTypes[0]?.id || "");
-      const [receiptAttached, deliveryAttached] = await Promise.all([
-        config.payment_enabled ? hasOrderCompletionEvidence(organizationId, serviceOrderId, receiptTypes.map(type => type.id)) : Promise.resolve(false),
-        config.delivery_enabled ? hasOrderCompletionEvidence(organizationId, serviceOrderId, deliveryTypes.map(type => type.id)) : Promise.resolve(false),
-      ]);
-      if (paymentProofRequirementRequestRef.current !== requestId) return;
-      setPaymentProofAlreadyOnOrder(receiptAttached);
-      setDeliveryEvidenceAlreadyOnOrder(deliveryAttached);
+      if (config.payment_enabled && !config.payment_attachment_type_id) {
+        throw new Error("O comprovante de pagamento não está configurado para esta empresa.");
+      }
+      if (config.delivery_enabled && !config.delivery_attachment_type_id) {
+        throw new Error("A evidência de entrega não está configurada para esta empresa.");
+      }
+      setPaymentProofAttachmentTypeId(config.payment_attachment_type_id || "");
+      setDeliveryEvidenceAttachmentTypeId(config.delivery_attachment_type_id || "");
+      setPaymentProofAlreadyOnOrder(config.payment_attached);
+      setDeliveryEvidenceAlreadyOnOrder(config.delivery_attached);
     } catch (error) {
       if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofRequirementError(formatError(error));
     } finally {
@@ -384,27 +355,13 @@ export function useOrderCompletion({
     if (!open || !detail?.organization_id || !detail?.id) return;
     const requestId = paymentProofRequirementRequestRef.current;
     const organizationId = String(detail.organization_id);
-    const types = await queryClient.fetchQuery({
-      queryKey: ["documents", organizationId, "attachment-types", "active"],
-      queryFn: async () => {
-        const { data, error } = await listAttachmentTypes(true, organizationId);
-        if (error) throw error;
-        return data || [];
-      },
-      staleTime: 10 * 60_000,
-    });
-    const normalized = (value: string) => value.trim().normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
-    const receiptTypes = types.filter(type => normalized(type.name) === "comprovante de pagamento");
-    const deliveryTypes = types.filter(type => normalized(type.name) === "evidencia de entrega");
-    const [receiptAttached, deliveryAttached] = await Promise.all([
-      receiptTypes.length ? hasOrderCompletionEvidence(organizationId, String(detail.id), receiptTypes.map(type => type.id)) : Promise.resolve(false),
-      deliveryTypes.length ? hasOrderCompletionEvidence(organizationId, String(detail.id), deliveryTypes.map(type => type.id)) : Promise.resolve(false),
-    ]);
+    const config = await getOrderCompletionEvidenceConfig(organizationId, String(detail.id));
     if (requestId !== paymentProofRequirementRequestRef.current) return;
-    if (receiptAttached) { setPaymentProofAlreadyOnOrder(true); setPaymentProofFile(null); }
-    if (deliveryAttached) { setDeliveryEvidenceAlreadyOnOrder(true); setDeliveryEvidenceFile(null); }
-    if (receiptAttached || deliveryAttached) {
+    setPaymentProofAttachmentTypeId(config.payment_attachment_type_id || "");
+    setDeliveryEvidenceAttachmentTypeId(config.delivery_attachment_type_id || "");
+    if (config.payment_attached) { setPaymentProofAlreadyOnOrder(true); setPaymentProofFile(null); }
+    if (config.delivery_attached) { setDeliveryEvidenceAlreadyOnOrder(true); setDeliveryEvidenceFile(null); }
+    if (config.payment_attached || config.delivery_attached) {
       void queryClient.invalidateQueries({ queryKey: ["orders", organizationId, String(detail.id), "situation-documents"] });
     }
   }, [open, detail?.id, detail?.organization_id, queryClient]);
