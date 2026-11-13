@@ -17,6 +17,7 @@ import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-c
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { OrderCompletionPaymentSection, OrderCompletionEvidenceSection } from "./OrderCompletionPaymentSection";
+import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 import { OrderConclusionButton } from "./OrderConclusionButton";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
@@ -475,7 +476,17 @@ export function OrderCompletionModal({
             <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
           </Section>}
       {(completion.paymentProofEnabled || completion.deliveryEvidenceEnabled) && (
-        <Section title="Evidências de conclusão">
+        <Section title="Evidências de conclusão" actions={
+          completion.canAttachPaymentProof && completion.paymentProofOrderId ? (
+            <OrderChecklistMobileBridge
+              orderId={completion.paymentProofOrderId}
+              osNumber={completion.paymentProofOsNumber}
+              scope="payment-proof"
+              disabled={saving}
+              onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
+            />
+          ) : null
+        }>
           <OrderCompletionEvidenceSection completion={completion} saving={saving} />
         </Section>
       )}
