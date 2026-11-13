@@ -40,6 +40,10 @@ export type OrderCompletionEvidenceConfig = {
   payment_required: boolean;
   delivery_enabled: boolean;
   delivery_required: boolean;
+  payment_attachment_type_id: string | null;
+  delivery_attachment_type_id: string | null;
+  payment_attached: boolean;
+  delivery_attached: boolean;
 };
 
 export async function getOrderCompletionEvidenceConfig(
