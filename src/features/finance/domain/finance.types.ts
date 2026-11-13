@@ -196,6 +196,10 @@ export interface FinancialMovement {
   origin_order_id?: string | null;
   /** Título financeiro que originou a movimentação, usado para ver o comprovante. */
   origin_entry_id?: string | null;
+  /** Funcionário que concluiu a OS vinculada, se identificável. */
+  completed_by_name?: string | null;
+  /** Funcionário que registrou a baixa financeira. */
+  settlement_by_name?: string | null;
   reversal_of_movement_id: string | null;
   cash_session_id?: string | null;
   description_snapshot: string;
