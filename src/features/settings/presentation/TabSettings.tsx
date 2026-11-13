@@ -30,6 +30,7 @@ type CompanyForm = {
   company_logo_media_id: string;
   company_menu_logo_media_id: string;
   require_payment_proof_on_completion: boolean;
+  require_delivery_evidence_on_completion: boolean;
 };
 
 const EMPTY_COMPANY: CompanyForm = {
@@ -38,6 +39,7 @@ const EMPTY_COMPANY: CompanyForm = {
   company_neighborhood: "", company_city: "", company_state: "", company_logo_media_id: "",
   company_menu_logo_media_id: "",
   require_payment_proof_on_completion: false,
+  require_delivery_evidence_on_completion: false,
 };
 const COMPANY_KEYS = Object.keys(EMPTY_COMPANY) as Array<keyof CompanyForm>;
 const settingText = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : "";
@@ -73,6 +75,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
     setForm({
       ...loaded,
       require_payment_proof_on_completion: query.data.require_payment_proof_on_completion === true,
+      require_delivery_evidence_on_completion: query.data.require_delivery_evidence_on_completion === true,
       company_cnpj: detectedDocumentType === "CPF" ? formatCpf(loaded.company_cnpj) : formatCnpj(loaded.company_cnpj),
       company_phone: formatPhone(loaded.company_phone),
       company_zip_code: formatZipCode(loaded.company_zip_code),
@@ -128,6 +131,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
             company_logo_media_id: form.company_logo_media_id,
             company_menu_logo_media_id: form.company_menu_logo_media_id,
             require_payment_proof_on_completion: form.require_payment_proof_on_completion,
+            require_delivery_evidence_on_completion: form.require_delivery_evidence_on_completion,
           }
         : form;
       await saveSettings.mutateAsync({
