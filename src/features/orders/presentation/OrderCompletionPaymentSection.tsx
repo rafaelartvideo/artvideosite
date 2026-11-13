@@ -13,17 +13,25 @@ const quickCounts = [2, 3, 4, 5, 6];
 const moreCounts = [7, 8, 9, 10, 12];
 
 
-function OrderPaymentProofPicker({ completion, saving }: { completion: CompletionController; saving: boolean }) {
+type EvidenceKind = "payment" | "delivery";
+
+function OrderCompletionEvidencePicker({ completion, saving, kind }: {
+  completion: CompletionController; saving: boolean; kind: EvidenceKind;
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const file = completion.paymentProofFile;
+  const payment = kind === "payment";
+  const title = payment ? "Comprovante de pagamento" : "Evidência de entrega";
+  const required = payment ? completion.paymentProofRequired : completion.deliveryEvidenceRequired;
+  const file = payment ? completion.paymentProofFile : completion.deliveryEvidenceFile;
+  const attached = payment
+    ? completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder
+    : completion.deliveryEvidenceAttached || completion.deliveryEvidenceAlreadyOnOrder;
+  const choose = payment ? completion.choosePaymentProof : completion.chooseDeliveryEvidence;
 
   useEffect(() => {
-    if (!file?.type.startsWith("image/")) {
-      setPreviewUrl(null);
-      return;
-    }
+    if (!file?.type.startsWith("image/")) { setPreviewUrl(null); return; }
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -31,40 +39,36 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
 
   const select = (files: FileList | null) => {
     const selected = files?.item(0);
-    if (selected) completion.choosePaymentProof(selected);
+    if (selected) choose(selected);
   };
 
-  return <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
+  return <div className="min-w-0 space-y-3 rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-bold text-foreground">Comprovante de pagamento</p>
-        <span className={`text-[10px] font-semibold ${completion.paymentProofRequired ? "text-destructive" : "text-muted-foreground"}`}>
-          {completion.paymentProofRequired ? "(obrigatório)" : "(opcional)"}
+        <p className="text-sm font-bold text-foreground">{title}</p>
+        <span className={`text-[10px] font-semibold ${required ? "text-destructive" : "text-muted-foreground"}`}>
+          {required ? "(obrigatório)" : "(opcional)"}
         </span>
       </div>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        {completion.paymentProofRequired
-          ? "Esta empresa exige um comprovante antes de concluir a OS, inclusive quando há valores pendentes."
-          : "Se o pagamento já foi recebido, anexe uma foto ou PDF do comprovante."}
-        {" "}O arquivo ficará disponível em Documentos → Anexos da OS.
+        {payment
+          ? required ? "Anexe o comprovante antes de concluir a OS, mesmo com valores pendentes."
+            : "Anexe um comprovante caso o pagamento já tenha sido recebido."
+          : required ? "Registre uma foto ou PDF que comprove a entrega antes de concluir a OS."
+            : "Você pode registrar uma foto ou PDF da entrega do equipamento."}
+        {" "}O arquivo ficará em Documentos → Anexos da OS.
       </p>
     </div>
-
-    {completion.paymentProofRequirementLoading && <p role="status" className="text-xs text-muted-foreground">Verificando exigência de comprovante...</p>}
-    {completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">
-      Não foi possível verificar a exigência do comprovante: {completion.paymentProofRequirementError}
-    </p>}
-    {completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder ? <p role="status"
-      className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 size={16} /> Comprovante anexado à OS. Não é necessário enviar novamente.
+    {attached ? <p role="status" className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+      <CheckCircle2 size={16} /> {title} anexado à OS.
     </p> : !completion.canAttachPaymentProof ? <p className="text-xs text-muted-foreground">
-      Seu perfil não possui permissão para anexar documentos. A conclusão da OS continua disponível.
+      Seu perfil não possui permissão para anexar documentos.
     </p> : <>
-      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" className="hidden"
-        aria-label="Selecionar foto ou PDF do comprovante"
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+        className="hidden" aria-label={`Selecionar arquivo de ${title.toLowerCase()}`}
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
-      <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden"
-        aria-label="Fotografar comprovante"
+      <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+        capture="environment" className="hidden" aria-label={`Fotografar ${title.toLowerCase()}`}
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <button type="button" disabled={saving} onClick={() => cameraInputRef.current?.click()}
@@ -75,39 +79,56 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
           className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:flex-none md:px-4">
           <Upload size={16} /> Selecionar arquivo
         </button>
-        {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
-          <div className="hidden md:block">
-            <OrderChecklistMobileBridge
-              orderId={completion.paymentProofOrderId}
-              osNumber={completion.paymentProofOsNumber}
-              scope="payment-proof"
-              disabled={saving || completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder}
-              onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
-            />
-          </div>
-        )}
       </div>
       {file && <div className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/20 bg-card p-2.5">
-        {previewUrl ? <img src={previewUrl} alt="Prévia do comprovante selecionado" className="h-14 w-14 shrink-0 rounded-md object-cover" />
+        {previewUrl ? <img src={previewUrl} alt={`Prévia: ${title}`} className="h-14 w-14 shrink-0 rounded-md object-cover" />
           : <FileText size={22} className="shrink-0 text-primary" />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-bold text-foreground" title={file.name}>{file.name}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {(file.size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB
-            {file.type.startsWith("image/") ? " · Foto otimizada automaticamente ao enviar" : " · Arquivo preservado"}
+            {file.type.startsWith("image/") ? " · Foto otimizada automaticamente" : " · PDF preservado"}
           </p>
         </div>
-        <button type="button" onClick={() => completion.choosePaymentProof(null)} disabled={saving}
-          aria-label="Remover comprovante selecionado" title="Remover arquivo" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-50">
+        <button type="button" onClick={() => choose(null)} disabled={saving}
+          aria-label={`Remover arquivo de ${title.toLowerCase()}`} title="Remover arquivo"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-50">
           <X size={16} />
         </button>
       </div>}
-      {completion.paymentProofTypeLoading && <p role="status" className="text-xs text-muted-foreground">Preparando anexo...</p>}
-      {file && completion.paymentProofTypeError && <p role="alert" className="text-xs font-semibold text-destructive">
-        {completion.paymentProofTypeError}
-      </p>}
+      {payment && completion.paymentProofTypeLoading && <p role="status" className="text-xs text-muted-foreground">Preparando anexo...</p>}
+      {payment && file && completion.paymentProofTypeError && <p role="alert" className="text-xs font-semibold text-destructive">{completion.paymentProofTypeError}</p>}
       <p className="text-[11px] text-muted-foreground">JPG, PNG, WebP ou PDF. Fotos comprimidas com qualidade adequada para leitura; PDF sem alterações.</p>
     </>}
+  </div>;
+}
+
+export function OrderCompletionEvidenceSection({ completion, saving }: {
+  completion: CompletionController; saving: boolean;
+}) {
+  if (!completion.paymentProofEnabled && !completion.deliveryEvidenceEnabled) return null;
+  return <div className="space-y-3">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-bold text-foreground">Evidências de conclusão</p>
+        <p className="mt-1 text-xs text-muted-foreground">Anexos da OS, definidos por tipo de atendimento.</p>
+      </div>
+      {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
+        <OrderChecklistMobileBridge
+          orderId={completion.paymentProofOrderId}
+          osNumber={completion.paymentProofOsNumber}
+          scope="payment-proof"
+          disabled={saving}
+          onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
+        />
+      )}
+    </div>
+    {completion.paymentProofRequirementLoading && <p role="status" className="text-xs text-muted-foreground">Verificando exigências dos anexos...</p>}
+    {completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">Não foi possível verificar as evidências: {completion.paymentProofRequirementError}</p>}
+    <div className="grid min-w-0 gap-3 md:grid-cols-2">
+      {completion.paymentProofEnabled && !completion.coverageFree && <OrderCompletionEvidencePicker completion={completion} saving={saving} kind="payment" />}
+      {completion.deliveryEvidenceEnabled && <OrderCompletionEvidencePicker completion={completion} saving={saving} kind="delivery" />}
+    </div>
   </div>;
 }
 
@@ -416,6 +437,6 @@ export function OrderCompletionPaymentSection({
         </div>
       </div>
     </div>
-    <OrderPaymentProofPicker completion={completion} saving={saving} />
+
   </div>;
 }
