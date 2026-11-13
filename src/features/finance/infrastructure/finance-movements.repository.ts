@@ -77,6 +77,7 @@ export async function listFinancialMovementsPage(
     .map(item => item.source_id)));
   const originBySettlement = new Map<string, string>();
   const orderIdBySettlement = new Map<string, string>();
+  const entryIdBySettlement = new Map<string, string>();
 
   // A origem real fica no título vinculado à baixa, não no tipo do lançamento bancário.
   // Uma falha na consulta complementar não deve impedir a visualização do extrato.
@@ -99,6 +100,7 @@ export async function listFinancialMovementsPage(
           for (const settlement of settlements) {
             const entry = entryById.get(settlement.financial_entry_id);
             if (!entry) continue;
+            entryIdBySettlement.set(settlement.id, entry.id);
             const osNumber = String((entry.source_details as Record<string, unknown> | null)?.os_number || "").trim();
             const origin = entry.origin_type === "service_order" ? financeServiceOrderLabel(osNumber)
               : entry.origin_type === "inventory_purchase" ? "Compra de estoque"
@@ -121,6 +123,7 @@ export async function listFinancialMovementsPage(
     items: items.map(item => ({
       ...item,
       origin_order_id: orderIdBySettlement.get(item.source_id) || null,
+      origin_entry_id: entryIdBySettlement.get(item.source_id) || null,
       origin_label: originBySettlement.get(item.source_id) || (
         item.source_type === "transfer" || item.source_type === "transfer_reversal" ? "Transferência entre contas"
         : item.source_type === "cash_session" ? "Caixa físico"
