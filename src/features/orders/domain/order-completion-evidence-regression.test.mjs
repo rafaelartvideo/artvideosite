@@ -33,9 +33,10 @@ test("conclusão valida e envia dois anexos distintos, exibidos lado a lado", as
   assert.match(payment, /md:grid-cols-2/);
   assert.match(payment, /kind="payment"/);
   assert.match(payment, /kind="delivery"/);
-  assert.equal((payment.match(/<OrderChecklistMobileBridge/g) || []).length, 1);
+  assert.equal((modal.match(/<OrderChecklistMobileBridge/g) || []).length, 1);
+  assert.equal((payment.match(/<OrderChecklistMobileBridge/g) || []).length, 0);
   assert.match(modal, /OrderCompletionEvidenceSection/);
-  assert.match(modal, /<Section title="Evidências de conclusão">/);
+  assert.match(modal, /<Section title="Evidências de conclusão" actions=\{/);
   assert.doesNotMatch(payment, /JPG, PNG, WebP ou PDF\. Fotos comprimidas com qualidade adequada para leitura; PDF sem alterações\./);
   assert.doesNotMatch(payment, /<p className="text-sm font-bold text-foreground">Evidências de conclusão<\/p>/);
   assert.match(modal, /completion\.deliveryEvidenceRequired && !completion\.deliveryEvidenceFile/);
