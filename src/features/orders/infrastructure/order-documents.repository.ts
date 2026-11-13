@@ -35,6 +35,30 @@ export async function listAttachmentTypes(activeOnly = true, organizationIdOverr
   return query as Promise<{ data: AttachmentType[] | null; error: any }>;
 }
 
+export type OrderCompletionEvidenceConfig = {
+  payment_enabled: boolean;
+  payment_required: boolean;
+  delivery_enabled: boolean;
+  delivery_required: boolean;
+};
+
+export async function getOrderCompletionEvidenceConfig(
+  organizationId: string, serviceOrderId: string,
+): Promise<OrderCompletionEvidenceConfig> {
+  const { data, error } = await (supabase as any).rpc("get_order_completion_evidence_config_v1", {
+    p_organization_id: organizationId, p_service_order_id: serviceOrderId,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== "object") throw new Error("Não foi possível obter as exigências dos anexos de conclusão.");
+  return data as OrderCompletionEvidenceConfig;
+}
+
+export async function hasOrderCompletionEvidence(
+  organizationId: string, serviceOrderId: string, attachmentTypeIds: string[],
+): Promise<boolean> {
+  return hasOrderPaymentProof(organizationId, serviceOrderId, attachmentTypeIds);
+}
+
 export async function getOrderPaymentProofRequirement(organizationId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("get_order_payment_proof_requirement_v1" as any, {
     p_organization_id: organizationId,
