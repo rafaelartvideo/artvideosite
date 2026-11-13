@@ -50,6 +50,7 @@ export type MobileOrderChecklistData = {
   documents?: {
     attachment_types: { id: string; name: string }[];
     attachment_count: number;
+    completion_evidence?: { payment_enabled: boolean; delivery_enabled: boolean };
     situations: { id: string; name: string; color: string | null; count: number; can_upload: boolean }[];
   } | null;
   checklist: {
