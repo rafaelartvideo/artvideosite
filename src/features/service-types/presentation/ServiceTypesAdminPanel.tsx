@@ -150,6 +150,8 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             is_active: form.is_active,
             quote_workflow_enabled: form.quote_workflow_enabled,
             generates_warranty: form.quote_workflow_enabled && form.generates_warranty,
+            enable_payment_proof_on_completion: form.enable_payment_proof_on_completion,
+            enable_delivery_evidence_on_completion: form.enable_delivery_evidence_on_completion,
           };
       await saveServiceType({
         serviceTypeId: editItem?.id,
