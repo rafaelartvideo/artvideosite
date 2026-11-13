@@ -26,7 +26,9 @@ const TYPE_OPTIONS = [
   { value: "other", label: "Outro" },
 ];
 
-function typeLabel(value: string) {
+function typeLabel(value: string, sourceKind?: FinancialAttachment["source_document_kind"]) {
+  if (sourceKind === "delivery_evidence") return "Evidência de entrega";
+  if (sourceKind === "payment_proof") return "Comprovante de pagamento";
   return TYPE_OPTIONS.find(item => item.value === value)?.label || "Documento";
 }
 
@@ -152,7 +154,7 @@ export function FinanceDocumentsPanel({ entryId, orderId, orderNumber }: { entry
                   <span className="block truncate">{item.file_name}</span>
                   {item.source_media_id && <span className="mt-1 block text-[10px] font-medium text-muted-foreground">Vinculado à {orderId ? <FinanceServiceOrderLink orderId={orderId} number={orderNumber} /> : "OS"} · arquivo original</span>}
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{typeLabel(item.attachment_type)}</td>
+                <td className="px-4 py-3 text-muted-foreground">{typeLabel(item.attachment_type, item.source_document_kind)}</td>
                 <td className="px-4 py-3 tabular-nums text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatSize(item.size_bytes)}</td>
                 <td className="px-4 py-3">
