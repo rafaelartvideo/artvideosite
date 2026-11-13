@@ -16,7 +16,7 @@ import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domai
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
-import { OrderCompletionPaymentSection } from "./OrderCompletionPaymentSection";
+import { OrderCompletionPaymentSection, OrderCompletionEvidenceSection } from "./OrderCompletionPaymentSection";
 import { OrderConclusionButton } from "./OrderConclusionButton";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
@@ -289,6 +289,7 @@ export function OrderCompletionModal({
           {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
         </div>)}
         {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
+        {completion.deliveryEvidenceAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Evidência de entrega salva nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
       </div>
     </AdminDialog>;
@@ -305,8 +306,12 @@ export function OrderCompletionModal({
     || (completion.commercialPricing && Boolean(completion.commercialItemsError))
     || completion.paymentProofRequirementLoading
     || Boolean(completion.paymentProofRequirementError)
-    || (completion.paymentProofRequired && !completion.paymentProofFile
+    || (completion.paymentProofEnabled && !completion.coverageFree && completion.paymentProofRequired && !completion.paymentProofFile
       && !completion.paymentProofAttached && !completion.paymentProofAlreadyOnOrder)
+    || (completion.deliveryEvidenceEnabled && completion.deliveryEvidenceRequired && !completion.deliveryEvidenceFile
+      && !completion.deliveryEvidenceAttached && !completion.deliveryEvidenceAlreadyOnOrder)
+    || (Boolean(completion.deliveryEvidenceFile) && !completion.paymentProofRequirementLoading && !completion.deliveryEvidenceAlreadyOnOrder
+      && Boolean(completion.paymentProofRequirementError))
     || (Boolean(completion.paymentProofFile) && (completion.paymentProofTypeLoading || Boolean(completion.paymentProofTypeError)));
 
   return <AdminDialog
@@ -473,6 +478,7 @@ export function OrderCompletionModal({
         : <Section title="Pagamento">
             <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
           </Section>}
+      <OrderCompletionEvidenceSection completion={completion} saving={saving} />
     </div>
   </AdminDialog>;
 }
