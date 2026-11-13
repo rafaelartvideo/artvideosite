@@ -98,7 +98,6 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
       </div>}
       {payment && completion.paymentProofTypeLoading && <p role="status" className="text-xs text-muted-foreground">Preparando anexo...</p>}
       {payment && file && completion.paymentProofTypeError && <p role="alert" className="text-xs font-semibold text-destructive">{completion.paymentProofTypeError}</p>}
-      <p className="text-[11px] text-muted-foreground">JPG, PNG, WebP ou PDF. Fotos comprimidas com qualidade adequada para leitura; PDF sem alterações.</p>
     </>}
   </div>;
 }
@@ -108,11 +107,7 @@ export function OrderCompletionEvidenceSection({ completion, saving }: {
 }) {
   if (!completion.paymentProofEnabled && !completion.deliveryEvidenceEnabled) return null;
   return <div className="space-y-3">
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <div>
-        <p className="text-sm font-bold text-foreground">Evidências de conclusão</p>
-        <p className="mt-1 text-xs text-muted-foreground">Anexos da OS, definidos por tipo de atendimento.</p>
-      </div>
+    <div className="flex min-w-0 justify-end">
       {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
         <OrderChecklistMobileBridge
           orderId={completion.paymentProofOrderId}
