@@ -194,6 +194,8 @@ export interface FinancialMovement {
   origin_label?: string;
   /** Identificador real da OS vinculada à baixa, quando existir. */
   origin_order_id?: string | null;
+  /** Título financeiro que originou a movimentação, usado para ver o comprovante. */
+  origin_entry_id?: string | null;
   reversal_of_movement_id: string | null;
   cash_session_id?: string | null;
   description_snapshot: string;
@@ -282,6 +284,8 @@ export interface FinancialAttachment {
   storage_path: string;
   storage_bucket?: "financial-documents" | "service-images";
   source_media_id?: string | null;
+  /** Classificação do anexo compartilhado com a OS, sem duplicar o arquivo. */
+  source_document_kind?: "payment_proof" | "delivery_evidence" | null;
   mime_type: string | null;
   size_bytes: number | null;
   created_by: string | null;
