@@ -5,8 +5,8 @@ import { completeServiceOrder } from "../infrastructure/orders.repository";
 import { assertOrderRulesForStage } from "../infrastructure/order-rules-validation.repository";
 import {
   attachOrderSituationDocument,
-  getOrderPaymentProofRequirement,
-  hasOrderPaymentProof,
+  getOrderCompletionEvidenceConfig,
+  hasOrderCompletionEvidence,
   listAttachmentTypes,
 } from "../infrastructure/order-documents.repository";
 import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate, type WarrantyOption, type WarrantyCertificate } from "./order-warranty";
@@ -142,7 +142,14 @@ export function useOrderCompletion({
   const queryClient = useQueryClient();
   const paymentProofRequestRef = useRef(0);
   const paymentProofRequirementRequestRef = useRef(0);
+  const [paymentProofEnabled, setPaymentProofEnabled] = useState(true);
   const [paymentProofRequired, setPaymentProofRequired] = useState(false);
+  const [deliveryEvidenceEnabled, setDeliveryEvidenceEnabled] = useState(false);
+  const [deliveryEvidenceRequired, setDeliveryEvidenceRequired] = useState(false);
+  const [deliveryEvidenceFile, setDeliveryEvidenceFile] = useState<File | null>(null);
+  const [deliveryEvidenceAttachmentTypeId, setDeliveryEvidenceAttachmentTypeId] = useState("");
+  const [deliveryEvidenceAlreadyOnOrder, setDeliveryEvidenceAlreadyOnOrder] = useState(false);
+  const [deliveryEvidenceAttached, setDeliveryEvidenceAttached] = useState(false);
   const [paymentProofRequirementLoading, setPaymentProofRequirementLoading] = useState(false);
   const [paymentProofRequirementError, setPaymentProofRequirementError] = useState("");
   const [paymentProofAlreadyOnOrder, setPaymentProofAlreadyOnOrder] = useState(false);
@@ -326,18 +333,19 @@ export function useOrderCompletion({
     }
   };
 
-  const loadPaymentProofRequirement = async (organizationId: string, serviceOrderId: string, requestId: number) => {
+  const loadPaymentProofRequirement = async (
+    organizationId: string, serviceOrderId: string, requestId: number, freeCoverage: boolean,
+  ) => {
     setPaymentProofRequirementLoading(true);
     setPaymentProofRequirementError("");
     try {
-      const required = await queryClient.fetchQuery({
-        queryKey: ["orders", organizationId, "payment-proof-required"],
-        queryFn: () => getOrderPaymentProofRequirement(organizationId),
-        staleTime: 30_000,
-      });
+      const config = await getOrderCompletionEvidenceConfig(organizationId, serviceOrderId);
       if (paymentProofRequirementRequestRef.current !== requestId) return;
-      setPaymentProofRequired(required);
-      if (!required) return;
+      setPaymentProofEnabled(config.payment_enabled);
+      setPaymentProofRequired(config.payment_required && !freeCoverage);
+      setDeliveryEvidenceEnabled(config.delivery_enabled);
+      setDeliveryEvidenceRequired(config.delivery_required);
+      if (!config.payment_enabled && !config.delivery_enabled) return;
 
       const types = await queryClient.fetchQuery({
         queryKey: ["documents", organizationId, "attachment-types", "active"],
@@ -349,12 +357,21 @@ export function useOrderCompletion({
         staleTime: 10 * 60_000,
       });
       if (paymentProofRequirementRequestRef.current !== requestId) return;
-      const receiptTypes = types.filter(type => type.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento");
-      if (!receiptTypes.length) throw new Error("O tipo de anexo Comprovante de pagamento não está disponível nesta empresa.");
-      setPaymentProofAttachmentTypeId(receiptTypes[0].id);
-
-      const alreadyOnOrder = await hasOrderPaymentProof(organizationId, serviceOrderId, receiptTypes.map(type => type.id));
-      if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofAlreadyOnOrder(alreadyOnOrder);
+      const normalized = (value: string) => value.trim().normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+      const receiptTypes = types.filter(type => normalized(type.name) === "comprovante de pagamento");
+      const deliveryTypes = types.filter(type => normalized(type.name) === "evidencia de entrega");
+      if (config.payment_enabled && !receiptTypes.length) throw new Error("O tipo de anexo Comprovante de pagamento não está disponível nesta empresa.");
+      if (config.delivery_enabled && !deliveryTypes.length) throw new Error("O tipo de anexo Evidência de entrega não está disponível nesta empresa.");
+      setPaymentProofAttachmentTypeId(receiptTypes[0]?.id || "");
+      setDeliveryEvidenceAttachmentTypeId(deliveryTypes[0]?.id || "");
+      const [receiptAttached, deliveryAttached] = await Promise.all([
+        config.payment_enabled ? hasOrderCompletionEvidence(organizationId, serviceOrderId, receiptTypes.map(type => type.id)) : Promise.resolve(false),
+        config.delivery_enabled ? hasOrderCompletionEvidence(organizationId, serviceOrderId, deliveryTypes.map(type => type.id)) : Promise.resolve(false),
+      ]);
+      if (paymentProofRequirementRequestRef.current !== requestId) return;
+      setPaymentProofAlreadyOnOrder(receiptAttached);
+      setDeliveryEvidenceAlreadyOnOrder(deliveryAttached);
     } catch (error) {
       if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofRequirementError(formatError(error));
     } finally {
@@ -362,9 +379,7 @@ export function useOrderCompletion({
     }
   };
 
-  // O celular grava o comprovante diretamente em Documentos → Anexos.
-  // Atualiza a exigência no modal aberto sem duplicar o arquivo nem refazer
-  // cálculos financeiros ou reabrir a conclusão da OS.
+  // Uma conexão pelo celular recebe tanto o comprovante quanto a evidência de entrega.
   const refreshPaymentProofFromMobile = useCallback(async () => {
     if (!open || !detail?.organization_id || !detail?.id) return;
     const requestId = paymentProofRequirementRequestRef.current;
@@ -378,17 +393,18 @@ export function useOrderCompletion({
       },
       staleTime: 10 * 60_000,
     });
-    const receiptTypeIds = types
-      .filter(type => type.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento")
-      .map(type => type.id);
-    if (!receiptTypeIds.length) return;
-    const attached = await hasOrderPaymentProof(organizationId, String(detail.id), receiptTypeIds);
+    const normalized = (value: string) => value.trim().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    const receiptTypes = types.filter(type => normalized(type.name) === "comprovante de pagamento");
+    const deliveryTypes = types.filter(type => normalized(type.name) === "evidencia de entrega");
+    const [receiptAttached, deliveryAttached] = await Promise.all([
+      receiptTypes.length ? hasOrderCompletionEvidence(organizationId, String(detail.id), receiptTypes.map(type => type.id)) : Promise.resolve(false),
+      deliveryTypes.length ? hasOrderCompletionEvidence(organizationId, String(detail.id), deliveryTypes.map(type => type.id)) : Promise.resolve(false),
+    ]);
     if (requestId !== paymentProofRequirementRequestRef.current) return;
-    if (attached) {
-      setPaymentProofAlreadyOnOrder(true);
-      // A cópia móvel foi persistida e não deve ser enviada outra vez por
-      // engano ao concluir; o histórico mantém o arquivo enviado.
-      setPaymentProofFile(null);
+    if (receiptAttached) { setPaymentProofAlreadyOnOrder(true); setPaymentProofFile(null); }
+    if (deliveryAttached) { setDeliveryEvidenceAlreadyOnOrder(true); setDeliveryEvidenceFile(null); }
+    if (receiptAttached || deliveryAttached) {
       void queryClient.invalidateQueries({ queryKey: ["orders", organizationId, String(detail.id), "situation-documents"] });
     }
   }, [open, detail?.id, detail?.organization_id, queryClient]);
@@ -420,6 +436,25 @@ export function useOrderCompletion({
     }
   };
 
+  const chooseDeliveryEvidence = (file: File | null) => {
+    if (!file) { setDeliveryEvidenceFile(null); return; }
+    const supportedImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+    const supportedPdf = file.type === "application/pdf" || (file.type === "" && /\.pdf$/i.test(file.name));
+    if (!supportedImage && !supportedPdf) {
+      showToast({ msg: "Selecione a evidência de entrega em JPG, PNG, WebP ou PDF.", type: "error" });
+      return;
+    }
+    if (file.size <= 0 || file.size > (supportedPdf ? 20 : 25) * 1024 * 1024) {
+      showToast({ msg: supportedPdf ? "O PDF deve ter até 20 MB." : "A foto deve ter até 25 MB.", type: "error" });
+      return;
+    }
+    if (!hasPermission("orders.section.images")) {
+      showToast({ msg: "Seu perfil não possui permissão para anexar documentos à OS.", type: "error" });
+      return;
+    }
+    setDeliveryEvidenceFile(file);
+  };
+
   const resetPaymentState = (targetTotal: number) => {
     setInstallments(targetTotal > 0 ? splitInstallments(targetTotal, 1, todayIsoDate()) : []);
     setFinanceOptionsError("");
@@ -448,7 +483,14 @@ export function useOrderCompletion({
 
     paymentProofRequestRef.current += 1;
     const requirementRequestId = ++paymentProofRequirementRequestRef.current;
+    setPaymentProofEnabled(true);
     setPaymentProofRequired(false);
+    setDeliveryEvidenceEnabled(false);
+    setDeliveryEvidenceRequired(false);
+    setDeliveryEvidenceAlreadyOnOrder(false);
+    setDeliveryEvidenceAttached(false);
+    setDeliveryEvidenceFile(null);
+    setDeliveryEvidenceAttachmentTypeId("");
     setPaymentProofRequirementLoading(true);
     setPaymentProofRequirementError("");
     setPaymentProofAlreadyOnOrder(false);
@@ -498,11 +540,8 @@ export function useOrderCompletion({
     if (organizationId) {
       void loadFinanceOptions(String(organizationId));
       if (generatesWarranty) void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
-      if (targetCoverageFree) {
-        setPaymentProofRequired(false);
-        setPaymentProofRequirementLoading(false);
-      } else if (targetOrderId) {
-        void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId);
+      if (targetOrderId) {
+        void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId, targetCoverageFree);
       } else {
         setPaymentProofRequirementError("Não foi possível identificar a OS.");
         setPaymentProofRequirementLoading(false);
@@ -616,7 +655,7 @@ export function useOrderCompletion({
       showToast({ msg: paymentProofRequirementError || "Verificando a exigência do comprovante de pagamento.", type: "error" });
       return;
     }
-    if (!coverageFree && paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder) {
+    if (!coverageFree && paymentProofEnabled && paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder) {
       showToast({ msg: "Anexe o comprovante de pagamento antes de concluir a OS.", type: "error" });
       return;
     }
@@ -624,8 +663,17 @@ export function useOrderCompletion({
       showToast({ msg: paymentProofTypeError || "Preparando o tipo de anexo do comprovante.", type: "error" });
       return;
     }
+    if (deliveryEvidenceEnabled && deliveryEvidenceRequired && !deliveryEvidenceFile && !deliveryEvidenceAttached && !deliveryEvidenceAlreadyOnOrder) {
+      showToast({ msg: "Anexe a evidência de entrega antes de concluir a OS.", type: "error" });
+      return;
+    }
+    if (deliveryEvidenceFile && !deliveryEvidenceAttachmentTypeId) {
+      showToast({ msg: "Preparando o tipo de anexo Evidência de entrega.", type: "error" });
+      return;
+    }
     setSaving(true);
     let attachingPaymentProof = Boolean(paymentProofFile && !paymentProofAttached);
+    let attachingDeliveryEvidence = Boolean(deliveryEvidenceFile && !deliveryEvidenceAttached);
     try {
       await assertOrderRulesForStage(String(detail.organization_id),String(detail.id),"finish");
       if (attachingPaymentProof && paymentProofFile) {
@@ -642,6 +690,23 @@ export function useOrderCompletion({
         setPaymentProofFile(null);
         setPaymentProofAttached(true);
         attachingPaymentProof = false;
+        const documentsKey = ["orders", String(detail.organization_id), String(detail.id)];
+        void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents"] });
+        void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
+      }
+
+      if (attachingDeliveryEvidence && deliveryEvidenceFile) {
+        if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
+        await attachOrderSituationDocument({
+          organizationId: String(detail.organization_id),
+          serviceOrderId: String(detail.id),
+          attachmentTypeId: deliveryEvidenceAttachmentTypeId,
+          file: deliveryEvidenceFile,
+          optimizePhoto: true,
+        });
+        setDeliveryEvidenceFile(null);
+        setDeliveryEvidenceAttached(true);
+        attachingDeliveryEvidence = false;
         const documentsKey = ["orders", String(detail.organization_id), String(detail.id)];
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents"] });
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
@@ -674,7 +739,7 @@ export function useOrderCompletion({
       });
     } catch (error) {
       showToast({
-        msg: (attachingPaymentProof ? "Não foi possível anexar o comprovante: " : "Não foi possível concluir a OS: ") + formatError(error),
+        msg: (attachingPaymentProof ? "Não foi possível anexar o comprovante: " : attachingDeliveryEvidence ? "Não foi possível anexar a evidência de entrega: " : "Não foi possível concluir a OS: ") + formatError(error),
         type: "error",
       });
     } finally { setSaving(false); }
@@ -716,7 +781,9 @@ export function useOrderCompletion({
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
     financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
     paymentProofFile, choosePaymentProof, paymentProofTypeLoading, paymentProofTypeError, paymentProofAttached,
-    paymentProofRequired, paymentProofRequirementLoading, paymentProofRequirementError, paymentProofAlreadyOnOrder,
+    paymentProofEnabled, paymentProofRequired, paymentProofRequirementLoading, paymentProofRequirementError, paymentProofAlreadyOnOrder,
+    deliveryEvidenceEnabled, deliveryEvidenceRequired, deliveryEvidenceFile, chooseDeliveryEvidence,
+    deliveryEvidenceAlreadyOnOrder, deliveryEvidenceAttached,
     paymentProofOrderId: detail?.id ? String(detail.id) : null,
     paymentProofOsNumber: detail?.os_number ? String(detail.os_number) : null,
     refreshPaymentProofFromMobile,
