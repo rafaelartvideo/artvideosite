@@ -20,8 +20,8 @@ class RecordingInstallerTests(unittest.TestCase):
         for name, pin in pins.items():
             self.assertRegex(pin, r'^[a-f0-9]{64}$', name + ': finalize release pin')
             canonical = (ROOT / name).read_bytes().replace(b'\r\n', b'\n')
-            if name == 'agent.py':
-                self.assertEqual(pin,'356d59d1b27c77682b4ab1bd5d9fbc6f99b1ffe91253666d3b0df0bd8ae60acb')
+            if name in ('agent.py','sip_trunk_runtime.py'):
+                self.assertEqual(pin,{'agent.py':'356d59d1b27c77682b4ab1bd5d9fbc6f99b1ffe91253666d3b0df0bd8ae60acb','sip_trunk_runtime.py':'0f71121881cea72614a98a0fa2c473eafbc7dde22d52d35f2cf8b9220bf605c0'}[name])
                 self.assertNotEqual(pin,hashlib.sha256(canonical).hexdigest(),name)
             else:
                 self.assertEqual(pin, hashlib.sha256(canonical).hexdigest(), name)

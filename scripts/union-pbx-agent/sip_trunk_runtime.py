@@ -225,7 +225,7 @@ def capability(agent,org):
     try:
         with agent.operation_lock():
             verify(agent,org)
-            output=agent.asterisk('core show function CHANNEL')
+            output=agent.strip_ansi(agent.asterisk('core show function CHANNEL'))
             if not re.search(r'(?m)^\s*endpoint\s+-',output): return []
     except Exception: return []
     return ['sip_trunks_v1']

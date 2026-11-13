@@ -45,3 +45,12 @@ entrada do número FVX para outra empresa.
 A linha da Union permanece ativa na entrega. O teste com interrupção real deve
 ser feito pelo responsável pelo botão de desativar, quando a linha puder parar.
 Conferir separadamente commit main, migração, Edge, agente e publicação HostGator.
+
+## Compatibilidade nativa da capacidade SIP
+
+A verificação real encontrou cores ANSI na documentação de `CHANNEL(endpoint)`
+do Asterisk 22. A checagem de capacidade agora remove essas cores antes de
+interpretar a linha, mantendo a validação do recurso. Regressão reproduziu a
+recusa anterior e passou com a correção. O instalador separado
+`activate-sip-capability.sh` verifica os arquivos exatos, preserva backup e
+reinicia somente um agente de empresa já ativo, sem recarregar o Asterisk.

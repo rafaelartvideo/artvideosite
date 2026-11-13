@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 import tempfile
 import unittest
 from contextlib import nullcontext
@@ -156,6 +157,12 @@ class RuntimeTests(unittest.TestCase):
         rt.paths(self.agent)[0].write_bytes(b'other config')
         self.assertEqual(rt.capability(self.agent,ORG),[])
         self.assertEqual(self.writes,[])
+
+    def test_colored_asterisk_channel_documentation_still_admits_supported_runtime(self):
+        self.agent.asterisk.side_effect=lambda command:'        \x1b[1;34mendpoint\x1b[1;36m - R/O The name of the endpoint associated with this channel.\n'
+        self.agent.strip_ansi=lambda value:re.sub(r'\x1b\[[0-9;]*m','',value)
+        with patch.object(rt,'verify'):
+            self.assertEqual(rt.capability(self.agent,ORG),['sip_trunks_v1'])
 
     def test_call_start_after_first_write_restores_changed_file(self):
         before={path:path.read_bytes() for path in rt.paths(self.agent)[:3]}
