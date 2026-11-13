@@ -22,6 +22,7 @@ export type CompanySettings = {
   company_logo_media_id: string;
   company_menu_logo_media_id: string;
   require_payment_proof_on_completion: boolean;
+  require_delivery_evidence_on_completion: boolean;
 };
 
 export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
@@ -42,6 +43,7 @@ export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
   company_logo_media_id: "",
   company_menu_logo_media_id: "",
   require_payment_proof_on_completion: false,
+  require_delivery_evidence_on_completion: false,
 };
 
 function text(value: unknown) {
@@ -71,6 +73,7 @@ function fromRow(row: any, organizationSettings?: any): CompanySettings {
     company_logo_media_id: text(row.logo_media_id),
     company_menu_logo_media_id: text(row.menu_logo_media_id),
     require_payment_proof_on_completion: row.require_payment_proof_on_completion === true,
+    require_delivery_evidence_on_completion: row.require_delivery_evidence_on_completion === true,
   };
 }
 
@@ -101,7 +104,10 @@ export async function saveCompanySettings(
     logo_media_id: settings.company_logo_media_id || null,
     menu_logo_media_id: settings.company_menu_logo_media_id || null,
   };
-  const completionPayload = { require_payment_proof_on_completion: settings.require_payment_proof_on_completion === true };
+  const completionPayload = {
+    require_payment_proof_on_completion: settings.require_payment_proof_on_completion === true,
+    require_delivery_evidence_on_completion: settings.require_delivery_evidence_on_completion === true,
+  };
   const contactPayload = {
     phone: settings.company_phone.trim() || null,
     email: settings.company_email.trim() || null,
