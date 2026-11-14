@@ -166,8 +166,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","os_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -926,27 +926,67 @@ Deno.serve(async request => {
       return json({success:true,channel_connected:ready,staff_role:staffRole,capabilities,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
-    // OS WhatsApp: join an existing operator's active chat in any enabled
-    // organization. Never accepts a phone from the caller as authorization:
-    // service_order_id must belong to this tenant and its registered customer.
-    if(action==="os_join") {
-      if(!canRead || !permissions.has("orders.details.view"))
-        return json({success:false,error:"Sem permissão para acessar a OS e seus atendimentos."},403);
-      const orderId=String(body.service_order_id||"");
-      if(!uuid(orderId))
-        return json({success:false,error:"Informe uma OS válida."},400);
-      const {data:order,error:orderError}=await admin.from("service_orders")
-        .select("id,customer_id").eq("organization_id",org).eq("id",orderId).maybeSingle();
-      if(orderError)throw orderError;
-      if(!order?.customer_id)
-        return json({success:false,error:"OS ou cliente não encontrado nesta empresa."},404);
-      const {data:customer,error:customerError}=await admin.from("customers")
-        .select("phone,whatsapp").eq("organization_id",org)
-        .eq("id",order.customer_id).maybeSingle();
-      if(customerError)throw customerError;
-      if(!customer)
-        return json({success:false,error:"Cliente da OS não encontrado."},404);
-      const raw=String(customer.whatsapp||customer.phone||"").replace(/\D/g,"");
+    // A OS e os cadastros compartilham o mesmo ingresso no atendimento.
+    // Identidade e telefone são sempre obtidos do banco, com escopo da empresa;
+    // números recebidos do navegador nunca autorizam acesso a conversas.
+    if(action==="os_join" || action==="contact_join") {
+      let storedPhone="";
+      if(action==="os_join"){
+        if(!canRead || !permissions.has("orders.details.view"))
+          return json({success:false,error:"Sem permissão para acessar a OS e seus atendimentos."},403);
+        const orderId=String(body.service_order_id||"");
+        if(!uuid(orderId))
+          return json({success:false,error:"Informe uma OS válida."},400);
+        const {data:order,error:orderError}=await admin.from("service_orders")
+          .select("id,customer_id").eq("organization_id",org).eq("id",orderId).maybeSingle();
+        if(orderError)throw orderError;
+        if(!order?.customer_id)
+          return json({success:false,error:"OS ou cliente não encontrado nesta empresa."},404);
+        const {data:customer,error:customerError}=await admin.from("customers")
+          .select("phone,whatsapp").eq("organization_id",org)
+          .eq("id",order.customer_id).maybeSingle();
+        if(customerError)throw customerError;
+        if(!customer)
+          return json({success:false,error:"Cliente da OS não encontrado."},404);
+        storedPhone=String(customer.whatsapp||customer.phone||"");
+      }else{
+        if(!canRead) return json({success:false,error:"Sem acesso aos atendimentos."},403);
+        const entityId=String(body.entity_id||"");
+        const entityContactId=String(body.entity_contact_id||"");
+        const customerId=String(body.customer_id||"");
+        if((!uuid(entityId) && !uuid(customerId)) ||
+          (entityId && customerId) || (entityContactId && (!uuid(entityId) || !uuid(entityContactId))))
+          return json({success:false,error:"Informe um cadastro válido."},400);
+        let registered:{phone:string|null;whatsapp:string|null}|null=null;
+        if(entityId){
+          if(!permissions.has("customers.view"))
+            return json({success:false,error:"Sem permissão para acessar cadastros."},403);
+          if(entityContactId){
+            if(!permissions.has("registrations.contacts.view") && !permissions.has("registrations.contacts.manage"))
+              return json({success:false,error:"Sem permissão para acessar contatos do cadastro."},403);
+            const {data,error}=await admin.from("entity_contacts")
+              .select("phone,whatsapp").eq("organization_id",org).eq("entity_id",entityId)
+              .eq("id",entityContactId).eq("is_active",true).maybeSingle();
+            if(error)throw error;
+            registered=data;
+          }else{
+            const {data,error}=await admin.from("entities")
+              .select("phone,whatsapp").eq("organization_id",org).eq("id",entityId).maybeSingle();
+            if(error)throw error;
+            registered=data;
+          }
+        }else{
+          if(!permissions.has("customers.details.view"))
+            return json({success:false,error:"Sem permissão para acessar os detalhes do cliente."},403);
+          const {data,error}=await admin.from("customers")
+            .select("phone,whatsapp").eq("organization_id",org).eq("id",customerId).maybeSingle();
+          if(error)throw error;
+          registered=data;
+        }
+        if(!registered) return json({success:false,error:"Cadastro não encontrado nesta empresa."},404);
+        storedPhone=String(registered.whatsapp||registered.phone||"");
+      }
+      const raw=storedPhone.replace(/\D/g,"");
       const contactPhone=raw.length===10 || raw.length===11 ? "55"+raw : raw;
       if(!/^55[1-9]\d{9,10}$/.test(contactPhone))
         return json({success:true,found:false,can_start:false});
