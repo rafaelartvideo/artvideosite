@@ -1,6 +1,6 @@
 import { CalendarClock, Link2, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
-import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { WhatsAppContactAction } from "@/features/whatsapp-channels/presentation/WhatsAppContactAction";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { CustomerAccessInviteSection } from "@/features/customers/presentation/CustomerAccessInviteSection";
 import { RegistrationRequestsSection } from "./RegistrationRequestsSection";
@@ -89,9 +89,9 @@ export function RegistrationDetails({ selected, preview = false, supplierItems, 
   const digits=String(selected.phone || selected.whatsapp || "").replace(/\D/g,"");
   const dialPhone=(digits.length===10||digits.length===11)?"55"+digits:digits;
   const whatsappAction=whatsapp ? <div className="flex items-center gap-2">
-    <CompanyWhatsAppAction phone={whatsapp} name={selected.name} organizationId={activeOrganizationId}
+    <WhatsAppContactAction phone={whatsapp} name={selected.name} organizationId={activeOrganizationId} entityId={selected.id}
       className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#25D366]/35 bg-card px-3 text-xs font-bold text-[#17834a] hover:bg-[#25D366]/10"
-      title="Abrir atendimento pelo WhatsApp"><WhatsAppBrandIcon size={16}/> WhatsApp</CompanyWhatsAppAction>
+      title="Abrir atendimento pelo WhatsApp"><WhatsAppBrandIcon size={16}/> WhatsApp</WhatsAppContactAction>
     {dialPhone&&<a href={`tel:+${dialPhone}`} aria-label="Ligar para o cliente"
       className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-bold text-primary hover:bg-muted"><Phone size={15}/> Ligar</a>}
   </div> : undefined;
