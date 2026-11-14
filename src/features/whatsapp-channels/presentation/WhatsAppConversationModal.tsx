@@ -39,14 +39,22 @@ export type WhatsAppModalContext = {
         documentOptions?: Array<{id:string;label:string}>;
         prepareDocument?: (templateId:string)=>Promise<File>;
       }
+    | {
+        kind: "contact";
+        phone: string;
+        customerName: string;
+        entityId?: string;
+        entityContactId?: string;
+        customerId?: string;
+      }
     | { kind: "conversation"; conversationId: string };
 };
 type Props = { open: boolean; onClose: () => void; context: WhatsAppModalContext };
 
 export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const { organizationId, source } = context;
-  const phone = source.kind==="order" ? source.phone : "";
-  const customerName = source.kind==="order" ? source.customerName : "";
+  const phone = source.kind==="conversation" ? "" : source.phone;
+  const customerName = source.kind==="conversation" ? "" : source.customerName;
   const { activeOrganizationId, hasPermission } = useAuth();
   const navigate = useNavigate();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
@@ -79,10 +87,16 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
 
     void (async () => {
       try {
-        // The server verifies the OS/customer, contact phone, tenant, operator
-        // permissions and active channel before sharing or joining a thread.
+        // Resolve the registered contact on the server before sharing a thread.
+        // The browser's phone is never used to authorize access.
         const found = await operateUnionWhatsAppInbox(
-          organizationId, crypto.randomUUID(), "os_join", { service_order_id: source.orderId },
+          organizationId, crypto.randomUUID(),
+          source.kind==="order" ? "os_join" : "contact_join",
+          source.kind==="order" ? { service_order_id: source.orderId } : {
+            entity_id: source.entityId,
+            entity_contact_id: source.entityContactId,
+            customer_id: source.customerId,
+          },
         );
         if (cancelled) return;
         if (found.found && found.conversation_id) {
@@ -103,7 +117,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   }, [open, organizationId, phone, source, activeOrganizationId, canViewInbox]);
 
   const startConversation = async () => {
-    if (source.kind!=="order" || startGateRef.current || state.status !== "empty" || !state.canStart ||
+    if (source.kind==="conversation" || startGateRef.current || state.status !== "empty" || !state.canStart ||
       organizationId !== activeOrganizationId || !canViewInbox) return;
     const number = phoneCandidates(phone)[0];
     if (!number) return;
@@ -180,7 +194,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   </AdminDialog>;
 }
 
-/** Reusable WhatsApp launcher for modules with a verified conversation or OS context. */
+/** Reusable WhatsApp launcher for verified OS, registration, customer and thread contexts. */
 export function useWhatsAppConversationModal() {
   const [context,setContext]=useState<WhatsAppModalContext|null>(null);
   const openWhatsAppConversation=useCallback((next:WhatsAppModalContext)=>setContext(next),[]);
@@ -189,7 +203,10 @@ export function useWhatsAppConversationModal() {
     isWhatsAppModalOpen:Boolean(context),
     openWhatsAppConversation,
     closeWhatsAppConversation,
-    whatsAppModal:context ? <WhatsAppConversationModal key={context.source.kind==="order"?context.source.orderId:context.source.conversationId}
+    whatsAppModal:context ? <WhatsAppConversationModal
+      key={context.source.kind==="conversation" ? context.source.conversationId
+        : context.source.kind==="order" ? context.source.orderId
+        : context.source.entityContactId || context.source.entityId || context.source.customerId}
       open context={context} onClose={closeWhatsAppConversation}/> : null,
   };
 }
