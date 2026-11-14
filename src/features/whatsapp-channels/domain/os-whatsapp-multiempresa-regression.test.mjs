@@ -7,7 +7,7 @@ const order = read("src/features/orders/presentation/OrderDetailsPage.tsx");
 const modal = read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
 const edge = read("supabase/functions/union-whatsapp-inbox/index.ts");
 const adapter = read("src/features/orders/presentation/OrderWhatsAppConversationDialog.tsx");
-const join = edge.slice(edge.indexOf('if(action==="os_join")'), edge.indexOf('if(action==="start")'));
+const join = edge.slice(edge.indexOf('if(action==="os_join" || action==="contact_join")'), edge.indexOf('if(action==="start")'));
 
 test("WhatsApp da OS disponível em todas as empresas com acesso autorizado", () => {
   for (const content of [order, modal, edge, adapter]) {
@@ -22,7 +22,7 @@ test("WhatsApp da OS disponível em todas as empresas com acesso autorizado", ()
 });
 
 test("A rota de abertura continua isolando OS, cliente, canal e operador por empresa", () => {
-  assert.ok(join.startsWith('if(action==="os_join")'));
+  assert.ok(join.startsWith('if(action==="os_join" || action==="contact_join")'));
   assert.match(edge, /if\(whatsappModule\?\.is_enabled!==true\)/);
   assert.match(edge, /const canRead=permissions\.has\("whatsapp.inbox.view"\) && Boolean\(staffRole\)/);
   assert.match(join, /\.eq\("organization_id",org\)\.eq\("id",orderId\)/);
@@ -31,4 +31,25 @@ test("A rota de abertura continua isolando OS, cliente, canal e operador por emp
   assert.match(join, /\.eq\("organization_id",org\)\.eq\("channel_id",channel.id\)\.eq\("account_phone",channel.phone\)/);
   assert.match(join, /allowed\("collaborate"\)/);
   assert.match(join, /\.eq\("organization_id",org\)\.eq\("conversation_id",thread.id\)/);
+});
+
+test("Cadastros e Clientes abrem o mesmo modal de Atendimentos da OS", () => {
+  const registration=read("src/features/registrations/presentation/RegistrationDetails.tsx");
+  const contacts=read("src/features/registrations/presentation/RegistrationContactsPage.tsx");
+  const customer=read("src/features/customers/presentation/CustomerDetailsPage.tsx");
+  const action=read("src/features/whatsapp-channels/presentation/WhatsAppContactAction.tsx");
+  for (const page of [registration,contacts,customer]) {
+    assert.match(page, /<WhatsAppContactAction/);
+    assert.doesNotMatch(page, /<CompanyWhatsAppAction/);
+  }
+  assert.match(registration, /entityId=\{selected\.id\}/);
+  assert.match(contacts, /entityContactId=\{contact\.id\}/);
+  assert.match(customer, /customerId=\{detail\?\.id\}/);
+  assert.match(action, /useWhatsAppConversationModal/);
+  assert.match(modal, /source\.kind==="order" \? "os_join" : "contact_join"/);
+  assert.match(join, /\.from\("entities"\)/);
+  assert.match(join, /\.from\("entity_contacts"\)/);
+  assert.match(join, /\.eq\("organization_id",org\)\.eq\("entity_id",entityId\)/);
+  assert.match(join, /\.from\("customers"\)/);
+  assert.match(join, /allowed\("collaborate"\)/);
 });
