@@ -142,3 +142,24 @@ test('encoder can reach the allowed minimum quality when needed to meet upload t
     assert.equal(result.size, 800_000);
   }
 });
+
+test('evidence images retain readable resolution and are compressed before upload', async () => {
+  const state = browser({ bytes: 280_000 });
+  const source = new File([new Uint8Array(3_500_000)], 'comprovante.jpg', { type: 'image/jpeg' });
+  const result = await prepareImageForUpload(source, 'evidence-photo', 10 * 1024 * 1024);
+  assert.equal(result.type, 'image/webp');
+  assert.equal(result.name, 'comprovante.webp');
+  assert.equal(result.size, 280_000);
+  assert.deepEqual(state.drawnSize, [2560, 1920]);
+});
+test('evidence image encoder failure does not silently upload a large original', async () => {
+  browser({ failDraw: true });
+  const source = new File([new Uint8Array(3_500_000)], 'comprovante.jpg', { type: 'image/jpeg' });
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await assert.rejects(prepareImageForUpload(source, 'evidence-photo'), /Não foi possível otimizar/);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
