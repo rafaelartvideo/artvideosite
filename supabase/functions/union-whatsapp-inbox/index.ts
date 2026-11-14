@@ -966,7 +966,7 @@ Deno.serve(async request => {
               return json({success:false,error:"Sem permissão para acessar contatos do cadastro."},403);
             const {data,error}=await admin.from("entity_contacts")
               .select("phone,whatsapp").eq("organization_id",org).eq("entity_id",entityId)
-              .eq("id",entityContactId).eq("is_active",true).maybeSingle();
+              .eq("id",entityContactId).maybeSingle();
             if(error)throw error;
             registered=data;
           }else{
