@@ -187,9 +187,14 @@ export async function uploadMobileOrderDocument(
   targetId: string,
   file: File,
 ) {
+  // Anexos enviados como fotos (comprovantes, evidências, notas) também precisam
+  // ser comprimidos. PDFs e documentos originais não devem ser reprocessados.
+  const photo = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
   const prepared = kind === "situation"
     ? await prepareImageForUpload(file, "service-photo", 10 * 1024 * 1024)
-    : await prepareFileForUpload(file, "document-image");
+    : photo
+      ? await prepareImageForUpload(file, "evidence-photo", 10 * 1024 * 1024)
+      : await prepareFileForUpload(file, "document-image");
   const body = new FormData();
   body.append("action", "upload_document");
   body.append("session_id", sessionId);
