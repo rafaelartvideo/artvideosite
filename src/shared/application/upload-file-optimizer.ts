@@ -1,4 +1,4 @@
-export type UploadImagePreset = "service-photo" | "service-label" | "document-image" | "catalog-image" | "whatsapp-image" | "sac-image";
+export type UploadImagePreset = "service-photo" | "service-label" | "document-image" | "evidence-photo" | "catalog-image" | "whatsapp-image" | "sac-image";
 
 type ImagePresetConfig = {
   maxDimension: number;
@@ -12,6 +12,8 @@ const IMAGE_PRESETS: Record<UploadImagePreset, ImagePresetConfig> = {
   "service-photo": { maxDimension: 1600, quality: 0.80, minQuality: 0.68, minBytesToOptimize: 250 * 1024, targetMaxBytes: 900 * 1024 },
   "service-label": { maxDimension: 2200, quality: 0.88, minQuality: 0.82, minBytesToOptimize: 450 * 1024, targetMaxBytes: 1600 * 1024 },
   "document-image": { maxDimension: 1920, quality: 0.84, minQuality: 0.76, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
+  // Fotos de comprovantes e evidências: WebP de alta qualidade, preservando textos pequenos.
+  "evidence-photo": { maxDimension: 2560, quality: 0.90, minQuality: 0.84, minBytesToOptimize: 250 * 1024, targetMaxBytes: 1500 * 1024 },
   "catalog-image": { maxDimension: 1600, quality: 0.82, minQuality: 0.70, minBytesToOptimize: 250 * 1024, targetMaxBytes: 950 * 1024 },
   "sac-image": { maxDimension: 1600, quality: 0.80, minQuality: 0.68, minBytesToOptimize: 160 * 1024, targetMaxBytes: 900 * 1024 },
   "whatsapp-image": { maxDimension: 2560, quality: 0.86, minQuality: 0.68, minBytesToOptimize: 160 * 1024, targetMaxBytes: 3 * 1024 * 1024 },
@@ -188,7 +190,10 @@ async function optimizeImageForUpload(
 
     let quality = config.quality;
     let webp = await canvasToBlob(canvas, "image/webp", quality);
-    if (!webp?.size || !OPTIMIZABLE_IMAGE_TYPES.has(webp.type)) return file;
+    if (!webp?.size || !OPTIMIZABLE_IMAGE_TYPES.has(webp.type)) {
+      if (preset === "evidence-photo") throw new Error("O navegador não conseguiu comprimir a imagem. Tente outra foto ou navegador.");
+      return file;
+    }
 
     while (webp.size > config.targetMaxBytes && quality > config.minQuality) {
       quality = Math.max(config.minQuality, Number((quality - 0.04).toFixed(2)));
@@ -206,6 +211,9 @@ async function optimizeImageForUpload(
       { type: webp.type, lastModified: file.lastModified || Date.now() },
     );
   } catch (error) {
+    if (preset === "evidence-photo") {
+      throw new Error("Não foi possível otimizar a imagem sem comprometer a leitura. Tente novamente com outra foto.");
+    }
     console.warn("[MEDIA] Não foi possível otimizar a imagem; enviando o arquivo original.", error);
     return file;
   } finally {
