@@ -10,7 +10,7 @@ import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import type { Registration } from "../infrastructure/registrations.repository";
-import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { WhatsAppContactAction } from "@/features/whatsapp-channels/presentation/WhatsAppContactAction";
 import {
   createRegistrationContact,
   listRegistrationContacts,
@@ -61,27 +61,31 @@ function sortContacts(contacts: RegistrationContact[]) {
 }
 
 function ContactChannels({
-  phone, whatsapp, email, organizationId, contactName,
+  phone, whatsapp, email, organizationId, contactName, entityId, entityContactId,
 }: {
   phone?: string | null;
   whatsapp?: string | null;
   email?: string | null;
   organizationId: string;
   contactName?: string | null;
+  entityId: string;
+  entityContactId?: string;
 }) {
   const phoneDigits = normalizeDigits(phone || "");
   const whatsappDigits = normalizeDigits(whatsapp || phone || "");
   return <div className="mt-3 flex min-w-0 flex-wrap gap-2">
     {phoneDigits && <a href={`tel:${phoneDigits}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-muted"><Phone size={13} /><span>{formatPhone(phone) || phone}</span></a>}
-    {whatsappDigits && <CompanyWhatsAppAction
+    {whatsappDigits && <WhatsAppContactAction
       phone={whatsapp || phone}
       name={contactName}
       organizationId={organizationId}
+      entityId={entityId}
+      entityContactId={entityContactId}
       className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
       title="Iniciar conversa no WhatsApp"
     >
       <WhatsAppBrandIcon size={13} /><span>{formatPhone(whatsapp || phone) || whatsapp || phone}</span>
-    </CompanyWhatsAppAction>}
+    </WhatsAppContactAction>}
     {email && <a href={`mailto:${email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-muted"><Mail size={13} /><span className="max-w-[16rem] truncate">{email}</span></a>}
   </div>;
 }
@@ -192,7 +196,7 @@ export function RegistrationContactsPage({
               <p className="mt-1 text-xs text-[#5a6a82]">Mantido nos dados principais do cadastro para compatibilidade com OS e demais fluxos.</p>
             </div>
           </div>
-          {hasPrimaryChannels ? <ContactChannels phone={registration.phone} whatsapp={registration.whatsapp} email={registration.email} organizationId={organizationId} contactName={registration.name} /> : <p className="mt-3 text-sm text-[#5a6a82]">Nenhum telefone, WhatsApp ou e-mail principal informado.</p>}
+          {hasPrimaryChannels ? <ContactChannels phone={registration.phone} whatsapp={registration.whatsapp} email={registration.email} organizationId={organizationId} contactName={registration.name} entityId={registration.id} /> : <p className="mt-3 text-sm text-[#5a6a82]">Nenhum telefone, WhatsApp ou e-mail principal informado.</p>}
         </AdminCard>
 
         {loading ? <LoadingState text="Carregando contatos..." /> : contacts.length === 0 ? <AdminCard className="shadow-none"><EmptyState icon={UserRound} title="Nenhum contato adicional" message="Adicione outros responsáveis, setores ou pessoas de contato para este cadastro." onAdd={canManage ? openNew : undefined} addLabel="Adicionar contato" /></AdminCard> : <div className="grid gap-3 md:grid-cols-2">{contacts.map(contact => <AdminCard key={contact.id} className={cn("p-4 shadow-none", !contact.is_active && "bg-muted opacity-80")}>
@@ -209,7 +213,7 @@ export function RegistrationContactsPage({
               <AdminActiveStateButton active={contact.is_active} entityLabel="contato" onClick={() => void toggleActive(contact)} iconSize={14} />
             </div>}
           </div>
-          <ContactChannels phone={contact.phone} whatsapp={contact.whatsapp} email={contact.email} organizationId={organizationId} contactName={contact.name} />
+          <ContactChannels phone={contact.phone} whatsapp={contact.whatsapp} email={contact.email} organizationId={organizationId} contactName={contact.name} entityId={registration.id} entityContactId={contact.id} />
         </AdminCard>)}</div>}
       </div>
 
