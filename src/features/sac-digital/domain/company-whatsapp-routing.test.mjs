@@ -39,10 +39,20 @@ test("Cadastro unificado substitui Ficha do Cliente sem duplicar navegação",as
  assert.match(requests,/Ordens de serviço/);
 });
 
-test("Customer, contacts, OS completion and partner shortcuts reuse single SAC routing action",async()=>{
+test("Cadastros e Clientes reutilizam o modal de Atendimentos da OS",async()=>{
  for(const path of [
   "features/customers/presentation/CustomerDetailsPage.tsx",
+  "features/registrations/presentation/RegistrationDetails.tsx",
   "features/registrations/presentation/RegistrationContactsPage.tsx",
+ ]) {
+  const body=await source(path);
+  assert.match(body,/WhatsAppContactAction/,path);
+  assert.doesNotMatch(body,/CompanyWhatsAppAction/,path);
+ }
+});
+
+test("Conclusão de OS e atalhos de parceiros mantêm roteamento SAC existente",async()=>{
+ for(const path of [
   "features/orders/presentation/OrderCompletionModal.tsx",
   "features/orders/presentation/OrderDetailsContent.tsx",
   "features/partner-companies/presentation/PartnerCompanyDetails.tsx",
