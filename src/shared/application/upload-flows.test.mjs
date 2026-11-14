@@ -83,14 +83,16 @@ test('SAC desativada bloqueia envio de foto sem chamar APIs ou Storage', async (
   );
   assert.equal(calls.length, 0);
 });
-test('mobile documents preserve original scan bytes while situation photos are optimized', async () => {
+test('mobile photo documents are optimized while PDF originals remain untouched', async () => {
   browser();
-  const source = photo(2);
-  await uploadMobileOrderDocument('session', 'token', 'attachment', 'target', source);
-  assert.equal(calls[0].body.get('file').size, source.size);
-  assert.equal(calls[0].body.get('file').type, source.type);
+  await uploadMobileOrderDocument('session', 'token', 'attachment', 'target', photo(2));
+  assert.equal(calls[0].body.get('file').size, 1000);
+  assert.equal(calls[0].body.get('file').type, 'image/webp');
   await uploadMobileOrderDocument('session', 'token', 'situation', 'target', photo(2));
   assert.equal(calls[1].body.get('file').size, 1000);
+  const pdf = new File([new Uint8Array(100_000)], 'comprovante.pdf', { type: 'application/pdf' });
+  await uploadMobileOrderDocument('session', 'token', 'attachment', 'target', pdf);
+  assert.equal(calls[2].body.get('file'), pdf);
 });
 
 test('SAC desativada bloqueia também arquivo grande antes de qualquer processamento', async () => {
