@@ -3,6 +3,8 @@ export type AudioStats = {
   roundTripMs: number | null;
   packetsLost: number | null;
   packetsReceived: number | null;
+  packetsSent: number | null;
+  bytesSent: number | null;
   playbackBufferMs: number | null;
   codec: string | null;
 };
@@ -11,6 +13,8 @@ export function summarizeAudioStats(report: RTCStatsReport): AudioStats {
   const entries: any[] = [];
   report.forEach(item => entries.push(item));
   const inbound = entries.find(item => item.type === 'inbound-rtp' &&
+    (item.kind === 'audio' || item.mediaType === 'audio'));
+  const outbound = entries.find(item => item.type === 'outbound-rtp' &&
     (item.kind === 'audio' || item.mediaType === 'audio'));
   const selected = entries.find(item => item.type === 'transport' && item.selectedCandidatePairId);
   const pair = selected ? report.get(selected.selectedCandidatePairId) : undefined;
@@ -28,6 +32,8 @@ export function summarizeAudioStats(report: RTCStatsReport): AudioStats {
     roundTripMs: milliseconds(pair?.currentRoundTripTime),
     packetsLost: finite(inbound?.packetsLost),
     packetsReceived: finite(inbound?.packetsReceived),
+    packetsSent: finite(outbound?.packetsSent),
+    bytesSent: finite(outbound?.bytesSent),
     playbackBufferMs: delay !== null && delay >= 0 && samples !== null && samples > 0
       ? delay / samples * 1000 : null,
     codec: typeof codec?.mimeType === 'string' ? codec.mimeType.replace(/^audio\//i, '') : null,
