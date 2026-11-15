@@ -194,103 +194,116 @@ Deno.serve(async request=>{
         if(valid){
           const ids=telemetry.map((entry:{queue_id:string})=>entry.queue_id);
           if(new Set(ids).size!==ids.length) return respond({error:"Identificadores de fila duplicados"},400);
-          const {data:allowed,error:verifyError}=await admin.from("pbx_queues")
-            .select("id").eq("organization_id",agent.organization_id)
-            .eq("enabled",true).eq("provisioning_status","applied").in("id",ids);
-          if(!verifyError && allowed?.length){
-            const allowedIds=new Set(allowed.map(q=>q.id));
-            const sampledAt=new Date().toISOString();
-            const rows=telemetry.filter((entry:{queue_id:string})=>allowedIds.has(entry.queue_id))
-              .map((entry:{queue_id:string;queue_state:string;waiting_count:number;members:unknown[]})=>({
-                queue_id:entry.queue_id,
-                organization_id:agent.organization_id,
-                waiting_count:entry.waiting_count,
-                queue_state:entry.queue_state,
-                members:entry.members,
-                sampled_at:sampledAt,
-              }));
-            if(rows.length){
-              const {error:telemetryError}=await admin.from("pbx_queue_live_status")
-                .upsert(rows,{onConflict:"queue_id"});
-              if(telemetryError) console.error("PBX telemetry storage failed",telemetryError.code);
+          // A RPC filtra a empresa, deduplica estado idêntico e mantém
+          // sampled_at vivo a cada 60s, evitando WAL e Realtime redundantes.
+          const published=await admin.rpc("pbx_write_queue_telemetry_v1",{
+            p_agent_id:agent.id,p_telemetry:telemetry
+          });
+          if(published.error){
+            // Retrocompatibilidade: se a migration ainda não foi aplicada,
+            // a telemetria anterior continua funcionando.
+            console.error("PBX queue telemetry optimized write unavailable",published.error.code);
+            const allowed=await admin.from("pbx_queues").select("id")
+              .eq("organization_id",agent.organization_id)
+              .eq("enabled",true).eq("provisioning_status","applied").in("id",ids);
+            if(!allowed.error&&allowed.data?.length){
+              const allowedIds=new Set(allowed.data.map(q=>q.id));
+              const sampledAt=new Date().toISOString();
+              const rows=telemetry.filter((entry:{queue_id:string})=>allowedIds.has(entry.queue_id))
+                .map((entry:{queue_id:string;queue_state:string;waiting_count:number;members:unknown[]})=>({
+                  queue_id:entry.queue_id,organization_id:agent.organization_id,
+                  waiting_count:entry.waiting_count,queue_state:entry.queue_state,
+                  members:entry.members,sampled_at:sampledAt,
+                }));
+              if(rows.length)await admin.from("pbx_queue_live_status").upsert(rows,{onConflict:"queue_id"});
             }
-          } else if(verifyError) console.error("PBX telemetry authorization failed",verifyError.code);
+          }
         } else {
           console.error("PBX telemetry malformed");
         }
       }
-      // Apaga segredos criptografados que expiraram. O navegador só pode obtê-los uma vez.
-      const expiredAt=new Date().toISOString();
-      const {error:cleanupError}=await admin.from("pbx_browser_login_requests")
-        .update({status:"failed",encrypted_secret:null})
-        .eq("organization_id",agent.organization_id)
-        .eq("status","ready").lt("expires_at",expiredAt);
-      if(cleanupError) return respond({error:"Falha na limpeza de credenciais expiradas"},503);
-      // Remove registros antigos; mantém apenas evidências recentes sem senha.
-      const retention=new Date(Date.now()-24*3600*1000).toISOString();
-      await admin.from("pbx_browser_login_requests").delete().eq("organization_id",agent.organization_id).lt("created_at",retention);
-      const {data,error}=await admin.from("pbx_extensions")
-        .select("id,organization_id,number,endpoint_name,desired_enabled,updated_at")
-        .eq("organization_id",agent.organization_id).eq("is_managed",true)
-        .eq("provisioning_status","pending").order("updated_at").limit(10);
-      if(error) return respond({error:"Erro ao consultar ramais"},503);
-      const {data:loginRequests,error:loginError}=await admin.from("pbx_browser_login_requests")
-        .select("id,organization_id,extension_id,public_key_base64,expires_at")
-        .eq("organization_id",agent.organization_id)
-        .eq("agent_id",agent.id)
-        .eq("status","pending")
-        .gt("expires_at",new Date().toISOString())
-        .order("created_at")
-        .limit(10);
-      if(loginError) return respond({error:"Erro ao consultar solicitações de acesso"},503);
-      // As filas só são provisionadas por um agente de mesma organização.
-      // Busca duas coleções pequenas, evitando um join de múltiplas filas por requisição.
-      const {data:queues,error:queuesError}=await admin.from("pbx_queues")
-        .select("id,organization_id,name,test_extension,strategy,ring_seconds,max_wait_seconds,enabled,updated_at")
-        .eq("organization_id",agent.organization_id).eq("provisioning_status","pending")
-        .order("updated_at").limit(10);
-      if(queuesError) return respond({error:"Não foi possível consultar filas"},503);
+      // Credenciais expiradas são removidas pelo Cron privado a cada 2 minutos.
+      // O agente continua buscando entregas pendentes a cada poll; a conexão
+      // do ramal nunca depende do intervalo do job de limpeza.
+      let data:unknown[]=[];
+      let loginRequests:unknown[]=[];
       let queueJobs:Record<string,unknown>[]=[];
-      if(queues?.length){
-        const {data:members,error:membersError}=await admin.from("pbx_queue_members")
-          .select("queue_id,position,pbx_extensions(organization_id,number,endpoint_name,desired_enabled,provisioning_status)")
-          .in("queue_id",queues.map(queue=>queue.id)).order("position");
-        if(membersError) return respond({error:"Não foi possível consultar membros da fila"},503);
-        queueJobs=queues.map(queue=>({
-          ...queue,
-          members:(members||[]).filter(member=>member.queue_id===queue.id).map(member=>({
-            position:member.position,
-            organization_id:(member.pbx_extensions as unknown as {organization_id:string}|null)?.organization_id,
-            number:(member.pbx_extensions as unknown as {number:number}|null)?.number,
-            endpoint_name:(member.pbx_extensions as unknown as {endpoint_name:string}|null)?.endpoint_name,
-            desired_enabled:(member.pbx_extensions as unknown as {desired_enabled:boolean}|null)?.desired_enabled,
-            provisioning_status:(member.pbx_extensions as unknown as {provisioning_status:string}|null)?.provisioning_status,
-          })),
-        }));
-      }
-      // A missing history registry must never block provisioning or phone login.
-      const historyEndpoints = new Set<string>();
-      const historySignal=AbortSignal.timeout(2000);
-      const [extensionHistory,trunkHistory]=await Promise.all([
-        admin.from("pbx_extensions").select("endpoint_name")
-          .eq("organization_id",agent.organization_id).limit(1001).abortSignal(historySignal),
-        isPlatform?admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
-          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal)
-          :Promise.resolve({data:[],error:null}),
-      ]);
-      const {data:ownedExtensions,error:extensionHistoryError}=extensionHistory;
-      const {data:ownedTrunks,error:trunkHistoryError}=trunkHistory;
-      if(!extensionHistoryError && !trunkHistoryError &&
-         (ownedExtensions?.length||0)<=1000 && (ownedTrunks?.length||0)<=100){
-        for(const extension of ownedExtensions||[]) historyEndpoints.add(extension.endpoint_name);
-        for(const trunk of ownedTrunks||[]){
-          historyEndpoints.add(trunk.inbound_endpoint); historyEndpoints.add(trunk.outbound_endpoint);
-        }
-      }
       let availabilityJobs:unknown[]=[];
-      if(body.protocol_version===2||body.protocol_version===3){
-        const {data:availability,error:availabilityError}=await admin.rpc("pbx_poll_queue_availability",{p_agent_id:agent.id});
-        if(!availabilityError && Array.isArray(availability) && availability.length<=10) availabilityJobs=availability;
+      const historyEndpoints=new Set<string>();
+      const boot=await admin.rpc("pbx_poll_bootstrap_v1",{
+        p_agent_id:agent.id,p_protocol_version:body.protocol_version===2||body.protocol_version===3?body.protocol_version:1
+      });
+      const snapshot=boot.data as Record<string,unknown>|null;
+      if(!boot.error&&snapshot&&
+         Array.isArray(snapshot.jobs)&&snapshot.jobs.length<=10&&
+         Array.isArray(snapshot.login_requests)&&snapshot.login_requests.length<=10&&
+         Array.isArray(snapshot.queue_jobs)&&snapshot.queue_jobs.length<=10&&
+         Array.isArray(snapshot.availability_jobs)&&snapshot.availability_jobs.length<=10&&
+         Array.isArray(snapshot.history_endpoints)&&snapshot.history_endpoints.length<=1200&&
+         snapshot.history_endpoints.every(x=>typeof x==="string"&&x.length<=80)){
+        data=snapshot.jobs;
+        loginRequests=snapshot.login_requests;
+        queueJobs=snapshot.queue_jobs as Record<string,unknown>[];
+        availabilityJobs=snapshot.availability_jobs;
+        for(const endpoint of snapshot.history_endpoints as string[])historyEndpoints.add(endpoint);
+      }else{
+        // Compatibilidade entre deploys: preservar as consultas individuais
+        // em caso de migration ausente/erro, sem bloquear login ou filas.
+        if(boot.error)console.error("PBX consolidated bootstrap unavailable",boot.error.code);
+        const extensions=await admin.from("pbx_extensions")
+          .select("id,organization_id,number,endpoint_name,desired_enabled,updated_at")
+          .eq("organization_id",agent.organization_id).eq("is_managed",true)
+          .eq("provisioning_status","pending").order("updated_at").limit(10);
+        if(extensions.error)return respond({error:"Erro ao consultar ramais"},503);
+        data=extensions.data||[];
+        const logins=await admin.from("pbx_browser_login_requests")
+          .select("id,organization_id,extension_id,public_key_base64,expires_at")
+          .eq("organization_id",agent.organization_id).eq("agent_id",agent.id)
+          .eq("status","pending").gt("expires_at",new Date().toISOString())
+          .order("created_at").limit(10);
+        if(logins.error)return respond({error:"Erro ao consultar solicitações de acesso"},503);
+        loginRequests=logins.data||[];
+        const queues=await admin.from("pbx_queues")
+          .select("id,organization_id,name,test_extension,strategy,ring_seconds,max_wait_seconds,enabled,updated_at")
+          .eq("organization_id",agent.organization_id)
+          .eq("provisioning_status","pending").order("updated_at").limit(10);
+        if(queues.error)return respond({error:"Não foi possível consultar filas"},503);
+        if(queues.data?.length){
+          const members=await admin.from("pbx_queue_members")
+            .select("queue_id,position,pbx_extensions(organization_id,number,endpoint_name,desired_enabled,provisioning_status)")
+            .in("queue_id",queues.data.map(queue=>queue.id)).order("position");
+          if(members.error)return respond({error:"Não foi possível consultar membros da fila"},503);
+          queueJobs=queues.data.map(queue=>({
+            ...queue,
+            members:(members.data||[]).filter(member=>member.queue_id===queue.id).map(member=>({
+              position:member.position,
+              organization_id:(member.pbx_extensions as unknown as {organization_id:string}|null)?.organization_id,
+              number:(member.pbx_extensions as unknown as {number:number}|null)?.number,
+              endpoint_name:(member.pbx_extensions as unknown as {endpoint_name:string}|null)?.endpoint_name,
+              desired_enabled:(member.pbx_extensions as unknown as {desired_enabled:boolean}|null)?.desired_enabled,
+              provisioning_status:(member.pbx_extensions as unknown as {provisioning_status:string}|null)?.provisioning_status,
+            })),
+          }));
+        }
+        const historySignal=AbortSignal.timeout(2000);
+        const [extensionsHistory,trunksHistory]=await Promise.all([
+          admin.from("pbx_extensions").select("endpoint_name")
+            .eq("organization_id",agent.organization_id).limit(1001).abortSignal(historySignal),
+          isPlatform?admin.from("pbx_trunks").select("inbound_endpoint,outbound_endpoint")
+            .eq("organization_id",agent.organization_id).eq("agent_id",agent.id).limit(101).abortSignal(historySignal)
+            :Promise.resolve({data:[],error:null}),
+        ]);
+        if(!extensionsHistory.error&&!trunksHistory.error&&
+           (extensionsHistory.data?.length||0)<=1000&&(trunksHistory.data?.length||0)<=100){
+          for(const ext of extensionsHistory.data||[])historyEndpoints.add(ext.endpoint_name);
+          for(const trunk of trunksHistory.data||[]){
+            historyEndpoints.add(trunk.inbound_endpoint);historyEndpoints.add(trunk.outbound_endpoint);
+          }
+        }
+        if(body.protocol_version===2||body.protocol_version===3){
+          const available=await admin.rpc("pbx_poll_queue_availability",{p_agent_id:agent.id});
+          if(!available.error&&Array.isArray(available.data)&&available.data.length<=10)availabilityJobs=available.data;
+        }
       }
       let flowJobs:unknown[]=[];
       if(Array.isArray(body.features)&&body.features.length<=10&&body.features.includes('flows-v1')){
