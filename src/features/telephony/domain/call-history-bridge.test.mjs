@@ -37,6 +37,11 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         return admissionError ? { error: { code: 'XX000' } } : { data: { allowed: admitted, is_platform: platform } };
       }
       calls.push({ name, args });
+      // The old fixture intentionally simulates an environment in which the
+      // new consolidated RPC has not been migrated yet. The bridge must
+      // retain its independently signed fallback without throwing.
+      if(name==='pbx_poll_bootstrap_v1')return {error:{code:'PGRST202'}};
+      if(name==='pbx_write_queue_telemetry_v1')return {error:{code:'PGRST202'}};
       if(name==='pbx_admit_call_modes_poll_v2')return {data:callModesAdmitted};
       if(name==='pbx_poll_call_modes_v2')return {data:callModes};
       if(name==='pbx_report_call_modes_v2')return {data:true};
