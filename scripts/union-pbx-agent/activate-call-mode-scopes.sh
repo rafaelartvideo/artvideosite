@@ -28,7 +28,7 @@ BACKUP_ROOT = Path('/root')
 PREVIOUS_SHA = 'f79c14d7db658da300f46a1c0b233ac170962827abca69fa4101112158350827'
 # Exact reviewed LF sources; never accept a different predecessor or bundle.
 PINS = {
-    'agent.py': 'f270c853a344235b3a281a77c96df8390fc2c88cd20d9c725535fb87cdd08d86',
+    'agent.py': 'ffbedd77bf4a7d7cb740c4795c91fa3578116b3f21ac03303f732ed0f9cb2912',
     'call_modes.py': '2a10c17c81dbed66f006cc85cec69c869ac8618a53f73b74ec6429782bda78de',
     'call_mode_runtime.py': 'c02683b2127bab18de73a3348c9fb9f87d69d750320782692c97915cdae6e9db',
     'sip_trunk_runtime.py': 'd271c5298363b81f3dd569c8fc99ba72efb324b2a03e79c73452a5085a6ecfdc',
