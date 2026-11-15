@@ -83,6 +83,27 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [externalTarget, setExternalTarget] = useState("");
   const [pendingDialRequest, setPendingDialRequest] = useState<{ phone: string } | null>(null);
   const [registration, setRegistration] = useState<RegistrationState>("offline");
+  // A lista de ramais só é relida quando existe uma mudança publicada
+  // no Supabase. A assinatura existe enquanto o painel está aberto ou
+  // o ramal está registrado; nunca inicia polling de toda a tabela.
+  useEffect(() => {
+    if (!activeOrganizationId || (!isPageOpen && registration !== "registered")) return;
+    const channel = supabase.channel("pbx-extension-updates-" + activeOrganizationId)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_extensions",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => setDirectoryRevision(previous => previous + 1))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_queues",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => setDirectoryRevision(previous => previous + 1))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_call_flows",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => setDirectoryRevision(previous => previous + 1))
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [activeOrganizationId, isPageOpen, registration]);
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
   const callerCards=usePbxSavedContactCards(activeOrganizationId,callState!=="idle",[remoteParty]);

@@ -1242,7 +1242,31 @@ def runtime_capability(protocol):
     return {'protocol_version':3,'profile_id':PROFILE_ID,'profile_context':DIALPLAN_CONTEXT}
 
 
+# Heartbeats continuam a cada 30s. Relatórios de estado idêntico só
+# precisam de reconciliação periódica; uma nova revisão sai imediatamente.
+_SENT_REPORT_STATES = {}
+_NEXT_RECORDING_HOUSEKEEP_AT = 0.0
+
+
+def _should_send_report(kind, report, interval_seconds=180):
+    if not isinstance(report, dict):
+        return True
+    if report.get('status') == 'failed':
+        return True
+    key = (str(STATE_DIR), kind)
+    fingerprint = json.dumps(report, sort_keys=True, separators=(',', ':'))
+    previous = _SENT_REPORT_STATES.get(key)
+    return previous is None or previous[0] != fingerprint or time.monotonic()-previous[1] >= interval_seconds
+
+
+def _mark_report_sent(kind, report):
+    key = (str(STATE_DIR), kind)
+    fingerprint = json.dumps(report, sort_keys=True, separators=(',', ':'))
+    _SENT_REPORT_STATES[key] = (fingerprint, time.monotonic())
+
+
 def cycle(dry_run=False):
+    global _NEXT_RECORDING_HOUSEKEEP_AT
     config = json.loads(AGENT_CONFIG.read_text())
     validate_profile_config(config)
     try:
@@ -1271,7 +1295,7 @@ def cycle(dry_run=False):
                 capabilities['features'].extend(recording.capability(runtime_api(),config['organization_id']))
                 if 'recordings_v1' in capabilities['features']:
                     pending=recording.report(runtime_api())
-                    if pending is not None:capabilities['recording_report']=pending
+                    if pending is not None and _should_send_report('recording', pending):capabilities['recording_report']=pending
         except Exception:
             recording=None
     legacy=None
@@ -1292,10 +1316,13 @@ def cycle(dry_run=False):
                 capabilities['features'].extend(modes.capability(runtime_api(),config['organization_id']))
                 if 'call_modes_v2' in capabilities['features']:
                     pending=modes.report(runtime_api())
-                    if pending is not None:capabilities['call_modes_report']=pending
+                    if pending is not None and _should_send_report('call_modes', pending):capabilities['call_modes_report']=pending
         except Exception:
             modes=None
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
+    for kind, field in (('recording', 'recording_report'), ('call_modes', 'call_modes_report')):
+        if field in capabilities:
+            _mark_report_sent(kind, capabilities[field])
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
@@ -1484,12 +1511,18 @@ def cycle(dry_run=False):
 
     # Expiry is independent of capture/upload success. In particular, an old
     # malformed file or failed transfer must never block platform housekeeping.
-    if not dry_run and (STATE_DIR/'recordings-runtime.json').exists():
+    if (not dry_run and (STATE_DIR/'recordings-runtime.json').exists()
+            and time.monotonic() >= _NEXT_RECORDING_HOUSEKEEP_AT):
         try:
             from recording_upload import housekeep
-            for error_type in housekeep(runtime_api(),platform=PROFILE_ID is None):
+            errors = housekeep(runtime_api(),platform=PROFILE_ID is None)
+            for error_type in errors:
                 print('Retencao adiada: '+error_type,file=sys.stderr)
+            # Sem arquivos vencidos, não chamar Supabase em todo poll.
+            # Em falha, tentar novamente após 60s.
+            _NEXT_RECORDING_HOUSEKEEP_AT = time.monotonic()+(60 if errors else 900)
         except Exception as exc:
+            _NEXT_RECORDING_HOUSEKEEP_AT = time.monotonic()+60
             print('Retencao adiada: '+type(exc).__name__,file=sys.stderr)
 
 

@@ -8,7 +8,7 @@ const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null, bootstrap=null } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -37,6 +37,11 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
         return admissionError ? { error: { code: 'XX000' } } : { data: { allowed: admitted, is_platform: platform } };
       }
       calls.push({ name, args });
+      // The old fixture intentionally simulates an environment in which the
+      // new consolidated RPC has not been migrated yet. The bridge must
+      // retain its independently signed fallback without throwing.
+      if(name==='pbx_poll_bootstrap_v1')return bootstrap===null ? {error:{code:'PGRST202'}} : {data:bootstrap};
+      if(name==='pbx_write_queue_telemetry_v1')return {error:{code:'PGRST202'}};
       if(name==='pbx_admit_call_modes_poll_v2')return {data:callModesAdmitted};
       if(name==='pbx_poll_call_modes_v2')return {data:callModes};
       if(name==='pbx_report_call_modes_v2')return {data:true};
@@ -297,4 +302,16 @@ test('call modes require signed fresh opt-in and discard foreign catalogs',async
  const denied=await bridge({callModes:snapshot,callModesAdmitted:false});const deniedBody=await(await denied.send({action:'poll',protocol_version:2,features:['call_modes_v2']})).json();assert.equal('call_modes' in deniedBody,false);assert.equal(denied.calls.some(c=>c.name==='pbx_poll_call_modes_v2'),false);
  const valid=await bridge({callModes:snapshot});const body=await(await valid.send({action:'poll',protocol_version:2,features:['call_modes_v2'],call_modes_report:{revision:1,status:'applied',organization_id:'foreign'}})).json();assert.equal(body.call_modes.extensions[0].internal_mode,'receive_only');assert.equal(body.call_modes.extensions[0].external_mode,'make_only');assert.equal('password' in body.call_modes.extensions[0],false);const report=valid.calls.find(c=>c.name==='pbx_report_call_modes_v2');assert.deepEqual(report.args,{p_agent_id:agentId,p_revision:1,p_status:'applied'});
  const foreign=await bridge({callModes:{...snapshot,organization_id:'00000000-0000-4000-8000-000000000001'}});const foreignBody=await(await foreign.send({action:'poll',protocol_version:2,features:['call_modes_v2']})).json();assert.equal('call_modes' in foreignBody,false);
+});
+
+test('optimized signed PBX bootstrap avoids redundant tenant GET requests',async()=>{
+  const expected={jobs:[],login_requests:[],queue_jobs:[],
+    history_endpoints:['union-301'],availability_jobs:[]};
+  const b=await bridge({bootstrap:expected});
+  const response=await b.send({action:'poll',protocol_version:2});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).history_endpoints,['union-301']);
+  assert.ok(b.calls.some(call=>call.name==='pbx_poll_bootstrap_v1'
+    &&call.args.p_agent_id===agentId&&call.args.p_protocol_version===2));
+  assert.equal(b.filters.some(item=>['pbx_extensions','pbx_queues','pbx_browser_login_requests'].includes(item[0])),false);
 });
