@@ -4,20 +4,16 @@ import { summarizeAudioStats, type AudioStats } from '../domain/webrtc-stats';
 export function UnionPbxAudioDiagnostics({ connection }: { connection?: RTCPeerConnection }) {
   const [stats, setStats] = useState<AudioStats | null>(null);
   const [failed, setFailed] = useState(false);
-  const [sending, setSending] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     setStats(null);
     setFailed(false);
-    setSending(null);
     if (!connection) return;
     const sample = async () => {
       try {
         const report = await connection.getStats();
         if (cancelled) return;
-        const mic = connection.getSenders().find(sender => sender.track?.kind === 'audio')?.track;
-        setSending(mic ? mic.readyState === 'live' && mic.enabled : false);
         setStats(summarizeAudioStats(report));
         setFailed(false);
       } catch {
@@ -41,13 +37,10 @@ export function UnionPbxAudioDiagnostics({ connection }: { connection?: RTCPeerC
           ['Jitter recebido', ms(stats.jitterMs)],
           ['RTT da conexão', ms(stats.roundTripMs)],
           ['Pacotes recebidos', stats.packetsReceived ?? 'Indisponível'],
-          ['Microfone enviando', sending === null ? 'Indisponível' : sending ? 'Sim' : 'Não'],
-          ['Pacotes enviados', stats.packetsSent ?? 'Indisponível'],
-          ['Bytes enviados', stats.bytesSent ?? 'Indisponível'],
           ['Perda acumulada recebida', stats.packetsLost ?? 'Indisponível'],
           ['Buffer médio de reprodução', ms(stats.playbackBufferMs)],
         ].map(([label, value]) => <div key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold text-foreground">{value}</dd></div>)}
       </dl>}
-    <p className="mt-3 text-xs leading-5 text-muted-foreground">Medições deste navegador até o PABX. O buffer é a média desde o início do fluxo; o RTT mede ida e volta da rede. Estes valores não medem o atraso completo entre as pessoas. Os pacotes enviados mostram se o navegador transmite RTP, mas não confirmam que a operadora entregou o áudio. Nenhum áudio é gravado.</p>
+    <p className="mt-3 text-xs leading-5 text-muted-foreground">Medições deste navegador até o PABX. O buffer é a média desde o início do fluxo; o RTT mede ida e volta da rede. Estes valores não medem o atraso completo entre as pessoas. Nenhum áudio é gravado.</p>
   </section>;
 }
