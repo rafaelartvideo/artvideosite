@@ -46,7 +46,7 @@ test('bloqueio do navegador é indicado e uma nova chamada não herda fim ou áu
 test('retorno interno também prepara tom e desconexão/cancelamento liberam recursos',()=>{
  const p=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');
  const calls=[...p.matchAll(/uaRef\.current\.call\(/g)];assert.equal(calls.length,4);
- for(const m of calls)assert.match(p.slice(Math.max(0,m.index-200),m.index),/prepareRingback\(\)/);
+ for(const m of calls)assert.match(p.slice(m.index-80,m.index),/prepareRingback\(\)/);
  assert.match(p,/ua\.on\("disconnected",[\s\S]*?ringbackRef\.current\?\.dispose\(\)/);
  assert.match(p,/const hangup = \(\) => \{\s*ringbackRef\.current\?\.dispose\(\)/);
 });
