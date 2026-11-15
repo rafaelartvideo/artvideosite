@@ -20,6 +20,8 @@ import { holdCall, transferCall, type CallControlSession } from "../application/
 import { sendPbxDigit, type PbxDigitSession } from "../application/dtmf";
 import { pbxRequest } from "../application/pbx-request";
 import { bindRemoteAudio } from "../application/remote-audio";
+import { bindExternalAudioStabilization } from "../application/outgoing-audio-stabilizer";
+import { outgoingCallFailureMessage, type CallTermination } from "../application/call-end-reason";
 import { bindOutgoingRingback, createCallRingback } from "../application/call-ringback";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
@@ -126,6 +128,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
 
   const uaRef = useRef<any>(null);
   const sessionRef = useRef<SipSession | null>(null);
+  const originatedExternalRef = useRef(false);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const ringbackRef = useRef<ReturnType<typeof createCallRingback> | null>(null);
   const generationRef = useRef(0);
@@ -275,6 +278,7 @@ setTestFlowError('');
     setHoldUncertain(false);
     setControlBusy(null);
     setHeld(false);
+    originatedExternalRef.current = false;
     try { sessionRef.current?.terminate(); } catch { /* chamada ja encerrada */ }
     sessionRef.current = null;
     try { uaRef.current?.stop(); } catch { /* websocket ja desconectado */ }
@@ -375,6 +379,17 @@ setTestFlowError('');
           return;
         }
         sessionRef.current = session;
+        const isExternalOrigin = session.direction === 'outgoing' && originatedExternalRef.current;
+        if (session.direction === 'outgoing') originatedExternalRef.current = false;
+        if (isExternalOrigin) {
+          bindExternalAudioStabilization(session, {
+            isCurrent: () => isCurrent() && sessionRef.current === session && !controlLockRef.current,
+            onMissingMicrophone: () => {
+              if (isCurrent() && sessionRef.current === session)
+                setNotice('O microfone não está enviando áudio. Confira o dispositivo selecionado.');
+            },
+          });
+        }
         if (session.direction === 'outgoing' && ringbackRef.current) {
           bindOutgoingRingback(session, ringbackRef.current, () => isCurrent() && sessionRef.current === session);
         }
@@ -397,7 +412,7 @@ setTestFlowError('');
           setCallState("active");
           setNotice("Chamada em andamento.");
         });
-        const finish = (failed: boolean) => {
+        const finish = (failed: boolean, event?: CallTermination) => {
           if (!isCurrent() || sessionRef.current !== session) return;
           controlAbortRef.current?.abort();
           controlAbortRef.current = null;
@@ -408,11 +423,14 @@ setTestFlowError('');
           setControlBusy(null);
           setHeld(false);
           sessionRef.current = null;
+          originatedExternalRef.current = false;
           setCallState("idle");
           setRemoteParty("");
           setMuted(false);
           clearAudio();
-          setNotice(failed ? "Nao foi possivel completar a chamada. Consulte o console do Asterisk." : "Chamada encerrada.");
+          setNotice(failed
+            ? outgoingCallFailureMessage(event)
+            : event?.originator === 'remote' ? 'Chamada encerrada pelo outro lado.' : 'Chamada encerrada.');
           // A seleção dos detalhes é resolvida pelo histórico atualizado, nunca pela primeira linha.
           setCompletedCall(previous => ({
             sequence: previous.sequence + 1,
@@ -421,8 +439,8 @@ setTestFlowError('');
             at: Date.now(),
           }));
         };
-        session.on("ended", () => finish(false));
-        session.on("failed", () => finish(true));
+        session.on("ended", (event?: CallTermination) => finish(false, event));
+        session.on("failed", (event?: CallTermination) => finish(true, event));
       });
       registrationTimerRef.current = setTimeout(() => {
         if (!isCurrent() || ua.isRegistered?.()) return;
@@ -521,6 +539,7 @@ setTestFlowError('');
     setNotice("Chamando extensao de teste 900...");
     try {
       prepareRingback();
+      originatedExternalRef.current = false;
       uaRef.current.call(`sip:900@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
@@ -542,6 +561,7 @@ setTestFlowError('');
     setNotice("Chamando destino interno " + destination + "...");
     try {
       prepareRingback();
+      originatedExternalRef.current = false;
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
@@ -557,11 +577,13 @@ setTestFlowError('');
     setNotice("Chamando " + label + " pela operadora configurada...");
     try {
       prepareRingback();
+      originatedExternalRef.current = true;
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: microphoneConstraints(microphoneId),
         pcConfig: { iceServers: [] },
       });
     } catch {
+      originatedExternalRef.current = false;
       ringbackRef.current?.dispose();
       setNotice("Não foi possível iniciar a ligação. Confira o ramal e o microfone.");
     }
@@ -874,6 +896,7 @@ setTestFlowError('');
           if (internal) {
             try {
               prepareRingback();
+              originatedExternalRef.current = false;
               uaRef.current.call(`sip:${digits}@${SIP_HOST}`, {
                 mediaConstraints: microphoneConstraints(microphoneId), pcConfig: {iceServers: []},
               });
