@@ -26,6 +26,8 @@ TENANTS = Path("/etc/union-pbx-agent/tenants")
 NEW_SHA256 = "ffbedd77bf4a7d7cb740c4795c91fa3578116b3f21ac03303f732ed0f9cb2912"
 # Earlier reviewed installer stages, not arbitrary runtime files.
 REVIEWED_OLD = {
+    # Canonical agent.py at commit 536fb917 (reviewed before PBX optimizations).
+    "f270c853a344235b3a281a77c96df8390fc2c88cd20d9c725535fb87cdd08d86",
     "f79c14d7db658da300f46a1c0b233ac170962827abca69fa4101112158350827",
     "0c51c5d15d20ae3977f2e00d75763c30a87de9a766d2792af7c7407515bc5a26",
     "356d59d1b27c77682b4ab1bd5d9fbc6f99b1ffe91253666d3b0df0bd8ae60acb",
