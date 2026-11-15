@@ -93,6 +93,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
         event: "*", schema: "public", table: "pbx_extensions",
         filter: "organization_id=eq." + activeOrganizationId,
       }, () => setDirectoryRevision(previous => previous + 1))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_queues",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => setDirectoryRevision(previous => previous + 1))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "pbx_call_flows",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => setDirectoryRevision(previous => previous + 1))
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [activeOrganizationId, isPageOpen, registration]);
