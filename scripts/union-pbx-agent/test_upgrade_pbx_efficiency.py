@@ -18,6 +18,12 @@ class SafeUpgradeTests(unittest.TestCase):
         staged = (HERE / "agent.py").read_bytes().replace(b"\r\n", b"\n")
         self.assertEqual(hashlib.sha256(staged).hexdigest(), up.NEW_SHA256)
 
+    def test_previous_deployed_agent_sha_is_explicitly_allowed(self):
+        # Hash audited against Git commit 536fb917b1e911e4ee896f20f9ac8c83cc5043c3
+        previous = "f270c853a344235b3a281a77c96df8390fc2c88cd20d9c725535fb87cdd08d86"
+        self.assertIn(previous, up.REVIEWED_OLD)
+        self.assertNotEqual(previous, up.NEW_SHA256)
+
     def test_unknown_live_agent_refused_before_services_stop(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
