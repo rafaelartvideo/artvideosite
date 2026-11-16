@@ -213,9 +213,9 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
               : "CNPJ já cadastrado. Use o cadastro existente.",
           );
         } else {
-        const fallback = savePhase === "address"
-          ? "Cliente cadastrado, mas não foi possível salvar um dos endereços."
-          : "Não foi possível cadastrar o cliente.";
+          const fallback = savePhase === "address"
+            ? "Cliente cadastrado, mas não foi possível salvar um dos endereços."
+            : "Não foi possível cadastrar o cliente.";
           notifyAdmin(quickCustomerErrorMessage(error, fallback), "error");
         }
       }
