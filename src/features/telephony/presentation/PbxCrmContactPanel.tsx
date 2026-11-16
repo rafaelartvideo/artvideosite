@@ -98,7 +98,6 @@ export function PbxCrmContactPanel({
     </p> : !customer ? <p className="text-xs leading-5 text-muted-foreground">
       {source==="pbx" ? "Contato salvo na agenda PABX, sem cliente correspondente no CRM." : "Nenhum cliente do CRM encontrado para este número."}
     </p> : <>
-      <p className="mb-2 truncate text-xs font-semibold" title={customer.name}>{customer.name}</p>
       <div className="space-y-1">
         {panels.map(item=><div key={item.id} className="min-w-0 rounded-lg border border-border">
           <button type="button" aria-expanded={panel===item.id} onClick={()=>setPanel(old=>old===item.id?null:item.id)}
