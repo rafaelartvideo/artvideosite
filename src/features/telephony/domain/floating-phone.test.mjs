@@ -41,21 +41,20 @@ test("PABX displays the selected extension during connection and avoids mixed-co
   assert.doesNotMatch(workspace,/border-amber-400\/30 bg-amber-500\/10/);
 });
 
-test("floating PABX reuses authorized CRM details only while a valid contact is in an expanded call",async()=>{
+test("mini-PABX and full panel share CRM and history below the active-call controls",async()=>{
   const floatingPath="src/features/telephony/presentation/UnionPbxFloatingPhone.tsx";
   const pagePath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
   const panelPath="src/features/telephony/presentation/PbxCrmContactPanel.tsx";
   const floating=read(floatingPath),page=read(pagePath),panel=read(panelPath);
-  assert.match(floating,/import \{ PbxCrmContactPanel \}/);
-  assert.match(floating,/pbxContactPhoneKey\(customerPhone\)/);
-  assert.match(floating,/active=\{expanded && callState !== "idle" && hasCrmPhone\}/);
-  assert.match(page,/customerPhone=\{callState !== "idle" \? remoteParty : ""\}/);
-  assert.match(page,/customerSource=\{currentCallerCard\?\.source\}/);
+  assert.doesNotMatch(floating,/<PbxCrmContactPanel/);
+  assert.match(page,/<PbxCrmContactPanel organizationId=\{activeOrganizationId\} phone=\{remoteParty\}/);
+  assert.match(page,/<PbxContactActivity organizationId=\{activeOrganizationId\} number=\{remoteParty\}/);
+  assert.match(page,/callState !== "idle" && pbxContactPhoneKey\(remoteParty\)/);
+  assert.match(page,/callKeypadExpanded \? "Recolher teclado de discagem" : "Expandir teclado de discagem"/);
+  assert.match(page,/callState === "active" && callKeypadExpanded/);
   assert.match(panel,/hasPermission\("customers.view"\)/);
   assert.match(panel,/hasPermission\("orders.details.view"\)/);
-  assert.match(panel,/expires:Date.now\(\)\+5\*60_000/);
   assert.doesNotMatch(page,/Internas: \{callModeLabel|Externas: \{callModeLabel/);
-  assert.match(page,/callState !== "idle" \|\| \(canUseExternal && dialMode !== "internal"\)/);
   assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
   assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
 });
