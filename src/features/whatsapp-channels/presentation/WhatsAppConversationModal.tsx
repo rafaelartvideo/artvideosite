@@ -204,7 +204,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
           <Plus size={15}/> Nova OS
         </AdminButton>
       : undefined}
-    className="!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-var(--admin-browser-bottom-inset,0px)-1.5rem)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1160px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
+    className="!h-[min(80dvh,760px)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1080px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
     bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0"
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
@@ -246,7 +246,6 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       </AdminButton>}
       {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
-  </AdminDialog>
   {newOrder && <Suspense fallback={null}>
     <EmbeddedNewOrder
       key={newOrder.key}
@@ -262,6 +261,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       }}
     />
   </Suspense>}
+  </AdminDialog>
   </>;
 }
 
