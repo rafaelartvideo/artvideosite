@@ -353,7 +353,7 @@ export function UnionPbxOperatorWorkspace({
           </div>
           {dialer}
         </section>
-        <section aria-label="Painel de chamadas" className="flex min-h-[570px] min-w-0 flex-col rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <section aria-label="Painel de chamadas" className="flex min-h-[570px] min-w-0 flex-col rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 xl:col-start-2 xl:row-span-2 xl:row-start-1">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold">{mode === "chamadas" ? "Recentes" : "Contatos internos"}</h2>
@@ -490,12 +490,12 @@ export function UnionPbxOperatorWorkspace({
               onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);}}/>
           </div>
         </section>
-        <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 xl:col-span-2">
+        <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 xl:col-start-1 xl:row-start-2">
           <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
             <h2 className="text-base font-bold">Detalhes</h2>
             {hasDetails && !inCallNumber && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
           </div>
-          {hasDetails ? <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]">
+          {hasDetails ? <div className="grid min-w-0 items-start gap-5">
             <div className="flex min-w-0 flex-col items-stretch gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
