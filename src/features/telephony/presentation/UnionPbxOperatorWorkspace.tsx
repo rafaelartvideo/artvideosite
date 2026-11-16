@@ -345,7 +345,7 @@ export function UnionPbxOperatorWorkspace({
             <div><h2 className="text-sm font-bold">Telefone</h2><p className="text-xs text-muted-foreground">{lineLabel}</p></div>
             <button type="button" onClick={onConnectionSettings} disabled={connectionStatus==="connecting"}
               aria-label={connectionStatus==="registered"?"Desconectar ramal":"Conectar ramal"} title={extensionLabel}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-progress ${connectionStatus==="registered"?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":connectionStatus==="connecting"?"border-amber-400/30 bg-amber-500/10 text-amber-700 dark:text-amber-300":"border-border bg-background text-muted-foreground hover:text-primary"}`}>
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-progress ${connectionStatus==="registered"?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":connectionStatus==="connecting"?"border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300":"border-border bg-background text-muted-foreground hover:text-primary"}`}>
               {connectionStatus==="connecting"
                 ? <LoaderCircle size={15} className="animate-spin text-amber-500"/>
                 : <span className={`h-2.5 w-2.5 animate-pulse rounded-full ${connectionStatus==="registered"?"bg-emerald-500":connectionStatus==="error"?"bg-red-500":"bg-red-500"}`}/>}
