@@ -1699,7 +1699,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
-        if (/mensagem ou anexo inv[aá]lido|assuma o atendimento|conversa n[aã]o atribu[ií]da/i.test(detail)) {
+        if (/mensagem ou anexo inv[aá]lido|assuma o atendimento|conversa n[aã]o atribu[ií]da|ponte WhatsApp da VPS precisa ser atualizada/i.test(detail)) {
           if (!file) setDraft(current => current || text);
           if(quoted)setReplyTarget(current=>current||quoted);
           setPending(current => current.filter(item => item.id !== requestId));
