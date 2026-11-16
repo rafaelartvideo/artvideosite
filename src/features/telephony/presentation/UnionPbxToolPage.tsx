@@ -1,4 +1,4 @@
-import { myCallMode, boundCallMode, canOriginate, callModeLabel, type BoundCallMode } from "../application/call-modes";
+import { myCallMode, boundCallMode, canOriginate, type BoundCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
@@ -731,7 +731,6 @@ setTestFlowError('');
   };
 
   const dialerContent = <div className="space-y-3">
-    {appliedCallMode && <p className="text-xs text-muted-foreground">Internas: {callModeLabel(appliedCallMode.internal_mode)} · Externas: {callModeLabel(appliedCallMode.external_mode)}{appliedCallMode.status === "pending" ? " · Alteração aguardando a central" : ""}</p>}
     {callModeUnavailable && <p role="status" className="text-xs text-muted-foreground">Modo de chamada sem atualização. A central continua verificando as permissões.</p>}
           {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
