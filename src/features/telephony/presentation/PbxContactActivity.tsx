@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { pbxRequest } from "../application/pbx-request";
 import {
   callDuration, dispositionLabels, loadCallHistory, localHistoryDate,
@@ -50,6 +51,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
+  const {user} = useAuth();
   const digits = number.replace(/\D/g, "");
   const normalizedNumber = digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
     ? digits.slice(2) : digits;
@@ -58,7 +60,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   const from = localHistoryDate(start), to = localHistoryDate(today);
   const enabled = Boolean(active && organizationId && normalizedNumber.length >= 3 && normalizedNumber.length <= 15);
   const historyQuery = useQuery({
-    queryKey: ["pbx", "contact-history", organizationId, normalizedNumber, from, to, page],
+    queryKey: ["pbx", "contact-history", organizationId, user?.id || "", normalizedNumber, from, to, page],
     enabled,
     staleTime: 5 * 60_000,
     queryFn: async ({ signal }) => {
@@ -73,9 +75,9 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   useEffect(() => { setExpanded(false); setPage(1); }, [organizationId, number]);
   useEffect(() => {
     if (revision > 0 && enabled) void queryClient.invalidateQueries({
-      queryKey: ["pbx", "contact-history", organizationId, normalizedNumber],
+      queryKey: ["pbx", "contact-history", organizationId, user?.id || "", normalizedNumber],
     });
-  }, [revision, enabled, organizationId, normalizedNumber, queryClient]);
+  }, [revision, enabled, organizationId, user?.id, normalizedNumber, queryClient]);
   const total = historyQuery.data?.count || 0;
   const ready = Boolean(historyQuery.data);
   const failed = historyQuery.isError && !ready;
