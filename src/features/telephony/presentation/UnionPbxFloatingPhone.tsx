@@ -203,7 +203,7 @@ export function UnionPbxFloatingPhone({
     {!expanded&&callState==="incoming"&&<p className="flex items-center gap-2 px-3 pb-2 text-xs text-amber-700">
       <PhoneIncoming size={14}/> Nova chamada
     </p>}
-    {!expanded&&callState==="active"&&<p className="flex items-center gap-2 px-3 pb-2 text-xs text-emerald-700">
+    {!expanded&&callState==="active"&&<p className="flex items-center gap-2 px-3 pb-2 pt-3 text-xs text-emerald-700">
       <PhoneCall size={14}/> Chamada em andamento
     </p>}
   </section>;
