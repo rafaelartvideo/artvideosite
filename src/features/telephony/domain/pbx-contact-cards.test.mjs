@@ -45,7 +45,7 @@ test("PABX reuses CRM query cache for history and customer details without leaki
     assert.match(file,/useQuery/);
     assert.match(file,/staleTime: 5 \* 60_000/);
     assert.match(file,/user\?\.id/);
-    assert.match(file,/organizationId/);
+    assert.match(file,/(?:organizationId|activeOrganizationId)/);
   }
   assert.match(activity,/queryClient\.invalidateQueries/);
   assert.match(operator,/queryClient\.invalidateQueries/);
