@@ -420,6 +420,7 @@ export function OrderDetailsPage(props: Props) {
       source: {
         kind: "order",
         orderId: detail.id,
+        customerId: detail.customer_id || undefined,
         phone: String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || ""),
         customerName: String((detail.customer as any)?.full_name || (detail.customer as any)?.trade_name || (detail.customer as any)?.legal_name || ""),
         documentOptions,
