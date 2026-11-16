@@ -48,7 +48,13 @@ test('retorno interno também prepara tom e desconexão/cancelamento liberam rec
  const calls=[...p.matchAll(/uaRef\.current\.call\(/g)];assert.equal(calls.length,4);
  for(const m of calls)assert.match(p.slice(m.index-80,m.index),/prepareRingback\(\)/);
  assert.match(p,/ua\.on\("disconnected",[\s\S]*?ringbackRef\.current\?\.dispose\(\)/);
- assert.match(p,/const hangup = \(\) => \{\s*ringbackRef\.current\?\.dispose\(\)/);
+ const hangup=p.match(/const hangup = \\(\\) => \\{([\\s\\S]*?)\\n  \\};/);
+ assert.ok(hangup,'o discador deve manter a ação de desligar');
+ assert.match(hangup[1],/ringbackRef\\.current\\?\\.dispose\\(\\)/);
+ assert.match(hangup[1],/sessionRef\\.current\\?\\.terminate\\(\\)/);
+ assert.ok(hangup[1].indexOf('ringbackRef.current?.dispose()') <
+   hangup[1].indexOf('sessionRef.current?.terminate()'),
+   'o tom local deve ser liberado antes de encerrar a sessão SIP');
 });
 test('falha de análise silencia fallback ao receber mídia, informa bloqueio e permite recuperação no clique',async t=>{
  const {createCallRingback}=await load();const oldAudio=globalThis.Audio,oldContext=globalThis.AudioContext;const audios=[];let ctx;let tick;
