@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
 import {
@@ -48,48 +49,38 @@ function responsibleExtension(row: CallHistoryRow): number | null {
 export function PbxContactActivity({ organizationId, number, active, revision, onDialNumber, callBusy }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
-  const [rows, setRows] = useState<CallHistoryRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const loadedQueryRef = useRef("");
-  useEffect(() => { setExpanded(false); setPage(1); setRows([]); setTotal(0); loadedQueryRef.current = ""; }, [organizationId, number]);
-  const queryKey = `${organizationId || ""}:${number.replace(/\D/g,"")}:${page}`;
+  const queryClient = useQueryClient();
+  const digits = number.replace(/\\D/g, "");
+  const normalizedNumber = digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
+    ? digits.slice(2) : digits;
+  const today = new Date(), start = new Date(today);
+  start.setDate(start.getDate() - 89);
+  const from = localHistoryDate(start), to = localHistoryDate(today);
+  const enabled = Boolean(active && organizationId && normalizedNumber.length >= 3 && normalizedNumber.length <= 15);
+  const historyQuery = useQuery({
+    queryKey: ["pbx", "contact-history", organizationId, normalizedNumber, from, to, page],
+    enabled,
+    staleTime: 5 * 60_000,
+    queryFn: async ({ signal }) => {
+      const filters: HistoryFilters = { from, to, direction: "", disposition: "", number: normalizedNumber };
+      const {data,count,error} = await pbxRequest(requestSignal =>
+        loadCallHistory(supabase, organizationId!, filters, page, 10, requestSignal),
+        "Histórico do contato", { signal });
+      if (error) throw error;
+      return { data: (data || []) as CallHistoryRow[], count: count || 0 };
+    },
+  });
+  useEffect(() => { setExpanded(false); setPage(1); }, [organizationId, number]);
   useEffect(() => {
-    const controller = new AbortController();
-    const digits = number.replace(/\D/g, "");
-    if (!active || !organizationId || digits.length < 3 || digits.length > 15) {
-      setLoading(false);
-      return () => controller.abort();
-    }
-    const start = new Date(); start.setDate(start.getDate() - 89);
-    const filters: HistoryFilters = {
-      from: localHistoryDate(start), to: localHistoryDate(new Date()),
-      direction: "", disposition: "",
-      number: digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits,
-    };
-    const initialLoad = loadedQueryRef.current !== queryKey;
-    if (initialLoad) setLoading(true);
-    setFailed(false);
-    void pbxRequest(signal => loadCallHistory(supabase, organizationId, filters, page, 10, signal),
-      "Histórico do contato", {signal: controller.signal})
-      .then(({data,count,error}) => {
-        if (controller.signal.aborted) return;
-        if (error) throw error;
-        setRows((data || []) as CallHistoryRow[]);
-        setTotal(count || 0);
-        loadedQueryRef.current = queryKey;
-      }).catch(() => {
-        if (!controller.signal.aborted) {
-          // Eventos Realtime não apagam os resultados nem reabrem o loading.
-          if (initialLoad) {setRows([]);setTotal(0);setFailed(true);}
-        }
-      }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [organizationId, number, active, page, revision, queryKey]);
-  const ready = loadedQueryRef.current === queryKey;
-  const currentRows = ready ? rows : [];
-  const shown = expanded ? currentRows : currentRows.slice(0,3);
+    if (revision > 0 && enabled) void queryClient.invalidateQueries({
+      queryKey: ["pbx", "contact-history", organizationId, normalizedNumber],
+    });
+  }, [revision, enabled, organizationId, normalizedNumber, queryClient]);
+  const total = historyQuery.data?.count || 0;
+  const ready = Boolean(historyQuery.data);
+  const failed = historyQuery.isError && !ready;
+  const currentRows = historyQuery.data?.data || [];
+  const shown = expanded ? currentRows : currentRows.slice(0, 3);
   return <section className="mt-6 space-y-3 border-t border-border pt-4" aria-label="Histórico com o contato">
     <div className="flex items-center justify-between gap-2">
       <h4 className="text-sm font-bold">Histórico com o contato</h4>
@@ -98,9 +89,18 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
         {expanded ? "Ver menos" : "Ver tudo"}
       </button>}
     </div>
-    {!ready && !failed && <p role="status" className="flex items-center gap-2 py-4 text-xs text-primary"><LoaderCircle size={15} className="animate-spin"/> Preparando histórico...</p>}
+    {!ready && !failed && <div role="status" aria-label="Preparando histórico" className="space-y-2 py-2" data-pbx-history-skeleton="true">
+      <span className="sr-only">Preparando histórico...</span>
+      {[0,1,2].map(item => <div key={item} className="flex animate-pulse items-center gap-2 rounded-lg p-2">
+        <span className="h-9 w-9 shrink-0 rounded-full bg-muted"/>
+        <span className="min-w-0 flex-1 space-y-2">
+          <span className="block h-3 w-2/3 rounded bg-muted"/>
+          <span className="block h-2.5 w-4/5 rounded bg-muted"/>
+        </span>
+      </div>)}
+    </div>}
     {failed && !ready && <p role="status" className="text-xs text-muted-foreground">Histórico indisponível no momento.</p>}
-    {ready && !failed && currentRows.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma chamada encontrada com este contato.</p>}
+    {ready && !failed && currentRows.length === 0 && <p className="py-5 text-center text-xs text-muted-foreground">Nenhuma chamada encontrada com este contato.</p>}
     {ready && !failed && <div className="space-y-1.5">
       {shown.map(row => {
         const answered = row.disposition === "ANSWERED";
