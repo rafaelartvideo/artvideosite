@@ -77,7 +77,8 @@ test("WhatsApp e Nova OS usam modais moviveis sem duplicar fundo escuro", () => 
   const actions=read("src/features/orders/presentation/OrderFormActions.tsx");
   assert.match(dialog, /draggable = false/);
   assert.match(dialog, /showOverlay = true/);
-  assert.match(dialog, /onPointerDown=\{draggable \? startDialogDrag : undefined\}/);
+  assert.match(dialog, /ref=\{dragHeaderRef\}/);
+  assert.match(dialog, /data-admin-dialog-drag-handle=\{draggable \? "true" : undefined\}/);
   assert.match(dialog, /showOverlay=\{showOverlay\}/);
   assert.match(modal, /title="Atendimento WhatsApp"\s+draggable/);
   assert.match(modal, /Nova OS/);
@@ -108,20 +109,21 @@ test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada",
   const dialog=read("src/shared/ui/admin/AdminLayout.tsx");
   const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
   const actions=read("src/features/orders/presentation/OrderFormActions.tsx");
-  assert.match(css, /\[data-admin-dialog-draggable="true"\]\[data-admin-dialog-positioned="true"\]/);
-  assert.match(css, /left: var\(--admin-dialog-drag-left\) !important/);
-  assert.match(css, /top: var\(--admin-dialog-drag-top\) !important/);
-  assert.match(css, /translate: none !important/);
-  assert.match(dialog, /"--admin-dialog-drag-left":/);
-  assert.match(dialog, /"--admin-dialog-drag-top":/);
-  assert.match(dialog, /data-admin-dialog-positioned=\{draggable && dragPosition \? "true" : undefined\}/);
-  assert.match(dialog, /window.addEventListener\("pointermove", move, \{ passive: false \}\)/);
-  assert.match(dialog, /window.addEventListener\("pointerup", stop\)/);
-  assert.match(dialog, /setDragPosition\(\{ left: bounds.left, top: bounds.top \}\)/);
-  assert.match(dialog, /const visibleWidth = Math.min\(drag.width, 380\)/);
-  assert.match(dialog, /const visibleHeight = Math.min\(drag.height, 160\)/);
-  assert.match(dialog, /onDoubleClick=\{draggable \? \(\) => \{/);
-  assert.doesNotMatch(dialog, /setPointerCapture/);
+  // Regression: drag must use native document mouse events and absolute
+  // positioning with inline !important, not React state or Tailwind variables.
+  assert.match(css, /top: calc\(50dvh \+ 2rem/);
+  assert.match(dialog, /header\.addEventListener\("mousedown", onMouseDown, true\)/);
+  assert.match(dialog, /document\.addEventListener\("mousemove", onMove, true\)/);
+  assert.match(dialog, /document\.addEventListener\("mouseup", stopDrag, true\)/);
+  assert.match(dialog, /node\.style\.setProperty\("left",/);
+  assert.match(dialog, /node\.style\.setProperty\("top",/);
+  assert.match(dialog, /node\.style\.setProperty\("translate", "none", "important"\)/);
+  assert.match(dialog, /node\.style\.setProperty\("transform", "none", "important"\)/);
+  assert.match(dialog, /position\(bounds\.left, bounds\.top\)/);
+  assert.match(dialog, /const visibleWidth = Math\.min\(drag\.width, 380\)/);
+  assert.match(dialog, /const visibleHeight = Math\.min\(drag\.height, 160\)/);
+  assert.match(dialog, /header\.addEventListener\("dblclick", center\)/);
+  assert.doesNotMatch(dialog, /setPointerCapture|setDragPosition|data-admin-dialog-positioned/);
   assert.match(dialog, /footerClassName/);
   assert.match(editor, /modal showOverlay=\{false\}/);
   assert.match(editor, /!overflow-y-auto !overscroll-contain !p-0/);
