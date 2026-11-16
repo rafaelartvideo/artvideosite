@@ -36,9 +36,10 @@ test('PABX usa console do operador e modais protegidos mantendo a chamada', asyn
   const page = readFileSync(pagePath, 'utf8');
   const adminPath = 'src/app/Admin.tsx';
   const admin = readFileSync(adminPath, 'utf8');
-  assert.match(nav, /PageHeader/);
-  assert.match(nav, /lg:grid-cols-\[72px_minmax\(0,1fr\)\]/);
-  assert.match(nav, /xl:grid-cols-\[minmax\(270px,0\.85fr\)_minmax\(340px,1\.55fr\)_minmax\(255px,0\.9fr\)\]/);
+  assert.match(nav, /AdminSubsectionTabs<WorkspaceMode>/);
+  assert.match(nav, /Subseções da central de chamadas/);
+  assert.match(nav, /xl:grid-cols-\[minmax\(285px,350px\)_minmax\(0,1fr\)\]/);
+  assert.doesNotMatch(nav, /Navegação do operador|<PageHeader/);
   for (const item of ['"chamadas"', '"contatos"', '"historico"', '"gravacoes"', '"fluxos"', '"troncos"', '"entrada"']) {
     assert.ok(nav.includes(item), item);
   }
