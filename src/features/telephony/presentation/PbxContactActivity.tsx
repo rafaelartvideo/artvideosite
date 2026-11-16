@@ -50,7 +50,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
-  const digits = number.replace(/\\D/g, "");
+  const digits = number.replace(/\D/g, "");
   const normalizedNumber = digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
     ? digits.slice(2) : digits;
   const today = new Date(), start = new Date(today);
