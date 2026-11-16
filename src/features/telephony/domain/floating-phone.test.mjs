@@ -26,6 +26,25 @@ test("mini-PABX uses the real dialer and never disconnects the SIP session from 
   assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
 });
 
+test("floating PABX reuses authorized CRM details only while a valid contact is in an expanded call",async()=>{
+  const floatingPath="src/features/telephony/presentation/UnionPbxFloatingPhone.tsx";
+  const pagePath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
+  const panelPath="src/features/telephony/presentation/PbxCrmContactPanel.tsx";
+  const floating=read(floatingPath),page=read(pagePath),panel=read(panelPath);
+  assert.match(floating,/import \{ PbxCrmContactPanel \}/);
+  assert.match(floating,/pbxContactPhoneKey\(customerPhone\)/);
+  assert.match(floating,/active=\{expanded && callState !== "idle" && hasCrmPhone\}/);
+  assert.match(page,/customerPhone=\{callState !== "idle" \? remoteParty : ""\}/);
+  assert.match(page,/customerSource=\{currentCallerCard\?\.source\}/);
+  assert.match(panel,/hasPermission\("customers.view"\)/);
+  assert.match(panel,/hasPermission\("orders.details.view"\)/);
+  assert.match(panel,/expires:Date.now\(\)\+5\*60_000/);
+  assert.doesNotMatch(page,/Internas: \{callModeLabel|Externas: \{callModeLabel/);
+  assert.match(page,/callState !== "idle" \|\| \(canUseExternal && dialMode !== "internal"\)/);
+  assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
+  assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
+});
+
 test("mini-PABX snaps to viewport edges, supports keyboard reposition and limits visual height",()=>{
   const floating=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
   assert.match(floating,/const MARGIN = 12/);
