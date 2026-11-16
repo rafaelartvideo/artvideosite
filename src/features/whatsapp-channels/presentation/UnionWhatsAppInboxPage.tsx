@@ -310,9 +310,10 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, orderDocumentOptions, onPrepareOrderDocument }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, orderDocumentOptions, onPrepareOrderDocument }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
+  onEmbeddedReady?: (ready: boolean) => void;
   orderDocumentOptions?: Array<{id:string;label:string}>;
   onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
@@ -1103,6 +1104,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const conversationOpening = Boolean(selectedId && (!selected || messagesResolvedId!==selectedId ||
     (selected.status==="in_att" && !isMine && !canManage && participantsResolvedId!==selectedId)));
   const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId));
+  // O modal controla um unico loading ate o historico inicial ficar pronto.
+  useEffect(() => {
+    if(!embedded || !onEmbeddedReady)return;
+    if(channelReady===false){onEmbeddedReady(true);return;}
+    if(channelReady!==true || !initialConversationId || selectedId!==initialConversationId ||
+       readyAccount!==accountIdentity)return;
+    if(conversationOpeningError || (selected?.id===initialConversationId && !conversationOpening))
+      onEmbeddedReady(true);
+  },[embedded,onEmbeddedReady,channelReady,initialConversationId,selectedId,readyAccount,
+     accountIdentity,selected?.id,conversationOpening,conversationOpeningError]);
   const canReply = Boolean(selected && !conversationOpening && !protocolFilter && canSend && selected.status === "in_att" &&
     (isMine || canManage || isActiveCollaborator));
   // Focus once when a new conversation has finished preparing the composer.
@@ -1256,6 +1267,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } finally {
       setRunningAction(null);
     }
+  };
+
+  // Uma conversa continua unica: iniciar apos finalizar abre outro protocolo.
+  const startNewProtocol = async () => {
+    if(!embedded || !selected || selected.status!=="finished" ||
+       !selected.contact_phone || !activeOrganizationId || !activeChannelId ||
+       !activeChannelPhone || !canAction("start") || runningAction)return;
+    setRunningAction("start");
+    try {
+      await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"start",{
+        phone:selected.contact_phone,contact_name:selected.contact_name,
+      });
+      const updated=await getUnionWhatsAppConversation(
+        activeOrganizationId,selected.id,activeChannelId,activeChannelPhone);
+      if(!updated || updated.status!=="in_att")
+        throw new Error("Não foi possível confirmar a abertura do novo protocolo.");
+      setSelectedFallback(updated);
+      setConversations(current=>current.map(item=>item.id===updated.id?updated:item));
+      setProtocolFilter(null);
+      setFilter("in_att");
+      void refresh(true);
+    }catch(reason){
+      reportError(systemErrorMessage(reason,"Não foi possível iniciar o novo protocolo."));
+    }finally{setRunningAction(null);}
   };
 
   useEffect(()=>{
@@ -1986,10 +2021,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
-                   {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
+                   {formatWhatsAppPhone(selected.contact_phone)}{embedded && selected.status==="finished" ? " · Histórico completo" : selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    <span className="ml-2 inline-flex max-w-full min-w-0 items-center gap-1 align-middle">
                    <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
-                     {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
+                     {embedded && selected.status==="finished" ? "Sem protocolo ativo" : hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
                    {isActiveCollaborator && !isMine && selected.status==="in_att" &&
                      <span className="inline-flex shrink-0 items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
@@ -2039,7 +2074,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
                    </AdminButton>}
                 </>}
-                {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
+                {embedded && !protocolFilter && selected.status === "finished" && canAction("start") && selected.contact_phone &&
+                  <AdminButton size="sm" disabled={Boolean(runningAction)} loading={runningAction==="start"}
+                    onClick={() => void startNewProtocol()}>
+                    {runningAction==="start" ? "Iniciando protocolo..." : "Iniciar novo protocolo"}
+                  </AdminButton>}
+                {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
@@ -2292,7 +2332,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </form>
               </div> : <p className="py-2 text-center text-xs text-muted-foreground">
                 {selected.status === "waiting" ? "Assuma o atendimento para responder." :
-                  selected.status === "finished" ? "Atendimento finalizado. Reabra para responder." :
+                  selected.status === "finished" ? (embedded ? "Histórico completo. Inicie um novo protocolo para responder." : "Atendimento finalizado. Reabra para responder.") :
                   "Esta conversa está atribuída a outro atendente."}
               </p>}
             </footer>
