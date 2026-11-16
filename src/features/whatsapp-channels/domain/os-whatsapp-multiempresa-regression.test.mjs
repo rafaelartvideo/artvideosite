@@ -60,13 +60,14 @@ test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encer
   assert.match(modal, /onEmbeddedReady=\{setEmbeddedReady\}/);
   assert.match(modal, /Carregando atendimento\.\.\./);
   assert.match(inbox, /embedded && !protocolFilter && selected\.status === "finished" && canAction\("start"\)/);
-  assert.match(inbox, /"Iniciar novo protocolo"/);
+  assert.match(inbox, /"Iniciar conversa"/);
   assert.match(inbox, /!embedded && !protocolFilter && selected\.status === "finished" && canAction\("reopen"\)/);
   assert.match(inbox, /embedded && selected\.status==="finished" \? " · Histórico completo"/);
   assert.match(inbox, /setProtocolFilter\(null\)/);
   assert.match(inbox, /embedded \? Promise\.resolve\(\) : refresh\(true\)/);
-  assert.match(crm, /LoaderCircle size=\{16\} className="animate-spin text-primary"/);
-  assert.match(crm, /Consultando dados do CRM\.\.\./);
+  assert.match(crm, /LoaderCircle size=\{17\} className="shrink-0 animate-spin text-primary"/);
+  assert.match(crm, /Consultando dados do cliente\.\.\./);
+  assert.doesNotMatch(crm, /animate-pulse space-y-2|aria-label="Consultando dados do CRM"/);
 });
 
 test("WhatsApp e Nova OS usam modais moviveis sem duplicar fundo escuro", () => {
@@ -84,7 +85,7 @@ test("WhatsApp e Nova OS usam modais moviveis sem duplicar fundo escuro", () => 
   assert.match(modal, /initialCustomerId=\{newOrder\.customerId\}/);
   assert.match(modal, /organizationIdOverride=\{organizationId\}/);
   assert.match(editor, /if \(embeddedDialog\) return <AdminDialog/);
-  assert.match(editor, /draggable showOverlay=\{false\}/);
+  assert.match(editor, /draggable modal=\{false\} showOverlay=\{false\}/);
   assert.match(editor, /editorBody/);
   assert.match(actions, /inDialog= false|inDialog = false/);
   assert.match(tab, /embeddedDialog=\{embeddedCreate\}/);
@@ -100,4 +101,23 @@ test("Nova OS reaproveita cliente confirmado sem criar vinculos por telefone amb
   assert.match(modal, /if \(!found\.ambiguous\) customerId = found\.customer\?\.id \|\| null/);
   assert.match(tab, /getOrderCustomerById\(/);
   assert.match(tab, /selectCustomer\(data\)/);
+});
+
+test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada", () => {
+  const css=read("src/styles/index.css");
+  const dialog=read("src/shared/ui/admin/AdminLayout.tsx");
+  const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  const actions=read("src/features/orders/presentation/OrderFormActions.tsx");
+  assert.match(css, /\[data-admin-dialog-draggable="true"\]/);
+  assert.match(css, /--tw-translate-x: calc\(-50% \+ var\(--admin-dialog-drag-x/);
+  assert.match(css, /--tw-translate-y: calc\(-50% \+ var\(--admin-dialog-drag-y/);
+  assert.match(dialog, /"--admin-dialog-drag-x":/);
+  assert.match(dialog, /data-admin-dialog-draggable=\{draggable \? "true" : undefined\}/);
+  assert.match(dialog, /footerClassName/);
+  assert.match(editor, /modal=\{false\} showOverlay=\{false\}/);
+  assert.match(editor, /!overflow-y-auto !overscroll-contain !p-0/);
+  assert.match(editor, /footerClassName="!border-t-0/);
+  assert.match(actions, /if \(inDialog\) return <div/);
+  assert.match(actions, /return <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">/);
+  assert.doesNotMatch(actions, /style=\{inDialog \?/);
 });
