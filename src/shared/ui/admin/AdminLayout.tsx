@@ -407,11 +407,16 @@ export function AdminDialog({
       const clamp = (value: number, min: number, max: number) =>
         Math.min(Math.max(value, min), Math.max(min, max));
       const topInset = 64; // CRM header, matching --admin-shell-header-height.
+      // Large dialogs fill most of the viewport. Keeping every edge visible
+      // would allow almost no movement. Keep a generous header grab area visible
+      // and allow the rest of the window to move partially out of view.
+      const visibleWidth = Math.min(drag.width, 380);
+      const visibleHeight = Math.min(drag.height, 160);
       setDragPosition({
         left: clamp(drag.startLeft + event.clientX - drag.pointerX,
-          8, window.innerWidth - drag.width - 8),
+          visibleWidth - drag.width, window.innerWidth - visibleWidth),
         top: clamp(drag.startTop + event.clientY - drag.pointerY,
-          topInset + 8, window.innerHeight - drag.height - 8),
+          topInset + 8, window.innerHeight - visibleHeight),
       });
       if (event.cancelable) event.preventDefault();
     };
@@ -579,8 +584,12 @@ export function AdminDialog({
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
         : (title || description || onClose) && <div
           className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:select-none md:touch-none active:cursor-grabbing")}
-          title={draggable ? "Segure e arraste para mover a janela" : undefined}
+          title={draggable ? "Arraste para mover; clique duas vezes para centralizar" : undefined}
           onPointerDown={draggable ? startDialogDrag : undefined}
+          onDoubleClick={draggable ? () => {
+            dragRef.current = null;
+            setDragPosition(null);
+          } : undefined}
         >
         <div className="min-w-0 flex-1">
           {title ? <div className="flex items-center gap-2">{draggable && <GripHorizontal size={16} className="shrink-0 text-muted-foreground" aria-hidden="true"/>}<DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
