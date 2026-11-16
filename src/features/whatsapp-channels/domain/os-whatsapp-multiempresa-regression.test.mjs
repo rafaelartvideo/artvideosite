@@ -118,6 +118,9 @@ test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada",
   assert.match(dialog, /window.addEventListener\("pointermove", move, \{ passive: false \}\)/);
   assert.match(dialog, /window.addEventListener\("pointerup", stop\)/);
   assert.match(dialog, /setDragPosition\(\{ left: bounds.left, top: bounds.top \}\)/);
+  assert.match(dialog, /const visibleWidth = Math.min\(drag.width, 380\)/);
+  assert.match(dialog, /const visibleHeight = Math.min\(drag.height, 160\)/);
+  assert.match(dialog, /onDoubleClick=\{draggable \? \(\) => \{/);
   assert.doesNotMatch(dialog, /setPointerCapture/);
   assert.match(dialog, /footerClassName/);
   assert.match(editor, /modal showOverlay=\{false\}/);
