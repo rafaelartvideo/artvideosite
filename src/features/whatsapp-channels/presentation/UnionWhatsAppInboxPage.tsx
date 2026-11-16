@@ -1794,38 +1794,38 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
-  return <div className={embedded ? "flex h-full min-h-0 flex-col" : "space-y-5"}>
-    {!embedded && <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+  return <div className={embedded ? "flex h-full min-h-0 flex-col" : "min-w-0 space-y-3 md:space-y-5"}>
+    {!embedded && <header className="flex min-w-0 flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between md:pb-5">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto md:flex-1 md:flex-nowrap md:gap-3">
         <h1 className="shrink-0 whitespace-nowrap text-lg font-black leading-tight text-foreground sm:text-2xl">Atendimentos</h1>
-        <span aria-hidden="true" className="h-8 w-px shrink-0 bg-border"/>
-        <nav aria-label="Canais de atendimento" className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
+        <span aria-hidden="true" className="hidden h-8 w-px shrink-0 bg-border md:block"/>
+        <nav aria-label="Canais de atendimento" className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
 
       <button type="button" aria-current="page" aria-label="WhatsApp, canal selecionado"
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3.5 py-2 text-sm font-bold text-primary">
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary md:min-h-10 md:gap-2 md:px-3.5 md:py-2 md:text-sm">
         <WhatsAppIcon/> WhatsApp
       </button>
       <button type="button" disabled aria-label="Instagram, em breve" title="Instagram · Em breve"
-        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        className="hidden min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65 md:inline-flex">
         <Instagram size={19}/> Instagram
       </button>
       <button type="button" disabled aria-label="Facebook, em breve" title="Facebook · Em breve"
-        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        className="hidden min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65 md:inline-flex">
         <Facebook size={19}/> Facebook
       </button>
     </nav>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full min-w-0 items-center justify-between gap-2 md:w-auto md:shrink-0 md:justify-end">
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
           <button type="button" data-whatsapp-attendance-settings-trigger="true" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
             onClick={onConfigure}
             className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Settings2 size={20} strokeWidth={2}/>
           </button>}
-        {canAction("collaborate") && canSend && <AdminButton variant="secondary" onClick={()=>setRequestOpen(true)}>
-          <Users size={15} className="mr-1.5"/> Solicitar participação
+        {canAction("collaborate") && canSend && <AdminButton variant="secondary" className="max-md:!px-2.5 max-md:!py-2" onClick={()=>setRequestOpen(true)}>
+          <Users size={15} className="shrink-0"/><span className="md:hidden">Participar</span><span className="hidden md:inline">Solicitar participação</span>
         </AdminButton>}
-        <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
+        <AdminButton variant="secondary" className="max-md:!px-3 max-md:!py-2" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>}
     {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
@@ -1845,15 +1845,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </AdminButton>
           </div>}
       </div>
-    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "h-[calc(100dvh-210px)] min-h-[420px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:h-[min(76vh,850px)] md:min-h-[520px]"}>
+    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-250px)] min-h-[360px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:mx-0 md:h-[min(76vh,850px)] md:min-h-[520px]"}>
       <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1"}>
         <aside className={`${embedded ? "hidden" : selectedId ? "hidden md:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r`}>
-          <div className="border-b border-border bg-muted/35 p-3">
-            <div className="flex items-center justify-between gap-2">
+          <div className="border-b border-border bg-muted/35 p-2.5 md:p-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
               <p className="text-base font-black text-foreground">Conversas</p>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
                 {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
-                  className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
+                  className="flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
                   <ContactRound size={15}/> Contatos
                 </button>}
                 {canAction("start") && <button type="button" onClick={() => {
@@ -1861,7 +1861,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
                   setNewConversationOpen(true);
                 }}
-                  className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
+                  className="flex h-8 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 text-[11px] font-bold text-primary hover:bg-primary/15 md:gap-1.5 md:px-2.5 md:text-xs">
                   <Plus size={15}/> Nova
                 </button>}
               </div>
@@ -1869,10 +1869,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {counts.total} conversa(s) · {counts.unread} não lida(s)
             </p>
-            <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible md:pb-0">
+            <div className="mt-2.5 grid grid-cols-2 gap-1.5 md:mt-3">
               {filters.map(item => <button key={item.value} type="button" onClick={() => {setSelectedId(null);setConversationPage(0);setFilter(item.value);}}
                 aria-pressed={filter === item.value}
-                className={`flex shrink-0 items-center justify-between gap-1.5 rounded-full border px-3 py-2 text-[11px] font-bold transition-colors md:min-w-0 md:rounded-lg md:px-2 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
+                className={`flex min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors md:gap-1.5 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
                 <span className="truncate">{item.label}</span>
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
@@ -1910,13 +1910,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
-                className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
+                className={`box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-2.5 py-2.5 text-left transition-colors last:border-b-0 md:gap-3 md:px-3 md:py-3 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
                   onError={()=>{avatarCheckedAtRef.current.set(item.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,item.id,null));}}/>
                 <span className="min-w-0 flex-1">
-                  <span className="flex justify-between gap-2">
-                    <span className="truncate text-sm font-black text-foreground">{name}</span>
-                    <span className="shrink-0 text-[9px] text-muted-foreground">{compactDate(item.last_message_at)}</span>
+                  <span className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-black text-foreground">{name}</span>
+                    <span className="shrink-0 whitespace-nowrap text-[9px] text-muted-foreground">{compactDate(item.last_message_at)}</span>
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground">{formatWhatsAppPhone(item.contact_phone)}</span>
                   <span className="mt-1.5 flex items-center justify-between gap-2">
@@ -1924,7 +1924,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     {item.unread_count > 0 && !selected && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
                   {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
-                    <span className={`mt-1.5 inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
