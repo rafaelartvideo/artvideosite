@@ -25,7 +25,11 @@ test('discador externo preserva saída Union e exige autorização específica p
   const page=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');
   const admin=readFileSync('src/app/Admin.tsx','utf8');
   assert.match(admin,/allowExternalCalls=\{isPlatformOperatorOrganization\}/);
-  assert.match(page,/callState === "idle" && canUseExternal/);
+  // O acesso ao discador depende de registro, estado ocioso e permissões;
+  // não exigir que a lógica fique numa expressão inline específica.
+  assert.match(page,/const registeredAndIdle = registration === "registered" && callState === "idle" && !incomingRetry && !outputPending/);
+  assert.match(page,/disabled=\{!registeredAndIdle \|\| !canMakeCalls/);
+  assert.match(page,/onClick=\{dialMode === "external" && canUseExternal \? callExternal : callInternal\}/);
   assert.match(page,/const destination = normalizeNationalDestination\(externalTarget\)/);
   assert.match(page,/if \(!canUseExternal \|\| !destination/);
   assert.match(page,/externalDialingAllowed\(allowExternalCalls,isPlatformOperatorOrganization,activeOrganizationId,sipUser,externalGrant\)/);
