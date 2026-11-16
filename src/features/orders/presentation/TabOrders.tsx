@@ -882,7 +882,8 @@ export function TabOrders({
       />}
 
       {!scopedReadOnly && <OrderEditorPage
-        visible={editingContentReady}
+        visible={editingContentReady || embeddedCreate}
+        preparingEmbedded={embeddedCreate && !editingContentReady}
         saving={saving}
         workspace={workspace}
         formState={formState}
