@@ -61,7 +61,8 @@ test('PABX usa console do operador e modais protegidos mantendo a chamada', asyn
   assert.match(nav, /canManageInbound \?/);
   assert.match(nav, /loadCallHistory/);
   assert.match(nav, /setPage/);
-  assert.match(nav, /AbortController/);
+  assert.match(nav, /queryFn: async \(\{signal\}\)/);
+  assert.match(nav, /enabled: Boolean\(activeOrganizationId && isActive\)/);
   assert.match(admin, /canManagePbxTool && isPlatformOperatorOrganization/);
   assert.match(admin, /<AdminDialog[\s\S]*?title=\{\(\{/);
   assert.match(page, /<UnionPbxOperatorWorkspace/);
