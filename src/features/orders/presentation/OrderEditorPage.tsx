@@ -1,4 +1,4 @@
-import { AdminPage } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { useOrganizationOrderRules } from "../application/useOrganizationOrderRules";
 import { defaultRules, resolveRules, type RuleSet } from "../domain/order-rules";
@@ -17,8 +17,8 @@ import type { useOrderImages } from "@/features/orders/application/useOrderImage
 import type { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
 import type { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
 type PermissionCheck = (permission: string) => boolean;
-interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: ReturnType<typeof useOrdersWorkspace>; formState: ReturnType<typeof useOrderFormState>; images: ReturnType<typeof useOrderImages>; customers: ReturnType<typeof useOrderCustomerSelection>; address: ReturnType<typeof useOrderServiceAddress>; customerPersistence: ReturnType<typeof useOrderCustomerPersistence>; hasPermission: PermissionCheck; getSituations: (serviceTypeId: string,currentSituationId?: string,currentSituation?: any) => any[]; getSla: (serviceTypeId?: string,situationId?: string,relatedSituation?: any) => { hours: number; isDefault: boolean } | null; onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"]; onSave: () => Promise<unknown>; onClose?: () => void; }
-export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose }: OrderEditorPageProps) {
+interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: ReturnType<typeof useOrdersWorkspace>; formState: ReturnType<typeof useOrderFormState>; images: ReturnType<typeof useOrderImages>; customers: ReturnType<typeof useOrderCustomerSelection>; address: ReturnType<typeof useOrderServiceAddress>; customerPersistence: ReturnType<typeof useOrderCustomerPersistence>; hasPermission: PermissionCheck; getSituations: (serviceTypeId: string,currentSituationId?: string,currentSituation?: any) => any[]; getSla: (serviceTypeId?: string,situationId?: string,relatedSituation?: any) => { hours: number; isDefault: boolean } | null; onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"]; onSave: () => Promise<unknown>; onClose?: () => void; embeddedDialog?: boolean; }
+export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose,embeddedDialog = false }: OrderEditorPageProps) {
   const { activeOrganizationId } = useAuth();
   const orderRulesQuery = useOrganizationOrderRules(activeOrganizationId);
   const rules:RuleSet=formState.editingOS?((formState.editingOS.order_rules_snapshot as RuleSet|null)||defaultRules):resolveRules(orderRulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
@@ -32,7 +32,7 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
   const { serviceUseCustomerAddress,setServiceUseCustomerAddress,setServiceCustomerAddressOverride,serviceAddressMessage,setServiceAddressMessage,ibgeStates,ibgeStatesLoading,ibgeCities,ibgeCitiesLoading,customerAddresses,selectedServiceAddress,serviceAddressPreview,clearServiceAddress,copyCustomerAddressToForm,selectServiceAddress,loadIbgeCities } = address;
   const canAddEquipmentImages=editingOS?hasPermission("orders.edit"):hasPermission("orders.create"); const canRemoveEquipmentImage=(image:(typeof orderImages)[number])=>canAddEquipmentImages&&(!editingOS||!image.mediaId);
   const serviceLocationSection=<OrderServiceLocationSection form={form} setForm={setForm} serviceUseCustomerAddress={serviceUseCustomerAddress} setServiceUseCustomerAddress={setServiceUseCustomerAddress} setServiceCustomerAddressOverride={setServiceCustomerAddressOverride} selectedServiceAddress={selectedServiceAddress} serviceAddressPreview={serviceAddressPreview} serviceAddressMessage={serviceAddressMessage} setServiceAddressMessage={setServiceAddressMessage} ibgeStates={ibgeStates} ibgeCities={ibgeCities} ibgeStatesLoading={ibgeStatesLoading} ibgeCitiesLoading={ibgeCitiesLoading} onFieldChange={updateField} clearServiceAddress={clearServiceAddress} copyCustomerAddressToForm={copyCustomerAddressToForm} loadIbgeCities={loadIbgeCities}/>;
-  return <AdminPage open onClose={closePage} breadcrumb={editingOS?`Ordens de Serviço > OS #${editingOS.os_number||editingOS.id.slice(0,8)}`:"Ordens de Serviço"} title={editingOS?"Editar OS":"Nova OS"} subtitle={editingOS?"Atualize os dados do atendimento":"Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)} smoothMotion={false}>
+  const editorBody = <>
     <div className="p-5 space-y-5">
       <OrderCustomerSection selectedCustomer={selectedCustomer} editingCustomer={editingCustomer} customerDraft={customerDraft} customerAddressDraft={customerAddressDraft} customerFieldErrors={customerPersistence.customerFieldErrors} clearCustomerFieldError={customerPersistence.clearCustomerFieldError} saving={saving} editingOrder={Boolean(editingOS)} addressExpanded={addressExpanded} customerSearch={customerSearch} customerResults={customerResults} hasPermission={hasPermission} serviceCustomerAddresses={customerAddresses} selectedServiceAddress={selectedServiceAddress} setCustomerDraft={setCustomerDraft} setCustomerAddressDraft={setCustomerAddressDraft} setEditingCustomer={setEditingCustomer} setAddressExpanded={setAddressExpanded} saveCustomer={customerPersistence.saveCustomer} searchCustomers={query=>{void searchCustomers(query);}} selectCustomer={onSelectCustomer} selectServiceAddress={selectServiceAddress} onClearCustomer={()=>{clearCustomer();updateField("customer_id","");clearServiceAddress();}} onCreateCustomer={()=>setQuickCustomer(true)}/>
       <OrderEquipmentSection form={form} rules={rules} equipmentTypes={equipmentTypes} equipmentBrands={equipmentBrands} equipmentModels={equipmentModels} technicalFields={technicalFields} technicalValues={form.technicalValues} technicalHistory={form.technicalHistory} onTechnicalValueChange={(fieldId,value)=>setForm(current=>({...current,technicalValues:{...current.technicalValues,[fieldId]:value}}))} orderId={editingOS?.id} unlockCanManage={hasPermission("orders.unlock.manage")} unlockCanView={hasPermission("orders.unlock.view")} onUnlockUpdate={patch=>setForm(current=>({...current,...patch}))} editing={Boolean(editingOS)} canCreate={hasPermission("equipment.create")} onFieldChange={updateField} onCreateEquipment={()=>setQuickEquipment(true)} images={orderImages} onAddImages={addOrderImages} onRemoveImage={removeOrderImage} onViewImage={setViewImage} showImages={hasPermission("orders.section.images") || (!editingOS && hasPermission("orders.create"))} canAddImages={canAddEquipmentImages} canRemoveImages={canRemoveEquipmentImage}/>
@@ -41,6 +41,19 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
       <OrderCustomValues fields={rules.custom_fields} values={form.custom_field_values||{}} editing={Boolean(editingOS)} orderId={editingOS?.id} organizationId={activeOrganizationId} canUpload={Boolean(editingOS && hasPermission("orders.edit") && hasPermission("orders.section.images"))} onChange={value=>updateField("custom_field_values",value)}/>
       {!editingOS&&serviceLocationSection}
     </div>
-    <OrderFormActions saving={saving} canSave={editingOS?hasPermission("orders.edit"):hasPermission("orders.create")} editing={Boolean(editingOS)} onCancel={closePage} onSave={onSave} rightActions={editingOS && hasPermission("orders.edit") ? <OrderMobileEditBridge orderId={editingOS.id} osNumber={editingOS.os_number} disabled={saving}/> : undefined}/>
+  </>;
+  const editorActions = <OrderFormActions saving={saving} canSave={editingOS?hasPermission("orders.edit"):hasPermission("orders.create")} editing={Boolean(editingOS)} onCancel={closePage} onSave={onSave} inDialog={embeddedDialog} rightActions={editingOS && hasPermission("orders.edit") ? <OrderMobileEditBridge orderId={editingOS.id} osNumber={editingOS.os_number} disabled={saving}/> : undefined}/>;
+  // Reutiliza exatamente as mesmas sections/campos/regras do editor de OS.
+  // A janela secundária não desenha backdrop porque o WhatsApp já o possui.
+  if (embeddedDialog) return <AdminDialog
+    open onClose={closePage} title="Nova OS" description="Cadastre os dados do atendimento"
+    draggable showOverlay={false} minimizable={false}
+    className="!h-[min(86dvh,900px)] !w-[calc(100vw-1rem)] !max-w-[930px] sm:!w-[calc(100vw-2rem)] max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-0.5rem)]"
+    bodyClassName="!min-h-0 !overflow-y-auto !p-0"
+    footer={editorActions}
+  >{editorBody}</AdminDialog>;
+  return <AdminPage open onClose={closePage} breadcrumb={editingOS?`Ordens de Serviço > OS #${editingOS.os_number||editingOS.id.slice(0,8)}`:"Ordens de Serviço"} title={editingOS?"Editar OS":"Nova OS"} subtitle={editingOS?"Atualize os dados do atendimento":"Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)} smoothMotion={false}>
+    {editorBody}
+    {editorActions}
   </AdminPage>;
 }
