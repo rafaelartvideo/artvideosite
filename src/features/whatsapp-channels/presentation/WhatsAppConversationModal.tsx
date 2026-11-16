@@ -148,7 +148,11 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
           // Sem vinculo confirmado, a Nova OS conserva a busca manual de clientes.
         }
       }
+      // Importar antes de abrir evita janela vazia durante o primeiro carregamento.
+      await import("@/features/orders/presentation/TabOrders");
       setNewOrder({ customerId, key: crypto.randomUUID() });
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível abrir a Nova OS."), "error");
     } finally {
       newOrderGateRef.current = false;
       setPreparingNewOrder(false);
