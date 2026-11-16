@@ -304,6 +304,8 @@ export function AdminDialog({
   headerActions,
   className,
   bodyClassName,
+  draggable = false,
+  showOverlay = true,
   bodyRef,
   minimizable = true,
   minimizedTitle: minimizedTitleOverride,
@@ -326,6 +328,10 @@ export function AdminDialog({
   headerActions?: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** Permite deslocar a janela pelo cabeçalho, com limites da viewport (desktop). */
+  draggable?: boolean;
+  /** Para janelas sobre outra já aberta, sem uma segunda camada escura. */
+  showOverlay?: boolean;
   bodyRef?: React.Ref<HTMLDivElement>;
   minimizable?: boolean;
   minimizedTitle?: string;
@@ -356,6 +362,48 @@ export function AdminDialog({
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  const dragRef = React.useRef<{
+    pointerId: number; startX: number; startY: number; originX: number; originY: number;
+    minX: number; maxX: number; minY: number; maxY: number;
+  } | null>(null);
+  const startDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggable || event.button !== 0 || window.matchMedia("(max-width: 767px)").matches ||
+        (event.target instanceof Element && event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
+    const node = contentRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const margin = 8;
+    dragRef.current = {
+      pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+      originX: dragOffset.x, originY: dragOffset.y,
+      minX: dragOffset.x + margin - rect.left,
+      maxX: dragOffset.x + window.innerWidth - margin - rect.right,
+      minY: dragOffset.y + margin - rect.top,
+      maxY: dragOffset.y + window.innerHeight - margin - rect.bottom,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+  const moveDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const clamp = (value: number, min: number, max: number) =>
+      Math.max(Math.min(min, max), Math.min(Math.max(min, max), value));
+    setDragOffset({
+      x: clamp(drag.originX + event.clientX - drag.startX, drag.minX, drag.maxX),
+      y: clamp(drag.originY + event.clientY - drag.startY, drag.minY, drag.maxY),
+    });
+  };
+  const endDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  React.useEffect(() => {
+    if (!open) { dragRef.current = null; setDragOffset({x:0,y:0}); }
+  }, [open]);
   const preparedSizeRef = React.useRef<{ width: number; height: number } | null>(null);
   const resizeAnimationRef = React.useRef<Animation | null>(null);
   const previousPanelSizeRef = React.useRef<{key:string|number|null|undefined;width:number;height:number}|null>(null);
@@ -456,6 +504,7 @@ export function AdminDialog({
     <DialogContent
       ref={contentRef}
       showClose={false}
+      showOverlay={showOverlay}
       showMinimizeControl={false}
       minimizable={minimizable}
       minimizedTitle={minimizedTitle}
@@ -468,6 +517,10 @@ export function AdminDialog({
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
+        ...(draggable && (dragOffset.x || dragOffset.y) ? {
+          left: `calc(50% + ${dragOffset.x}px)`,
+          top: `calc(50% + ${dragOffset.y}px)`,
+        } : {}),
       } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
@@ -476,7 +529,13 @@ export function AdminDialog({
     >
       {hideHeader
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
-        : (title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+        : (title || description || onClose) && <div
+          className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:select-none md:touch-none active:cursor-grabbing")}
+          onPointerDown={draggable ? startDialogDrag : undefined}
+          onPointerMove={draggable ? moveDialogDrag : undefined}
+          onPointerUp={draggable ? endDialogDrag : undefined}
+          onPointerCancel={draggable ? endDialogDrag : undefined}
+        >
         <div className="min-w-0 flex-1">
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
