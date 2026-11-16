@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, ContactRound, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Settings2, X } from "lucide-react";
-import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminSubsectionTabs, ADMIN_SUBSECTION_TAB_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
@@ -297,41 +298,45 @@ export function UnionPbxOperatorWorkspace({
     ] : []),
     ...(canManageInbound ? [{ label: "Entrada de chamadas", section: "entrada" as const }] : []),
   ];
-  return <div className="min-w-0 space-y-4 text-foreground">
-    <PageHeader title={<div className="flex items-center gap-3">
-      <span>Chamadas</span>
-      <div ref={settingsRef} className="relative">
-        <button type="button" title="Configurações gerais do módulo" aria-label="Configurações gerais do PABX"
-          aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
-          onClick={() => setSettingsOpen(value => !value)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-          <Settings2 size={18}/>
+
+  return <div className="min-w-0 space-y-3 text-foreground">
+    <AdminSubsectionTabs<WorkspaceMode>
+      ariaLabel="Subseções da central de chamadas"
+      value={mode}
+      items={nav}
+      onChange={next=>{
+        setMode(next);
+        if(next==="contatos")setContactsVisited(true);
+        setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);
+      }}
+      trailing={<div className="ml-auto flex shrink-0 items-center gap-2">
+        <button type="button" aria-label="Dispositivos e testes de áudio" title="Dispositivos e testes de áudio"
+          onClick={onDeviceSettings}
+          className={ADMIN_SUBSECTION_TAB_CLASS+" text-muted-foreground hover:text-primary"}>
+          <Settings2 size={16}/><span className="hidden sm:inline">Áudio</span>
         </button>
-        {settingsOpen && <div id="pbx-module-settings" className="absolute left-0 top-full z-40 mt-2 w-[250px] rounded-xl border border-border bg-card p-2 text-sm shadow-xl">
-          <div className="flex items-center justify-between gap-2 border-b border-border px-2 pb-2">
-            <span className="text-xs font-semibold">Configurações gerais</span>
-            <button type="button" aria-label="Fechar menu" onClick={() => setSettingsOpen(false)}><X size={15}/></button>
-          </div>
-          {settingItems.map(item => <button key={item.section} type="button"
-            className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium hover:bg-muted"
-            onClick={() => { setSettingsOpen(false); onSelectSection(item.section); }}>{item.label}</button>)}
-        </div>}
-      </div>
-    </div>} subtitle="PABX Union · Central de atendimento"
-      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Ferramentas</AdminButton>} />
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[72px_minmax(0,1fr)]">
-      <aside aria-label="Navegação do operador" className="flex min-w-0 flex-row flex-wrap items-start gap-1 px-1 lg:min-h-[640px] lg:flex-col">
-        {nav.map(item=><button key={item.id} type="button" aria-current={mode===item.id?"page":undefined}
-          onClick={()=>{setMode(item.id);if(item.id==="contatos")setContactsVisited(true);setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);}}
-          className={`flex min-h-[62px] min-w-[66px] flex-col items-center justify-center gap-1 border-l-[3px] px-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:w-full ${mode===item.id?"border-primary text-primary":"border-transparent text-muted-foreground hover:text-primary"}`}>
-          <item.Icon size={20}/>{item.label}
-        </button>)}
-        <button type="button" title="Dispositivos e testes de áudio" aria-label="Dispositivos e testes de áudio"
-          onClick={onDeviceSettings} className="flex min-h-[52px] min-w-[66px] flex-col items-center justify-center gap-1 border-l-[3px] border-transparent px-1 text-[11px] text-muted-foreground hover:text-primary lg:w-full">
-          <Settings2 size={20}/>
-        </button>
-      </aside>
-      <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,0.85fr)_minmax(340px,1.55fr)_minmax(255px,0.9fr)]">
+        <div ref={settingsRef} className="relative">
+          <button type="button" title="Configurações gerais do módulo" aria-label="Configurações gerais do PABX"
+            aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
+            onClick={()=>setSettingsOpen(value=>!value)}
+            className={ADMIN_SUBSECTION_TAB_CLASS+" text-muted-foreground hover:text-primary"}>
+            <Settings2 size={16}/><span className="hidden sm:inline">Configurações</span>
+          </button>
+          {settingsOpen && <div id="pbx-module-settings"
+            className="absolute right-0 top-full z-40 mt-2 w-[min(270px,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-2 text-sm shadow-xl">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-2 pb-2">
+              <span className="text-xs font-semibold">Configurações gerais</span>
+              <button type="button" aria-label="Fechar menu" onClick={()=>setSettingsOpen(false)}><X size={15}/></button>
+            </div>
+            {settingItems.map(item=><button key={item.section} type="button"
+              className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium hover:bg-muted"
+              onClick={()=>{setSettingsOpen(false);onSelectSection(item.section);}}>{item.label}</button>)}
+          </div>}
+        </div>
+        <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+      </div>}
+    />
+    <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(285px,350px)_minmax(0,1fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
@@ -371,15 +376,15 @@ export function UnionPbxOperatorWorkspace({
                 placeholder="Buscar por número" aria-label="Buscar chamadas por número"
                 className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
             </label>
-            <div className="mt-3 min-w-0 flex-1 overflow-x-auto" style={{scrollbarGutter:"stable"}}>
-              <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0 text-left text-xs">
+            <div className="mt-3 min-w-0 flex-1">
+              <table className="hidden w-full table-fixed border-separate border-spacing-0 text-left text-xs lg:table">
                 <thead><tr className="text-muted-foreground">
-                  <th className="w-[29%] border-b border-border p-2 font-medium">Contato / número</th>
-                  <th className="w-[11%] border-b border-border p-2 font-medium">Tipo</th>
+                  <th className="w-[36%] border-b border-border p-2 font-medium">Contato / número</th>
+                  <th className="w-[12%] border-b border-border p-2 font-medium">Tipo</th>
                   <th className="w-[25%] border-b border-border p-2 font-medium">Horário</th>
-                  <th className="w-[13%] border-b border-border p-2 font-medium">Duração</th>
-                  <th className="w-[12%] border-b border-border p-2 font-medium">Estado</th>
-                  <th className="w-[10%] border-b border-border p-2 font-medium">Ações</th>
+                  <th className="w-[10%] border-b border-border p-2 font-medium">Duração</th>
+                  <th className="w-[8%] border-b border-border p-2 font-medium">Estado</th>
+                  <th className="w-[9%] border-b border-border p-2 font-medium">Ações</th>
                 </tr></thead>
                 <tbody>{visibleRows.map(row => {
                   const number = callNumber(row);
@@ -398,7 +403,7 @@ export function UnionPbxOperatorWorkspace({
                               onError={() => setBrokenAvatar(old => ({...old, [avatarKey + ":" + avatar]: true}))}/>
                           : initials(name)}
                       </span>
-                      <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
+                      <div className="min-w-0 flex-1"><p className="truncate font-semibold" title={name}>{name}</p><p className="truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
                     <td className="border-b border-border/60 p-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
                     <td className="whitespace-nowrap border-b border-border/60 p-2" title={new Date(row.started_at).toLocaleString("pt-BR")}>{displayTime(row.started_at)}</td>
@@ -425,6 +430,46 @@ export function UnionPbxOperatorWorkspace({
                   </tr>;
                 })}</tbody>
               </table>
+
+              <div className="space-y-2 lg:hidden" aria-label="Chamadas recentes">
+                {visibleRows.map(row=>{
+                  const number=callNumber(row);
+                  const extension=directory.find(item=>String(item.number)===number);
+                  const saved=savedCards[pbxContactPhoneKey(number)];
+                  const name=extension?.display_name||saved?.name||formatPbxNumber(number)||"Desconhecido";
+                  const active=row.id===selectedId&&!selectedExtension&&!selectedExternal;
+                  return <div key={row.id} role="button" tabIndex={0}
+                    aria-label={"Ver detalhes da chamada de "+name}
+                    onClick={()=>{setSelectedId(row.id);setSelectedExtension(null);setSelectedExternal(null);}}
+                    onKeyDown={event=>{if(event.target===event.currentTarget&&(event.key==="Enter"||event.key===" ")){
+                      event.preventDefault();setSelectedId(row.id);setSelectedExtension(null);setSelectedExternal(null);
+                    }}}
+                    className={`rounded-lg border p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${active?"border-primary/40 bg-primary/5":"border-border"}`}>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{initials(name)}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold" title={name}>{name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{formatPbxNumber(row.source)} → {formatPbxNumber(row.destination)}</p>
+                      </div>
+                      <span role="img" aria-label={callStatus(row)} title={callStatus(row)}
+                        className={row.disposition==="ANSWERED"?"text-emerald-600":"text-red-600"}>
+                        {row.disposition!=="ANSWERED"?<PhoneMissed size={18}/>:row.direction==="outbound"?<PhoneOutgoing size={18}/>:<PhoneIncoming size={18}/>}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/70 pt-2 text-xs text-muted-foreground">
+                      <span>{directionLabels[row.direction]||row.direction}</span>
+                      <span>{displayTime(row.started_at)}</span>
+                      <span className="tabular-nums">{callDuration(row.duration_seconds||0)}</span>
+                      <button type="button" aria-label={"Ligar para "+formatPbxNumber(number)}
+                        disabled={callState!=="idle"}
+                        onClick={event=>{event.stopPropagation();onReturnCall(number);}}
+                        className="ml-auto inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-primary disabled:opacity-40">
+                        <Phone size={15}/> Ligar
+                      </button>
+                    </div>
+                  </div>;
+                })}
+              </div>
               {!loading && !error && visibleRows.length === 0 && <p className="px-3 py-12 text-center text-sm text-muted-foreground">Nenhuma chamada encontrada para esse filtro.</p>}
               {loading && <p role="status" className="flex items-center justify-center gap-2 py-12 text-sm font-medium text-primary"><LoaderCircle size={20} className="animate-spin"/> Carregando chamadas...</p>}
               {error && <p role="alert" className="py-6 text-center text-sm text-destructive">{error}</p>}
@@ -445,13 +490,13 @@ export function UnionPbxOperatorWorkspace({
               onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);}}/>
           </div>
         </section>
-        <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5 xl:col-span-2">
           <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
             <h2 className="text-base font-bold">Detalhes</h2>
             {hasDetails && !inCallNumber && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
           </div>
-          {hasDetails ? <>
-            <div className="flex flex-col items-stretch gap-3">
+          {hasDetails ? <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]">
+            <div className="flex min-w-0 flex-col items-stretch gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
                   {selectedAvatar
@@ -476,15 +521,16 @@ export function UnionPbxOperatorWorkspace({
               </div>
 
             </div>
+            <div className="min-w-0">
             <PbxCrmContactPanel organizationId={activeOrganizationId} phone={selectedNumber}
               active={isActive && Boolean(selectedNumber)} source={identitySource}/>
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
               active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
-          </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+            </div>
+          </div> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ContactRound size={32}/><p>Selecione uma chamada ou ramal para ver os detalhes.</p>
           </div>}
         </aside>
-      </div>
     </div>
 
     <AdminDialog open={contactDialogOpen} onClose={()=>{if(!contactSaving)setContactDialogOpen(false);}}
