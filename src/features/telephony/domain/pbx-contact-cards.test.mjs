@@ -95,7 +95,9 @@ test("PBX keeps recent table columns separate and does not refetch agenda on eve
   const operator=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
   const directory=read("src/features/telephony/presentation/PbxContactDirectory.tsx");
   const timeline=read("src/features/telephony/presentation/PbxContactActivity.tsx");
-  assert.match(operator,/min-w-\[820px\] table-fixed/);
+  assert.doesNotMatch(operator,/min-w-\[820px\]|overflow-x-auto/);
+  assert.match(operator,/hidden w-full table-fixed/);
+  assert.match(operator,/space-y-2 lg:hidden/);
   assert.match(operator,/contactsVisited/);
   assert.match(operator,/mode==="contatos" \? "contents" : "hidden"/);
   assert.match(directory,/Preparando agenda/);
