@@ -251,19 +251,19 @@ export function UnionPbxOperatorWorkspace({
   const savedCards = usePbxSavedContactCards(activeOrganizationId, isActive,
     [...visibleRows.map(callNumber), ...(selectedNumber ? [selectedNumber] : [])],contactRevision);
   const contactCard = savedCards[pbxContactPhoneKey(selectedNumber)];
+  // A seleção no modal prevalece sobre a chamada ativa: não misturar nomes de contatos distintos.
   const selectedName = currentCallerCard?.name
-    || (inCallNumber ? contactCard?.name : null)
-    || (!inCallNumber ? selectedExtension?.display_name : null)
-    || (!inCallNumber && selectedExternal?.source === "crm" ? selectedExternal.name : null)
+    || selectedExtension?.display_name
+    || (selectedExternal?.source === "crm" ? selectedExternal.name : null)
     || (contactCard?.source === "crm" ? contactCard.name : null)
-    || (!inCallNumber ? selectedExternal?.name : null) || contactCard?.name
+    || selectedExternal?.name || contactCard?.name
     || directory.find(item => String(item.number) === selectedNumber)?.display_name
     || (selectedNumber ? formatPbxNumber(selectedNumber) : "");
   const selectedAvatarKey = pbxContactPhoneKey(selectedNumber);
   const avatarUrl = currentCallerCard?.avatarUrl || contactCard?.avatarUrl || null;
   const selectedAvatar = avatarUrl && !brokenAvatar[selectedAvatarKey + ":" + avatarUrl]
     ? avatarUrl : null;
-  const identitySource = currentCallerCard?.source || contactCard?.source || (!inCallNumber?selectedExternal?.source:null) || null;
+  const identitySource = currentCallerCard?.source || (selectedExternal?.source === "crm" ? "crm" : null) || contactCard?.source || selectedExternal?.source || null;
   const pages = Math.max(1, Math.ceil(filteredTotal / pageSize));
 
 
