@@ -566,6 +566,10 @@ export function TabOrders({
 
   const cancelQueueGate = () => {
     setQueueGateOpen(false);
+    if (embeddedCreate) {
+      onEmbeddedClose?.();
+      return;
+    }
     if (initialOrderId === "new") onOrderRouteChange?.(null, null);
   };
 
