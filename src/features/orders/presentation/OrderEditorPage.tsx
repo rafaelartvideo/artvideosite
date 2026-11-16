@@ -47,7 +47,7 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
   // A janela secundária não desenha backdrop porque o WhatsApp já o possui.
   if (embeddedDialog) return <AdminDialog
     open onClose={closePage} title="Nova OS" description="Cadastre os dados do atendimento"
-    draggable modal={false} showOverlay={false} minimizable={false}
+    draggable modal={false} showOverlay={false} minimizable={false} nestedScrollAssist
     preparing={preparingEmbedded} preparingText="Carregando Nova OS..."
     className="!h-[min(78dvh,760px)] !w-[calc(100vw-1rem)] !max-w-[930px] sm:!w-[calc(100vw-2rem)] max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-0.5rem)]"
     bodyClassName="!min-h-0 !min-w-0 !flex-1 !overflow-y-auto !overscroll-contain !p-0 [scrollbar-gutter:stable] [touch-action:pan-y]"
