@@ -41,7 +41,8 @@ test("PABX reuses CRM query cache for history and customer details without leaki
   const context=read("src/features/telephony/presentation/PbxCrmContactPanel.tsx");
   const operator=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
   const history=read("src/features/telephony/presentation/UnionPbxHistoryPage.tsx");
-  for(const file of [activity,context,operator,history]){
+  const directory=read("src/features/telephony/presentation/PbxContactDirectory.tsx");
+  for(const file of [activity,context,operator,history,directory]){
     assert.match(file,/useQuery/);
     assert.match(file,/staleTime: 5 \* 60_000/);
     assert.match(file,/user\?\.id/);
@@ -50,6 +51,7 @@ test("PABX reuses CRM query cache for history and customer details without leaki
   assert.match(activity,/queryClient\.invalidateQueries/);
   assert.match(operator,/queryClient\.invalidateQueries/);
   assert.match(history,/queryClient\.invalidateQueries/);
+  assert.match(directory,/queryClient\.invalidateQueries/);
   assert.match(context,/formatPbxNumber\(customer\.phone/);
   assert.match(context,/formatPbxNumber\(customer\.whatsapp/);
   assert.match(context,/text-center text-xs text-muted-foreground">Nenhuma OS encontrada/);
