@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -28,6 +28,12 @@ import {
   operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
+
+const quotedSummary=(body:string|null|undefined, kind:string|null|undefined):string =>
+  String(body||"").trim().slice(0,180) ||
+  ({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha",
+    location:"Localização",contact:"Contato"} as Record<string,string>)[String(kind||"")] ||
+  "Mensagem";
 
 const filters = [
   { value: "waiting", label: "Aguardando", tone: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
@@ -376,6 +382,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[]);
 
   const [draft, setDraft] = useState("");
+  const [replyTarget,setReplyTarget] = useState<UnionWhatsAppMessage|null>(null);
+  const swipeReplyRef=useRef<{id:string;x:number;y:number}|null>(null);
+  const [highlightQuotedId,setHighlightQuotedId]=useState<string|null>(null);
+  useEffect(()=>{setReplyTarget(null);setHighlightQuotedId(null);},[selectedId]);
+  useEffect(()=>{
+    if(!highlightQuotedId)return;
+    const timeout=window.setTimeout(()=>setHighlightQuotedId(null),1700);
+    return()=>window.clearTimeout(timeout);
+  },[highlightQuotedId]);
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [actionPanel, setActionPanel] = useState<"actions"|"quick"|"documents"|null>(null);
@@ -446,6 +461,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const followLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string; previewUrl?:string;
+    quoted?:{providerId:string;text:string;type:string;direction:"incoming"|"outgoing"};
     status: "sending" | "sent" | "unknown" | "failed"; providerMessageId?: string;
     error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
@@ -862,6 +878,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen]);
 
+  const startReplyTo=(message:UnionWhatsAppMessage)=>{
+    if(!canReply || attachment){
+      if(attachment)reportError("Remova o anexo antes de responder a uma mensagem.");
+      return;
+    }
+    setReplyTarget(message);
+    setActionPanel(null);setStickerOpen(false);setEmojiOpen(false);
+    requestAnimationFrame(()=>inputRef.current?.focus({preventScroll:true}));
+  };
+  const jumpToQuoted=(providerId:string)=>{
+    const element=Array.from(scrollRef.current?.querySelectorAll<HTMLElement>("[data-wa-provider-id]")||[])
+      .find(item=>item.dataset.waProviderId===providerId);
+    if(!element){
+      notifyAdmin("A mensagem original está em uma parte anterior do histórico. Carregue as mensagens anteriores para encontrá-la.","info");
+      return;
+    }
+    element.scrollIntoView({behavior:"smooth",block:"center"});
+    setHighlightQuotedId(providerId);
+  };
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
@@ -1590,6 +1625,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const sendText = () => {
     if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || imageOptimizing || (!draft.trim() && !attachment)) return;
+    if(replyTarget && attachment){
+      reportError("Remova o anexo para enviar uma resposta vinculada.");
+      return;
+    }
     if(attachment?.type==="image/webp" && draft.trim()){
       reportError("Figurinhas não aceitam legenda. Envie o texto em uma mensagem separada.");return;
     }
@@ -1600,6 +1639,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       protocol:selected.last_protocol_number ? unionWhatsAppProtocolLabel(selected.last_protocol_number) : "",
     }).trim();
     const omitOperatorPrefix=quickReplyHasOperator;
+    const quoted=replyTarget;
     const optimisticText=text;
     const file = attachment;
     const preview = mediaPreview;
@@ -1611,6 +1651,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     // Capture and clear the current draft before awaiting. The composer stays
     // interactive for subsequent messages, matching the SAC outbox UX.
     setDraft("");
+    setReplyTarget(null);
     setQuickReplyHasOperator(false);
     setAttachment(null);
     setMediaPreview(null);
@@ -1623,6 +1664,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
       text:optimisticText, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
+      quoted:quoted ? {providerId:quoted.provider_message_id,text:quotedSummary(quoted.body_text,quoted.message_type),
+        type:quoted.message_type,direction:quoted.direction} : undefined,
       mediaType:fileType || undefined,
       previewUrl:fileType==="audio"||fileType==="sticker"||fileType==="image"
         ? preview||undefined : undefined,
@@ -1632,9 +1675,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     sendingIds.current.add(requestId);
     void (async () => {
       try {
-        let extra: {text:string;client_message_id:string;no_operator_prefix?:boolean;media_name?:string;media_mime?:string;
+        let extra: {text:string;client_message_id:string;reply_to_message_id?:string;no_operator_prefix?:boolean;media_name?:string;media_mime?:string;
           media_type?:string;media_size?:number;media_path?:string} =
-          { text, client_message_id: requestId, no_operator_prefix:omitOperatorPrefix };
+          { text, client_message_id: requestId, no_operator_prefix:omitOperatorPrefix,
+            ...(quoted ? {reply_to_message_id:quoted.id} : {}) };
         if (file && fileType) {
           const base={media_name:file.name,media_mime:file.type,
             media_type:fileType,media_size:file.size,client_message_id:requestId};
@@ -1657,6 +1701,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
         if (/mensagem ou anexo inv[aá]lido|assuma o atendimento|conversa n[aã]o atribu[ií]da/i.test(detail)) {
           if (!file) setDraft(current => current || text);
+          if(quoted)setReplyTarget(current=>current||quoted);
           setPending(current => current.filter(item => item.id !== requestId));
           reportError(detail);
           return;
