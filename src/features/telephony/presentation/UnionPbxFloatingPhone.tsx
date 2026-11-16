@@ -1,7 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, PhoneIncoming, PhoneCall } from "lucide-react";
-import { PbxCrmContactPanel } from "./PbxCrmContactPanel";
-import { pbxContactPhoneKey } from "../application/pbx-saved-contact-cards";
 
 type CallState = "idle" | "dialing" | "incoming" | "active";
 type Connection = "offline" | "connecting" | "registered" | "error";
@@ -55,21 +53,16 @@ function positionForDock(dock: Dock, node: HTMLElement): Point {
 }
 
 export function UnionPbxFloatingPhone({
-  registration, callState, extension, caller, organizationId, customerPhone, customerSource, children, onOpenFull,
+  registration, callState, extension, caller, children, onOpenFull,
 }:{
   registration: Connection;
   callState: CallState;
   extension: number | null;
   caller?: string;
-  organizationId: string | null;
-  customerPhone: string;
-  customerSource?: "crm" | "pbx" | "whatsapp" | null;
   children: ReactNode;
   onOpenFull: () => void;
 }) {
   const [expanded,setExpanded]=useState(false);
-  // Dados do CRM só para números externos válidos, e apenas quando o flutuante está expandido.
-  const hasCrmPhone = Boolean(pbxContactPhoneKey(customerPhone));
   const [position,setPosition]=useState<Point|null>(null);
   const nodeRef=useRef<HTMLElement|null>(null);
   const drag=useRef<DragState|null>(null);
@@ -206,8 +199,6 @@ export function UnionPbxFloatingPhone({
     <div className={expanded ? "min-h-0 overflow-y-auto overscroll-contain px-3 pb-3 pt-3" : "hidden"}
       style={{scrollbarGutter:"stable"}}>
       {expanded && children}
-      <PbxCrmContactPanel organizationId={organizationId} phone={customerPhone}
-        active={expanded && callState !== "idle" && hasCrmPhone} source={customerSource}/>
     </div>
     {!expanded&&callState==="incoming"&&<p className="flex items-center gap-2 px-3 pb-2 text-xs text-amber-700">
       <PhoneIncoming size={14}/> Nova chamada
