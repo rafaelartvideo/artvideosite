@@ -76,17 +76,8 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
 	max-height: calc(100dvh - var(--admin-shell-header-height, 4rem) - var(--admin-browser-bottom-inset, 0px) - 0.75rem) !important;
 }
 
-/* Radix centraliza os dialogs pelo translate do Tailwind. Depois de iniciar
-   o arraste, a posição passa a ser absoluta na viewport. Sobrescrever tanto
-   o top !important global quanto o translate original do Radix. */
-@media (min-width: 768px) {
-  [data-admin-dialog-draggable="true"][data-admin-dialog-positioned="true"] {
-    left: var(--admin-dialog-drag-left) !important;
-    top: var(--admin-dialog-drag-top) !important;
-    translate: none !important;
-    transform: none !important;
-  }
-}
+/* Janelas arrastáveis fazem override inline com !important no próprio
+   DialogContent; nenhuma classe Tailwind/posição do modal controla o drag. */
 
 .admin-crm [role="dialog"].fixed.inset-0 {
 	top: var(--admin-shell-header-height, 4rem) !important;
