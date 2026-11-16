@@ -308,6 +308,7 @@ export function AdminDialog({
   showOverlay = true,
   modal,
   footerClassName,
+  nestedScrollAssist = false,
   bodyRef,
   minimizable = true,
   minimizedTitle: minimizedTitleOverride,
@@ -337,6 +338,8 @@ export function AdminDialog({
   /** Janelas secundárias dentro de outro diálogo não instalam outro bloqueio de scroll. */
   modal?: boolean;
   footerClassName?: string;
+  /** Permite rolar o segundo modal mesmo quando a janela pai bloqueia wheel no portal. */
+  nestedScrollAssist?: boolean;
   bodyRef?: React.Ref<HTMLDivElement>;
   minimizable?: boolean;
   minimizedTitle?: string;
@@ -409,6 +412,23 @@ export function AdminDialog({
   React.useEffect(() => {
     if (!open) { dragRef.current = null; setDragOffset({x:0,y:0}); }
   }, [open]);
+  const scrollNestedDialog = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!nestedScrollAssist) return;
+    const body = event.currentTarget;
+    if (body.scrollHeight <= body.clientHeight + 1 || !event.deltaY) return;
+    // Campos com rolagem propria devem continuar recebendo o gesto.
+    let target = event.target instanceof HTMLElement ? event.target : null;
+    while (target && target !== body) {
+      if (target.scrollHeight > target.clientHeight + 1 &&
+          /auto|scroll/.test(window.getComputedStyle(target).overflowY)) return;
+      target = target.parentElement;
+    }
+    // O Radix do dialog pai pode cancelar a rolagem nativa dos portais
+    // aninhados. Aplicar o delta diretamente mantém o formulário navegável.
+    event.stopPropagation();
+    if (event.cancelable) event.preventDefault();
+    body.scrollTop += event.deltaY;
+  };
   const preparedSizeRef = React.useRef<{ width: number; height: number } | null>(null);
   const resizeAnimationRef = React.useRef<Animation | null>(null);
   const previousPanelSizeRef = React.useRef<{key:string|number|null|undefined;width:number;height:number}|null>(null);
@@ -556,6 +576,7 @@ export function AdminDialog({
       {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
       <div
         ref={bodyRef}
+        onWheelCapture={nestedScrollAssist ? scrollNestedDialog : undefined}
         data-admin-dialog-preparing={showPreparation ? "true" : undefined}
         data-admin-dialog-ready={!showPreparation ? "true" : undefined}
         className={cn(
