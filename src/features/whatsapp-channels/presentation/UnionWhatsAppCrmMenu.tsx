@@ -201,9 +201,8 @@ export function UnionWhatsAppCrmMenu({
         <ContactRound size={15} className="shrink-0 text-foreground"/>
         <span className="shrink-0">Dados do CRM</span>
         <span className="min-w-0 truncate font-normal text-muted-foreground">
-          {customer?.name || (context ? "Sem vínculo confirmado" : open ? "Consultando dados do CRM..." : "Clique para consultar")}
+          {customer?.name || (context ? "Sem vínculo confirmado" : "Clique para consultar")}
         </span>
-        {open && !context && <LoaderCircle size={14} className="shrink-0 animate-spin text-primary" aria-label="Consultando dados do CRM"/>}
         {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
       </button>
 
@@ -223,16 +222,9 @@ export function UnionWhatsAppCrmMenu({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {!context ? <div role="status" aria-busy="true" className="space-y-3 px-3 py-4 text-xs text-muted-foreground">
-            <div className="flex items-center justify-center gap-2">
-              <LoaderCircle size={16} className="animate-spin text-primary"/>
-              <span>Consultando dados do CRM...</span>
-            </div>
-            <div className="animate-pulse space-y-2" aria-hidden="true">
-              <div className="h-8 rounded-md bg-muted"/>
-              <div className="h-8 w-4/5 rounded-md bg-muted"/>
-              <div className="h-8 w-3/5 rounded-md bg-muted"/>
-            </div>
+          {!context ? <div role="status" aria-busy="true" className="flex min-h-32 items-center justify-center gap-2 px-3 py-5 text-xs text-muted-foreground">
+            <LoaderCircle size={17} className="shrink-0 animate-spin text-primary" aria-hidden="true"/>
+            <span>Consultando dados do cliente...</span>
           </div>
           : context.error ? <div role="status" className="px-3 py-4 text-xs text-muted-foreground">
               Não foi possível consultar os dados do CRM.
