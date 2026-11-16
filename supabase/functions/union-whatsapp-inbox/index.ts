@@ -52,6 +52,7 @@ async function signedBridge(
   presence = false,
   exportContacts = false,
   numberCheck = false,
+  reply?: {id:string;participant:string},
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -65,6 +66,7 @@ async function signedBridge(
     action: numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
+    ...(reply ? {reply_to_id:reply.id,reply_participant:reply.participant} : {}),
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
     ...(download ? {download_url:download.url,media_key:download.key,
       file_sha256:download.sha,file_enc_sha256:download.encSha,
@@ -1973,6 +1975,33 @@ Deno.serve(async request => {
         storedSize>limits[kind]) return json({success:false,
           error:"O arquivo ainda não foi enviado ou seu tamanho não confere."},409);
     }
+    // Accept only an internal message UUID. Resolve quote provider metadata
+    // server-side in this very same conversation/account; never trust an
+    // arbitrary stanza ID or participant JID supplied by the browser.
+    const quotedId=body.reply_to_message_id;
+    if(quotedId!==undefined && (!uuid(String(quotedId||"")) || isMedia))
+      return json({success:false,error:"Resposta vinculada inválida ou indisponível para anexos."},400);
+    let reply: {id:string;participant:string;text:string;type:string;direction:"incoming"|"outgoing"}|undefined;
+    if(quotedId){
+      const {data:original,error:originalError}=await admin.from("union_whatsapp_messages")
+        .select("provider_message_id,body_text,message_type,direction")
+        .eq("id",String(quotedId)).eq("organization_id",org).eq("channel_id",thread.channel_id)
+        .eq("account_phone",thread.account_phone).eq("conversation_id",thread.id).maybeSingle();
+      if(originalError)throw originalError;
+      if(!original)return json({success:false,error:"Mensagem original não encontrada nesta conversa."},404);
+      const stanza=String(original.provider_message_id||"");
+      const ownPhone=String(thread.account_phone||"");
+      const participant=original.direction==="incoming"
+        ? String(thread.chat_jid) : /^[0-9]{10,15}$/.test(ownPhone)
+          ? ownPhone+"@s.whatsapp.net" : "";
+      if(!/^[a-zA-Z0-9_-]{4,180}$/.test(stanza) ||
+        !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(participant))
+        return json({success:false,error:"Esta mensagem não possui referência válida para responder."},422);
+      const type=String(original.message_type||"text");
+      const fallback=({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha"} as Record<string,string>)[type]||"Mensagem";
+      reply={id:stanza,participant,text:String(original.body_text||fallback).slice(0,400),
+        type,direction:original.direction==="incoming"?"incoming":"outgoing"};
+    }
     const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
       .select("id,organization_id,state,webhook_ready").eq("id",thread.channel_id)
       .eq("organization_id",org).single();
@@ -1997,7 +2026,7 @@ Deno.serve(async request => {
       : text;
     if(outboundText.length>4000)
       return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
-    const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(text);
+    const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(reply ? text+":reply:"+reply.id : text);
     const {data:attempt,error:attemptError}=await admin.from("union_whatsapp_send_attempts")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
@@ -2027,7 +2056,9 @@ Deno.serve(async request => {
       signedMedia={url:shortLink.signedUrl,mime,name,type:kind};
     }
     try {
-      messageId=await signedBridge(channel,outboundText,thread.chat_jid,clientId,signedMedia);
+      messageId=await signedBridge(channel,outboundText,thread.chat_jid,clientId,signedMedia,
+        undefined,false,false,false,false,false,
+        reply ? {id:reply.id,participant:reply.participant} : undefined);
     } catch (reason) {
       const code=reason instanceof Error?reason.message:"";
       if(code==="audio_encoder_unavailable")
@@ -2049,18 +2080,26 @@ Deno.serve(async request => {
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
         body_text:outboundText,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
+        ...(reply ? {reply_to_provider_message_id:reply.id,reply_to_text:reply.text,
+          reply_to_message_type:reply.type,reply_to_direction:reply.direction} : {}),
       },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
     if(insertError) throw insertError;
     // A fast provider webhook can insert the same message before this Edge
     // request finishes. Enrich it in place instead of creating another bubble.
-    if(!message && (senderName || mediaPath)) {
+    if(!message && (senderName || mediaPath || reply)) {
       // WuzAPI can echo the outgoing event before this signed send request
       // returns. It has the same provider ID; enrich the existing row instead
       // of showing two separate bubbles or dropping the private attachment.
       const patch:Record<string,unknown>={origin:"union"};
       if(senderName) patch.sender_name=senderName;
       if(outboundText) patch.body_text=outboundText;
+      if(reply){
+        patch.reply_to_provider_message_id=reply.id;
+        patch.reply_to_text=reply.text;
+        patch.reply_to_message_type=reply.type;
+        patch.reply_to_direction=reply.direction;
+      }
       if(mediaPath) {
         patch.media_path=mediaPath;
         patch.media_name=name;
