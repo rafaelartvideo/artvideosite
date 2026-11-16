@@ -53,3 +53,18 @@ test("Cadastros e Clientes abrem o mesmo modal de Atendimentos da OS", () => {
   assert.match(join, /\.from\("customers"\)/);
   assert.match(join, /allowed\("collaborate"\)/);
 });
+
+test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encerrado", () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const crm=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
+  assert.match(modal, /onEmbeddedReady=\{setEmbeddedReady\}/);
+  assert.match(modal, /Carregando atendimento\.\.\./);
+  assert.match(inbox, /embedded && !protocolFilter && selected\.status === "finished" && canAction\("start"\)/);
+  assert.match(inbox, /"Iniciar novo protocolo"/);
+  assert.match(inbox, /!embedded && !protocolFilter && selected\.status === "finished" && canAction\("reopen"\)/);
+  assert.match(inbox, /embedded && selected\.status==="finished" \? " · Histórico completo"/);
+  assert.match(inbox, /setProtocolFilter\(null\)/);
+  assert.match(inbox, /embedded \? Promise\.resolve\(\) : refresh\(true\)/);
+  assert.match(crm, /LoaderCircle size=\{16\} className="animate-spin text-primary"/);
+  assert.match(crm, /Consultando dados do CRM\.\.\./);
+});
