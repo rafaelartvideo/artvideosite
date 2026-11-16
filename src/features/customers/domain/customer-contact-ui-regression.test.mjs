@@ -71,3 +71,20 @@ test("edição do link de localização deixa campo, Cancelar e Salvar na mesma 
   assert.match(registrations, /className="admin-input h-9 min-w-0 flex-1/);
   assert.match(orderCustomer, /className=\{INPUT \+ " h-9 min-w-0 flex-1"\}/);
 });
+
+
+test("OS, cadastros e criação direta distinguem conflitos de WhatsApp de CPF", () => {
+  const quick = read("src/features/orders/presentation/QuickCustomerModal.tsx");
+  const regular = read("src/features/customers/application/useCreateCustomer.ts");
+  const registrations = read("src/features/registrations/infrastructure/registrations.repository.ts");
+  const cpf = read("src/features/customers/infrastructure/cpf.gateway.ts");
+  const whatsapp = read("src/shared/infrastructure/customer-whatsapp.repository.ts");
+
+  assert.match(quick, /findCustomerWhatsappConflict\(activeOrganizationId, form\.whatsapp, createdCustomer\?\.id \|\| null\)/);
+  assert.match(quick, /if \(isDuplicateCustomerWhatsappError\(error\)\)/);
+  assert.match(quick, /setFieldError\("whatsapp", quickCustomerErrorMessage/);
+  assert.match(regular, /findCustomerWhatsappConflict\(organizationId, whatsapp\)/);
+  assert.match(registrations, /findCustomerWhatsappConflict\(input\.organizationId, input\.entity\.whatsapp\)/);
+  assert.match(cpf, /\.eq\("organization_id", organizationId\)/);
+  assert.match(whatsapp, /p_organization_id: organizationId/);
+});
