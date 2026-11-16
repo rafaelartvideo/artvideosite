@@ -2083,7 +2083,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {embedded && !protocolFilter && selected.status === "finished" && canAction("start") && selected.contact_phone &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} loading={runningAction==="start"}
                     onClick={() => void startNewProtocol()}>
-                    {runningAction==="start" ? "Iniciando protocolo..." : "Iniciar novo protocolo"}
+                    {runningAction==="start" ? "Iniciando conversa..." : "Iniciar conversa"}
                   </AdminButton>}
                 {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
@@ -2338,7 +2338,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </form>
               </div> : <p className="py-2 text-center text-xs text-muted-foreground">
                 {selected.status === "waiting" ? "Assuma o atendimento para responder." :
-                  selected.status === "finished" ? (embedded ? "Histórico completo. Inicie um novo protocolo para responder." : "Atendimento finalizado. Reabra para responder.") :
+                  selected.status === "finished" ? (embedded ? "Histórico completo. Inicie uma conversa para responder." : "Atendimento finalizado. Reabra para responder.") :
                   "Esta conversa está atribuída a outro atendente."}
               </p>}
             </footer>
