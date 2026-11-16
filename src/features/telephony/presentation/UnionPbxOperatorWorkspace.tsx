@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, ContactRound, Headphones, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Settings2, X } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
@@ -18,6 +19,7 @@ type Extension = { number: number; display_name: string; endpoint_name: string }
 type Queue = { number: number; name: string };
 type WorkspaceMode = "chamadas" | "contatos";
 type RecentFilter = "todas" | "atendidas" | "perdidas";
+const EMPTY_CALL_ROWS: CallHistoryRow[] = [];
 type Props = {
   isActive: boolean;
   dialer: ReactNode;
@@ -72,7 +74,8 @@ export function UnionPbxOperatorWorkspace({
   directory, directoryLoading, onBack, onConnectionSettings, onDeviceSettings, onDirectoryChange,
   onSelectSection, onReturnCall, canManage, canManageInbound, canRecordings,
 }: Props) {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, user } = useAuth();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<WorkspaceMode>("chamadas");
   const [contactsVisited, setContactsVisited] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -82,11 +85,6 @@ export function UnionPbxOperatorWorkspace({
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [revision, setRevision] = useState(0);
-  const [loadedRows, setLoadedRows] = useState<CallHistoryRow[]>([]);
-  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
   const [selectedExternal, setSelectedExternal] = useState<PbxDirectoryContact | null>(null);
@@ -125,32 +123,33 @@ export function UnionPbxOperatorWorkspace({
     };
   }, [settingsOpen]);
 
-  useEffect(() => { setPage(1); setLoadedRows([]); setHasLoadedHistory(false); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); completedHandledRef.current=completedCall.sequence; setBrokenAvatar({}); }, [activeOrganizationId]);
+  useEffect(() => { setPage(1); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); completedHandledRef.current=completedCall.sequence; setBrokenAvatar({}); }, [activeOrganizationId, user?.id]);
 
-
-  // Carrega um recorte único; os filtros/páginas são locais e instantâneos.
+  // Cache central do CRM: a navegação entre seções reaproveita o recorte mais recente.
+  const historyToday = localHistoryDate(new Date());
+  const historyQueryKey = ["pbx", "recent-calls", activeOrganizationId, user?.id || "", historyToday] as const;
+  const recentHistoryQuery = useQuery({
+    queryKey: historyQueryKey,
+    enabled: Boolean(activeOrganizationId && isActive),
+    staleTime: 5 * 60_000,
+    queryFn: async ({signal}) => {
+      const {data,count,error} = await pbxRequest(requestSignal =>
+        loadCallHistory(supabase, activeOrganizationId!, initialHistoryFilters(), 1, 100, requestSignal),
+        "Chamadas recentes", {signal});
+      if(error) throw error;
+      return {rows:(data || []) as CallHistoryRow[], total:count || 0};
+    },
+  });
+  const loadedRows = recentHistoryQuery.data?.rows || EMPTY_CALL_ROWS;
+  const total = recentHistoryQuery.data?.total || 0;
+  const loading = recentHistoryQuery.isPending && !recentHistoryQuery.data;
+  const error = recentHistoryQuery.isError && !recentHistoryQuery.data ? "Não foi possível consultar as chamadas." : "";
   useEffect(() => {
-    const controller = new AbortController();
-    if (!activeOrganizationId || !isActive) return () => controller.abort();
-    const filters = initialHistoryFilters();
-    if (!hasLoadedHistory) setLoading(true);
-    setError("");
-    void pbxRequest(signal => loadCallHistory(supabase,activeOrganizationId,filters,1,100,signal),
-      "Chamadas recentes",{signal:controller.signal})
-      .then(({data,count,error:queryError})=>{
-        if(controller.signal.aborted)return;
-        if(queryError)throw queryError;
-        const results=(data||[]) as CallHistoryRow[];
-        setLoadedRows(results);
-        setTotal(count||0);
-        setSelectedId(previous=>previous && results.some(row=>row.id===previous) ? previous : null);
-      }).catch(()=>{
-        if(!controller.signal.aborted)setError("Não foi possível consultar as chamadas.");
-      }).finally(()=>{
-        if(!controller.signal.aborted){setLoading(false);setHasLoadedHistory(true);}
-      });
-    return ()=>controller.abort();
-  },[activeOrganizationId,isActive,revision]);
+    setSelectedId(previous => previous && loadedRows.some(row => row.id === previous) ? previous : null);
+  },[loadedRows]);
+  useEffect(() => {
+    if (revision > 0 && activeOrganizationId) void queryClient.invalidateQueries({queryKey:historyQueryKey});
+  },[revision, activeOrganizationId, user?.id, historyToday, queryClient]);
 
   const rows = loadedRows.filter(row=>{
     const number=numberSearch.replace(/\D/g,"");
