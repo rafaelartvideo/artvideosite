@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -52,6 +52,7 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
   const {user} = useAuth();
+  const lastInvalidatedRevision = useRef(revision);
   const digits = number.replace(/\D/g, "");
   const normalizedNumber = digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
     ? digits.slice(2) : digits;
@@ -74,7 +75,9 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
   });
   useEffect(() => { setExpanded(false); setPage(1); }, [organizationId, number]);
   useEffect(() => {
-    if (revision > 0 && enabled) void queryClient.invalidateQueries({
+    if (!enabled || lastInvalidatedRevision.current === revision) return;
+    lastInvalidatedRevision.current = revision;
+    void queryClient.invalidateQueries({
       queryKey: ["pbx", "contact-history", organizationId, user?.id || "", normalizedNumber],
     });
   }, [revision, enabled, organizationId, user?.id, normalizedNumber, queryClient]);
