@@ -909,9 +909,6 @@ setTestFlowError('');
       <UnionPbxFloatingPhone
         registration={registration} callState={callState}
         extension={managedExtension?.number ?? ownNumber ?? null}
-        organizationId={activeOrganizationId}
-        customerPhone={callState !== "idle" ? remoteParty : dialMode === "external" && canUseExternal ? externalTarget : ""}
-        customerSource={currentCallerCard?.source}
         caller={callState !== "idle" ? currentCallerCard?.name || formatPbxNumber(remoteParty) : undefined}
         onOpenFull={onOpen}
       >{dialerContent}</UnionPbxFloatingPhone>
