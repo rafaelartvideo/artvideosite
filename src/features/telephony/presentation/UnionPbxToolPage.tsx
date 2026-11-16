@@ -1,7 +1,7 @@
 import { myCallMode, boundCallMode, canOriginate, type BoundCallMode } from "../application/call-modes";
 import { FInput, AdminSelect, AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { useEffect, useRef, useState } from "react";
-import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
+import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ChevronDown, ChevronUp, ShieldCheck, Unplug, Delete, Radio, ArrowLeft, RefreshCw } from "lucide-react";
 import { PageHeader, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions";
@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
 import { UnionPbxFloatingPhone } from "./UnionPbxFloatingPhone";
+import { PbxCrmContactPanel } from "./PbxCrmContactPanel";
+import { PbxContactActivity } from "./PbxContactActivity";
 import { UnionPbxAudioDevices } from "./UnionPbxAudioDevices";
 import type { UnionPbxSection } from "./UnionPbxSectionTabs";
 import { UnionPbxOperatorWorkspace, formatPbxNumber } from "./UnionPbxOperatorWorkspace";
@@ -107,6 +109,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     return () => { void supabase.removeChannel(channel); };
   }, [activeOrganizationId, isPageOpen, registration]);
   const [callState, setCallState] = useState<CallState>("idle");
+  const [callKeypadExpanded, setCallKeypadExpanded] = useState(false);
+  useEffect(() => { if (callState !== "active") setCallKeypadExpanded(false); }, [callState]);
   const [remoteParty, setRemoteParty] = useState("");
   const callerCards=usePbxSavedContactCards(activeOrganizationId,callState!=="idle",[remoteParty]);
   const currentCallerCard=callerCards[pbxContactPhoneKey(remoteParty)];
@@ -745,6 +749,7 @@ setTestFlowError('');
   };
 
   const dialerContent = <div className="space-y-3">
+    <div className={callState !== "idle" ? "mx-auto w-full max-w-[390px] space-y-3" : "space-y-3"}>
     {callModeUnavailable && <p role="status" className="text-xs text-muted-foreground">Modo de chamada sem atualização. A central continua verificando as permissões.</p>}
           {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
@@ -802,7 +807,13 @@ setTestFlowError('');
                   ...testFlows.map(item => ({value:String(item.number),label:`${item.number} · URA · ${item.name}`}))]} />
             </div>}
           </div>}
-          {callState !== "incoming" && <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
+          {callState === "active" && <button type="button"
+            aria-label={callKeypadExpanded ? "Recolher teclado de discagem" : "Expandir teclado de discagem"}
+            aria-expanded={callKeypadExpanded} onClick={() => setCallKeypadExpanded(value => !value)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-primary">
+            Teclado numérico {callKeypadExpanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+          </button>}
+          {(callState === "idle" || (callState === "active" && callKeypadExpanded)) && <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
             {([["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]] as const).map(([digit, letters]) =>
               <button key={digit} type="button" aria-label={`Tecla ${digit}`}
                 disabled={callState === "idle" && (digit === "*" || digit === "#") || (callState !== "idle" && callState !== "active") || (callState === "active" && dtmfDisabled)}
@@ -853,7 +864,14 @@ setTestFlowError('');
           {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação|nenhum ramal/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
           {callState === "idle" && isPageOpen && (directoryError || testQueueError || (dialMode === "internal" && testFlowError)) &&
             <p className="text-xs text-muted-foreground">{directoryError || testQueueError || (dialMode === "internal" ? testFlowError : "")}</p>}
-        </div>;
+    </div>
+    {callState !== "idle" && pbxContactPhoneKey(remoteParty) && <div className="min-w-0 text-left">
+      <PbxCrmContactPanel organizationId={activeOrganizationId} phone={remoteParty}
+        active={true} source={currentCallerCard?.source}/>
+      <PbxContactActivity organizationId={activeOrganizationId} number={remoteParty}
+        active={true} revision={completedCall.sequence} callBusy={true}/>
+    </div>}
+  </div>;
 
   return <>
     {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
