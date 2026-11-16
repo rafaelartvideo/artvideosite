@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { AlertCircle, ArrowLeft, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, GripHorizontal, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import { preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
@@ -531,13 +531,14 @@ export function AdminDialog({
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
         : (title || description || onClose) && <div
           className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:select-none md:touch-none active:cursor-grabbing")}
+          title={draggable ? "Segure e arraste para mover a janela" : undefined}
           onPointerDown={draggable ? startDialogDrag : undefined}
           onPointerMove={draggable ? moveDialogDrag : undefined}
           onPointerUp={draggable ? endDialogDrag : undefined}
           onPointerCancel={draggable ? endDialogDrag : undefined}
         >
         <div className="min-w-0 flex-1">
-          {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
+          {title ? <div className="flex items-center gap-2">{draggable && <GripHorizontal size={16} className="shrink-0 text-muted-foreground" aria-hidden="true"/>}<DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
