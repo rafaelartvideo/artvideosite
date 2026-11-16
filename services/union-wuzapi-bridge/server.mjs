@@ -328,7 +328,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     // Extract the original path + query only after validating the CDN hostname.
     // Whatsmeow appends its own &hash=... to this query on trusted media hosts.
     const directPath=source.pathname+source.search;
-    if(!directPath.startsWith("/v/") || directPath.length>2048 ||
+    if(!/^\/(?:o[0-9]+\/)?v\//.test(directPath) || directPath.length>2048 ||
       source.hash || source.port || source.username || source.password)
       throw new Error("bad_request");
     const result=await wuzapi(endpoints[kind],session.token,"POST",{
