@@ -26,6 +26,22 @@ test("mini-PABX uses the real dialer and never disconnects the SIP session from 
   assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
 });
 
+test("expanded mini-PABX exposes customer CRM details with permission checks and without polling",async()=>{
+  const floatingPath="src/features/telephony/presentation/UnionPbxFloatingPhone.tsx";
+  const pagePath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
+  const crmPath="src/features/telephony/presentation/PbxCrmContactPanel.tsx";
+  const floating=read(floatingPath),page=read(pagePath),crm=read(crmPath);
+  assert.match(floating,/PbxCrmContactPanel/);
+  assert.match(floating,/active=\{expanded && hasCustomerNumber\}/);
+  assert.match(floating,/pbxContactPhoneKey\(customerPhone\)\.length>=10/);
+  assert.match(page,/organizationId=\{activeOrganizationId\}/);
+  assert.match(page,/customerPhone=\{callState !== "idle" \? remoteParty/);
+  assert.match(crm,/hasPermission\("customers.view"\)/);
+  assert.match(crm,/hasPermission\("orders.details.view"\)/);
+  assert.match(crm,/expires:Date\.now\(\)\+5\*60_000/);
+  assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
+});
+
 test("mini-PABX snaps to viewport edges, supports keyboard reposition and limits visual height",()=>{
   const floating=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
   assert.match(floating,/const MARGIN = 12/);
