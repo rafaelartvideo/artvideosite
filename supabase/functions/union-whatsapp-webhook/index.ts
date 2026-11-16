@@ -269,6 +269,10 @@ Deno.serve(async request => {
     const mediaKey=str(get(media,"mediaKey","MediaKey"),512);
     const fileHash=str(get(media,"fileSHA256","FileSHA256"),512);
     const fileEncHash=str(get(media,"fileEncSHA256","FileEncSHA256"),512);
+    // Videos commonly exceed the old 5 MiB limit. The private Storage bucket
+    // allows 25 MiB; retain encrypted provider descriptors for videos up to
+    // 20 MiB and download lazily when an operator opens them.
+    const maxMediaBytes=typeHint==="video" ? 20*1048576 : 5*1048576;
     let validMedia=false;
     try {
       const addr=new URL(fileUrl);
@@ -276,8 +280,16 @@ Deno.serve(async request => {
         (addr.hostname==="whatsapp.net" || addr.hostname.endsWith(".whatsapp.net") ||
           addr.hostname==="fbcdn.net" || addr.hostname.endsWith(".fbcdn.net")) &&
         !addr.username && !addr.password && !addr.port && !addr.hash &&
-        fileLength>0 && fileLength<=5242880 && Boolean(mediaKey && fileHash && mime);
+        Number.isSafeInteger(fileLength) && fileLength>0 && fileLength<=maxMediaBytes && Boolean(mediaKey && fileHash && mime);
     } catch { /* A media thumbnail alone is not a decryptable attachment. */ }
+    if(typeHint==="video" && !validMedia) {
+      // Record only diagnostic flags; never log a JID, media key or CDN URL.
+      console.warn("union-whatsapp-webhook video_descriptor_rejected", {
+        has_url:Boolean(providerUrl || validDirectPath),
+        has_key:Boolean(mediaKey),has_sha:Boolean(fileHash),has_mime:Boolean(mime),
+        size_known:fileLength>0,oversize:fileLength>maxMediaBytes,
+      });
+    }
     if(typeHint==="sticker" && !validMedia) {
       // Log presence flags only: never log media URLs, keys, hashes or JIDs.
       console.warn("union-whatsapp-webhook sticker_media_descriptor_missing", {
