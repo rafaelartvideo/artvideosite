@@ -1,16 +1,22 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { Plus } from "lucide-react";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
 
 const EmbeddedWhatsAppConversation = lazy(() =>
   import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
     .then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })),
+);
+// Compartilha o formulario, as regras e o fluxo de persistencia do modulo OS.
+const EmbeddedNewOrder = lazy(() =>
+  import("@/features/orders/presentation/TabOrders")
+    .then(({ TabOrders }) => ({ default: TabOrders })),
 );
 
 type State =
@@ -34,6 +40,7 @@ export type WhatsAppModalContext = {
     | {
         kind: "order";
         orderId: string;
+        customerId?: string;
         phone: string;
         customerName: string;
         documentOptions?: Array<{id:string;label:string}>;
@@ -58,11 +65,15 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const navigate = useNavigate();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
+  const canCreateOrder = hasPermission("orders.create");
   const [state, setState] = useState<State>({ status: "loading" });
   const [starting, setStarting] = useState(false);
   const [embeddedReady, setEmbeddedReady] = useState(false);
   const [startError, setStartError] = useState("");
   const startGateRef = useRef(false);
+  const [newOrder, setNewOrder] = useState<{ customerId: string | null; key: string } | null>(null);
+  const [preparingNewOrder, setPreparingNewOrder] = useState(false);
+  const newOrderGateRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -118,6 +129,32 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     return () => { cancelled = true; };
   }, [open, organizationId, phone, source, activeOrganizationId, canViewInbox]);
 
+  const openNewOrder = async () => {
+    if (!canCreateOrder || !canViewInbox || organizationId !== activeOrganizationId ||
+        newOrderGateRef.current || newOrder) return;
+    newOrderGateRef.current = true;
+    setPreparingNewOrder(true);
+    try {
+      // Priorizar o vinculo exato da OS/cadastro, sem inferir apenas pelo telefone.
+      let customerId = source.kind === "conversation" ? null : source.customerId || null;
+      if (!customerId && state.status === "ready") {
+        try {
+          const found = await operateUnionWhatsAppInbox(
+            organizationId, state.conversationId, "customer_match",
+          );
+          // Nunca vincular automaticamente um cliente quando houver ambiguidade.
+          if (!found.ambiguous) customerId = found.customer?.id || null;
+        } catch {
+          // Sem vinculo confirmado, a Nova OS conserva a busca manual de clientes.
+        }
+      }
+      setNewOrder({ customerId, key: crypto.randomUUID() });
+    } finally {
+      newOrderGateRef.current = false;
+      setPreparingNewOrder(false);
+    }
+  };
+
   const startConversation = async () => {
     if (source.kind==="conversation" || startGateRef.current || state.status !== "empty" || !state.canStart ||
       organizationId !== activeOrganizationId || !canViewInbox) return;
@@ -151,10 +188,18 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     }
   };
 
-  return <AdminDialog
+  return <>
+  <AdminDialog
     open={open}
     onClose={onClose}
     title="Atendimento WhatsApp"
+    draggable
+    headerActions={canCreateOrder && organizationId === activeOrganizationId && canViewInbox
+      ? <AdminButton variant="secondary" size="sm" disabled={preparingNewOrder || Boolean(newOrder)}
+          loading={preparingNewOrder} onClick={() => void openNewOrder()}>
+          <Plus size={15}/> Nova OS
+        </AdminButton>
+      : undefined}
     className="!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-var(--admin-browser-bottom-inset,0px)-1.5rem)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1160px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
     bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0"
   >
@@ -197,7 +242,23 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       </AdminButton>}
       {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
-  </AdminDialog>;
+  </AdminDialog>
+  {newOrder && <Suspense fallback={null}>
+    <EmbeddedNewOrder
+      key={newOrder.key}
+      initialOrderId="new"
+      initialCustomerId={newOrder.customerId}
+      organizationIdOverride={organizationId}
+      detailOnly
+      embeddedCreate
+      onEmbeddedClose={() => setNewOrder(null)}
+      onEmbeddedCreated={() => {
+        setNewOrder(null);
+        notifyAdmin("OS criada com sucesso.", "success");
+      }}
+    />
+  </Suspense>}
+  </>;
 }
 
 /** Reusable WhatsApp launcher for verified OS, registration, customer and thread contexts. */
