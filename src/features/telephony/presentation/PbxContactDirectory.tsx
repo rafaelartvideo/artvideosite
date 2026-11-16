@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ContactRound, LoaderCircle, Plus, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { formatPbxNumber } from "../domain/pbx-display";
 import { pbxContactPhoneKey } from "../application/pbx-saved-contact-cards";
 
 export type PbxDirectoryContact = { number: string; name: string; source: "crm" | "pbx" | "whatsapp" | "ramal" };
+const EMPTY_DIRECTORY_CONTACTS: PbxDirectoryContact[] = [];
 const sourceText: Record<PbxDirectoryContact["source"],string> = {
   crm: "CRM", pbx: "PABX", whatsapp: "WhatsApp", ramal: "Ramal",
 };
@@ -17,30 +20,32 @@ export function PbxContactDirectory({
 }) {
   const [search,setSearch]=useState("");
   const [debounced,setDebounced]=useState("");
-  const [contacts,setContacts]=useState<PbxDirectoryContact[]>([]);
-  const [loading,setLoading]=useState(false);
-  const [readyOrganization,setReadyOrganization]=useState<string|null>(null);
-  const [error,setError]=useState("");
+  const {user} = useAuth();
+  const queryClient = useQueryClient();
+  const lastRevisionRef = useRef(revision);
   useEffect(()=>{
     const timer=setTimeout(()=>setDebounced(search.trim()),400);
     return ()=>clearTimeout(timer);
   },[search]);
+  const agendaQuery = useQuery({
+    queryKey: ["pbx", "directory", organizationId, user?.id || "", debounced],
+    enabled: Boolean(organizationId && active),
+    staleTime: 5 * 60_000,
+    queryFn: async ({signal}) => {
+      const {data,error} = await supabase.functions.invoke<{success?:boolean;contacts?:PbxDirectoryContact[]}>("union-pbx-contact-cards",{
+        body:{action:"list",organization_id:organizationId,search:debounced},signal,
+      });
+      if(error || !data?.success || !Array.isArray(data.contacts)) throw new Error("Não foi possível consultar a agenda telefônica.");
+      return data.contacts;
+    },
+  });
   useEffect(()=>{
-    const controller=new AbortController();
-    if(!organizationId||!active)return()=>controller.abort();
-    if(readyOrganization!==organizationId)setLoading(true);
-    setError("");
-    void supabase.functions.invoke<{success?:boolean;contacts?:PbxDirectoryContact[]}>("union-pbx-contact-cards",{
-      body:{action:"list",organization_id:organizationId,search:debounced},signal:controller.signal,
-    }).then(({data,error:requestError})=>{
-      if(controller.signal.aborted)return;
-      if(requestError||!data?.success||!Array.isArray(data.contacts))throw Error("Falha ao consultar a agenda.");
-      setContacts(data.contacts);
-    }).catch(()=>{
-      if(!controller.signal.aborted)setError("Não foi possível consultar a agenda telefônica.");
-    }).finally(()=>{if(!controller.signal.aborted){setLoading(false);setReadyOrganization(organizationId);}});
-    return ()=>controller.abort();
-  },[organizationId,active,debounced,revision]);
+    if(!active || !organizationId || lastRevisionRef.current === revision)return;
+    lastRevisionRef.current = revision;
+    void queryClient.invalidateQueries({queryKey:["pbx", "directory", organizationId, user?.id || ""]});
+  },[active,organizationId,user?.id,revision,queryClient]);
+  const contacts = agendaQuery.data || EMPTY_DIRECTORY_CONTACTS;
+  const error = agendaQuery.isError && !agendaQuery.data ? "Não foi possível consultar a agenda telefônica." : "";
   const normalizedSearch=search.trim().toLowerCase();
   const visibleExtensions=extensions.filter(item=>!normalizedSearch||
     item.display_name.toLowerCase().includes(normalizedSearch)||String(item.number).includes(normalizedSearch));
@@ -53,7 +58,7 @@ export function PbxContactDirectory({
       seen.add(key);return true;
     }),
   ];
-  if (organizationId && active && readyOrganization !== organizationId) {
+  if (organizationId && active && agendaQuery.isPending && !agendaQuery.data) {
     return <div role="status" className="flex min-h-[350px] flex-1 flex-col items-center justify-center gap-3 text-sm font-medium text-primary">
       <LoaderCircle size={28} className="animate-spin"/>
       Preparando agenda...
