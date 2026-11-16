@@ -68,3 +68,36 @@ test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encer
   assert.match(crm, /LoaderCircle size=\{16\} className="animate-spin text-primary"/);
   assert.match(crm, /Consultando dados do CRM\.\.\./);
 });
+
+test("WhatsApp e Nova OS usam modais moviveis sem duplicar fundo escuro", () => {
+  const dialog=read("src/shared/ui/admin/AdminLayout.tsx");
+  const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  const tab=read("src/features/orders/presentation/TabOrders.tsx");
+  const actions=read("src/features/orders/presentation/OrderFormActions.tsx");
+  assert.match(dialog, /draggable = false/);
+  assert.match(dialog, /showOverlay = true/);
+  assert.match(dialog, /onPointerDown=\{draggable \? startDialogDrag : undefined\}/);
+  assert.match(dialog, /showOverlay=\{showOverlay\}/);
+  assert.match(modal, /title="Atendimento WhatsApp"\s+draggable/);
+  assert.match(modal, /Nova OS/);
+  assert.match(modal, /<EmbeddedNewOrder/);
+  assert.match(modal, /initialCustomerId=\{newOrder\.customerId\}/);
+  assert.match(modal, /organizationIdOverride=\{organizationId\}/);
+  assert.match(editor, /if \(embeddedDialog\) return <AdminDialog/);
+  assert.match(editor, /draggable showOverlay=\{false\}/);
+  assert.match(editor, /editorBody/);
+  assert.match(actions, /inDialog= false|inDialog = false/);
+  assert.match(tab, /embeddedDialog=\{embeddedCreate\}/);
+  assert.match(tab, /onEmbeddedCreated\?\.\(savedOrderId\)/);
+});
+
+test("Nova OS reaproveita cliente confirmado sem criar vinculos por telefone ambiguo", () => {
+  const order=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const tab=read("src/features/orders/presentation/TabOrders.tsx");
+  assert.match(order, /customerId: detail\.customer_id \|\| undefined/);
+  assert.match(modal, /source\.customerId \|\| null/);
+  assert.match(modal, /"customer_match"/);
+  assert.match(modal, /if \(!found\.ambiguous\) customerId = found\.customer\?\.id \|\| null/);
+  assert.match(tab, /getOrderCustomerById\(/);
+  assert.match(tab, /selectCustomer\(data\)/);
+});
