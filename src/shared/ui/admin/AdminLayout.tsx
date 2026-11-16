@@ -370,47 +370,68 @@ export function AdminDialog({
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
   const contentRef = React.useRef<HTMLDivElement>(null);
-  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  // Drag uses actual viewport coordinates instead of Tailwind translate utilities.
+  // Radix renders dialogs in a portal, so listen on window rather than
+  // relying on pointer capture in the draggable heading.
+  const [dragPosition, setDragPosition] = React.useState<{ left: number; top: number } | null>(null);
   const dragRef = React.useRef<{
-    pointerId: number; startX: number; startY: number; originX: number; originY: number;
-    minX: number; maxX: number; minY: number; maxY: number;
+    pointerId: number; pointerX: number; pointerY: number;
+    startLeft: number; startTop: number; width: number; height: number;
   } | null>(null);
   const startDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggable || event.button !== 0 || window.matchMedia("(max-width: 767px)").matches ||
-        (event.target instanceof Element && event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
+    if (!draggable || event.button !== 0 ||
+        window.matchMedia("(max-width: 767px)").matches ||
+        (event.target instanceof Element &&
+          event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
     const node = contentRef.current;
     if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const margin = 8;
+    const bounds = node.getBoundingClientRect();
     dragRef.current = {
-      pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-      originX: dragOffset.x, originY: dragOffset.y,
-      minX: dragOffset.x + margin - rect.left,
-      maxX: dragOffset.x + window.innerWidth - margin - rect.right,
-      minY: dragOffset.y + margin - rect.top,
-      maxY: dragOffset.y + window.innerHeight - margin - rect.bottom,
+      pointerId: event.pointerId,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startLeft: bounds.left,
+      startTop: bounds.top,
+      width: bounds.width,
+      height: bounds.height,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // This first position exactly matches the centered dialog: no jump.
+    setDragPosition({ left: bounds.left, top: bounds.top });
     event.preventDefault();
   };
-  const moveDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const clamp = (value: number, min: number, max: number) =>
-      Math.max(Math.min(min, max), Math.min(Math.max(min, max), value));
-    setDragOffset({
-      x: clamp(drag.originX + event.clientX - drag.startX, drag.minX, drag.maxX),
-      y: clamp(drag.originY + event.clientY - drag.startY, drag.minY, drag.maxY),
-    });
-  };
-  const endDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId))
-      event.currentTarget.releasePointerCapture(event.pointerId);
-  };
   React.useEffect(() => {
-    if (!open) { dragRef.current = null; setDragOffset({x:0,y:0}); }
+    if (!open || !draggable) return;
+    const move = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const clamp = (value: number, min: number, max: number) =>
+        Math.min(Math.max(value, min), Math.max(min, max));
+      const topInset = 64; // CRM header, matching --admin-shell-header-height.
+      setDragPosition({
+        left: clamp(drag.startLeft + event.clientX - drag.pointerX,
+          8, window.innerWidth - drag.width - 8),
+        top: clamp(drag.startTop + event.clientY - drag.pointerY,
+          topInset + 8, window.innerHeight - drag.height - 8),
+      });
+      if (event.cancelable) event.preventDefault();
+    };
+    const stop = (event: PointerEvent) => {
+      if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, [open, draggable]);
+  React.useEffect(() => {
+    if (!open) {
+      dragRef.current = null;
+      setDragPosition(null);
+    }
   }, [open]);
   const scrollNestedDialog = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!nestedScrollAssist) return;
@@ -540,12 +561,13 @@ export function AdminDialog({
       data-admin-dialog-content="true"
       data-admin-dialog-state={showPreparation ? "preparing" : "ready"}
       data-admin-dialog-draggable={draggable ? "true" : undefined}
+      data-admin-dialog-positioned={draggable && dragPosition ? "true" : undefined}
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
-        ...(draggable ? {
-          "--admin-dialog-drag-x": `${dragOffset.x}px`,
-          "--admin-dialog-drag-y": `${dragOffset.y}px`,
+        ...(draggable && dragPosition ? {
+          "--admin-dialog-drag-left": `${dragPosition.left}px`,
+          "--admin-dialog-drag-top": `${dragPosition.top}px`,
         } : {}),
       } as React.CSSProperties}
       className={cn(
@@ -559,9 +581,6 @@ export function AdminDialog({
           className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:select-none md:touch-none active:cursor-grabbing")}
           title={draggable ? "Segure e arraste para mover a janela" : undefined}
           onPointerDown={draggable ? startDialogDrag : undefined}
-          onPointerMove={draggable ? moveDialogDrag : undefined}
-          onPointerUp={draggable ? endDialogDrag : undefined}
-          onPointerCancel={draggable ? endDialogDrag : undefined}
         >
         <div className="min-w-0 flex-1">
           {title ? <div className="flex items-center gap-2">{draggable && <GripHorizontal size={16} className="shrink-0 text-muted-foreground" aria-hidden="true"/>}<DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
