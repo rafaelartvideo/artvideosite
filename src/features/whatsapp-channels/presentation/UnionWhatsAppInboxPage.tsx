@@ -667,7 +667,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
     let cancelled=false;
     void Promise.allSettled([
-      refresh(true),
+      embedded ? Promise.resolve() : refresh(true),
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setDepartments(result.departments||[]);})
@@ -679,14 +679,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     ]).then(()=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
       accountRef.current===activeChannelPhone)setReadyAccount(identity);});
     return()=>{cancelled=true;};
-  },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh]);
+  },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh,embedded]);
 
   // Mudanças de aba, departamento ou pesquisa buscam diretamente uma página
   // nova no servidor, sem remontar toda a interface nem recarregar canais.
   useEffect(()=>{
     if(channelReady!==true||!activeOrganizationId||!activeChannelId||!activeChannelPhone)return;
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
-    if(readyAccount!==identity)return;
+    if(readyAccount!==identity || embedded)return;
     const key=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,listQueryRef.current]);
     if(lastListQueryRef.current===key)return;
     setConversationPageLoading(true);
@@ -1287,7 +1287,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setConversations(current=>current.map(item=>item.id===updated.id?updated:item));
       setProtocolFilter(null);
       setFilter("in_att");
-      void refresh(true);
     }catch(reason){
       reportError(systemErrorMessage(reason,"Não foi possível iniciar o novo protocolo."));
     }finally{setRunningAction(null);}
