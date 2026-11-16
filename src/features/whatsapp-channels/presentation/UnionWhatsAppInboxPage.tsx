@@ -338,6 +338,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocolsPage,setProtocolsPage]=useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFallback,setSelectedFallback]=useState<UnionWhatsAppConversation|null>(null);
+  const [fallbackErrorId,setFallbackErrorId]=useState<string|null>(null);
+  const [fallbackRetry,setFallbackRetry]=useState(0);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
   const [debouncedQuery,setDebouncedQuery]=useState("");
@@ -890,18 +892,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(()=>{
     if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
       channelReady!==true){
-      setSelectedFallback(null);return;
+      setSelectedFallback(null);setFallbackErrorId(null);return;
     }
     if(conversations.some(item=>item.id===selectedId)){
-      setSelectedFallback(null);return;
+      setSelectedFallback(null);setFallbackErrorId(null);return;
     }
     let cancelled=false;
+    setFallbackErrorId(null);
     void getUnionWhatsAppConversation(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
       .then(row=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
-        accountRef.current===activeChannelPhone)setSelectedFallback(row);})
-      .catch(()=>{if(!cancelled)setSelectedFallback(null);});
+        accountRef.current===activeChannelPhone){
+        setSelectedFallback(row);
+        setFallbackErrorId(row ? null : selectedId);
+      }})
+      .catch(()=>{if(!cancelled){setSelectedFallback(null);setFallbackErrorId(selectedId);}});
     return()=>{cancelled=true;};
-  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,conversations]);
+  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,conversations,fallbackRetry]);
 
   useEffect(()=>{
     if(!selected || !activeOrganizationId || selected.status!=="in_att" || channelReady!==true){
@@ -1103,7 +1109,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     participants.some(item=>item.user_id===user.id && item.status==="active"));
   const conversationOpening = Boolean(selectedId && (!selected || messagesResolvedId!==selectedId ||
     (selected.status==="in_att" && !isMine && !canManage && participantsResolvedId!==selectedId)));
-  const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId));
+  const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId || fallbackErrorId===selectedId));
   // O modal controla um unico loading ate o historico inicial ficar pronto.
   useEffect(() => {
     if(!embedded || !onEmbeddedReady)return;
@@ -1998,7 +2004,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   </div>}
               {conversationOpeningError && <AdminButton size="sm" variant="secondary"
                 onClick={()=>{
-                  setMessagesErrorId(null);setParticipantsErrorId(null);
+                  setMessagesErrorId(null);setParticipantsErrorId(null);setFallbackErrorId(null);
+                  setFallbackRetry(value=>value+1);
                   if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
                 }}>Tentar novamente</AdminButton>}
             </> : <div className="flex flex-col items-center gap-3 text-center" aria-live="polite">
