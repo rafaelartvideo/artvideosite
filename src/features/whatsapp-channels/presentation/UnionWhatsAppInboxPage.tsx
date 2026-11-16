@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -70,6 +70,26 @@ const compactDate = (value: string | null) => value && !Number.isNaN(new Date(va
   ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
   : "";
 const clock = (value: string) => new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Date separators use the SAME local timezone as the time printed on each
+// message. Compare calendar days, not 24-hour intervals, so DST is safe.
+const chatDayKey=(value:string|number|Date):string=>{
+  const date=value instanceof Date?value:new Date(value);
+  if(!Number.isFinite(date.getTime()))return "";
+  return [date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),
+    String(date.getDate()).padStart(2,"0")].join("-");
+};
+const chatDayLabel=(dayKey:string,now:number):string=>{
+  if(!dayKey)return "Data indisponível";
+  if(dayKey===chatDayKey(now))return "Hoje";
+  const current=new Date(now);
+  const yesterday=new Date(current.getFullYear(),current.getMonth(),current.getDate()-1,12);
+  if(dayKey===chatDayKey(yesterday))return "Ontem";
+  const [year,month,day]=dayKey.split("-").map(Number);
+  if(!year||!month||!day)return "Data indisponível";
+  return new Date(year,month-1,day,12).toLocaleDateString("pt-BR",{
+    day:"numeric",month:"long",year:"numeric",
+  });
+};
 // Short-lived cache: signed media URLs expire after 120 seconds.
 const stickerPreviewCache=new Map<string,{url:string;expires:number}>();
 
@@ -456,6 +476,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [requestProtocol,setRequestProtocol] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const messagesContentRef = useRef<HTMLDivElement | null>(null);
+  const [floatingDayKey,setFloatingDayKey]=useState<string|null>(null);
+  const [showFloatingDay,setShowFloatingDay]=useState(false);
+  const floatingDayFrameRef=useRef<number|null>(null);
+  const floatingDayTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>{
+    setFloatingDayKey(null);setShowFloatingDay(false);
+  },[selectedId,protocolFilter?.id]);
+  useEffect(()=>()=> {
+    if(floatingDayFrameRef.current!==null)window.cancelAnimationFrame(floatingDayFrameRef.current);
+    if(floatingDayTimerRef.current!==null)window.clearTimeout(floatingDayTimerRef.current);
+  },[]);
   const chatScrollReadyRef = useRef(false);
   const messageHistoryLoadedRef = useRef(false);
   const followLatestRef = useRef(true);
@@ -909,6 +940,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
     followLatestRef.current = atBottom;
     setShowJumpToLatest(!atBottom);
+    // WhatsApp-style temporary floating date while the user scrolls.
+    // Read only the visible day separators, without fetching extra messages.
+    if(floatingDayFrameRef.current===null){
+      floatingDayFrameRef.current=window.requestAnimationFrame(()=>{
+        floatingDayFrameRef.current=null;
+        const area=scrollRef.current;
+        if(!area || area.scrollHeight<=area.clientHeight+8){
+          setShowFloatingDay(false);
+          return;
+        }
+        const edge=area.getBoundingClientRect().top+48;
+        const sections=area.querySelectorAll<HTMLElement>("[data-chat-day]");
+        let currentDay:string|null=null;
+        for(const section of sections){
+          if(section.getBoundingClientRect().top>edge)break;
+          currentDay=section.dataset.chatDay||null;
+        }
+        if(!currentDay)currentDay=sections[0]?.dataset.chatDay||null;
+        setFloatingDayKey(currentDay);
+        setShowFloatingDay(Boolean(currentDay));
+        if(floatingDayTimerRef.current!==null)window.clearTimeout(floatingDayTimerRef.current);
+        floatingDayTimerRef.current=window.setTimeout(()=>setShowFloatingDay(false),1200);
+      });
+    }
   };
 
   const accountIdentity=channelReady===true && activeChannelId && activeChannelPhone && activeOrganizationId
@@ -2153,6 +2208,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
             </div>}
             <div className="relative min-h-0 flex-1">
+              {showFloatingDay && floatingDayKey && <div aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-3">
+                <span className="rounded-lg border border-border/70 bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+                  {chatDayLabel(floatingDayKey,clockNow)}
+                </span>
+              </div>}
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
                 style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px", overflowAnchor:"none" }}>
@@ -2168,7 +2229,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               : timeline.length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
-                {timeline.map(entry => entry.kind==="persisted" ? (
+                {timeline.map((entry,index) => <Fragment key={entry.id}>
+                  {(index===0 || chatDayKey(entry.sentAt)!==chatDayKey(timeline[index-1].sentAt)) &&
+                    <div data-chat-day={chatDayKey(entry.sentAt)}
+                      className="my-3 flex justify-center" role="separator"
+                      aria-label={chatDayLabel(chatDayKey(entry.sentAt),clockNow)}>
+                      <span className="rounded-lg border border-border/60 bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+                        {chatDayLabel(chatDayKey(entry.sentAt),clockNow)}
+                      </span>
+                    </div>}
+                  {entry.kind==="persisted" ? (
                   <div key={entry.id} data-wa-provider-id={entry.message.provider_message_id}
                     onTouchStart={event=>{const t=event.touches[0];if(t)swipeReplyRef.current={id:entry.id,x:t.clientX,y:t.clientY};}}
                     onTouchEnd={event=>{
@@ -2258,7 +2328,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </p>}
                     </div>
                   </div>
-                ))}
+                )}
+                </Fragment>)}
               </div>}
               </div>
               </div>
