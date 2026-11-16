@@ -264,7 +264,7 @@ async function engineInfo() {
     observed_at: typeof report.observed_at === "string" ? report.observed_at : null,
   };
 }
-async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
+async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength, reply_to_id: replyToId, reply_participant: replyParticipant }) {
   // Consulta de infraestrutura não usa tenant ou sessão de WhatsApp.
   // A autenticação HMAC é exigida antes de chamar operate().
   if (action === "engine_info") return engineInfo();
@@ -638,9 +638,18 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         || !body.trim() || body.length > 4000 || !uuid(clientId)) {
       throw new Error("bad_request");
     }
+    // Native WhatsApp quote requires the provider stanza ID and the actual
+    // sender JID. Only trusted HMAC-authenticated Edge calls reach this branch.
+    const quoteRequested=replyToId!==undefined || replyParticipant!==undefined;
+    if(quoteRequested && (
+      typeof replyToId!=="string" || !/^[a-zA-Z0-9_-]{4,180}$/.test(replyToId) ||
+      typeof replyParticipant!=="string" ||
+      !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(replyParticipant)
+    )) throw new Error("bad_request");
     const sentId = clientId.replaceAll("-", "").toUpperCase();
     const response = await wuzapi("/chat/send/text", session.token, "POST", {
       Phone: jid, Body: body, Id: sentId,
+      ...(quoteRequested ? {ContextInfo:{StanzaId:replyToId,Participant:replyParticipant}} : {}),
     });
     const confirmedId = String(response?.data?.Id || response?.data?.id || "").trim();
     if (!confirmedId || confirmedId.length > 180) throw new Error("provider_confirmation_unknown");
