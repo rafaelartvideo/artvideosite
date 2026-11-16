@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ClipboardList, Cpu, LoaderCircle, RotateCcw, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-palette";
 import type { CrmConversationContext } from "@/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu";
 import { pbxContactPhoneKey } from "../application/pbx-saved-contact-cards";
+import { formatPbxNumber } from "../domain/pbx-display";
 
 type Response = CrmConversationContext & { success?: boolean; error?: string; can_view_orders?: boolean };
-type Cached = { context: Response; expires: number };
 type Panel = "registration" | "equipments" | "orders" | null;
 
 function Field({ label, value }: { label: string; value?: string | null }) {
@@ -37,46 +38,32 @@ export function PbxCrmContactPanel({
   active: boolean;
   source?: "crm" | "pbx" | "whatsapp" | "ramal" | null;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const canViewCustomers=hasPermission("customers.view");
   const canViewOrders=hasPermission("orders.details.view");
   const key=pbxContactPhoneKey(phone);
   const [panel,setPanel]=useState<Panel>(null);
-  const [context,setContext]=useState<Response | null>(null);
-  const [loadedKey,setLoadedKey]=useState("");
-  const [error,setError]=useState("");
-  const [revision,setRevision]=useState(0);
-  const cache=useRef(new Map<string,Cached>());
-  const cacheKey=organizationId && key ? organizationId+":"+key : "";
-
-  useEffect(()=>{setPanel(null);},[cacheKey]);
-  useEffect(()=>{
-    if(!active||!organizationId||!key||!canViewCustomers) return;
-    const saved=cache.current.get(cacheKey);
-    if(saved && saved.expires>Date.now() && !revision){
-      setContext(saved.context);setLoadedKey(cacheKey);setError("");
-      return;
-    }
-    let cancelled=false;
-    const controller=new AbortController();
-    setLoadedKey("");
-    setError("");
-    void supabase.functions.invoke<Response>("union-pbx-contact-cards",{
-      body:{action:"context",organization_id:organizationId,phone:key},
-      signal:controller.signal,
-    }).then(({data,error:requestError})=>{
-      if(cancelled)return;
-      if(requestError||!data?.success)throw Error(data?.error||"Dados do CRM indisponíveis.");
-      cache.current.set(cacheKey,{context:data,expires:Date.now()+5*60_000});
-      setContext(data);setLoadedKey(cacheKey);
-    }).catch(reason=>{
-      if(!cancelled){setError(reason instanceof Error?reason.message:"Não foi possível consultar o cliente.");setLoadedKey(cacheKey);}
-    });
-    return()=>{cancelled=true;controller.abort();};
-  },[active,organizationId,key,cacheKey,revision,canViewCustomers]);
+  const cacheKey = key;
+  const query = useQuery({
+    queryKey: ["pbx", "crm-contact", organizationId, cacheKey, user?.id || "", canViewOrders],
+    enabled: Boolean(active && organizationId && cacheKey && canViewCustomers),
+    staleTime: 5 * 60_000,
+    queryFn: async ({signal}) => {
+      const {data,error} = await supabase.functions.invoke<Response>("union-pbx-contact-cards",{
+        body:{action:"context",organization_id:organizationId,phone:cacheKey},
+        signal,
+      });
+      if(error || !data?.success) throw new Error(data?.error || "Dados do CRM indisponíveis.");
+      return data;
+    },
+  });
+  const context = query.data || null;
+  const ready = Boolean(context) || query.isError;
+  const error = query.isError && !context
+    ? (query.error instanceof Error ? query.error.message : "Não foi possível consultar o cliente.") : "";
+  useEffect(()=>{setPanel(null);},[organizationId,cacheKey]);
   if(!active||!key||!canViewCustomers) return null;
 
-  const ready=loadedKey===cacheKey;
   const customer=ready?context?.customer:null;
   const panels=[
     {id:"registration" as const,title:"Dados de cadastro",icon:UserRound},
@@ -90,12 +77,12 @@ export function PbxCrmContactPanel({
       <LoaderCircle size={15} className="animate-spin"/> Consultando cliente vinculado...
     </p> : error ? <div className="space-y-2 text-xs text-muted-foreground">
       <p>{error}</p>
-      <button type="button" className="inline-flex items-center gap-1 text-primary" onClick={()=>setRevision(v=>v+1)}>
+      <button type="button" className="inline-flex items-center gap-1 text-primary" onClick={()=>void query.refetch()}>
         <RotateCcw size={13}/> Tentar novamente
       </button>
     </div> : context?.ambiguous ? <p className="text-xs leading-5 text-amber-700 dark:text-amber-300">
       Mais de um cadastro possui este número. Confirme o cliente no CRM antes de consultar OS ou equipamentos.
-    </p> : !customer ? <p className="text-xs leading-5 text-muted-foreground">
+    </p> : !customer ? <p className="py-4 text-center text-xs leading-5 text-muted-foreground">
       {source==="pbx" ? "Contato salvo na agenda PABX, sem cliente correspondente no CRM." : "Nenhum cliente do CRM encontrado para este número."}
     </p> : <>
       <div className="space-y-1">
@@ -112,8 +99,8 @@ export function PbxCrmContactPanel({
               <Field label="Nome" value={customer.name}/>
               <Field label="CPF/CNPJ" value={document(customer.cnpj||customer.document)}/>
               <Field label="E-mail" value={customer.email}/>
-              <Field label="Telefone" value={customer.phone}/>
-              <Field label="WhatsApp" value={customer.whatsapp}/>
+              <Field label="Telefone" value={formatPbxNumber(customer.phone || "")}/>
+              <Field label="WhatsApp" value={formatPbxNumber(customer.whatsapp || "")}/>
               <Field label="Razão social" value={customer.legal_name}/>
               <Field label="Nome fantasia" value={customer.trade_name}/>
               {customer.addresses?.map(address=><div key={address.id} className="col-span-2">
@@ -122,7 +109,7 @@ export function PbxCrmContactPanel({
               </div>)}
             </div>}
             {item.id==="equipments"&&<div className="space-y-2">
-              {!context?.equipments?.length&&<p className="text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>}
+              {!context?.equipments?.length&&<p className="py-5 text-center text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>}
               {context?.equipments?.map(equipment=><details key={equipment.id} className="rounded-md border border-border p-2">
                 <summary className="cursor-pointer text-xs font-semibold">
                   {[equipment.equipment_brand_name,equipment.equipment_model_name].filter(Boolean).join(" · ")
@@ -138,7 +125,7 @@ export function PbxCrmContactPanel({
               </details>)}
             </div>}
             {item.id==="orders"&&<div className="space-y-3">
-              {!context?.orders?.length&&<p className="text-xs text-muted-foreground">Nenhuma OS encontrada.</p>}
+              {!context?.orders?.length&&<p className="py-5 text-center text-xs text-muted-foreground">Nenhuma OS encontrada.</p>}
               {context?.orders?.map(order=>{
                 const status=order.cancelled_at?"Cancelada":order.completed_at?"Fechada":order.order_status?.name||"Aberta";
                 const equipment=[order.customer_equipment?.equipment_brand_name||order.equipment_brand?.name,
