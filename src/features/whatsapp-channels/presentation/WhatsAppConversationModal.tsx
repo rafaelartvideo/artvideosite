@@ -60,6 +60,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const canViewInbox = hasPermission("whatsapp.inbox.view");
   const [state, setState] = useState<State>({ status: "loading" });
   const [starting, setStarting] = useState(false);
+  const [embeddedReady, setEmbeddedReady] = useState(false);
   const [startError, setStartError] = useState("");
   const startGateRef = useRef(false);
 
@@ -68,6 +69,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     let cancelled = false;
     const set = (value: State) => { if (!cancelled) setState(value); };
     set({ status: "loading" });
+    setEmbeddedReady(false);
     setStartError("");
 
     if (organizationId !== activeOrganizationId || !canViewInbox) {
@@ -157,21 +159,24 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0"
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
-      <LoadingState text="Preparando conversa do cliente..." />
+      <LoadingState text="Carregando atendimento..." />
     </div> : state.status === "ready" ? <div className="flex h-full min-h-0 flex-col">
       {state.participating && <div role="status" className="flex shrink-0 items-center gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/45 dark:text-sky-200">
         <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
         <span>{state.responsibleName ? `Atendimento com ${state.responsibleName}.` : "Atendimento com outro operador."} Você entrou como <strong>Participando</strong>, sem alterar o responsável.</span>
       </div>}
-      <div className="min-h-0 flex-1">
-        <Suspense fallback={<div className="flex h-full items-center justify-center">
-          <LoadingState text="Carregando conversa..." />
-        </div>}>
+      <div className="relative min-h-0 flex-1">
+        {!embeddedReady && <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-center justify-center bg-card">
+          <LoadingState text="Carregando atendimento..." />
+        </div>}
+        <div className={`h-full min-h-0 ${embeddedReady ? "" : "invisible"}`}>
+        <Suspense fallback={null}>
           <EmbeddedWhatsAppConversation
             key={state.conversationId}
             embedded
             embeddedFullControls
             initialConversationId={state.conversationId}
+            onEmbeddedReady={setEmbeddedReady}
             orderDocumentOptions={source.kind==="order" ? source.documentOptions : undefined}
             onPrepareOrderDocument={source.kind==="order" ? source.prepareDocument : undefined}
             onBack={onClose}
@@ -181,6 +186,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
             }}
           />
         </Suspense>
+        </div>
       </div>
     </div> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <WhatsAppBrandIcon size={42} className="text-[#25D366]" />
