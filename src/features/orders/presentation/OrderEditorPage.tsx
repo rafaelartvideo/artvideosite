@@ -17,8 +17,8 @@ import type { useOrderImages } from "@/features/orders/application/useOrderImage
 import type { useOrderServiceAddress } from "@/features/orders/application/useOrderServiceAddress";
 import type { useOrdersWorkspace } from "@/features/orders/application/useOrdersWorkspace";
 type PermissionCheck = (permission: string) => boolean;
-interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: ReturnType<typeof useOrdersWorkspace>; formState: ReturnType<typeof useOrderFormState>; images: ReturnType<typeof useOrderImages>; customers: ReturnType<typeof useOrderCustomerSelection>; address: ReturnType<typeof useOrderServiceAddress>; customerPersistence: ReturnType<typeof useOrderCustomerPersistence>; hasPermission: PermissionCheck; getSituations: (serviceTypeId: string,currentSituationId?: string,currentSituation?: any) => any[]; getSla: (serviceTypeId?: string,situationId?: string,relatedSituation?: any) => { hours: number; isDefault: boolean } | null; onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"]; onSave: () => Promise<unknown>; onClose?: () => void; embeddedDialog?: boolean; }
-export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose,embeddedDialog = false }: OrderEditorPageProps) {
+interface OrderEditorPageProps { visible: boolean; saving: boolean; workspace: ReturnType<typeof useOrdersWorkspace>; formState: ReturnType<typeof useOrderFormState>; images: ReturnType<typeof useOrderImages>; customers: ReturnType<typeof useOrderCustomerSelection>; address: ReturnType<typeof useOrderServiceAddress>; customerPersistence: ReturnType<typeof useOrderCustomerPersistence>; hasPermission: PermissionCheck; getSituations: (serviceTypeId: string,currentSituationId?: string,currentSituation?: any) => any[]; getSla: (serviceTypeId?: string,situationId?: string,relatedSituation?: any) => { hours: number; isDefault: boolean } | null; onSelectCustomer: ReturnType<typeof useOrderEditorWorkflow>["selectCustomer"]; onSave: () => Promise<unknown>; onClose?: () => void; embeddedDialog?: boolean; preparingEmbedded?: boolean; }
+export function OrderEditorPage({ visible,saving,workspace,formState,images,customers,address,customerPersistence,hasPermission,getSituations,getSla,onSelectCustomer,onSave,onClose,embeddedDialog = false,preparingEmbedded = false }: OrderEditorPageProps) {
   const { activeOrganizationId } = useAuth();
   const orderRulesQuery = useOrganizationOrderRules(activeOrganizationId);
   const rules:RuleSet=formState.editingOS?((formState.editingOS.order_rules_snapshot as RuleSet|null)||defaultRules):resolveRules(orderRulesQuery.data||[],formState.form.service_type_id,formState.form.equipment_type_id);
@@ -48,6 +48,7 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
   if (embeddedDialog) return <AdminDialog
     open onClose={closePage} title="Nova OS" description="Cadastre os dados do atendimento"
     draggable showOverlay={false} minimizable={false}
+    preparing={preparingEmbedded} preparingText="Carregando Nova OS..."
     className="!h-[min(86dvh,900px)] !w-[calc(100vw-1rem)] !max-w-[930px] sm:!w-[calc(100vw-2rem)] max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-0.5rem)]"
     bodyClassName="!min-h-0 !overflow-y-auto !p-0"
     footer={editorActions}
