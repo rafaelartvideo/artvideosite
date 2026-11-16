@@ -60,6 +60,10 @@ type TabOrdersProps = {
   organizationIdOverride?: string | null;
   accessMode?: SharedAccessMode;
   detailOnly?: boolean;
+  /** Renderiza somente a Nova OS como janela sobre outro modal, sem segunda camada escura. */
+  embeddedCreate?: boolean;
+  onEmbeddedClose?: () => void;
+  onEmbeddedCreated?: (orderId: string) => void;
   monitorView?: boolean;
   monitorContact?: {
     phone?: string | null;
@@ -115,6 +119,9 @@ export function TabOrders({
   organizationIdOverride,
   accessMode = "default",
   detailOnly = false,
+  embeddedCreate = false,
+  onEmbeddedClose,
+  onEmbeddedCreated,
   monitorView = false,
   monitorContact = null,
 }: TabOrdersProps) {
@@ -613,6 +620,10 @@ export function TabOrders({
   };
 
   const closeRoutedPage = () => {
+    if (embeddedCreate) {
+      onEmbeddedClose?.();
+      return;
+    }
     const routedId = initialOrderId || detail?.id || null;
     if (routedId) closingRouteRef.current = routedId;
     openingEditRouteRef.current = null;
@@ -675,6 +686,12 @@ export function TabOrders({
           type: "error",
         });
       }
+    }
+
+    if (wasCreating && embeddedCreate) {
+      closeOrderForm();
+      onEmbeddedCreated?.(savedOrderId);
+      return;
     }
 
     if (wasCreating) {
@@ -875,6 +892,7 @@ export function TabOrders({
         onSelectCustomer={selectCustomer}
         onSave={saveRoutedOrder}
         onClose={cancelOrderEditor}
+        embeddedDialog={embeddedCreate}
       />}
 
       {!scopedReadOnly && <OrderWorkflowModals
