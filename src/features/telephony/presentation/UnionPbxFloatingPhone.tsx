@@ -53,12 +53,13 @@ function positionForDock(dock: Dock, node: HTMLElement): Point {
 }
 
 export function UnionPbxFloatingPhone({
-  registration, callState, extension, caller, children, onOpenFull,
+  registration, callState, extension, caller, retrying = false, children, onOpenFull,
 }:{
   registration: Connection;
   callState: CallState;
   extension: number | null;
   caller?: string;
+  retrying?: boolean;
   children: ReactNode;
   onOpenFull: () => void;
 }) {
@@ -134,10 +135,10 @@ export function UnionPbxFloatingPhone({
     setPosition(snapped.point);
   };
   const reset=()=>{dockRef.current=null;setPosition(null);};
-  const status=callState==="incoming"?"Chamada recebida":
+  const status=retrying?"Aguardando novo toque...":callState==="incoming"?"Chamada recebida":
     callState==="dialing"?"Chamando...":callState==="active"?"Em ligação":
     registration==="registered"?"Conectado":registration==="connecting"?"Conectando...":"Desconectado";
-  const tone=callState==="incoming"?"bg-amber-500":registration==="registered"?"bg-emerald-500":
+  const tone=retrying?"bg-amber-500":callState==="incoming"?"bg-amber-500":registration==="registered"?"bg-emerald-500":
     registration==="connecting"?"bg-amber-500":"bg-red-500";
   const style:CSSProperties=position?{
     left:position.x,top:position.y,right:"auto",bottom:"auto",
@@ -179,7 +180,7 @@ export function UnionPbxFloatingPhone({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block whitespace-nowrap text-xs font-bold">PABX Union · {extension?"Ramal "+extension:"Ramal"}</span>
-          <span className="block truncate text-[11px] text-muted-foreground">{status}{caller && callState!=="idle"?" · "+caller:""}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{status}{caller && (callState!=="idle" || retrying)?" · "+caller:""}</span>
         </span>
       </div>
       <button type="button" title="Alinhar no canto inicial" aria-label="Restaurar posição do mini-PABX"
