@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, ContactRound, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Settings2, X } from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, ContactRound, Headphones, LoaderCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Settings2, X } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { AdminSubsectionTabs, ADMIN_SUBSECTION_TAB_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
+import { AdminSubsectionTabs } from "@/shared/ui/admin/AdminSubsectionTabs";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { pbxRequest } from "../application/pbx-request";
@@ -300,7 +300,9 @@ export function UnionPbxOperatorWorkspace({
   ];
 
   return <div className="min-w-0 space-y-3 text-foreground">
-    <AdminSubsectionTabs<WorkspaceMode>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="min-w-[185px] flex-1">
+        <AdminSubsectionTabs<WorkspaceMode>
       ariaLabel="Subseções da central de chamadas"
       value={mode}
       items={nav}
@@ -309,19 +311,19 @@ export function UnionPbxOperatorWorkspace({
         if(next==="contatos")setContactsVisited(true);
         setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);
       }}
-      trailing={<div className="ml-auto flex shrink-0 items-center gap-2">
-        <button type="button" aria-label="Dispositivos e testes de áudio" title="Dispositivos e testes de áudio"
-          onClick={onDeviceSettings}
-          className={ADMIN_SUBSECTION_TAB_CLASS+" text-muted-foreground hover:text-primary"}>
-          <Settings2 size={16}/><span className="hidden sm:inline">Áudio</span>
-        </button>
+    />
+      </div>
+      <div role="group" aria-label="Ações do PABX" className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <AdminButton variant="secondary" size="sm" aria-label="Dispositivos e testes de áudio"
+          title="Dispositivos e testes de áudio" onClick={onDeviceSettings}>
+          <Headphones size={16}/> Áudio
+        </AdminButton>
         <div ref={settingsRef} className="relative">
-          <button type="button" title="Configurações gerais do módulo" aria-label="Configurações gerais do PABX"
-            aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
-            onClick={()=>setSettingsOpen(value=>!value)}
-            className={ADMIN_SUBSECTION_TAB_CLASS+" text-muted-foreground hover:text-primary"}>
-            <Settings2 size={16}/><span className="hidden sm:inline">Configurações</span>
-          </button>
+          <AdminButton variant="secondary" size="sm" title="Configurações gerais do módulo"
+            aria-label="Configurações gerais do PABX" aria-expanded={settingsOpen} aria-controls="pbx-module-settings"
+            onClick={()=>setSettingsOpen(value=>!value)}>
+            <Settings2 size={16}/> Configurações
+          </AdminButton>
           {settingsOpen && <div id="pbx-module-settings"
             className="absolute right-0 top-full z-40 mt-2 w-[min(270px,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-2 text-sm shadow-xl">
             <div className="flex items-center justify-between gap-2 border-b border-border px-2 pb-2">
@@ -333,9 +335,9 @@ export function UnionPbxOperatorWorkspace({
               onClick={()=>{setSettingsOpen(false);onSelectSection(item.section);}}>{item.label}</button>)}
           </div>}
         </div>
-        <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
-      </div>}
-    />
+        <AdminButton variant="secondary" size="sm" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+      </div>
+    </div>
     <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,0.85fr)_minmax(340px,1.55fr)_minmax(255px,0.9fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
 
