@@ -20,7 +20,7 @@ export function OrderFormActions({
   inDialog?: boolean;
 }) {
   return (
-    <AdminStickyToolbar className={`!justify-between gap-2 sm:gap-3 ${inDialog ? "!static !border-0 !bg-transparent !p-0" : ""}`}>
+    <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3" style={inDialog ? { position: "static", border: 0, background: "transparent", padding: 0 } : undefined}>
       <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">
         Voltar
       </BtnSecondary>
