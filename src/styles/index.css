@@ -76,13 +76,15 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
 	max-height: calc(100dvh - var(--admin-shell-header-height, 4rem) - var(--admin-browser-bottom-inset, 0px) - 0.75rem) !important;
 }
 
-/* O posicionamento global do CRM usa top !important; deslocar top diretamente
-   não funciona. Atualizar as variáveis de translate respeita a centralização
-   e mantém as janelas arrastáveis em todos os tamanhos de desktop. */
+/* Radix centraliza os dialogs pelo translate do Tailwind. Depois de iniciar
+   o arraste, a posição passa a ser absoluta na viewport. Sobrescrever tanto
+   o top !important global quanto o translate original do Radix. */
 @media (min-width: 768px) {
-  [data-admin-dialog-draggable="true"] {
-    --tw-translate-x: calc(-50% + var(--admin-dialog-drag-x, 0px)) !important;
-    --tw-translate-y: calc(-50% + var(--admin-dialog-drag-y, 0px)) !important;
+  [data-admin-dialog-draggable="true"][data-admin-dialog-positioned="true"] {
+    left: var(--admin-dialog-drag-left) !important;
+    top: var(--admin-dialog-drag-top) !important;
+    translate: none !important;
+    transform: none !important;
   }
 }
 
