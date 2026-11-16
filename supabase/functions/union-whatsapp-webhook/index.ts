@@ -245,7 +245,7 @@ Deno.serve(async request => {
     // Whatsmeow commonly supplies DirectPath but no URL for stickers.
     // Use only a CDN-relative WhatsApp media path from an authenticated webhook.
     // This is an internal descriptor, NEVER a browser-accessible media link.
-    const validDirectPath=directPath.startsWith("/v/") &&
+    const validDirectPath=/^\/(?:o[0-9]+\/)?v\//.test(directPath) &&
       !directPath.startsWith("//") && !/[\\#\u0000-\u001f]/.test(directPath) &&
       !directPath.includes("://") && directPath.length<=1800;
     const fileUrl=validDirectPath ? "https://mmg.whatsapp.net"+directPath : providerUrl;
