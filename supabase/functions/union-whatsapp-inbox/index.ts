@@ -53,6 +53,7 @@ async function signedBridge(
   exportContacts = false,
   numberCheck = false,
   reply?: {id:string;participant:string},
+  quoteProbe = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -63,7 +64,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: quoteProbe ? "quote_capability" : numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(reply ? {reply_to_id:reply.id,reply_participant:reply.participant} : {}),
@@ -136,6 +137,10 @@ async function signedBridge(
       const name=typeof result.name==="string" ? result.name.trim().slice(0,160) : "";
       const source=result.source==="saved" ? "saved" : "push";
       return source+":"+name;
+    }
+    if(quoteProbe){
+      if(result.reply_supported!==true)throw Error("reply_not_supported");
+      return "reply_supported";
     }
     if (download) {
       if(typeof result.base64 !== "string" ||
@@ -2026,6 +2031,15 @@ Deno.serve(async request => {
       : text;
     if(outboundText.length>4000)
       return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
+    if(reply){
+      try{
+        await signedBridge(channel,"",thread.chat_jid,clientId,undefined,undefined,
+          false,false,false,false,false,undefined,true);
+      }catch{
+        return json({success:false,code:"reply_bridge_upgrade_required",
+          error:"A ponte WhatsApp da VPS precisa ser atualizada para responder mensagens vinculadas."},503);
+      }
+    }
     const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(reply ? text+":reply:"+reply.id : text);
     const {data:attempt,error:attemptError}=await admin.from("union_whatsapp_send_attempts")
       .upsert({
