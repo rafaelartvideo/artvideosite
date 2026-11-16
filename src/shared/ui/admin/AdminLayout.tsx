@@ -306,6 +306,8 @@ export function AdminDialog({
   bodyClassName,
   draggable = false,
   showOverlay = true,
+  modal,
+  footerClassName,
   bodyRef,
   minimizable = true,
   minimizedTitle: minimizedTitleOverride,
@@ -332,6 +334,9 @@ export function AdminDialog({
   draggable?: boolean;
   /** Para janelas sobre outra já aberta, sem uma segunda camada escura. */
   showOverlay?: boolean;
+  /** Janelas secundárias dentro de outro diálogo não instalam outro bloqueio de scroll. */
+  modal?: boolean;
+  footerClassName?: string;
   bodyRef?: React.Ref<HTMLDivElement>;
   minimizable?: boolean;
   minimizedTitle?: string;
@@ -500,7 +505,7 @@ export function AdminDialog({
     };
   }, [open]);
 
-  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+  return <Dialog open={open} modal={modal} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent
       ref={contentRef}
       showClose={false}
@@ -514,12 +519,13 @@ export function AdminDialog({
       onInteractOutside={preventAdminDialogOutsideInteraction}
       data-admin-dialog-content="true"
       data-admin-dialog-state={showPreparation ? "preparing" : "ready"}
+      data-admin-dialog-draggable={draggable ? "true" : undefined}
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
-        ...(draggable && (dragOffset.x || dragOffset.y) ? {
-          left: `calc(50% + ${dragOffset.x}px)`,
-          top: `calc(50% + ${dragOffset.y}px)`,
+        ...(draggable ? {
+          "--admin-dialog-drag-x": `${dragOffset.x}px`,
+          "--admin-dialog-drag-y": `${dragOffset.y}px`,
         } : {}),
       } as React.CSSProperties}
       className={cn(
@@ -580,7 +586,7 @@ export function AdminDialog({
           {children}
         </div>
       </div>
-      {!showPreparation && footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
+      {!showPreparation && footer && <div className={cn("shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4", footerClassName)}>{footer}</div>}
     </DialogContent>
   </Dialog>;
 }
