@@ -33,6 +33,8 @@ const SIP_WSS = `wss://${SIP_HOST}/ws`;
 
 type RegistrationState = "offline" | "connecting" | "registered" | "error";
 type CallState = "idle" | "dialing" | "incoming" | "active";
+const INCOMING_RETRY_GRACE_MS = 8_000;
+type IncomingRetry = { phone: string; startedAt: number; at: number; timer?: ReturnType<typeof setTimeout> };
 type InternalDirectoryEntry = { number: number; endpoint_name: string; display_name: string; desired_enabled: boolean; provisioning_status: string; is_managed: boolean };
 
 type SipSession = CallControlSession & PbxDigitSession & {
@@ -112,7 +114,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [callKeypadExpanded, setCallKeypadExpanded] = useState(false);
   useEffect(() => { if (callState !== "active") setCallKeypadExpanded(false); }, [callState]);
   const [remoteParty, setRemoteParty] = useState("");
-  const callerCards=usePbxSavedContactCards(activeOrganizationId,callState!=="idle",[remoteParty]);
+  const [incomingRetry, setIncomingRetry] = useState(false);
+  const retryRef = useRef<IncomingRetry | null>(null);
+  const locallyRejectedRef = useRef<SipSession | null>(null);
+  const callerCards=usePbxSavedContactCards(activeOrganizationId,callState!=="idle" || incomingRetry,[remoteParty]);
   const currentCallerCard=callerCards[pbxContactPhoneKey(remoteParty)];
   const callerInitials=(currentCallerCard?.name||"").trim().split(/\s+/)
     .filter(Boolean).map(part=>part[0]).slice(0,2).join("").toUpperCase()||"☎";
@@ -250,7 +255,7 @@ setTestFlowError('');
   ]);
 
   const internalDestinationReady = dialTarget === "900" || dialableNumbers.has(Number(dialTarget));
-  const registeredAndIdle = registration === "registered" && callState === "idle" && !outputPending;
+  const registeredAndIdle = registration === "registered" && callState === "idle" && !incomingRetry && !outputPending;
   const selectSection = (section: UnionPbxSection) => {
     if (section === "historico") onHistory?.();
     else if (section === "gravacoes") onRecordings?.();
@@ -274,6 +279,10 @@ setTestFlowError('');
   };
 
   const stop = () => {
+    if (retryRef.current?.timer) clearTimeout(retryRef.current.timer);
+    retryRef.current = null;
+    setIncomingRetry(false);
+    locallyRejectedRef.current = null;
     generationRef.current += 1;
     credentialAbortRef.current?.abort();
     credentialAbortRef.current = null;
@@ -303,6 +312,8 @@ setTestFlowError('');
   };
 
   useEffect(() => () => {
+    if (retryRef.current?.timer) clearTimeout(retryRef.current.timer);
+    retryRef.current = null;
     ringbackRef.current?.dispose();
     generationRef.current += 1;
     credentialAbortRef.current?.abort();
@@ -374,6 +385,10 @@ setTestFlowError('');
       });
       ua.on("disconnected", () => {
         if (!isCurrent()) return;
+        if (retryRef.current?.timer) clearTimeout(retryRef.current.timer);
+        retryRef.current = null;
+        setIncomingRetry(false);
+        if (!sessionRef.current) setRemoteParty("");
         ringbackRef.current?.dispose();
         setRegistration("error");
         setNotice("Conexao WebSocket interrompida. Desconecte e tente novamente.");
@@ -386,6 +401,17 @@ setTestFlowError('');
         if (sessionRef.current && sessionRef.current !== session) {
           try { session.terminate(); } catch { /* ocupada */ }
           return;
+        }
+        const phone = session.remote_identity?.uri?.user || "Chamada";
+        const previousRetry = retryRef.current;
+        if (previousRetry) {
+          if (previousRetry.timer) clearTimeout(previousRetry.timer);
+          retryRef.current = null;
+          setIncomingRetry(false);
+          if (previousRetry.phone !== phone) setCompletedCall(previous => ({
+            sequence: previous.sequence + 1, number: previousRetry.phone,
+            startedAt: previousRetry.startedAt, at: previousRetry.at,
+          }));
         }
         sessionRef.current = session;
         if (session.direction === 'outgoing' && ringbackRef.current) {
@@ -401,12 +427,14 @@ setTestFlowError('');
         setControlBusy(null);
         setHeld(false);
         setTransferDestination("");
-        setRemoteParty(session.remote_identity?.uri?.user || "Chamada");
+        setRemoteParty(phone);
         setMuted(false);
         setCallState(session.direction === "incoming" ? "incoming" : "dialing");
         attachMedia(session, generation);
+        let wasConfirmed = false;
         session.on("confirmed", () => {
           if (!isCurrent()) return;
+          wasConfirmed = true;
           setCallState("active");
           setNotice("Chamada em andamento.");
         });
@@ -422,17 +450,37 @@ setTestFlowError('');
           setHeld(false);
           sessionRef.current = null;
           setCallState("idle");
-          setRemoteParty("");
           setMuted(false);
           clearAudio();
-          setNotice(failed ? "Nao foi possivel completar a chamada. Consulte o console do Asterisk." : "Chamada encerrada.");
-          // A seleção dos detalhes é resolvida pelo histórico atualizado, nunca pela primeira linha.
-          setCompletedCall(previous => ({
-            sequence: previous.sequence + 1,
-            number: session.remote_identity?.uri?.user || "",
-            startedAt: sessionStartedAt,
-            at: Date.now(),
-          }));
+          const locallyRejected = locallyRejectedRef.current === session;
+          if (locallyRejected) locallyRejectedRef.current = null;
+          const possibleQueueRetry = failed && session.direction === "incoming"
+            && !wasConfirmed && !locallyRejected && ua.isRegistered?.();
+          if (possibleQueueRetry) {
+            // A sessão cancelada nunca poderá ser atendida. A UI aguarda um novo INVITE.
+            const pending: IncomingRetry = {phone,startedAt:sessionStartedAt,at:Date.now()};
+            pending.timer = setTimeout(() => {
+              if (retryRef.current !== pending) return;
+              retryRef.current = null;
+              setIncomingRetry(false);
+              if (!sessionRef.current) setRemoteParty("");
+              setCompletedCall(previous => ({
+                sequence:previous.sequence+1,number:pending.phone,
+                startedAt:pending.startedAt,at:pending.at,
+              }));
+            },INCOMING_RETRY_GRACE_MS);
+            retryRef.current=pending;
+            setIncomingRetry(true);
+            setNotice("Aguardando novo toque...");
+          } else {
+            setIncomingRetry(false);
+            setRemoteParty("");
+            setNotice(failed ? "Não foi possível completar a chamada." : "Chamada encerrada.");
+            setCompletedCall(previous => ({
+              sequence:previous.sequence+1,number:phone,
+              startedAt:sessionStartedAt,at:Date.now(),
+            }));
+          }
         };
         session.on("ended", () => finish(false));
         session.on("failed", () => finish(true));
@@ -656,6 +704,7 @@ setTestFlowError('');
   };
 
   const hangup = () => {
+    if (callState === "incoming") locallyRejectedRef.current = sessionRef.current;
     ringbackRef.current?.dispose();
     try { sessionRef.current?.terminate(); }
     catch { setNotice("Nao foi possivel encerrar a chamada."); }
