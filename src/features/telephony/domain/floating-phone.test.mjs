@@ -20,10 +20,25 @@ test("mini-PABX uses the real dialer and never disconnects the SIP session from 
   assert.equal((page.match(/<UnionPbxCallActions/g)||[]).length,1);
   assert.doesNotMatch(floating,/onClick=\{stop\}|>Desconectar</);
   assert.doesNotMatch(floating,/sipUser/);
-  assert.match(page,/extension=\{managedExtension\?\.number \?\? ownNumber \?\? null\}/);
+  assert.match(page,/extension=\{ownNumber \?\? null\}/);
   assert.match(page,/item\.endpoint_name === sipUser/);
   assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
   assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
+});
+
+
+test("PABX displays the selected extension during connection and avoids mixed-color status borders",()=>{
+  const page=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const workspace=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
+  assert.match(page,/const \[connectionNumber, setConnectionNumber\] = useState<number \| null>\(null\)/);
+  assert.match(page,/setConnectionNumber\(managedExtension\.number\)/);
+  assert.match(page,/setConnectionNumber\(301\)/);
+  assert.match(page,/setConnectionNumber\(null\)/);
+  assert.match(page,/const ownNumber = connectionNumber \?\?/);
+  assert.match(page,/extensionLabel=\{ownNumber \? `Ramal \$\{ownNumber\}`/);
+  assert.match(page,/extension=\{ownNumber \?\? null\}/);
+  assert.match(workspace,/border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300/);
+  assert.doesNotMatch(workspace,/border-amber-400\/30 bg-amber-500\/10/);
 });
 
 test("floating PABX reuses authorized CRM details only while a valid contact is in an expanded call",async()=>{
