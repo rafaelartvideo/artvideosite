@@ -2169,19 +2169,44 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {timeline.map(entry => entry.kind==="persisted" ? (
-                  <div key={entry.id} className={`mt-2 flex ${entry.message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
-                    <div className={entry.message.message_type==="sticker"
+                  <div key={entry.id} data-wa-provider-id={entry.message.provider_message_id}
+                    onTouchStart={event=>{const t=event.touches[0];if(t)swipeReplyRef.current={id:entry.id,x:t.clientX,y:t.clientY};}}
+                    onTouchEnd={event=>{
+                      const start=swipeReplyRef.current;swipeReplyRef.current=null;
+                      const t=event.changedTouches[0];
+                      if(start?.id===entry.id && t && t.clientX-start.x>75 &&
+                        Math.abs(t.clientY-start.y)<45)startReplyTo(entry.message);
+                    }}
+                    className={`mt-2 flex ${entry.message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
+                    <div className={(highlightQuotedId===entry.message.provider_message_id ? "ring-2 ring-primary ring-offset-2 " : "") + (entry.message.message_type==="sticker"
                       ? "w-fit max-w-[140px] bg-transparent p-0 shadow-none"
-                      : `max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
+                      : `max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`)}>
                       {entry.message.direction==="outgoing" && entry.message.sender_name &&
                         <div className="mb-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                           {entry.message.sender_name} <span className="font-normal opacity-70">· Operador</span>
                         </div>}
+                      {entry.message.reply_to_provider_message_id &&
+                        <button type="button" onClick={()=>jumpToQuoted(entry.message.reply_to_provider_message_id!)}
+                          title="Ir para mensagem original"
+                          className="mb-1.5 flex w-full max-w-[320px] flex-col gap-0.5 rounded-md border-l-[3px] border-primary bg-background/65 px-2.5 py-1.5 text-left hover:bg-background/90">
+                          <span className="text-[10px] font-bold text-primary">
+                            {entry.message.reply_to_direction==="incoming"?"Cliente":
+                              entry.message.reply_to_direction==="outgoing"?"Você":"Mensagem original"}
+                          </span>
+                          <span className="truncate text-xs text-foreground/80">
+                            {quotedSummary(entry.message.reply_to_text,entry.message.reply_to_message_type)}
+                          </span>
+                        </button>}
                       <MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
                         onSaveSticker={canSend?message=>void saveReceivedSticker(message):undefined}
                         stickerSaved={savedStickerMessageIds.has(entry.message.id)}
                         onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                        {canReply && <button type="button" aria-label="Responder mensagem" title="Responder"
+                          onClick={()=>startReplyTo(entry.message)}
+                          className="mr-1 rounded p-0.5 text-primary/75 hover:bg-background/70 hover:text-primary">
+                          <Reply size={15}/>
+                        </button>}
                         {clock(entry.message.sent_at)}
                         {entry.message.direction === "outgoing" && (entry.message.delivery_status === "read"
                           ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
@@ -2210,6 +2235,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         : entry.pending.fileName &&
                           !(entry.pending.previewUrl && ["sticker","image"].includes(entry.pending.mediaType||"")) &&
                           <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
+                      {entry.pending.quoted && <div className="mb-1.5 flex max-w-[320px] flex-col gap-0.5 rounded-md border-l-[3px] border-primary bg-background/60 px-2.5 py-1.5">
+                        <span className="text-[10px] font-bold text-primary">{entry.pending.quoted.direction==="incoming"?"Cliente":"Você"}</span>
+                        <span className="truncate text-xs">{entry.pending.quoted.text}</span>
+                      </div>}
                       {entry.pending.text && <p className="text-sm"><WhatsAppFormattedText text={entry.pending.text}/></p>}
                       <div className="mt-1 flex min-h-4 items-center justify-end gap-1.5 text-[10px] opacity-70">
                         {entry.pending.status==="sending" ?
@@ -2252,6 +2281,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" onClick={()=>stopRecording(true)} className="ml-auto rounded-md border border-border px-2 py-1 text-muted-foreground hover:bg-muted">Cancelar</button>
                   <button type="button" onClick={()=>stopRecording(false)} className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Concluir</button>
                 </div>}
+                {replyTarget && <div className="mb-2 flex items-center gap-2 rounded-lg border-l-[3px] border-primary bg-muted/50 px-3 py-2 text-xs">
+                  <Reply size={17} className="shrink-0 text-primary"/>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-primary">Respondendo {replyTarget.direction==="incoming"?"ao cliente":"à sua mensagem"}</p>
+                    <p className="truncate text-muted-foreground">{quotedSummary(replyTarget.body_text,replyTarget.message_type)}</p>
+                  </div>
+                  <button type="button" aria-label="Cancelar resposta" title="Cancelar resposta"
+                    onClick={()=>setReplyTarget(null)} className="rounded p-1 text-muted-foreground hover:bg-background">
+                    <X size={18}/>
+                  </button>
+                </div>}
                 {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                   {mediaPreview && attachment.type.startsWith("image/") && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
                   {attachment.type.startsWith("audio/") ?
@@ -2272,14 +2312,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <input ref={mediaInputRef} type="file" className="hidden"
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
-                  <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
+                  <button type="button" disabled={Boolean(replyTarget)} aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted">
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
                     <Paperclip size={22}/>
                   </button>
                   <div className="relative flex h-12 shrink-0">
-                    <button type="button" aria-label="Selecionar figurinha" aria-expanded={stickerOpen}
+                    <button type="button" disabled={Boolean(replyTarget)} aria-label="Selecionar figurinha" aria-expanded={stickerOpen}
                       title="Figurinhas da empresa" onClick={()=>{setEmojiOpen(false);setStickerOpen(open=>!open);}}
                       className={`flex h-12 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted ${stickerOpen?"bg-primary-soft text-primary":""}`}>
                       <Sticker size={21}/>
@@ -2375,7 +2415,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     }}
                     className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
                   />
-                  {!draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
+                  {!replyTarget && !draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
                     title="Gravar áudio" onClick={()=>recording ? stopRecording(false) : void startRecording()}
                     className={`flex h-12 w-12 shrink-0 items-center justify-center border-l border-border hover:bg-muted ${recording?"text-red-600":"text-foreground"}`}>
                     {recording ? <Square size={20}/> : <Mic size={21}/>}
