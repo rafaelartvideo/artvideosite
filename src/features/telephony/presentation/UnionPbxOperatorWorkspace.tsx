@@ -184,9 +184,14 @@ export function UnionPbxOperatorWorkspace({
       .on("postgres_changes", { event: "*", schema: "public", table: "pbx_extensions", filter }, () => schedule("directory"))
       .on("postgres_changes", { event: "*", schema: "public", table: "pbx_queues", filter }, () => schedule("directory"))
       .on("postgres_changes", { event: "*", schema: "public", table: "pbx_call_flows", filter }, () => schedule("directory"))
-      .subscribe(status => { if (status === "SUBSCRIBED") schedule("calls"); });
+      .subscribe();
     const resume = () => {
-      if (document.visibilityState !== "hidden") { schedule("calls"); schedule("directory"); }
+      if (document.visibilityState === "hidden") return;
+      // Foco/restabelecimento de assinatura não significa que há chamadas novas.
+      // Consulte somente se o recorte salvo já passou da validade do cache.
+      const lastUpdated = queryClient.getQueryState(historyQueryKey)?.dataUpdatedAt || 0;
+      if (Date.now() - lastUpdated >= 5 * 60_000) schedule("calls");
+      schedule("directory");
     };
     window.addEventListener("focus", resume);
     document.addEventListener("visibilitychange", resume);
@@ -196,7 +201,7 @@ export function UnionPbxOperatorWorkspace({
       window.removeEventListener("focus", resume);
       document.removeEventListener("visibilitychange", resume);
     };
-  }, [activeOrganizationId, isActive]);
+  }, [activeOrganizationId, isActive, user?.id, historyToday, queryClient]);
 
   // Seleciona apenas a ligação que realmente acabou, nunca o primeiro item do histórico.
   useEffect(() => {
