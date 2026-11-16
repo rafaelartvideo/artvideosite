@@ -344,14 +344,14 @@ export function UnionPbxOperatorWorkspace({
         <AdminButton variant="secondary" size="sm" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
       </div>
     </div>
-    <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,345px)_minmax(0,1fr)]">
+    <div className="grid min-w-0 items-stretch gap-2 xl:grid-cols-[minmax(320px,390px)_minmax(0,1fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
 
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-            <div><h2 className="text-sm font-bold">Telefone</h2><p className="text-xs text-muted-foreground">{lineLabel}</p></div>
+          <div className="mb-4 flex min-w-0 items-center justify-between gap-2 border-b border-border pb-3">
+            <div className="min-w-0 flex-1"><h2 className="text-sm font-bold">Telefone</h2><p className="truncate text-xs text-muted-foreground" title={lineLabel}>{lineLabel}</p></div>
             <button type="button" onClick={onConnectionSettings} disabled={connectionStatus==="connecting"}
               aria-label={connectionStatus==="registered"?"Desconectar ramal":"Conectar ramal"} title={extensionLabel}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-progress ${connectionStatus==="registered"?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":connectionStatus==="connecting"?"border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300":"border-border bg-background text-muted-foreground hover:text-primary"}`}>
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors disabled:cursor-progress ${connectionStatus==="registered"?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":connectionStatus==="connecting"?"border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300":"border-border bg-background text-muted-foreground hover:text-primary"}`}>
               {connectionStatus==="connecting"
                 ? <LoaderCircle size={15} className="animate-spin text-amber-500"/>
                 : <span className={`h-2.5 w-2.5 animate-pulse rounded-full ${connectionStatus==="registered"?"bg-emerald-500":connectionStatus==="error"?"bg-red-500":"bg-red-500"}`}/>}
@@ -369,30 +369,32 @@ export function UnionPbxOperatorWorkspace({
             </div>
           </div>
           {mode === "chamadas" ? <>
-            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar chamadas">
-              {([["todas","Todas"],["atendidas","Atendidas"],["perdidas","Não atendidas"]] as const).map(([value,label])=>
-                <button type="button" key={value} aria-pressed={recentFilter===value} onClick={()=>{setPage(1);setRecentFilter(value);}}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${recentFilter===value?"border-primary/20 bg-primary/10 text-primary":"border-border text-muted-foreground hover:bg-muted"}`}>
-                  {value==="atendidas"&&<PhoneIncoming size={15} className="text-emerald-600"/>}
-                  {value==="perdidas"&&<PhoneMissed size={15} className="text-red-600"/>}
-                  {label}
-                </button>)}
+            <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
+              <div className="flex shrink-0 flex-wrap gap-2" role="group" aria-label="Filtrar chamadas">
+                {([["todas","Todas"],["atendidas","Atendidas"],["perdidas","Não atendidas"]] as const).map(([value,label])=>
+                  <button type="button" key={value} aria-pressed={recentFilter===value} onClick={()=>{setPage(1);setRecentFilter(value);}}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${recentFilter===value?"border-primary/20 bg-primary/10 text-primary":"border-border text-muted-foreground hover:bg-muted"}`}>
+                    {value==="atendidas"&&<PhoneIncoming size={15} className="text-emerald-600"/>}
+                    {value==="perdidas"&&<PhoneMissed size={15} className="text-red-600"/>}
+                    {label}
+                  </button>)}
+              </div>
+              <label className="relative min-w-[170px] flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+                <input type="tel" value={search} onChange={event => {setPage(1);setSearch(event.target.value);}}
+                  placeholder="Buscar por número" aria-label="Buscar chamadas por número"
+                  className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
+              </label>
             </div>
-            <label className="relative mt-3 block">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input type="tel" value={search} onChange={event => {setPage(1);setSearch(event.target.value);}}
-                placeholder="Buscar por número" aria-label="Buscar chamadas por número"
-                className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
-            </label>
             <div className="mt-3 min-w-0 flex-1">
               <table className="hidden w-full table-fixed lg:table border-separate border-spacing-0 text-left text-xs">
                 <thead><tr className="text-muted-foreground">
-                  <th className="w-[29%] border-b border-border p-2 font-medium">Contato / número</th>
-                  <th className="w-[11%] border-b border-border p-2 font-medium">Tipo</th>
-                  <th className="w-[25%] border-b border-border p-2 font-medium">Horário</th>
-                  <th className="w-[13%] border-b border-border p-2 font-medium">Duração</th>
-                  <th className="w-[12%] border-b border-border p-2 font-medium">Estado</th>
-                  <th className="w-[10%] border-b border-border p-2 font-medium">Ações</th>
+                  <th className="w-[29%] border-b border-border px-1.5 py-2 font-medium">Contato / número</th>
+                  <th className="w-[11%] border-b border-border px-1.5 py-2 font-medium">Tipo</th>
+                  <th className="w-[25%] border-b border-border px-1.5 py-2 font-medium">Horário</th>
+                  <th className="w-[13%] border-b border-border px-1.5 py-2 font-medium">Duração</th>
+                  <th className="w-[12%] border-b border-border px-1.5 py-2 font-medium">Estado</th>
+                  <th className="w-[10%] border-b border-border px-1.5 py-2 font-medium">Ações</th>
                 </tr></thead>
                 <tbody>{visibleRows.map(row => {
                   const number = callNumber(row);
@@ -404,25 +406,25 @@ export function UnionPbxOperatorWorkspace({
                   const active = row.id === selectedId && !selectedExtension && !selectedExternal;
                   return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); setSelectedExternal(null); setDetailsOpen(true); }}
                     className={`cursor-pointer hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}>
-                    <td className="border-b border-border/60 p-2"><div className="flex items-center gap-2">
+                    <td className="border-b border-border/60 px-1.5 py-2"><div className="flex items-center gap-2">
                       <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
                         {avatar
                           ? <img src={avatar} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover"
                               onError={() => setBrokenAvatar(old => ({...old, [avatarKey + ":" + avatar]: true}))}/>
                           : initials(name)}
                       </span>
-                      <div className="min-w-0"><p className="max-w-[155px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[155px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
+                      <div className="min-w-0"><p className="max-w-[205px] truncate font-semibold" title={name}>{name}</p><p className="max-w-[205px] truncate text-[11px] text-muted-foreground">{extension ? formatPbxNumber(number) : formatPbxNumber(row.source) + " → " + formatPbxNumber(row.destination)}</p></div>
                     </div></td>
-                    <td className="border-b border-border/60 p-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
-                    <td className="whitespace-nowrap border-b border-border/60 p-2" title={new Date(row.started_at).toLocaleString("pt-BR")}>{displayTime(row.started_at)}</td>
-                    <td className="whitespace-nowrap border-b border-border/60 p-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
-                    <td className="border-b border-border/60 p-2">
+                    <td className="border-b border-border/60 px-1.5 py-2"><span className="inline-flex items-center gap-1">{row.direction === "inbound" ? <ArrowDownLeft size={14} className="text-emerald-600"/> : <ArrowUpRight size={14} className="text-primary"/>}{directionLabels[row.direction] || row.direction}</span></td>
+                    <td className="whitespace-nowrap border-b border-border/60 px-1.5 py-2" title={new Date(row.started_at).toLocaleString("pt-BR")}>{displayTime(row.started_at)}</td>
+                    <td className="whitespace-nowrap border-b border-border/60 px-1.5 py-2 tabular-nums">{callDuration(row.duration_seconds || 0)}</td>
+                    <td className="border-b border-border/60 px-1.5 py-2">
                       <span role="img" aria-label={callStatus(row)} title={callStatus(row)}
                         className={row.disposition === "ANSWERED" ? "inline-flex text-emerald-600 dark:text-emerald-400" : "inline-flex text-red-600 dark:text-red-400"}>
                         {row.disposition !== "ANSWERED" ? <PhoneMissed size={19}/> : row.direction === "outbound" ? <PhoneOutgoing size={19}/> : <PhoneIncoming size={19}/>}
                       </span>
                     </td>
-                    <td className="border-b border-border/60 p-2">
+                    <td className="border-b border-border/60 px-1.5 py-2">
                       {row.disposition !== "ANSWERED"
                         ? <button type="button" title="Retornar chamada" aria-label={`Retornar chamada para ${formatPbxNumber(number)}`}
                             disabled={callState !== "idle"} onClick={event => {event.stopPropagation();onReturnCall(number);}}
