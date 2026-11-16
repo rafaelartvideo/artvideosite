@@ -49,7 +49,7 @@ test("mini-PABX and full panel share CRM and history below the active-call contr
   assert.doesNotMatch(floating,/<PbxCrmContactPanel/);
   assert.match(page,/<PbxCrmContactPanel organizationId=\{activeOrganizationId\} phone=\{remoteParty\}/);
   assert.match(page,/<PbxContactActivity organizationId=\{activeOrganizationId\} number=\{remoteParty\}/);
-  assert.match(page,/callState !== "idle" && pbxContactPhoneKey\(remoteParty\)/);
+  assert.match(page,/displayingCall && pbxContactPhoneKey\(remoteParty\)/);
   assert.match(page,/callKeypadExpanded \? "Recolher teclado de discagem" : "Expandir teclado de discagem"/);
   assert.match(page,/callState === "active" && callKeypadExpanded/);
   assert.match(panel,/hasPermission\("customers.view"\)/);
@@ -57,6 +57,26 @@ test("mini-PABX and full panel share CRM and history below the active-call contr
   assert.doesNotMatch(page,/Internas: \{callModeLabel|Externas: \{callModeLabel/);
   assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
   assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
+});
+
+test("queue retries retain caller context without exposing stale answer actions",async()=>{
+  const pagePath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
+  const floatingPath="src/features/telephony/presentation/UnionPbxFloatingPhone.tsx";
+  const page=read(pagePath),floating=read(floatingPath);
+  assert.match(page,/INCOMING_RETRY_GRACE_MS = 8_000/);
+  assert.match(page,/failed && session\.direction === "incoming"/);
+  assert.match(page,/!wasConfirmed && !locallyRejected && ua\.isRegistered/);
+  assert.match(page,/if \(retryRef\.current !== pending\) return/);
+  assert.match(page,/previousRetry\.phone !== phone/);
+  assert.match(page,/if \(callState === "incoming"\) locallyRejectedRef\.current = sessionRef\.current/);
+  assert.match(page,/const displayingCall = callState !== "idle" \|\| incomingRetry/);
+  assert.match(page,/const showIdleDialer = callState === "idle" && !incomingRetry/);
+  assert.match(page,/incomingRetry && <p role="status"/);
+  assert.match(page,/retrying=\{incomingRetry\}/);
+  assert.match(floating,/retrying\?"Aguardando novo toque/);
+  assert.doesNotMatch(page,/incomingRetry && <AdminButton[^>]*onClick=\{answer\}/);
+  assert.ok((await transformWithEsbuild(page,pagePath,{loader:"tsx"})).code.length>150);
+  assert.ok((await transformWithEsbuild(floating,floatingPath,{loader:"tsx"})).code.length>150);
 });
 
 test("mini-PABX snaps to viewport edges, supports keyboard reposition and limits visual height",()=>{
