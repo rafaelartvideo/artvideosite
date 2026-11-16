@@ -1249,8 +1249,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         // Only mark messages read after successfully claiming the conversation.
         await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "mark_read").catch(() => null);
       }
+      // Finalizar encerra o protocolo sem mudar a aba atual do operador.
+// A conversa passa para Finalizados, mas a lista permanece no filtro escolhido.
       const nextFilter:Filter = action==="assume"
-        ? (hasForwarding(selected) ? "forwarded" : "in_att") : "waiting";
+        ? (hasForwarding(selected) ? "forwarded" : "in_att")
+        : action==="finish" ? filter : "waiting";
       if (action!=="assume") setSelectedId(null);
       if (filter!==nextFilter) {
         // Changing tabs triggers one background list query; do not block the chat
@@ -2317,6 +2320,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     </div>}
                   </div>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
+                    lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
                     placeholder={attachment ? "Legenda (opcional)" : "Digite uma mensagem"}
                     onChange={event => setDraft(event.target.value)}
                     onKeyDown={event => {
