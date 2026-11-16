@@ -217,7 +217,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   useEffect(() => {
     const controller=new AbortController();let cancelled=false;
 setTestFlowError('');
-    if(!activeOrganizationId || !isPageOpen)return()=>{cancelled=true;};
+    // Destinos URA são consultados apenas no modo interno, fora da chamada.
+    // Falhas nessa consulta opcional não devem aparecer como erro de telefonia.
+    if(!activeOrganizationId || !isPageOpen || callState !== "idle" || (canUseExternal && dialMode !== "internal"))
+      return()=>{cancelled=true;controller.abort();};
     void pbxRequest(signal=>supabase.rpc("pbx_available_test_flows",{p_organization_id:activeOrganizationId}).abortSignal(signal),
       'Consulta dos fluxos de atendimento',{signal:controller.signal})
       .then(({data,error})=>{
@@ -226,7 +229,7 @@ setTestFlowError('');
         setTestFlows(((data||[]) as {test_extension:number;name:string}[]).map(item=>({number:item.test_extension,name:item.name})));
       }).catch(()=>{if(!cancelled)setTestFlowError('Não foi possível consultar os fluxos de atendimento.');});
     return()=>{cancelled=true;controller.abort();};
-  },[activeOrganizationId,isPageOpen,directoryRevision]);
+  },[activeOrganizationId,isPageOpen,directoryRevision,callState,dialMode,canUseExternal]);
 
   const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number ?? directory.find(item => item.endpoint_name === sipUser)?.number;
   const dialableExtensions = directory.filter(item => item.number !== ownNumber && item.endpoint_name !== sipUser);
@@ -837,7 +840,8 @@ setTestFlowError('');
               onClick={connect}><Phone size={15}/> Conectar</AdminButton>
           </div>}
           {(registration === "error" || /falha|erro|não foi possível|aguarde|bloquead|sem confirmação|nenhum ramal/i.test(notice)) && <p role="alert" className="break-words text-xs leading-5 text-destructive">{notice}</p>}
-          {(directoryError || testQueueError || testFlowError) && <p className="text-xs text-muted-foreground">{directoryError || testQueueError || testFlowError}</p>}
+          {callState === "idle" && isPageOpen && (directoryError || testQueueError || (dialMode === "internal" && testFlowError)) &&
+            <p className="text-xs text-muted-foreground">{directoryError || testQueueError || (dialMode === "internal" ? testFlowError : "")}</p>}
         </div>;
 
   return <>
@@ -908,6 +912,9 @@ setTestFlowError('');
       <UnionPbxFloatingPhone
         registration={registration} callState={callState}
         extension={managedExtension?.number ?? ownNumber ?? null}
+        organizationId={activeOrganizationId}
+        customerPhone={callState !== "idle" ? remoteParty : ""}
+        customerSource={currentCallerCard?.source}
         caller={callState !== "idle" ? currentCallerCard?.name || formatPbxNumber(remoteParty) : undefined}
         onOpenFull={onOpen}
       >{dialerContent}</UnionPbxFloatingPhone>
