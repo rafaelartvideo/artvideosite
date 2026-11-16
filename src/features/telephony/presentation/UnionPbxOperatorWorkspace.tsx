@@ -86,6 +86,7 @@ export function UnionPbxOperatorWorkspace({
   const pageSize = 10;
   const [revision, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
   const [selectedExternal, setSelectedExternal] = useState<PbxDirectoryContact | null>(null);
   const [contactRevision, setContactRevision] = useState(0);
@@ -123,7 +124,7 @@ export function UnionPbxOperatorWorkspace({
     };
   }, [settingsOpen]);
 
-  useEffect(() => { setPage(1); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); completedHandledRef.current=completedCall.sequence; setBrokenAvatar({}); }, [activeOrganizationId, user?.id]);
+  useEffect(() => { setPage(1); setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); setDetailsOpen(false); completedHandledRef.current=completedCall.sequence; setBrokenAvatar({}); }, [activeOrganizationId, user?.id]);
 
   // Cache central do CRM: a navegação entre seções reaproveita o recorte mais recente.
   const historyToday = localHistoryDate(new Date());
@@ -239,9 +240,9 @@ export function UnionPbxOperatorWorkspace({
   const selected = loadedRows.find(row => row.id === selectedId) || null;
   const inCallNumber = callState !== "idle" && remoteParty && remoteParty !== "Chamada" ? remoteParty : "";
   // Show the current caller even before its CDR exists in the recent-call history.
-  const selectedNumber = inCallNumber || selectedExternal?.number || selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
-  const currentCallerCard = inCallNumber ? callerCard : undefined;
-  const hasDetails = Boolean(inCallNumber || selected || selectedExtension || selectedExternal);
+  const selectedNumber = selectedExternal?.number || selectedExtension?.number.toString() || (selected ? callNumber(selected) : "");
+  const currentCallerCard = selectedNumber && selectedNumber === inCallNumber ? callerCard : undefined;
+  const hasDetails = Boolean(selected || selectedExtension || selectedExternal);
   const savedCards = usePbxSavedContactCards(activeOrganizationId, isActive,
     [...visibleRows.map(callNumber), ...(selectedNumber ? [selectedNumber] : [])],contactRevision);
   const contactCard = savedCards[pbxContactPhoneKey(selectedNumber)];
@@ -262,6 +263,7 @@ export function UnionPbxOperatorWorkspace({
 
 
   const openContactEditor=(number="",name="")=>{
+    setDetailsOpen(false);
     setContactPhone(number);setContactName(name && name!==formatPbxNumber(number) ? name : "");
     setContactNotes("");setContactError("");setContactDialogOpen(true);
   };
@@ -308,7 +310,7 @@ export function UnionPbxOperatorWorkspace({
       onChange={next=>{
         setMode(next);
         if(next==="contatos")setContactsVisited(true);
-        setSettingsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);
+        setSettingsOpen(false);setDetailsOpen(false);setSelectedExternal(null);setSelectedExtension(null);setSelectedId(null);
       }}
     />
       </div>
@@ -337,7 +339,7 @@ export function UnionPbxOperatorWorkspace({
         <AdminButton variant="secondary" size="sm" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
       </div>
     </div>
-    <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,0.85fr)_minmax(340px,1.55fr)_minmax(255px,0.9fr)]">
+    <div className="grid min-w-0 items-stretch gap-3 xl:grid-cols-[minmax(270px,345px)_minmax(0,1fr)]">
         <section aria-label="Discador" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
@@ -377,8 +379,8 @@ export function UnionPbxOperatorWorkspace({
                 placeholder="Buscar por número" aria-label="Buscar chamadas por número"
                 className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"/>
             </label>
-            <div className="mt-3 min-w-0 flex-1 overflow-x-auto" style={{scrollbarGutter:"stable"}}>
-              <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0 text-left text-xs">
+            <div className="mt-3 min-w-0 flex-1">
+              <table className="hidden w-full table-fixed lg:table border-separate border-spacing-0 text-left text-xs">
                 <thead><tr className="text-muted-foreground">
                   <th className="w-[29%] border-b border-border p-2 font-medium">Contato / número</th>
                   <th className="w-[11%] border-b border-border p-2 font-medium">Tipo</th>
@@ -395,7 +397,7 @@ export function UnionPbxOperatorWorkspace({
                   const avatarKey = pbxContactPhoneKey(number);
                   const avatar = saved?.avatarUrl && !brokenAvatar[avatarKey + ":" + saved.avatarUrl] ? saved.avatarUrl : null;
                   const active = row.id === selectedId && !selectedExtension && !selectedExternal;
-                  return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); setSelectedExternal(null); }}
+                  return <tr key={row.id} onClick={() => { setSelectedId(row.id); setSelectedExtension(null); setSelectedExternal(null); setDetailsOpen(true); }}
                     className={`cursor-pointer hover:bg-muted/50 ${active ? "bg-primary/5" : ""}`}>
                     <td className="border-b border-border/60 p-2"><div className="flex items-center gap-2">
                       <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -423,7 +425,7 @@ export function UnionPbxOperatorWorkspace({
                             <Phone size={16}/>
                           </button>
                         : <button type="button" title="Ver detalhes" aria-label="Ver detalhes da chamada"
-                            onClick={event => {event.stopPropagation();setSelectedId(row.id);setSelectedExtension(null);}}
+                            onClick={event => {event.stopPropagation();setSelectedId(row.id);setSelectedExtension(null);setSelectedExternal(null);setDetailsOpen(true);}}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-primary">
                             <ContactRound size={16}/>
                           </button>}
@@ -431,6 +433,29 @@ export function UnionPbxOperatorWorkspace({
                   </tr>;
                 })}</tbody>
               </table>
+              <div className="space-y-2 lg:hidden" aria-label="Chamadas recentes em cartões">
+                {visibleRows.map(row => {
+                  const number = callNumber(row);
+                  const extension = directory.find(item => String(item.number) === number);
+                  const saved = savedCards[pbxContactPhoneKey(number)];
+                  const name = extension?.display_name || saved?.name || formatPbxNumber(number) || "Desconhecido";
+                  return <div key={row.id} className="rounded-lg border border-border p-3">
+                    <button type="button" className="w-full min-w-0 text-left"
+                      onClick={() => {setSelectedId(row.id);setSelectedExtension(null);setSelectedExternal(null);setDetailsOpen(true);}}>
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-semibold">{name}</span>
+                        {row.disposition === "ANSWERED" ? <PhoneIncoming size={16} className="shrink-0 text-emerald-600"/> : <PhoneMissed size={16} className="shrink-0 text-red-600"/>}
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{formatPbxNumber(row.source)} → {formatPbxNumber(row.destination)}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">{directionLabels[row.direction] || row.direction} · {displayTime(row.started_at)} · {callDuration(row.duration_seconds || 0)}</p>
+                    </button>
+                    <button type="button" disabled={callState !== "idle"} onClick={() => onReturnCall(number)}
+                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs font-semibold text-primary disabled:opacity-40">
+                      <Phone size={14}/> Ligar
+                    </button>
+                  </div>;
+                })}
+              </div>
               {!loading && !error && visibleRows.length === 0 && <p className="px-3 py-12 text-center text-sm text-muted-foreground">Nenhuma chamada encontrada para esse filtro.</p>}
               {loading && <p role="status" className="flex items-center justify-center gap-2 py-12 text-sm font-medium text-primary"><LoaderCircle size={20} className="animate-spin"/> Carregando chamadas...</p>}
               {error && <p role="alert" className="py-6 text-center text-sm text-destructive">{error}</p>}
@@ -448,14 +473,13 @@ export function UnionPbxOperatorWorkspace({
           <div className={mode==="contatos" ? "contents" : "hidden"}>
             <PbxContactDirectory organizationId={activeOrganizationId} active={isActive && contactsVisited}
               revision={contactRevision} extensions={directory} onNew={()=>openContactEditor()}
-              onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);}}/>
+              onSelect={item=>{setSelectedExternal(item);setSelectedExtension(null);setSelectedId(null);setDetailsOpen(true);}}/>
           </div>
         </section>
-        <aside aria-label="Detalhes da seleção" className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-          <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-base font-bold">Detalhes</h2>
-            {hasDetails && !inCallNumber && <button type="button" aria-label="Limpar seleção" onClick={() => { setSelectedId(null); setSelectedExtension(null); setSelectedExternal(null); }}><X size={16}/></button>}
-          </div>
+      </div>
+    <AdminDialog open={detailsOpen && isActive} onClose={() => setDetailsOpen(false)}
+      title="Detalhes do contato" className="w-[min(640px,calc(100vw-1.5rem))] max-w-[640px]" minimizable={false}>
+      <div className="min-w-0 space-y-3 p-1">
           {hasDetails ? <>
             <div className="flex flex-col items-stretch gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -483,14 +507,15 @@ export function UnionPbxOperatorWorkspace({
 
             </div>
             <PbxCrmContactPanel organizationId={activeOrganizationId} phone={selectedNumber}
-              active={isActive && Boolean(selectedNumber)} source={identitySource}/>
+              active={isActive && detailsOpen && Boolean(selectedNumber)} source={identitySource}/>
             <PbxContactActivity organizationId={activeOrganizationId} number={selectedNumber}
-              active={isActive} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
+              active={isActive && detailsOpen} revision={revision} callBusy={callState !== "idle"} onDialNumber={onReturnCall}/>
           </> : <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ContactRound size={32}/><p>Selecione uma chamada ou ramal para ver os detalhes.</p>
           </div>}
-        </aside>
+
       </div>
+    </AdminDialog>
     <AdminDialog open={contactDialogOpen} onClose={()=>{if(!contactSaving)setContactDialogOpen(false);}}
       title="Contato telefônico" description="Salvo somente na agenda PABX. WhatsApp não é obrigatório."
       className="w-[min(500px,calc(100vw-1.5rem))]" minimizable={false}>
