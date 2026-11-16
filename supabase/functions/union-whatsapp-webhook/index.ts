@@ -219,6 +219,23 @@ Deno.serve(async request => {
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
     const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage", "stickerMessage", "StickerMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
+    // Whatsmeow quote metadata is carried inside ExtendedTextMessage or the
+    // corresponding media caption. Never use arbitrary quoted URLs or JIDs.
+    const context=obj(get(extended,"contextInfo","ContextInfo") ??
+      get(media,"contextInfo","ContextInfo") ?? get(message,"contextInfo","ContextInfo"));
+    const quoteId=str(get(context,"stanzaID","stanzaId","StanzaID","StanzaId"),180);
+    const quotedPayload=obj(get(context,"quotedMessage","QuotedMessage"));
+    const quotedExtended=obj(get(quotedPayload,"extendedTextMessage","ExtendedTextMessage"));
+    const quotedMedia=obj(get(quotedPayload,"imageMessage","ImageMessage","videoMessage","VideoMessage",
+      "audioMessage","AudioMessage","documentMessage","DocumentMessage","stickerMessage","StickerMessage"));
+    const quotedType=quotedPayload.imageMessage||quotedPayload.ImageMessage?"image":
+      quotedPayload.audioMessage||quotedPayload.AudioMessage?"audio":
+      quotedPayload.videoMessage||quotedPayload.VideoMessage?"video":
+      quotedPayload.documentMessage||quotedPayload.DocumentMessage?"file":
+      quotedPayload.stickerMessage||quotedPayload.StickerMessage?"sticker":"text";
+    const quotedPreview=str(get(quotedPayload,"conversation","Conversation") ??
+      get(quotedExtended,"text","Text") ??
+      get(quotedMedia,"caption","Caption"),400).trim();
     // Codigos de autenticacao enviados pela ponte da Union nao sao atendimentos.
     // A mensagem exata e reconhecida SOMENTE quando foi enviada por nossa conta.
     // Nunca criar conversa, registrar o OTP ou expo-lo aos operadores.
@@ -436,6 +453,24 @@ Deno.serve(async request => {
       }
     }
 
+    let replyMetadata:Record<string,unknown>={};
+    if(quoteId && /^[a-zA-Z0-9_-]{4,180}$/.test(quoteId) && quoteId!==providerMessageId){
+      // A quoted message is looked up only within this exact company, channel,
+      // WhatsApp account and conversation. Do not cross-link other tenants.
+      const {data:original,error:quotedError}=await admin.from("union_whatsapp_messages")
+        .select("direction,message_type,body_text")
+        .eq("organization_id",org).eq("channel_id",channelId).eq("account_phone",accountPhone)
+        .eq("conversation_id",thread.id).eq("provider_message_id",quoteId).maybeSingle();
+      if(quotedError)throw quotedError;
+      const resolvedType=String(original?.message_type||quotedType);
+      const fallbackLabel=({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha"} as Record<string,string>)[resolvedType] || "Mensagem";
+      replyMetadata={
+        reply_to_provider_message_id:quoteId,
+        reply_to_text:String(original?.body_text||quotedPreview||fallbackLabel).slice(0,400),
+        reply_to_message_type:resolvedType,
+        reply_to_direction:original?.direction||null,
+      };
+    }
     const { data: inserted, error: messageError } = await admin.from("union_whatsapp_messages")
       .upsert({
         organization_id: org, channel_id: channelId, account_phone:accountPhone, conversation_id: thread.id,
@@ -446,6 +481,7 @@ Deno.serve(async request => {
         media_name:mediaKind ? (originalName || null) : null,
         media_mime:mediaKind ? (mime || null) : null,
         media_available:validMedia,
+        ...replyMetadata,
       }, { onConflict: "channel_id,account_phone,provider_message_id", ignoreDuplicates: true })
       .select("id").maybeSingle();
     if (messageError) throw messageError;
