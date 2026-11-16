@@ -797,14 +797,16 @@ setTestFlowError('');
     }
   };
 
+  const displayingCall = callState !== "idle" || incomingRetry;
+  const showIdleDialer = callState === "idle" && !incomingRetry;
   const dialerContent = <div className="space-y-3">
-    <div className={callState !== "idle" ? "mx-auto w-full max-w-[390px] space-y-3" : "space-y-3"}>
+    <div className={displayingCall ? "mx-auto w-full max-w-[390px] space-y-3" : "space-y-3"}>
     {callModeUnavailable && <p role="status" className="text-xs text-muted-foreground">Modo de chamada sem atualização. A central continua verificando as permissões.</p>}
-          {callState !== "idle" && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
+          {displayingCall && <div role="status" className={`rounded-lg border p-3 ${held && callState === "active"
             ? "border-amber-400/35 bg-amber-500/10" : "border-primary/20 bg-primary/5"}`}>
             <p className={`mb-2 text-center text-sm font-semibold ${held && callState === "active"
               ? "text-amber-700 dark:text-amber-300" : "text-foreground"}`}>
-              {callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : held ? "Em espera" : "Em ligação"}
+              {incomingRetry ? "Aguardando novo toque..." : callState === "incoming" ? "Chamada recebida" : callState === "dialing" ? "Chamando..." : held ? "Em espera" : "Em ligação"}
             </p>
             <div className="flex min-w-0 items-center justify-center gap-2.5">
               {pbxContactPhoneKey(remoteParty) && <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -821,7 +823,7 @@ setTestFlowError('');
               </div>
             </div>
           </div>}
-          {callState === "idle" && canUseExternal && <div role="group" aria-label="Tipo de ligação"
+          {showIdleDialer && canUseExternal && <div role="group" aria-label="Tipo de ligação"
             data-pbx-dial-mode="true" className="grid grid-cols-2 gap-1 rounded-xl bg-muted/80 p-1">
             {([["internal","Interna"],["external","Externa"]] as const).map(([value,label])=>
               <button key={value} type="button" aria-pressed={dialMode===value}
@@ -832,7 +834,7 @@ setTestFlowError('');
                 {label}
               </button>)}
           </div>}
-          {callState === "idle" && <div className="space-y-2">
+          {showIdleDialer && <div className="space-y-2">
             <AdminFieldLabel label={dialMode === "external" && canUseExternal ? "Número com DDD" : "Ramal, fila ou URA"} />
             <div className="relative">
               <FInput type="tel" inputMode="tel" autoComplete="off"
@@ -862,7 +864,7 @@ setTestFlowError('');
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-primary">
             Teclado numérico {callKeypadExpanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
           </button>}
-          {(callState === "idle" || (callState === "active" && callKeypadExpanded)) && <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
+          {(showIdleDialer || (callState === "active" && callKeypadExpanded)) && <div className="grid grid-cols-3 gap-2" aria-label="Teclado de discagem">
             {([["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]] as const).map(([digit, letters]) =>
               <button key={digit} type="button" aria-label={`Tecla ${digit}`}
                 disabled={callState === "idle" && (digit === "*" || digit === "#") || (callState !== "idle" && callState !== "active") || (callState === "active" && dtmfDisabled)}
@@ -875,13 +877,16 @@ setTestFlowError('');
                 {digit}<span className="text-[10px] font-normal tracking-wide text-muted-foreground">{letters || "\u00a0"}</span>
               </button>)}
           </div>}
-          {callState === "idle" && <>
+          {showIdleDialer && <>
             <AdminButton variant="primary" className="!w-full" disabled={!registeredAndIdle || !canMakeCalls || (dialMode === "external" && canUseExternal ? !normalizeNationalDestination(externalTarget) : !internalDestinationReady)}
               onClick={dialMode === "external" && canUseExternal ? callExternal : callInternal}>
               <Phone size={17}/> Ligar
             </AdminButton>
             
           </>}
+          {incomingRetry && <p role="status" className="rounded-lg bg-muted/50 px-3 py-3 text-center text-xs text-muted-foreground">
+            A tentativa anterior terminou. Se houver novo toque, o botão Atender aparecerá automaticamente.
+          </p>}
           {callState === "incoming" && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Responder chamada recebida">
             <AdminButton variant="success" className="!w-full" onClick={answer} disabled={outputPending}>
               <PhoneIncoming size={17}/> Atender
@@ -914,7 +919,7 @@ setTestFlowError('');
           {callState === "idle" && isPageOpen && (directoryError || testQueueError || (dialMode === "internal" && testFlowError)) &&
             <p className="text-xs text-muted-foreground">{directoryError || testQueueError || (dialMode === "internal" ? testFlowError : "")}</p>}
     </div>
-    {callState !== "idle" && pbxContactPhoneKey(remoteParty) && <div className="min-w-0 text-left">
+    {displayingCall && pbxContactPhoneKey(remoteParty) && <div className="min-w-0 text-left">
       <PbxCrmContactPanel organizationId={activeOrganizationId} phone={remoteParty}
         active={true} source={currentCallerCard?.source}/>
       <PbxContactActivity organizationId={activeOrganizationId} number={remoteParty}
@@ -988,9 +993,9 @@ setTestFlowError('');
     </AdminDialog>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
       <UnionPbxFloatingPhone
-        registration={registration} callState={callState}
+        registration={registration} callState={callState} retrying={incomingRetry}
         extension={ownNumber ?? null}
-        caller={callState !== "idle" ? currentCallerCard?.name || formatPbxNumber(remoteParty) : undefined}
+        caller={displayingCall ? currentCallerCard?.name || formatPbxNumber(remoteParty) : undefined}
         onOpenFull={onOpen}
       >{dialerContent}</UnionPbxFloatingPhone>
     )}
