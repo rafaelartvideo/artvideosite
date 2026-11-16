@@ -312,7 +312,8 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const mime=String(mediaMime||"");
     const allowed=["image","video","audio","file","sticker"].includes(kind);
     const size=Number(fileLength);
-    if(!allowed || !Number.isInteger(size) || size<=0 || size>5242880 ||
+    const maxBytes=kind==="video" ? 20*1048576 : 5*1048576;
+    if(!allowed || !Number.isSafeInteger(size) || size<=0 || size>maxBytes ||
       !mime || mime.length>160 || typeof mediaKey!=="string" ||
       typeof fileSHA256!=="string" || mediaKey.length>512 || fileSHA256.length>512 ||
       !mediaKey || !fileSHA256) throw new Error("bad_request");
@@ -346,7 +347,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       : String(raw?.Data || raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
         raw?.Video || raw?.Document || raw?.Media || raw?.data || "");
     const base64=encoded.replace(/^data:[^,]*,/, "").replace(/\s/g,"");
-    if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+    if(!base64 || base64.length>Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
   }
