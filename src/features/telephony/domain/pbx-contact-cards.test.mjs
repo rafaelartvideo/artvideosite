@@ -29,11 +29,36 @@ test("operator has Estado column, missed callback, cached avatar fallback and co
 test("activity timeline is tenant scoped, only queries on selection, returns missed calls", async () => {
   const path="src/features/telephony/presentation/PbxContactActivity.tsx";
   const content=read(path);
-  for (const value of ['organizationId','loadCallHistory','AbortController','Histórico com o contato',
+  for (const value of ['organizationId','loadCallHistory','useQuery','data-pbx-history-skeleton','Histórico com o contato',
     'Ver tudo','onDialNumber?.(numberToCall)','callBusy','callDuration']) {
     assert.ok(content.includes(value), value);
   }
   assert.ok((await transformWithEsbuild(content,path,{loader:"tsx"})).code.length>100);
+});
+
+test("PABX reuses CRM query cache for history and customer details without leaking tenants", async () => {
+  const activity=read("src/features/telephony/presentation/PbxContactActivity.tsx");
+  const context=read("src/features/telephony/presentation/PbxCrmContactPanel.tsx");
+  const operator=read("src/features/telephony/presentation/UnionPbxOperatorWorkspace.tsx");
+  const history=read("src/features/telephony/presentation/UnionPbxHistoryPage.tsx");
+  for(const file of [activity,context,operator,history]){
+    assert.match(file,/useQuery/);
+    assert.match(file,/staleTime: 5 \* 60_000/);
+    assert.match(file,/user\?\.id/);
+    assert.match(file,/organizationId/);
+  }
+  assert.match(activity,/queryClient\.invalidateQueries/);
+  assert.match(operator,/queryClient\.invalidateQueries/);
+  assert.match(history,/queryClient\.invalidateQueries/);
+  assert.match(context,/formatPbxNumber\(customer\.phone/);
+  assert.match(context,/formatPbxNumber\(customer\.whatsapp/);
+  assert.match(context,/text-center text-xs text-muted-foreground">Nenhuma OS encontrada/);
+  assert.doesNotMatch(context,/title=\{customer\.name\}>\{customer\.name\}/);
+  for(const path of ["src/features/telephony/presentation/PbxContactActivity.tsx",
+    "src/features/telephony/presentation/PbxCrmContactPanel.tsx",
+    "src/features/telephony/presentation/UnionPbxHistoryPage.tsx"]){
+    assert.ok((await transformWithEsbuild(read(path),path,{loader:"tsx"})).code.length>100);
+  }
 });
 
 test("server grants cached-only lookup solely to service role and validates pbx access", () => {
@@ -102,8 +127,8 @@ test("PBX keeps recent table columns separate and does not refetch agenda on eve
   assert.match(operator,/mode==="contatos" \? "contents" : "hidden"/);
   assert.match(directory,/Preparando agenda/);
   assert.doesNotMatch(directory,/Sincronizando agenda/);
-  assert.match(timeline,/loadedQueryRef/);
-  assert.match(timeline,/initialLoad/);
+  assert.match(timeline,/queryKey: \["pbx", "contact-history"/);
+  assert.match(timeline,/data-pbx-history-skeleton/);
   assert.doesNotMatch(timeline,/Carregando histórico/);
   for(const path of ["src/features/telephony/presentation/PbxContactDirectory.tsx",
     "src/features/telephony/presentation/PbxContactActivity.tsx"]) {
