@@ -370,74 +370,75 @@ export function AdminDialog({
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
   const contentRef = React.useRef<HTMLDivElement>(null);
-  // Drag uses actual viewport coordinates instead of Tailwind translate utilities.
-  // Radix renders dialogs in a portal, so listen on window rather than
-  // relying on pointer capture in the draggable heading.
-  const [dragPosition, setDragPosition] = React.useState<{ left: number; top: number } | null>(null);
-  const dragRef = React.useRef<{
-    pointerId: number; pointerX: number; pointerY: number;
-    startLeft: number; startTop: number; width: number; height: number;
-  } | null>(null);
-  const startDialogDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!draggable || event.button !== 0 ||
-        window.matchMedia("(max-width: 767px)").matches ||
-        (event.target instanceof Element &&
-          event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
-    const node = contentRef.current;
-    if (!node) return;
-    const bounds = node.getBoundingClientRect();
-    dragRef.current = {
-      pointerId: event.pointerId,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startLeft: bounds.left,
-      startTop: bounds.top,
-      width: bounds.width,
-      height: bounds.height,
-    };
-    // This first position exactly matches the centered dialog: no jump.
-    setDragPosition({ left: bounds.left, top: bounds.top });
-    event.preventDefault();
-  };
+  // Use native mouse events and write directly to the actual Radix portal.
+  // React state/CSS translations were repeatedly blocked by global modal rules.
+  const dragHeaderRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!open || !draggable) return;
-    const move = (event: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
+    const header = dragHeaderRef.current;
+    const node = contentRef.current;
+    if (!header || !node) return;
+
+    let drag: { x: number; y: number; left: number; top: number; width: number; height: number } | null = null;
+    const position = (left: number, top: number) => {
+      // Inline !important wins over the CRM global top !important.
+      node.style.setProperty("left", `${left}px`, "important");
+      node.style.setProperty("top", `${top}px`, "important");
+      node.style.setProperty("translate", "none", "important");
+      node.style.setProperty("transform", "none", "important");
+    };
+    const onMove = (event: MouseEvent) => {
+      if (!drag) return;
       const clamp = (value: number, min: number, max: number) =>
-        Math.min(Math.max(value, min), Math.max(min, max));
-      const topInset = 64; // CRM header, matching --admin-shell-header-height.
-      // Large dialogs fill most of the viewport. Keeping every edge visible
-      // would allow almost no movement. Keep a generous header grab area visible
-      // and allow the rest of the window to move partially out of view.
+        Math.min(Math.max(min, value), Math.max(min, max));
       const visibleWidth = Math.min(drag.width, 380);
       const visibleHeight = Math.min(drag.height, 160);
-      setDragPosition({
-        left: clamp(drag.startLeft + event.clientX - drag.pointerX,
-          visibleWidth - drag.width, window.innerWidth - visibleWidth),
-        top: clamp(drag.startTop + event.clientY - drag.pointerY,
-          topInset + 8, window.innerHeight - visibleHeight),
-      });
+      const left = clamp(drag.left + event.clientX - drag.x,
+        visibleWidth - drag.width, window.innerWidth - visibleWidth);
+      const top = clamp(drag.top + event.clientY - drag.y,
+        72, window.innerHeight - visibleHeight);
+      position(left, top);
       if (event.cancelable) event.preventDefault();
     };
-    const stop = (event: PointerEvent) => {
-      if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    const stopDrag = () => {
+      drag = null;
+      document.removeEventListener("mousemove", onMove, true);
+      document.removeEventListener("mouseup", stopDrag, true);
+      window.removeEventListener("blur", stopDrag);
     };
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", stop);
-    window.addEventListener("pointercancel", stop);
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0 || window.matchMedia("(max-width: 767px)").matches ||
+          (event.target instanceof Element &&
+            event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
+      const bounds = node.getBoundingClientRect();
+      drag = {
+        x: event.clientX, y: event.clientY, left: bounds.left, top: bounds.top,
+        width: bounds.width, height: bounds.height,
+      };
+      position(bounds.left, bounds.top); // freeze position without jumping
+      document.addEventListener("mousemove", onMove, true);
+      document.addEventListener("mouseup", stopDrag, true);
+      window.addEventListener("blur", stopDrag);
+      event.preventDefault();
+    };
+    const center = (event: MouseEvent) => {
+      if (event.target instanceof Element &&
+          event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]")) return;
+      stopDrag();
+      for (const property of ["left", "top", "translate", "transform"])
+        node.style.removeProperty(property);
+    };
+    header.addEventListener("mousedown", onMouseDown, true);
+    header.addEventListener("dblclick", center);
     return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", stop);
-      window.removeEventListener("pointercancel", stop);
+      stopDrag();
+      header.removeEventListener("mousedown", onMouseDown, true);
+      header.removeEventListener("dblclick", center);
+      for (const property of ["left", "top", "translate", "transform"])
+        node.style.removeProperty(property);
     };
   }, [open, draggable]);
-  React.useEffect(() => {
-    if (!open) {
-      dragRef.current = null;
-      setDragPosition(null);
-    }
-  }, [open]);
+
   const scrollNestedDialog = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!nestedScrollAssist) return;
     const body = event.currentTarget;
@@ -566,14 +567,9 @@ export function AdminDialog({
       data-admin-dialog-content="true"
       data-admin-dialog-state={showPreparation ? "preparing" : "ready"}
       data-admin-dialog-draggable={draggable ? "true" : undefined}
-      data-admin-dialog-positioned={draggable && dragPosition ? "true" : undefined}
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
-        ...(draggable && dragPosition ? {
-          "--admin-dialog-drag-left": `${dragPosition.left}px`,
-          "--admin-dialog-drag-top": `${dragPosition.top}px`,
-        } : {}),
       } as React.CSSProperties}
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
@@ -583,13 +579,10 @@ export function AdminDialog({
       {hideHeader
         ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
         : (title || description || onClose) && <div
-          className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:select-none md:touch-none active:cursor-grabbing")}
-          title={draggable ? "Arraste para mover; clique duas vezes para centralizar" : undefined}
-          onPointerDown={draggable ? startDialogDrag : undefined}
-          onDoubleClick={draggable ? () => {
-            dragRef.current = null;
-            setDragPosition(null);
-          } : undefined}
+          ref={dragHeaderRef}
+          data-admin-dialog-drag-handle={draggable ? "true" : undefined}
+          className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-move md:select-none md:touch-none")}
+          title={draggable ? "Segure e arraste para mover. Duplo clique para centralizar." : undefined}
         >
         <div className="min-w-0 flex-1">
           {title ? <div className="flex items-center gap-2">{draggable && <GripHorizontal size={16} className="shrink-0 text-muted-foreground" aria-hidden="true"/>}<DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
