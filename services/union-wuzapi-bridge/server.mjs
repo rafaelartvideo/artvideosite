@@ -269,7 +269,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   // A autenticação HMAC é exigida antes de chamar operate().
   if (action === "engine_info") return engineInfo();
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "quote_capability", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   if (action === "delete") {
     const stored = await readSession(id, org);
@@ -304,6 +304,9 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
+  // Explicit feature negotiation: an older bridge must never silently send
+  // an ordinary text while the CRM believes it sent a native quoted reply.
+  if(action==="quote_capability")return {ok:true,reply_supported:true};
   if (action === "download_media") {
     const kind=String(mediaType||"");
     const mime=String(mediaMime||"");
