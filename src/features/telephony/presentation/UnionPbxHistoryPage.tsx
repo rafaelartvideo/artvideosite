@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, History, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search } from 'lucide-react';
 import { formatPbxNumber } from './UnionPbxOperatorWorkspace';
 import { useAuth } from '@/lib/auth';
@@ -18,35 +19,61 @@ function initialFilters(): HistoryFilters {
   return { from: localHistoryDate(start), to: localHistoryDate(today), direction: '', disposition: '', number: '' };
 }
 
+const EMPTY_HISTORY_ROWS: CallHistoryRow[] = [];
+
 export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, user } = useAuth();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState(initialFilters);
   const [filters, setFilters] = useState(initialFilters);
   const [page, setPage] = useState(1), [pageSize, setPageSize] = useState(10);
-  const [rows, setRows] = useState<CallHistoryRow[]>([]), [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false), [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
-  const [summary,setSummary]=useState<HistoryReport|null>(null),[summaryError,setSummaryError]=useState('');
   const [exporting,setExporting]=useState(false),[exportNotice,setExportNotice]=useState('');
   const exportAbortRef=useRef<AbortController|null>(null);
-  const summaryGenerationRef=useRef(0);
 
   // Stop a download before painting another organization/filter or unmounting.
   useLayoutEffect(()=>()=>{exportAbortRef.current?.abort();},[activeOrganizationId,filters]);
 
-  useEffect(()=>{
-    let cancelled=false;const controller=new AbortController();setSummary(null);setSummaryError('');
-    const generation=++summaryGenerationRef.current;
-    if(!activeOrganizationId)return()=>controller.abort();
-    void pbxRequest(signal=>supabase.rpc('pbx_call_history_report',historyReportParameters(activeOrganizationId,filters)).abortSignal(signal),
-      'Resumo do histórico',{signal:controller.signal}).then(({data,error:reportError})=>{
-        if(cancelled||summaryGenerationRef.current!==generation)return;
-        if(reportError)throw new Error('Não foi possível consultar o resumo. Verifique a conexão.');
-        setSummary(data as HistoryReport);
-      }).catch(reason=>{if(!cancelled&&summaryGenerationRef.current===generation)setSummaryError(reason instanceof Error?reason.message:'Falha no resumo.');});
-    return()=>{cancelled=true;controller.abort();};
-  },[activeOrganizationId,filters,revision]);
+  // Mesmo QueryClient do CRM: cache por usuário, empresa e filtros aplicados.
+  const historyScope = [activeOrganizationId, user?.id || "", filters.from, filters.to,
+    filters.direction, filters.disposition, filters.number] as const;
+  const summaryKey = ["pbx", "history-summary", ...historyScope] as const;
+  const summaryQuery = useQuery({
+    queryKey: summaryKey,
+    enabled: Boolean(activeOrganizationId),
+    staleTime: 5 * 60_000,
+    queryFn: async ({signal}) => {
+      const {data,error} = await pbxRequest(requestSignal => supabase.rpc(
+        'pbx_call_history_report', historyReportParameters(activeOrganizationId!,filters)
+      ).abortSignal(requestSignal), 'Resumo do histórico', {signal});
+      if(error) throw new Error('Não foi possível consultar o resumo. Verifique a conexão.');
+      return data as HistoryReport;
+    },
+  });
+  const historyQuery = useQuery({
+    queryKey: ["pbx", "history-rows", ...historyScope, page, pageSize],
+    enabled: Boolean(activeOrganizationId),
+    staleTime: 5 * 60_000,
+    queryFn: async ({signal}) => {
+      const result = await pbxRequest(requestSignal =>
+        loadCallHistory(supabase, activeOrganizationId!, filters, page, pageSize, requestSignal),
+        'Consulta do histórico', {signal});
+      if(result.error) throw new Error('Não foi possível consultar o histórico. Tente novamente.');
+      return {rows: (result.data || []) as CallHistoryRow[], total: result.count || 0};
+    },
+  });
+  const rows = historyQuery.data?.rows || EMPTY_HISTORY_ROWS;
+  const total = historyQuery.data?.total || 0;
+  const loading = historyQuery.isPending && !historyQuery.data;
+  const error = historyQuery.isError && !historyQuery.data ? 'Não foi possível consultar o histórico.' : '';
+  const summary = summaryQuery.data || null;
+  const summaryError = summaryQuery.isError && !summary ? 'Não foi possível consultar o resumo. Verifique a conexão.' : '';
 
+  useEffect(() => {
+    if (!revision || !activeOrganizationId) return;
+    void queryClient.invalidateQueries({queryKey:["pbx", "history-summary", activeOrganizationId, user?.id || ""]});
+    void queryClient.invalidateQueries({queryKey:["pbx", "history-rows", activeOrganizationId, user?.id || ""]});
+  }, [revision, activeOrganizationId, user?.id, queryClient]);
 
   useEffect(() => {
     if (!activeOrganizationId) return;
@@ -75,32 +102,12 @@ export function UnionPbxHistoryPage({ onBack }: { onBack: () => void }) {
       if(controller.signal.aborted||exportAbortRef.current!==controller)return;
       if(reportError)throw new Error('Não foi possível preparar o arquivo do histórico.');
       const records=exportHistoryRows(data as HistoryReport);
-      summaryGenerationRef.current+=1;
-      setSummary(data as HistoryReport);
-      setSummaryError('');
-      setTotal((data as HistoryReport).total_records);
+      queryClient.setQueryData(summaryKey, data as HistoryReport);
       downloadBlobFile(new Blob([callHistoryCsv(records)],{type:'text/csv;charset=utf-8'}),`pabx-historico-${filters.from}-${filters.to}.csv`);
       setExportNotice(`${records.length} registros exportados em CSV.`);
     }catch(reason){if(!controller.signal.aborted)setExportNotice(reason instanceof Error?reason.message:'Falha na exportação.');}
     finally{if(exportAbortRef.current===controller){exportAbortRef.current=null;setExporting(false);}}
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setRows([]); setTotal(0); setError('');
-    if (!activeOrganizationId) { setLoading(false); return () => controller.abort(); }
-    setLoading(true);
-    void pbxRequest(signal => loadCallHistory(supabase, activeOrganizationId, filters, page, pageSize, signal),
-      'Consulta do histórico', { signal: controller.signal })
-      .then((result: any) => {
-        if (cancelled) return;
-        if (result.error) throw new Error('Não foi possível consultar o histórico. Tente novamente.');
-        setRows((result.data || []) as CallHistoryRow[]); setTotal(result.count || 0);
-      }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Falha no histórico.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, [activeOrganizationId, filters, page, pageSize, revision]);
 
   return <div className="space-y-5">
     <PageHeader title="Histórico de ligações" subtitle="Origem, destino e resultado dos registros recebidos do motor de telefonia."
