@@ -9,6 +9,7 @@ export function OrderFormActions({
   onCancel,
   onSave,
   rightActions,
+  inDialog = false,
 }: {
   saving: boolean;
   canSave: boolean;
@@ -16,9 +17,10 @@ export function OrderFormActions({
   onCancel: () => void;
   onSave: () => Promise<unknown>;
   rightActions?: ReactNode;
+  inDialog?: boolean;
 }) {
   return (
-    <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">
+    <AdminStickyToolbar className={`!justify-between gap-2 sm:gap-3 ${inDialog ? "!static !border-0 !bg-transparent !p-0" : ""}`}>
       <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">
         Voltar
       </BtnSecondary>
