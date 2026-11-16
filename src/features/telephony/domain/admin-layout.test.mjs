@@ -38,6 +38,11 @@ test('PABX usa console do operador e modais protegidos mantendo a chamada', asyn
   const admin = readFileSync(adminPath, 'utf8');
   assert.match(nav, /AdminSubsectionTabs<WorkspaceMode>/);
   assert.match(nav, /Subseções da central de chamadas/);
+  assert.match(nav, /role="group" aria-label="Ações do PABX"/);
+  assert.match(nav, /<AdminButton variant="secondary" size="sm" aria-label="Dispositivos e testes de áudio"/);
+  assert.match(nav, /<AdminButton variant="secondary" size="sm" title="Configurações gerais do módulo"/);
+  assert.match(nav, /<AdminButton variant="secondary" size="sm" onClick=\{onBack\}/);
+  assert.doesNotMatch(nav, /trailing=\{|ADMIN_SUBSECTION_TAB_CLASS/);
   assert.match(nav, /xl:grid-cols-\[minmax\(270px,0\.85fr\)_minmax\(340px,1\.55fr\)_minmax\(255px,0\.9fr\)\]/);
   assert.doesNotMatch(nav, /Navegação do operador|<PageHeader/);
   for (const item of ['"chamadas"', '"contatos"', '"historico"', '"gravacoes"', '"fluxos"', '"troncos"', '"entrada"']) {
