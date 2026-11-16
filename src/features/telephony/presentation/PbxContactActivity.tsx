@@ -14,7 +14,7 @@ type Props = {
   number: string;
   active: boolean;
   revision: number;
-  onDialNumber: (number: string) => void;
+  onDialNumber?: (number: string) => void;
   callBusy: boolean;
 };
 
@@ -38,12 +38,12 @@ function resultTitle(row: CallHistoryRow) {
 function returnNumber(row: CallHistoryRow): string {
   return row.direction === "inbound" ? row.source : row.destination;
 }
-function responsibleExtension(row: CallHistoryRow): number | null {
-  // Na entrada, o responsável é o ramal de destino; na saída/interna, o que originou a ligação.
-  const number = row.direction === "inbound"
-    ? row.destination_extension?.number
-    : row.source_extension?.number;
-  return Number.isInteger(number) && Number(number) > 0 ? Number(number) : null;
+function responsibleExtension(row: CallHistoryRow): string {
+  // Exibe o ramal e seu responsável cadastrado quando o vínculo estiver presente no histórico.
+  const extension = row.direction === "inbound" ? row.destination_extension : row.source_extension;
+  if (!extension || !Number.isInteger(extension.number) || extension.number <= 0) return "";
+  const name = extension.display_name?.trim();
+  return String(extension.number) + (name && name !== String(extension.number) ? " · " + name : "");
 }
 
 export function PbxContactActivity({ organizationId, number, active, revision, onDialNumber, callBusy }: Props) {
@@ -106,17 +106,17 @@ export function PbxContactActivity({ organizationId, number, active, revision, o
         const answered = row.disposition === "ANSWERED";
         const extension = responsibleExtension(row);
         const numberToCall = returnNumber(row);
-        const canCall = !answered && !callBusy && /\d{3,15}/.test(numberToCall.replace(/\D/g, ""));
+        const canCall = Boolean(onDialNumber) && !answered && !callBusy && /\d{3,15}/.test(numberToCall.replace(/\D/g, ""));
         return <div key={row.id} className="group flex min-w-0 items-center gap-2 rounded-lg p-2 hover:bg-muted/60">
           <span aria-label={resultTitle(row)} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${answered ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-600"}`}>
             {!answered ? <PhoneMissed size={17}/> : row.direction === "outbound" ? <PhoneOutgoing size={17}/> : <PhoneIncoming size={17}/>}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold" title={resultTitle(row)}>{resultTitle(row)}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{activityDate(row.started_at)} · {callDuration(row.duration_seconds || 0)}{extension !== null ? ` - ${extension}` : ""}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{activityDate(row.started_at)} · {callDuration(row.duration_seconds || 0)}{extension ? ` - ${extension}` : ""}</p>
           </div>
           {canCall && <button type="button" aria-label={`Retornar chamada para ${formatPbxNumber(numberToCall)}`}
-            title="Retornar chamada" onClick={() => onDialNumber(numberToCall)}
+            title="Retornar chamada" onClick={() => onDialNumber?.(numberToCall)}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-primary hover:bg-primary/10">
             <Phone size={16}/>
           </button>}
