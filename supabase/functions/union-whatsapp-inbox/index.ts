@@ -143,8 +143,9 @@ async function signedBridge(
       return "reply_supported";
     }
     if (download) {
+      const maxBytes=download.type==="video" ? 20*1048576 : 5*1048576;
       if(typeof result.base64 !== "string" ||
-        result.base64.length > 7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.base64))
+        result.base64.length > Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.base64))
         throw Error("media_download_unavailable");
       return result.base64;
     }
@@ -1735,9 +1736,13 @@ Deno.serve(async request => {
         } catch {
           return json({success:false,code:"media_unavailable",error:"Não foi possível recuperar esta mídia pelo WhatsApp. Tente novamente mais tarde."},502);
         }
+        const maxBytes=ref.media_type==="video" ? 20*1048576 : 5*1048576;
+        // Reject before allocation if the provider response is oversized.
+        if(base64.length>Math.ceil(maxBytes/3)*4+8)
+          return json({success:false,error:"Arquivo maior que o limite permitido para este tipo de mídia."},413);
         const decoded=atob(base64);
-        if(!decoded.length || decoded.length>5242880)
-          return json({success:false,error:"A mídia ultrapassa o limite de 5 MB."},413);
+        if(!decoded.length || decoded.length>maxBytes)
+          return json({success:false,error:"Arquivo maior que o limite permitido para este tipo de mídia."},413);
         const bytes=new Uint8Array(decoded.length);
         for(let i=0;i<decoded.length;i++) bytes[i]=decoded.charCodeAt(i);
         const ext=ref.media_type==="sticker"?"webp":ref.media_type==="image" ? (ref.mime_type==="image/png"?"png":"jpg") :
