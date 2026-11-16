@@ -19,8 +19,7 @@ export function OrderFormActions({
   rightActions?: ReactNode;
   inDialog?: boolean;
 }) {
-  return (
-    <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3" style={inDialog ? { position: "static", border: 0, background: "transparent", padding: 0 } : undefined}>
+  const controls = <>
       <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">
         Voltar
       </BtnSecondary>
@@ -38,6 +37,13 @@ export function OrderFormActions({
           </BtnPrimary>
         )}
       </div>
-    </AdminStickyToolbar>
-  );
+    </>;
+  // O AdminDialog já tem seu próprio rodapé. Não criar outra toolbar sticky,
+  // borda primária ou área rolável concorrente dentro dele.
+  if (inDialog) return <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:gap-3">
+    {controls}
+  </div>;
+  return <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">
+    {controls}
+  </AdminStickyToolbar>;
 }
