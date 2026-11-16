@@ -83,6 +83,8 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   const [externalTarget, setExternalTarget] = useState("");
   const [pendingDialRequest, setPendingDialRequest] = useState<{ phone: string } | null>(null);
   const [registration, setRegistration] = useState<RegistrationState>("offline");
+  // O número exibido acompanha a tentativa real de conexão, inclusive antes da entrega das credenciais SIP.
+  const [connectionNumber, setConnectionNumber] = useState<number | null>(null);
   // A lista de ramais só é relida quando existe uma mudança publicada
   // no Supabase. A assinatura existe enquanto o painel está aberto ou
   // o ramal está registrado; nunca inicia polling de toda a tabela.
@@ -231,7 +233,10 @@ setTestFlowError('');
     return()=>{cancelled=true;controller.abort();};
   },[activeOrganizationId,isPageOpen,directoryRevision,callState,dialMode,canUseExternal]);
 
-  const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number ?? directory.find(item => item.endpoint_name === sipUser)?.number;
+  const ownNumber = connectionNumber ?? (
+    managedExtension && !manualMode ? managedExtension.number :
+    sipUser === SIP_USER ? 301 : directory.find(item => item.endpoint_name === sipUser)?.number
+  );
   const dialableExtensions = directory.filter(item => item.number !== ownNumber && item.endpoint_name !== sipUser);
   const transferExtensions = dialableExtensions.filter(item => String(item.number) !== remoteParty && item.endpoint_name !== remoteParty);
   const dialableNumbers = new Set([
@@ -287,6 +292,7 @@ setTestFlowError('');
     setRemoteParty("");
     setCallState("idle");
     setRegistration("offline");
+    setConnectionNumber(null);
     setPassword("");
     setSipUser(isPlatformOperatorOrganization ? SIP_USER : "");
     setNotice("Ramal desconectado.");
@@ -455,6 +461,7 @@ setTestFlowError('');
     if (uaRef.current || registration === "connecting") return;
     if (!password.trim()) { setNotice("Informe a senha SIP exclusiva do ramal union-301."); return; }
     const generation = ++generationRef.current;
+    setConnectionNumber(301);
     void startSip(SIP_USER,password,generation);
   };
 
@@ -462,6 +469,7 @@ setTestFlowError('');
     if (uaRef.current || registration === "connecting" || !activeOrganizationId ||
         !managedExtension || managedExtension.provisioning_status !== "applied") return;
     const generation=++generationRef.current;
+    setConnectionNumber(managedExtension.number);
     credentialAbortRef.current?.abort();
     const controller = new AbortController();
     credentialAbortRef.current = controller;
@@ -475,6 +483,9 @@ setTestFlowError('');
         controller.signal,
       );
       if(generationRef.current !== generation) return;
+      if (sip.username !== managedExtension.endpoint_name) {
+        throw new Error("A credencial recebida não corresponde ao ramal vinculado. Tente novamente.");
+      }
       await startSip(sip.username,sip.password,generation);
     } catch (error) {
       if(generationRef.current !== generation) return;
@@ -911,7 +922,7 @@ setTestFlowError('');
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
       <UnionPbxFloatingPhone
         registration={registration} callState={callState}
-        extension={managedExtension?.number ?? ownNumber ?? null}
+        extension={ownNumber ?? null}
         organizationId={activeOrganizationId}
         customerPhone={callState !== "idle" ? remoteParty : ""}
         customerSource={currentCallerCard?.source}
@@ -942,7 +953,7 @@ setTestFlowError('');
           value={pendingDialRequest?.phone || ""} onChange={event => setPendingDialRequest(current => current ? { ...current, phone: event.target.value } : null)} />
         {pendingDialRequest && !normalizeNationalDestination(pendingDialRequest.phone) && <p role="alert" className="text-xs text-destructive">Informe um telefone nacional válido com DDD.</p>}
         <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-          <p className="font-semibold text-foreground">Ramal {managedExtension?.number ?? ownNumber ?? "não vinculado"}</p>
+          <p className="font-semibold text-foreground">Ramal {ownNumber ?? "não vinculado"}</p>
           <p role="status" className="mt-1 text-xs text-muted-foreground">{registration === "registered" ? "Conectado. Confirme a ligação abaixo." : registration === "connecting" ? "Conectando o ramal..." : registration === "error" ? notice : "Conecte seu ramal para continuar."}</p>
         </div>
         {registration === "connecting" && <div role="status" className="flex items-center gap-2 text-sm text-primary"><LoaderCircle size={16} className="animate-spin"/> Conectando...</div>}
