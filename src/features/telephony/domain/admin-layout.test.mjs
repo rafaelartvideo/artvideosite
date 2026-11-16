@@ -43,7 +43,13 @@ test('PABX usa console do operador e modais protegidos mantendo a chamada', asyn
   assert.match(nav, /<AdminButton variant="secondary" size="sm" title="Configurações gerais do módulo"/);
   assert.match(nav, /<AdminButton variant="secondary" size="sm" onClick=\{onBack\}/);
   assert.doesNotMatch(nav, /trailing=\{|ADMIN_SUBSECTION_TAB_CLASS/);
-  assert.match(nav, /xl:grid-cols-\[minmax\(270px,345px\)_minmax\(0,1fr\)\]/);
+  assert.match(nav, /xl:grid-cols-\[minmax\(320px,390px\)_minmax\(0,1fr\)\]/);
+  assert.match(nav, /mb-4 flex min-w-0 items-center justify-between gap-2/);
+  assert.match(nav, /inline-flex shrink-0 items-center gap-1\.5 whitespace-nowrap/);
+  assert.match(nav, /truncate text-xs text-muted-foreground" title=\{lineLabel\}/);
+  assert.match(nav, /role="group" aria-label="Filtrar chamadas"/);
+  assert.match(nav, /relative min-w-\[170px\] flex-1/);
+  assert.match(nav, /border-b border-border\/60 px-1\.5 py-2/);
   assert.match(nav, /open=\{detailsOpen && isActive\}/);
   assert.match(nav, /title="Detalhes do contato"/);
   assert.doesNotMatch(nav, /aria-label="Detalhes da seleção"/);
