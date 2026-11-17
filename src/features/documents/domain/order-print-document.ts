@@ -121,6 +121,8 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "order.os_number": order.os_number,
     "order.external_os_number": order.external_os_number,
     "order.order_type": order.order_type === "external" ? "Externa" : "Interna",
+    "order.service_type": nameOf(order.service_type),
+    "order.completed_at": date(order.completed_at),
     "order.origin": order.origin,
     "order.priority": order.priority,
     "order.status": order.order_status?.name,
@@ -244,8 +246,9 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
 
   const fullWidthFields = new Set([
     "address.full",
-    "order.internal_notes",
-    "order.customer_notes",
+    // Os campos de Informações da OS obedecem ao número de colunas do modelo.
+    // Forçar as observações à largura total transforma uma grade de 3 colunas
+    // em 3 linhas quando são os campos selecionados.
     "equipment.accessories",
     "equipment.condition",
     "resolution.diagnosis",
