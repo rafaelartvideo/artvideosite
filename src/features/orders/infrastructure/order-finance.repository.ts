@@ -23,6 +23,20 @@ export type OrderCompletionFinanceOptions = {
   payment_methods: OrderCompletionPaymentMethod[];
 };
 
+export type OrderWarrantyPartner = { id: string; name: string; document: string | null };
+
+export async function listOrderWarrantyPartners(organizationId:string):Promise<OrderWarrantyPartner[]> {
+  const {data,error}=await supabase.from("entities")
+    .select("id,name,document,roles:entity_roles!inner(role,is_active)")
+    .eq("organization_id",organizationId)
+    .eq("is_active",true)
+    .eq("roles.role","partner")
+    .eq("roles.is_active",true)
+    .order("name");
+  if(error)throw error;
+  return (data||[]).map(row=>({id:String(row.id),name:String(row.name),document:row.document||null}));
+}
+
 export type OrderCompletionFinancePayload = {
   installments: Array<{ installment_number: number; due_date: string; amount: number }>;
   // A conclusão da OS apenas informa recebimentos. Nunca realiza baixas financeiras.
@@ -35,6 +49,7 @@ export type OrderCompletionFinancePayload = {
     occurred_at: string | null;
   }>;
   payment_plan: Array<{ payment_method_id: string; amount: number }>;
+  partner_receivable?: { entity_id: string; amount: number; due_date: string; notes?: string };
   payment_preferences: Array<{
     installment_number: number;
     payment_method_id: string;
