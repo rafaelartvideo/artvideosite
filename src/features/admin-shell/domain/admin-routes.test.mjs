@@ -67,10 +67,10 @@ test("Auditoria está em Operação, mantém links antigos e possui Voltar no ca
   assert.deepEqual(resolveAdminRoute("/admin/operation/audit"), {tab:"audit",resourceId:null,subpage:null});
   assert.doesNotMatch(primary, /id: "audit"/);
   assert.match(operation, /id: "audit", label: "Auditoria"/);
-  assert.match(operation, /permissionKey: "organizations\\.audit\\.view"/);
-  assert.match(admin, /path="audit\\/\\*" element=\\{<Navigate/);
-  assert.match(admin, /path="operation\\/audit\\/\\*" element=\\{<TabAuditLog onBack=/);
+  assert.ok(operation.includes('permissionKey: "organizations.audit.view"'));
+  assert.ok(admin.includes('path="audit/*" element={<Navigate'));
+  assert.ok(admin.includes('path="operation/audit/*" element={<TabAuditLog onBack='));
   assert.match(page, /title="Auditoria"/);
-  assert.match(page, /subtitle="Histórico de alterações realizadas nos dados do CRM\\."/);
-  assert.match(page, /actions=\\{<AdminButton variant="secondary" size="sm" onClick=\\{onBack\\}>Voltar<\\/AdminButton>\\}/);
+  assert.ok(page.includes('subtitle="Histórico de alterações realizadas nos dados do CRM."'));
+  assert.ok(page.includes('actions={<AdminButton variant="secondary" size="sm" onClick={onBack}>Voltar</AdminButton>}'));
 });
