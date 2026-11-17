@@ -2373,9 +2373,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
                 </button>}
-                {(!embedded || embeddedFullControls) && <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
-                  aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
-                  <History size={15}/><span className="hidden xl:inline">Histórico</span>
+                {(!embedded || embeddedFullControls) && <button type="button" onClick={()=>void viewProtocols()} title="Protocolos do atendimento"
+                  aria-label="Protocolos do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
+                  <History size={15}/><span className="hidden xl:inline">Protocolos</span>
                 </button>}
                 {!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator) &&
