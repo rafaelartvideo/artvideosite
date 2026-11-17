@@ -49,7 +49,7 @@ function previewDate(value:string|null){
 function safeCount(value:number){return value>99?"99+":String(Math.max(0,value));}
 
 export function UnionWhatsAppFloatingPanel({
-  expanded,onToggle,counts,filter,onFilter,rows,loading,loaded,avatars,hidden,onSelect,onOpenFull,alert,onDismissAlert,
+  expanded,onToggle,counts,filter,onFilter,rows,loading,loaded,error,avatars,hidden,onSelect,onOpenFull,alert,onDismissAlert,
 }:{
   expanded:boolean;
   onToggle:()=>void;
@@ -59,6 +59,7 @@ export function UnionWhatsAppFloatingPanel({
   rows:UnionWhatsAppConversation[];
   loading:boolean;
   loaded:boolean;
+  error:boolean;
   avatars:Record<string,string|null>;
   hidden:boolean;
   onSelect:(id:string)=>void;
@@ -214,7 +215,7 @@ export function UnionWhatsAppFloatingPanel({
         </div>
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-border"
           style={{scrollbarGutter:"stable"}}>
-          {!loaded && loading ? <div aria-label="Carregando conversas" role="status" className="divide-y divide-border">
+          {!loaded && !error ? <div aria-label="Carregando conversas" role="status" className="divide-y divide-border">
             {Array.from({length:6},(_,index)=><div key={index} aria-hidden="true"
               className="flex min-h-[76px] items-center gap-3 px-3 py-3">
               <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-muted"/>
@@ -223,7 +224,9 @@ export function UnionWhatsAppFloatingPanel({
                 <span className="block h-2.5 w-4/5 animate-pulse rounded bg-muted"/>
               </span>
             </div>)}
-          </div> : rows.length===0 ? <p className="p-5 text-center text-xs text-muted-foreground">
+          </div> : error && !loaded ? <p role="alert" className="p-5 text-center text-xs text-destructive">
+            Não foi possível atualizar esta lista. Ela será consultada novamente ao receber novas mensagens.
+          </p> : rows.length===0 ? <p className="p-5 text-center text-xs text-muted-foreground">
             {loading?"Atualizando conversas...":"Nenhuma conversa nesta lista."}
           </p> : rows.map(item=>{
             const name=item.contact_name||item.contact_phone||"Contato";
