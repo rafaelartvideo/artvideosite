@@ -96,10 +96,14 @@ export function UnionWhatsAppActivityProvider({
   const rowsSeqRef=useRef(0);
   const lastRowsRef=useRef(0);
 
-  useEffect(()=>()=>{
-    disposedRef.current=true;
+  useEffect(()=>{
+    // Compatível com a montagem dupla do React StrictMode.
+    disposedRef.current=false;
+    return ()=>{
+      disposedRef.current=true;
     if(reconcileTimerRef.current!==null)clearTimeout(reconcileTimerRef.current);
-    listenersRef.current.clear();
+      listenersRef.current.clear();
+    };
   },[]);
 
   const subscribe=useCallback((listener:(event:WhatsAppActivityEvent)=>void)=>{
