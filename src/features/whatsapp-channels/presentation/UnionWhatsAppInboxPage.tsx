@@ -435,6 +435,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const optimizeSeq = useRef(0);
   const previewUrls = useRef(createMediaPreviewUrls()).current;
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const discardRecordingRef = useRef(false);
@@ -2391,6 +2392,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <input ref={mediaInputRef} type="file" className="hidden"
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
+                  <input ref={documentInputRef} type="file" className="hidden"
+                    accept="application/pdf,text/plain,application/zip,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    aria-label="Selecionar documento" onChange={event=>{
+                      const file=event.target.files?.[0]||null;
+                      event.currentTarget.value="";
+                      void onChooseMedia(file);
+                    }}/>
                   <button type="button" disabled={Boolean(replyTarget)} aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
@@ -2483,12 +2491,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </div>}
                     </div>}
                   </div>
-                  {onPrepareOrderDocument && <button type="button" disabled={Boolean(replyTarget)}
-                    aria-label="Documentos da OS" title="Enviar documento da OS"
-                    onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current==="documents"?null:"documents");}}
+                  <button type="button" disabled={Boolean(replyTarget)}
+                    aria-label={onPrepareOrderDocument?"Documentos da OS":"Anexar documento"}
+                    title={onPrepareOrderDocument?"Enviar documento da OS":"Anexar documento"}
+                    onClick={()=>{
+                      setEmojiOpen(false);setStickerOpen(false);
+                      if(onPrepareOrderDocument)setActionPanel(current=>current==="documents"?null:"documents");
+                      else {setActionPanel(null);documentInputRef.current?.click();}
+                    }}
                     className={`order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40 xl:order-none xl:h-12 ${actionPanel==="documents"?"bg-primary-soft text-primary":""}`}>
                     <FileText size={20}/>
-                  </button>}
+                  </button>
                   <span aria-hidden="true" className="order-1 block h-0 basis-full xl:hidden"/>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
                     lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
