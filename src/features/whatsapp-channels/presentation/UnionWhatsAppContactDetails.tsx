@@ -151,6 +151,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,0);
   },[tab,sections,fetchPage]);
   const closeOnPointer=useCallback((event:ReactPointerEvent<HTMLButtonElement>)=>{
+    console.info("[contact-details trace] close pointer",event.button,event.type);
     if(event.button!==0)return;
     event.preventDefault();
     event.stopPropagation();
@@ -174,6 +175,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     // desmontava a camada antes do click, permitindo cliques fantasmas e
     // deixando os controles do atendimento inconsistentes.
     const onOutside=(event:MouseEvent)=>{
+      console.info("[contact-details trace] click capture",panelRootRef.current?.contains(event.target as Node),event.detail);
       if(event.button!==0 || !(event.target instanceof Node))return;
       if(panelRootRef.current?.contains(event.target))return;
       // Não deixar o clique atravessar para controles/menus por baixo após desmontar.
@@ -182,6 +184,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       onClose();
     };
     const onKey=(event:KeyboardEvent)=>{
+      console.info("[contact-details trace] key",event.key);
       if(event.key!=="Escape")return;
       event.preventDefault();
       event.stopPropagation();

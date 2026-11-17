@@ -495,6 +495,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [contactsOpen,setContactsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
+  useEffect(()=>console.info("[contact-details trace] state",contactDetailsOpen),[contactDetailsOpen]);
   useEffect(()=>setContactDetailsOpen(false),[selectedId]);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
@@ -2476,7 +2477,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             {contactDetailsOpen && <UnionWhatsAppContactDetails key={selected.id}
               conversation={selected} organizationId={activeOrganizationId||selected.organization_id}
               gender={linkedCustomers[selected.id]?.customer?.gender}
-              onClose={()=>setContactDetailsOpen(false)}
+              onClose={()=>{console.info("[contact-details trace] onClose");setContactDetailsOpen(false);}}
               onEdit={canAction("manage_contacts")?()=>{
                 setContactDetailsOpen(false);setEditContactId(selected.id);
               }:undefined}/>}
