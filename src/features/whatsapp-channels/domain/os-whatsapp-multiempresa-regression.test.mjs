@@ -132,3 +132,28 @@ test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada",
   assert.match(actions, /return <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">/);
   assert.doesNotMatch(actions, /style=\{inDialog \?/);
 });
+
+test("Em atendimento prioriza a conversa com a mensagem mais recente inclusive no realtime", () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(repository,/options.filter==="forwarded"\?"forwarded_at":"last_message_at"/);
+  assert.match(repository,/\.order\(sort,\{ascending:options.filter==="waiting",nullsFirst:false\}\)/);
+  assert.match(inbox,/const latestMessageFirst=/);
+  assert.match(inbox,/setConversations\(options.filter==="in_att"/);
+  assert.match(inbox,/payload.eventType==="INSERT"/);
+  assert.match(inbox,/row.direction==="incoming"/);
+  assert.match(inbox,/last_message_at:sentAt/);
+  assert.match(inbox,/updated.sort\(latestMessageFirst\)/);
+  assert.match(inbox,/const visible=filter==="in_att"/);
+  assert.match(inbox,/schedule\(threadId,true\)/);
+});
+
+test("O menu de documentos permanece no ^ e o atalho duplicado sai do compositor geral e do modal", () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  assert.match(modal,/<EmbeddedWhatsAppConversation/);
+  assert.match(inbox,/aria-label="Mais opções da conversa"/);
+  assert.match(inbox,/Enviar documento da OS/);
+  assert.match(inbox,/aria-label="Anexar imagem, áudio, vídeo ou arquivo"/);
+  assert.doesNotMatch(inbox,/documentInputRef|aria-label=\{onPrepareOrderDocument\?/);
+});
