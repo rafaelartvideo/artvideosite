@@ -19,6 +19,7 @@ const ERROR_BACKOFF=3*60_000;
 const MAX_ENTRIES=160;
 const MAX_CONCURRENT=3;
 const cache=new Map<string,Entry>();
+const genders=new Map<string,"M"|"F">();
 const pending=new Map<string,Promise<string|null>>();
 const watchers=new Map<string,Set<()=>void>>();
 const queue:Array<()=>void>=[];
@@ -30,6 +31,20 @@ export function sharedAvatarKey(identity:SharedAvatarIdentity):string{
 }
 function notify(key:string){
   watchers.get(key)?.forEach(callback=>callback());
+}
+export function peekSharedAvatarGender(key:string):"M"|"F"|null{
+  return genders.get(key)||null;
+}
+export function rememberSharedAvatarGender(key:string,value:string|null|undefined){
+  if(!key)return;
+  const gender=value==="M"||value==="F"?value:null;
+  if(!gender||genders.get(key)===gender)return;
+  genders.set(key,gender);
+  while(genders.size>MAX_ENTRIES){
+    const oldest=genders.keys().next().value;
+    if(oldest)genders.delete(oldest);
+  }
+  notify(key);
 }
 export function subscribeSharedAvatar(key:string,callback:()=>void):()=>void{
   if(!key)return ()=>{};
@@ -113,5 +128,6 @@ export function markSharedAvatarBroken(key:string,url:string){
 /** Chamado ao trocar de empresa ou sair da sessão; nenhuma foto passa entre empresas. */
 export function clearSharedAvatarCache(){
   cache.clear();
+  genders.clear();
   watchers.forEach(subscribers=>subscribers.forEach(callback=>callback()));
 }
