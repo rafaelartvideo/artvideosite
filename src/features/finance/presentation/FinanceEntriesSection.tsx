@@ -22,6 +22,7 @@ import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
+import { FinanceWarrantyReceivableSetup } from "./FinanceWarrantyReceivableSetup";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
 import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
@@ -55,6 +56,11 @@ function operationalTone(status?: string) { return ["overdue","cancelled"].inclu
 function sourceValue(entry: FinancialEntry, key: string) {
   const value = entry.source_details?.[key];
   return value == null ? "" : String(value).trim();
+}
+
+function warrantyNeedsDetails(entry: Pick<FinancialEntry,"source_details">) {
+  return entry.source_details?.billing_model === "partner_warranty"
+    && entry.source_details?.receivable_status === "pending_details";
 }
 
 function originText(entry: FinancialEntry) {
@@ -472,7 +478,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                 {canViewFinancialDocuments && <DropdownMenuItem onSelect={() => void openFinancialProof(entry)}><FileCheck2 size={15} /> Comprovante</DropdownMenuItem>}
-                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
+                {canSettle && (Number(entry.remaining_amount ?? entry.original_amount)>0.005 || warrantyNeedsDetails(entry)) && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
                  {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
             </div>
@@ -541,7 +547,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       preparingError={finance.detailQuery.isError ? systemErrorMessage(finance.detailQuery.error, "Não foi possível carregar o lançamento.") : null}
       onRetryPreparing={() => { void finance.detailQuery.refetch(); }}
       onClose={closeSelectedEntry}
-      title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      title={editingSelectedEntry ? "Editar lançamento" : settlementDialogOpen ? (finance.detailQuery.data && warrantyNeedsDetails(finance.detailQuery.data) ? "Preencher conta a receber da garantia" : isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={editingSelectedEntry ? (editing?.description || "Atualizar dados financeiros") : settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className={settlementDialogOpen || editingSelectedEntry
@@ -555,7 +561,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
         {finance.detailQuery.data?.id === selectedEntryId && canSettle
           && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
-          && finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001)
+          && (warrantyNeedsDetails(finance.detailQuery.data) || finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001))
           && <AdminButton onClick={() => openSettlement()}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
@@ -576,7 +582,17 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             onSave={save}
           />
         : settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
-        ? <FinanceSettlementDialog
+        ? warrantyNeedsDetails(finance.detailQuery.data)
+          ? <FinanceWarrantyReceivableSetup
+              key={selectedEntryId}
+              organizationId={finance.organizationId}
+              entryId={selectedEntryId}
+              onClose={()=>setSettlementDialogOpen(false)}
+              onPrepared={async()=>{
+                await Promise.all([finance.detailQuery.refetch(),finance.entriesQuery.refetch()]);
+                notifyAdmin("Dados da garantia salvos. Confira e confirme a baixa financeira.", "success");
+              }}/>
+          : <FinanceSettlementDialog
           open={settlementDialogOpen}
           detail={finance.detailQuery.data}
           accounts={accounts}
