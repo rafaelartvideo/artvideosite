@@ -752,6 +752,46 @@ export function UnionWhatsAppContactsDialog({
               <p><span className="text-muted-foreground">Nome público do WhatsApp: </span>{selected.profile_name||"Não disponibilizado"}</p>
               <p className="text-muted-foreground">O nome salvo na Union tem prioridade. A importação não o sobrescreve.</p>
             </div>}
+            {!creating && selected && canReadCrm && <section aria-label="Dados do cliente vinculado no CRM"
+              className="space-y-2 rounded-lg border border-border p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-bold">Dados do CRM</h3>
+                {crmData?.customer&&<a href={adminPath("customers",crmData.customer.id,"customer")}
+                  target="_blank" rel="noopener noreferrer"
+                  className="font-semibold text-primary hover:underline">Abrir cadastro</a>}
+              </div>
+              {crmLoading?<p role="status" className="flex items-center gap-2 text-muted-foreground">
+                <LoaderCircle size={14} className="animate-spin"/> Consultando vínculo com o CRM...
+              </p>:crmData?.customer ? <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
+                  <p><span className="text-muted-foreground">Cliente: </span><strong>{crmData.customer.name}</strong></p>
+                  <p><span className="text-muted-foreground">CPF/CNPJ: </span>{crmData.customer.cnpj||crmData.customer.document||"Não informado"}</p>
+                  <p><span className="text-muted-foreground">WhatsApp: </span>{crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"}</p>
+                  <p><span className="text-muted-foreground">E-mail: </span>{crmData.customer.email||"Não informado"}</p>
+                </div>
+                <div className="border-t border-border pt-2">
+                  <p className="font-semibold">Equipamentos</p>
+                  {!crmData.equipments?.length?<p className="mt-1 text-muted-foreground">Nenhum equipamento encontrado.</p>:
+                    <div className="mt-1 space-y-1">{crmData.equipments.map(equipment=>
+                      <p key={equipment.id} className="truncate">
+                        {[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name]
+                          .filter(Boolean).join(" · ")||"Equipamento sem descrição"}
+                      </p>)}</div>}
+                </div>
+                {canReadOrders&&<div className="border-t border-border pt-2">
+                  <p className="font-semibold">OS recentes</p>
+                  {!crmData.crm_orders?.length?<p className="mt-1 text-muted-foreground">Nenhuma OS encontrada.</p>:
+                    <div className="mt-1 flex flex-wrap gap-2">{crmData.crm_orders.map(order=>
+                      <a key={order.id} href={adminPath("orders",order.id)} target="_blank"
+                        rel="noopener noreferrer" className="font-semibold text-primary hover:underline">
+                        OS {order.os_number}
+                      </a>)}</div>}
+                </div>}
+              </div>:
+                <p className="text-muted-foreground">{crmData?.ambiguous?
+                  "Mais de um cliente do CRM usa este número. Revise os cadastros antes de vincular.":
+                  "Nenhum cliente do CRM encontrado para este número."}</p>}
+            </section>}
             <div className="flex flex-wrap gap-2">
               {canEdit && <AdminButton disabled={busy || name.trim().length<2} onClick={()=>void save()}>
                 <Pencil size={15}/> {busy?"Salvando...":"Salvar contato"}
