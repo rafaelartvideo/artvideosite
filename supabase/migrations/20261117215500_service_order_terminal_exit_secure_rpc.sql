@@ -232,10 +232,16 @@ begin
  end if;
 
  select coalesce(jsonb_agg(jsonb_build_object(
-  'inventory_item_id',inventory_item_id,'quantity_outstanding',quantity_outstanding,
-  'quantity_restored',quantity_restored,'decision',decision,'movement_id',movement_id
- ) order by inventory_item_id),'[]'::jsonb)
- into v_stock_snapshot from public.service_order_terminal_stock_lines where closure_id=v_closure_id;
+  'inventory_item_id',stock.inventory_item_id,'name',product.name,'sku',product.sku,
+  'quantity_outstanding',stock.quantity_outstanding,
+  'quantity_restored',stock.quantity_restored,'decision',stock.decision,
+  'movement_id',stock.movement_id
+ ) order by product.name),'[]'::jsonb)
+ into v_stock_snapshot
+ from public.service_order_terminal_stock_lines stock
+ join public.inventory_items product on product.id=stock.inventory_item_id
+   and product.organization_id=stock.organization_id
+ where stock.closure_id=v_closure_id;
  update public.service_order_terminal_closures
  set stock_snapshot=v_stock_snapshot where id=v_closure_id;
 
