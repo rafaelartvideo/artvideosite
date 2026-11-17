@@ -56,7 +56,7 @@ export function UnionWhatsAppContactsDialog({
   const [groupRevision,setGroupRevision]=useState(0);
   const [crmLoading,setCrmLoading]=useState(false);
   const [crmData,setCrmData]=useState<{
-    customer?:{id:string;name:string;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null}|null;
+    customer?:{id:string;name:string;gender?:string|null;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null}|null;
     equipments?:Array<{id:string;equipment_type_name?:string|null;equipment_brand_name?:string|null;equipment_model_name?:string|null}>;
     crm_orders?:Array<{id:string;os_number:string;created_at:string}>;
     ambiguous?:boolean;
