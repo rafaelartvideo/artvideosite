@@ -1298,6 +1298,114 @@ Deno.serve(async request => {
         .eq("chat_jid",jid).limit(1);
       if(matchError)throw matchError;
       const previouslyKnown=knownThreads?.[0];
+      // Envio inicial confirmado: não criar/reabrir protocolo por abrir a OS,
+      // nem por apenas escolher "Iniciar conversa". O primeiro protocolo nasce
+      // somente depois de a ponte confirmar uma mensagem real.
+      const firstMessage=typeof body.first_message==="string" ? body.first_message.trim() : null;
+      if(firstMessage!==null){
+        if(!allowed("send") || !permissions.has("whatsapp.inbox.send"))
+          return json({success:false,error:"Seu perfil não permite enviar mensagens."},403);
+        const clientId=String(body.client_message_id||"");
+        if(!firstMessage || firstMessage.length>3900 || !uuid(clientId))
+          return json({success:false,error:"Informe uma primeira mensagem válida."},400);
+        if(previouslyKnown?.status==="in_att" && previouslyKnown.assigned_to!==actorId)
+          return json({success:false,error:"Este cliente já está em atendimento com outro funcionário."},409);
+
+        const {data:firstProfile}=await admin.from("profiles")
+          .select("full_name").eq("id",actorId).maybeSingle();
+        const rawFirstName=String(firstProfile?.full_name||"").trim().split(/\\s+/)[0]
+          .replace(/[*_~`\\r\\n]/g,"");
+        const senderName=rawFirstName
+          ? rawFirstName[0].toLocaleUpperCase("pt-BR")+rawFirstName.slice(1) : null;
+        const outbound=senderName ? `*${senderName}*\\n\\n${firstMessage}` : firstMessage;
+        if(outbound.length>4000)
+          return json({success:false,error:"A mensagem excede o limite de caracteres."},400);
+
+        // O callback WuzAPI pode chegar antes desta requisição. O retorno
+        // confirmado é a única autorização para materializar o protocolo.
+        let providerId="";
+        try {
+          providerId=await signedBridge(
+            {id:channel.id,organization_id:org},outbound,jid,clientId,
+          );
+        }catch{
+          return json({success:false,code:"delivery_unknown",
+            error:"O envio não foi confirmado. Confira o WhatsApp antes de tentar novamente."},502);
+        }
+        const now=new Date().toISOString();
+        let conversationId=previouslyKnown?.id||"";
+        let previousState=previouslyKnown?.status||"";
+        if(!conversationId){
+          const {data:created,error:createError}=await admin.from("union_whatsapp_conversations")
+            .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
+              contact_name:preferredName,contact_phone:phone,status:"in_att",assigned_to:actorId,
+            },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true})
+            .select("id").maybeSingle();
+          if(createError)throw createError;
+          conversationId=created?.id||"";
+        }
+        if(!conversationId){
+          const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
+            .select("id,status,assigned_to").eq("organization_id",org)
+            .eq("channel_id",channel.id).eq("account_phone",channel.phone)
+            .eq("chat_jid",jid).single();
+          if(existingError||!existing)throw existingError||Error("conversation_not_found");
+          if(existing.status==="in_att" && existing.assigned_to!==actorId)
+            return json({success:false,code:"delivery_confirmed",
+              error:"Mensagem enviada, mas outra pessoa assumiu o atendimento. Confira o histórico."},409);
+          conversationId=existing.id;
+          previousState=existing.status;
+        }
+        if(previousState && previousState!=="in_att"){
+          const {data:claimed,error:claimError}=await admin.from("union_whatsapp_conversations")
+            .update({status:"in_att",assigned_to:actorId,updated_at:now})
+            .eq("organization_id",org).eq("id",conversationId).eq("status",previousState)
+            .select("id").maybeSingle();
+          if(claimError)throw claimError;
+          if(!claimed) return json({success:false,code:"delivery_confirmed",
+            error:"Mensagem enviada, mas a conversa mudou de responsável. Confira o histórico."},409);
+        }
+        const {data:activeProtocol,error:protocolError}=await admin.from("union_whatsapp_protocols")
+          .select("id").eq("organization_id",org).eq("conversation_id",conversationId)
+          .is("closed_at",null).maybeSingle();
+        if(protocolError||!activeProtocol)throw protocolError||Error("first_message_protocol_missing");
+
+        // O webhook pode ter gravado o eco antes de o protocolo ser ativado;
+        // deduplicar pelo ID do provedor e associar o eco ao protocolo atual.
+        const {data:echo,error:echoError}=await admin.from("union_whatsapp_messages")
+          .select("id,protocol_id").eq("organization_id",org)
+          .eq("channel_id",channel.id).eq("account_phone",channel.phone)
+          .eq("provider_message_id",providerId).maybeSingle();
+        if(echoError)throw echoError;
+        if(echo){
+          const {error:updateError}=await admin.from("union_whatsapp_messages")
+            .update({protocol_id:activeProtocol.id,body_text:outbound,
+              sender_name:senderName,origin:"union",delivery_status:"sent"})
+            .eq("organization_id",org).eq("id",echo.id).eq("conversation_id",conversationId);
+          if(updateError)throw updateError;
+        }else{
+          const {error:messageError}=await admin.from("union_whatsapp_messages")
+            .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,
+              conversation_id:conversationId,provider_message_id:providerId,
+              direction:"outgoing",message_type:"text",body_text:outbound,
+              sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+            },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true});
+          if(messageError)throw messageError;
+        }
+        const {error:previewError}=await admin.from("union_whatsapp_conversations")
+          .update({last_message:outbound,last_message_at:now,updated_at:now})
+          .eq("organization_id",org).eq("id",conversationId);
+        if(previewError)throw previewError;
+        try {await persistManualName();}catch(error){
+          console.warn("union-whatsapp-inbox: first_message_name_sync_failed",String(error));
+        }
+        if(!previouslyKnown || previousState!=="in_att")
+          await admin.from("union_whatsapp_handoffs").insert({
+            organization_id:org,conversation_id:conversationId,actor_id:actorId,action:"start",
+          });
+        return json({success:true,conversation_id:conversationId,
+          provider_message_id:providerId,first_message_sent:true});
+      }
       const {data:created,error:createError}=previouslyKnown ? {data:null,error:null} :
         await admin.from("union_whatsapp_conversations")
         .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
