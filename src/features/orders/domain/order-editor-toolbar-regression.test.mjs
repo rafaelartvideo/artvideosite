@@ -96,12 +96,12 @@ test("endereço reaparece nas OS normais e retorno continua com motivo informado
   for (const [name, source] of [["OrderDetailsContent.tsx", details], ["OrderReturnDiagnosisGate.tsx", gate], ["OrderSolutionSummary.tsx", summary]]) {
     assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
   }
-  assert.match(details, /!isReturnOrder && hasPermission\("orders\.section\.address"\)/);
+  assert.match(details, /!isReturnOrder && !isDisposal && hasPermission\("orders\.section\.address"\)/);
   assert.match(details, /<Section title="Dados de endereço">/);
   assert.match(details, /const isReturnOrder = Boolean\(detail\.return_root_id\)/);
   assert.match(details, /detail\.return_reason \|\| detail\.customer_notes/);
   assert.match(details, /isReturnOrder \? "Motivo do retorno" : "Descrição do problema"/);
-  assert.match(details, /!isReturnOrder && hasPermission\("orders\.section\.service_location"\)/);
+  assert.match(details, /!isReturnOrder && !isDisposal && hasPermission\("orders\.section\.service_location"\)/);
   assert.match(gate, /Motivo do retorno: <span/);
   assert.doesNotMatch(summary, /Descrição do problema/);
   assert.match(details, /<Section title="Local do atendimento">/);
