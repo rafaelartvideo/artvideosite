@@ -138,7 +138,7 @@ test("Em atendimento prioriza a conversa com a mensagem mais recente inclusive n
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
   assert.match(repository,/options.filter==="forwarded"\?"forwarded_at":"last_message_at"/);
-  assert.match(repository,/\.order\(sort,\{ascending:options.filter==="waiting",nullsFirst:false\}\)/);
+  assert.match(repository,/\.order\(sort,\{ascending:options.filter==="waiting" && !options.sortByRecent,nullsFirst:false\}\)/);
   assert.match(inbox,/const latestMessageFirst=/);
   assert.match(inbox,/setConversations\(options.filter==="in_att"/);
   assert.match(inbox,/payload.eventType==="INSERT"/);
