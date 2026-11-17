@@ -201,7 +201,7 @@ html[data-admin-theme="dark"] {
 	--foreground: #e8edf5;
 	--secondary: #172136;
 	--secondary-foreground: #e8edf5;
-	--input: rgba(226, 232, 240, 0.18);
+	--input: rgba(180, 196, 222, 0.26);
 	--input-background: #131d2f;
 	--switch-background: #526178;
 	--popover: #111827;
@@ -210,7 +210,7 @@ html[data-admin-theme="dark"] {
 	--card-foreground: #e8edf5;
 	--muted: #172136;
 	--muted-foreground: #9aa8bb;
-	--border: rgba(226, 232, 240, 0.12);
+	--border: rgba(180, 196, 222, 0.28);
 	--primary: #0131cd;
 	--primary-hover: #1642e2;
 	--primary-active: #3158eb;
@@ -243,8 +243,8 @@ html[data-admin-theme="dark"] {
 	--secondary-foreground: #e8edf5;
 	--muted: #172136;
 	--muted-foreground: #9aa8bb;
-	--border: rgba(226, 232, 240, 0.12);
-	--input: rgba(226, 232, 240, 0.14);
+	--border: rgba(180, 196, 222, 0.28);
+	--input: rgba(180, 196, 222, 0.24);
 	--input-background: #131d2f;
 	--switch-background: #526178;
 	--primary: #0131cd;
@@ -961,6 +961,45 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   background-color: var(--primary-soft-strong);
   color: var(--primary);
 }
+
+/* Contraste acessível no tema escuro para TODAS as ações de editar,
+   incluindo telas legadas com botões nativos sem AdminIconButton. */
+.admin-crm.dark button:is([aria-label^="Editar"], [title^="Editar"]):has(svg),
+.dark .admin-crm button:is([aria-label^="Editar"], [title^="Editar"]):has(svg) {
+  border-color: rgba(154, 170, 255, 0.55);
+  background-color: rgba(93, 115, 239, 0.20);
+  color: #bac6ff;
+}
+.admin-crm.dark button:is([aria-label^="Editar"], [title^="Editar"]):has(svg):hover,
+.dark .admin-crm button:is([aria-label^="Editar"], [title^="Editar"]):has(svg):hover {
+  border-color: rgba(174, 187, 255, 0.8);
+  background-color: rgba(93, 115, 239, 0.30);
+  color: #e1e6ff;
+}
+
+/* Botões secundários do design system: borda legível em fundos escuros,
+   sem modificar botões preenchidos, indicadores ou estados semânticos. */
+.admin-crm.dark [data-admin-button-variant="secondary"],
+.dark .admin-crm [data-admin-button-variant="secondary"],
+.admin-crm.dark [data-admin-icon-button-variant="secondary"],
+.dark .admin-crm [data-admin-icon-button-variant="secondary"] {
+  border-color: rgba(180, 196, 222, 0.36);
+  background-color: #172238;
+  color: #edf2fa;
+}
+.admin-crm.dark [data-admin-button-variant="secondary"]:hover:not(:disabled),
+.dark .admin-crm [data-admin-button-variant="secondary"]:hover:not(:disabled),
+.admin-crm.dark [data-admin-icon-button-variant="secondary"]:hover:not(:disabled),
+.dark .admin-crm [data-admin-icon-button-variant="secondary"]:hover:not(:disabled) {
+  border-color: rgba(180, 196, 222, 0.55);
+  background-color: #23314b;
+}
+.admin-crm.dark :is([data-admin-button-variant="secondary"],[data-admin-button-variant="tertiary"],[data-admin-icon-button-variant="secondary"]):focus-visible,
+.dark .admin-crm :is([data-admin-button-variant="secondary"],[data-admin-button-variant="tertiary"],[data-admin-icon-button-variant="secondary"]):focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
 
 /* Ação azul suave compartilhada: Detalhes da OS e Meus horários da Agenda. */
 .admin-crm .admin-action-blue-outline {
