@@ -285,6 +285,10 @@ test("Mini conversa fica estável e reutiliza fotos sem consulta em cada mudanç
   const panel=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
   assert.match(provider,/const modalContext=useMemo\(\(\)=>conversationId && activeOrganizationId/);
   assert.match(provider,/context=\{modalContext\}/);
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  assert.match(modal,/const sourceKey = source.kind==="conversation"/);
+  assert.match(modal,/phone, sourceKey, activeOrganizationId, canViewInbox/);
+  assert.doesNotMatch(modal,/phone, source, activeOrganizationId, canViewInbox/);
   assert.match(provider,/hidden=\{Boolean\(conversationId\)\}/);
   assert.match(panel,/hidden\?"invisible pointer-events-none "/);
   assert.match(provider,/const avatarRequestsRef=useRef\(new Set<string>\(\)\)/);
