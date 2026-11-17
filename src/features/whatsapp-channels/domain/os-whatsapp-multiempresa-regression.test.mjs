@@ -60,7 +60,7 @@ test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encer
   assert.match(modal, /onEmbeddedReady=\{setEmbeddedReady\}/);
   assert.match(modal, /Carregando atendimento\.\.\./);
   assert.match(inbox, /embedded && !protocolFilter && selected\.status === "finished" && canAction\("start"\)/);
-  assert.match(inbox, /"Iniciar conversa"/);
+  assert.match(inbox, /onClick=\{startNewProtocol\}>Iniciar conversa/);
   assert.match(inbox, /!embedded && !protocolFilter && selected\.status === "finished" && canAction\("reopen"\)/);
   assert.match(inbox, /embedded && selected\.status==="finished" \? " · Histórico completo"/);
   assert.match(inbox, /setProtocolFilter\(null\)/);
