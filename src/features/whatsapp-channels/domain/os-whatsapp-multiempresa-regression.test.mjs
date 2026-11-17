@@ -297,3 +297,30 @@ test("Mini conversa fica estável e reutiliza fotos sem consulta em cada mudanç
   assert.match(provider,/operateUnionWhatsAppInbox\(organizationId,item\.id,"contact_avatar"\)/);
   assert.doesNotMatch(provider,/setInterval\(/);
 });
+
+test("Filtro por operador do gestor usa paginação no banco e permissões do canal", () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+
+  // Apenas gestores com view_all podem consultar operadores e filtrar.
+  assert.match(inbox, /canManage && filter==="in_att" && <select aria-label="Filtrar operador"/);
+  assert.match(inbox, /"operator_filter_list"/);
+  assert.match(inbox, /operator:filter==="in_att" && canManage \? operatorFilter : "all"/);
+  assert.match(inbox, /\[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount/);
+  assert.match(edge, /operator_filter_list:"view_all"/);
+  assert.match(edge, /action==="operator_filter_list"/);
+  assert.match(edge, /item\.is_active && item\.eligible && item\.can_attend/);
+
+  // O filtro precisa chegar ao PostgREST antes do order/range, não cortar
+  // os itens da página já recebida do banco.
+  const operatorFilter=repository.indexOf('query=query.eq("assigned_to",options.operator)');
+  const pagination=repository.indexOf('.range(page*pageSize,(page+1)*pageSize)');
+  assert.ok(operatorFilter>0 && pagination>operatorFilter);
+  assert.match(repository, /options\.filter==="in_att" && options\.canViewAll && options\.operator/);
+  assert.match(inbox, /setConversationPage\(0\);setOperatorFilter\(event\.target\.value\)/);
+
+  // Departamento continua combinável; troca de empresa limpa o filtro.
+  assert.match(inbox, /setDepartmentFilter\("all"\);\s*setOperatorFilter\("all"\)/);
+  assert.match(repository, /query=query.eq\("department_id",options.department\)/);
+});
