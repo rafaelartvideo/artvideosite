@@ -2391,9 +2391,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
-                  {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
-                    onClick={()=>void showOrders()} disabled={savingOrder}
-                    className="shrink-0 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
+                  {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <AdminButton
+                    variant="secondary" size="sm" title="Vincular OS deste cliente"
+                    onClick={()=>void showOrders()} disabled={savingOrder}>
+                    Vincular OS
+                  </AdminButton>}
                   
                   {canAction("transfer") && <AdminButton variant="tertiary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
