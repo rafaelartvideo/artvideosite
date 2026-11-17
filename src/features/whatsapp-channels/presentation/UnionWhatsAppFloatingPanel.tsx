@@ -134,7 +134,7 @@ export function UnionWhatsAppFloatingPanel({
   const hasAlert=Boolean(alert)&&!expanded;
   return <>
     {hasAlert&&alert&&<div role="status" aria-live="polite"
-      className="admin-crm fixed bottom-[calc(11.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[106] flex max-w-[min(360px,calc(100vw-2rem))] items-start gap-2 rounded-xl border border-primary/30 bg-card p-3 text-foreground shadow-xl">
+      className="admin-crm fixed bottom-[calc(11.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[104] flex max-w-[min(360px,calc(100vw-2rem))] items-start gap-2 rounded-xl border border-primary/30 bg-card p-3 text-foreground shadow-xl">
       <button type="button" onClick={()=>onSelect(alert.id)}
         className="min-w-0 flex-1 text-left">
         <p className="truncate text-xs font-bold text-primary">{alert.name}</p>
@@ -146,7 +146,7 @@ export function UnionWhatsAppFloatingPanel({
     <section ref={nodeRef} role="region" aria-label="Mini-Atendimentos Union"
       data-whatsapp-floating="true" data-whatsapp-expanded={expanded?"true":"false"}
       style={style}
-      className={"admin-crm fixed z-[105] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] " +
+      className={"admin-crm fixed z-[104] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] " +
         (expanded?"w-[min(420px,calc(100vw-1rem))]":"w-[min(320px,calc(100vw-1rem))]")}>
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-2">
         <div role="button" tabIndex={0}
