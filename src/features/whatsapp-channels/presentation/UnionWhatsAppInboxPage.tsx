@@ -456,8 +456,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [departmentFilter,setDepartmentFilter] = useState("all");
   const [operatorFilter,setOperatorFilter] = useState("all");
   const [operatorChoices,setOperatorChoices] = useState<Array<{id:string;name:string}>>([]);
+  const [operatorCounts,setOperatorCounts]=useState<Record<string,number>>({});
   const [operatorChoicesLoading,setOperatorChoicesLoading] = useState(false);
-  const operatorChoicesCacheRef=useRef<{organizationId:string;loadedAt:number}|null>(null);
+  const operatorChoicesCacheRef=useRef<{scope:string;loadedAt:number}|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [orderSearch,setOrderSearch]=useState("");
   const [ordersLoading,setOrdersLoading]=useState(false);
@@ -778,25 +779,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(()=>{
     if(embedded || !supportsOperatorFilter(filter) || !canManage || !activeOrganizationId ||
        channelReady!==true)return;
+    const scope=[activeOrganizationId,activeChannelId,activeChannelPhone,filter,departmentFilter].join(":");
     const cache=operatorChoicesCacheRef.current;
-    if(cache?.organizationId===activeOrganizationId &&
-       Date.now()-cache.loadedAt<120000)return;
+    if(cache?.scope===scope && Date.now()-cache.loadedAt<120000)return;
     let cancelled=false;
     const org=activeOrganizationId;
     setOperatorChoicesLoading(true);
-    void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"operator_filter_list")
-      .then(result=>{
+    setOperatorCounts({});
+    void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"operator_filter_list",{
+      filter:filter as "in_att"|"finished"|"forwarded",channel_id:activeChannelId||"",
+      account_phone:activeChannelPhone||"",department_filter:departmentFilter,
+    }).then(result=>{
         if(cancelled || organizationRef.current!==org)return;
         const options=(result.operators||[]).map(item=>({id:item.id,name:item.name}));
         setOperatorChoices(options);
-        operatorChoicesCacheRef.current={organizationId:org,loadedAt:Date.now()};
+        setOperatorCounts(result.operator_counts||{});
+        operatorChoicesCacheRef.current={scope,loadedAt:Date.now()};
       })
       .catch(error=>{
         if(!cancelled)reportError(systemErrorMessage(error,"Não foi possível consultar os operadores."));
       })
       .finally(()=>{if(!cancelled)setOperatorChoicesLoading(false);});
     return()=>{cancelled=true;};
-  },[embedded,filter,canManage,activeOrganizationId,channelReady,reportError]);
+  },[embedded,filter,departmentFilter,canManage,activeOrganizationId,activeChannelId,
+     activeChannelPhone,channelReady,reportError]);
 
   // Mudanças de aba, departamento, operador ou pesquisa buscam diretamente uma página
   // nova no servidor, sem remontar toda a interface nem recarregar canais.
@@ -2209,7 +2215,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 onChange={event=>{setSelectedId(null);setConversationPage(0);setOperatorFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary disabled:opacity-60">
                 <option value="all">{operatorChoicesLoading && operatorChoices.length===0 ? "Carregando operadores..." : "Todos os operadores"}</option>
-                {operatorChoices.map(person=><option key={person.id} value={person.id}>{person.name}</option>)}
+                {operatorChoices.map(person=><option key={person.id} value={person.id}
+                  title={person.name}>{person.name.trim().split(/\s+/)[0]||"Operador"} ({operatorCounts[person.id]||0})</option>)}
               </select>}
             </div>
             <div className="relative mt-3">
