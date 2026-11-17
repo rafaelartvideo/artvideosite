@@ -157,3 +157,52 @@ test("O menu de documentos permanece no ^ e o atalho duplicado sai do compositor
   assert.match(inbox,/aria-label="Anexar imagem, áudio, vídeo ou arquivo"/);
   assert.doesNotMatch(inbox,/documentInputRef|aria-label=\{onPrepareOrderDocument\?/);
 });
+
+test("Mini-Atendimentos persiste fora das rotas e reutiliza o canal do CRM",()=>{
+  const admin=read("src/app/Admin.tsx");
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const floating=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(admin,/<UnionWhatsAppActivityProvider/);
+  assert.match(admin,/enabled=\{canAccessWhatsAppTool\}/);
+  assert.match(admin,/isPageOpen=\{activeTab === "tools" && route.resourceId === "union-whatsapp"\}/);
+  assert.match(admin,/onOpenFull=\{\(\) => navigateAdmin\("tools", "union-whatsapp"\)\}/);
+  assert.match(provider,/supabase.channel\("union-whatsapp-activity:"/);
+  assert.equal((provider.match(/\.subscribe\(status=>/g)||[]).length,1);
+  assert.match(provider,/listenersRef\.current\.forEach\(listener=>listener\(event\)\)/);
+  assert.match(inbox,/stopShared=sharedActivity.subscribe/);
+  assert.match(inbox,/if\(realtime\)void supabase.removeChannel\(realtime\)/);
+  assert.match(inbox,/if\(sharedActivity && !embedded && !sharedActivity.isPageOpen\)return/);
+  assert.match(floating,/data-whatsapp-floating="true"/);
+  assert.match(floating,/data-whatsapp-expanded=\{expanded\?"true":"false"\}/);
+  assert.match(floating,/snapToEdge/);
+  assert.match(floating,/Restaurar posição do mini-Atendimentos/);
+  assert.match(floating,/onSelect\(item.id\)/);
+  assert.match(provider,/<ConversationModal/);
+});
+
+test("Alertas WhatsApp são limitados por empresa, operador e atividade recente",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  assert.match(provider,/row.organization_id===organizationId&&row.channel_id===channelId/);
+  assert.match(provider,/row.account_phone===channelPhone/);
+  assert.match(provider,/row.direction==="incoming"/);
+  assert.match(provider,/notifiedRef.current.has\(incoming.messageId\)/);
+  assert.match(provider,/row.status==="waiting"\|\|row.assigned_to===userId/);
+  assert.match(provider,/pageOpenRef.current\|\|expandedRef.current\|\|document.visibilityState!=="visible"/);
+  assert.match(provider,/setTimeout\(\(\)=>setAlert/);
+  assert.match(provider,/document.visibilityState!=="visible"/);
+});
+
+test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídia",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(repo,/pageSize\?:number/);
+  assert.match(repo,/Math\.min\(INBOX_PAGE_SIZE,Math.max\(1,Math.floor\(options.pageSize\)\)\)/);
+  assert.match(provider,/page:0,pageSize:8/);
+  assert.match(provider,/now-lastCountsRef.current<8_000/);
+  assert.match(provider,/lastCountsRef.current>120_000/);
+  assert.match(provider,/setTimeout\(\(\)=>\{[\s\S]*?\},1_200\)/);
+  assert.match(provider,/void supabase.removeChannel\(realtime\)/);
+  assert.doesNotMatch(provider,/setInterval\(/);
+  assert.doesNotMatch(provider,/listUnionWhatsAppMessages|contact_avatar|media_view/);
+});
