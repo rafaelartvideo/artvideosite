@@ -2310,7 +2310,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                         {canReply && <button type="button" aria-label="Responder mensagem" title="Responder"
                           onClick={()=>startReplyTo(entry.message)}
-                          className="mr-1 inline-flex min-h-6 items-center gap-1 rounded-md border border-slate-700 bg-slate-700 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white transition-colors hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white">
+                          className="mr-1 inline-flex min-h-6 items-center gap-1 rounded px-0.5 py-0.5 text-[10px] font-semibold leading-none text-primary underline-offset-2 transition-colors hover:underline hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">
                           <Reply size={13} aria-hidden="true"/><span>Responder</span>
                         </button>}
                         {clock(entry.message.sent_at)}
