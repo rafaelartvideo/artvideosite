@@ -127,7 +127,8 @@ test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada",
   assert.match(dialog, /footerClassName/);
   assert.match(editor, /modal showOverlay=\{false\}/);
   assert.match(editor, /!overflow-y-auto !overscroll-contain !p-0/);
-  assert.match(editor, /footerClassName="!border-t-0/);
+  assert.match(editor, /footerClassName="!border-t !border-border/);
+  assert.match(dialog, /<GripHorizontal size=\{17\}/);
   assert.match(actions, /if \(inDialog\) return <div/);
   assert.match(actions, /return <AdminStickyToolbar className="!justify-between gap-2 sm:gap-3">/);
   assert.doesNotMatch(actions, /style=\{inDialog \?/);
@@ -250,4 +251,40 @@ test("Dados do CRM do contato são consultados somente após seleção e com per
   assert.match(dialog,/if\(tab!=="contacts"\|\|!selected\|\|creating\|\|!canReadCrm\)/);
   assert.match(dialog,/"contacts_crm_match",\{chat_jid:selected\.chat_jid\}/);
   assert.match(dialog,/aria-label="Dados do cliente vinculado no CRM"/);
+});
+
+test("Mini-Atendimentos mantém o canto inferior, a altura e a lista em cache ao trocar abas",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const panel=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(panel,/bottom:"calc\(1rem \+ env\(safe-area-inset-bottom,0px\)\)"/);
+  assert.match(panel,/h-\[min\(555px,calc\(100dvh-2rem\)\)\]/);
+  assert.match(panel,/aria-label="Carregando conversas"/);
+  assert.match(panel,/Array\.from\(\{length:6\}/);
+  assert.match(panel,/waitingLabel\(minutes\)/);
+  assert.match(panel,/waitingClasses\(minutes\)/);
+  assert.match(panel,/border-l-emerald-500\/70 bg-emerald-500\/10/);
+  assert.match(panel,/WhatsAppContactAvatar/);
+  assert.match(provider,/const \[lists,setLists\]=useState<Record<Filter,MiniList>>\(emptyLists\)/);
+  assert.match(provider,/const MINI_LIST_TTL=45_000/);
+  assert.match(provider,/const MINI_LIST_EVENT_THROTTLE=6_000/);
+  assert.match(provider,/refreshLists\(\["in_att","waiting"\]\)/);
+  assert.match(provider,/page:0,pageSize:8,sortByRecent:true/);
+  assert.doesNotMatch(provider,/setRows\(\[\]\)/);
+  assert.match(repository,/sortByRecent\?:boolean/);
+  assert.match(repository,/options\.filter==="waiting" && !options\.sortByRecent/);
+});
+
+test("Mini conversa fica estável e reutiliza fotos sem consulta em cada mudança de aba",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const panel=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  assert.match(provider,/const modalContext=useMemo\(\(\)=>conversationId && activeOrganizationId/);
+  assert.match(provider,/context=\{modalContext\}/);
+  assert.match(provider,/hidden=\{Boolean\(conversationId\)\}/);
+  assert.match(panel,/hidden\?"invisible pointer-events-none "/);
+  assert.match(provider,/const avatarRequestsRef=useRef\(new Set<string>\(\)\)/);
+  assert.match(provider,/const avatarCheckedAtRef=useRef\(new Map<string,number>\(\)\)/);
+  assert.match(provider,/candidates=\[\.\.\.lists\.in_att\.items\.slice\(0,6\),\.\.\.lists\.waiting\.items\.slice\(0,6\)\]/);
+  assert.match(provider,/operateUnionWhatsAppInbox\(organizationId,item\.id,"contact_avatar"\)/);
+  assert.doesNotMatch(provider,/setInterval\(/);
 });
