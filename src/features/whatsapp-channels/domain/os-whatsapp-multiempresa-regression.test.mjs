@@ -310,6 +310,11 @@ test("Filtro por operador do gestor usa paginação no banco e permissões do ca
   assert.match(inbox, /\[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount/);
   assert.match(edge, /operator_filter_list:"view_all"/);
   assert.match(edge, /action==="operator_filter_list"/);
+  // A action precisa estar nas DUAS listas iniciais do validador:
+  // sem conversation_id e ações permitidas. Se só existir no handler,
+  // o servidor rejeita com HTTP 400 "Operação inválida" antes de executar.
+  const validation=edge.slice(edge.indexOf('if (!uuid(org) ||'),edge.indexOf('return json({success:false,error:"Operação inválida."},400);'));
+  assert.equal((validation.match(/"operator_filter_list"/g)||[]).length,2);
   assert.match(edge, /item\.is_active && item\.eligible && item\.can_attend/);
 
   // O filtro precisa chegar ao PostgREST antes do order/range, não cortar
@@ -319,6 +324,8 @@ test("Filtro por operador do gestor usa paginação no banco e permissões do ca
   assert.ok(operatorFilter>0 && pagination>operatorFilter);
   assert.match(repository, /options\.filter==="in_att" && options\.canViewAll && options\.operator/);
   assert.match(inbox, /setConversationPage\(0\);setOperatorFilter\(event\.target\.value\)/);
+  assert.match(inbox, /scopedConversations\.filter\(item=>item\.status==="in_att" && !hasForwarding\(item\)\)/);
+  assert.match(inbox, /scopedConversations\.filter\(queueOnly\)/);
 
   // Departamento continua combinável; troca de empresa limpa o filtro.
   assert.match(inbox, /setDepartmentFilter\("all"\);\s*setOperatorFilter\("all"\)/);
