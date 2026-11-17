@@ -694,7 +694,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Funcionários", value: employees.length, icon: Users, tone: "purple", hint: "vínculo ativo" },
         { label: "Fornecedores", value: suppliers.length, icon: Building2, tone: "amber", hint: "vínculo ativo" },
       ];
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("registration_trend"),right:widgetVisible("registration_recent"),restore:()=>widgetSettings.restore("registrations") }} metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "inventory") {
@@ -720,7 +720,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             {inventoryPurchasesQuery.isPending ? <AdminWorkspaceSkeleton rows={5} columns={6} /> : inventoryPurchasesQuery.isError ? <DashboardEmpty text="Não foi possível carregar as compras do período." /> : inventoryPurchaseSummary.bySupplier.length ? <CompactList>{inventoryPurchaseSummary.bySupplier.slice(0, 10).map((supplier, index) => <CompactRow key={`${supplier.name}-${index}`} title={supplier.name} subtitle={`${supplier.count} entrada${supplier.count === 1 ? "" : "s"}`} aside={<strong className="text-xs text-[#0d1b2e]">{formatCurrency(supplier.total)}</strong>} />)}</CompactList> : <DashboardEmpty text="Nenhuma compra registrada neste período." />}
           </DashboardPanel>
         : <DashboardPanel title="Maiores saldos" subtitle="Itens ativos com maior quantidade disponível" icon={Package} onOpen={() => open("inventory")}><CompactList>{topBalances.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className="text-xs font-black text-[#0057e7]">{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!topBalances.length && <DashboardEmpty text="Nenhum item ativo encontrado." />}</CompactList></DashboardPanel>;
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("inventory_top"),right:widgetVisible("inventory_low"),restore:()=>widgetSettings.restore("inventory") }} metrics={metrics} onMetricSelect={showMetric} left={purchasesPanel} right={<DashboardPanel title="Reposição necessária" subtitle="Itens zerados ou no mínimo" icon={AlertTriangle} onOpen={() => open("inventory")}><CompactList>{alerts.map(item => <CompactRow key={item.id} title={item.name} subtitle={item.sku ? `SKU ${item.sku}` : "Sem SKU"} aside={<span className={cn("text-xs font-black", Number(item.quantity || 0) <= 0 ? "text-red-600" : "text-amber-600")}>{Number(item.quantity || 0)} {item.unit || "un"}</span>} />)}{!alerts.length && <DashboardEmpty text="Nenhum item precisa de reposição." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "agenda") {
@@ -732,7 +732,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Retornos", value: returns, icon: RefreshCw, tone: "amber", hint: "nos próximos 7 dias" },
         { label: "A confirmar", value: awaiting, icon: AlertTriangle, tone: awaiting ? "amber" : "green", hint: "situação pendente" },
       ];
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Agenda por situação" subtitle={`Próximos ${periodDays} dias`} icon={Activity}><DashboardDonutChart data={groupByLabel(data.appointments, appointment => relationLabel(appointment.situation, "Sem situação"))} /></DashboardPanel>} right={<DashboardPanel title="Próximos atendimentos" subtitle="Agenda em ordem cronológica" icon={CalendarDays} onOpen={() => open("agenda")}><AppointmentsList appointments={data.appointments.slice(0, 10)} /></DashboardPanel>} />;
+      return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("agenda_situation"),right:widgetVisible("agenda_next"),restore:()=>widgetSettings.restore("agenda") }} metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Agenda por situação" subtitle={`Próximos ${periodDays} dias`} icon={Activity}><DashboardDonutChart data={groupByLabel(data.appointments, appointment => relationLabel(appointment.situation, "Sem situação"))} /></DashboardPanel>} right={<DashboardPanel title="Próximos atendimentos" subtitle="Agenda em ordem cronológica" icon={CalendarDays} onOpen={() => open("agenda")}><AppointmentsList appointments={data.appointments.slice(0, 10)} /></DashboardPanel>} />;
     }
 
     if (activeModule === "quotes") {
@@ -745,7 +745,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Em análise", value: analysis, icon: Activity, tone: "purple", hint: "sendo avaliadas" },
         { label: "Convertidos em OS", value: converted, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
       ];
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Orçamentos por status" subtitle="Distribuição das solicitações" icon={Activity}><DashboardDonutChart data={groupByLabel(data.quotes, quote => relationLabel(quote.request_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Solicitações recentes" subtitle="Últimos orçamentos recebidos" icon={FileText} onOpen={() => open("quotes")}><QuotesList quotes={data.quotes.slice(0, 8)} onOpen={() => open("quotes")} /></DashboardPanel>} />;
+      return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("quotes_status"),right:widgetVisible("quotes_recent"),restore:()=>widgetSettings.restore("quotes") }} metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Orçamentos por status" subtitle="Distribuição das solicitações" icon={Activity}><DashboardDonutChart data={groupByLabel(data.quotes, quote => relationLabel(quote.request_status, "Sem status"))} /></DashboardPanel>} right={<DashboardPanel title="Solicitações recentes" subtitle="Últimos orçamentos recebidos" icon={FileText} onOpen={() => open("quotes")}><QuotesList quotes={data.quotes.slice(0, 8)} onOpen={() => open("quotes")} /></DashboardPanel>} />;
     }
 
     if (activeModule === "finance") {
@@ -757,7 +757,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         { label: "Descontos", value: formatCurrency(discounts), icon: Activity, tone: "amber", hint: "total concedido" },
       ];
       const financeTrend = buildTrend(completedInPeriod, periodDays, order => order.completed_at, order => Number(order.final_total || 0));
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={openOrderFromDashboard} showValue /></DashboardPanel>} />;
+      return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("finance_trend"),right:widgetVisible("finance_recent"),restore:()=>widgetSettings.restore("finance") }} metrics={metrics} onMetricSelect={showMetric} left={<DashboardPanel title="Faturamento por período" subtitle="Valores das OS concluídas" icon={TrendingUp}><DashboardLineChart data={financeTrend} money color="#16a34a" /></DashboardPanel>} right={<DashboardPanel title="Conclusões recentes" subtitle="Últimas OS faturadas" icon={Banknote} onOpen={() => open("orders")}><OrdersList orders={completedInPeriod.slice(0, 8)} onOpen={openOrderFromDashboard} showValue /></DashboardPanel>} />;
     }
 
     const overviewMetrics: Metric[] = [
@@ -777,13 +777,15 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       ...(lowInventory.length ? [{ title: `${lowInventory.length} itens com estoque baixo`, subtitle: "Próximos do mínimo", tone: STATUS_TONE_CLASSES.warning.badge, tab: "inventory" as AdminTab }] : []),
       ...(todayAppointments.length ? [{ title: `${todayAppointments.length} compromissos hoje`, subtitle: "Confira a agenda do dia", tone: "text-blue-700 bg-blue-50", tab: "agenda" as AdminTab }] : []),
     ];
-    return <DashboardArea metrics={overviewMetrics} onMetricSelect={showMetric} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
+    return <DashboardArea visibility={{ metrics:widgetVisible("metrics"),left:widgetVisible("movement"),right:widgetVisible("alerts"),restore:()=>widgetSettings.restore("overview") }} metrics={overviewMetrics} onMetricSelect={showMetric} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
   };
 
   const dashboardInitialLoading = authLoading
+    || (Boolean(activeOrganizationId && user?.id) && widgetSettings.settings.isPending)
     || (Boolean(activeOrganizationId) && (
       activeModule === "orders"
         ? (ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
+          || (orderChartsVisible && orderChartsQuery.isPending && !orderChartsQuery.data)
         : (dashboardQuery.isPending && !dashboardQuery.data)
           || (activeModule === "inventory" && access.inventory && access.inventoryCosts
             && canViewInventoryMovements && inventoryPurchasesQuery.isPending && !inventoryPurchasesQuery.data)
@@ -802,17 +804,17 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
 
   return (
     <div className="min-w-0 space-y-4 pb-2">
-      <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil." actions={
-        <div className="w-32">
-          <AdminSelect
-            value={periodDays}
-            onValueChange={value => { setMetricSelection(null); setPeriodDays(Number(value)); }}
-            options={periodOptions}
-            ariaLabel="Período do dashboard"
-            className="min-h-9 text-xs font-black"
-          />
-        </div>
-      } />
+      <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil."
+        actions={<div className="flex flex-wrap items-center justify-end gap-2">
+          <DashboardWidgetSettings section={activeModule} selected={widgetSettings.selected(activeModule)}
+            onToggle={key=>widgetSettings.toggle(activeModule,key)}
+            onRestore={()=>widgetSettings.restore(activeModule)} />
+          <div className="w-28 sm:w-32">
+            <AdminSelect value={periodDays} options={periodOptions}
+              onValueChange={value=>{setMetricSelection(null);setPeriodDays(Number(value));}}
+              ariaLabel="Período do dashboard" className="min-h-9 text-xs font-black"/>
+          </div>
+        </div>}/>
 
       <DashboardModuleNav items={modules} value={activeModule} onChange={next => { setMetricSelection(null); setActiveModule(next); }} />
 
@@ -824,11 +826,11 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
+        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? (ordersSummaryQuery.error || (orderChartsVisible ? orderChartsQuery.error : null)) : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
-            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
-            <AdminButton size="sm" onClick={() => activeModule === "orders" ? ordersSummaryQuery.refetch() : dashboardQuery.refetch()}>Tentar novamente</AdminButton>
+            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? (ordersSummaryQuery.error || (orderChartsVisible ? orderChartsQuery.error : null)) : dashboardQuery.error)!)}</p></div>
+            <AdminButton size="sm" onClick={() => activeModule === "orders" ? Promise.all([ordersSummaryQuery.refetch(),orderChartsQuery.refetch()]) : dashboardQuery.refetch()}>Tentar novamente</AdminButton>
           </AdminCard>
         ) : moduleContent()}
       </div>
@@ -849,9 +851,10 @@ function DashboardArea({ metrics, left, right, onMetricSelect, visibility }: {
   left: ReactNode;
   right: ReactNode;
   onMetricSelect: (metric: Metric) => void;
-  visibility?: { metrics: boolean; left: boolean; right: boolean };
+  visibility?: { metrics: boolean; left: boolean; right: boolean; restore?: () => void };
 }) {
   const show=visibility||{metrics:true,left:true,right:true};
+  if(!show.metrics&&!show.left&&!show.right)return <DashboardNoWidgets onRestore={show.restore||(()=>undefined)}/>;
   return <div className="min-w-0 space-y-3">
     {show.metrics&&<MetricGrid metrics={metrics} onSelect={onMetricSelect}/>}
     {(show.left||show.right)&&<div className="grid min-w-0 w-full max-w-[1000px] grid-cols-1 items-start gap-3 lg:grid-cols-2">
