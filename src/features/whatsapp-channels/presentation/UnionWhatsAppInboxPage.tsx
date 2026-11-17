@@ -547,6 +547,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [activeChannelId,setActiveChannelId]=useState<string|null>(null);
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
+  // O provedor persistente escolhe um único som por mensagem recebida:
+  // na conversa aberta usa "conversation"; fora dela usa "notification".
+  // Não cria listener Realtime extra nem toca sons ao carregar históricos.
+  useEffect(()=>{
+    if(!sharedActivity||!selectedId||!canView||channelReady!==true||
+       (!embedded&&!sharedActivity.isPageOpen))return;
+    return sharedActivity.trackOpenConversation(selectedId);
+  },[sharedActivity?.trackOpenConversation,sharedActivity?.isPageOpen,selectedId,
+     channelReady,canView,embedded,activeOrganizationId]);
 
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
   const avatarCheckedAtRef=useRef(new Map<string,number>());
