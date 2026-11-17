@@ -28,7 +28,7 @@ test("Garantia conclui OS sem dados financeiros e cria título pendente para dar
   const repository=read("src/features/finance/infrastructure/finance-warranty-receivables.repository.ts");
   const sql=read("supabase/migrations/20261117195000_defer_warranty_receivable_details_to_finance.sql");
 
-  assert.match(hook,/const noCustomerCharge = completionChargeCustomer\?\.orderId===detail\?\.id/);
+  assert.match(hook,/const noCustomerCharge = hasChargeOverride/);
   assert.match(hook,/const openCompletion = async/);
   assert.match(hook,/getOrderCompletionChargeCustomer\(String\(target\.organization_id\),String\(target\.id\)\)/);
   assert.match(hook,/const targetNoCustomerCharge = !chargeCustomer/);
@@ -38,8 +38,8 @@ test("Garantia conclui OS sem dados financeiros e cria título pendente para dar
   assert.doesNotMatch(hook,/warrantyPayerId|warrantyReceivableValue|partner_receivable: \{/);
   assert.match(hook,/targetCoverageFree \|\| targetNoCustomerCharge \? 0/);
   assert.match(hook,/config\.payment_enabled && !freeCoverage/);
-  assert.match(modal,/completion\.noCustomerCharge \? \(/);
-  assert.match(modal,/onde os dados do fabricante e o pagamento serão informados ao dar baixa/);
+  assert.match(modal,/completion\.noCustomerCharge \? null : completion\.coverageFree \? \(/);
+  assert.doesNotMatch(modal,/Atendimento sem cobrança ao cliente|onde os dados do fabricante e o pagamento serão informados ao dar baixa/);
   assert.doesNotMatch(modal,/title="Conta a receber do fabricante"|label="Valor a receber do parceiro"/);
   assert.match(modal,/showPrices=\{!completion\.noCustomerCharge\}/);
   assert.match(modal,/Abrir em Contas a Receber/);
