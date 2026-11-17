@@ -192,14 +192,14 @@ export function UnionWhatsAppFloatingPanel({
       style={alertGeometry
         ? {left:alertGeometry.left,top:alertGeometry.top,visibility:"visible"}
         : {left:EDGE,top:EDGE,visibility:"hidden"}}
-      className="admin-crm fixed z-[106] flex w-[min(330px,calc(100vw-1.5rem))] items-start gap-2 rounded-xl border border-primary/30 bg-card p-3 text-foreground shadow-xl">
+      className="admin-crm fixed z-[106] flex w-[min(330px,calc(100vw-1.5rem))] items-start gap-2 rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
       <span aria-hidden="true"
         data-whatsapp-alert-arrow={alertGeometry?.side||"above"}
         style={{left:alertGeometry?.arrowLeft??20}}
         className={"pointer-events-none absolute h-3 w-3 rotate-45 bg-card " +
           (alertGeometry?.side==="below"
-            ? "-top-[6px] border-l border-t border-primary/30"
-            : "-bottom-[6px] border-b border-r border-primary/30")}/>
+            ? "-top-[6px] border-l border-t border-border"
+            : "-bottom-[6px] border-b border-r border-border")}/>
       <button type="button" onClick={()=>onSelect(alert.id)}
         className="min-w-0 flex-1 text-left">
         <p className="truncate text-xs font-bold text-primary">{alert.name}</p>
