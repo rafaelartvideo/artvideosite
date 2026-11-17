@@ -175,7 +175,7 @@ export function OrderTerminalExitDialog({
     finally{setSubmitting(false)}
   };
 
-  return <AdminDialog open
+  return <AdminDialog open minimizable={false}
     onClose={()=>{if(!submitting&&!uploading)onClose()}}
     title={cfg.title}
     description={`OS #${order.os_number||""} · ${cfg.subTitle}`}
