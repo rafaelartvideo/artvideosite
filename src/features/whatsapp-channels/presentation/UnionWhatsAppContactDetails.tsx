@@ -120,6 +120,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   });
   const requests=useRef(new Set<UnionWhatsAppSharedTab>());
   const drawerRef=useRef<HTMLElement|null>(null);
+  const panelRootRef=useRef<HTMLDivElement|null>(null);
   const [preview,setPreview]=useState<{url:string;type:string;name:string}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
@@ -151,20 +152,20 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   },[tab,sections,fetchPage]);
   useEffect(()=>{
     if(inline||preview)return;
-    // O painel lateral não é um Radix Dialog. Detectar o clique fora no
-    // documento (fase de captura) evita que camadas internas do chat,
-    // overlays transparentes ou menus impeçam o fechamento.
+    // Eventos fora do painel, mas DENTRO do backdrop, são tratados somente
+    // pelo próprio backdrop. Antes, o document capturava pointerdown e
+    // desmontava a camada antes do click, permitindo cliques fantasmas e
+    // deixando os controles do atendimento inconsistentes.
     const onOutside=(event:PointerEvent)=>{
       if(event.button!==0 || !(event.target instanceof Node))return;
-      if(drawerRef.current?.contains(event.target))return;
+      if(panelRootRef.current?.contains(event.target))return;
       onClose();
     };
     const onKey=(event:KeyboardEvent)=>{
-      if(event.key==="Escape"){
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
+      if(event.key!=="Escape")return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
     document.addEventListener("pointerdown",onOutside,true);
     document.addEventListener("keydown",onKey,true);
@@ -184,15 +185,38 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }finally{setPreviewLoading(false);}
   };
-  return <div className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
+  return <div ref={panelRootRef} className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
     {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
-      onClick={event=>{event.stopPropagation();onClose();}} className="absolute inset-0 cursor-default bg-transparent"/>}
+      onPointerDown={event=>{
+        if(event.button!==0)return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
+      onClick={event=>{
+        // Click de teclado / leitores de tela. Pointerdown já tratou o mouse.
+        event.preventDefault();
+        event.stopPropagation();
+        if(event.detail===0)onClose();
+      }}
+      className="absolute inset-0 cursor-default bg-transparent"/>}
     <aside ref={drawerRef} role={inline?undefined:"dialog"} aria-modal={inline?undefined:false} aria-label={"Detalhes do contato "+name}
       className={inline
         ?"relative flex w-full min-h-[230px] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground"
         :"relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
       {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-        <button type="button" aria-label="Voltar à conversa" onClick={event=>{event.preventDefault();event.stopPropagation();onClose();}}
+        <button type="button" aria-label="Voltar à conversa"
+          onPointerDown={event=>{
+            if(event.button!==0)return;
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+          }}
+          onClick={event=>{
+            event.preventDefault();
+            event.stopPropagation();
+            if(event.detail===0)onClose();
+          }}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
         <button type="button" onClick={()=>setHistoryOpen(value=>!value)}
