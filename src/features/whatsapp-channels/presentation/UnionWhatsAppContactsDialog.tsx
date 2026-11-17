@@ -5,6 +5,7 @@ import { adminPath } from "@/features/admin-shell/admin-routes";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
+import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
   VISIBLE_AVATAR_RETRY_MS,
@@ -196,14 +197,13 @@ export function UnionWhatsAppContactsDialog({
     setAvatar(null);
     setAvatarLoading(Boolean(selected));
     if(!selected)return;
-    void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_avatar",{
-      chat_jid:selected.chat_jid,
-    }).then(result=>{
+    void fetchSharedAvatar({organizationId,accountPhone,chatJid:selected.chat_jid})
+      .then(url=>{
       if(!canceled){
-        setAvatar(result.avatar_url||null);
+        setAvatar(url||null);
         setAvatarLoading(false);
         avatarCheckedAtRef.current.set(selected!.chat_jid,Date.now());
-        setListAvatars(old=>rememberVisibleAvatar(old,selected!.chat_jid,result.avatar_url||null));
+        setListAvatars(old=>rememberVisibleAvatar(old,selected!.chat_jid,url||null));
       }
     }).catch(()=>{if(!canceled){setAvatar(null);setAvatarLoading(false);}});
     return()=>{canceled=true;};
@@ -260,11 +260,10 @@ export function UnionWhatsAppContactsDialog({
     const generation=avatarScopeGenerationRef.current;
     for(const jid of toFetch){
       avatarRequestsRef.current.add(jid);
-      void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
-        "contacts_avatar",{chat_jid:jid})
-        .then(result=>{
+      void fetchSharedAvatar({organizationId,accountPhone,chatJid:jid})
+        .then(url=>{
           if(avatarScopeGenerationRef.current!==generation)return;
-          const value=result.avatar_url||null;
+          const value=url||null;
           avatarCheckedAtRef.current.set(jid,Date.now());
           setListAvatars(old=>Object.prototype.hasOwnProperty.call(old,jid)&&old[jid]===value
             ?old:rememberVisibleAvatar(old,jid,value));
