@@ -181,6 +181,7 @@ export function buildOrderPayload({
     service_id: editingOrder ? form.service_id || null : null,
     general_service_id: form.general_service_id || null,
     service_type_id: form.service_type_id || null,
+    disposal_partner_id: String(form.disposal_partner_id || "").trim() || null,
     seller_id: selectedSellerIds[0] || null,
     estimated_price: form.estimated_price
       ? Number(form.estimated_price)
