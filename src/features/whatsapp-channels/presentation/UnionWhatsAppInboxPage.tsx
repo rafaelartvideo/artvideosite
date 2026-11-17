@@ -2193,6 +2193,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
                 className={`box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-2.5 py-2.5 text-left transition-colors last:border-b-0 md:gap-3 md:px-3 md:py-3 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
+                  identity={{organizationId:item.organization_id,accountPhone:item.account_phone,
+                    chatJid:item.chat_jid,conversationId:item.id}}
+                  gender={linkedCustomers[item.id]?.customer?.gender}
                   onError={()=>{avatarCheckedAtRef.current.set(item.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,item.id,null));}}/>
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 items-center justify-between gap-2">
@@ -2261,6 +2264,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 }} aria-label={embedded ? "Fechar conversa" : "Voltar para conversas"}
                 className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted lg:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
+                identity={{organizationId:selected.organization_id,accountPhone:selected.account_phone,
+                  chatJid:selected.chat_jid,conversationId:selected.id}}
+                gender={linkedCustomers[selected.id]?.customer?.gender}
                 src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,selected.id,null));}}/>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
