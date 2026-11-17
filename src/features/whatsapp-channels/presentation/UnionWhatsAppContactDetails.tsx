@@ -223,8 +223,10 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <div role="tablist" aria-label="Arquivos compartilhados" className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-muted/50 p-1">
             {labels.map(item=><button key={item.key} type="button" role="tab"
               aria-selected={tab===item.key} onClick={()=>setTab(item.key)}
-              className={"rounded-md px-2 py-2 text-xs font-semibold transition-colors "+
-                (tab===item.key?"bg-card text-primary shadow-sm":"text-muted-foreground hover:text-foreground")}>
+              className={"min-h-9 rounded-md border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 "+
+                (tab===item.key
+                  ?"border-primary/35 bg-primary/10 text-primary shadow-sm dark:border-[#899dff]/50 dark:bg-[#1e2d58] dark:text-[#c3ceff]"
+                  :"border-transparent text-muted-foreground hover:border-border hover:bg-card hover:text-foreground")}>
               {item.label}
             </button>)}
           </div>
