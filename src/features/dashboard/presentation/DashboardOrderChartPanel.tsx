@@ -49,7 +49,7 @@ export function DashboardOrderChartPanel({
       : mode==="pie" ? <DashboardDonutChart
         data={data} selectedKey={selectedKey} onSelect={onSelect} fixedHeight={height}
         minHeight={height} innerRadius={0}/>
-      : mode==="line" ? <DashboardLineChart data={data} fixedHeight={height}/>
+      : mode==="line" ? <DashboardLineChart data={data} fixedHeight={height} onSelect={onSelect}/>
       : <DashboardBarChart data={data} selectedKey={selectedKey} onSelect={onSelect}
         fixedHeight={height} minHeight={height} layout={mode==="horizontal"?"vertical":"horizontal"}/>}
     </div>
