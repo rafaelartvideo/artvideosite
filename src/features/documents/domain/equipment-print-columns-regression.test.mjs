@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
 
 const read = file => readFileSync(file, "utf8");
 
@@ -55,4 +56,49 @@ test("documentos padrão por segmento permanecem somente entrada e orçamento", 
   assert.match(migration, /'Orçamento Técnico'/);
   assert.match(migration, /count\(\*\) from private\.union_segment_document_blueprints\)<>2/);
   assert.match(migration, /count\(\*\) from public\.print_templates where organization_id=v_teste\)<>2/);
+});
+
+test("Informações da OS oferece checkboxes para tipo de atendimento e fechamento em 3 colunas reais", () => {
+  const registry=read("src/features/documents/domain/print-field-registry.ts");
+  const print=read("src/features/documents/domain/order-print-document.ts");
+  const info=registry.split('key: "order",')[1].split('key: "service",')[0];
+  assert.match(info,/key: "order.service_type", label: "Tipo de atendimento"/);
+  assert.match(info,/key: "order.completed_at", label: "Data de fechamento", kind: "datetime"/);
+  assert.match(print,/"order.service_type": nameOf\(order.service_type\)/);
+  assert.match(print,/"order.completed_at": date\(order.completed_at\)/);
+  const wide=print.split("const fullWidthFields = new Set([")[1].split("]);")[0];
+  assert.doesNotMatch(wide,/"order.internal_notes"/);
+  assert.doesNotMatch(wide,/"order.customer_notes"/);
+  assert.match(print,/grid columns-" \+ columnCount/);
+  assert.match(print,/\.columns-3\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}/);
+});
+
+test("termos só ficam visíveis quando a OS foi fechada com a saída correspondente",async()=>{
+  const source=read("src/features/orders/domain/order-terminal-document-visibility.ts");
+  const {code}=await transformWithEsbuild(source,"order-terminal-document-visibility.ts",{loader:"ts"});
+  const module=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+  const visible=module.isOrderTerminalDocumentVisible;
+  const descarte="TERMO_DESCARTE";
+  const devolucao="TERMO_DEVOLUCAO_SEM_REPARO";
+  const open={closure_outcome:null,completed_at:null};
+  const finishedDisposal={closure_outcome:"disposal_confirmed",completed_at:"2026-11-17T15:00:00Z"};
+  const finishedReturn={closure_outcome:"returned_unrepaired",completed_at:"2026-11-17T15:00:00Z"};
+  assert.equal(visible(descarte,open),false);
+  assert.equal(visible(devolucao,open),false);
+  assert.equal(visible(descarte,{...finishedDisposal,completed_at:null}),false);
+  assert.equal(visible(descarte,finishedDisposal),true);
+  assert.equal(visible(devolucao,finishedDisposal),false);
+  assert.equal(visible(devolucao,finishedReturn),true);
+  assert.equal(visible(descarte,finishedReturn),false);
+  assert.equal(visible(devolucao,{closure_outcome:"rejected_quote_return",completed_at:finishedReturn.completed_at}),false);
+  assert.equal(visible("ORCAMENTO",open),true);
+  const detail=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const requests=read("src/features/orders/presentation/OrderSignatureRequestsSection.tsx");
+  const send=read("src/features/orders/presentation/OrderSignatureRequestDialog.tsx");
+  assert.match(detail,/visiblePrintTemplates\.filter\(template => quoteWorkflowEnabled/);
+  assert.match(detail,/isOrderTerminalDocumentVisible\(template.document_type, detail\)/);
+  assert.match(requests,/visibleRequests\.map\(request/);
+  assert.match(send,/preferredDocumentType === template.document_type && isTerminalDocumentType\(preferredDocumentType\)/);
+  // O encerramento ainda tem acesso ao modelo para colher assinaturas antes da confirmação.
+  assert.match(detail,/templates=\{printTemplates.templates\}/);
 });
