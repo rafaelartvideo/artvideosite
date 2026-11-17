@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, Users, X } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { adminPath } from "@/features/admin-shell/admin-routes";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
@@ -8,7 +10,7 @@ import {
   VISIBLE_AVATAR_RETRY_MS,
 } from "../domain/visible-avatar-cache.mjs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
+import { operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
   CONTACT_IMPORT_BATCH_SIZE, parseContactTable, parseContactsCSV,
   type ContactImportSummary,
@@ -43,6 +45,22 @@ export function UnionWhatsAppContactsDialog({
   initialContact?:UnionWhatsAppContact|null;
   initialName?:string;
 }) {
+  const {hasPermission}=useAuth();
+  const canReadCrm=hasPermission("customers.view");
+  const canReadOrders=hasPermission("orders.details.view");
+  const [tab,setTab]=useState<"contacts"|"groups">("contacts");
+  const [groups,setGroups]=useState<UnionWhatsAppGroup[]>([]);
+  const [groupsLoading,setGroupsLoading]=useState(false);
+  const [groupsError,setGroupsError]=useState("");
+  const [selectedGroup,setSelectedGroup]=useState<UnionWhatsAppGroup|null>(null);
+  const [groupRevision,setGroupRevision]=useState(0);
+  const [crmLoading,setCrmLoading]=useState(false);
+  const [crmData,setCrmData]=useState<{
+    customer?:{id:string;name:string;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null}|null;
+    equipments?:Array<{id:string;equipment_type_name?:string|null;equipment_brand_name?:string|null;equipment_model_name?:string|null}>;
+    crm_orders?:Array<{id:string;os_number:string;created_at:string}>;
+    ambiguous?:boolean;
+  }|null>(null);
   const [contacts,setContacts]=useState<UnionWhatsAppContact[]>([]);
   const [search,setSearch]=useState("");
   const [page,setPage]=useState(0);
@@ -115,6 +133,40 @@ export function UnionWhatsAppContactsDialog({
     window.addEventListener("beforeunload",warnIfLeaving);
     return()=>window.removeEventListener("beforeunload",warnIfLeaving);
   },[importing]);
+
+  // Grupos são sincronizados somente quando sua aba é aberta ou atualizada.
+  useEffect(()=>{
+    if(tab!=="groups")return;
+    let cancelled=false;
+    setGroupsLoading(true);setGroupsError("");
+    void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups")
+      .then(result=>{if(!cancelled)setGroups(result.groups||[]);})
+      .catch(reason=>{if(!cancelled)setGroupsError(systemErrorMessage(reason,
+        "Não foi possível consultar os grupos do WhatsApp."));})
+      .finally(()=>{if(!cancelled)setGroupsLoading(false);});
+    return()=>{cancelled=true;};
+  },[organizationId,channelId,accountPhone,tab,groupRevision]);
+
+  // Buscar vínculo por número EXATO e confirmado no banco, somente depois
+  // da seleção do contato. Não gerar uma RPC para cada linha da agenda.
+  useEffect(()=>{
+    if(tab!=="contacts"||!selected||creating||!canReadCrm){
+      setCrmData(null);setCrmLoading(false);return;
+    }
+    let cancelled=false;
+    setCrmLoading(true);setCrmData(null);
+    const timer=window.setTimeout(()=>{
+      void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+        "contacts_crm_match",{chat_jid:selected.chat_jid})
+        .then(result=>{if(!cancelled)setCrmData({
+          customer:result.customer||null,equipments:result.equipments||[],
+          crm_orders:result.crm_orders||[],ambiguous:result.ambiguous===true,
+        });})
+        .catch(()=>{if(!cancelled)setCrmData({customer:null});})
+        .finally(()=>{if(!cancelled)setCrmLoading(false);});
+    },250);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[organizationId,channelId,accountPhone,tab,selected?.chat_jid,creating,canReadCrm]);
 
   const refresh=useCallback(async (value:string,index:number)=>{
     const requestId=++contactListRequestRef.current;
