@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -32,6 +32,10 @@ import {
   operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
+
+// Reutiliza exatamente a mesma Nova OS flutuante do WhatsApp aberto pela OS.
+const EmbeddedNewOrder = lazy(() => import("@/features/orders/presentation/TabOrders")
+  .then(({TabOrders})=>({default:TabOrders})));
 
 const quotedSummary=(body:string|null|undefined, kind:string|null|undefined):string =>
   String(body||"").trim().slice(0,180) ||
@@ -593,7 +597,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
   const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
-  useEffect(()=>{setCrmDetailsOpen(false);},[selectedId]);
+  const [newOrder,setNewOrder]=useState<{customerId:string|null;key:string;organizationId:string}|null>(null);
+  const [preparingNewOrder,setPreparingNewOrder]=useState(false);
+  const newOrderGateRef=useRef(false);
+  const newOrderLaunchRef=useRef(0);
+  useEffect(()=>{setCrmDetailsOpen(false);newOrderLaunchRef.current+=1;
+    newOrderGateRef.current=false;setPreparingNewOrder(false);
+  },[selectedId,activeOrganizationId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
@@ -1129,6 +1139,40 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
   const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
+  const openNewOrderFromConversation=async()=>{
+    if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
+      !hasPermission("orders.create") || newOrderGateRef.current || newOrder)return;
+    const org=activeOrganizationId;
+    const threadId=selected.id;
+    const launch=newOrderLaunchRef.current;
+    newOrderGateRef.current=true;
+    setPreparingNewOrder(true);
+    try{
+      let customerId:string|null=null;
+      if(hasPermission("customers.view")){
+        try{
+          // A consulta confirma o cliente desta conversa na empresa ativa.
+          // Sem correspondência única (ou se falhar), a Nova OS abre sem cliente.
+          const result=await operateUnionWhatsAppInbox(org,threadId,"customer_match");
+          if(!result.ambiguous && result.customer?.id)customerId=result.customer.id;
+        }catch{
+          customerId=null;
+        }
+      }
+      if(newOrderLaunchRef.current!==launch || organizationRef.current!==org)return;
+      await import("@/features/orders/presentation/TabOrders");
+      if(newOrderLaunchRef.current!==launch || organizationRef.current!==org)return;
+      setNewOrder({customerId,key:crypto.randomUUID(),organizationId:org});
+    }catch(reason){
+      if(newOrderLaunchRef.current===launch)
+        reportError(systemErrorMessage(reason,"Não foi possível abrir a Nova OS."));
+    }finally{
+      if(newOrderLaunchRef.current===launch){
+        newOrderGateRef.current=false;
+        setPreparingNewOrder(false);
+      }
+    }
+  };
   useEffect(()=>{
     if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
       channelReady!==true){
@@ -2393,10 +2437,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="!h-8 !gap-1.5 !px-2">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
                 </AdminButton>}
-                {(!embedded || embeddedFullControls) && <button type="button" onClick={()=>void viewProtocols()} title="Protocolos do atendimento"
-                  aria-label="Protocolos do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
-                  <History size={15}/><span className="hidden xl:inline">Protocolos</span>
-                </button>}
                 {!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator) &&
                   <AdminButton variant="secondary" size="sm" onClick={()=>void openParticipants()}>
@@ -2450,6 +2490,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               organizationId={activeOrganizationId || ""}
               canViewOrders={hasPermission("orders.details.view")}
               onOpenCustomer={onOpenCustomer}
+              onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
+              newOrderLoading={preparingNewOrder}
             />}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
@@ -3077,5 +3119,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
         </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
     </AdminDialog>
+    {newOrder && <Suspense fallback={null}>
+      <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
+        initialCustomerId={newOrder.customerId}
+        organizationIdOverride={newOrder.organizationId}
+        detailOnly embeddedCreate
+        onEmbeddedClose={()=>setNewOrder(null)}
+        onEmbeddedCreated={()=>{
+          setNewOrder(null);
+          notifyAdmin("OS criada com sucesso.","success");
+        }}/>
+    </Suspense>}
   </div>;
 }
