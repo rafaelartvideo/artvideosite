@@ -39,7 +39,7 @@ export function DashboardModuleNav({
 }) {
   return <AdminSubsectionTabs
     value={value} items={items.map(item => ({ id: item.id, label: item.label, Icon: item.icon }))}
-    onChange={onChange} ariaLabel="Áreas do dashboard" />;
+    onChange={onChange} ariaLabel="Áreas do dashboard" centered />;
 }
 
 export function DashboardMetricCard({
@@ -157,12 +157,14 @@ export function DashboardBarChart({
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
 
   return (
-    <div className="w-full" style={{ height: chartHeight, minHeight: chartHeight }}>
+    <div className="w-full min-w-0 overflow-auto [scrollbar-width:thin]" style={{ height: fixedHeight ?? chartHeight, minHeight: fixedHeight ?? chartHeight }}>
+      <div style={{height:vertical?Math.max(chartHeight,data.length*39+40):chartHeight,
+        minWidth:vertical?"100%":Math.max(340,data.length*135),width:vertical?"100%":undefined}}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
           layout={vertical ? "vertical" : "horizontal"}
-          margin={vertical ? { top: 6, right: 16, left: 8, bottom: 2 } : { top: 10, right: 8, left: -18, bottom: 4 }}
+          margin={vertical ? { top: 6, right: 16, left: 8, bottom: 2 } : { top: 8, right: 12, left: -18, bottom: 2 }}
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={!vertical} vertical={vertical} stroke="#e8edf4" />
           {vertical ? (
@@ -171,23 +173,25 @@ export function DashboardBarChart({
               <YAxis
                 type="category"
                 dataKey="name"
-                width={132}
+                width={160}
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                tickFormatter={value => String(value).length > 21 ? `${String(value).slice(0, 19)}…` : String(value)}
+                tickFormatter={value => String(value).length > 28 ? `${String(value).slice(0, 26)}…` : String(value)}
               />
             </>
           ) : (
             <>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} interval={0} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} interval={0} height={84} angle={-38} textAnchor="end"
+                  tick={{ fontSize: 11, fontWeight: 600, fill: "var(--muted-foreground)" }}
+                  tickFormatter={value => String(value).length > 22 ? `${String(value).slice(0, 20)}…` : String(value)} />
               <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} />
             </>
           )}
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} cursor={{ fill: "rgba(0,87,231,.04)" }} />
           <Bar
             dataKey="value"
-            name="Total"
+            name="Quantidade de OS"
             fill={color}
             radius={vertical ? [0, 7, 7, 0] : [7, 7, 0, 0]}
             maxBarSize={vertical ? 28 : 50}
@@ -212,6 +216,7 @@ export function DashboardBarChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -356,16 +361,18 @@ export function DashboardSlaDistributionChart({
     neutral: Number(point.sla.neutral || 0),
   }));
   const chartHeight = fixedHeight ?? (horizontalBars ? Math.max(minHeight, data.length * 44 + 44) : minHeight);
+  const innerChartHeight = horizontalBars ? Math.max(chartHeight-27,data.length*40+26) : chartHeight-27;
 
   return (
-    <div>
-      {legend}
-      <div className="w-full" style={{ height: chartHeight, minHeight: chartHeight }}>
+    <div className="flex min-w-0 flex-col" style={{height:chartHeight}}>
+      <div className="shrink-0">{legend}</div>
+      <div className="min-h-0 w-full flex-1 overflow-auto [scrollbar-width:thin]">
+        <div style={{height:innerChartHeight,minWidth:horizontalBars?"100%":Math.max(340,data.length*135)}}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={barData}
             layout={horizontalBars ? "vertical" : "horizontal"}
-            margin={horizontalBars ? { top: 6, right: 16, left: 8, bottom: 2 } : { top: 10, right: 8, left: -18, bottom: 4 }}
+            margin={horizontalBars ? { top: 6, right: 12, left: 8, bottom: 2 } : { top: 8, right: 12, left: -18, bottom: 2 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={!horizontalBars} vertical={horizontalBars} stroke="#e8edf4" />
             {horizontalBars ? (
@@ -374,11 +381,11 @@ export function DashboardSlaDistributionChart({
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={132}
+                  width={160}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                  tickFormatter={value => String(value).length > 21 ? `${String(value).slice(0, 19)}…` : String(value)}
+                  tickFormatter={value => String(value).length > 28 ? `${String(value).slice(0, 26)}…` : String(value)}
                 />
               </>
             ) : (
@@ -388,7 +395,8 @@ export function DashboardSlaDistributionChart({
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                  tickFormatter={value => String(value).length > 14 ? `${String(value).slice(0, 12)}…` : String(value)}
+                  tickFormatter={value => String(value).length > 22 ? `${String(value).slice(0, 20)}…` : String(value)}
+                  angle={-38} textAnchor="end" height={84}
                   interval={0}
                 />
                 <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} />
@@ -427,6 +435,7 @@ export function DashboardSlaDistributionChart({
             ))}
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
