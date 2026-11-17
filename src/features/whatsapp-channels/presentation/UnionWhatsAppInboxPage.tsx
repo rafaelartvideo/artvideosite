@@ -451,6 +451,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [targetDepartmentId,setTargetDepartmentId] = useState("");
   const [departments,setDepartments] = useState<Array<{id:string;name:string;is_active:boolean}>>([]);
   const [departmentFilter,setDepartmentFilter] = useState("all");
+  const [operatorFilter,setOperatorFilter] = useState("all");
+  const [operatorChoices,setOperatorChoices] = useState<Array<{id:string;name:string}>>([]);
+  const [operatorChoicesLoading,setOperatorChoicesLoading] = useState(false);
+  const operatorChoicesCacheRef=useRef<{organizationId:string;loadedAt:number}|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
@@ -557,11 +561,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   organizationRef.current=activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
-  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
-    filter:"waiting",department:"all",search:"",page:0,
+  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
+    filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
-  listQueryRef.current={filter,department:departmentFilter,search:debouncedQuery,page:conversationPage,
-    viewerId:user?.id,canViewAll:canManage};
+  listQueryRef.current={filter,department:departmentFilter,
+    operator:filter==="in_att" && canManage ? operatorFilter : "all",
+    search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
   const lastListQueryRef=useRef("");
   const refresh=useCallback(async(silent=false)=>{
@@ -697,6 +702,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setDepartments([]);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setDepartmentFilter("all");
+    setOperatorFilter("all");
+    setOperatorChoices([]);
+    operatorChoicesCacheRef.current=null;
     setMembers([]);
     
     messageIdentity.current += 1;
@@ -711,7 +719,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
-    listQueryRef.current={filter:"waiting",department:"all",search:"",page:0};
+    listQueryRef.current={filter:"waiting",department:"all",operator:"all",search:"",page:0};
     setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
     setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
     setMessages([]);setSelectedId(null);setSelectedFallback(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
@@ -745,7 +753,32 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh,embedded]);
 
-  // Mudanças de aba, departamento ou pesquisa buscam diretamente uma página
+  // Carrega uma única vez a relação de operadores ativos ao entrar na aba
+  // "Em atendimento". O endpoint só permite view_all, mesmo se chamado fora da UI.
+  useEffect(()=>{
+    if(embedded || filter!=="in_att" || !canManage || !activeOrganizationId ||
+       channelReady!==true)return;
+    const cache=operatorChoicesCacheRef.current;
+    if(cache?.organizationId===activeOrganizationId &&
+       Date.now()-cache.loadedAt<120000)return;
+    let cancelled=false;
+    const org=activeOrganizationId;
+    setOperatorChoicesLoading(true);
+    void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"operator_filter_list")
+      .then(result=>{
+        if(cancelled || organizationRef.current!==org)return;
+        const options=(result.operators||[]).map(item=>({id:item.id,name:item.name}));
+        setOperatorChoices(options);
+        operatorChoicesCacheRef.current={organizationId:org,loadedAt:Date.now()};
+      })
+      .catch(error=>{
+        if(!cancelled)reportError(systemErrorMessage(error,"Não foi possível consultar os operadores."));
+      })
+      .finally(()=>{if(!cancelled)setOperatorChoicesLoading(false);});
+    return()=>{cancelled=true;};
+  },[embedded,filter,canManage,activeOrganizationId,channelReady,reportError]);
+
+  // Mudanças de aba, departamento, operador ou pesquisa buscam diretamente uma página
   // nova no servidor, sem remontar toda a interface nem recarregar canais.
   useEffect(()=>{
     if(channelReady!==true||!activeOrganizationId||!activeChannelId||!activeChannelPhone)return;
@@ -756,7 +789,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setConversationPageLoading(true);
     setConversations([]);
     void refresh(true);
-  },[filter,departmentFilter,debouncedQuery,conversationPage,readyAccount,
+  },[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
 
   // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
@@ -2097,13 +2130,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
-            {<select aria-label="Filtrar departamento" value={departmentFilter}
-              onChange={event=>{setSelectedId(null);setConversationPage(0);setDepartmentFilter(event.target.value);}}
-              className="mt-3 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
-              <option value="all">Todos os departamentos</option>
-              <option value="none">Sem departamento</option>
-              {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>}
+            <div className={canManage && filter==="in_att" ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
+              <select aria-label="Filtrar departamento" value={departmentFilter}
+                onChange={event=>{setSelectedId(null);setConversationPage(0);setDepartmentFilter(event.target.value);}}
+                className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
+                <option value="all">Todos os departamentos</option>
+                <option value="none">Sem departamento</option>
+                {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              {canManage && filter==="in_att" && <select aria-label="Filtrar operador"
+                value={operatorFilter} disabled={operatorChoicesLoading && operatorChoices.length===0}
+                onChange={event=>{setSelectedId(null);setConversationPage(0);setOperatorFilter(event.target.value);}}
+                className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary disabled:opacity-60">
+                <option value="all">{operatorChoicesLoading && operatorChoices.length===0 ? "Carregando operadores..." : "Todos os operadores"}</option>
+                {operatorChoices.map(person=><option key={person.id} value={person.id}>{person.name}</option>)}
+              </select>}
+            </div>
             <div className="relative mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={query} onChange={event => {setSelectedId(null);setConversationPage(0);setQuery(event.target.value);}} type="search" aria-label="Buscar conversa"
@@ -2123,7 +2165,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>)}
               </div>
             : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
-              <WhatsAppIcon size={30}/><p>Nenhuma conversa encontrada.</p>
+              <WhatsAppIcon size={30}/><p>{canManage && filter==="in_att" && operatorFilter!=="all"
+                ? "Nenhuma conversa em atendimento para este operador." : "Nenhuma conversa encontrada."}</p>
               {counts.total===0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
             : visible.map(item => {
