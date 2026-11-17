@@ -639,7 +639,8 @@ test("Dados de cadastro no WhatsApp exibem endereço completo, CPF/CNPJ e CEP ma
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
   const menu=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
   const formatSource=read("src/features/whatsapp-channels/domain/crm-contact-format.ts");
-  const lookup=edge.slice(edge.indexOf('if(action==="contacts_crm_match")'),edge.indexOf('if(action==="contacts_list")'));
+  const lookupStart=edge.indexOf('if(action==="contacts_crm_match")');
+  const lookup=edge.slice(lookupStart,edge.indexOf('if(action==="contacts_list")',lookupStart));
   assert.match(lookup,/permissions\.has\("customers\.view"\)/);
   assert.match(lookup,/\.eq\("organization_id",org\)\.eq\("id",customerId\)/);
   assert.match(lookup,/addresses:customer_addresses\(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default\)/);
