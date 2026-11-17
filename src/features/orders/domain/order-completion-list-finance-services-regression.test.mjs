@@ -117,7 +117,7 @@ test("primeira renderização da tela OS sem detalhe não acessa null.value da c
   const end = hook.indexOf("  const commercialPricing =", start);
   assert.ok(start !== -1 && end > start, "a cobrança deve validar explicitamente a OS e o override");
   const calc = new Function("detail", "completionChargeCustomer",
-    hook.slice(start, end) + "\\nreturn noCustomerCharge;");
+    hook.slice(start, end) + "\nreturn noCustomerCharge;");
   assert.equal(calc(null, null), false, "a página abre antes da OS existir");
   assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } }, null), true);
   assert.equal(calc({ id: "os-1", service_type: { charge_customer: true } }, null), false);
@@ -128,6 +128,6 @@ test("primeira renderização da tela OS sem detalhe não acessa null.value da c
     { orderId: "outra-os", value: true }), true);
   assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } },
     { orderId: "os-1", value: true }), false);
-  assert.doesNotMatch(hook, /completionChargeCustomer\\.value\\b/,
+  assert.doesNotMatch(hook, /completionChargeCustomer\.value\b/,
     "não deve haver acesso direto ao override que pode ser nulo");
 });
