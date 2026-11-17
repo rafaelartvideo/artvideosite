@@ -157,7 +157,7 @@ export function UnionWhatsAppFloatingPanel({
         className="rounded p-1 text-muted-foreground hover:bg-muted"><X size={15}/></button>
     </div>}
     <section ref={nodeRef} role="region" aria-label="Mini-Atendimentos Union"
-      data-whatsapp-floating="true" data-whatsapp-expanded={expanded?"true":"false"}
+      data-whatsapp-floating="true" data-admin-floating-panel="true" data-whatsapp-expanded={expanded?"true":"false"}
       style={style}
       className={"admin-crm fixed z-[104] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] " +
         (hidden?"invisible pointer-events-none ":"") +
