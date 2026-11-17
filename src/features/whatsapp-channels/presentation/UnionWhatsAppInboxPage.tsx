@@ -1129,9 +1129,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Todos os filtros são executados no Supabase, não apenas na página atual.
   const counts=conversationCounts;
+  // Nunca mostrar registros da aba anterior enquanto uma mudança de filtro
+  // aguarda a resposta do Supabase. Assim "Em atendimento" não exibe
+  // clientes com etiqueta/tempo da fila "Aguardando" por um frame.
   const visible=filter==="in_att"
-    ? [...scopedConversations].sort(latestMessageFirst)
-    : scopedConversations;
+    ? scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item)).sort(latestMessageFirst)
+    : filter==="waiting"
+      ? scopedConversations.filter(queueOnly)
+      : scopedConversations;
   const timeline=useMemo(()=>{
     const local=pending.filter(item=>item.conversationId===selectedId &&
       item.organizationId===activeOrganizationId);
