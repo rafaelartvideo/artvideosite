@@ -61,7 +61,7 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
   const [selected, setSelected] = useState<Loss | null>(null);
   const start = dateBoundary(from);
   const end = dateBoundary(to,true);
-  const cleanedSearch = search.trim().replace(/[%,()]/g,"").slice(0,70);
+  const cleanedSearch = search.trim().replace(/[^\\p{L}\\p{N}\\s-]/gu,"").slice(0,70);
   const key = ["finance","losses",organizationId] as const;
   const summaryQuery = useQuery({
     queryKey: [...key,"summary",start,end],
