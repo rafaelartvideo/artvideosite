@@ -142,7 +142,7 @@ export async function listUnionWhatsAppConversationCounts(
 
 export async function listUnionWhatsAppConversations(
   organizationId:string,channelId:string,accountPhone:string,
-  options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;pageSize?:number;viewerId?:string;canViewAll?:boolean},
+  options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean},
 ):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean}>{
   const page=Math.max(0,Math.floor(options.page));
   // O mini-Atendimentos solicita só 8 registros; a lista completa mantém 50.
@@ -190,10 +190,10 @@ export async function listUnionWhatsAppConversations(
     if(protocol)where.push(`last_protocol_number.eq.${Number(protocol[1])}`);
     query=query.or(where.join(","));
   }
-  const sort=options.filter==="waiting"?"queue_entered_at":
+  const sort=options.filter==="waiting" && !options.sortByRecent?"queue_entered_at":
     options.filter==="forwarded"?"forwarded_at":"last_message_at";
-  const {data,error}=await query.order(sort,{ascending:options.filter==="waiting",nullsFirst:false})
-    .order("id",{ascending:options.filter==="waiting"})
+  const {data,error}=await query.order(sort,{ascending:options.filter==="waiting" && !options.sortByRecent,nullsFirst:false})
+    .order("id",{ascending:options.filter==="waiting" && !options.sortByRecent})
     .range(page*pageSize,(page+1)*pageSize);
   raise(error);
   const entries=(data||[]) as Array<UnionWhatsAppConversation & {
