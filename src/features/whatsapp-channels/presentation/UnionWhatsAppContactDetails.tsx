@@ -119,6 +119,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     media:empty(),documents:empty(),links:empty(),
   });
   const requests=useRef(new Set<UnionWhatsAppSharedTab>());
+  const drawerRef=useRef<HTMLElement|null>(null);
   const [preview,setPreview]=useState<{url:string;type:string;name:string}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
@@ -150,11 +151,27 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   },[tab,sections,fetchPage]);
   useEffect(()=>{
     if(inline||preview)return;
-    const onKey=(event:KeyboardEvent)=>{
-      if(event.key==="Escape"){event.stopPropagation();onClose();}
+    // O painel lateral não é um Radix Dialog. Detectar o clique fora no
+    // documento (fase de captura) evita que camadas internas do chat,
+    // overlays transparentes ou menus impeçam o fechamento.
+    const onOutside=(event:PointerEvent)=>{
+      if(event.button!==0 || !(event.target instanceof Node))return;
+      if(drawerRef.current?.contains(event.target))return;
+      onClose();
     };
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"){
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("pointerdown",onOutside,true);
     document.addEventListener("keydown",onKey,true);
-    return()=>document.removeEventListener("keydown",onKey,true);
+    return()=>{
+      document.removeEventListener("pointerdown",onOutside,true);
+      document.removeEventListener("keydown",onKey,true);
+    };
   },[onClose,preview,inline]);
 
   const openShared=async(item:UnionWhatsAppMessage)=>{
@@ -167,22 +184,22 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }finally{setPreviewLoading(false);}
   };
-  return <div className={inline?"relative w-full":"pointer-events-none absolute inset-0 z-[40] flex justify-end"} role="presentation">
+  return <div className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
     {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
-      onClick={onClose} className="pointer-events-auto absolute inset-0 cursor-default bg-transparent"/>}
-    <aside role={inline?undefined:"dialog"} aria-modal={inline?undefined:true} aria-label={"Detalhes do contato "+name}
+      onClick={event=>{event.stopPropagation();onClose();}} className="absolute inset-0 cursor-default bg-transparent"/>}
+    <aside ref={drawerRef} role={inline?undefined:"dialog"} aria-modal={inline?undefined:false} aria-label={"Detalhes do contato "+name}
       className={inline
         ?"relative flex w-full min-h-[230px] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground"
-        :"pointer-events-auto relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
+        :"relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
       {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-        <button type="button" aria-label="Voltar à conversa" onClick={event=>{event.stopPropagation();onClose();}}
-          className="rounded-lg p-1.5 hover:bg-muted"><ArrowLeft size={20}/></button>
+        <button type="button" aria-label="Voltar à conversa" onClick={event=>{event.preventDefault();event.stopPropagation();onClose();}}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
         <button type="button" onClick={()=>setHistoryOpen(value=>!value)}
           aria-expanded={historyOpen} aria-label="Histórico geral do contato" title="Histórico geral do contato"
-          className="rounded-lg p-1.5 hover:bg-muted"><History size={18}/></button>
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-muted"><History size={18}/></button>
         {onEdit&&<button type="button" onClick={onEdit} aria-label="Editar contato" title="Editar contato"
-          className="rounded-lg p-1.5 hover:bg-muted"><Pencil size={17}/></button>}
+          className="admin-action-blue-outline inline-flex h-9 w-9 items-center justify-center rounded-lg border"><Pencil size={17}/></button>}
       </div>}
       <div className={inline?"w-full":"min-h-0 flex-1 overflow-y-auto overscroll-contain"}>
         {!inline&&<div className="flex flex-col items-center gap-2 border-b border-border px-5 py-6 text-center">
