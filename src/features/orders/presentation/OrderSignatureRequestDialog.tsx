@@ -39,6 +39,7 @@ export function OrderSignatureRequestDialog({
   open,
   order,
   templates,
+  preferredDocumentType,
   usedItems,
   partRequests,
   history,
@@ -53,6 +54,7 @@ export function OrderSignatureRequestDialog({
   open: boolean;
   order: any;
   templates: PrintTemplate[];
+  preferredDocumentType?: string | null;
   usedItems: any[];
   partRequests: any[];
   history: any[];
@@ -78,9 +80,10 @@ export function OrderSignatureRequestDialog({
     () => templates.filter(template =>
       template.is_active !== false
       && template.allow_online_signature === true
+      && (!preferredDocumentType || template.document_type === preferredDocumentType)
       && !(template.require_employee_signature === true && template.employee_signature_source === "manual")
     ),
-    [templates],
+    [templates,preferredDocumentType],
   );
   const [templateId, setTemplateId] = useState("");
   const [signerType, setSignerType] = useState<"customer" | "contact">("customer");
