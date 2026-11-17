@@ -2477,7 +2477,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             {contactDetailsOpen && <UnionWhatsAppContactDetails key={selected.id}
               conversation={selected} organizationId={activeOrganizationId||selected.organization_id}
               gender={linkedCustomers[selected.id]?.customer?.gender}
-              onClose={()=>{console.info("[contact-details trace] onClose");setContactDetailsOpen(false);}}
+              onClose={()=>setContactDetailsOpen(false)}
               onEdit={canAction("manage_contacts")?()=>{
                 setContactDetailsOpen(false);setEditContactId(selected.id);
               }:undefined}/>}
