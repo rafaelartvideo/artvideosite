@@ -564,10 +564,10 @@ export function UnionWhatsAppContactsDialog({
     finally{setBusy(false);}
   };
   const currentName=selected?(name.trim()||labelFor(selected)):name;
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
+  return <div className="fixed inset-x-0 bottom-0 top-16 z-50 flex min-h-0 items-center justify-center bg-black/60 p-2 sm:p-4"
     onClick={event=>{if(event.target===event.currentTarget)closeContacts();}}>
     <div role="dialog" aria-modal="true" aria-label="Gerenciar contatos WhatsApp"
-      className="flex h-[min(94dvh,960px)] w-full max-w-[1180px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      className="flex h-full max-h-[960px] min-h-0 w-full max-w-[1180px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex min-w-0 items-center gap-2"><ContactRound size={20} className="shrink-0 text-primary"/>
           <div><h2 className="font-bold">Contatos WhatsApp</h2>
