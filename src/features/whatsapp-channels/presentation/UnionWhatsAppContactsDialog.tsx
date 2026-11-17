@@ -660,6 +660,7 @@ export function UnionWhatsAppContactsDialog({
               return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
                 <WhatsAppContactAvatar name={display} src={listAvatars[contact.chat_jid]}
+                  identity={{organizationId,accountPhone,chatJid:contact.chat_jid}}
                   onError={()=>{avatarCheckedAtRef.current.set(contact.chat_jid,Date.now());setListAvatars(old=>rememberVisibleAvatar(old,contact.chat_jid,null));}}/>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{display}</span>
@@ -711,6 +712,8 @@ export function UnionWhatsAppContactsDialog({
           </div> : <div className="space-y-4">
             <div className="flex items-center gap-3">
               <WhatsAppContactAvatar size="detail" name={currentName}
+                identity={selected?{organizationId,accountPhone,chatJid:selected.chat_jid}:null}
+                gender={crmData?.customer?.gender}
                 src={avatarLoading?undefined:avatar} onError={()=>setAvatar(null)}/>
               <div className="min-w-0">
                 <p className="truncate text-base font-bold">{creating?"Novo contato":currentName}</p>
