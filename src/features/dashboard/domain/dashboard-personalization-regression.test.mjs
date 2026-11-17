@@ -35,12 +35,12 @@ test("cards e gráficos possuem tamanho fixo inclusive pizza e situação SLA", 
   const tab=read("src/features/dashboard/presentation/TabDashboard.tsx");
   const panel=read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
   await compile("src/features/dashboard/presentation/DashboardUi.tsx");
-  assert.ok(ui.includes("h-[370px]"));
+  assert.ok(ui.includes("h-[580px]"));
   assert.match(ui,/fixedHeight/);
-  assert.ok(panel.includes("const chartHeight = showToolbar ? 203 : 238;"));
-  assert.ok(panel.includes("fixedHeight={chartHeight}"));
-  assert.ok(tab.includes("max-w-[1420px]"));
-  assert.ok(tab.includes("max-w-[1000px]"));
+  assert.ok(panel.includes("const CHART_HEIGHT = 438;"));
+  assert.ok(panel.includes("fixedHeight={CHART_HEIGHT}"));
+  assert.ok(tab.includes("lg:grid-cols-2"));
+  assert.ok(!tab.includes("2xl:grid-cols-3"));
 });
 
 test("agregação protege a empresa, agrupa as decisões e não baixa lista de OS", async () => {
@@ -64,11 +64,11 @@ test("visualização permite ler nomes completos e não agrupa modelos em Outros
   await compile("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
   assert.ok(!tab.includes("summarizeChartCategories"));
   assert.ok(tab.includes("analytics?.equipment_models||[]"));
-  assert.ok(panel.includes("categoryData.slice("));
-  assert.ok(panel.includes("Buscar modelo"));
-  assert.ok(panel.includes("Ver nomes"));
-  assert.ok(panel.includes("showNames"));
-  assert.ok(ui.includes("overflow-auto [scrollbar-width:thin]"));
+  assert.ok(panel.includes("data.slice(0, MAX_CATEGORIES)"));
+  assert.ok(!panel.includes("Buscar modelo"));
+  assert.ok(!panel.includes("Ver nomes"));
+  assert.ok(!panel.includes("PAGE_SIZE"));
+  assert.ok(!ui.includes("overflow-auto [scrollbar-width:thin]"));
   assert.ok(ui.includes("angle={-38}"));
   assert.ok(ui.includes("centered />"));
 });
@@ -81,6 +81,6 @@ test("aprovados em verde, reprovados em vermelho e centralização dos painéis"
   assert.ok(panel.includes("não o valor em reais"));
   assert.ok(panel.includes("CHART_PALETTES.green"));
   assert.ok(panel.includes("CHART_PALETTES.red"));
-  assert.ok(tab.includes("justify-items-center"));
+  assert.ok(tab.includes("grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2"));
   assert.ok(tab.includes("mx-auto"));
 });
