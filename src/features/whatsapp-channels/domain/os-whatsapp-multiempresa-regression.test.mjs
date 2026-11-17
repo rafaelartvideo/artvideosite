@@ -464,11 +464,11 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.match(modal,/Escolha com quem falar sobre esta OS/);
   const recipientLookup=edge.slice(edge.indexOf('if(action==="order_recipients")'),
     edge.indexOf('// A OS e os cadastros compartilham'));
-  assert.ok(recipientLookup.includes('replace(/\\D/g,"")'),"Os telefones devem ter pontuação removida");
-  assert.ok(recipientLookup.includes('/^55[1-9]\\d{9,10}$/'),"Validação precisa aceitar dígitos reais");
-  assert.doesNotMatch(recipientLookup,/replace\\(\\/\\\\\\\\D\\/g/);
-  assert.match(modal,/if\\(recipients.length>0\\)set\\(\\{status:"choosing",recipients\\}\\)/);
-  assert.doesNotMatch(modal,/chooseOrderRecipient\\(recipients\\[0\\]\\)/);
+  assert.ok(recipientLookup.includes(String.raw`replace(/\D/g,"")`),"Os telefones devem ter pontuação removida");
+  assert.ok(recipientLookup.includes(String.raw`/^55[1-9]\d{9,10}$/`),"Validação precisa aceitar dígitos reais");
+  assert.ok(!recipientLookup.includes(String.raw`replace(/\\D/g,"")`),"Não usar barra duplicada na normalização");
+  assert.ok(modal.includes('if(recipients.length>0)set({status:"choosing",recipients})'));
+  assert.ok(!modal.includes("chooseOrderRecipient(recipients[0])"));
   assert.match(modal,/WhatsAppContactAvatar/);
   assert.match(modal,/>Vinculado</);
   assert.match(modal,/Trocar número/);
