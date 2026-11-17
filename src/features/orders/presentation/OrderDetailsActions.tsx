@@ -45,12 +45,13 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
 
   const cancelled = cancelledLocally || Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
   const returnAwaitingDiagnosis = Boolean(detail.return_root_id && detail.return_classification === "analysis");
+  const isDisposal = detail.service_type?.is_disposal === true;
   const canChangeSituation = !quoteMode && !returnAwaitingDiagnosis && hasPermission("orders.situation.change") && !isOrderSituationLocked(detail);
   const canEdit = hasPermission("orders.edit");
-  const canRequestParts = !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
-  const canResolve = !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
+  const canRequestParts = !isDisposal && !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
+  const canResolve = !isDisposal && !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
-  const canComplete = !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && detail.is_solved && returnReady && !detail.completed_at && !cancelled;
+  const canComplete = !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
   const canEditOrder = !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
@@ -89,7 +90,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5 md:w-auto md:flex-wrap md:gap-2" />}
           {canRequestParts && <AdminButton variant="tertiary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
-          {canComplete && <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />}
+          {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="quaternary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 !px-0 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
           {returnAwaitingDiagnosis && <div id={"os-return-diagnosis-toolbar-" + detail.id}
