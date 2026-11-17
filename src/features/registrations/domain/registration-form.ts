@@ -204,7 +204,7 @@ export function validateRegistrationFormFields(form: RegistrationFormState, { re
     if (!form.birth_date) errors.birth_date = "Data de nascimento é obrigatória.";
     else if (!isPastOrTodayBrazilianDate(form.birth_date)) errors.birth_date = "Data de nascimento inválida ou futura.";
   } else {
-    if (form.roles.includes("supplier")) {
+    if (form.roles.includes("supplier") || form.roles.includes("partner")) {
       if (!form.trade_name.trim() && !form.legal_name.trim()) {
         errors.legal_name = "Informe a razão social quando não houver nome fantasia.";
       }
