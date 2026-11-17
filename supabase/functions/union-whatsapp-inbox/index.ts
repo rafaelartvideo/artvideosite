@@ -596,9 +596,39 @@ Deno.serve(async request => {
           is_manager:Boolean(bindingMap.get(m.user_id)?.is_active &&
             ["manager","both"].includes(bindingMap.get(m.user_id)?.staff_role))}))
         .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+      // Uma única consulta pequena de contagens da aba corrente, sem uma RPC
+      // por operador nem buscar mensagens. Mesmos filtros da lista paginada.
+      let filterCounts:Record<string,number>={};
+      if(action==="operator_filter_list"){
+        const requested=String(body.filter||"");
+        const requestedChannel=String(body.channel_id||"");
+        const account=String(body.account_phone||"");
+        const department=String(body.department_filter||"all");
+        if(["in_att","finished","forwarded"].includes(requested) &&
+          uuid(requestedChannel)&&account){
+          let counter=admin.from("union_whatsapp_conversations")
+            .select("assigned_to,forwarded_by,status,forwarded_at")
+            .eq("organization_id",org).eq("channel_id",requestedChannel)
+            .eq("account_phone",account);
+          if(requested==="forwarded")counter=counter.not("forwarded_at","is",null)
+            .neq("status","finished").neq("status","abandoned");
+          else {
+            counter=counter.eq("status",requested);
+            if(requested==="in_att")counter=counter.is("forwarded_at",null);
+          }
+          if(department==="none")counter=counter.is("department_id",null);
+          else if(uuid(department))counter=counter.eq("department_id",department);
+          const {data:rows,error:countError}=await counter.limit(5000);
+          if(countError)throw countError;
+          for(const item of rows||[]){
+            const id=requested==="forwarded"?item.forwarded_by:item.assigned_to;
+            if(id)filterCounts[id]=(filterCounts[id]||0)+1;
+          }
+        }
+      }
       // A consulta do filtro é somente leitura e exige view_all; não expõe
       // funcionários sem acesso ativo como Operador nem permite gerenciar papéis.
-      return json({success:true,operators:action==="operator_filter_list"
+      return json({success:true,operator_counts:filterCounts,operators:action==="operator_filter_list"
         ? operators.filter(item=>item.is_active && item.eligible && item.can_attend &&
             (item.staff_role==="operator" || item.staff_role==="both"))
         : operators});
