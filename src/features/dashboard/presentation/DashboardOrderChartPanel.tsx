@@ -77,7 +77,6 @@ export function DashboardOrderChartPanel({
   const visibleSlaData = slaData
     ? slaData.filter(point => pageData.some(visible => visible.key === point.key))
     : undefined;
-  const showPager = !isTimeSeries && categoryData.length > PAGE_SIZE;
   const showToolbar = !isTimeSeries;
   const accent = CHART_ACCENTS[chartKey];
   const palette = chartKey === "quote_approved" ? CHART_PALETTES.green
@@ -185,7 +184,7 @@ export function DashboardOrderChartPanel({
             fixedHeight={chartHeight} minHeight={chartHeight}
             layout={mode === "horizontal" ? "vertical" : "horizontal"} />}
       </div>
-      <p className="shrink-0 truncate text-[10px] font-medium text-muted-foreground"
+      <p className="line-clamp-2 min-h-[22px] shrink-0 overflow-hidden text-[10px] font-medium leading-3 text-muted-foreground"
         title={explanation}>
         {chartKey !== "situation" && chartKey !== "status" && <span className="mr-1.5 inline-block size-2 rounded-full align-middle"
           style={{backgroundColor:accent}} aria-hidden="true" />}
