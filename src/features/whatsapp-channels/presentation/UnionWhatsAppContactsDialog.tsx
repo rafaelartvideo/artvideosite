@@ -7,7 +7,7 @@ import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
-import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
   VISIBLE_AVATAR_RETRY_MS,
@@ -746,17 +746,17 @@ export function UnionWhatsAppContactsDialog({
               </div>
               {!creating&&selected&&<button type="button"
                 onClick={()=>setHistoryOpen(value=>!value)} aria-expanded={historyOpen}
-                title="Histórico de atendimentos" aria-label="Histórico de atendimentos"
+                title="Histórico geral do contato" aria-label="Histórico geral do contato"
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5">
                 <History size={16}/><span className="hidden sm:inline">Histórico</span>
               </button>}
             </div>
-            {historyOpen&&selected&&<section aria-label="Histórico de atendimentos" className="rounded-xl border border-border p-4">
-              <h3 className="mb-3 text-sm font-bold">Histórico de atendimentos</h3>
+            {historyOpen&&selected&&<section aria-label="Histórico geral do contato" className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-bold">Histórico geral do contato</h3>
               {conversationLoading?<p role="status" className="flex items-center justify-center gap-2 py-5 text-center text-xs text-muted-foreground">
-                <LoaderCircle size={15} className="animate-spin"/> Consultando protocolos...
+                <LoaderCircle size={15} className="animate-spin"/> Consultando histórico...
               </p>:contactConversation?.chat_jid===selected.chat_jid?
-                <UnionWhatsAppProtocolHistory key={contactConversation.id} organizationId={organizationId}
+                <UnionWhatsAppContactHistory key={contactConversation.id} organizationId={organizationId}
                   conversation={contactConversation}/>:
                 <p className="py-4 text-center text-xs text-muted-foreground">
                   {conversationError||"Nenhum atendimento registrado para este contato."}
