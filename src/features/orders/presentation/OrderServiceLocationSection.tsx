@@ -72,7 +72,7 @@ export function OrderServiceLocationSection({
                     <p>{[serviceAddressPreview.zip_code, [serviceAddressPreview.street, serviceAddressPreview.number].filter(Boolean).join(", "), serviceAddressPreview.complement, serviceAddressPreview.neighborhood, [serviceAddressPreview.city, serviceAddressPreview.state].filter(Boolean).join(" - ")].filter(Boolean).join(" · ")}</p>
                   </div> : <div className="grid sm:grid-cols-2 gap-4">
                     <div>
-                      <FInput label="CEP" required value={form.service_zip_code} onChange={(e: any) => setForm(current => ({ ...current, service_zip_code: formatZipCode(e.target.value) }))} />
+                      <FInput label="CEP" required value={form.service_zip_code} onChange={(e: any) => { const value = formatZipCode(String(e?.target?.value ?? "")); setForm(current => ({ ...current, service_zip_code: value })); }} />
                       {ibgeCitiesLoading && <InlineLoading className="mt-1 text-[10px]" text="Consultando endereço..." />}
                       {serviceAddressMessage && <p className="mt-1 text-xs text-red-600">{serviceAddressMessage}</p>}
                       {!form.service_zip_code.trim() && <p className="mt-1 text-xs text-red-600">Informe o CEP.</p>}
