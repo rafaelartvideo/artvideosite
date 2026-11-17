@@ -741,6 +741,12 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.match(inbox,/newOrderDisabled=\{Boolean\(newOrder\)\}/);
   assert.match(inbox,/useEffect\(\(\)=>setNewOrder\(null\),\[activeOrganizationId\]\)/);
   assert.match(crm,/onClick=\{event=>\{event\.stopPropagation\(\);onNewOrder\(\);\}\}/);
+  assert.match(crm,/<AdminButton variant="tertiary" size="sm"/);
+  assert.doesNotMatch(crm,/flex-1 items-center gap-2 text-left text-xs font-semibold/);
+  const crmRow=crm.slice(crm.indexOf('<div className="flex min-w-0 items-center gap-2">'),
+    crm.indexOf('{open && <div id={regionId}'));
+  assert.ok(crmRow.indexOf('ChevronDown') < crmRow.indexOf('aria-label="Nova OS pelo atendimento"'),
+    "Nova OS deve ficar imediatamente depois da seta de consulta");
   assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
   assert.match(inbox,/UnionWhatsAppContactsDialog/);
 });
