@@ -20,6 +20,7 @@ import { OrderCompletionPaymentSection, OrderCompletionEvidenceSection } from ".
 import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 import { OrderConclusionButton } from "./OrderConclusionButton";
 import { useAuth } from "@/lib/auth";
+import { adminPath } from "@/features/admin-shell/admin-routes";
 import { useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 
 function customerAddress(customer: any): Address | null {
@@ -303,6 +304,21 @@ export function OrderCompletionModal({
           <p className="text-sm font-bold text-foreground">{completion.certificateBusy ? "Gerando certificado..." : "A OS foi concluída, mas o certificado não pôde ser emitido."}</p>
           {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
         </div>)}
+        {completion.noCustomerCharge && <div className="rounded-xl border border-border bg-muted/30 p-4">
+          <p className="text-sm font-bold text-foreground">Conta a receber da garantia gerada</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Fabricante: {completion.warrantyPartners.find(p=>p.id===completion.warrantyPayerId)?.name||"Parceiro selecionado"}
+            {" · "} Valor a receber: {formatCurrency(completion.warrantyReceivableNumber)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sem cobrança ao cliente. Faça a baixa quando o fabricante pagar.
+          </p>
+          <a href={adminPath("finance","receivables",detail?.financial_entry_id||null)}
+            target="_blank" rel="noopener noreferrer"
+            className="mt-2 inline-flex text-xs font-bold text-primary hover:underline">
+            Abrir em Contas a Receber
+          </a>
+        </div>}
         {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
         {completion.deliveryEvidenceAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Evidência de entrega salva nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
