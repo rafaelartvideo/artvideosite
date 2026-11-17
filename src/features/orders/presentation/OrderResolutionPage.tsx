@@ -80,7 +80,7 @@ export function OrderResolutionPage({
           {diagnosisVisible && <Section title="Diagnóstico">
             <div className="space-y-1">
               <FTextarea aria-label="Diagnóstico" required={diagnosisRequired} autoCapitalize="sentences"
-                value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
+                value={diagnosis} onChange={(e: any) => { const value = capitalizeSentenceStarts(String(e?.target?.value ?? "")); setSolveDraft(current => ({ ...current, diagnosis: value })); }} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{diagnosis.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
                 organizationId={detail.organization_id} orderId={detail.id} field="diagnosis"
@@ -92,7 +92,7 @@ export function OrderResolutionPage({
           {solutionVisible && <Section title="Solução">
             <div className="space-y-1">
               <FTextarea aria-label="Solução" required={solutionRequired} autoCapitalize="sentences"
-                value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
+                value={solution} onChange={(e: any) => { const value = capitalizeSentenceStarts(String(e?.target?.value ?? "")); setSolveDraft(current => ({ ...current, solution: value })); }} rows={5} />
               <p className="text-right text-[11px] tabular-nums text-muted-foreground">{solution.length} caracteres</p>
               {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
                 organizationId={detail.organization_id} orderId={detail.id} field="proposed_solution"
@@ -108,7 +108,7 @@ export function OrderResolutionPage({
             <FTextarea
               aria-label="Peças avulsas"
               value={looseParts}
-              onChange={(e: any) => setSolveDraft(current => ({ ...current, looseParts: e.target.value }))}
+              onChange={(e: any) => { const value = String(e?.target?.value ?? ""); setSolveDraft(current => ({ ...current, looseParts: value })); }}
               rows={4}
               placeholder="Ex.: conector HDMI, cabo, parafuso, componente reaproveitado..."
             />
