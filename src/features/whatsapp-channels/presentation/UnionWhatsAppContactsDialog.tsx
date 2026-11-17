@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, Users, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, ContactRound, Cpu, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
@@ -56,6 +56,8 @@ export function UnionWhatsAppContactsDialog({
   const [selectedGroup,setSelectedGroup]=useState<UnionWhatsAppGroup|null>(null);
   const [groupRevision,setGroupRevision]=useState(0);
   const [crmLoading,setCrmLoading]=useState(false);
+  const [crmPanel,setCrmPanel]=useState<"registration"|"equipments"|"orders"|null>(null);
+  const [crmEquipmentId,setCrmEquipmentId]=useState<string|null>(null);
   const [crmData,setCrmData]=useState<{
     customer?:{id:string;name:string;gender?:string|null;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null}|null;
     equipments?:Array<{id:string;equipment_type_name?:string|null;equipment_brand_name?:string|null;equipment_model_name?:string|null}>;
@@ -287,6 +289,7 @@ export function UnionWhatsAppContactsDialog({
   const choose=(contact:UnionWhatsAppContact)=>{
     phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
     setSelected(contact);setCreating(false);
+    setCrmPanel(null);setCrmEquipmentId(null);
     setName(contact.display_name||contact.device_name||contact.imported_name||contact.profile_name||"");
     setPhone(contact.contact_phone ? mask(contact.contact_phone) : "");
     setNotice("");
@@ -564,7 +567,7 @@ export function UnionWhatsAppContactsDialog({
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
     onClick={event=>{if(event.target===event.currentTarget)closeContacts();}}>
     <div role="dialog" aria-modal="true" aria-label="Gerenciar contatos WhatsApp"
-      className="flex h-[min(83vh,740px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      className="flex h-[min(94dvh,960px)] w-full max-w-[1180px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex min-w-0 items-center gap-2"><ContactRound size={20} className="shrink-0 text-primary"/>
           <div><h2 className="font-bold">Contatos WhatsApp</h2>
@@ -621,7 +624,7 @@ export function UnionWhatsAppContactsDialog({
       {(error||notice) && <div role={error?"alert":"status"} className={`mx-4 mt-3 rounded-lg border p-2 text-xs ${error?"border-red-400/40 text-red-600":"border-primary/30 text-foreground"}`}>
         {error||notice}
       </div>}
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:grid-rows-1">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1.2fr)] md:grid-cols-[minmax(320px,41%)_minmax(0,1fr)] md:grid-rows-1">
         <div className="flex min-h-0 flex-col border-b border-border md:border-b-0 md:border-r">
           <div className="flex shrink-0 gap-2 p-3">
             <div className="relative min-w-0 flex-1">
@@ -630,7 +633,7 @@ export function UnionWhatsAppContactsDialog({
                 placeholder={tab==="groups"?"Nome do grupo":"Nome ou telefone"} className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
             {canEdit && tab==="contacts" && <button type="button" aria-label="Adicionar contato" title="Novo contato"
-              onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
+              onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setCrmPanel(null);setCrmEquipmentId(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
               <Plus size={18}/>
             </button>}
@@ -684,7 +687,8 @@ export function UnionWhatsAppContactsDialog({
             </div>}
           </div>
         </div>
-        <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
+        <div className="flex min-h-0 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           {tab==="groups" ? (!selectedGroup ?
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
               <Users size={34}/><p>Selecione um grupo para consultar os detalhes.</p>
@@ -748,62 +752,111 @@ export function UnionWhatsAppContactsDialog({
               {phoneCheckNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{phoneCheckNotice}</p>}
               {phoneCheckError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{phoneCheckError}</p>}
             </div>}
-            {!creating && selected && <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
-              <p><span className="text-muted-foreground">Nome importado por arquivo (VCF/Excel/CSV): </span>{selected.device_name||"Não importado"}</p>
-              <p><span className="text-muted-foreground">Nome da agenda sincronizada: </span>{selected.imported_name||"Não disponibilizado"}</p>
-              <p><span className="text-muted-foreground">Nome público do WhatsApp: </span>{selected.profile_name||"Não disponibilizado"}</p>
-              <p className="text-muted-foreground">O nome salvo na Union tem prioridade. A importação não o sobrescreve.</p>
-            </div>}
             {!creating && selected && canReadCrm && <section aria-label="Dados do cliente vinculado no CRM"
-              className="space-y-2 rounded-lg border border-border p-3 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="font-bold">Dados do CRM</h3>
+              className="overflow-hidden rounded-xl border border-border text-xs">
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-3">
+                <h3 className="text-sm font-bold">Dados do CRM</h3>
                 {crmData?.customer&&<a href={adminPath("customers",crmData.customer.id,"customer")}
                   target="_blank" rel="noopener noreferrer"
-                  className="font-semibold text-primary hover:underline">Abrir cadastro</a>}
+                  className="shrink-0 font-semibold text-primary hover:underline">Abrir cadastro</a>}
               </div>
-              {crmLoading?<p role="status" className="flex items-center gap-2 text-muted-foreground">
-                <LoaderCircle size={14} className="animate-spin"/> Consultando vínculo com o CRM...
-              </p>:crmData?.customer ? <div className="space-y-2">
-                <div className="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
-                  <p><span className="text-muted-foreground">Cliente: </span><strong>{crmData.customer.name}</strong></p>
-                  <p><span className="text-muted-foreground">CPF/CNPJ: </span>{crmData.customer.cnpj||crmData.customer.document||"Não informado"}</p>
-                  <p><span className="text-muted-foreground">WhatsApp: </span>{crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"}</p>
-                  <p><span className="text-muted-foreground">E-mail: </span>{crmData.customer.email||"Não informado"}</p>
-                </div>
-                <div className="border-t border-border pt-2">
-                  <p className="font-semibold">Equipamentos</p>
-                  {!crmData.equipments?.length?<p className="mt-1 text-muted-foreground">Nenhum equipamento encontrado.</p>:
-                    <div className="mt-1 space-y-1">{crmData.equipments.map(equipment=>
-                      <p key={equipment.id} className="truncate">
-                        {[equipment.equipment_type_name,equipment.equipment_brand_name,equipment.equipment_model_name]
-                          .filter(Boolean).join(" · ")||"Equipamento sem descrição"}
-                      </p>)}</div>}
-                </div>
-                {canReadOrders&&<div className="border-t border-border pt-2">
-                  <p className="font-semibold">OS recentes</p>
-                  {!crmData.crm_orders?.length?<p className="mt-1 text-muted-foreground">Nenhuma OS encontrada.</p>:
-                    <div className="mt-1 flex flex-wrap gap-2">{crmData.crm_orders.map(order=>
-                      <a key={order.id} href={adminPath("orders",order.id)} target="_blank"
-                        rel="noopener noreferrer" className="font-semibold text-primary hover:underline">
-                        OS {order.os_number}
-                      </a>)}</div>}
+              <div className="p-2.5 sm:p-3">
+                {crmLoading?<p role="status" className="flex items-center gap-2 px-2 py-3 text-muted-foreground">
+                  <LoaderCircle size={14} className="animate-spin"/> Consultando dados do CRM...
+                </p>:!crmData?.customer?<p className="px-2 py-3 text-muted-foreground">
+                  {crmData?.ambiguous
+                    ?"Mais de um cadastro possui este número. Verifique antes de vincular."
+                    :"Nenhum cliente do CRM encontrado para este número."}
+                </p>:crmPanel===null?<div className="space-y-1">
+                  <button type="button" onClick={()=>setCrmPanel("registration")}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left font-semibold hover:bg-muted">
+                    <UserRound size={17} className="shrink-0"/>
+                    <span className="min-w-0 flex-1">Dados de cadastro</span>
+                    <ChevronRight size={16} className="text-muted-foreground"/>
+                  </button>
+                  <button type="button" onClick={()=>{setCrmPanel("equipments");setCrmEquipmentId(null);}}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left font-semibold hover:bg-muted">
+                    <Cpu size={17} className="shrink-0"/>
+                    <span className="min-w-0 flex-1">Equipamentos</span>
+                    <span className="text-muted-foreground">{crmData.equipments?.length||0}</span>
+                    <ChevronRight size={16} className="text-muted-foreground"/>
+                  </button>
+                  {canReadOrders&&<button type="button" onClick={()=>setCrmPanel("orders")}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left font-semibold hover:bg-muted">
+                    <ClipboardList size={17} className="shrink-0"/>
+                    <span className="min-w-0 flex-1">OS recentes</span>
+                    <span className="text-muted-foreground">{crmData.crm_orders?.length||0}</span>
+                    <ChevronRight size={16} className="text-muted-foreground"/>
+                  </button>}
+                </div>:<div className="min-w-0">
+                  <button type="button" onClick={()=>{
+                    if(crmPanel==="equipments"&&crmEquipmentId)setCrmEquipmentId(null);
+                    else setCrmPanel(null);
+                  }} className="mb-3 inline-flex items-center gap-2 rounded-lg px-2 py-2 font-semibold text-primary hover:bg-primary/5">
+                    <ArrowLeft size={15}/> Voltar
+                  </button>
+                  {crmPanel==="registration"?<div className="grid grid-cols-1 gap-3 px-2 pb-2 sm:grid-cols-2">
+                    {([
+                      ["Cliente",crmData.customer.name],
+                      ["CPF/CNPJ",crmData.customer.cnpj||crmData.customer.document||"Não informado"],
+                      ["Telefone",crmData.customer.phone?formatWhatsAppPhone(crmData.customer.phone):"Não informado"],
+                      ["WhatsApp",crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"],
+                      ["E-mail",crmData.customer.email||"Não informado"],
+                    ] as Array<[string,string]>).map(([label,value])=><div key={label} className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+                      <p className="mt-1 break-words font-medium">{value}</p>
+                    </div>)}
+                  </div>:crmPanel==="equipments"?(
+                    !crmData.equipments?.length?<p className="px-2 py-3 text-muted-foreground">Nenhum equipamento cadastrado.</p>
+                    :crmEquipmentId?<div className="grid grid-cols-1 gap-3 px-2 pb-2 sm:grid-cols-2">
+                      {(()=>{
+                        const equipment=crmData.equipments.find(item=>item.id===crmEquipmentId);
+                        return equipment?([
+                          ["Tipo",equipment.equipment_type_name||"Não informado"],
+                          ["Marca",equipment.equipment_brand_name||"Não informada"],
+                          ["Modelo",equipment.equipment_model_name||"Não informado"],
+                        ] as Array<[string,string]>).map(([label,value])=><div key={label}>
+                          <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+                          <p className="mt-1 font-medium">{value}</p>
+                        </div>):null;
+                      })()}
+                    </div>:<div className="space-y-1">
+                      {crmData.equipments.map(item=><button type="button" key={item.id}
+                        onClick={()=>setCrmEquipmentId(item.id)}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-muted">
+                        <Cpu size={16} className="shrink-0"/>
+                        <span className="min-w-0 flex-1 truncate font-semibold">
+                          {[item.equipment_type_name,item.equipment_brand_name,item.equipment_model_name].filter(Boolean).join(" · ")||"Equipamento sem descrição"}
+                        </span>
+                        <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+                      </button>)}
+                    </div>
+                  ):<div className="space-y-1">
+                    {!crmData.crm_orders?.length?<p className="px-2 py-3 text-muted-foreground">Nenhuma OS encontrada.</p>
+                    :crmData.crm_orders.map(order=><a key={order.id}
+                      href={adminPath("orders",order.id)} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-lg px-3 py-3 font-semibold hover:bg-muted">
+                      <ClipboardList size={16} className="shrink-0"/>
+                      <span className="min-w-0 flex-1">OS {order.os_number}</span>
+                      <ChevronRight size={16} className="shrink-0 text-muted-foreground"/>
+                    </a>)}
+                  </div>}
                 </div>}
-              </div>:
-                <p className="text-muted-foreground">{crmData?.ambiguous?
-                  "Mais de um cliente do CRM usa este número. Revise os cadastros antes de vincular.":
-                  "Nenhum cliente do CRM encontrado para este número."}</p>}
+              </div>
             </section>}
-            <div className="flex flex-wrap gap-2">
-              {canEdit && <AdminButton disabled={busy || name.trim().length<2} onClick={()=>void save()}>
-                <Pencil size={15}/> {busy?"Salvando...":"Salvar contato"}
-              </AdminButton>}
-              {!creating && selected && <AdminButton variant="secondary"
-                onClick={()=>{if(onChoose(selected))onClose();}}>Abrir conversa</AdminButton>}
-            </div>
             {!creating && selected && !selected.contact_phone &&
               <p className="text-xs text-muted-foreground">Se este identificador privado ainda não tiver conversa, será preciso receber uma mensagem antes de iniciar pelo número.</p>}
           </div>}
+          </div>
+          <div className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-4 py-2.5 sm:px-5">
+            {tab==="contacts" && (selected||creating) && <>
+              {canEdit&&<AdminButton disabled={busy||name.trim().length<2} onClick={()=>void save()}>
+                <Pencil size={15}/> {busy?"Salvando...":"Salvar contato"}
+              </AdminButton>}
+              {!creating&&selected&&<AdminButton variant="secondary"
+                onClick={()=>{if(onChoose(selected))onClose();}}>Abrir conversa</AdminButton>}
+            </>}
+          </div>
         </div>
       </div>
     </div>
