@@ -330,8 +330,10 @@ export function UnionWhatsAppActivityProvider({
       lastResume=Date.now();
       void checkChannel();
       // Sem polling de 30s. Reconciliar só ao retornar à aba.
-      if(Date.now()-lastCountsRef.current>120_000)void countsFnRef.current(true);
-      if(expandedRef.current)void rowsFnRef.current(true);
+      if(!pageOpenRef.current&&!conversationOpenRef.current){
+        if(Date.now()-lastCountsRef.current>120_000)void countsFnRef.current(true);
+        if(expandedRef.current)void rowsFnRef.current(true);
+      }
     };
     window.addEventListener("focus",resume);
     document.addEventListener("visibilitychange",resume);
@@ -363,6 +365,7 @@ export function UnionWhatsAppActivityProvider({
           open onClose={()=>{
             setConversationId(null);
             void refreshCounts(true);
+            if(expandedRef.current)void rowsFnRef.current(true);
           }}
           context={{organizationId:activeOrganizationId,
             source:{kind:"conversation",conversationId}}}
