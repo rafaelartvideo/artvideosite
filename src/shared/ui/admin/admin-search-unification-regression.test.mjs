@@ -98,7 +98,7 @@ test("touch tablets get compact CRM searches and serial scanner without hiding t
   const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   assert.match(switcher,/admin-mobile-search-switch/);
-  assert.match(css,/@media \(hover: none\) and \(pointer: coarse\)/);
+  assert.match(css,/@media \(max-width: 1023px\), \(pointer: coarse\)/);
   assert.match(css,/admin-mobile-search-switch \+ div\[class\*="hidden"\]/);
   assert.match(filters,/compactOrderSearchMedia/);
   assert.match(filters,/\(pointer: coarse\)/);
