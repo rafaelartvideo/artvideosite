@@ -54,6 +54,7 @@ async function signedBridge(
   numberCheck = false,
   reply?: {id:string;participant:string},
   quoteProbe = false,
+  groupsList = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -64,7 +65,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: quoteProbe ? "quote_capability" : numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: groupsList ? "groups_list" : quoteProbe ? "quote_capability" : numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(reply ? {reply_to_id:reply.id,reply_participant:reply.participant} : {}),
@@ -109,6 +110,10 @@ async function signedBridge(
         status:result.status,distinct_identities:result.distinct_identities===true});
     }
     if (presence) return "";
+    if(groupsList){
+      if(!Array.isArray(result.groups))throw Error("groups_list_outdated_bridge");
+      return JSON.stringify(result.groups.slice(0,500));
+    }
     if(exportContacts) {
       if(!Array.isArray(result.contacts)) throw Error("contacts_export_invalid");
       return JSON.stringify(result.contacts.slice(0,2000));
@@ -174,8 +179,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -243,6 +248,7 @@ Deno.serve(async request => {
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
+      contacts_groups:"view_contacts",contacts_crm_match:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",start:"start",
@@ -678,7 +684,7 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
-    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(channelError)throw channelError;
@@ -687,6 +693,7 @@ Deno.serve(async request => {
         !/^[0-9]{10,15}$/.test(String(channel.phone||""))){
         // A disconnected account must not load even the saved-contact list.
         if(action==="contacts_list")return json({success:true,contacts:[],total:0});
+        if(action==="contacts_groups")return json({success:true,groups:[],total:0});
         return json({success:false,error:"Conecte o número de WhatsApp antes de consultar ou importar contatos."},409);
       }
       // Reject stale batches from an earlier number, even if the same technical
@@ -761,7 +768,7 @@ Deno.serve(async request => {
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
           .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
-          .or("display_name.not.is.null,device_name.not.is.null,wuzapi_verified_saved.eq.true");
+          ;
         if(search){
           const term=search.replace(/[%,]/g,"");
           q=q.or("display_name.ilike.%"+term+"%,device_name.ilike.%"+term+
