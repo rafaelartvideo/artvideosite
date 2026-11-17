@@ -98,7 +98,8 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
       next_due_date: pending[0]?.due_date || null,
       operational_status: entry.approval_status === "cancelled" || entry.approval_status === "reversed"
         ? "cancelled"
-        : deriveEntryStatus(entryInstallments, today),
+        : (entry.source_details?.billing_model === "partner_warranty" && entry.source_details?.receivable_status === "pending_details"
+          ? "open" : deriveEntryStatus(entryInstallments, today)),
     } as FinancialEntry;
   });
 }
