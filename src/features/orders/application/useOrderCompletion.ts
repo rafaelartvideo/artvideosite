@@ -182,8 +182,13 @@ export function useOrderCompletion({
     && detail?.service_type?.generates_warranty === true);
   const financeEnabled = financeOptions.finance_enabled;
   // Garantia de fabricante: consumidor não paga, mas existe um título a receber do parceiro.
-  const noCustomerCharge = completionChargeCustomer?.orderId===detail?.id
-    ? completionChargeCustomer.value===false
+  // Na primeira renderização, detail e completionChargeCustomer são nulos.
+  // Comparar seus IDs opcionais retornava undefined === undefined e tentava
+  // acessar completionChargeCustomer.value antes de qualquer OS carregar.
+  const hasChargeOverride = Boolean(detail?.id && completionChargeCustomer
+    && completionChargeCustomer.orderId === detail.id);
+  const noCustomerCharge = hasChargeOverride
+    ? completionChargeCustomer?.value === false
     : detail?.service_type?.charge_customer === false;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
   const priceAtCompletion = !commercialPricing && Boolean(detail?.general_service?.price_at_completion);
