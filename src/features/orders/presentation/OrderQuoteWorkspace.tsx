@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, RotateCcw, XCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, PackageCheck, RotateCcw, XCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -23,6 +23,7 @@ import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
+import { OrderQuoteReturnDialog } from "./OrderQuoteReturnDialog";
 
 type QuoteAction = "submit" | "approve" | "reject" | "renegotiate" | "reopen";
 type ModalFeedback = { type: "success" | "error"; message: string };
@@ -89,12 +90,15 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange}:{
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange,canCompleteReturn=false,canAttachReturnEvidence=false,onReturnCompleted}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
   onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
   footerHostId:string;
   actionsHostId?:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
+  canCompleteReturn?: boolean;
+  canAttachReturnEvidence?: boolean;
+  onReturnCompleted?: () => void;
 }) {
   const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
@@ -107,6 +111,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     return cached ? snapshot(cached) : emptyOrderQuoteDraft();
   });
   const [reason,setReason]=useState("");
+  const [returnOpen,setReturnOpen]=useState(false);
   const [loading,setLoading]=useState(() =>
     !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
   const [busy,setBusy]=useState(false);
@@ -131,6 +136,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
 
   useEffect(()=>{
     setConfirmationAction(null);
+    setReturnOpen(false);
     setModalFeedback(null);
     approvalLookupId.current += 1;
     setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");
@@ -368,8 +374,15 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         <BtnPrimary disabled={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <CheckCircle2 size={15} className="hidden shrink-0 sm:block"/> Aprovar</BtnPrimary>
       </>}
-      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
-        onClick={()=>openAction("renegotiate")}><RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</BtnPrimary>}
+      {proposal?.status==="rejected" && !order.completed_at && !order.cancelled_at && <>
+        {canEdit && <BtnSecondary disabled={busy} onClick={()=>openAction("renegotiate")}
+          className="min-w-0 flex-1 text-xs md:flex-none md:text-sm">
+          <RotateCcw size={15} className="hidden shrink-0 sm:block" /> Renegociar
+        </BtnSecondary>}
+        {canCompleteReturn && !order.is_solved && <BtnPrimary disabled={busy}
+          className="min-w-0 flex-1 whitespace-nowrap text-xs md:flex-none md:text-sm"
+          onClick={()=>setReturnOpen(true)}><PackageCheck size={15} className="hidden shrink-0 sm:block" /> Finalizar devolução</BtnPrimary>}
+      </>}
 
     </>,footerHost)}
     <AdminDialog
@@ -545,5 +558,9 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         </AnimatePresence>
       </div>
     </AdminDialog>
+    {returnOpen && proposal?.status==="rejected" && <OrderQuoteReturnDialog
+      order={order} quote={proposal} open={returnOpen}
+      canAttach={canAttachReturnEvidence} onClose={()=>setReturnOpen(false)}
+      onReturned={()=>onReturnCompleted?.()} />}
   </>;
 }
