@@ -148,6 +148,7 @@ export function TabOrders({
   const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
   const [completionFromListStarted, setCompletionFromListStarted] = useState(false);
   const [completionFromListReady, setCompletionFromListReady] = useState(false);
+  const completionFromListRequestRef = useRef(0);
   const editOriginRef = useRef<"details" | "list">("details");
   const cancellingEditRef = useRef(false);
   const closingRouteRef = useRef<string | null>(null);
@@ -313,16 +314,15 @@ export function TabOrders({
     setCompletionFromListStarted(true);
     // A abertura faz uma consulta assíncrona de cobrança. Não desmontar a
     // preparação enquanto a primeira resposta ainda não chegou.
-    let active = true;
+    const attempt = completionFromListRequestRef.current;
     void completionController.openCompletion(detail).then(started => {
-      if (!active || started) return;
+      if (completionFromListRequestRef.current !== attempt || started) return;
       // Requisitos inválidos: o hook já informou o motivo em uma notificação.
       setCompletionFromListId(null);
       setCompletionFromListStarted(false);
       setCompletionFromListReady(false);
       closeDetail();
     });
-    return () => { active = false; };
   }, [completionFromListId, completionFromListStarted, detailsController.detailReady, detail]);
 
   // Um único estado de preparação cobre a carga do detalhe E das dependências
@@ -347,7 +347,7 @@ export function TabOrders({
     setCompletionFromListStarted(false);
     setCompletionFromListReady(false);
     closeDetail();
-  }, [completionFromListId, completionFromListStarted, completionController.open]);
+  }, [completionFromListId, completionFromListReady, completionController.open]);
 
   const orderEditor = useOrderEditorWorkflow({
     userId: user?.id,
@@ -551,6 +551,7 @@ export function TabOrders({
   const openCompletionFromList = (order: any) => {
     if (!effectiveHasPermission("orders.complete")) return;
     if (completionController.open || completionFromListId) return;
+    completionFromListRequestRef.current += 1;
     setCompletionFromListStarted(false);
     setCompletionFromListReady(false);
     setCompletionFromListId(order.id);
@@ -933,6 +934,7 @@ export function TabOrders({
           }
         }}
         onCancelCompletionPreparation={() => {
+          completionFromListRequestRef.current += 1;
           completionController.closeCompletion();
           setCompletionFromListId(null);
           setCompletionFromListStarted(false);
