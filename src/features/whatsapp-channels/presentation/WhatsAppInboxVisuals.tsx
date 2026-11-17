@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   fetchSharedAvatar, markSharedAvatarBroken, peekSharedAvatar,
+  peekSharedAvatarGender, rememberSharedAvatarGender,
   sharedAvatarKey, subscribeSharedAvatar, type SharedAvatarIdentity,
 } from "../application/shared-whatsapp-avatar-cache";
 import maleAvatar from "./assets/avatar-masculino.svg";
@@ -45,15 +46,23 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
   const node=useRef<HTMLSpanElement|null>(null);
   const [visible,setVisible]=useState(false);
   const [sharedUrl,setSharedUrl]=useState<string|null|undefined>(()=>peekSharedAvatar(key));
+  const [knownGender,setKnownGender]=useState<string|null>(()=>peekSharedAvatarGender(key));
   const [brokenUrl,setBrokenUrl]=useState<string|null>(null);
   const [imageReady,setImageReady]=useState(false);
 
   // O mesmo índice assinado alimenta a inbox, mini, agenda e edição.
   useEffect(()=>{
     setSharedUrl(peekSharedAvatar(key));
+    setKnownGender(peekSharedAvatarGender(key));
     if(!key)return;
-    return subscribeSharedAvatar(key,()=>setSharedUrl(peekSharedAvatar(key)));
+    return subscribeSharedAvatar(key,()=>{
+      setSharedUrl(peekSharedAvatar(key));
+      setKnownGender(peekSharedAvatarGender(key));
+    });
   },[key]);
+  useEffect(()=>{
+    if(key&&gender)rememberSharedAvatarGender(key,gender);
+  },[key,gender]);
   useEffect(()=>{
     const element=node.current;
     if(!element || !key){setVisible(false);return;}
@@ -77,8 +86,9 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
   const parts=name.trim().split(/\s+/).filter(Boolean);
   const initials=(parts.length>1 ? parts[0][0]+parts[parts.length-1][0] :
     (parts[0]||"?").slice(0,2)).toUpperCase();
-  const fallback=gender==="M"||gender==="masculino" ? maleAvatar :
-    gender==="F"||gender==="feminino" ? femaleAvatar : null;
+  const genderValue=gender||knownGender;
+  const fallback=genderValue==="M"||genderValue==="masculino" ? maleAvatar :
+    genderValue==="F"||genderValue==="feminino" ? femaleAvatar : null;
   return <span ref={node} className={`relative flex ${size==="detail"?"h-16 w-16":size==="list"?"h-11 w-11":"h-10 w-10"} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black
     ${selected?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground"}`}>
     {/* Nunca travar em spinner: as iniciais ou o desenho padrão ficam visíveis
