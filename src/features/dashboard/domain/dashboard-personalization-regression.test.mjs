@@ -78,7 +78,7 @@ test("aprovados em verde, reprovados em vermelho e centralização dos painéis"
   const panel = read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
   assert.ok(panel.includes('quote_approved: "#059669"'));
   assert.ok(panel.includes('quote_rejected: "#dc2626"'));
-  assert.ok(panel.includes("não o valor em reais"));
+  assert.ok(panel.includes("Verde: quantidade de orçamentos aprovados."));
   assert.ok(panel.includes("CHART_PALETTES.green"));
   assert.ok(panel.includes("CHART_PALETTES.red"));
   assert.ok(tab.includes("grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2"));
