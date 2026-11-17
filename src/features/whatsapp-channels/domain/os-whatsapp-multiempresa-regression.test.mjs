@@ -487,3 +487,35 @@ test("Detalhes do contato mostram mídias, documentos e links sob demanda com au
   assert.match(repo,/\.eq\("conversation_id",conversationId\)/);
   assert.match(repo,/const SHARED_PAGE_SIZE=24/);
 });
+
+
+test("Prévia de mensagens e filtro de operadores mostram formatação e totais da aba",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(inbox,/WhatsAppFormattedText text=\{item\.last_message/);
+  assert.match(inbox,/operatorCounts\[person\.id\]\|\|0/);
+  assert.match(inbox,/person\.name\.trim\(\)\.split\(\/\\s\+\/\)\[0\]/);
+  assert.match(inbox,/department_filter:departmentFilter/);
+  assert.match(inbox,/filter:filter as "in_att"\|"finished"\|"forwarded"/);
+  assert.match(repo,/operator_counts\?: Record<string,number>/);
+  assert.match(edge,/operator_counts:filterCounts/);
+  assert.match(edge,/\.eq\("organization_id",org\)\.eq\("channel_id",requestedChannel\)/);
+  assert.match(edge,/\.eq\("account_phone",account\)/);
+});
+
+test("Agenda WhatsApp tem área maior, menus CRM e rodapé fixo alinhado à paginação",()=>{
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  assert.match(contacts,/h-\[min\(94dvh,960px\)\]/);
+  assert.match(contacts,/max-w-\[1180px\]/);
+  assert.match(contacts,/setCrmPanel\("registration"\)/);
+  assert.match(contacts,/setCrmPanel\("equipments"\)/);
+  assert.match(contacts,/setCrmPanel\("orders"\)/);
+  assert.match(contacts,/setCrmEquipmentId\(item\.id\)/);
+  assert.match(contacts,/flex min-h-0 flex-col/);
+  assert.match(contacts,/min-h-\[58px\] shrink-0/);
+  assert.doesNotMatch(contacts,/Nome importado por arquivo \(VCF\/Excel\/CSV\):/);
+  assert.doesNotMatch(contacts,/Nome da agenda sincronizada:/);
+  assert.doesNotMatch(contacts,/Nome público do WhatsApp:/);
+  assert.doesNotMatch(contacts,/O nome salvo na Union tem prioridade/);
+});
