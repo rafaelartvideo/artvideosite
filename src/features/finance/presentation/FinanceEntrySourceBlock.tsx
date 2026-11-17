@@ -31,9 +31,9 @@ export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: F
             ? <FinanceServiceOrderLink orderId={detail.origin_reference} number={source.os_number}/>
             : "—"}/>
           <Value label="Tipo de atendimento" value={source.service_type_name||"Garantia"}/>
-          <Value label="Fabricante / parceiro" value={detail.counterpart_name_snapshot||"Não identificado"}/>
+          <Value label="Fabricante / parceiro" value={detail.counterpart_name_snapshot||"A definir no Financeiro"}/>
           <Value label="Valor cobrado do cliente" value={formatCurrency(0)}/>
-          <Value label="Valor a receber do parceiro" value={<span className="font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(detail.original_amount)}</span>}/>
+          <Value label="Valor a receber do parceiro" value={<span className="font-black text-emerald-700 dark:text-emerald-300">{source.receivable_status==="pending_details"?"A definir na baixa":formatCurrency(detail.original_amount)}</span>}/>
           {source.notes&&<Value label="Observações" value={String(source.notes)}/>}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
