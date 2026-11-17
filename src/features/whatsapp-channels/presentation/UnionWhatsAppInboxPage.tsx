@@ -460,6 +460,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [orderSearch,setOrderSearch]=useState("");
   const [ordersLoading,setOrdersLoading]=useState(false);
+  const [ordersSearched,setOrdersSearched]=useState(false);
+  const [orderSearchError,setOrderSearchError]=useState("");
+  const ordersRequestRef=useRef(0);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
   const [linkedOrders,setLinkedOrders]=useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
@@ -1308,27 +1311,35 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
   };
-  // Buscar somente quando abrir o modal ou mudar o texto, sem consultar
-  // o Supabase para cada tecla digitada.
-  useEffect(()=>{
-    if(!ordersOpen||!selectedId||!activeOrganizationId)return;
-    let cancelled=false;
-    const timer=window.setTimeout(()=>{
-      setOrdersLoading(true);
-      void operateUnionWhatsAppInbox(activeOrganizationId,selectedId,"order_options",{
-        search:orderSearch.trim(),
-      }).then(result=>{
-        if(cancelled)return;
-        setPossibleOrders(result.orders||[]);
-        setLinkedOrders(result.linked_orders||[]);
-      }).catch(error=>{
-        if(!cancelled)reportError(systemErrorMessage(error,"Não foi possível buscar as OS."));
-      }).finally(()=>{if(!cancelled)setOrdersLoading(false);});
-    },orderSearch?350:0);
-    return()=>{cancelled=true;window.clearTimeout(timer);};
-  },[ordersOpen,orderSearch,selectedId,activeOrganizationId,reportError]);
+  // Os resultados só são consultados quando o operador pressiona Buscar ou Enter.
+  // Nenhuma pesquisa é disparada ao abrir o modal ou digitar uma tecla.
+  const searchOrders=async()=>{
+    const text=orderSearch.trim();
+    if(!selected||!activeOrganizationId||!text||ordersLoading)return;
+    const version=++ordersRequestRef.current;
+    const conversationId=selected.id,organization=activeOrganizationId;
+    setOrdersSearched(true);setOrdersLoading(true);setOrderSearchError("");
+    setPossibleOrders([]);
+    try{
+      const result=await operateUnionWhatsAppInbox(organization,conversationId,"order_options",{
+        search:text,
+      });
+      if(ordersRequestRef.current!==version||organizationRef.current!==organization||
+        selectedIdRef.current!==conversationId)return;
+      setPossibleOrders((result.orders||[]).filter(order=>
+        !(result.linked_orders||[]).some(link=>link.id===order.id)));
+      setLinkedOrders(result.linked_orders||[]);
+    }catch(error){
+      if(ordersRequestRef.current!==version)return;
+      setOrderSearchError(systemErrorMessage(error,"Não foi possível buscar esta OS."));
+    }finally{
+      if(ordersRequestRef.current===version)setOrdersLoading(false);
+    }
+  };
   const showOrders=()=>{
+    ++ordersRequestRef.current;
     setOrderSearch("");setPossibleOrders([]);setLinkedOrders([]);
+    setOrdersSearched(false);setOrderSearchError("");setOrdersLoading(false);
     setOrdersOpen(true);
   };
   const linkOrder = async (id:string,unlink=false) => {
@@ -2904,37 +2915,40 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <p className="mt-2 text-xs text-muted-foreground">
           Vincule este WhatsApp à OS desejada sem substituir o telefone do cliente cadastrado.
         </p>
-        <input type="search" aria-label="Buscar OS por número ou CPF/CNPJ"
-          placeholder="Buscar número da OS, CPF ou CNPJ" value={orderSearch}
-          onChange={event=>setOrderSearch(event.target.value)}
-          className="admin-input mt-3 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
-        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
-          {linkedOrders.length>0 && <div className="space-y-1">
-            <p className="text-[11px] font-bold uppercase text-muted-foreground">OS vinculadas a este contato</p>
-            {linkedOrders.map(order=><div key={order.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs">
-              <span className="min-w-0 truncate"><strong>OS {order.os_number}</strong> · {order.customer_name||"Cliente"}</span>
-              <button type="button" disabled={savingOrder} onClick={()=>void linkOrder(order.id,true)}
-                className="shrink-0 font-semibold text-primary hover:underline">Desvincular</button>
-            </div>)}
+        <form onSubmit={event=>{event.preventDefault();void searchOrders();}}
+          role="search" className="mt-4 flex w-full overflow-hidden rounded-lg border border-border bg-background transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
+          <input type="search" aria-label="Buscar OS por número ou CPF/CNPJ"
+            placeholder="Número da OS, CPF ou CNPJ" value={orderSearch} autoComplete="off"
+            onChange={event=>{
+              ++ordersRequestRef.current;
+              setOrderSearch(event.target.value);setOrdersSearched(false);
+              setOrderSearchError("");setPossibleOrders([]);
+            }}
+            className="admin-input min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-foreground outline-none"/>
+          <button type="submit" disabled={!orderSearch.trim()||ordersLoading}
+            className="inline-flex shrink-0 items-center gap-1.5 border-l border-primary/25 bg-primary px-3 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-45">
+            {ordersLoading?<LoaderCircle size={16} className="animate-spin"/>:<Search size={16}/>}
+            Buscar
+          </button>
+        </form>
+        {orderSearchError&&<p role="alert" className="mt-3 text-xs text-destructive">{orderSearchError}</p>}
+        {ordersSearched&&<div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+          {ordersLoading&&<div role="status" aria-label="Buscando ordens de serviço" className="space-y-2">
+            {[0,1,2].map(n=><div key={n} className="h-12 animate-pulse rounded-lg bg-muted"/>)}
           </div>}
-          <p className="text-[11px] font-bold uppercase text-muted-foreground">Resultados da busca</p>
-          {ordersLoading&&<div role="status" className="space-y-2">
-            {[0,1,2].map(n=><div key={n} className="h-11 animate-pulse rounded-lg bg-muted"/>)}
-          </div>}
-          {!ordersLoading&&possibleOrders.length===0&&
-            <p className="py-3 text-center text-xs text-muted-foreground">Nenhuma OS encontrada. Busque pelo número ou CPF/CNPJ.</p>}
-          {!ordersLoading&&possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
-            disabled={savingOrder||linkedOrders.some(item=>item.id===order.id)}
-            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60">
+          {!ordersLoading&&!orderSearchError&&possibleOrders.length===0&&
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Nenhuma OS nova encontrada para esta busca.
+            </p>}
+          {!ordersLoading&&!orderSearchError&&possibleOrders.map(order=><button key={order.id} type="button"
+            onClick={()=>void linkOrder(order.id)} disabled={savingOrder}
+            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60">
             <span className="min-w-0 truncate"><strong>OS {order.os_number}</strong>
               <span className="block truncate text-[11px] text-muted-foreground">{order.customer_name||"Cliente"}</span>
             </span>
-            {linkedOrders.some(item=>item.id===order.id)
-              ?<span className="shrink-0 text-xs font-semibold text-emerald-600">Vinculada</span>
-              :<span className="shrink-0 text-xs font-semibold text-primary">Vincular</span>}
+            <span className="shrink-0 text-xs font-semibold text-primary">Vincular</span>
           </button>)}
-        </div>
+        </div>}
         <div className="mt-4 flex justify-end">
           <AdminButton variant="secondary" onClick={()=>setOrdersOpen(false)}>Fechar</AdminButton>
         </div>
