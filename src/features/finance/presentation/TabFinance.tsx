@@ -15,6 +15,7 @@ import { FinanceCategoriesSection } from "./FinanceCategoriesSection";
 import { FinancePaymentMethodsSection } from "./FinancePaymentMethodsSection";
 import { FinanceSettingsSection } from "./FinanceSettingsSection";
 import { FinanceReportsSection } from "./FinanceReportsSection";
+import { FinanceLossesSection } from "./FinanceLossesSection";
 import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
 import { FinanceReceiptHistoryDialog } from "./FinanceReceiptHistoryDialog";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
@@ -119,6 +120,7 @@ export function TabFinance({
     if (hasPermission("finance.payables.view")) sections.push("payables");
     if (canViewAccounts) sections.push("movements");
     if (canViewAccounts) sections.push("accounts");
+    if (hasPermission("finance.reports.view")) sections.push("losses");
     if (hasPermission("finance.reports.view") && (hasPermission("finance.reports.dre") || hasPermission("finance.reports.cash_flow"))) sections.push("reports");
     if (hasPermission("finance.view") && availableRegistrySections.length) sections.push("registries");
     return sections;
@@ -235,6 +237,7 @@ export function TabFinance({
     {section === "payables" && <FinanceEntriesSection onInitialReady={markSectionReady} newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "movements" && <FinanceMovementsSection onInitialReady={markSectionReady} createSignal={newEntrySignal} />}
     {section === "accounts" && <FinanceAccountsSection onInitialReady={markSectionReady} createSignal={newEntrySignal} />}
+    {section === "losses" && <FinanceLossesSection onInitialReady={markSectionReady} />}
     {section === "reports" && <FinanceReportsSection onInitialReady={markSectionReady} />}
     </div>
     {registryModal === "categories" && availableRegistrySections.includes("categories") &&
