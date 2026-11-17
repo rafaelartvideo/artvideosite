@@ -1707,39 +1707,127 @@ Deno.serve(async request => {
       if(!permissions.has("orders.details.view"))
         return json({success:false,error:"Sem permissão para visualizar ordens de serviço."},403);
       if(!(canManage || thread.assigned_to===actorId ||
-        (thread.status==="waiting" && !thread.assigned_to)))
+        (thread.status==="waiting" && !thread.assigned_to) || isParticipant))
         return json({success:false,error:"Conversa não atribuída a você."},403);
-      const phone=String(thread.contact_phone||"").replace(/\D/g,"");
-      if(!/^[0-9]{10,15}$/.test(phone))
-        return json({success:false,error:"Este contato não possui telefone verificado para vincular OS."},409);
-      const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
-        p_organization:org,p_phone:phone,
-      });
-      if(matchError)throw matchError;
-      if(!Array.isArray(matches) || matches.length!==1)
-        return json({success:false,error:"Não existe um cliente único correspondente a este telefone."},409);
-      const customerId=matches[0].customer_id;
-      if(action==="order_options") {
-        const {data:orders,error:orderError}=await admin.from("service_orders")
-          .select("id,os_number,created_at").eq("organization_id",org)
-          .eq("customer_id",customerId).order("created_at",{ascending:false}).limit(50);
-        if(orderError)throw orderError;
-        return json({success:true,orders:orders||[],service_order_id:thread.service_order_id});
+      const {data:savedLinks,error:linksError}=await admin.from("union_whatsapp_order_contacts")
+        .select("service_order_id,contact_name,created_at")
+        .eq("organization_id",org).eq("conversation_id",thread.id)
+        .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
+        .order("created_at",{ascending:false}).limit(50);
+      if(linksError)throw linksError;
+      const linkedIds=[...new Set((savedLinks||[]).map(item=>item.service_order_id))];
+      if(thread.service_order_id&&!linkedIds.includes(thread.service_order_id))
+        linkedIds.push(thread.service_order_id);
+      let linkedOrders:Array<{id:string;os_number:string;created_at:string;customer_id:string}>=[];
+      if(linkedIds.length){
+        const {data,error}=await admin.from("service_orders")
+          .select("id,os_number,created_at,customer_id")
+          .eq("organization_id",org).in("id",linkedIds).limit(50);
+        if(error)throw error;
+        linkedOrders=data||[];
+      }
+      if(action==="order_options"){
+        const search=String(body.search||"").trim().slice(0,40);
+        let orders:Array<{id:string;os_number:string;created_at:string;customer_id:string}>=[];
+        if(search){
+          const digits=search.replace(/\\D/g,"");
+          if((digits.length===11||digits.length===14) && /^\\d{11,14}$/.test(digits)){
+            const column=digits.length===14?"cnpj":"document";
+            const {data:customers,error:customerError}=await admin.from("customers")
+              .select("id").eq("organization_id",org).eq(column,digits).limit(20);
+            if(customerError)throw customerError;
+            if(customers?.length){
+              const {data,error}=await admin.from("service_orders")
+                .select("id,os_number,created_at,customer_id")
+                .eq("organization_id",org)
+                .in("customer_id",customers.map(item=>item.id))
+                .order("created_at",{ascending:false}).limit(30);
+              if(error)throw error;
+              orders=data||[];
+            }
+          }else{
+            const query=search.replace(/^#|^OS\\s*/i,"").replace(/[^0-9rR]/g,"").slice(0,18);
+            if(query){
+              const {data,error}=await admin.from("service_orders")
+                .select("id,os_number,created_at,customer_id")
+                .eq("organization_id",org).ilike("os_number",query+"%")
+                .order("created_at",{ascending:false}).limit(30);
+              if(error)throw error;
+              orders=data||[];
+            }
+          }
+        }else{
+          const phone=String(thread.contact_phone||"").replace(/\\D/g,"");
+          if(/^[0-9]{10,15}$/.test(phone)){
+            const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+              p_organization:org,p_phone:phone,
+            });
+            if(matchError)throw matchError;
+            if(Array.isArray(matches)&&matches.length===1){
+              const {data,error}=await admin.from("service_orders")
+                .select("id,os_number,created_at,customer_id")
+                .eq("organization_id",org).eq("customer_id",matches[0].customer_id)
+                .order("created_at",{ascending:false}).limit(30);
+              if(error)throw error;
+              orders=data||[];
+            }
+          }
+        }
+        const ids=[...new Set([...orders,...linkedOrders].map(item=>item.customer_id))];
+        let customerNames=new Map<string,string>();
+        if(ids.length){
+          const {data,error}=await admin.from("customers")
+            .select("id,full_name,trade_name,legal_name")
+            .eq("organization_id",org).in("id",ids).limit(75);
+          if(error)throw error;
+          customerNames=new Map((data||[]).map(item=>[
+            item.id,String(item.full_name||item.trade_name||item.legal_name||"Cliente"),
+          ]));
+        }
+        const format=(order:{id:string;os_number:string;created_at:string;customer_id:string})=>({
+          id:order.id,os_number:order.os_number,created_at:order.created_at,
+          customer_name:customerNames.get(order.customer_id)||"Cliente",
+        });
+        return json({success:true,orders:orders.map(format),linked_orders:linkedOrders.map(format),
+          service_order_id:thread.service_order_id});
       }
       const target=String(body.service_order_id||"");
-      if(target && !uuid(target))return json({success:false,error:"Ordem de serviço inválida."},400);
-      if(target){
-        const {data:order,error:orderError}=await admin.from("service_orders")
-          .select("id").eq("id",target).eq("organization_id",org)
-          .eq("customer_id",customerId).maybeSingle();
-        if(orderError)throw orderError;
-        if(!order)return json({success:false,error:"Esta OS não pertence ao cliente verificado."},403);
+      const unlink=body.unlink===true;
+      if(!uuid(target))return json({success:false,error:"Selecione uma OS válida."},400);
+      const {data:order,error:orderError}=await admin.from("service_orders")
+        .select("id").eq("organization_id",org).eq("id",target).maybeSingle();
+      if(orderError)throw orderError;
+      if(!order)return json({success:false,error:"OS não encontrada nesta empresa."},404);
+      if(unlink){
+        const {error}=await admin.from("union_whatsapp_order_contacts").delete()
+          .eq("organization_id",org).eq("channel_id",thread.channel_id)
+          .eq("account_phone",thread.account_phone)
+          .eq("service_order_id",target).eq("conversation_id",thread.id);
+        if(error)throw error;
+        if(thread.service_order_id===target){
+          const next=linkedOrders.find(item=>item.id!==target)?.id||null;
+          const {error:updateError}=await admin.from("union_whatsapp_conversations")
+            .update({service_order_id:next,updated_at:new Date().toISOString()})
+            .eq("id",thread.id).eq("organization_id",org);
+          if(updateError)throw updateError;
+        }
+      }else{
+        const phone=String(thread.contact_phone||"").replace(/\\D/g,"");
+        if(!/^[0-9]{10,15}$/.test(phone))
+          return json({success:false,error:"O contato precisa ter um telefone WhatsApp confirmado."},409);
+        const {error}=await admin.from("union_whatsapp_order_contacts").upsert({
+          organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,
+          service_order_id:target,conversation_id:thread.id,chat_jid:thread.chat_jid,
+          contact_phone:phone,contact_name:String(thread.contact_name||"Contato WhatsApp").slice(0,160),
+          linked_by:actorId,
+        },{onConflict:"organization_id,service_order_id,conversation_id"});
+        if(error)throw error;
+        const {error:updateError}=await admin.from("union_whatsapp_conversations")
+          .update({service_order_id:target,updated_at:new Date().toISOString()})
+          .eq("id",thread.id).eq("organization_id",org);
+        if(updateError)throw updateError;
       }
-      const {error:saveError}=await admin.from("union_whatsapp_conversations")
-        .update({service_order_id:target||null,updated_at:new Date().toISOString()})
-        .eq("id",thread.id).eq("organization_id",org);
-      if(saveError)throw saveError;
-      return json({success:true,service_order_id:target||null});
+      return json({success:true,service_order_id:unlink?(thread.service_order_id===target?null:thread.service_order_id):target});
     }
     // Legacy clients receive an affirmative no-op; no WuzAPI request is made.
     if(action==="presence_subscribe")return json({success:true,presence_disabled:true});
