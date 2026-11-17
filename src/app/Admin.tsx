@@ -579,7 +579,7 @@ export function AdminDashboard({
             <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
             <Route path="service-providers/*" element={<PlatformProvidersPage />} />
-            <Route path="audit/*" element={<TabAuditLog />} />
+            <Route path="audit/*" element={<Navigate to={adminPath("audit", route.resourceId, route.subpage)} replace />} />
             <Route path="site" element={siteHub} />
             <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
             <Route path="site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
@@ -594,6 +594,7 @@ export function AdminDashboard({
                onNavigate={tab => navigateAdmin(tab)} />} />
              <Route path="site/pedidos-da-loja/*" element={<Navigate to={adminPath("siteRequests", "pedidos")} replace />} />
             <Route path="operation" element={operationHub} />
+            <Route path="operation/audit/*" element={<TabAuditLog onBack={() => backToParent("audit")} />} />
             <Route path="tools/*" element={
               route.resourceId === "union-pbx" && route.subpage && canAccessPbxModule && canAccessPbxTool
                 ? <AdminDialog
