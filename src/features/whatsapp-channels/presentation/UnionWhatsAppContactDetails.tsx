@@ -172,7 +172,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       className={inline
         ?"relative flex w-full min-h-[230px] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground"
         :"pointer-events-auto relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
-      {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border px-4">
+      {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
         <button type="button" aria-label="Voltar à conversa" onClick={event=>{event.stopPropagation();onClose();}}
           className="rounded-lg p-1.5 hover:bg-muted"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
@@ -192,7 +192,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <h3 className="max-w-full break-words text-lg font-bold">{name}</h3>
           <p className="text-sm text-muted-foreground">{formatWhatsAppPhone(conversation.contact_phone)}</p>
           <p className="text-xs text-muted-foreground">WhatsApp · Histórico desta conversa</p>
-        </div>
+        </div>}
         {historyOpen&&<div className="border-b border-border px-4 py-4">
           <h3 className="mb-3 text-sm font-bold">Histórico de atendimentos</h3>
           <UnionWhatsAppProtocolHistory organizationId={organizationId} conversation={conversation}/>
@@ -263,11 +263,11 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       </div>
     </aside>
     {previewLoading&&<div role="status"
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/55">
+      className={inline?"pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center bg-black/55":"pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/55"}>
       <LoaderCircle size={27} className="animate-spin text-white"/>
     </div>}
     {preview&&<div role="dialog" aria-modal="true" aria-label="Visualizar arquivo"
-      className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/90 p-4">
+      className={inline?"pointer-events-auto fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-black/90 p-4":"pointer-events-auto absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/90 p-4"}>
       <button type="button" onClick={()=>setPreview(null)} aria-label="Fechar visualização"
         className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25">
         <X size={23}/>
@@ -285,7 +285,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           className="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-900">Abrir arquivo</a>
       </div>
     </div>}
-    {previewError&&<div role="alert" className="absolute bottom-4 left-4 right-4 z-50 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive">
+    {previewError&&<div role="alert" className={inline?"fixed bottom-4 left-4 right-4 z-[80] rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive":"pointer-events-auto absolute bottom-4 left-4 right-4 z-50 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive"}>
       {previewError}
       <button type="button" className="ml-3 font-semibold underline"
         onClick={()=>setPreviewError("")}>Fechar</button>
