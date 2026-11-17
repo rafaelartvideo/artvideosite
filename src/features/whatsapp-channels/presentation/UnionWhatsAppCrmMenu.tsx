@@ -71,6 +71,8 @@ export type CrmConversationContext = {
   equipments: CrmEquipment[];
   orders: CrmOrder[];
   ambiguous?: boolean;
+  linkedViaOrder?: boolean;
+  linkedOrders?: Array<{id:string;os_number:string}>;
   error?: boolean;
 };
 type Panel = "registration" | "equipments" | "orders";
@@ -202,8 +204,9 @@ export function UnionWhatsAppCrmMenu({
         <ContactRound size={15} className="shrink-0 text-foreground"/>
         <span className="shrink-0">Dados do CRM</span>
         <span className="min-w-0 truncate font-normal text-muted-foreground">
-          {customer?.name || (context ? "Sem vínculo confirmado" : "Clique para consultar")}
+          {customer?.name || (context?.linkedOrders?.length ? "Contato vinculado por OS" : context ? "Sem vínculo confirmado" : "Clique para consultar")}
         </span>
+        {Boolean(context?.linkedOrders?.length)&&<span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">Vinculado por OS</span>}
         {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
       </button>
 
@@ -231,10 +234,31 @@ export function UnionWhatsAppCrmMenu({
               Não foi possível consultar os dados do CRM.
               <button type="button" onClick={onRetry} className="ml-2 font-semibold text-primary underline underline-offset-2">Tentar novamente</button>
             </div>
-          : !customer ? <div className="px-3 py-4 text-xs text-muted-foreground">
+          : !customer ? <div className="space-y-2 px-3 py-4 text-xs text-muted-foreground">
+              {Boolean(context.linkedOrders?.length)&&<div className="space-y-1">
+                <p className="font-bold text-primary">WhatsApp vinculado a OS</p>
+                {context.linkedOrders?.map(item=><a key={item.id} target="_blank"
+                  rel="noopener noreferrer" className="block text-primary hover:underline"
+                  href={"/admin/orders/"+encodeURIComponent(item.id)+"?org="+encodeURIComponent(organizationId)}>
+                  OS {item.os_number}
+                </a>)}
+              </div>}
               {context.ambiguous ? "Mais de um cadastro possui este número. Verifique antes de vincular." : "Nenhum cliente do CRM encontrado para este número."}
             </div>
           : activePanel === null ? <div className="space-y-0.5">
+              {Boolean(context.linkedOrders?.length)&&<div className="mb-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                <p className="font-semibold text-primary">Vinculado por OS</p>
+                <p className="text-muted-foreground">{context.linkedViaOrder
+                  ?"Este número pertence a um contato vinculado à OS, não ao telefone do cadastro."
+                  :"Há uma ou mais OS associadas a esta conversa."}</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {context.linkedOrders?.map(item=><a key={item.id} target="_blank"
+                    rel="noopener noreferrer" className="font-semibold text-primary hover:underline"
+                    href={"/admin/orders/"+encodeURIComponent(item.id)+"?org="+encodeURIComponent(organizationId)}>
+                    OS {item.os_number}
+                  </a>)}
+                </div>
+              </div>}
               <button type="button" className={mainRow} onClick={() => openPanel("registration")}>
                 <UserRound size={17} className="shrink-0 text-foreground"/>
                 <span className="min-w-0 flex-1">Dados de cadastro</span>
