@@ -17,7 +17,7 @@ type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
 // Compact selector/field layout is also required on tablets, including
 // landscape devices reporting a desktop-sized viewport.
-const compactOrderSearchMedia="(max-width: 1023px), (hover: none) and (pointer: coarse)";
+const compactOrderSearchMedia="(max-width: 1023px), (pointer: coarse)";
 type MobileFilterKey =
   | "osNumber"
   | "customerName"
