@@ -520,3 +520,23 @@ test("Agenda WhatsApp tem área maior, menus CRM e rodapé fixo alinhado à pagi
   assert.doesNotMatch(contacts,/Nome público do WhatsApp:/);
   assert.doesNotMatch(contacts,/O nome salvo na Union tem prioridade/);
 });
+
+test("Histórico geral permanece acessível pelo contato e mostra todos os protocolos",()=>{
+  const history=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactHistory.tsx");
+  const contact=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const directory=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(history,/Histórico geral do contato/);
+  assert.match(history,/listUnionWhatsAppMessages\(organizationId,conversation\.id,/);
+  assert.match(history,/conversation\.channel_id,conversation\.account_phone\)/);
+  assert.doesNotMatch(history,/protocolId:/);
+  assert.match(history,/UnionWhatsAppProtocolHistory/);
+  assert.match(history,/Carregar interações anteriores/);
+  assert.match(contact,/UnionWhatsAppContactHistory/);
+  assert.match(directory,/UnionWhatsAppContactHistory/);
+  assert.match(repository,/findUnionWhatsAppConversationByContact/);
+  assert.match(repository,/\.eq\("chat_jid",chatJid\)/);
+  assert.match(inbox,/variant="secondary" size="sm" title="Vincular OS deste cliente"/);
+  assert.match(inbox,/aria-label="Protocolos do atendimento"/);
+});
