@@ -163,6 +163,7 @@ export function UnionPbxFloatingPhone({
     role={callState==="incoming"?"alert":"region"}
     aria-label="Mini-PABX Union"
     data-pbx-floating="true"
+    data-admin-floating-panel="true"
     data-pbx-expanded={expanded?"true":"false"}
     style={style}
     className={`admin-crm fixed z-[105] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] ${expanded?"w-[min(430px,calc(100vw-1.5rem))]":"w-[min(370px,calc(100vw-1.5rem))]"}`}
