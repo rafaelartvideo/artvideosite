@@ -174,10 +174,15 @@ export async function listUnionWhatsAppConversations(
   }
   if(options.department==="none")query=query.is("department_id",null);
   else if(options.department!=="all")query=query.eq("department_id",options.department);
-  // Filter BEFORE pagination: a manager should see every conversation
-  // assigned to the selected operator, including on subsequent pages.
-  if(options.filter==="in_att" && options.canViewAll && options.operator &&
-      options.operator!=="all")query=query.eq("assigned_to",options.operator);
+  // Filter BEFORE pagination so the manager sees the complete result set.
+  // Finalizados retain the last assignee; Encaminhadas use the sender, since
+  // assigning to another operator or returning to a department changes assigned_to.
+  if(options.canViewAll && options.operator && options.operator!=="all"){
+    if(options.filter==="in_att" || options.filter==="finished")
+      query=query.eq("assigned_to",options.operator);
+    else if(options.filter==="forwarded")
+      query=query.eq("forwarded_by",options.operator);
+  }
 
   // Os caracteres de controle do PostgREST são excluídos da pesquisa.
   const search=options.search.trim().replace(/[,()%*\\"']/g," ").replace(/\s+/g," ").trim().slice(0,70);
