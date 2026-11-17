@@ -552,7 +552,10 @@ export function TabOrders({
 
   const openCompletionFromList = (order: any) => {
     if (!effectiveHasPermission("orders.complete")) return;
-    if (completionController.open || completionFromListId) return;
+    if (completionController.open || completionFromListId) {
+      setToast({ msg: "Já existe uma conclusão aberta ou sendo preparada. Conclua ou cancele a anterior antes de iniciar outra.", type: "error" });
+      return;
+    }
     completionFromListRequestRef.current += 1;
     setCompletionFromListStarted(false);
     setCompletionFromListReady(false);
