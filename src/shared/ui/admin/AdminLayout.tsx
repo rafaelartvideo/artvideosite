@@ -101,6 +101,7 @@ export function AdminButton({
     aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel ?? (mobileBackOnly ? String(children).trim() : undefined)}
     data-admin-back-action={mobileBackOnly ? "true" : undefined}
+    data-admin-button-variant={variant}
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
@@ -207,6 +208,7 @@ export function AdminIconButton({
     aria-label={activeStateAction ? resolvedLabel : (buttonProps["aria-label"] ?? ariaLabel)}
     title={activeStateAction ? resolvedLabel : (title ?? buttonProps["aria-label"] ?? ariaLabel)}
     data-admin-loading={resolvedLoading ? "true" : undefined}
+    data-admin-icon-button-variant={effectiveVariant}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex h-8 w-8 cursor-default items-center justify-center overflow-hidden rounded-lg bg-clip-padding transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-40",
