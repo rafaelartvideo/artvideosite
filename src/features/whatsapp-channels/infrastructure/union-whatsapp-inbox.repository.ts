@@ -134,9 +134,12 @@ export async function listUnionWhatsAppConversationCounts(
 
 export async function listUnionWhatsAppConversations(
   organizationId:string,channelId:string,accountPhone:string,
-  options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;viewerId?:string;canViewAll?:boolean},
+  options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;pageSize?:number;viewerId?:string;canViewAll?:boolean},
 ):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean}>{
   const page=Math.max(0,Math.floor(options.page));
+  // O mini-Atendimentos solicita só 8 registros; a lista completa mantém 50.
+  const pageSize=options.pageSize===undefined?INBOX_PAGE_SIZE:
+    Math.min(INBOX_PAGE_SIZE,Math.max(1,Math.floor(options.pageSize)));
   // RLS exposes only the current operator's membership. Embed it in the same
   // paginated request to avoid one participation lookup per conversation.
   let query=supabase.from("union_whatsapp_conversations")
@@ -183,18 +186,18 @@ export async function listUnionWhatsAppConversations(
     options.filter==="forwarded"?"forwarded_at":"last_message_at";
   const {data,error}=await query.order(sort,{ascending:options.filter==="waiting",nullsFirst:false})
     .order("id",{ascending:options.filter==="waiting"})
-    .range(page*INBOX_PAGE_SIZE,(page+1)*INBOX_PAGE_SIZE);
+    .range(page*pageSize,(page+1)*pageSize);
   raise(error);
   const entries=(data||[]) as Array<UnionWhatsAppConversation & {
     viewer_membership?: Array<{user_id:string;status:string}>;
   }>;
-  const items=entries.slice(0,INBOX_PAGE_SIZE).map(({viewer_membership,...conversation})=>({
+  const items=entries.slice(0,pageSize).map(({viewer_membership,...conversation})=>({
     ...conversation,
     viewer_participating:conversation.status==="in_att" &&
       Boolean(options.viewerId && conversation.assigned_to!==options.viewerId &&
         viewer_membership?.some(member=>member.user_id===options.viewerId && member.status==="active")),
   }));
-  return {items,hasMore:entries.length>INBOX_PAGE_SIZE};
+  return {items,hasMore:entries.length>pageSize};
 }
 
 // Carrega pontualmente o atendimento aberto por um atalho, mesmo quando
