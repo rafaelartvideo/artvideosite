@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
+import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSectionEmpty,
   AdminCard,
@@ -322,7 +323,7 @@ export function OrderDocumentsPage({
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
   const canViewSignatures = hasPermission("documents.signatures.view");
   const canSendSignature = !readOnly && hasPermission("documents.signatures.send");
-  const hasOnlineSignatureTemplate = signatureTemplates.some(template => template.is_active !== false && template.allow_online_signature === true);
+  const hasOnlineSignatureTemplate = signatureTemplates.some(template => template.is_active !== false && template.allow_online_signature === true && isOrderTerminalDocumentVisible(template.document_type,order));
 
   useEffect(() => {
     if (!open) { setBrowserBottomInset(0); return; }
