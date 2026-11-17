@@ -84,6 +84,7 @@ function EntryDetailContent({
         : "border-border bg-background text-foreground";
   const dueMessage = dueUrgency === "today" ? " · Vence hoje" : dueUrgency === "overdue" ? " · Vencido" : "";
   const originLabel = detail.origin_type === "manual" ? "Cadastro manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type === "recurring" ? "Recorrência" : "Outros";
+  const warrantyPending = detail.source_details?.billing_model === "partner_warranty" && detail.source_details?.receivable_status === "pending_details";
   const editable = canEdit && ["draft", "pending", "rejected", "approved"].includes(detail.approval_status) && detail.origin_type === "manual" && detail.settlements.length === 0;
   const canAdjustForecast = !isReceivable && canEdit && Boolean(onAdjustInstallment)
     && ["manual", "recurring"].includes(detail.origin_type)
@@ -122,7 +123,7 @@ function EntryDetailContent({
                 Próximo vencimento: {formatDate(due.due_date)}{dueMessage}
               </span>}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">{detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{warrantyPending ? "Fabricante / parceiro a definir" : detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
             {detail.counterpart_document_snapshot && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatFinancialDocument(detail.counterpart_document_snapshot)}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -144,7 +145,7 @@ function EntryDetailContent({
         </div>
       </div>
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(detail.original_amount)}</p></div>
+        <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{warrantyPending ? "A definir" : formatCurrency(detail.original_amount)}</p></div>
         <div className="bg-emerald-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
         <div className="bg-amber-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</p></div>
       </div>
