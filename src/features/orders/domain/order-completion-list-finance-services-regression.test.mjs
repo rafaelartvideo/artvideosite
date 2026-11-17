@@ -109,3 +109,25 @@ test("produtos e serviços mantêm a divisória, mas cada section tem altura do 
   assert.match(modal, /bg-blue-500\/10 text-blue-700/);
   assert.match(modal, /bg-violet-500\/10 text-violet-700/);
 });
+
+test("primeira renderização da tela OS sem detalhe não acessa null.value da cobrança", async () => {
+  const hook = read("src/features/orders/application/useOrderCompletion.ts");
+  assert.ok((await transformWithEsbuild(hook, "useOrderCompletion.ts", { loader: "ts" })).code);
+  const start = hook.indexOf("  const hasChargeOverride =");
+  const end = hook.indexOf("  const commercialPricing =", start);
+  assert.ok(start !== -1 && end > start, "a cobrança deve validar explicitamente a OS e o override");
+  const calc = new Function("detail", "completionChargeCustomer",
+    hook.slice(start, end) + "\\nreturn noCustomerCharge;");
+  assert.equal(calc(null, null), false, "a página abre antes da OS existir");
+  assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } }, null), true);
+  assert.equal(calc({ id: "os-1", service_type: { charge_customer: true } }, null), false);
+  assert.equal(calc(null, { orderId: "os-1", value: false }), false);
+  assert.equal(calc({ id: "os-1", service_type: { charge_customer: true } },
+    { orderId: "os-1", value: false }), true);
+  assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } },
+    { orderId: "outra-os", value: true }), true);
+  assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } },
+    { orderId: "os-1", value: true }), false);
+  assert.doesNotMatch(hook, /completionChargeCustomer\\.value\\b/,
+    "não deve haver acesso direto ao override que pode ser nulo");
+});
