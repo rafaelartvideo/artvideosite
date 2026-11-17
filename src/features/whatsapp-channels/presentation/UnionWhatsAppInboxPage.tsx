@@ -2213,14 +2213,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
                   <ContactRound size={15}/> Contatos
                 </button>}
-                {canAction("start") && <button type="button" onClick={() => {
+                {canAction("start") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
                   numberCheckSequence.current+=1;
                   setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
                   setNewConversationOpen(true);
-                }}
-                  className="flex h-8 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 text-[11px] font-bold text-primary hover:bg-primary/15 md:gap-1.5 md:px-2.5 md:text-xs">
+                }} className="!h-8 !gap-1.5 !px-2.5">
                   <Plus size={15}/> Nova
-                </button>}
+                </AdminButton>}
               </div>
             </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
@@ -2388,12 +2387,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:border-t-0 lg:py-0 whitespace-nowrap [&>button]:shrink-0">
-                {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <button type="button"
-                  title="Editar contato" aria-label="Editar contato"
+                {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <AdminButton
+                  variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
+                  className="!h-8 !gap-1.5 !px-2">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
-                </button>}
+                </AdminButton>}
                 {(!embedded || embeddedFullControls) && <button type="button" onClick={()=>void viewProtocols()} title="Protocolos do atendimento"
                   aria-label="Protocolos do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <History size={15}/><span className="hidden xl:inline">Protocolos</span>
