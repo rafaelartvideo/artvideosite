@@ -11,6 +11,7 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
+import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -189,6 +190,8 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const mediaTargetRef=useRef<HTMLDivElement|null>(null);
   const mediaRequestInFlight=useRef(false);
   const [stickerZoom,setStickerZoom]=useState(false);
+  const [imageZoom,setImageZoom]=useState(false);
+  useEffect(()=>setImageZoom(false),[message.id]);
   useEffect(()=>{
     if(!stickerZoom)return;
     const onEscape=(event:KeyboardEvent)=>{if(event.key==="Escape")setStickerZoom(false);};
@@ -311,10 +314,15 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   const Icon = (mediaIcons as Record<string, typeof FileText>)[message.message_type] || FileText;
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
     location:"Localização", contact:"Contato",sticker:"Figurinha"} as Record<string,string>)[message.message_type] || "Mensagem";
-  return <div ref={mediaTargetRef} className="space-y-2">
-    {mediaUrl && message.message_type==="image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
-      className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
-        onLoad={onMediaLoad} onError={onImageError} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
+  return <>
+    <div ref={mediaTargetRef} className="space-y-2">
+    {mediaUrl && message.message_type==="image" && <button type="button"
+      onClick={()=>setImageZoom(true)} aria-label="Visualizar imagem na conversa"
+      title="Ampliar imagem" className="block max-w-full overflow-hidden rounded-md text-left">
+      <img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
+        onLoad={onMediaLoad} onError={onImageError} loading="lazy"
+        className="max-h-80 w-auto max-w-full rounded-md object-contain"/>
+    </button>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
@@ -336,7 +344,10 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       </div>)}
     {content && <p className="text-sm leading-5"><WhatsAppFormattedText text={content}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
-  </div>;
+    </div>
+    {imageZoom && mediaUrl && <UnionWhatsAppMediaViewer url={mediaUrl} type="image"
+      name={message.media_name||"Imagem"} onClose={()=>setImageZoom(false)}/>}
+  </>;
 }
 
 function WhatsAppIcon({size=19}:{size?:number}={}) {
