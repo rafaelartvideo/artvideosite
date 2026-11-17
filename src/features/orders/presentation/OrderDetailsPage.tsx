@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
-import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChecklistsPage";
@@ -127,6 +127,8 @@ export function OrderDetailsPage(props: Props) {
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
+  const [disposalConfirmOpen, setDisposalConfirmOpen] = useState(false);
+  const [disposalSubmitting, setDisposalSubmitting] = useState(false);
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [showDelayedSwitchLoading, setShowDelayedSwitchLoading] = useState(false);
   // Trocas rápidas em cache não exibem spinner/overlay: evita uma piscada
@@ -658,6 +660,29 @@ export function OrderDetailsPage(props: Props) {
     return <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Acesso restrito" subtitle="Você não possui permissão para acessar esta seção da OS." maxW="max-w-2xl"><div className="p-5"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>;
   }
 
+  const finalizeDisposal = async () => {
+    if (!detail || !isDisposal || disposalSubmitting || !hasPermission("orders.complete")) return;
+    setDisposalSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("complete_disposal_service_order", {
+        p_service_order_id: detail.id,
+        p_organization_id: detail.organization_id,
+      });
+      if (error) throw error;
+      details.setDetail((current: any) => current?.id === detail.id
+        ? { ...current, is_solved: true, completed_at: data?.completed_at || new Date().toISOString(), completed_by: data?.completed_by, final_total: 0, order_status: { ...current.order_status, name: "Fechada" } }
+        : current);
+      setDisposalConfirmOpen(false);
+      notifyAdmin("Descarte finalizado. OS concluída sem lançamento financeiro.", "success");
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      void details.retryDetailLoad();
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível finalizar o descarte."), "error");
+    } finally {
+      setDisposalSubmitting(false);
+    }
+  };
+
   return <>
     {detail && (
       <OrderSacDigitalDialog
@@ -670,6 +695,23 @@ export function OrderDetailsPage(props: Props) {
       />
     )}
     {whatsAppModal}
+    {detail && isDisposal && disposalConfirmOpen && <AdminDialog
+      open
+      onClose={() => { if (!disposalSubmitting) setDisposalConfirmOpen(false); }}
+      title="Finalizar descarte"
+      description={`Confirme a destinação da OS ${detail.os_number || ""}.`}
+      className="max-w-lg"
+      footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <BtnSecondary disabled={disposalSubmitting} onClick={() => setDisposalConfirmOpen(false)}>Voltar</BtnSecondary>
+        <BtnPrimary disabled={disposalSubmitting} loading={disposalSubmitting} loadingText="Finalizando..." onClick={() => void finalizeDisposal()}>Confirmar descarte</BtnPrimary>
+      </div>}
+    >
+      <div className="space-y-2 p-1 text-sm text-foreground">
+        <p>Esta ação confirma que o equipamento foi destinado ao descarte e encerra a OS.</p>
+        <p>Instituição destinatária: <strong>{detail.disposal_partner?.name || "Não informada"}</strong>.</p>
+        <p className="text-muted-foreground">Não serão gerados pagamentos, serviços, peças ou garantia.</p>
+      </div>
+    </AdminDialog>}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
@@ -865,7 +907,7 @@ export function OrderDetailsPage(props: Props) {
         onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }}
         onRequestParts={openPartRequestModal}
         onResolve={() => openSolveOrder(detail)}
-        onComplete={openCompletion}
+        onComplete={isDisposal ? () => setDisposalConfirmOpen(true) : openCompletion}
         onEdit={() => { void openEdit(detail); }}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
