@@ -760,9 +760,74 @@ Deno.serve(async request => {
           return json({success:true,avatar_url:photo||null});
         }catch{return json({success:true,avatar_url:null});}
       }
+      if(action==="contacts_groups") {
+        // Grupos são consultados sob demanda e nunca importados na agenda.
+        // A ponte devolve metadados sanitizados sem os JIDs dos participantes.
+        let list:unknown;
+        try{
+          const raw=await signedBridge({id:channel.id,organization_id:org},"","",crypto.randomUUID(),
+            undefined,undefined,false,false,false,false,false,undefined,false,true);
+          list=JSON.parse(raw);
+        }catch{
+          return json({success:false,error:"Não foi possível consultar os grupos. Confira a conexão e atualize a ponte WuzAPI da VPS."},502);
+        }
+        if(!Array.isArray(list))return json({success:false,error:"Resposta de grupos inválida."},502);
+        const groups=list.slice(0,500).flatMap(value=>{
+          const row=value&&typeof value==="object"?value as Record<string,unknown>:{};
+          const jid=String(row.jid||"");
+          if(!/^[0-9]{5,30}@g\.us$/.test(jid))return [];
+          return [{jid,name:String(row.name||"Grupo WhatsApp").slice(0,160),
+            topic:String(row.topic||"").slice(0,300),
+            participants_count:Math.min(100000,Math.max(0,Number(row.participants_count)||0)),
+            is_announce:row.is_announce===true}];
+        });
+        return json({success:true,groups,total:groups.length});
+      }
+      if(action==="contacts_crm_match") {
+        if(!permissions.has("customers.view"))
+          return json({success:false,error:"Sem permissão para visualizar clientes do CRM."},403);
+        const jid=String(body.chat_jid||"");
+        if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
+          return json({success:false,error:"Contato inválido."},400);
+        // O número deve vir do contato salvo nesta empresa/conta; não
+        // aceitar telefone arbitrário enviado pelo navegador.
+        const {data:contact,error:contactError}=await admin.from("union_whatsapp_contacts")
+          .select("contact_phone").eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("account_phone",channel.phone).eq("chat_jid",jid).maybeSingle();
+        if(contactError)throw contactError;
+        if(!contact)return json({success:false,error:"Contato não pertence à empresa selecionada."},404);
+        const number=String(contact.contact_phone||"").replace(/\D/g,"");
+        if(!/^[0-9]{10,15}$/.test(number))
+          return json({success:true,customer:null});
+        const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+          p_organization:org,p_phone:number,
+        });
+        if(matchError)throw matchError;
+        if(!Array.isArray(matches)||matches.length!==1)
+          return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
+        const customerId=String(matches[0].customer_id);
+        const [person,equipment,orders]=await Promise.all([
+          admin.from("customers").select("id,document,cnpj,phone,whatsapp,email")
+            .eq("organization_id",org).eq("id",customerId).maybeSingle(),
+          admin.from("customer_equipments")
+            .select("id,equipment_type_name,equipment_brand_name,equipment_model_name")
+            .eq("organization_id",org).eq("customer_id",customerId)
+            .order("updated_at",{ascending:false}).limit(10),
+          permissions.has("orders.details.view")?admin.from("service_orders")
+            .select("id,os_number,created_at").eq("organization_id",org)
+            .eq("customer_id",customerId).order("created_at",{ascending:false}).limit(5)
+            :Promise.resolve({data:[],error:null}),
+        ]);
+        if(person.error)throw person.error;
+        if(equipment.error)throw equipment.error;
+        if(orders.error)throw orders.error;
+        return json({success:true,
+          customer:person.data?{...person.data,name:matches[0].customer_name}:null,
+          equipments:equipment.data||[],crm_orders:orders.data||[]});
+      }
       if(action==="contacts_list") {
-        // Contacts is a saved directory, NOT every person encountered in
-        // conversations, group members, or the WhatsApp profile cache.
+        // Inclui contatos recebidos, importados e cadastrados manualmente.
+        // Participantes de grupos continuam fora da tabela.
         const page=Math.min(10000,Math.max(0,Math.floor(Number(body.page)||0)));
         const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
