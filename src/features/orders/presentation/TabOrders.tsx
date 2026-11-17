@@ -307,6 +307,13 @@ export function TabOrders({
     setSaving,
   });
 
+  // Uma conclusão iniciada nos detalhes não pode continuar aberta
+  // invisivelmente depois que a rota e a OS foram encerradas.
+  useEffect(() => {
+    if (completionFromListId || initialOrderId || detail || !completionController.open) return;
+    completionController.closeCompletion();
+  }, [completionFromListId, initialOrderId, detail?.id, completionController.open]);
+
   useEffect(() => {
     if (!completionFromListId || completionFromListStarted || !detailsController.detailReady
       || detail?.id !== completionFromListId) return;
@@ -643,6 +650,7 @@ export function TabOrders({
   };
 
   const closeRoutedPage = () => {
+    if (completionController.open && !completionFromListId) completionController.closeCompletion();
     if (embeddedCreate) {
       onEmbeddedClose?.();
       return;
