@@ -130,7 +130,8 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         conversation.channel_id,conversation.account_phone,key,page);
       setSections(current=>{
         const stored=current[key];
-        const unique=new Map((page===0?[]:stored.items).map(item=>[item.id,item]));
+        const unique=new Map<string,UnionWhatsAppMessage>((page===0?[]:stored.items)
+          .map((item):[string,UnionWhatsAppMessage]=>[item.id,item]));
         result.items.forEach(item=>unique.set(item.id,item));
         return {...current,[key]:{items:[...unique.values()],loaded:true,loading:false,
           hasMore:result.hasMore,page,error:""}};
