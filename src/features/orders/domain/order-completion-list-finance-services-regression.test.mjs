@@ -128,6 +128,6 @@ test("primeira renderização da tela OS sem detalhe não acessa null.value da c
     { orderId: "outra-os", value: true }), true);
   assert.equal(calc({ id: "os-1", service_type: { charge_customer: false } },
     { orderId: "os-1", value: true }), false);
-  assert.doesNotMatch(hook, /completionChargeCustomer\.value\b/,
-    "não deve haver acesso direto ao override que pode ser nulo");
+  assert.match(hook.slice(start, end), /completionChargeCustomer\?\.value === false/,
+    "o override deve ser acessado com optional chaining");
 });
