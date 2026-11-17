@@ -106,8 +106,10 @@ export function DashboardOrderChartPanel({
               selectedKey={selectedKey} selectedState={selectedState} onSelect={onSlaSelect} />
           : mode === "pie"
           ? <DashboardDonutChart data={visibleData} colors={palette}
-              selectedKey={selectedKey} onSelect={onSelect} fixedHeight={CHART_HEIGHT}
-              minHeight={CHART_HEIGHT} innerRadius={0} />
+              selectedKey={selectedKey} onSelect={onSelect}
+              fixedHeight={timeSeries ? 360 : CHART_HEIGHT}
+              minHeight={timeSeries ? 360 : CHART_HEIGHT}
+              innerRadius={0} scrollLegend={timeSeries} />
           : mode === "line"
           ? <DashboardLineChart data={visibleData} color={accent}
               fixedHeight={CHART_HEIGHT} onSelect={onSelect} />
