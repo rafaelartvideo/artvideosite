@@ -812,7 +812,7 @@ Deno.serve(async request => {
           return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
         const customerId=String(matches[0].customer_id);
         const [person,equipment,orders]=await Promise.all([
-          admin.from("customers").select("id,document,cnpj,phone,whatsapp,email")
+          admin.from("customers").select("id,gender,document,cnpj,phone,whatsapp,email")
             .eq("organization_id",org).eq("id",customerId).maybeSingle(),
           admin.from("customer_equipments")
             .select("id,equipment_type_name,equipment_brand_name,equipment_model_name")
@@ -1694,7 +1694,7 @@ Deno.serve(async request => {
       // Never fetch OS histories or unrelated customers in this endpoint.
       const [customerResult,equipmentResult,orderResult]=await Promise.all([
         admin.from("customers")
-          .select("id,customer_type,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
+          .select("id,customer_type,gender,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
           .eq("organization_id",org).eq("id",customerId).maybeSingle(),
         admin.from("customer_equipments")
           .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number,technical_values,created_at,updated_at")
