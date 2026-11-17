@@ -457,6 +457,7 @@ export function DashboardDonutChart({
   minHeight = 210,
   fixedHeight,
   innerRadius = "54%",
+  scrollLegend = false,
 }: {
   data: DashboardChartPoint[];
   colors?: string[];
@@ -465,6 +466,8 @@ export function DashboardDonutChart({
   minHeight?: number;
   fixedHeight?: number;
   innerRadius?: number | string;
+  /** Long date series scroll independently instead of pushing the pie over its footer. */
+  scrollLegend?: boolean;
 }) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
@@ -478,7 +481,8 @@ export function DashboardDonutChart({
     >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} outerRadius="84%" paddingAngle={3}>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius}
+            cy={scrollLegend ? "44%" : "50%"} outerRadius={scrollLegend ? "75%" : "84%"} paddingAngle={3}>
             {data.map((point, index) => {
               const key = pointKey(point);
               const hovered = hoveredKey === key;
@@ -500,7 +504,17 @@ export function DashboardDonutChart({
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="flex h-full min-w-0 flex-col justify-center gap-1">
+      <div
+        aria-label={scrollLegend ? "Datas e quantidades do gráfico" : undefined}
+        role={scrollLegend ? "region" : undefined}
+        tabIndex={scrollLegend ? 0 : undefined}
+        className={cn(
+          "flex h-full min-h-0 min-w-0 flex-col gap-1",
+          scrollLegend
+            ? "justify-start overflow-y-auto overscroll-contain pr-1 py-1 [scrollbar-width:thin]"
+            : "justify-center",
+        )}
+      >
         {data.map((point, index) => {
           const key = pointKey(point);
           return (
