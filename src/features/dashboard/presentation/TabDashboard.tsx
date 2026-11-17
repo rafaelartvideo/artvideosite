@@ -206,8 +206,18 @@ function readOrderCardModes(organizationId?:string|null, userId?:string|null):Re
 function summedChart(values:DashboardChartPoint[]):number{
   return values.reduce((sum,item)=>sum+Number(item.value||0),0);
 }
-function chartTrend(values:DashboardChartPoint[], days:number):DashboardChartPoint[]{
-  return buildTrend(values,days,row=>row.name+"T12:00:00",row=>Number(row.value||0));
+function chartTrend(values:DashboardChartPoint[], _days:number):DashboardChartPoint[]{
+  // O backend já devolve uma linha por dia (fuso de São Paulo), com a contagem exata.
+  // Não reagrupar em blocos de 3/7/30 dias: o rótulo do início do bloco
+  // fazia 08/11 mostrar também as OS abertas em 09/11 e 10/11.
+  return values
+    .filter(point => Number(point.value) > 0)
+    .map(point => ({
+      ...point,
+      name: /^\d{4}-\d{2}-\d{2}$/.test(point.name)
+        ? `${point.name.slice(8,10)}/${point.name.slice(5,7)}`
+        : point.name,
+    }));
 }
 
 function buildTrend<T>(items: T[], days: number, dateOf: (item: T) => string | null | undefined, valueOf: (item: T) => number = () => 1): DashboardChartPoint[] {
