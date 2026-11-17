@@ -69,7 +69,10 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(page,/max-h-\[min\(44dvh,320px\)\]/);
   assert.match(page,/flex-wrap items-stretch rounded-xl/);
   assert.match(page,/xl:flex-nowrap/);
-  assert.match(page,/aria-label=\{onPrepareOrderDocument\?"Documentos da OS":"Anexar documento"\}/);
+  assert.match(page,/aria-label="Mais opções da conversa"/);
+  assert.match(page,/onClick=\{\(\)=>setActionPanel\("documents"\)\}/);
+  assert.match(page,/Enviar documento da OS/);
+  assert.doesNotMatch(page,/documentInputRef|aria-label=\{onPrepareOrderDocument\?/);
   assert.match(page,/aria-label="Voltar às opções"/);
   assert.match(page,/aria-label="Carregando mensagens rápidas"/);
   assert.match(bridge,/const audio=kind==="audio" \? await toPlayableAudio\(buffer\) : null/);
@@ -123,3 +126,4 @@ test("editar contato abre modal isolado e campos obrigatórios usam asterisco ve
   assert.match(common, /data-admin-required-indicator="true"/);
   assert.match(common, /text-red-600 dark:text-red-400/);
 });
+

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import React from "react";
+import { transform } from "esbuild";
 import {
   dialogSizingClass,
   preventAdminDialogOutsideInteraction,
@@ -8,6 +10,23 @@ import {
   resolveDialogModalMode,
   setDialogMinimizedState,
 } from "./admin-dialog-behavior.mjs";
+
+test("DialogContent forwards the React 18 ref to the actual Radix content", async () => {
+  const source = readFileSync("src/shared/ui/primitives/dialog.tsx", "utf8");
+  const start = source.indexOf("const DialogContent = React.forwardRef");
+  assert.ok(start >= 0, "React 18 requires forwardRef for the content DOM ref");
+  const component = source.slice(start, source.indexOf("function DialogHeader", start));
+  const { code } = await transform(component + "\nreturn DialogContent;", { loader: "tsx" });
+  const Content = new Function("React", "DialogRuntimeContext", "useOptionalAdminDialogManager", "useDialogMinimizeAction", "DialogPortal", "DialogOverlay", "DialogPrimitive", "cn", "dialogSizingClass", code)(
+    { ...React, useContext: () => null }, {}, () => null, () => () => {},
+    "portal", "overlay", { Content: "radix-content" }, () => "", () => "",
+  );
+  assert.equal(Content.$$typeof, Symbol.for("react.forward_ref"));
+  const ref = React.createRef();
+  const tree = Content.render({ children: "form", showClose: false }, ref);
+  const radix = React.Children.toArray(tree.props.children).find(child => child.type === "radix-content");
+  assert.equal(radix.ref, ref, "AdminDialog must receive the actual Radix DOM element");
+});
 
 test("restoring one dialog returns any other restored dialog to the dock", () => {
   const tasks = [
@@ -66,7 +85,9 @@ test("um único modal mantém o cabeçalho e expande o próprio conteúdo após 
   const component = layout.split("export function AdminDialog({")[1].split("export function AdminPage(")[0];
   assert.equal((component.match(/<DialogContent\b/g) || []).length, 1);
   assert.equal((component.match(/<Dialog open=\{open\}/g) || []).length, 1);
-  assert.match(component, /ref=\{contentRef\}/);
+  assert.match(component, /ref=\{attachDialogContent\}/);
+  assert.match(component, /contentRef\.current = node/);
+  assert.match(component, /\[open, draggable, dialogNode\]/);
   assert.match(component, /node\.animate\(\[/);
   assert.match(component, /preparedSizeRef\.current/);
   assert.match(component, /height: .*before\.height/);

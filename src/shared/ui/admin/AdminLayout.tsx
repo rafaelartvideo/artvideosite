@@ -369,14 +369,19 @@ export function AdminDialog({
   const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
-  const contentRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const [dialogNode, setDialogNode] = React.useState<HTMLDivElement | null>(null);
+  const attachDialogContent = React.useCallback((node: HTMLDivElement | null) => {
+    contentRef.current = node;
+    setDialogNode(node);
+  }, []);
   // Use native mouse events and write directly to the actual Radix portal.
   // React state/CSS translations were repeatedly blocked by global modal rules.
   const dragHeaderRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!open || !draggable) return;
     const header = dragHeaderRef.current;
-    const node = contentRef.current;
+    const node = dialogNode;
     if (!header || !node) return;
 
     let drag: { x: number; y: number; left: number; top: number; width: number; height: number } | null = null;
@@ -437,7 +442,7 @@ export function AdminDialog({
       for (const property of ["left", "top", "translate", "transform"])
         node.style.removeProperty(property);
     };
-  }, [open, draggable]);
+  }, [open, draggable, dialogNode]);
 
   const scrollNestedDialog = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!nestedScrollAssist) return;
@@ -554,7 +559,7 @@ export function AdminDialog({
 
   return <Dialog open={open} modal={modal} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent
-      ref={contentRef}
+      ref={attachDialogContent}
       showClose={false}
       showOverlay={showOverlay}
       showMinimizeControl={false}
@@ -864,3 +869,4 @@ export function InternalBackButton({ onBack, inHeader = false }: { onBack: () =>
   if (!inHeader && contextualBack === onBack) return null;
   return <button type="button" onClick={resolvedBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
+

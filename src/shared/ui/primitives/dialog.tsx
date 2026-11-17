@@ -158,7 +158,18 @@ function DialogMinimizeButton({
   </button>;
 }
 
-function DialogContent({
+const DialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    showClose?: boolean;
+    showOverlay?: boolean;
+    minimizable?: boolean;
+    showMinimizeControl?: boolean;
+    minimizedTitle?: string;
+    minimizedDescription?: React.ReactNode;
+    overlayClassName?: string;
+  }
+>(function DialogContent({
   className,
   children,
   showClose = true,
@@ -170,15 +181,7 @@ function DialogContent({
   overlayClassName,
   style,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showClose?: boolean;
-  showOverlay?: boolean;
-  minimizable?: boolean;
-  showMinimizeControl?: boolean;
-  minimizedTitle?: string;
-  minimizedDescription?: React.ReactNode;
-  overlayClassName?: string;
-}) {
+}, forwardedRef) {
   const isAdminDialog = typeof className === "string" && className.includes("admin-crm");
   const runtime = React.useContext(DialogRuntimeContext);
   const manager = useOptionalAdminDialogManager();
@@ -196,6 +199,7 @@ function DialogContent({
     <DialogPortal data-slot="dialog-portal">
       {showOverlay && <DialogOverlay className={cn(isAdminDialog && "admin-dialog-overlay z-[140]", overlayClassName)} />}
       <DialogPrimitive.Content
+        ref={forwardedRef}
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
         className={cn(
@@ -232,7 +236,7 @@ function DialogContent({
       </DialogPrimitive.Content>
     </DialogPortal>
   );
-}
+});
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
