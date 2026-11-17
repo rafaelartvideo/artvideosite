@@ -440,7 +440,8 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
 
   const check=edge.slice(edge.indexOf('if (!uuid(org) ||'),edge.indexOf('return json({success:false,error:"Operação inválida."},400);'));
   assert.equal((check.match(/"order_recipients"/g)||[]).length,2);
-  assert.match(edge,/order_recipients:"link_orders"/);
+  // Escolher destinatário é leitura da OS, não permissão para vincular conversas.
+  assert.doesNotMatch(edge,/order_recipients:"link_orders"/);
   assert.match(edge,/if\(action==="order_recipients"\)/);
   assert.match(edge,/if\(action==="order_options" \|\| action==="order_link"\)/);
   assert.match(edge,/digits.length===11\|\|digits.length===14/);
@@ -461,6 +462,16 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.doesNotMatch(inbox,/orderSearch\?350:0/);
   assert.match(inbox,/ordersSearched&&<div/);
   assert.match(modal,/Escolha com quem falar sobre esta OS/);
+  const recipientLookup=edge.slice(edge.indexOf('if(action==="order_recipients")'),
+    edge.indexOf('// A OS e os cadastros compartilham'));
+  assert.ok(recipientLookup.includes('replace(/\\D/g,"")'),"Os telefones devem ter pontuação removida");
+  assert.ok(recipientLookup.includes('/^55[1-9]\\d{9,10}$/'),"Validação precisa aceitar dígitos reais");
+  assert.doesNotMatch(recipientLookup,/replace\\(\\/\\\\\\\\D\\/g/);
+  assert.match(modal,/if\\(recipients.length>0\\)set\\(\\{status:"choosing",recipients\\}\\)/);
+  assert.doesNotMatch(modal,/chooseOrderRecipient\\(recipients\\[0\\]\\)/);
+  assert.match(modal,/WhatsAppContactAvatar/);
+  assert.match(modal,/>Vinculado</);
+  assert.match(modal,/Trocar número/);
   assert.match(modal,/order_recipients/);
   assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
   assert.match(modal,/registered_phone_field:recipient\.field/);
