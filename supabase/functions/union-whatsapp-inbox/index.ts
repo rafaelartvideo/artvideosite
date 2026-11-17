@@ -179,8 +179,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -258,7 +258,7 @@ Deno.serve(async request => {
       participant_respond:"collaborate",participant_remove:"collaborate",
       participant_request_protocol:"collaborate",
       return_queue:"return_queue",finish:"finish",reopen:"reopen",
-      handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
+      handoff_history:"view_history",order_recipients:"link_orders",order_options:"link_orders",order_link:"link_orders",
     };
     if(required[action] && !capabilities[required[action]] &&
       !(action==="operator_list" && capabilities.manage_queues)){
@@ -1010,6 +1010,54 @@ Deno.serve(async request => {
         channel.webhook_ready && /^[0-9]{10,15}$/.test(String(channel.phone||"")));
       return json({success:true,channel_connected:ready,staff_role:staffRole,capabilities,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
+    }
+    if(action==="order_recipients"){
+      // Consultar apenas os telefones cadastrados e os contatos vinculados
+      // à OS desta empresa. Não retornar outros clientes nem criar conversas.
+      const orderId=String(body.service_order_id||"");
+      if(!uuid(orderId)||!canRead||!permissions.has("orders.details.view"))
+        return json({success:false,error:"OS inválida ou acesso negado."},403);
+      const {data:order,error:orderError}=await admin.from("service_orders")
+        .select("id,customer_id").eq("organization_id",org).eq("id",orderId).maybeSingle();
+      if(orderError)throw orderError;
+      if(!order?.customer_id)return json({success:false,error:"OS não encontrada nesta empresa."},404);
+      const {data:customer,error:customerError}=await admin.from("customers")
+        .select("full_name,trade_name,legal_name,phone,whatsapp")
+        .eq("organization_id",org).eq("id",order.customer_id).maybeSingle();
+      if(customerError)throw customerError;
+      const normalize=(value:unknown)=>{
+        const digits=String(value||"").replace(/\\D/g,"");
+        return digits.length===10||digits.length===11?"55"+digits:digits;
+      };
+      const recipients:Array<Record<string,unknown>>=[];
+      const seen=new Set<string>();
+      for(const field of ["whatsapp","phone"] as const){
+        const phone=normalize(customer?.[field]);
+        if(!/^55[1-9]\\d{9,10}$/.test(phone)||seen.has(phone))continue;
+        seen.add(phone);
+        recipients.push({kind:"registered",field,
+          name:String(customer?.full_name||customer?.trade_name||customer?.legal_name||"Cliente"),
+          phone});
+      }
+      const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+        .select("id,phone").eq("organization_id",org).eq("provider","wuzapi")
+        .eq("state","connected").eq("webhook_ready",true).maybeSingle();
+      if(channelError)throw channelError;
+      if(!channel)return json({success:true,recipients});
+      const {data:links,error:linkError}=await admin.from("union_whatsapp_order_contacts")
+        .select("conversation_id,chat_jid,contact_name,contact_phone")
+        .eq("organization_id",org).eq("service_order_id",orderId)
+        .eq("channel_id",channel.id).eq("account_phone",channel.phone)
+        .order("created_at",{ascending:true}).limit(30);
+      if(linkError)throw linkError;
+      for(const linked of links||[]){
+        const number=normalize(linked.contact_phone);
+        if(!number||seen.has(number))continue;
+        seen.add(number);
+        recipients.push({kind:"linked",conversation_id:linked.conversation_id,
+          name:linked.contact_name||"Contato vinculado à OS",phone:number});
+      }
+      return json({success:true,recipients});
     }
     // A OS e os cadastros compartilham o mesmo ingresso no atendimento.
     // Identidade e telefone são sempre obtidos do banco, com escopo da empresa;
