@@ -1332,6 +1332,7 @@ Deno.serve(async request => {
           return json({success:false,code:"delivery_unknown",
             error:"O envio não foi confirmado. Confira o WhatsApp antes de tentar novamente."},502);
         }
+        try {
         const now=new Date().toISOString();
         let conversationId=previouslyKnown?.id||"";
         let previousState=previouslyKnown?.status||"";
@@ -1405,6 +1406,11 @@ Deno.serve(async request => {
           });
         return json({success:true,conversation_id:conversationId,
           provider_message_id:providerId,first_message_sent:true});
+        }catch(reason){
+          console.error("union-whatsapp-inbox: confirmed_first_message_persistence_failed",String(reason));
+          return json({success:false,code:"delivery_confirmed",
+            error:"A mensagem foi enviada ao WhatsApp, mas o histórico não foi confirmado. Confira a conversa antes de tentar novamente."},502);
+        }
       }
       const {data:created,error:createError}=previouslyKnown ? {data:null,error:null} :
         await admin.from("union_whatsapp_conversations")
