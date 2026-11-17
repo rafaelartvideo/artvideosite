@@ -84,3 +84,14 @@ test("aprovados em verde, reprovados em vermelho e centralização dos painéis"
   assert.ok(tab.includes("grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2"));
   assert.ok(tab.includes("mx-auto"));
 });
+
+test("gráficos de orçamentos omitem datas sem ocorrências, mantendo total e período", async()=>{
+  const panel=read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  const tab=read("src/features/dashboard/presentation/TabDashboard.tsx");
+  await compile("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  assert.match(panel,/chartKey === "quote_approved" \|\| chartKey === "quote_rejected"/);
+  assert.match(panel,/data\.filter\(point => Number\(point\.value\) > 0\)/);
+  assert.match(panel,/Exibe somente datas com reprovações/);
+  assert.match(tab,/Reprovações atuais no período/);
+  assert.match(tab,/chartTrend\(analytics\?\.quote_rejected\|\|\[\],periodDays\)/);
+});
