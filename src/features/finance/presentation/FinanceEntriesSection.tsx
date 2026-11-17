@@ -460,7 +460,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : entry.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={entry.origin_reference} number={sourceValue(entry, "os_number")} label={originText(entry)} /> : originText(entry)}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{entry.counterpart_name_snapshot || "Sem contraparte"} · {formatFinancialDocument(entry.counterpart_document_snapshot)}</p></div>
-                <p className="shrink-0 text-sm font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</p>
+                <p className="shrink-0 text-sm font-bold tabular-nums text-foreground">{warrantyNeedsDetails(entry) ? "A definir" : formatCurrency(entry.original_amount)}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
@@ -469,7 +469,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{sourceValue(entry,"billing_model")==="partner_warranty"&&<Badge tone="blue">Garantia · Fabricante</Badge>}{receiptBadge(entry)}{recurringBadge(entry)}
+                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{receiptBadge(entry)}{recurringBadge(entry)}
               </div>
             </div>
             <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
@@ -505,10 +505,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
                 <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
-                <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
+                <td className="text-right font-bold tabular-nums text-foreground">{warrantyNeedsDetails(entry) ? "A definir" : formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
                  {!isReceivable && <td className={`text-right font-semibold tabular-nums ${["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
-                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{sourceValue(entry,"billing_model")==="partner_warranty"&&<Badge tone="blue">Garantia · Fabricante</Badge>}{receiptBadge(entry)}{recurringBadge(entry)}</div></td>
+                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{receiptBadge(entry)}{recurringBadge(entry)}</div></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
