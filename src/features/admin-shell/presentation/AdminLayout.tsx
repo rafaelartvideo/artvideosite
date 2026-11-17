@@ -83,7 +83,7 @@ export function AdminLayout({
 
   return (
     <AdminThemeContext.Provider value={{ theme, setTheme }}>
-      <div className={`admin-crm ${theme === "dark" ? "dark" : ""} flex h-screen min-w-0 overflow-hidden bg-background text-foreground`} data-theme={theme}>
+      <div className={`admin-crm ${theme === "dark" ? "dark" : ""} flex h-screen min-w-0 overflow-hidden bg-background text-foreground`} data-theme={theme} data-admin-shell="true">
         <AdminFeedbackHost />
 
         <aside
