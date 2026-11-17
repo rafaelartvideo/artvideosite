@@ -19,33 +19,45 @@ test("Tipo de atendimento controla cobrança ao cliente sem alterar tipos já ex
   assert.ok((await transformWithEsbuild(config,"ServiceTypesAdminPanel.tsx",{loader:"tsx"})).code.length>200);
 });
 
-test("Conclusão de garantia gera conta a receber de parceiro, cliente zero e nenhuma baixa antecipada", async()=>{
-  const hook = read("src/features/orders/application/useOrderCompletion.ts");
-  const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
-  const finance = read("src/features/orders/infrastructure/order-finance.repository.ts");
-  const source = read("src/features/finance/presentation/FinanceEntrySourceBlock.tsx");
-  const listing = read("src/features/finance/presentation/FinanceEntriesSection.tsx");
-  const sql = read("supabase/migrations/20261117192000_partner_warranty_receivable_on_completion.sql");
+test("Garantia conclui OS sem dados financeiros e cria título pendente para dar baixa",async()=>{
+  const hook=read("src/features/orders/application/useOrderCompletion.ts");
+  const modal=read("src/features/orders/presentation/OrderCompletionModal.tsx");
+  const listing=read("src/features/finance/presentation/FinanceEntriesSection.tsx");
+  const source=read("src/features/finance/presentation/FinanceEntrySourceBlock.tsx");
+  const setup=read("src/features/finance/presentation/FinanceWarrantyReceivableSetup.tsx");
+  const repository=read("src/features/finance/infrastructure/finance-warranty-receivables.repository.ts");
+  const sql=read("supabase/migrations/20261117195000_defer_warranty_receivable_details_to_finance.sql");
 
   assert.match(hook,/const noCustomerCharge = detail\?\.service_type\?\.charge_customer === false/);
-  assert.match(hook,/partner_receivable: \{/);
-  assert.match(hook,/warrantyReceivableValidationMessage/);
+  assert.match(hook,/if \(noCustomerCharge\) return \{ installments: \[\], payments: \[\] as \[\]/);
+  assert.doesNotMatch(hook,/warrantyPayerId|warrantyReceivableValue|partner_receivable: \{/);
   assert.match(hook,/targetCoverageFree \|\| targetNoCustomerCharge \? 0/);
   assert.match(hook,/config\.payment_enabled && !freeCoverage/);
-  assert.match(hook,/completeServiceOrderWithFinance/);
-  assert.match(modal,/title="Conta a receber do fabricante"/);
-  assert.match(modal,/Valor a receber do parceiro/);
+  assert.match(modal,/completion\.noCustomerCharge \? \(/);
+  assert.match(modal,/onde os dados do fabricante e o pagamento serão informados ao dar baixa/);
+  assert.doesNotMatch(modal,/title="Conta a receber do fabricante"|label="Valor a receber do parceiro"/);
+  assert.match(modal,/showPrices=\{!completion\.noCustomerCharge\}/);
   assert.match(modal,/Abrir em Contas a Receber/);
-  assert.match(finance,/roles\.role", "partner"|roles\.role","partner"/);
-  assert.match(sql,/v_partner_amount<=0/);
-  assert.match(sql,/v_final_total<>0/);
-  assert.match(sql,/v_entry_id:=private\.create_integrated_financial_entry\(/);
-  assert.match(sql,/'billing_model','partner_warranty'/);
-  assert.match(sql,/join public\.entity_roles er on er\.entity_id=e\.id and er\.role='partner'/);
-  assert.match(sql,/'approved', v_user_id/);
-  assert.match(source,/source\.billing_model === "partner_warranty"/);
-  assert.match(listing,/Garantia · Fabricante/);
-  for(const [name,content] of [["useOrderCompletion.ts",hook],["OrderCompletionModal.tsx",modal],["order-finance.repository.ts",finance],["FinanceEntrySourceBlock.tsx",source]]){
+  assert.match(listing,/FinanceWarrantyReceivableSetup/);
+  assert.match(listing,/warrantyNeedsDetails\(entry\)/);
+  assert.match(source,/source\.receivable_status==="pending_details"/);
+  assert.match(setup,/Fabricante \/ parceiro responsável/);
+  assert.match(setup,/Valor a receber/);
+  assert.match(setup,/Vencimento/);
+  assert.match(setup,/Observações/);
+  assert.match(setup,/Continuar para baixa/);
+  assert.match(repository,/prepare_warranty_receivable_v1/);
+  assert.match(sql,/original_amount=0 and entry_type='receivable'/);
+  assert.match(sql,/'receivable_status','pending_details'/);
+  assert.match(sql,/v_order\.organization_id,'receivable'/);
+  assert.match(sql,/finance\.settlements\.create/);
+  assert.match(sql,/warranty_receivable_configured/);
+  assert.match(sql,/v_amount<=0/);
+  for(const [name,content] of [
+    ["useOrderCompletion.ts",hook],["OrderCompletionModal.tsx",modal],
+    ["FinanceEntriesSection.tsx",listing],["FinanceWarrantyReceivableSetup.tsx",setup],
+    ["finance-warranty-receivables.repository.ts",repository],["FinanceEntrySourceBlock.tsx",source],
+  ]){
     assert.ok((await transformWithEsbuild(content,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code.length>200,name);
   }
 });
