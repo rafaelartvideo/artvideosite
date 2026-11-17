@@ -37,10 +37,10 @@ const mediaLabel=(kind:unknown)=>({
 } as Record<string,string>)[String(kind||"")]||"Nova mensagem";
 
 type Filter="in_att"|"waiting";
-type MiniList={items:UnionWhatsAppConversation[];fetchedAt:number;loading:boolean;loaded:boolean};
+type MiniList={items:UnionWhatsAppConversation[];fetchedAt:number;loading:boolean;loaded:boolean;error:boolean};
 const emptyLists=():Record<Filter,MiniList>=>({
-  in_att:{items:[],fetchedAt:0,loading:false,loaded:false},
-  waiting:{items:[],fetchedAt:0,loading:false,loaded:false},
+  in_att:{items:[],fetchedAt:0,loading:false,loaded:false,error:false},
+  waiting:{items:[],fetchedAt:0,loading:false,loaded:false,error:false},
 });
 const MINI_LIST_TTL=45_000;
 const MINI_LIST_EVENT_THROTTLE=6_000;
@@ -78,6 +78,7 @@ export function UnionWhatsAppActivityProvider({
   const rows=lists[filter].items;
   const rowsLoading=lists[filter].loading;
   const rowsLoaded=lists[filter].loaded;
+  const rowsError=lists[filter].error;
   const [avatars,setAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
   const avatarCheckedAtRef=useRef(new Map<string,number>());
@@ -211,7 +212,7 @@ export function UnionWhatsAppActivityProvider({
       if(request.running||now<request.retryAfter||
         (snapshot.loaded&&now-snapshot.fetchedAt<(urgent?MINI_LIST_EVENT_THROTTLE:MINI_LIST_TTL)))return;
       request.running=true;
-      setLists(prev=>({...prev,[tab]:{...prev[tab],loading:true}}));
+      setLists(prev=>({...prev,[tab]:{...prev[tab],loading:true,error:false}}));
       try{
         const response=await listUnionWhatsAppConversations(organizationId,channelId,channelPhone,{
           filter:tab,department:"all",search:"",page:0,pageSize:8,sortByRecent:true,
@@ -221,13 +222,13 @@ export function UnionWhatsAppActivityProvider({
           gen!==listGenerationRef.current)return;
         const sorted=[...response.items].sort(recentFirst);
         setLists(prev=>({...prev,[tab]:{
-          items:sorted,fetchedAt:Date.now(),loaded:true,loading:false,
+          items:sorted,fetchedAt:Date.now(),loaded:true,loading:false,error:false,
         }}));
         sorted.forEach(row=>recentConversationRef.current.set(row.id,row));
       }catch{
         if(scope===currentAccountRef.current&&gen===listGenerationRef.current){
           request.retryAfter=Date.now()+25_000;
-          setLists(prev=>({...prev,[tab]:{...prev[tab],loading:false}}));
+          setLists(prev=>({...prev,[tab]:{...prev[tab],loading:false,error:true}}));
         }
       }finally{request.running=false;}
     }));
@@ -451,7 +452,7 @@ export function UnionWhatsAppActivityProvider({
         hidden={Boolean(conversationId)}
         expanded={expanded} onToggle={()=>setExpanded(value=>!value)}
         counts={counts} filter={filter} onFilter={setFilter}
-        rows={rows} loading={rowsLoading} loaded={rowsLoaded} avatars={avatars}
+        rows={rows} loading={rowsLoading} loaded={rowsLoaded} error={rowsError} avatars={avatars}
         onSelect={selectConversation}
         onOpenFull={onOpenFull} alert={alert} onDismissAlert={()=>setAlert(null)}
       />}
