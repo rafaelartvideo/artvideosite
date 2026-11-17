@@ -455,6 +455,8 @@ export function OrderDetailsPage(props: Props) {
 
   const prepareTemplateDocument = async (template: PrintTemplate) => {
     if (!detail?.organization_id) throw new Error("A OS não possui empresa definida.");
+    if (!isOrderTerminalDocumentVisible(template.document_type,detail))
+      throw new Error("O termo só fica disponível nesta OS após a confirmação do encerramento correspondente.");
 
     const [configuredTemplate, company] = await Promise.all([
       loadPrintTemplateEditorValue(template),
