@@ -185,7 +185,7 @@ export function UnionWhatsAppFloatingPanel({
       window.removeEventListener("resize",update);
       window.removeEventListener("scroll",update,true);
     };
-  },[hasAlert,position,alert?.messageId]);
+  },[hasAlert,position,alert?.messageId,toolbarClearance]);
   return <>
     {hasAlert&&alert&&<div ref={alertRef} role="status" aria-live="polite"
       data-whatsapp-anchored-alert="true"
