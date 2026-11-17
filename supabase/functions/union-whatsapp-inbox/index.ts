@@ -244,7 +244,7 @@ Deno.serve(async request => {
     const canSend=allowed("send");
     const required:Record<string,string>={
       role_permissions_list:"manage_operators",role_permissions_save:"manage_operators",
-      operator_list:"manage_operators",operator_set:"manage_operators",
+      operator_list:"manage_operators",operator_filter_list:"view_all",operator_set:"manage_operators",
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
@@ -520,7 +520,7 @@ Deno.serve(async request => {
         avatar_url:avatar.status==="fulfilled" ? avatar.value||null : null});
     }
 
-    if(action==="operator_list" || action==="operator_set"){
+    if(action==="operator_list" || action==="operator_filter_list" || action==="operator_set"){
       const {data:staff,error:staffError}=await admin.from("organization_members")
         .select("user_id,role_id,is_owner").eq("organization_id",org).eq("status","active").limit(500);
       if(staffError)throw staffError;
@@ -596,7 +596,12 @@ Deno.serve(async request => {
           is_manager:Boolean(bindingMap.get(m.user_id)?.is_active &&
             ["manager","both"].includes(bindingMap.get(m.user_id)?.staff_role))}))
         .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-      return json({success:true,operators});
+      // A consulta do filtro é somente leitura e exige view_all; não expõe
+      // funcionários sem acesso ativo como Operador nem permite gerenciar papéis.
+      return json({success:true,operators:action==="operator_filter_list"
+        ? operators.filter(item=>item.is_active && item.eligible && item.can_attend &&
+            (item.staff_role==="operator" || item.staff_role==="both"))
+        : operators});
     }
 
     if(action==="queue_default"){
