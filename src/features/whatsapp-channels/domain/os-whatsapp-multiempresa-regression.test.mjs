@@ -189,7 +189,7 @@ test("Alertas WhatsApp são limitados por empresa, operador e atividade recente"
   assert.match(provider,/row.direction==="incoming"/);
   assert.match(provider,/notifiedRef.current.has\(incoming.messageId\)/);
   assert.match(provider,/row.status==="waiting"\|\|row.assigned_to===userId/);
-  assert.match(provider,/pageOpenRef.current\|\|expandedRef.current\|\|document.visibilityState!=="visible"/);
+  assert.match(provider,/pageOpenRef.current\|\|expandedRef.current\|\|conversationOpenRef.current\|\|[\s\S]*?document.visibilityState!=="visible"/);
   assert.match(provider,/setTimeout\(\(\)=>setAlert/);
   assert.match(provider,/document.visibilityState!=="visible"/);
 });
