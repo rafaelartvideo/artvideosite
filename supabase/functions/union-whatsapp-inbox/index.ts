@@ -1064,6 +1064,7 @@ Deno.serve(async request => {
     // números recebidos do navegador nunca autorizam acesso a conversas.
     if(action==="os_join" || action==="contact_join") {
       let storedPhone="";
+      let selectedLinkedConversation="";
       if(action==="os_join"){
         if(!canRead || !permissions.has("orders.details.view"))
           return json({success:false,error:"Sem permissão para acessar a OS e seus atendimentos."},403);
@@ -1081,7 +1082,13 @@ Deno.serve(async request => {
         if(customerError)throw customerError;
         if(!customer)
           return json({success:false,error:"Cliente da OS não encontrado."},404);
-        storedPhone=String(customer.whatsapp||customer.phone||"");
+        const linkedId=String(body.linked_conversation_id||"");
+        if(linkedId){
+          if(!uuid(linkedId))return json({success:false,error:"Contato vinculado inválido."},400);
+          selectedLinkedConversation=linkedId;
+        }
+        const field=body.registered_phone_field==="phone"?"phone":"whatsapp";
+        storedPhone=String(customer[field]||customer.whatsapp||customer.phone||"");
       }else{
         if(!canRead) return json({success:false,error:"Sem acesso aos atendimentos."},403);
         const entityId=String(body.entity_id||"");
@@ -1121,7 +1128,7 @@ Deno.serve(async request => {
       }
       const raw=storedPhone.replace(/\D/g,"");
       const contactPhone=raw.length===10 || raw.length===11 ? "55"+raw : raw;
-      if(!/^55[1-9]\d{9,10}$/.test(contactPhone))
+      if(!/^55[1-9]\d{9,10}$/.test(contactPhone)&&!selectedLinkedConversation)
         return json({success:true,found:false,can_start:false});
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,phone").eq("organization_id",org)
@@ -1133,31 +1140,47 @@ Deno.serve(async request => {
       const scope=()=>admin.from("union_whatsapp_conversations")
         .select("id,chat_jid,status,assigned_to,contact_phone")
         .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone);
-      const {data:byPhone,error:phoneError}=await scope()
-        .in("contact_phone",[contactPhone,contactPhone.slice(2)])
-        .order("last_message_at",{ascending:false,nullsFirst:false}).limit(3);
-      if(phoneError)throw phoneError;
-      let matching=byPhone||[];
-      // WuzAPI can resolve a phone identity to an LID or a verified 9th-digit
-      // alias. Resolve ambiguities by the provider JID, never by guessing.
-      if(matching.length!==1){
-        try {
-          const verified=await verifyWhatsAppNumber(contactPhone);
-          if(!("error" in verified)){
-            const {data:byJid,error:jidError}=await scope()
-              .eq("chat_jid",verified.jid).limit(2);
-            if(jidError)throw jidError;
-            matching=byJid||[];
+      let matching:Array<{id:string;chat_jid:string;status:string;assigned_to:string|null;contact_phone:string|null}>=[];
+      if(selectedLinkedConversation){
+        // A request cannot select an arbitrary conversation ID. It must be a
+        // previously linked participant of THIS order in THIS connected account.
+        const {data:linked,error:linkError}=await admin.from("union_whatsapp_order_contacts")
+          .select("conversation_id").eq("organization_id",org)
+          .eq("service_order_id",String(body.service_order_id||""))
+          .eq("conversation_id",selectedLinkedConversation)
+          .eq("channel_id",channel.id).eq("account_phone",channel.phone).maybeSingle();
+        if(linkError)throw linkError;
+        if(!linked)return json({success:false,error:"Este contato não está vinculado à OS."},403);
+        const {data:linkedThread,error:linkedError}=await scope()
+          .eq("id",selectedLinkedConversation).maybeSingle();
+        if(linkedError)throw linkedError;
+        matching=linkedThread?[linkedThread]:[];
+      }else{
+        const {data:byPhone,error:phoneError}=await scope()
+          .in("contact_phone",[contactPhone,contactPhone.slice(2)])
+          .order("last_message_at",{ascending:false,nullsFirst:false}).limit(3);
+        if(phoneError)throw phoneError;
+        matching=byPhone||[];
+        // WuzAPI resolves aliases; never guess a ninth digit.
+        if(matching.length!==1){
+          try {
+            const verified=await verifyWhatsAppNumber(contactPhone);
+            if(!("error" in verified)){
+              const {data:byJid,error:jidError}=await scope()
+                .eq("chat_jid",verified.jid).limit(2);
+              if(jidError)throw jidError;
+              matching=byJid||[];
+            }
+          }catch(error){
+            if(matching.length>1)throw error;
           }
-        }catch(error){
-          if(matching.length>1)throw error;
-          // A failed provider lookup should not prevent starting a valid new chat.
         }
       }
       if(matching.length>1)
         return json({success:false,error:"Existem conversas ambíguas para este número. Consulte o Atendimento."},409);
       const thread=matching[0];
-      if(!thread)return json({success:true,found:false,can_start:allowed("start")});
+      if(!thread)return json({success:true,found:false,
+        can_start:!selectedLinkedConversation&&allowed("start")});
       const otherOperator=thread.status==="in_att" &&
         Boolean(thread.assigned_to && thread.assigned_to!==actorId);
       const alreadyOwn=thread.assigned_to===actorId;
