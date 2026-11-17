@@ -51,7 +51,7 @@ export function OrderEditorPage({ visible,saving,workspace,formState,images,cust
     preparing={preparingEmbedded} preparingText="Carregando Nova OS..."
     className="!h-[min(78dvh,760px)] !w-[calc(100vw-1rem)] !max-w-[930px] sm:!w-[calc(100vw-2rem)] max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-0.5rem)]"
     bodyClassName="!min-h-0 !min-w-0 !flex-1 !overflow-y-auto !overscroll-contain !p-0 [scrollbar-gutter:stable] [touch-action:pan-y]"
-    footerClassName="!border-t-0 !bg-card !px-5 !py-3" footer={editorActions}
+    footerClassName="!border-t !border-border !bg-card !px-5 !py-3" footer={editorActions}
   >{editorBody}</AdminDialog>;
   return <AdminPage open onClose={closePage} breadcrumb={editingOS?`Ordens de Serviço > OS #${editingOS.os_number||editingOS.id.slice(0,8)}`:"Ordens de Serviço"} title={editingOS?"Editar OS":"Nova OS"} subtitle={editingOS?"Atualize os dados do atendimento":"Cadastre os dados do atendimento"} maxW="max-w-2xl" fullPage={Boolean(editingOS)} smoothMotion={false}>
     {editorBody}
