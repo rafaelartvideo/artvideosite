@@ -839,7 +839,7 @@ export function UnionWhatsAppContactsDialog({
                     <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
                       {([
                         ["Cliente",crmData.customer.name],
-                        [crmData.customer.cnpj || String(crmData.customer.document||"").replace(/\\D/g,"").length===14 ? "CNPJ" : "CPF",
+                        [crmData.customer.cnpj || String(crmData.customer.document||"").replace(/\D/g,"").length===14 ? "CNPJ" : "CPF",
                           formatCrmDocument(crmData.customer.cnpj||crmData.customer.document)],
                         ["Telefone",crmData.customer.phone?formatWhatsAppPhone(crmData.customer.phone):"Não informado"],
                         ["WhatsApp",crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"],
