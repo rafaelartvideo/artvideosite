@@ -2366,10 +2366,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     onClick={()=>void showOrders()} disabled={savingOrder}
                     className="shrink-0 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
                   
-                  {canAction("transfer") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
+                  {canAction("transfer") && <AdminButton variant="tertiary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
-                  {canAction("return_queue") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>}
+                  {canAction("return_queue") && <AdminButton variant="warning" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>}
                   {canAction("finish") && <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}>
                      {runningAction==="finish" ? <LoaderCircle size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
                      {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
