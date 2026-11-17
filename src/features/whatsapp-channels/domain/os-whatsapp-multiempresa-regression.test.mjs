@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
 
 const read = (path) => readFileSync(path, "utf8");
 const order = read("src/features/orders/presentation/OrderDetailsPage.tsx");
@@ -631,4 +632,43 @@ test("Ações Editar e Nova adotam contraste compartilhado em todo CRM escuro",(
   assert.match(inbox,/<AdminButton variant="tertiary" size="sm" aria-label="Nova conversa"/);
   assert.match(inbox,/variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"/);
   assert.doesNotMatch(inbox,/border-primary\/25 bg-primary\/10 px-2 text-\[11px\] font-bold text-primary/);
+});
+
+test("Dados de cadastro no WhatsApp exibem endereço completo, CPF/CNPJ e CEP mascarados",async()=>{
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const menu=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
+  const formatSource=read("src/features/whatsapp-channels/domain/crm-contact-format.ts");
+  const lookup=edge.slice(edge.indexOf('if(action==="contacts_crm_match")'),edge.indexOf('if(action==="contacts_list")'));
+  assert.match(lookup,/permissions\.has\("customers\.view"\)/);
+  assert.match(lookup,/\.eq\("organization_id",org\)\.eq\("id",customerId\)/);
+  assert.match(lookup,/addresses:customer_addresses\(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default\)/);
+  assert.match(contacts,/addresses\?:CrmContactAddress\[\]\|null/);
+  assert.match(contacts,/formatCrmDocument\(crmData\.customer\.cnpj\|\|crmData\.customer\.document\)/);
+  assert.match(contacts,/formatCrmFullAddress\(address\)/);
+  assert.match(contacts,/orderedCrmAddresses\(crmData\.customer\.addresses\)/);
+  assert.match(menu,/formatCrmFullAddress\(address\)/);
+  assert.match(menu,/formatCrmDocument\(customer\.cnpj \|\| customer\.document\)/);
+  for(const [path,source] of [
+    ["UnionWhatsAppContactsDialog.tsx",contacts],
+    ["UnionWhatsAppCrmMenu.tsx",menu],
+    ["crm-contact-format.ts",formatSource],
+  ])assert.ok((await transformWithEsbuild(source,path,{loader:path.endsWith(".tsx")?"tsx":"ts"})).code.length>0);
+  // Executar o formatador real usando o módulo de formatação compartilhado.
+  const shared=await transformWithEsbuild(read("src/shared/domain/formatters.ts"),"formatters.ts",{loader:"ts"});
+  const url="data:text/javascript;base64,"+Buffer.from(shared.code).toString("base64");
+  const standalone=formatSource.replace('from "@/shared/domain/formatters"',`from "${url}"`);
+  const compiled=await transformWithEsbuild(standalone,"crm-contact-format.ts",{loader:"ts"});
+  const formatter=await import("data:text/javascript;base64,"+Buffer.from(compiled.code).toString("base64"));
+  assert.equal(formatter.formatCrmDocument("00267077564"),"002.670.775-64");
+  assert.equal(formatter.formatCrmDocument("12345678000195"),"12.345.678/0001-95");
+  assert.equal(formatter.formatCrmCep("49160442"),"49160-442");
+  assert.equal(formatter.formatCrmCep("49160-442"),"49160-442");
+  const address={street:"Rua 28",number:"232",neighborhood:"Parque Dos Faróis",
+    city:"Nossa Senhora Do Socorro",state:"SE",zip_code:"49160442",is_default:true};
+  assert.equal(formatter.formatCrmFullAddress(address),
+    "Rua 28, 232 · Parque Dos Faróis · Nossa Senhora Do Socorro - SE · CEP 49160-442");
+  assert.equal(formatter.orderedCrmAddresses([
+    {id:"secondary",is_default:false},{id:"primary",is_default:true},
+  ])[0].id,"primary");
 });
