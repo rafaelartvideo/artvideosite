@@ -11,6 +11,7 @@ import { OrderImageDownloadMenu, OrderImagesField, type OrderImage } from "./Ord
 import type { OrderImageKind } from "../domain/order-image";
 
 export function OrderEquipmentSection({
+  disposalMode = false,
   form,
   rules,
   equipmentTypes,
@@ -36,6 +37,7 @@ export function OrderEquipmentSection({
   onUnlockUpdate,
   orderId,
 }: {
+  disposalMode?: boolean;
   form: any;
   rules: RuleSet;
   equipmentTypes: any[];
@@ -126,16 +128,16 @@ export function OrderEquipmentSection({
         sort_order: 0,
       },
     }));
-  const displayedTechnicalFields = [...technicalFields, ...historicalFields]
+  const displayedTechnicalFields = (disposalMode ? [] : [...technicalFields, ...historicalFields])
     .filter(relation => relation.technical_field?.field_key !== "numero_serie")
     .sort((first, second) => first.sort_order - second.sort_order);
   // Mostrar a série apenas para equipamentos com campo extra; preservar dados históricos.
-  const showSerial = (technicalFields.some(relation =>
+  const showSerial = disposalMode || (technicalFields.some(relation =>
     relation.technical_field?.field_key === "numero_serie"
       && relation.technical_field?.is_active !== false
   ) || Boolean(editingOS && String(form.serial_number || "").trim()))
     && (rules.fields.serial_number?.mode !== "hidden" || Boolean(editingOS && form.serial_number));
-  const showDeviceUnlock = isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name)
+  const showDeviceUnlock = !disposalMode && isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name)
     && (unlockCanManage || unlockCanView);
   const extraFieldCount = (showSerial ? 1 : 0) + displayedTechnicalFields.length;
   // Um campo sozinho, ou o último sem par, deve ocupar toda a largura da linha.
@@ -156,10 +158,11 @@ export function OrderEquipmentSection({
       ) : undefined}
     >
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className={(rules.fields.equipment_type_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"flex min-w-0 items-end gap-2 sm:col-span-2"}>
+        <div className={(!disposalMode&&rules.fields.equipment_type_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"flex min-w-0 items-end gap-2 sm:col-span-2"}>
           <div className="min-w-0 flex-1">
             <FSelect
               label="Tipo de equipamento"
+              required={disposalMode}
               value={form.equipment_type_id}
               onChange={(e: any) => {
                 upF("equipment_type_id", e.target.value);
@@ -185,7 +188,7 @@ export function OrderEquipmentSection({
           )}
         </div>
 
-        <div className={(rules.fields.equipment_brand_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
+        <div className={(!disposalMode&&rules.fields.equipment_brand_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
           <FSelect
             label="Marca"
             required={!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
@@ -199,7 +202,7 @@ export function OrderEquipmentSection({
           />
         </div>
 
-        <div className={(rules.fields.equipment_model_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
+        <div className={(!disposalMode&&rules.fields.equipment_model_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
           <FSelect
             label="Modelo"
             required={!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
@@ -215,7 +218,7 @@ export function OrderEquipmentSection({
           <div className="min-w-0 w-full flex-1">
             <FInput
               label="NÚMERO DE SÉRIE"
-              required={!editingOS&&rules.fields.serial_number?.mode==="required"&&rules.fields.serial_number?.stage==="create"}
+              required={!disposalMode&&!editingOS&&rules.fields.serial_number?.mode==="required"&&rules.fields.serial_number?.stage==="create"}
               className="w-full"
               type="text"
               value={form.serial_number || ""}
