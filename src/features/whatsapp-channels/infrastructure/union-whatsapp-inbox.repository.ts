@@ -352,3 +352,25 @@ export async function operateUnionWhatsAppInbox(
   if (!data?.success) throw new Error(String(data?.error || "Não foi possível concluir esta operação."));
   return data;
 }
+
+
+/**
+ * A prévia do WhatsApp não cria atendimento. Somente o envio explícito da
+ * primeira mensagem aciona start e send_text, preservando o histórico.
+ * O ID do primeiro envio é único e passado ao servidor para deduplicação.
+ */
+export async function startUnionWhatsAppWithFirstMessage(
+  organizationId:string,phone:string,contactName:string,message:string,
+):Promise<string>{
+  const text=message.trim();
+  if(!text)throw new Error("Digite a primeira mensagem antes de iniciar o atendimento.");
+  if(text.length>4000)throw new Error("Mensagem muito longa. Reduza o texto.");
+  const started=await operateUnionWhatsAppInbox(
+    organizationId,crypto.randomUUID(),"start",{phone,contact_name:contactName},
+  );
+  if(!started.conversation_id)throw new Error("Não foi possível iniciar a conversa.");
+  await operateUnionWhatsAppInbox(organizationId,started.conversation_id,"send_text",{
+    text,client_message_id:crypto.randomUUID(),
+  });
+  return started.conversation_id;
+}
