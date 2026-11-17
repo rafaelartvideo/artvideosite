@@ -14,6 +14,9 @@ test("Encerramentos especiais exigem documentos, termo assinado, evidência e de
 
   assert.match(actions,/onTerminalExit\("disposal_confirmed"\)/);
   assert.match(actions,/onTerminalExit\("returned_unrepaired"\)/);
+  assert.match(actions,/<DropdownMenu modal=\{false\}>/);
+  assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("returned_unrepaired"\)\)/);
+  assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("disposal_confirmed"\)\)/);
   assert.match(actions,/const canTerminalExit = hasPermission\("orders.complete"\)/);
   assert.match(page,/OrderTerminalExitDialog/);
   assert.match(page,/onTerminalExit=\{setTerminalOutcome\}/);
