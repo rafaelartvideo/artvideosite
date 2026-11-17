@@ -100,7 +100,7 @@ export function UnionWhatsAppActivityProvider({
   const filterRef=useRef(filter);
   filterRef.current=filter;
   const rowsRef=useRef(rows);
-  rowsRef.current=rows;
+  rowsRef.current=[...lists.in_att.items,...lists.waiting.items];
   const capabilitiesRef=useRef(capabilities);
   capabilitiesRef.current=capabilities;
   const listenersRef=useRef(new Set<(event:WhatsAppActivityEvent)=>void>());
@@ -258,6 +258,9 @@ export function UnionWhatsAppActivityProvider({
   useEffect(()=>{
     if(expanded&&!isPageOpen)void refreshLists(["in_att","waiting"]);
   },[expanded,isPageOpen,refreshLists]);
+  useEffect(()=>{
+    if(expanded&&!isPageOpen)void refreshLists([filter]);
+  },[expanded,isPageOpen,filter,refreshLists]);
 
   useEffect(()=>{
     if(isPageOpen){
@@ -277,6 +280,36 @@ export function UnionWhatsAppActivityProvider({
 
   // Mensagens só geram avisos após confirmação da conversa no mesmo canal.
   // Não notificamos um operador sobre atendimento de outro, salvo view_all.
+  // Fotos carregadas somente para até seis linhas visíveis de cada aba.
+  // TTL por contato, duas requisições concorrentes e nenhum polling do WuzAPI.
+  useEffect(()=>{
+    if(!expanded||isPageOpen||!channelId||!channelPhone||conversationId)return;
+    const candidates=[...lists.in_att.items.slice(0,6),...lists.waiting.items.slice(0,6)];
+    const now=Date.now();
+    const available=2-avatarRequestsRef.current.size;
+    if(available<=0)return;
+    const toLoad=candidates.filter(item=>{
+      if(avatarRequestsRef.current.has(item.id))return false;
+      const last=avatarCheckedAtRef.current.get(item.id);
+      const ttl=avatars[item.id]?60*60_000:15*60_000;
+      return last===undefined||now-last>=ttl;
+    }).slice(0,available);
+    for(const item of toLoad){
+      avatarRequestsRef.current.add(item.id);
+      avatarCheckedAtRef.current.set(item.id,now);
+      const key=accountKey,generation=listGenerationRef.current;
+      void operateUnionWhatsAppInbox(organizationId,item.id,"contact_avatar")
+        .then(result=>{
+          if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
+          setAvatars(prev=>({...prev,[item.id]:result.avatar_url||null}));
+        }).catch(()=>{
+          if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
+          setAvatars(prev=>({...prev,[item.id]:prev[item.id]||null}));
+        }).finally(()=>avatarRequestsRef.current.delete(item.id));
+    }
+  },[expanded,isPageOpen,channelId,channelPhone,conversationId,organizationId,
+    accountKey,lists.in_att.items,lists.waiting.items,avatars]);
+
   const notifyFor=useCallback((row:UnionWhatsAppConversation,incoming:Incoming)=>{
     if(pageOpenRef.current||expandedRef.current||document.visibilityState!=="visible"||
        Date.now()-incoming.receivedAt>20_000||notifiedRef.current.has(incoming.messageId))return;
@@ -306,6 +339,27 @@ export function UnionWhatsAppActivityProvider({
       const event={kind,eventType,row};
       listenersRef.current.forEach(listener=>listener(event));
       scheduleReconcile();
+      if(kind==="message"&&eventType==="INSERT"&&
+          (row.direction==="incoming"||row.direction==="outgoing")&&expandedRef.current){
+        const id=String(row.conversation_id||""),at=String(row.sent_at||"");
+        if(id&&Number.isFinite(Date.parse(at))){
+          setLists(current=>{
+            let changed=false;
+            const result={...current};
+            for(const tab of ["in_att","waiting"] as Filter[]){
+              const before=current[tab].items;
+              if(!before.some(item=>item.id===id))continue;
+              changed=true;
+              result[tab]={...current[tab],items:before.map(item=>item.id===id ? {
+                ...item,last_message_at:at,
+                last_message:String(row.body_text||"").trim().slice(0,160)||mediaLabel(row.message_type),
+                unread_count:row.direction==="incoming"?item.unread_count+1:item.unread_count,
+              }:item).sort(recentFirst)};
+            }
+            return changed?result:current;
+          });
+        }
+      }
       if(kind==="message"&&eventType==="INSERT"&&row.direction==="incoming"){
         const id=String(row.conversation_id||""),messageId=String(row.provider_message_id||row.id||"");
         const sentAt=Date.parse(String(row.sent_at||""));
@@ -325,10 +379,19 @@ export function UnionWhatsAppActivityProvider({
           recentConversationRef.current.delete(recentConversationRef.current.keys().next().value||"");
         const incoming=pendingIncomingRef.current.get(record.id);
         if(incoming)notifyFor(record,incoming);
-        if(expandedRef.current&&rowsRef.current.some(item=>item.id===record.id)){
-          setRows(current=>{
-            const merged=current.map(item=>item.id===record.id?{...item,...record}:item);
-            return filterRef.current==="in_att"?merged.sort(recentFirst):merged;
+        if(expandedRef.current){
+          setLists(current=>{
+            let changed=false;
+            const result={...current};
+            for(const tab of ["in_att","waiting"] as Filter[]){
+              const before=current[tab].items;
+              if(!before.some(item=>item.id===record.id))continue;
+              changed=true;
+              const updated=before.filter(item=>item.id!==record.id);
+              if(record.status===tab)updated.push({...before.find(item=>item.id===record.id)!,...record});
+              result[tab]={...current[tab],items:updated.sort(recentFirst)};
+            }
+            return changed?result:current;
           });
         }
       }
@@ -372,6 +435,12 @@ export function UnionWhatsAppActivityProvider({
   const contextValue=useMemo<WhatsAppActivityContextValue>(()=>({
     isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},subscribe,
   }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,subscribe]);
+  // O objeto de contexto NÃO pode ser recriado em cada evento Realtime:
+  // o modal reinicializava todo o fluxo e piscava em "Carregando atendimento".
+  const modalContext=useMemo(()=>conversationId && activeOrganizationId
+    ? {organizationId:activeOrganizationId,source:{
+        kind:"conversation" as const,conversationId,
+      }} : null,[conversationId,activeOrganizationId]);
 
   const selectConversation=(id:string)=>{
     setAlert(null);
@@ -381,12 +450,14 @@ export function UnionWhatsAppActivityProvider({
     {children}
     {enabled&&channelReady===true&&channelId&&channelPhone&&!isPageOpen&&
       <UnionWhatsAppFloatingPanel
+        hidden={Boolean(conversationId)}
         expanded={expanded} onToggle={()=>setExpanded(value=>!value)}
         counts={counts} filter={filter} onFilter={setFilter}
-        rows={rows} loading={rowsLoading} onSelect={selectConversation}
+        rows={rows} loading={rowsLoading} loaded={rowsLoaded} avatars={avatars}
+        onSelect={selectConversation}
         onOpenFull={onOpenFull} alert={alert} onDismissAlert={()=>setAlert(null)}
       />}
-    {enabled&&conversationId&&activeOrganizationId&&
+    {enabled&&modalContext&&
       <Suspense fallback={null}>
         <ConversationModal
           key={conversationId}
@@ -395,8 +466,7 @@ export function UnionWhatsAppActivityProvider({
             void refreshCounts(true);
             if(expandedRef.current)void listsFnRef.current(["in_att","waiting"],true);
           }}
-          context={{organizationId:activeOrganizationId,
-            source:{kind:"conversation",conversationId}}}
+          context={modalContext}
         />
       </Suspense>}
   </ActivityContext.Provider>;
