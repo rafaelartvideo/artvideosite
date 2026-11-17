@@ -8,7 +8,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
-import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
+import { formatWhatsAppPhone, WhatsAppContactAvatar } from "./WhatsAppInboxVisuals";
 
 const EmbeddedWhatsAppConversation = lazy(() =>
   import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
@@ -20,9 +20,10 @@ const EmbeddedNewOrder = lazy(() =>
     .then(({ TabOrders }) => ({ default: TabOrders })),
 );
 
-type Recipient={kind:"registered"|"linked";name:string;phone:string;field?:"whatsapp"|"phone";conversation_id?:string};
+type Recipient={kind:"registered"|"linked";name:string;phone:string;field?:"whatsapp"|"phone";
+  conversation_id?:string;account_phone?:string;chat_jid?:string};
 type State =
-  | { status: "loading" }
+  | { status: "loading"; message?: string }
   | { status: "choosing"; recipients:Recipient[] }
   | { status: "ready"; conversationId: string; participating?: boolean; responsibleName?: string | null }
   | { status: "empty"; message: string; canStart: boolean;phone?:string;contactName?:string }
@@ -78,6 +79,8 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const canCreateOrder = hasPermission("orders.create");
   const orderId=source.kind==="order"?source.orderId:"";
   const [state, setState] = useState<State>({ status: "loading" });
+  const [orderRecipients,setOrderRecipients] = useState<Recipient[]>([]);
+  const [chosenRecipient,setChosenRecipient] = useState<Recipient|null>(null);
   const [starting, setStarting] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [firstMessage, setFirstMessage] = useState("");
@@ -90,7 +93,8 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
 
   const chooseOrderRecipient=useCallback(async(recipient:Recipient)=>{
     if(!open||!orderId||!canViewInbox||organizationId!==activeOrganizationId)return;
-    setState({status:"loading"});setEmbeddedReady(false);
+    setChosenRecipient(recipient);
+    setState({status:"loading",message:"Abrindo a conversa selecionada..."});setEmbeddedReady(false);
     try{
       const found=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"os_join",{
         service_order_id:orderId,
@@ -118,7 +122,9 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     if (!open) return;
     let cancelled = false;
     const set = (value: State) => { if (!cancelled) setState(value); };
-    set({ status: "loading" });
+    set({ status: "loading", message: source.kind==="order" ? "Consultando os números da OS..." : "Carregando atendimento..." });
+    setOrderRecipients([]);
+    setChosenRecipient(null);
     setEmbeddedReady(false);
     setStartError("");
     setDrafting(false);
@@ -141,8 +147,9 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
         .then(result=>{
           if(cancelled)return;
           const recipients=result.recipients||[];
-          if(recipients.length>1)set({status:"choosing",recipients});
-          else if(recipients.length===1)void chooseOrderRecipient(recipients[0]);
+          setOrderRecipients(recipients);
+          // A escolha deve ser explícita antes de entrar na conversa.
+          if(recipients.length>0)set({status:"choosing",recipients});
           else set({status:"empty",canStart:false,
             message:"Esta OS não possui número WhatsApp cadastrado ou vinculado."});
         }).catch(error=>{
@@ -273,33 +280,62 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
       <LoadingState text="Carregando atendimento..." />
-    </div> : state.status === "choosing" ? <div className="flex min-h-0 h-full flex-col px-4 py-5 sm:px-6">
-      <h3 className="text-base font-bold">Escolha com quem falar sobre esta OS</h3>
-      <p className="mt-1 text-xs text-muted-foreground">
-        O cadastro continua com seus próprios telefones. Contatos vinculados mantêm seus históricos individuais.
-      </p>
-      <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto">
-        {state.recipients.map((recipient,index)=><button key={recipient.kind+":"+recipient.phone+":"+index}
-          type="button" onClick={()=>void chooseOrderRecipient(recipient)}
-          className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left hover:border-primary hover:bg-primary/5">
-          <WhatsAppBrandIcon size={22} className="shrink-0 text-[#25D366]"/>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-bold">{recipient.name}</span>
-            <span className="block text-xs text-muted-foreground">{formatWhatsAppPhone(recipient.phone)}</span>
-            <span className="block text-[11px] font-semibold text-primary">{recipient.kind==="linked"
-              ?"Contato vinculado à OS"
-              :recipient.field==="phone"?"Telefone do cadastro":"WhatsApp do cadastro"}</span>
-          </span>
-        </button>)}
+    </div> : state.status === "choosing" ? <div className="flex min-h-0 h-full flex-col items-center overflow-y-auto px-4 py-6 sm:px-6">
+      <div className="w-full max-w-2xl">
+        <h3 className="text-base font-bold text-foreground">Escolha com quem falar sobre esta OS</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Selecione o número para abrir o atendimento. Cada contato mantém a própria conversa e seu histórico.
+        </p>
+        <div className="mt-5 grid gap-3">
+          {state.recipients.map((recipient,index)=><button key={recipient.kind+":"+recipient.phone+":"+(recipient.conversation_id||recipient.field||index)}
+            type="button" onClick={()=>void chooseOrderRecipient(recipient)}
+            className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-3.5 text-left transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4">
+            <WhatsAppContactAvatar name={recipient.name} size="list"
+              identity={recipient.account_phone&&recipient.chat_jid
+                ? {organizationId,accountPhone:recipient.account_phone,chatJid:recipient.chat_jid,
+                    conversationId:recipient.conversation_id||null}
+                : null} />
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="min-w-0 truncate text-sm font-bold text-foreground">{recipient.name}</span>
+                <span className={recipient.kind==="linked"
+                  ?"shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary"
+                  :"shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground"}>
+                  {recipient.kind==="linked" ? "Vinculado" : "Cadastro"}
+                </span>
+              </span>
+              <span className="mt-1 block text-sm text-muted-foreground">{formatWhatsAppPhone(recipient.phone)}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{recipient.kind==="linked"
+                ?"Número vinculado à OS" : recipient.field==="phone" ? "Telefone do cadastro" : "WhatsApp do cadastro"}</span>
+            </span>
+            <WhatsAppBrandIcon size={21} className="shrink-0 text-[#25D366]" />
+          </button>)}
+        </div>
       </div>
     </div> : state.status === "ready" ? <div className="flex h-full min-h-0 flex-col">
+      {source.kind==="order" && chosenRecipient && <div className="flex shrink-0 items-center gap-3 border-b border-border bg-muted/25 px-3 py-2 sm:px-4">
+        <WhatsAppContactAvatar name={chosenRecipient.name} size="header"
+          identity={chosenRecipient.account_phone&&chosenRecipient.chat_jid
+            ? {organizationId,accountPhone:chosenRecipient.account_phone,chatJid:chosenRecipient.chat_jid,
+                conversationId:chosenRecipient.conversation_id||null}
+            : null}/>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-foreground">
+            <span className="truncate">{chosenRecipient.name}</span>
+            {chosenRecipient.kind==="linked" && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Vinculado</span>}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">{formatWhatsAppPhone(chosenRecipient.phone)}</span>
+        </span>
+        {orderRecipients.length>1 && <AdminButton variant="secondary" size="sm"
+          onClick={()=>{setEmbeddedReady(false);setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}}>Trocar número</AdminButton>}
+      </div>
       {state.participating && <div role="status" className="flex shrink-0 items-center gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/45 dark:text-sky-200">
         <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
         <span>{state.responsibleName ? `Atendimento com ${state.responsibleName}.` : "Atendimento com outro operador."} Você entrou como <strong>Participando</strong>, sem alterar o responsável.</span>
       </div>}
       <div className="relative min-h-0 flex-1">
         {!embeddedReady && <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-center justify-center bg-card">
-          <LoadingState text="Carregando atendimento..." />
+          <LoadingState text={state.message || "Carregando atendimento..."} />
         </div>}
         <div className={`h-full min-h-0 ${embeddedReady ? "" : "invisible"}`}>
         <Suspense fallback={null}>
@@ -339,6 +375,10 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
           </AdminButton>
         </div>
       </form>}
+      {source.kind==="order" && orderRecipients.length>0 && state.status==="error" && <AdminButton
+        variant="secondary" size="sm" onClick={()=>setState({status:"choosing",recipients:orderRecipients})}>
+        Voltar aos números
+      </AdminButton>}
       {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
   {newOrder && <Suspense fallback={null}>
