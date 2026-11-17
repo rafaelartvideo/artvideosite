@@ -63,7 +63,7 @@ import {
   type DashboardMetricTone,
   type DashboardSlaChartPoint,
 } from "./DashboardUi";
-import { DashboardOrderChartPanel, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
+import { DashboardOrderChartPanel, type DashboardOrderChartKey, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
 import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
 
 type TabDashboardProps = {
@@ -203,13 +203,6 @@ function readOrderCardModes(organizationId?:string|null, userId?:string|null):Re
     return Object.fromEntries(Object.entries(saved).filter(([,value])=>valid.includes(String(value)))) as Record<string,DashboardOrderChartMode>;
   } catch {return {};}
 }
-function summarizeChartCategories(values:DashboardChartPoint[], max=8):DashboardChartPoint[]{
-  const sorted=[...values].sort((a,b)=>b.value-a.value);
-  if(sorted.length<=max)return sorted;
-  return [...sorted.slice(0,max-1),{
-    name:"Outros",value:sorted.slice(max-1).reduce((sum,item)=>sum+item.value,0),
-  }];
-}
 function summedChart(values:DashboardChartPoint[]):number{
   return values.reduce((sum,item)=>sum+Number(item.value||0),0);
 }
@@ -257,7 +250,7 @@ function registrationRoleLabel(registration: DashboardRegistration) {
 
 function MetricGrid({ metrics, onSelect }: { metrics: Metric[]; onSelect: (metric: Metric) => void }) {
   return (
-    <div className={cn("grid w-full gap-3", metrics.length >= 5 ? "max-w-[1420px] grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "max-w-[1140px] grid-cols-2 md:grid-cols-4")}>
+    <div className={cn("mx-auto grid w-full gap-3", metrics.length >= 5 ? "max-w-[1420px] grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "max-w-[1140px] grid-cols-2 md:grid-cols-4")}>
       {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} onClick={() => onSelect(metric)} />)}
     </div>
   );
@@ -634,7 +627,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         setOrderDistributionPage(1);
       };
       const charts:ReactNode[]=[];
-      const chart=(key:string,title:string,subtitle:string,values:DashboardChartPoint[],icon:ElementType=BarChart3)=>{
+      const chart=(key:DashboardOrderChartKey,title:string,subtitle:string,values:DashboardChartPoint[],icon:ElementType=BarChart3)=>{
         if(!widgetVisible(key))return;
         if(orderChartsQuery.isError){
           charts.push(<DashboardPanel key={key} title={title} subtitle="Consulta indisponível" icon={icon}
@@ -646,12 +639,12 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           </DashboardPanel>);
           return;
         }
-        charts.push(<DashboardOrderChartPanel key={key} title={title} subtitle={subtitle}
+        charts.push(<DashboardOrderChartPanel key={key} chartKey={key} title={title} subtitle={subtitle}
           icon={icon} data={values} mode={orderChartMode(key)}
           onModeChange={mode=>setOrderChartMode(key,mode)}/>);
       };
       if(widgetVisible("situation"))charts.push(
-        <DashboardOrderChartPanel key="situation" title="Situação"
+        <DashboardOrderChartPanel key="situation" chartKey="situation" title="Situação"
           subtitle="Situações e SLA · todas as OS" icon={Activity}
           data={situationTotals} slaData={situationData} mode={orderChartMode("situation")}
           onModeChange={mode=>setOrderChartMode("situation",mode)}
@@ -661,7 +654,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             ?orderDistributionSelection.slaState||null:null}
           onSelect={selectDistribution("situation")} onSlaSelect={selectSituationSla}/>);
       if(widgetVisible("status"))charts.push(
-        <DashboardOrderChartPanel key="status" title="Status"
+        <DashboardOrderChartPanel key="status" chartKey="status" title="Status"
           subtitle="Distribuição de todas as OS" icon={CheckCircle2}
           data={statusData} mode={orderChartMode("status")}
           onModeChange={mode=>setOrderChartMode("status",mode)}
@@ -674,11 +667,11 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           points,CalendarDays);
       }
       if(widgetVisible("service_type"))chart("service_type","Tipo de atendimento",
-        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.service_types||[]),Wrench);
+        `OS abertas nos últimos ${periodDays} dias`,analytics?.service_types||[],Wrench);
       if(widgetVisible("equipment_type"))chart("equipment_type","Tipo de equipamentos",
-        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.equipment_types||[]),Package);
+        `OS abertas nos últimos ${periodDays} dias`,analytics?.equipment_types||[],Package);
       if(widgetVisible("equipment_model"))chart("equipment_model","Modelo do equipamento",
-        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.equipment_models||[]),Package);
+        `OS abertas nos últimos ${periodDays} dias`,analytics?.equipment_models||[],Package);
       if(widgetVisible("quote_approved"))chart("quote_approved","Orçamento aprovado",
         `Aprovações no período · ${summedChart(analytics?.quote_approved||[])}`,
         chartTrend(analytics?.quote_approved||[],periodDays),CheckCircle2);
@@ -707,9 +700,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
               </div>
             </div>}
         </DashboardPanel>);
-      return <div className="min-w-0 space-y-3">
+      return <div className="mx-auto w-full max-w-[1420px] min-w-0 space-y-3">
         {widgetVisible("metrics")&&<MetricGrid metrics={metrics} onSelect={showMetric}/>}
-        {charts.length>0?<div className="grid min-w-0 w-full max-w-[1420px] grid-cols-1 items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {charts.length>0?<div className="mx-auto grid min-w-0 w-full max-w-[1420px] grid-cols-1 justify-items-center items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {charts}
         </div>:<DashboardNoWidgets onRestore={()=>widgetSettings.restore("orders")}/>}
       </div>;
@@ -835,7 +828,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   // Depois da primeira abertura, só os indicadores abaixo do submenu carregam.
 
   return (
-    <div className="min-w-0 space-y-4 pb-2">
+    <div className="mx-auto w-full min-w-0 space-y-4 pb-2">
       <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil."
         actions={<div className="flex flex-wrap items-center justify-end gap-2">
           <DashboardWidgetSettings section={activeModule} selected={widgetSettings.selected(activeModule)}
@@ -887,11 +880,11 @@ function DashboardArea({ metrics, left, right, onMetricSelect, visibility }: {
 }) {
   const show: {metrics:boolean;left:boolean;right:boolean;restore?:()=>void}=visibility||{metrics:true,left:true,right:true};
   if(!show.metrics&&!show.left&&!show.right)return <DashboardNoWidgets onRestore={show.restore||(()=>undefined)}/>;
-  return <div className="min-w-0 space-y-3">
+  return <div className="mx-auto w-full max-w-[1420px] min-w-0 space-y-3">
     {show.metrics&&<MetricGrid metrics={metrics} onSelect={onMetricSelect}/>}
-    {(show.left||show.right)&&<div className="grid min-w-0 w-full max-w-[1000px] grid-cols-1 items-start gap-3 lg:grid-cols-2">
-      {show.left&&<div className="min-w-0 max-w-[490px]">{left}</div>}
-      {show.right&&<div className="min-w-0 max-w-[490px]">{right}</div>}
+    {(show.left||show.right)&&<div className="mx-auto grid min-w-0 w-full max-w-[1000px] grid-cols-1 justify-items-center items-start gap-3 lg:grid-cols-2">
+      {show.left&&<div className="w-full min-w-0 max-w-[490px]">{left}</div>}
+      {show.right&&<div className="w-full min-w-0 max-w-[490px]">{right}</div>}
     </div>}
   </div>;
 }
