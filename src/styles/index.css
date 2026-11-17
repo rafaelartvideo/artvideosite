@@ -1000,6 +1000,32 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   outline-offset: 2px;
 }
 
+/* AdminDialog é renderizado em portal fora de .admin-crm. Reutilizar os mesmos
+   contrastes pela identidade de tema presente no documento. */
+html[data-admin-theme="dark"] [data-admin-dialog-content="true"] button:is([aria-label^="Editar"],[title^="Editar"]):has(svg) {
+  border-color: rgba(154, 170, 255, 0.55);
+  background-color: rgba(93, 115, 239, 0.20);
+  color: #bac6ff;
+}
+html[data-admin-theme="dark"] [data-admin-dialog-content="true"] button:is([aria-label^="Editar"],[title^="Editar"]):has(svg):hover {
+  border-color: rgba(174, 187, 255, 0.8);
+  background-color: rgba(93, 115, 239, 0.30);
+  color: #e1e6ff;
+}
+html[data-admin-theme="dark"] [data-admin-dialog-content="true"] :is([data-admin-button-variant="secondary"],[data-admin-icon-button-variant="secondary"]) {
+  border-color: rgba(180, 196, 222, 0.36);
+  background-color: #172238;
+  color: #edf2fa;
+}
+html[data-admin-theme="dark"] [data-admin-dialog-content="true"] :is([data-admin-button-variant="secondary"],[data-admin-icon-button-variant="secondary"]):hover:not(:disabled) {
+  border-color: rgba(180, 196, 222, 0.55);
+  background-color: #23314b;
+}
+html[data-admin-theme="dark"] [data-admin-dialog-content="true"] :is([data-admin-button-variant="ghost"],[data-admin-button-variant="icon"]):hover:not(:disabled) {
+  color: var(--primary-light);
+}
+
+
 
 /* Ação azul suave compartilhada: Detalhes da OS e Meus horários da Agenda. */
 .admin-crm .admin-action-blue-outline {
