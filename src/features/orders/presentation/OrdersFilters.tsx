@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
   ScanLine,
@@ -15,6 +15,9 @@ type NeighborhoodOption = { name: string; city: string; state: string };
 const neighborhoodValue = (item: NeighborhoodOption) => JSON.stringify([item.state, item.city, item.name]);
 type StateOption = { sigla: string; nome: string };
 type OrderSort = "" | "asc" | "desc";
+// Compact selector/field layout is also required on tablets, including
+// landscape devices reporting a desktop-sized viewport.
+const compactOrderSearchMedia="(max-width: 1023px), (hover: none) and (pointer: coarse)";
 type MobileFilterKey =
   | "osNumber"
   | "customerName"
@@ -142,6 +145,15 @@ export function OrdersFilters({
   onClear: () => void;
 }) {
   const [mobileFilter, setMobileFilter] = useState<MobileFilterKey>("osNumber");
+  const [compactSearch,setCompactSearch]=useState(()=>typeof window!=="undefined" &&
+    window.matchMedia(compactOrderSearchMedia).matches);
+  useEffect(()=>{
+    const query=window.matchMedia(compactOrderSearchMedia);
+    const update=()=>setCompactSearch(query.matches);
+    update();
+    query.addEventListener("change",update);
+    return()=>query.removeEventListener("change",update);
+  },[]);
   const serialScannerInput = useRef<HTMLInputElement>(null);
   const [serialScanOpen, setSerialScanOpen] = useState(false);
   const [serialScanBusy, setSerialScanBusy] = useState(false);
@@ -236,11 +248,9 @@ export function OrdersFilters({
     <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
       options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
   </>}>
-    <AdminMobileSearchSwitch value={effectiveMobileFilter} options={visibleMobileFilters} onChange={setMobileFilter}>
+    {compactSearch ? <AdminMobileSearchSwitch mobileOnly={false} value={effectiveMobileFilter} options={visibleMobileFilters} onChange={setMobileFilter}>
       {renderMobileFilter()}
-    </AdminMobileSearchSwitch>
-
-      <div className="hidden md:block">
+    </AdminMobileSearchSwitch> : <div className="min-w-0">
         <div className="grid grid-cols-3 items-start gap-x-2 gap-y-3">
           <OrderNumbersField osNumberSearch={osNumberSearch} externalOsSearch={externalOsSearch} onOsNumberSearchChange={onOsNumberSearchChange} onExternalOsSearchChange={onExternalOsSearchChange} />
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
@@ -255,7 +265,7 @@ export function OrdersFilters({
           <OrderFilterMultiSelect label="Situação" options={situations.map(situation => ({ value: situation.id, label: situation.name }))} selectedValues={situationIds} onSelect={onSituationChange} onRemove={onSituationChange} placeholder="Selecionar situações" />
           <OrderFilterMultiSelect label="Responsável pela OS" options={responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))} selectedValues={responsibleIds} onSelect={onResponsibleChange} onRemove={onResponsibleChange} placeholder="Selecionar responsáveis" />
         </div>
-      </div>
+      </div>}
   </AdminSearchPanel>;
 }
 
