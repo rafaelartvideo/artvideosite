@@ -40,7 +40,11 @@ test("floating mode shares desktop focus, preserves mobile modality and removes 
   assert.match(layout,/const bounds = drag \?\? node\.getBoundingClientRect\(\)/);
   assert.match(layout,/md:cursor-grab md:active:cursor-grabbing/);
   assert.match(layout,/nestedScrollAssist && !floatingDesktop \? scrollNestedDialog : undefined/);
-  assert.doesNotMatch(layout,/GripHorizontal|md:cursor-move/);
+  // A alça visual foi solicitada para indicar movimentação dos modais,
+  // sem reintroduzir cursor-move nem atrasos no drag do cabeçalho.
+  assert.match(layout, /\{draggable && <GripHorizontal size=\{17\} aria-hidden="true"/);
+  assert.match(layout, /pointer-events-none shrink-0 text-muted-foreground/);
+  assert.doesNotMatch(layout, /md:cursor-move/);
   const whatsapp = readFileSync("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx", "utf8");
   const editor = readFileSync("src/features/orders/presentation/OrderEditorPage.tsx", "utf8");
   assert.match(whatsapp,/title="Atendimento WhatsApp"\s+draggable\s+floating/);
