@@ -2674,6 +2674,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           contact_phone:selected.contact_phone,display_name:selected.contact_name,
           device_name:null,imported_name:null,profile_name:null,updated_at:""}}
         initialName={selected.contact_name}
+        gender={linkedCustomers[selected.id]?.customer?.gender}
         onClose={()=>setEditContactId(null)}
         onSaved={saved=>{
           // Only rename the open conversation when the WhatsApp identity stays
