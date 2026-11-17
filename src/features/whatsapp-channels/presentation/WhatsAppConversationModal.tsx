@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
+import { operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
 import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 
 const EmbeddedWhatsAppConversation = lazy(() =>
@@ -79,6 +79,8 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const orderId=source.kind==="order"?source.orderId:"";
   const [state, setState] = useState<State>({ status: "loading" });
   const [starting, setStarting] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [firstMessage, setFirstMessage] = useState("");
   const [embeddedReady, setEmbeddedReady] = useState(false);
   const [startError, setStartError] = useState("");
   const startGateRef = useRef(false);
@@ -119,6 +121,8 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     set({ status: "loading" });
     setEmbeddedReady(false);
     setStartError("");
+    setDrafting(false);
+    setFirstMessage("");
 
     if (organizationId !== activeOrganizationId || !canViewInbox) {
       set({ status: "unauthorized", message: "Você não possui acesso aos atendimentos WhatsApp desta empresa." });
@@ -214,35 +218,39 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     }
   };
 
-  const startConversation = async () => {
-    if (source.kind==="conversation" || startGateRef.current || state.status !== "empty" || !state.canStart ||
-      organizationId !== activeOrganizationId || !canViewInbox) return;
-    const number = phoneCandidates(state.phone||phone)[0];
-    if (!number) return;
-    startGateRef.current = true;
+  const startConversation = () => {
+    // Abrir o rascunho nunca dispara "start" nem cria um protocolo.
+    if (source.kind==="conversation" || state.status!=="empty" || !state.canStart)return;
+    setDrafting(true);
+    setStartError("");
+  };
+
+  const sendFirstMessage = async () => {
+    if (source.kind==="conversation" || startGateRef.current || state.status!=="empty" ||
+        !state.canStart || !drafting || !firstMessage.trim() ||
+        organizationId!==activeOrganizationId || !canViewInbox)return;
+    const number=phoneCandidates(state.phone||phone)[0];
+    if(!number)return;
+    startGateRef.current=true;
     setStarting(true);
     setStartError("");
     try {
-      // Follow the same verified flow as Atendimentos > Nova conversa.
-      // The server checks the identity again before creating a protocol.
-      const verified = await operateUnionWhatsAppInbox(
-        organizationId, crypto.randomUUID(), "check_number", { phone: number },
+      const verified=await operateUnionWhatsAppInbox(
+        organizationId,crypto.randomUUID(),"check_number",{phone:number},
       );
-      if (!verified.phone || !/^55[1-9]\d{9,10}$/.test(verified.phone)) {
+      if(!verified.phone || !/^55[1-9]\\d{9,10}$/.test(verified.phone))
         throw new Error("O número não foi confirmado pelo WhatsApp.");
-      }
-      const created = await operateUnionWhatsAppInbox(
-        organizationId, crypto.randomUUID(), "start",
-        { phone: verified.phone, contact_name: (state.contactName||customerName).trim() },
+      const conversationId=await startUnionWhatsAppWithFirstMessage(
+        organizationId,verified.phone,(state.contactName||customerName).trim(),firstMessage,
       );
-      if (!created.conversation_id) throw new Error("Não foi possível confirmar a conversa.");
-      // Existing contacts are reopened by the backend, preserving previous history.
-      // New conversations get their protocol from the database lifecycle trigger.
-      setState({ status: "ready", conversationId: created.conversation_id });
-    } catch (reason) {
-      setStartError(systemErrorMessage(reason, "Não foi possível iniciar a conversa."));
-    } finally {
-      startGateRef.current = false;
+      setFirstMessage("");
+      setDrafting(false);
+      setEmbeddedReady(false);
+      setState({status:"ready",conversationId});
+    }catch(reason){
+      setStartError(systemErrorMessage(reason,"Não foi possível enviar a primeira mensagem."));
+    }finally{
+      startGateRef.current=false;
       setStarting(false);
     }
   };
@@ -315,10 +323,22 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     </div> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <WhatsAppBrandIcon size={42} className="text-[#25D366]" />
       <p className="max-w-md text-sm text-muted-foreground">{state.message}</p>
-      {state.status === "empty" && state.canStart && <AdminButton
-        disabled={starting} loading={starting} onClick={() => void startConversation()}>
-        {starting ? "Iniciando conversa..." : "Iniciar conversa"}
-      </AdminButton>}
+      {state.status === "empty" && state.canStart && !drafting && <AdminButton
+        disabled={starting} onClick={startConversation}>Iniciar conversa</AdminButton>}
+      {state.status === "empty" && state.canStart && drafting && <form
+        className="w-full max-w-xl space-y-3 text-left" onSubmit={event=>{event.preventDefault();void sendFirstMessage();}}>
+        <label className="block text-sm font-semibold text-foreground" htmlFor="whatsapp-first-message">Primeira mensagem</label>
+        <textarea id="whatsapp-first-message" value={firstMessage}
+          onChange={event=>setFirstMessage(event.target.value)} rows={4} maxLength={4000}
+          autoFocus placeholder="Escreva sua mensagem antes de iniciar o atendimento..."
+          className="w-full resize-y rounded-lg border border-border bg-card p-3 text-sm text-foreground outline-none focus:border-primary"/>
+        <div className="flex items-center justify-end gap-2">
+          <AdminButton variant="secondary" size="sm" disabled={starting} onClick={()=>{setDrafting(false);setFirstMessage("");setStartError("");}}>Cancelar</AdminButton>
+          <AdminButton size="sm" disabled={starting||!firstMessage.trim()} loading={starting} onClick={()=>void sendFirstMessage()}>
+            {starting?"Enviando...":"Enviar mensagem"}
+          </AdminButton>
+        </div>
+      </form>}
       {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
   {newOrder && <Suspense fallback={null}>
