@@ -220,7 +220,7 @@ test("OS original e retorno trocam sem remontar página ou piscar o skeleton", a
   assert.match(tab, /transitionPending=\{switchingRoutedOrder\}/);
   assert.doesNotMatch(page, /data-order-switch-overlay/);
   assert.match(page, /<OrderDetailsContentSkeleton section=\{detailSection\} returnDiagnosis=\{returnDiagnosisActive\}/);
-  assert.match(page, /!returnDiagnosisActive && <OrderDetailSectionTabs/);
+  assert.match(page, /!returnDiagnosisActive && !isDisposal && <OrderDetailSectionTabs/);
   assert.match(page, /showSwitchLoading/);
   assert.match(skeleton, /export function OrderDetailsContentSkeleton/);
   assert.match(skeleton, /data-order-switch-skeleton="true"/);
