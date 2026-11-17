@@ -673,3 +673,31 @@ test("Dados de cadastro no WhatsApp exibem endereço completo, CPF/CNPJ e CEP ma
     {id:"secondary",is_default:false},{id:"primary",is_default:true},
   ])[0].id,"primary");
 });
+
+test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem protocolo duplicado",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const crm=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
+  const orderModal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const orderEditor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  // Mesmo TabOrders com dialogo flutuante usado pela OS, não um formulário paralelo.
+  for(const source of [inbox,orderModal])
+    assert.match(source,/import\("@\/features\/orders\/presentation\/TabOrders"\)/);
+  assert.match(inbox,/const EmbeddedNewOrder = lazy/);
+  assert.match(inbox,/initialOrderId="new"/);
+  assert.match(inbox,/initialCustomerId=\{newOrder\.customerId\}/);
+  assert.match(inbox,/organizationIdOverride=\{newOrder\.organizationId\}/);
+  assert.match(inbox,/detailOnly embeddedCreate/);
+  assert.match(orderEditor,/draggable floating modal showOverlay=\{false\}/);
+  // Match único e autorizado: nenhum CPF/número é inventado quando não há cadastro.
+  assert.match(inbox,/operateUnionWhatsAppInbox\(org,threadId,"customer_match"\)/);
+  assert.match(inbox,/let customerId:string\|null=null/);
+  assert.match(inbox,/if\(!result\.ambiguous && result\.customer\?\.id\)customerId=result\.customer\.id/);
+  assert.match(inbox,/if\(hasPermission\("customers\.view"\)\)/);
+  assert.match(inbox,/newOrderLaunchRef\.current!==launch/);
+  assert.match(inbox,/!embedded && hasPermission\("orders\.create"\)/);
+  assert.match(crm,/onNewOrder\?: \(\) => void/);
+  assert.match(crm,/aria-label="Nova OS pelo atendimento"/);
+  assert.match(crm,/onClick=\{event=>\{event\.stopPropagation\(\);onNewOrder\(\);\}\}/);
+  assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
+  assert.match(inbox,/UnionWhatsAppContactsDialog/);
+});
