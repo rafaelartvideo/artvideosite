@@ -159,6 +159,9 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     const onOutside=(event:PointerEvent)=>{
       if(event.button!==0 || !(event.target instanceof Node))return;
       if(panelRootRef.current?.contains(event.target))return;
+      // Não deixar o clique atravessar para controles/menus por baixo após desmontar.
+      if(event.cancelable)event.preventDefault();
+      event.stopPropagation();
       onClose();
     };
     const onKey=(event:KeyboardEvent)=>{
