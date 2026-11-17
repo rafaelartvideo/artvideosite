@@ -6,6 +6,7 @@ import {
   type UnionWhatsAppConversation, type UnionWhatsAppConversationCounts,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { UnionWhatsAppFloatingPanel, type FloatingWhatsAppAlert } from "./UnionWhatsAppFloatingPanel";
+import { playUnionWhatsAppSound } from "../application/union-whatsapp-sounds";
 
 const ConversationModal=lazy(()=>import("./WhatsAppConversationModal")
   .then(({WhatsAppConversationModal})=>({default:WhatsAppConversationModal})));
@@ -22,6 +23,7 @@ type WhatsAppActivityContextValue={
   channelPhone:string|null;
   capabilities:Record<string,boolean>;
   subscribe:(listener:(event:WhatsAppActivityEvent)=>void)=>()=>void;
+  trackOpenConversation:(id:string)=>()=>void;
 };
 const ActivityContext=createContext<WhatsAppActivityContextValue|null>(null);
 export const useWhatsAppActivity=()=>useContext(ActivityContext);
@@ -113,6 +115,7 @@ export function UnionWhatsAppActivityProvider({
   const pendingIncomingRef=useRef(new Map<string,Incoming>());
   const recentConversationRef=useRef(new Map<string,UnionWhatsAppConversation>());
   const notifiedRef=useRef(new Set<string>());
+  const openConversationsRef=useRef(new Map<string,number>());
   const reconcileTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
   const countsInFlightRef=useRef(false);
   const lastCountsRef=useRef(0);
@@ -135,6 +138,19 @@ export function UnionWhatsAppActivityProvider({
   const subscribe=useCallback((listener:(event:WhatsAppActivityEvent)=>void)=>{
     listenersRef.current.add(listener);
     return ()=>{listenersRef.current.delete(listener);};
+  },[]);
+  // O módulo e os modais indicam qual conversa está efetivamente aberta,
+  // sem adicionar uma segunda assinatura Realtime. O contador cobre sobreposição
+  // entre modal e aba completa e evita sons duplicados.
+  const trackOpenConversation=useCallback((id:string)=>{
+    if(!id)return ()=>{};
+    const active=openConversationsRef.current;
+    active.set(id,(active.get(id)||0)+1);
+    return ()=>{
+      const remaining=(active.get(id)||0)-1;
+      if(remaining>0)active.set(id,remaining);
+      else active.delete(id);
+    };
   },[]);
 
   const checkChannel=useCallback(async(force=false)=>{
@@ -177,6 +193,7 @@ export function UnionWhatsAppActivityProvider({
     pendingIncomingRef.current.clear();
     recentConversationRef.current.clear();
     notifiedRef.current.clear();
+    openConversationsRef.current.clear();
     setChannelReady(null);
     setAccount(null);
     setCounts(zeroCounts);
@@ -317,7 +334,8 @@ export function UnionWhatsAppActivityProvider({
     accountKey,lists.in_att.items,lists.waiting.items,avatars]);
 
   const notifyFor=useCallback((row:UnionWhatsAppConversation,incoming:Incoming)=>{
-    if(pageOpenRef.current||expandedRef.current||document.visibilityState!=="visible"||
+    if(pageOpenRef.current||expandedRef.current||conversationOpenRef.current||
+       document.visibilityState!=="visible"||
        Date.now()-incoming.receivedAt>20_000||notifiedRef.current.has(incoming.messageId))return;
     const activeParticipant=rowsRef.current.some(item=>item.id===row.id&&item.viewer_participating);
     const allowed=row.status==="waiting"||row.assigned_to===userId||
@@ -327,6 +345,7 @@ export function UnionWhatsAppActivityProvider({
     if(notifiedRef.current.size>150)notifiedRef.current.clear();
     setAlert({id:row.id,messageId:incoming.messageId,
       name:row.contact_name||row.contact_phone||"Cliente",preview:incoming.preview});
+    playUnionWhatsAppSound("notification",incoming.messageId);
     pendingIncomingRef.current.delete(row.id);
   },[userId]);
 
@@ -370,6 +389,8 @@ export function UnionWhatsAppActivityProvider({
         const id=String(row.conversation_id||""),messageId=String(row.provider_message_id||row.id||"");
         const sentAt=Date.parse(String(row.sent_at||""));
         if(!id||!messageId||!Number.isFinite(sentAt)||Date.now()-sentAt>120_000)return;
+        if(openConversationsRef.current.has(id)&&Date.now()-sentAt<=30_000)
+          playUnionWhatsAppSound("conversation",messageId);
         const incoming={messageId,receivedAt:Date.now(),
           preview:String(row.body_text||"").trim().slice(0,130)||mediaLabel(row.message_type)};
         pendingIncomingRef.current.set(id,incoming);
@@ -439,8 +460,9 @@ export function UnionWhatsAppActivityProvider({
   },[enabled,checkChannel]);
 
   const contextValue=useMemo<WhatsAppActivityContextValue>(()=>({
-    isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},subscribe,
-  }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,subscribe]);
+    isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},
+    subscribe,trackOpenConversation,
+  }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,subscribe,trackOpenConversation]);
   // O objeto de contexto NÃO pode ser recriado em cada evento Realtime:
   // o modal reinicializava todo o fluxo e piscava em "Carregando atendimento".
   const modalContext=useMemo(()=>conversationId && activeOrganizationId
