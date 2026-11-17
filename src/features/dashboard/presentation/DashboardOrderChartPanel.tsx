@@ -38,8 +38,8 @@ const CHART_EXPLANATIONS: Record<DashboardOrderChartKey, string> = {
   service_type: "Azul: quantidade de OS por tipo de atendimento.",
   equipment_type: "Azul: quantidade de OS por tipo de equipamento.",
   equipment_model: "Azul: modelos mais frequentes no período, sem agrupar em 'Outros'.",
-  quote_approved: "Verde: quantidade de orçamentos aprovados por data, não valores em reais.",
-  quote_rejected: "Vermelho: quantidade de orçamentos reprovados por data, não valores em reais.",
+  quote_approved: "Verde: quantidade de orçamentos aprovados. Exibe somente datas com aprovações.",
+  quote_rejected: "Vermelho: quantidade de orçamentos reprovados. Exibe somente datas com reprovações.",
 };
 
 const MAX_CATEGORIES = 12;
@@ -65,8 +65,13 @@ export function DashboardOrderChartPanel({
   const timeSeries = chartKey === "opened" || chartKey === "quote_approved" || chartKey === "quote_rejected";
   // Situações e status nunca são omitidos. Nas demais distribuições, mostrar
   // as categorias mais frequentes evita 200+ barras ilegíveis, sem inventar "Outros".
-  const visibleData = timeSeries || chartKey === "situation" || chartKey === "status"
-    ? data : data.slice(0, MAX_CATEGORIES);
+  // Para aprovações/reprovações, exibir apenas datas em que houve ocorrências.
+  // Os buckets vazios são úteis em tendências temporais, mas não representam
+  // categorias no gráfico: em pizza criavam legendas 0 ao lado do único evento.
+  const visibleData = chartKey === "quote_approved" || chartKey === "quote_rejected"
+    ? data.filter(point => Number(point.value) > 0)
+    : timeSeries || chartKey === "situation" || chartKey === "status"
+      ? data : data.slice(0, MAX_CATEGORIES);
   const visibleSlaData = slaData?.filter(point => visibleData.some(item => item.key === point.key));
   const limited = visibleData.length < data.length;
   const accent = CHART_ACCENTS[chartKey];
