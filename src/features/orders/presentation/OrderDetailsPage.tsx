@@ -28,6 +28,7 @@ import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 import { OrderTerminalExitDialog } from "./OrderTerminalExitDialog";
 import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
+import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
 import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { SignatureQrDialog } from "./SignatureQrDialog";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -324,6 +325,11 @@ export function OrderDetailsPage(props: Props) {
   const [signatureRequestOpen, setSignatureRequestOpen] = useState(false);
   const [signatureQrLink, setSignatureQrLink] = useState<string | null>(null);
   const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
+  // Modelos de termo só entram nas opções comuns depois da saída confirmada.
+  // O fluxo específico de encerramento continua recebendo TODOS os modelos
+  // para poder preparar e assinar o termo antes de fechar a OS.
+  const visiblePrintTemplates = printTemplates.templates.filter(template =>
+    template.is_active !== false && isOrderTerminalDocumentVisible(template.document_type, detail));
   // O status da garantia vem do certificado registrado, não de uma suposição
   // baseada no tipo de atendimento ou na possibilidade de imprimir.
   const warrantyCertificateKey = ["orders", "warranty-certificate", detail?.organization_id, detail?.id];
@@ -422,7 +428,7 @@ export function OrderDetailsPage(props: Props) {
       ? [
           ...(detail.completed_at && generatesWarranty
             ? [{ id: "warranty-certificate", label: "Certificado de garantia · PDF" }] : []),
-          ...printTemplates.templates.filter(template => template.is_active).map(template => ({
+          ...visiblePrintTemplates.map(template => ({
             id: template.id,
             label: template.name + " · " + (PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type),
           })),
@@ -521,7 +527,7 @@ export function OrderDetailsPage(props: Props) {
       if(!certificate) throw new Error("Certificado ainda não emitido. Emita-o explicitamente nos detalhes da OS.");
       return createWarrantyCertificatePdfFile(certificate,String(detail.os_number||"OS"));
     }
-    const template = printTemplates.templates.find(item => item.id === templateId);
+    const template = visiblePrintTemplates.find(item => item.id === templateId);
     if (!template) throw new Error("Documento não encontrado ou não está mais ativo.");
     const prepared = await prepareTemplateDocument(template);
     const frozen = await freezeOrderPrintPdf(prepared.configuredTemplate, prepared.context);
@@ -756,7 +762,7 @@ export function OrderDetailsPage(props: Props) {
               disabled={printingWarranty || warrantyCertificateQuery.isPending || warrantyCertificateQuery.isError || (!warrantyCertificateQuery.data && !hasPermission("orders.complete"))} className="flex min-w-0 cursor-pointer items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><FileText size={15}/></span>
               <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : warrantyCertificateQuery.isPending ? "Consultando certificado..." : warrantyCertificateQuery.isError ? "Falha ao consultar certificado" : warrantyCertificateQuery.data ? "Imprimir certificado de garantia" : "Emitir certificado de garantia"}</span><span className="block truncate text-[10px] text-[#5a6a82]">{warrantyCertificateQuery.data ? "Emitido · válido até " + new Date(warrantyCertificateQuery.data.expires_at + "T12:00:00").toLocaleDateString("pt-BR") : warrantyCertificateQuery.isPending ? "Consultando registro no banco..." : warrantyCertificateQuery.isError ? "Feche e reabra a OS para consultar novamente" : "Ainda não emitido · exige permissão para concluir OS"}</span></span>
-            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
+            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
               const busy = Boolean(printingTemplateId || downloadingTemplateId);
@@ -789,15 +795,15 @@ export function OrderDetailsPage(props: Props) {
                 </div>
                 {(printingThis || downloadingThis) && <span className="sr-only" aria-live="polite">{printingThis ? "Preparando impressão" : "Preparando download"}</span>}
               </div>;
-            })}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div>}
+            })}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo disponível.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div>}
               {!isDisposal && !returnDiagnosisActive && hasPermission("orders.section.parts") && quoteExecutionAllowed && <div className="min-w-0 flex-1 md:flex-none"><button type="button" onClick={() => onOpenSubpage("part-requests")} className="admin-action-blue-outline inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border px-1.5 py-2 text-[10px] sm:px-3 sm:text-xs font-bold transition-colors"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button></div>}
             </div>
             <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:w-auto md:flex-wrap">
               {!isDisposal && hasPermission("orders.section.checklists") && <div className="col-span-2 min-w-0 sm:col-span-1 [&_button]:w-full md:[&_button]:w-auto"><OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} /></div>}
-              {!isDisposal && !returnDiagnosisActive && canOpenDocumentsPage && <div className="min-w-0 [&_button]:w-full md:[&_button]:w-auto"><button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-2 py-2.5 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa] md:px-3"><FileText size={17} className="shrink-0" /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button></div>}
+              {(!isDisposal || Boolean(detail.completed_at)) && !returnDiagnosisActive && canOpenDocumentsPage && <div className="min-w-0 [&_button]:w-full md:[&_button]:w-auto"><button type="button" onClick={() => onOpenSubpage("documents")} className="inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-2 py-2.5 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa] md:px-3"><FileText size={17} className="shrink-0" /> Documentos{visibleDocumentCount > 0 && <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{visibleDocumentCount}</span>}</button></div>}
               {hasPermission("orders.section.history") && <div className="min-w-0 [&_button]:w-full md:[&_button]:w-auto"><button type="button" onClick={() => onOpenSubpage("history")} className="inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-2 py-2.5 text-xs font-bold text-[#0d1b2e] hover:bg-[#f5f7fa] md:px-3"><FileText size={17} className="shrink-0" /> Histórico{history.total > 0 && <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#0d1b2e] px-1.5 py-0.5 text-[10px] text-white">{history.total}</span>}</button></div>}
             </div>
-            {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
+            {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo disponível.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
