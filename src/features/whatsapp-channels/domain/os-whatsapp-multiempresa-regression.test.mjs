@@ -455,11 +455,35 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.match(repository,/"order_recipients"/);
   assert.match(inbox,/Buscar OS por número ou CPF\/CNPJ/);
   assert.match(inbox,/service_order_id:id,unlink/);
-  assert.match(inbox,/linkedOrders\.map/);
+  assert.doesNotMatch(inbox,/linkedOrders\\.map/);
+  assert.match(inbox,/role="search"/);
+  assert.match(inbox,/onSubmit=\\{event=>\\{event.preventDefault\\(\\);void searchOrders\\(\\);\\}\\}/);
+  assert.doesNotMatch(inbox,/orderSearch\\?350:0/);
+  assert.match(inbox,/ordersSearched&&<div/);
   assert.match(modal,/Escolha com quem falar sobre esta OS/);
   assert.match(modal,/order_recipients/);
   assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
   assert.match(modal,/registered_phone_field:recipient\.field/);
   assert.match(crm,/Vinculado por OS/);
   assert.match(crm,/Este número pertence a um contato vinculado à OS/);
+});
+
+
+test("Detalhes do contato mostram mídias, documentos e links sob demanda com autorização de conversa",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const info=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  assert.match(inbox,/setContactDetailsOpen\(true\)/);
+  assert.match(inbox,/UnionWhatsAppContactDetails/);
+  assert.match(info,/Mídias, documentos e links/);
+  assert.match(info,/listUnionWhatsAppSharedItems/);
+  assert.match(info,/media_view/);
+  assert.match(info,/Mostrar mais/);
+  assert.match(info,/role="tablist"/);
+  assert.match(info,/WhatsAppContactAvatar/);
+  assert.match(repo,/\.eq\("organization_id",organizationId\)/);
+  assert.match(repo,/\.eq\("channel_id",channelId\)/);
+  assert.match(repo,/\.eq\("account_phone",accountPhone\)/);
+  assert.match(repo,/\.eq\("conversation_id",conversationId\)/);
+  assert.match(repo,/const SHARED_PAGE_SIZE=24/);
 });
