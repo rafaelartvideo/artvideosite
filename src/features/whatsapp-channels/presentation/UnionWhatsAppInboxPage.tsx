@@ -602,6 +602,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [preparingNewOrder,setPreparingNewOrder]=useState(false);
   const newOrderGateRef=useRef(false);
   const newOrderLaunchRef=useRef(0);
+  useEffect(()=>setNewOrder(null),[activeOrganizationId]);
   useEffect(()=>{setCrmDetailsOpen(false);newOrderLaunchRef.current+=1;
     newOrderGateRef.current=false;setPreparingNewOrder(false);
   },[selectedId,activeOrganizationId]);
@@ -2493,6 +2494,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               onOpenCustomer={onOpenCustomer}
               onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
               newOrderLoading={preparingNewOrder}
+              newOrderDisabled={Boolean(newOrder)}
             />}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
