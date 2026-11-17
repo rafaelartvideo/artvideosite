@@ -32,7 +32,7 @@ test("tela de conclusão espera dados essenciais e mostra certificação na segu
   const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
   const compiled = await transformWithEsbuild(modal, "OrderCompletionModal.tsx", { loader: "tsx" });
   assert.ok(compiled.code.length > 0);
-  assert.match(modal, /const preparingConclusion = preparing \|\| \(/);
+  assert.match(modal, /const preparingConclusion = preparing \|\| completion\.billingPreparing \|\| Boolean\(completion\.billingError\)/);
   assert.match(modal, /completion\.paymentProofRequirementLoading/);
   assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
   assert.match(modal, /grid min-w-0 items-start gap-4 lg:grid-cols-2/);
@@ -64,9 +64,9 @@ test("falha ao preparar a conclusão mostra erro e permite tentar novamente sem 
   const details = read("src/features/orders/application/useOrderDetails.ts");
   assert.match(tab, /detailsController\.detailLoadError/);
   const modal = read("src/features/orders/presentation/OrderCompletionModal.tsx");
-  assert.match(modal, /preparingError=\{preparingError\}/);
-  assert.match(tab, /onRetryCompletionPreparation=\{\(\) => void detailsController\.retryDetailLoad\(\)\}/);
-  assert.match(modal, /onRetryPreparing=\{onRetryPreparing\}/);
+  assert.match(modal, /preparingError=\{preparingError \|\| completion\.billingError\}/);
+  assert.match(tab, /onRetryCompletionPreparation=\{\(\) => \{/);
+  assert.match(modal, /onRetryPreparing=\{onRetryPreparing \|\| \(\(\)=>/);
   assert.match(details, /detailLoadError: selectedOrderBelongsToOrganization \? detailQuery\.error : null/);
   assert.match(details, /retryDetailLoad: \(\) => detailQuery\.refetch\(\)/);
 });
@@ -87,7 +87,7 @@ test("um único diálogo mantém Preparando conclusão sem remount ou segunda te
   assert.match(modal, /if \(\(!completion\.open && !preparing\) \|\| \(!detail && !preparing\)\) return null;/);
   assert.match(modal, /const preparingConclusion = preparing \|\|/);
   assert.match(modal, /if \(preparingConclusion\) \{/);
-  assert.match(modal, /preparingError=\{preparingError\}/);
+  assert.match(modal, /preparingError=\{preparingError \|\| completion\.billingError\}/);
   assert.match(modal, /preparingText="Preparando conclusão\.\.\."/);
 });
 
@@ -130,4 +130,26 @@ test("primeira renderização da tela OS sem detalhe não acessa null.value da c
     { orderId: "os-1", value: true }), false);
   assert.match(hook.slice(start, end), /completionChargeCustomer\?\.value === false/,
     "o override deve ser acessado com optional chaining");
+});
+
+test("modal da conclusão fica aberto durante cobrança assíncrona e só limpa após fechar de verdade", async () => {
+  const hook=read("src/features/orders/application/useOrderCompletion.ts");
+  const list=read("src/features/orders/presentation/TabOrders.tsx");
+  const modal=read("src/features/orders/presentation/OrderCompletionModal.tsx");
+  for(const [name,source] of [["useOrderCompletion.ts",hook],["TabOrders.tsx",list],["OrderCompletionModal.tsx",modal]]){
+    assert.ok((await transformWithEsbuild(source,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code.length);
+  }
+  const preflight=hook.slice(hook.indexOf("  const openCompletion = async"),hook.indexOf("  const setDiscountMode ="));
+  assert.ok(preflight.indexOf("setOpen(true)") < preflight.indexOf("await getOrderCompletionChargeCustomer"),
+    "o modal deve abrir antes de aguardar a consulta");
+  assert.match(hook,/const closeCompletion = \(\) => \{/);
+  assert.match(hook,/completionBillingRequestRef\.current \+= 1/);
+  assert.match(hook,/setBillingError\(message\)/);
+  assert.match(list,/!completionFromListId \|\| !completionFromListReady \|\| completionController\.open/);
+  assert.doesNotMatch(list,/!completionFromListId \|\| !completionFromListStarted \|\| completionController\.open\) return/);
+  assert.match(list,/completionController\.closeCompletion\(\)/);
+  assert.match(list,/completionFromListRequestRef\.current \+= 1/);
+  assert.match(modal,/completion\.billingPreparing/);
+  assert.match(modal,/completion\.billingError/);
+  assert.match(modal,/completion\.closeCompletion\(\)/);
 });
