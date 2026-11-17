@@ -111,11 +111,11 @@ export function RegistrationEditor({
   const fieldTrackingAvailable = hasModule("field_tracking");
 
   const personTypeButtons = <div className="grid gap-3 sm:grid-cols-2">
-            <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-              <div className="font-black text-[#0d1b2e]">Pessoa Física</div><div className="mt-1 text-xs text-[#5a6a82]">CPF, nascimento e contatos.</div>
+            <button type="button" disabled={!canModify} onClick={() => setForm(current => ({ ...current, person_type: "PF" }))} className={`rounded-xl border p-4 text-left disabled:opacity-50 ${form.person_type === "PF" ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted/40"}`}>
+              <div className="font-black text-foreground">Pessoa Física</div><div className="mt-1 text-xs text-muted-foreground">CPF, nascimento e contatos.</div>
             </button>
-            <button type="button" disabled={form.roles.includes("employee") || !canModify} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-              <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
+            <button type="button" disabled={form.roles.includes("employee") || !canModify} onClick={() => setForm(current => ({ ...current, person_type: "PJ" }))} className={`rounded-xl border p-4 text-left disabled:opacity-40 ${form.person_type === "PJ" ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted/40"}`}>
+              <div className="font-black text-foreground">Pessoa Jurídica</div><div className="mt-1 text-xs text-muted-foreground">CNPJ e dados empresariais.</div>
             </button>
   </div>;
 
@@ -127,8 +127,8 @@ export function RegistrationEditor({
           {!supplierQuickCreate && <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
-            return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
-              <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-[#0057e7]" /><span className="text-sm font-bold text-[#0d1b2e]">{roleLabels[role]}</span>
+            return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted/40"}`}>
+              <Checkbox checked={checked} tabIndex={-1} /><Icon size={17} className="text-primary" /><span className="text-sm font-bold text-foreground">{roleLabels[role]}</span>
             </button>;
           })}</div>}
           {fieldErrors.roles && <p className="mt-2 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.roles}</p>}
@@ -138,7 +138,7 @@ export function RegistrationEditor({
       <Section title="Dados Pessoais">
         {form.person_type === "PF" ? <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF<span className="text-red-600 dark:text-red-400">*</span></label>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF<span className="text-red-600 dark:text-red-400">*</span></label>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1"><FCpfInput required error={lookups.cpfError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCpfError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCpfName()} disabled={lookups.cpfLoading}>Consultar</BtnSecondary>
@@ -152,7 +152,7 @@ export function RegistrationEditor({
           <FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} />
         </div> : <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ<span className="text-red-600 dark:text-red-400">*</span></label>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CNPJ<span className="text-red-600 dark:text-red-400">*</span></label>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1"><FCnpjInput required error={lookups.cnpjError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCnpjError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCnpj()} disabled={lookups.cnpjLoading}>Consultar</BtnSecondary>
@@ -167,7 +167,7 @@ export function RegistrationEditor({
           <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => setForm(current => ({ ...current, whatsapp: phone }))} value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
           <div className="sm:col-span-2"><FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
         </div>}
-        <label className="mt-4 flex items-center gap-2 text-sm font-bold text-[#0d1b2e]"><Checkbox checked={form.is_active} onCheckedChange={checked => setForm(current => ({ ...current, is_active: checked === true }))} /> Cadastro ativo</label>
+        <label className="mt-4 flex items-center gap-2 text-sm font-bold text-foreground"><Checkbox checked={form.is_active} onCheckedChange={checked => setForm(current => ({ ...current, is_active: checked === true }))} /> Cadastro ativo</label>
       </Section>
 
       <RegistrationAddressesEditor value={addresses} onChange={setAddresses} disabled={!canModify} required={creating && form.roles.includes("customer")} errorsVisible={addressValidationAttempted && creating} />
@@ -186,8 +186,8 @@ export function RegistrationEditor({
             onCheckedChange={checked => setForm(current => ({ ...current, field_tracking_prompt_on_login: checked === true }))}
           />
           <span className="min-w-0">
-            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Exigir compartilhamento de localização</span>
-            <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
+            <span className="block text-sm font-black text-foreground dark:text-foreground">Exigir compartilhamento de localização</span>
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground dark:text-muted-foreground">
               Ao entrar no sistema, este usuário deverá autorizar a localização pelo navegador. Se recusar a permissão, a sessão será encerrada imediatamente. Se não ativar em até 1 minuto, o sistema fará logout automaticamente.
             </span>
           </span>
@@ -200,8 +200,8 @@ export function RegistrationEditor({
             onCheckedChange={checked => setForm(current => ({ ...current, disable_inactivity_logout: checked === true }))}
           />
           <span className="min-w-0">
-            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Desativar logout por inatividade</span>
-            <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
+            <span className="block text-sm font-black text-foreground dark:text-foreground">Desativar logout por inatividade</span>
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground dark:text-muted-foreground">
               Para técnicos em campo: desativa o encerramento automático após 20 minutos sem uso.
               Logout manual, controle de acesso e exigências de localização continuam funcionando.
             </span>
@@ -209,7 +209,7 @@ export function RegistrationEditor({
         </label>
 
         {canShowAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5">
-          <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
+          <div className="mb-4 text-sm font-black text-foreground">Acesso ao sistema</div>
           <UserAccessSection
             embedded
             organizationId={organizationId}
