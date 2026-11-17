@@ -97,7 +97,7 @@ export function DashboardPanel({
   className?: string;
 }) {
   return (
-    <AdminCard className={cn("flex min-h-0 flex-col", className)}>
+    <AdminCard className={cn("flex h-[370px] min-h-0 max-w-full flex-col overflow-hidden", className)}>
       <AdminCardHeader className="min-h-[52px] py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           {Icon && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/8 text-[#0057e7]"><Icon size={15} /></div>}
@@ -117,7 +117,7 @@ export function DashboardPanel({
           </div>
         )}
       </AdminCardHeader>
-      <div className="min-h-0 flex-1 p-3 sm:p-4">{children}</div>
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">{children}</div>
     </AdminCard>
   );
 }
@@ -140,6 +140,7 @@ export function DashboardBarChart({
   selectedKey,
   onSelect,
   minHeight = 210,
+  fixedHeight,
 }: {
   data: DashboardChartPoint[];
   color?: string;
@@ -147,11 +148,12 @@ export function DashboardBarChart({
   selectedKey?: string | null;
   onSelect?: (point: DashboardChartPoint) => void;
   minHeight?: number;
+  fixedHeight?: number;
 }) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const vertical = layout === "vertical";
-  const chartHeight = vertical ? Math.max(minHeight, data.length * 40 + 38) : minHeight;
+  const chartHeight = fixedHeight ?? (vertical ? Math.max(minHeight, data.length * 40 + 38) : minHeight);
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
 
   return (
@@ -228,6 +230,8 @@ export function DashboardSlaDistributionChart({
   selectedState,
   onSelect,
   minHeight = 260,
+  fixedHeight,
+  hideLegend = false,
 }: {
   data: DashboardSlaChartPoint[];
   mode: "pie" | "vertical" | "horizontal";
@@ -235,6 +239,8 @@ export function DashboardSlaDistributionChart({
   selectedState?: DashboardSlaState | null;
   onSelect?: (point: DashboardSlaChartPoint, state: DashboardSlaState, value: number) => void;
   minHeight?: number;
+  fixedHeight?: number;
+  hideLegend?: boolean;
 }) {
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
@@ -269,18 +275,18 @@ export function DashboardSlaDistributionChart({
         segmentKey: segmentKey(point, segment.key),
       }] : [];
     }));
-    const chartHeight = Math.max(minHeight, data.length * 38 + 80);
+    const chartHeight = fixedHeight ?? Math.max(minHeight, data.length * 38 + 80);
 
     return (
       <div>
-        {legend}
+        {!hideLegend && legend}
         <div
-          className="grid w-full grid-cols-[minmax(0,1.08fr)_minmax(150px,.92fr)] items-center gap-4"
+          className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,.85fr)] items-center gap-2"
           style={{ height: chartHeight, minHeight: chartHeight }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="label" innerRadius={0} outerRadius="86%" paddingAngle={2}>
+              <Pie data={pieData} dataKey="value" nameKey="label" innerRadius={0} outerRadius="84%" paddingAngle={2}>
                 {pieData.map(item => {
                   const hovered = hoveredSegment === item.segmentKey;
                   return (
@@ -349,7 +355,7 @@ export function DashboardSlaDistributionChart({
     danger: Number(point.sla.danger || 0),
     neutral: Number(point.sla.neutral || 0),
   }));
-  const chartHeight = horizontalBars ? Math.max(minHeight, data.length * 44 + 44) : minHeight;
+  const chartHeight = fixedHeight ?? (horizontalBars ? Math.max(minHeight, data.length * 44 + 44) : minHeight);
 
   return (
     <div>
@@ -426,10 +432,10 @@ export function DashboardSlaDistributionChart({
   );
 }
 
-export function DashboardLineChart({ data, color = "#0057e7", money = false }: { data: DashboardChartPoint[]; color?: string; money?: boolean }) {
+export function DashboardLineChart({ data, color = "#0057e7", money = false, fixedHeight }: { data: DashboardChartPoint[]; color?: string; money?: boolean; fixedHeight?: number }) {
   if (!data.length) return <DashboardEmpty text="Sem movimentação no período." />;
   return (
-    <div className="h-full min-h-[210px] w-full">
+    <div className="h-full min-h-[210px] w-full" style={fixedHeight ? {height:fixedHeight,minHeight:fixedHeight}:undefined}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, left: money ? -4 : -22, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" />
@@ -449,6 +455,7 @@ export function DashboardDonutChart({
   selectedKey,
   onSelect,
   minHeight = 210,
+  fixedHeight,
   innerRadius = "54%",
 }: {
   data: DashboardChartPoint[];
@@ -456,16 +463,17 @@ export function DashboardDonutChart({
   selectedKey?: string | null;
   onSelect?: (point: DashboardChartPoint) => void;
   minHeight?: number;
+  fixedHeight?: number;
   innerRadius?: number | string;
 }) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   if (!data.length) return <DashboardEmpty text="Sem dados para o período." />;
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
-  const chartHeight = Math.max(minHeight, data.length * 32 + 58);
+  const chartHeight = fixedHeight ?? Math.max(minHeight, data.length * 32 + 58);
 
   return (
     <div
-      className="grid w-full grid-cols-[minmax(0,1.12fr)_minmax(135px,.88fr)] items-center gap-4"
+      className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(120px,.85fr)] items-center gap-2"
       style={{ height: chartHeight, minHeight: chartHeight }}
     >
       <ResponsiveContainer width="100%" height="100%">
