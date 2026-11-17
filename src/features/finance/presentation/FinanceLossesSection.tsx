@@ -12,6 +12,7 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
+import { getSignedSignatureDocument } from "@/features/documents/infrastructure/document-signatures.repository";
 
 type LossStatus = "pending_return" | "confirmed" | "renegotiated" | "superseded" | "recovered";
 type Loss = {
@@ -19,11 +20,17 @@ type Loss = {
   os_number: string; customer_name: string; amount: number; reason: string;
   items_snapshot: Array<Record<string, unknown>>; status: LossStatus; occurred_at: string;
   confirmed_at: string | null;
+  source_type: string;
+  signature_request_id: string | null;
+  evidence_media_id: string | null;
 };
 type LossSummary = {
   events: number; potential: number; confirmed: number; recovered: number;
   pending_count: number; confirmed_count: number;
 };
+type TerminalSummary = { disposal_count:number; unrepaired_return_count:number; stock_returned_quantity:number };
+const isTerminalLoss=(item:Loss)=>item.source_type==="disposal_confirmed"||item.source_type==="returned_unrepaired";
+const terminalLabel=(item:Loss)=>item.source_type==="disposal_confirmed"?"Descarte confirmado":"Devolução sem reparo";
 const STATUS: Record<LossStatus, { label: string; className: string }> = {
   pending_return: { label: "Aguardando devolução", className: "text-amber-700 dark:text-amber-400" },
   confirmed: { label: "Perda confirmada", className: "text-red-700 dark:text-red-400" },
@@ -59,6 +66,18 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<Loss | null>(null);
+  const [signedDocumentUrl,setSignedDocumentUrl]=useState("");
+  const [signedDocumentError,setSignedDocumentError]=useState("");
+  const [signedDocumentLoading,setSignedDocumentLoading]=useState(false);
+  const openSignedTerm=async(item:Loss)=>{
+    if(!item.signature_request_id||signedDocumentLoading)return;
+    setSignedDocumentLoading(true);setSignedDocumentError("");
+    try{
+      const result=await getSignedSignatureDocument(organizationId,item.signature_request_id);
+      setSignedDocumentUrl(result.download_url);
+    }catch(e){setSignedDocumentError(systemErrorMessage(e,"Não foi possível consultar o termo assinado."));}
+    finally{setSignedDocumentLoading(false)}
+  };
   const start = dateBoundary(from);
   const end = dateBoundary(to,true);
   const cleanedSearch = search.trim().replace(/[^\p{L}\p{N}\s-]/gu,"").slice(0,70);
@@ -75,13 +94,25 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
       return data as LossSummary;
     },
   });
+  const terminalSummaryQuery=useQuery({
+    queryKey:[...key,"terminal-summary",start,end],
+    enabled:Boolean(organizationId),
+    staleTime:60_000,
+    queryFn:async():Promise<TerminalSummary>=>{
+      const {data,error}=await (supabase as any).rpc("get_financial_terminal_outcomes_summary_v1",{
+        p_organization_id:organizationId,p_from:start||null,p_until:end||null,
+      });
+      if(error)throw error;
+      return data as TerminalSummary;
+    },
+  });
   const listQuery = useQuery({
     queryKey: [...key,"page",start,end,status,cleanedSearch,page,pageSize],
     enabled: Boolean(organizationId),
     staleTime: 30_000,
     queryFn: async () => {
-      let request = (supabase as any).from("financial_losses")
-        .select("id,organization_id,service_order_id,quote_version,os_number,customer_name,amount,reason,items_snapshot,status,occurred_at,confirmed_at",{ count:"exact" })
+      let request = (supabase as any).from("finance_losses_unified_v1")
+        .select("id,organization_id,service_order_id,quote_version,os_number,customer_name,amount,reason,items_snapshot,status,occurred_at,confirmed_at,source_type,signature_request_id,evidence_media_id",{ count:"exact" })
         .eq("organization_id",organizationId);
       if (start) request=request.gte("occurred_at",start);
       if (end) request=request.lt("occurred_at",end);
@@ -101,19 +132,20 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
   const summary = summaryQuery.data;
   const items = listQuery.data?.items || [];
   const total = listQuery.data?.total || 0;
-  const busy = summaryQuery.isPending || listQuery.isPending;
-  const error = listQuery.error || summaryQuery.error;
+  const busy = summaryQuery.isPending || listQuery.isPending || terminalSummaryQuery.isPending;
+  const error = listQuery.error || summaryQuery.error || terminalSummaryQuery.error;
 
   return <div className="min-w-0 space-y-4">
     <div>
       <h2 className="text-lg font-black text-foreground">Perdas</h2>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        Receita potencial não realizada. Os orçamentos reprovados entram automaticamente neste histórico.
-        Os valores não representam despesas, contas a receber nem movimentação de caixa.
+        Reprovações de orçamento, descartes e devoluções sem reparo. A perda comercial
+        não é movimentação financeira, e o equipamento do cliente não é contabilizado como prejuízo da empresa.
       </p>
     </div>
     {summary && <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {[
+        { label:"Descarte e devolução", value:String(Number(terminalSummaryQuery.data?.disposal_count||0)+Number(terminalSummaryQuery.data?.unrepaired_return_count||0)), detail:`${terminalSummaryQuery.data?.disposal_count||0} descartes · ${terminalSummaryQuery.data?.unrepaired_return_count||0} devoluções` },
         { label:"Perda confirmada", value:formatCurrency(Number(summary.confirmed || 0)), detail:`${summary.confirmed_count || 0} equipamentos devolvidos` },
         { label:"Aguardando devolução", value:formatCurrency(Number(summary.potential || 0)), detail:`${summary.pending_count || 0} orçamentos reprovados` },
         { label:"Valores recuperados", value:formatCurrency(Number(summary.recovered || 0)), detail:"Orçamentos posteriormente aprovados" },
@@ -148,7 +180,7 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
         {systemErrorMessage(error,"Não foi possível consultar as perdas.")}
       </div>
       : items.length===0 ? <div className="p-5">
-        <EmptyState icon={TrendingDown} title="Nenhuma perda encontrada" description="As reprovações de orçamento serão registradas automaticamente aqui." />
+        <EmptyState icon={TrendingDown} title="Nenhum registro encontrado" description="Reprovações, descartes e devoluções sem reparo aparecerão automaticamente aqui." />
       </div> : <>
         <div className="overflow-x-auto">
           <TopTableScrollbar />
@@ -161,13 +193,13 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
             <tbody>{items.map(item=><tr key={item.id}>
               <td><FinanceServiceOrderLink orderId={item.service_order_id} number={item.os_number} />
                 <p className="max-w-48 truncate text-xs text-muted-foreground">{item.customer_name || "Cliente não informado"}</p>
-                <p className="text-[10px] text-muted-foreground">Orçamento v{item.quote_version}</p>
+                <p className="text-[10px] text-muted-foreground">{isTerminalLoss(item)?terminalLabel(item):`Orçamento v${item.quote_version}`}</p>
               </td>
               <td className="max-w-64"><p className="line-clamp-2 text-xs">{item.reason}</p></td>
               <td className="whitespace-nowrap text-xs">{formatDate(item.occurred_at)}</td>
-              <td className="whitespace-nowrap text-right font-bold tabular-nums">{formatCurrency(Number(item.amount || 0))}</td>
+              <td className="whitespace-nowrap text-right font-bold tabular-nums">{isTerminalLoss(item)?"Sem baixa":formatCurrency(Number(item.amount||0))}</td>
               <td><span className={`text-xs font-semibold ${STATUS[item.status]?.className || ""}`}>
-                {STATUS[item.status]?.label || item.status}</span></td>
+                {isTerminalLoss(item)?"Encerramento confirmado":STATUS[item.status]?.label || item.status}</span></td>
               <td className="text-right"><AdminButton variant="quaternary" onClick={()=>setSelected(item)}>Visualizar</AdminButton></td>
             </tr>)}</tbody>
           </table>
@@ -176,25 +208,50 @@ export function FinanceLossesSection({ onInitialReady }: { onInitialReady?: () =
           onPageChange={setPage} onPageSizeChange={value=>{setPageSize(value);setPage(1);}} />
       </>}
     </AdminCard>
-    {selected && <AdminDialog open onClose={()=>setSelected(null)} title={`Orçamento reprovado · OS ${selected.os_number}`}
-      description={`Versão ${selected.quote_version} · ${formatDate(selected.occurred_at)}`}
+    {selected && <AdminDialog open onClose={()=>{setSelected(null);setSignedDocumentUrl("");setSignedDocumentError("");}} title={`${isTerminalLoss(selected)?terminalLabel(selected):"Orçamento reprovado"} · OS ${selected.os_number}` }
+      description={isTerminalLoss(selected)?`Encerrado em ${formatDate(selected.occurred_at)}`:`Versão ${selected.quote_version} · ${formatDate(selected.occurred_at)}`}
       className="max-w-2xl"
       footer={<div className="flex justify-end"><BtnSecondary onClick={()=>setSelected(null)}>Fechar</BtnSecondary></div>}>
       <div className="space-y-3 text-sm">
         <p><strong>Cliente:</strong> {selected.customer_name || "Não informado"}</p>
         <p><strong>Motivo:</strong> {selected.reason}</p>
-        <p><strong>Situação:</strong> {STATUS[selected.status]?.label || selected.status}</p>
-        <div className="rounded-lg border border-border">
-          {(Array.isArray(selected.items_snapshot)?selected.items_snapshot:[]).map((item,index)=>
-            <div key={index} className="flex items-start justify-between gap-3 border-b border-border p-3 last:border-0">
-              <span className="min-w-0 break-words">{String(item.title_snapshot || "Item")} · Qtd. {String(item.quantity || 1)}</span>
-              <strong className="shrink-0">{formatCurrency(
-                Number(item.quantity || 0)*Number(item.unit_price || 0)+Number(item.additional_cost || 0))}</strong>
-            </div>)}
-        </div>
-        <div className="flex justify-between border-t border-border pt-3 font-black">
-          <span>Valor não aprovado (com desconto)</span><span>{formatCurrency(Number(selected.amount || 0))}</span>
-        </div>
+        <p><strong>Situação:</strong> {isTerminalLoss(selected)?"Encerramento confirmado":STATUS[selected.status]?.label || selected.status}</p>
+        {isTerminalLoss(selected) ? <>
+          <p className="text-xs text-muted-foreground">
+            Este encerramento não gerou conta a receber, pagamento ou movimentação de caixa.
+            Quantidades de peças só foram reintegradas ao estoque após conferência.
+          </p>
+          <div className="rounded-lg border border-border">
+            {(Array.isArray(selected.items_snapshot)?selected.items_snapshot:[]).length===0
+              ?<p className="p-3 text-xs text-muted-foreground">Nenhuma peça com saída rastreada nesta OS.</p>
+              :(Array.isArray(selected.items_snapshot)?selected.items_snapshot:[]).map((item,index)=>
+                <div key={index} className="flex items-center justify-between gap-2 border-b border-border p-3 text-xs last:border-0">
+                  <span className="break-words">{String(item.name||item.inventory_item_id||"Peça")}</span>
+                  <strong>Estoque: {String(item.quantity_restored||0)} de {String(item.quantity_outstanding||0)} retornadas</strong>
+                </div>)}
+          </div>
+          {selected.signature_request_id&&<div className="space-y-2">
+            <AdminButton variant="secondary" size="sm" onClick={()=>void openSignedTerm(selected)}
+              disabled={signedDocumentLoading}>
+              {signedDocumentLoading?"Consultando termo...":"Consultar termo assinado"}
+            </AdminButton>
+            {signedDocumentUrl&&<a href={signedDocumentUrl} target="_blank" rel="noopener noreferrer"
+              className="block text-xs font-semibold text-primary underline">Abrir PDF assinado</a>}
+            {signedDocumentError&&<p role="alert" className="text-xs text-destructive">{signedDocumentError}</p>}
+          </div>}
+        </> : <>
+          <div className="rounded-lg border border-border">
+            {(Array.isArray(selected.items_snapshot)?selected.items_snapshot:[]).map((item,index)=>
+              <div key={index} className="flex items-start justify-between gap-3 border-b border-border p-3 last:border-0">
+                <span className="min-w-0 break-words">{String(item.title_snapshot||"Item")} · Qtd. {String(item.quantity||1)}</span>
+                <strong className="shrink-0">{formatCurrency(
+                  Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0))}</strong>
+              </div>)}
+          </div>
+          <div className="flex justify-between border-t border-border pt-3 font-black">
+            <span>Valor não aprovado (com desconto)</span><span>{formatCurrency(Number(selected.amount||0))}</span>
+          </div>
+        </>}
         <FinanceServiceOrderLink orderId={selected.service_order_id} number={selected.os_number}
           label="Abrir ordem de serviço em nova aba" />
       </div>
