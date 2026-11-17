@@ -19,6 +19,7 @@ type CrmCustomer = {
   id: string;
   name: string;
   customer_type?: string | null;
+  gender?: string | null;
   document?: string | null;
   cnpj?: string | null;
   legal_name?: string | null;
