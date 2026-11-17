@@ -36,6 +36,14 @@ const mediaLabel=(kind:unknown)=>({
   location:"Localização",contact:"Contato",
 } as Record<string,string>)[String(kind||"")]||"Nova mensagem";
 
+type Filter="in_att"|"waiting";
+type MiniList={items:UnionWhatsAppConversation[];fetchedAt:number;loading:boolean;loaded:boolean};
+const emptyLists=():Record<Filter,MiniList>=>({
+  in_att:{items:[],fetchedAt:0,loading:false,loaded:false},
+  waiting:{items:[],fetchedAt:0,loading:false,loaded:false},
+});
+const MINI_LIST_TTL=45_000;
+const MINI_LIST_EVENT_THROTTLE=6_000;
 type Incoming={messageId:string;preview:string;receivedAt:number};
 type Account={organizationId:string;channelId:string;phone:string;capabilities:Record<string,boolean>};
 
@@ -63,9 +71,16 @@ export function UnionWhatsAppActivityProvider({
   const capabilities=activeAccount?.capabilities||null;
   const [counts,setCounts]=useState<UnionWhatsAppConversationCounts>(zeroCounts);
   const [expanded,setExpanded]=useState(false);
-  const [filter,setFilter]=useState<"in_att"|"waiting">("in_att");
-  const [rows,setRows]=useState<UnionWhatsAppConversation[]>([]);
-  const [rowsLoading,setRowsLoading]=useState(false);
+  const [filter,setFilter]=useState<Filter>("in_att");
+  const [lists,setLists]=useState<Record<Filter,MiniList>>(emptyLists);
+  const listsRef=useRef(lists);
+  listsRef.current=lists;
+  const rows=lists[filter].items;
+  const rowsLoading=lists[filter].loading;
+  const rowsLoaded=lists[filter].loaded;
+  const [avatars,setAvatars]=useState<Record<string,string|null>>({});
+  const avatarRequestsRef=useRef(new Set<string>());
+  const avatarCheckedAtRef=useRef(new Map<string,number>());
   const [alert,setAlert]=useState<FloatingWhatsAppAlert|null>(null);
   const [conversationId,setConversationId]=useState<string|null>(null);
 
@@ -96,8 +111,10 @@ export function UnionWhatsAppActivityProvider({
   const countsInFlightRef=useRef(false);
   const lastCountsRef=useRef(0);
   const countsRetryAfterRef=useRef(0);
-  const rowsSeqRef=useRef(0);
-  const lastRowsRef=useRef(0);
+  const listGenerationRef=useRef(0);
+  const listRequestsRef=useRef<Record<Filter,{running:boolean;retryAfter:number}>>({
+    in_att:{running:false,retryAfter:0},waiting:{running:false,retryAfter:0},
+  });
 
   useEffect(()=>{
     // Compatível com a montagem dupla do React StrictMode.
@@ -147,15 +164,20 @@ export function UnionWhatsAppActivityProvider({
     countsInFlightRef.current=false;
     lastCountsRef.current=0;
     countsRetryAfterRef.current=0;
-    rowsSeqRef.current+=1;
-    lastRowsRef.current=0;
+    listGenerationRef.current+=1;
+    listRequestsRef.current={
+      in_att:{running:false,retryAfter:0},waiting:{running:false,retryAfter:0},
+    };
     pendingIncomingRef.current.clear();
     recentConversationRef.current.clear();
     notifiedRef.current.clear();
     setChannelReady(null);
     setAccount(null);
     setCounts(zeroCounts);
-    setRows([]);
+    setLists(emptyLists());
+    setAvatars({});
+    avatarCheckedAtRef.current.clear();
+    avatarRequestsRef.current.clear();
     setAlert(null);
     setConversationId(null);
     setExpanded(false);
@@ -180,35 +202,43 @@ export function UnionWhatsAppActivityProvider({
     }finally{countsInFlightRef.current=false;}
   },[enabled,organizationId,channelId,channelPhone,accountKey]);
 
-  const refreshRows=useCallback(async(force=false)=>{
+  const refreshLists=useCallback(async(targets:Filter[],urgent=false)=>{
     if(!enabled||!organizationId||!channelId||!channelPhone||
-       !expandedRef.current||pageOpenRef.current||disposedRef.current)return;
-    const now=Date.now();
-    if(!force&&now-lastRowsRef.current<2_500)return;
-    lastRowsRef.current=now;
-    const scope=accountKey, requestedFilter=filterRef.current;
-    const sequence=++rowsSeqRef.current;
-    setRowsLoading(true);
-    try{
-      const response=await listUnionWhatsAppConversations(organizationId,channelId,channelPhone,{
-        filter:requestedFilter,department:"all",search:"",page:0,pageSize:8,
-        viewerId:userId,canViewAll:capabilities?.view_all===true,
-      });
-      if(disposedRef.current||scope!==currentAccountRef.current||
-        requestedFilter!==filterRef.current||sequence!==rowsSeqRef.current)return;
-      setRows(response.items);
-      for(const row of response.items)recentConversationRef.current.set(row.id,row);
-    }catch{
-      // O painel mantém a última prévia autorizada; sem retries em cascata.
-    }finally{
-      if(sequence===rowsSeqRef.current&&!disposedRef.current)setRowsLoading(false);
-    }
+      !expandedRef.current||pageOpenRef.current||disposedRef.current)return;
+    const scope=accountKey,gen=listGenerationRef.current;
+    // Precarregar ambas as abas; 45s de cache e 6s de mínimo entre eventos.
+    await Promise.all(targets.map(async tab=>{
+      const request=listRequestsRef.current[tab],snapshot=listsRef.current[tab];
+      const now=Date.now();
+      if(request.running||now<request.retryAfter||
+        (snapshot.loaded&&now-snapshot.fetchedAt<(urgent?MINI_LIST_EVENT_THROTTLE:MINI_LIST_TTL)))return;
+      request.running=true;
+      setLists(prev=>({...prev,[tab]:{...prev[tab],loading:true}}));
+      try{
+        const response=await listUnionWhatsAppConversations(organizationId,channelId,channelPhone,{
+          filter:tab,department:"all",search:"",page:0,pageSize:8,sortByRecent:true,
+          viewerId:userId,canViewAll:capabilities?.view_all===true,
+        });
+        if(disposedRef.current||scope!==currentAccountRef.current||
+          gen!==listGenerationRef.current)return;
+        const sorted=[...response.items].sort(recentFirst);
+        setLists(prev=>({...prev,[tab]:{
+          items:sorted,fetchedAt:Date.now(),loaded:true,loading:false,
+        }}));
+        sorted.forEach(row=>recentConversationRef.current.set(row.id,row));
+      }catch{
+        if(scope===currentAccountRef.current&&gen===listGenerationRef.current){
+          request.retryAfter=Date.now()+25_000;
+          setLists(prev=>({...prev,[tab]:{...prev[tab],loading:false}}));
+        }
+      }finally{request.running=false;}
+    }));
   },[enabled,organizationId,channelId,channelPhone,accountKey,userId,capabilities]);
 
   const countsFnRef=useRef(refreshCounts);
   countsFnRef.current=refreshCounts;
-  const rowsFnRef=useRef(refreshRows);
-  rowsFnRef.current=refreshRows;
+  const listsFnRef=useRef(refreshLists);
+  listsFnRef.current=refreshLists;
   const scheduleReconcile=useCallback(()=>{
     if(document.visibilityState!=="visible"||reconcileTimerRef.current!==null)return;
     reconcileTimerRef.current=setTimeout(()=>{
@@ -216,7 +246,7 @@ export function UnionWhatsAppActivityProvider({
       // O inbox completo já reconcilia a própria lista: não duplicar sua RPC.
       if(pageOpenRef.current||conversationOpenRef.current)return;
       void countsFnRef.current();
-      if(expandedRef.current)void rowsFnRef.current();
+      if(expandedRef.current)void listsFnRef.current(["in_att","waiting"],true);
     },1_200);
   },[]);
 
@@ -226,10 +256,8 @@ export function UnionWhatsAppActivityProvider({
   },[channelId,channelPhone,enabled,refreshCounts]);
 
   useEffect(()=>{
-    setRows([]);
-    rowsSeqRef.current+=1;
-    if(expanded&&!isPageOpen)void refreshRows(true);
-  },[expanded,filter,isPageOpen,refreshRows]);
+    if(expanded&&!isPageOpen)void refreshLists(["in_att","waiting"]);
+  },[expanded,isPageOpen,refreshLists]);
 
   useEffect(()=>{
     if(isPageOpen){
@@ -332,7 +360,7 @@ export function UnionWhatsAppActivityProvider({
       // Sem polling de 30s. Reconciliar só ao retornar à aba.
       if(!pageOpenRef.current&&!conversationOpenRef.current){
         if(Date.now()-lastCountsRef.current>120_000)void countsFnRef.current(true);
-        if(expandedRef.current)void rowsFnRef.current(true);
+        if(expandedRef.current)void listsFnRef.current(["in_att","waiting"],true);
       }
     };
     window.addEventListener("focus",resume);
@@ -365,7 +393,7 @@ export function UnionWhatsAppActivityProvider({
           open onClose={()=>{
             setConversationId(null);
             void refreshCounts(true);
-            if(expandedRef.current)void rowsFnRef.current(true);
+            if(expandedRef.current)void listsFnRef.current(["in_att","waiting"],true);
           }}
           context={{organizationId:activeOrganizationId,
             source:{kind:"conversation",conversationId}}}
