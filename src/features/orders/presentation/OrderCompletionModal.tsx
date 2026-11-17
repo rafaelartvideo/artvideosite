@@ -261,7 +261,7 @@ export function OrderCompletionModal({
   // Modal único desde o primeiro clique; mantém a mesma instância durante
   // a hidratação da OS e as consultas da conclusão, sem flash intermediário.
   if (preparingConclusion) {
-    return <AdminDialog open onClose={close}
+    return <AdminDialog open minimizable={false} onClose={close}
       title={`Concluir OS ${detail?.os_number || ""}`}
       preparing preparingText="Preparando conclusão..."
       preparingError={preparingError || completion.billingError}
