@@ -252,6 +252,32 @@ export async function listUnionWhatsAppMessages(
     nextCursor:oldest?{sent_at:oldest.sent_at,id:oldest.id}:null};
 }
 
+// Compartilhamentos do perfil da conversa: carregamento por aba, paginado,
+// com o mesmo escopo e políticas RLS já usados no histórico.
+export type UnionWhatsAppSharedTab="media"|"documents"|"links";
+const SHARED_PAGE_SIZE=24;
+export async function listUnionWhatsAppSharedItems(
+  organizationId:string,conversationId:string,channelId:string,accountPhone:string,
+  category:UnionWhatsAppSharedTab,page=0,
+):Promise<{items:UnionWhatsAppMessage[];hasMore:boolean}>{
+  let query=supabase.from("union_whatsapp_messages")
+    .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
+    .eq("organization_id",organizationId)
+    .eq("channel_id",channelId)
+    .eq("account_phone",accountPhone)
+    .eq("conversation_id",conversationId);
+  if(category==="media")query=query.in("message_type",["image","video","sticker","audio"]);
+  else if(category==="documents")query=query.eq("message_type","file");
+  else query=query.eq("message_type","text")
+    .or("body_text.ilike.%http%,body_text.ilike.%www.%");
+  const offset=Math.max(0,Math.floor(page))*SHARED_PAGE_SIZE;
+  const {data,error}=await query.order("sent_at",{ascending:false})
+    .order("id",{ascending:false}).range(offset,offset+SHARED_PAGE_SIZE);
+  raise(error);
+  const rows=(data||[]) as UnionWhatsAppMessage[];
+  return {items:rows.slice(0,SHARED_PAGE_SIZE),hasMore:rows.length>SHARED_PAGE_SIZE};
+}
+
 export async function listUnionWhatsAppProtocols(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   page=0,
