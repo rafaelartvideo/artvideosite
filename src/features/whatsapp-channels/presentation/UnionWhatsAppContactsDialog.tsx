@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, ContactRound, Cpu, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, ContactRound, Cpu, Download, History, LoaderCircle, Pencil, Plus, Search, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
+import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
+import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
   VISIBLE_AVATAR_RETRY_MS,
 } from "../domain/visible-avatar-cache.mjs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
+import { findUnionWhatsAppConversationByContact, operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppConversation, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
   CONTACT_IMPORT_BATCH_SIZE, parseContactTable, parseContactsCSV,
   type ContactImportSummary,
@@ -56,6 +58,10 @@ export function UnionWhatsAppContactsDialog({
   const [selectedGroup,setSelectedGroup]=useState<UnionWhatsAppGroup|null>(null);
   const [groupRevision,setGroupRevision]=useState(0);
   const [crmLoading,setCrmLoading]=useState(false);
+  const [contactConversation,setContactConversation]=useState<UnionWhatsAppConversation|null>(null);
+  const [conversationLoading,setConversationLoading]=useState(false);
+  const [conversationError,setConversationError]=useState("");
+  const [historyOpen,setHistoryOpen]=useState(false);
   const [crmPanel,setCrmPanel]=useState<"registration"|"equipments"|"orders"|null>(null);
   const [crmEquipmentId,setCrmEquipmentId]=useState<string|null>(null);
   const [crmData,setCrmData]=useState<{
@@ -76,6 +82,21 @@ export function UnionWhatsAppContactsDialog({
   const [creating,setCreating]=useState(false);
   const [name,setName]=useState(initialName||"");
   const [phone,setPhone]=useState(initialContact?.contact_phone?mask(initialContact.contact_phone):"");
+  // Consultar a conversa sob RLS apenas ao selecionar um contato da agenda.
+  useEffect(()=>{
+    setHistoryOpen(false);
+    if(!selected||creating||tab!=="contacts"){
+      setContactConversation(null);setConversationLoading(false);setConversationError("");return;
+    }
+    let cancelled=false;
+    setContactConversation(null);setConversationLoading(true);setConversationError("");
+    void findUnionWhatsAppConversationByContact(organizationId,channelId,accountPhone,selected.chat_jid)
+      .then(result=>{if(!cancelled)setContactConversation(result);})
+      .catch(reason=>{if(!cancelled)setConversationError(systemErrorMessage(reason,
+        "Não foi possível consultar o histórico do contato."));})
+      .finally(()=>{if(!cancelled)setConversationLoading(false);});
+    return()=>{cancelled=true;};
+  },[organizationId,channelId,accountPhone,selected?.chat_jid,tab,creating]);
   const [phoneChecking,setPhoneChecking]=useState(false);
   const [phoneCheckNotice,setPhoneCheckNotice]=useState("");
   const [phoneCheckError,setPhoneCheckError]=useState("");
@@ -718,12 +739,29 @@ export function UnionWhatsAppContactsDialog({
                 identity={selected?{organizationId,accountPhone,chatJid:selected.chat_jid}:null}
                 gender={crmData?.customer?.gender}
                 src={avatarLoading?undefined:avatar} onError={()=>setAvatar(null)}/>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-bold">{creating?"Novo contato":currentName}</p>
                 <p className="text-xs text-muted-foreground">{creating?"Salvar na agenda da Union":
                   selected?.contact_phone?formatWhatsAppPhone(selected.contact_phone):"Número não disponibilizado pelo WhatsApp"}</p>
               </div>
+              {!creating&&selected&&<button type="button"
+                onClick={()=>setHistoryOpen(value=>!value)} aria-expanded={historyOpen}
+                title="Histórico de atendimentos" aria-label="Histórico de atendimentos"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5">
+                <History size={16}/><span className="hidden sm:inline">Histórico</span>
+              </button>}
             </div>
+            {historyOpen&&selected&&<section aria-label="Histórico de atendimentos" className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-bold">Histórico de atendimentos</h3>
+              {conversationLoading?<p role="status" className="flex items-center justify-center gap-2 py-5 text-center text-xs text-muted-foreground">
+                <LoaderCircle size={15} className="animate-spin"/> Consultando protocolos...
+              </p>:contactConversation?.chat_jid===selected.chat_jid?
+                <UnionWhatsAppProtocolHistory key={contactConversation.id} organizationId={organizationId}
+                  conversation={contactConversation}/>:
+                <p className="py-4 text-center text-xs text-muted-foreground">
+                  {conversationError||"Nenhum atendimento registrado para este contato."}
+                </p>}
+            </section>}
             <div>
               <label className="block text-xs font-semibold" htmlFor="union-contact-name"><RequiredFieldLabel label="Nome salvo na Union" required/></label>
               <input id="union-contact-name" value={name} disabled={!canEdit}
@@ -761,9 +799,9 @@ export function UnionWhatsAppContactsDialog({
                   className="shrink-0 font-semibold text-primary hover:underline">Abrir cadastro</a>}
               </div>
               <div className="p-2.5 sm:p-3">
-                {crmLoading?<p role="status" className="flex items-center gap-2 px-2 py-3 text-muted-foreground">
+                {crmLoading?<p role="status" className="flex items-center justify-center gap-2 px-2 py-4 text-center text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Consultando dados do CRM...
-                </p>:!crmData?.customer?<p className="px-2 py-3 text-muted-foreground">
+                </p>:!crmData?.customer?<p className="px-2 py-4 text-center text-muted-foreground">
                   {crmData?.ambiguous
                     ?"Mais de um cadastro possui este número. Verifique antes de vincular."
                     :"Nenhum cliente do CRM encontrado para este número."}
@@ -843,6 +881,20 @@ export function UnionWhatsAppContactsDialog({
                   </div>}
                 </div>}
               </div>
+            </section>}
+            {!creating&&selected&&<section aria-label="Mídias, documentos e links do WhatsApp">
+              {conversationLoading?<div role="status" className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-6 text-xs text-muted-foreground">
+                <LoaderCircle size={15} className="animate-spin"/> Consultando arquivos da conversa...
+              </div>:contactConversation?.chat_jid===selected.chat_jid?
+                <UnionWhatsAppContactDetails key={contactConversation.id} inline
+                  conversation={contactConversation} organizationId={organizationId}
+                  onClose={()=>undefined}/>:
+                <div className="overflow-hidden rounded-xl border border-border text-xs">
+                  <h3 className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-bold">Mídias, documentos e links</h3>
+                  <p className="px-4 py-6 text-center text-muted-foreground">
+                    {conversationError||"Nenhuma conversa registrada para consultar arquivos deste contato."}
+                  </p>
+                </div>}
             </section>}
             {!creating && selected && !selected.contact_phone &&
               <p className="text-xs text-muted-foreground">Se este identificador privado ainda não tiver conversa, será preciso receber uma mensagem antes de iniciar pelo número.</p>}
