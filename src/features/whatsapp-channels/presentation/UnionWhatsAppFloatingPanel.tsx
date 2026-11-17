@@ -283,7 +283,9 @@ export function UnionWhatsAppFloatingPanel({
             return <button key={item.id} type="button" onClick={()=>onSelect(item.id)}
               className={"box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 "+
                 (unread?"border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15":"bg-card hover:bg-muted/55")}>
-              <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]??null}/>
+              <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]??null}
+                identity={{organizationId:item.organization_id,accountPhone:item.account_phone,
+                  chatJid:item.chat_jid,conversationId:item.id}}/>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center justify-between gap-2">
                   <span className={"min-w-0 truncate text-xs text-foreground "+(unread?"font-black":"font-bold")}>{name}</span>
