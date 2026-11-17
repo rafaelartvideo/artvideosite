@@ -133,7 +133,7 @@ export function SacEmojiPicker({
 
   return (
     <div role="dialog" aria-label="Selecionar emoji"
-      className={`${embedded ? "relative h-full w-full" : "absolute bottom-[calc(100%+12px)] left-[-48px] z-40 h-[340px] w-[min(86vw,352px)]"} flex flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-2xl`}>
+      className={`${embedded ? "relative h-full w-full" : "absolute bottom-[calc(100%+12px)] left-0 sm:left-[-48px] z-40 h-[340px] w-[min(86vw,352px)]"} flex flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-2xl`}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Search size={17} className="shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
