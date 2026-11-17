@@ -89,3 +89,25 @@ test("search actions use one clear-all icon and the requested Material glyphs", 
   assert.match(sales, /setOnlyAvailable\(false\)/);
   assert.match(sales, /setOnlyFavorites\(false\)/);
 });
+
+
+test("touch tablets get compact CRM searches and serial scanner without hiding the desktop layout elsewhere", async () => {
+  const switcher=read("src/shared/ui/admin/AdminMobileSearchSwitch.tsx");
+  const css=read("src/styles/index.css");
+  const filters=read("src/features/orders/presentation/OrdersFilters.tsx");
+  const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(switcher,/admin-mobile-search-switch/);
+  assert.match(css,/@media \\(hover: none\\) and \\(pointer: coarse\\)/);
+  assert.match(css,/admin-mobile-search-switch \\+ div\\[class\\\\\*=\\\"hidden\\\"\\]/);
+  assert.match(filters,/compactOrderSearchMedia/);
+  assert.match(filters,/\\(pointer: coarse\\)/);
+  assert.match(filters,/mobileOnly=\\{false\\}/);
+  assert.match(equipment,/aria-label="Escanear número de série"/);
+  assert.doesNotMatch(equipment,/!p-0 md:hidden/);
+  assert.match(inbox,/flex-wrap items-stretch rounded-xl/);
+  assert.match(inbox,/xl:flex-nowrap/);
+  for(const [name,code] of [["OrdersFilters",filters],["OrderEquipmentSection",equipment],["UnionWhatsAppInboxPage",inbox]]){
+    assert.ok((await transformWithEsbuild(code,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
