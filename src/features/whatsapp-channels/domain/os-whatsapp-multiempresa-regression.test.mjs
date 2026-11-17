@@ -551,7 +551,8 @@ test("Histórico geral permanece acessível pelo contato e mostra todos os proto
   assert.match(repository,/findUnionWhatsAppConversationByContact/);
   assert.match(repository,/\.eq\("chat_jid",chatJid\)/);
   assert.match(inbox,/variant="secondary" size="sm" title="Vincular OS deste cliente"/);
-  assert.match(inbox,/aria-label="Protocolos do atendimento"/);
+  assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
+  assert.match(directory,/UnionWhatsAppContactHistory/);
 });
 
 test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira mensagem",()=>{
