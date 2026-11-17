@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { WhatsAppContactAvatar, waitingClasses, waitingLabel, waitingMinutes } from "./WhatsAppInboxVisuals";
-import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, MessageCircle, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, X } from "lucide-react";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import type { UnionWhatsAppConversation, UnionWhatsAppConversationCounts } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Filter="in_att"|"waiting";
@@ -171,7 +172,7 @@ export function UnionWhatsAppFloatingPanel({
           style={{cursor:"grab"}}>
           <GripHorizontal size={16} className="shrink-0 text-muted-foreground"/>
           <span className="relative shrink-0">
-            <MessageCircle size={18} className="text-primary"/>
+            <WhatsAppBrandIcon size={18} className="text-primary"/>
             {counts.unread>0&&<span aria-hidden="true"
               className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500"/>}
           </span>
@@ -262,7 +263,7 @@ export function UnionWhatsAppFloatingPanel({
           })}
         </div>
         <p className="mt-2 shrink-0 text-center text-[11px] text-muted-foreground">
-          Mensagens recentes primeiro · até 8 conversas
+          {filter==="waiting"?"Mais tempo na fila primeiro":"Mensagens recentes primeiro"} · até 8 conversas
         </p>
       </div>}
     </section>
