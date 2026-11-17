@@ -639,6 +639,10 @@ export function OrderDetailsPage(props: Props) {
   };
 
   const emailTemplate = async (template: PrintTemplate) => {
+    if (!isOrderTerminalDocumentVisible(template.document_type,detail)) {
+      notifyAdmin("O termo só pode ser enviado após a confirmação da saída correspondente.","error");
+      return;
+    }
     const customerEmail = String((detail.customer as any)?.email || "").trim();
     if (!customerEmail) { setEmailMessage({ text: "O cliente não possui e-mail cadastrado.", type: "error" }); return; }
     setEmailMessage(null);
