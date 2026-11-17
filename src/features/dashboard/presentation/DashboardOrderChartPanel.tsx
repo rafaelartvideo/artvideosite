@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ElementType } from "react";
-import { AlignLeft, BarChart3, ChevronLeft, ChevronRight, LineChart as LineChartIcon, PieChart, Search } from "lucide-react";
+import { AlignLeft, BarChart3, ChevronLeft, ChevronRight, LineChart as LineChartIcon, List, PieChart, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
   DashboardBarChart, DashboardDonutChart, DashboardEmpty, DashboardLineChart, DashboardPanel,
@@ -63,6 +63,7 @@ export function DashboardOrderChartPanel({
 }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [showNames, setShowNames] = useState(false);
   const isTimeSeries = chartKey === "opened" || chartKey === "quote_approved" || chartKey === "quote_rejected";
   const canSearch = chartKey === "equipment_model";
   const categoryData = useMemo(() => {
@@ -77,11 +78,11 @@ export function DashboardOrderChartPanel({
     ? slaData.filter(point => pageData.some(visible => visible.key === point.key))
     : undefined;
   const showPager = !isTimeSeries && categoryData.length > PAGE_SIZE;
-  const showToolbar = canSearch || showPager;
+  const showToolbar = !isTimeSeries;
   const accent = CHART_ACCENTS[chartKey];
   const palette = chartKey === "quote_approved" ? CHART_PALETTES.green
     : chartKey === "quote_rejected" ? CHART_PALETTES.red : CHART_PALETTES.blue;
-  useEffect(() => { setPage(1); setSearch(""); }, [chartKey]);
+  useEffect(() => { setPage(1); setSearch(""); setShowNames(false); }, [chartKey]);
   const controls = <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/40 p-0.5">
     {modes.map(({ value, label, Icon }) => <button key={value} type="button" title={label}
       aria-label={`${label} · ${title}`} aria-pressed={mode === value}
@@ -93,6 +94,11 @@ export function DashboardOrderChartPanel({
   </div>;
 
   const chartHeight = showToolbar ? 203 : 238;
+  const explanation = mode === "line" && chartKey === "situation"
+    ? "Linha azul: quantidade total por situação. Use barras ou pizza para visualizar os níveis do SLA."
+    : mode === "line" && chartKey === "status"
+    ? "Linha azul: quantidade por status. As cores de cada status aparecem nos gráficos de barras e pizza."
+    : CHART_EXPLANATIONS[chartKey];
 
   return <DashboardPanel title={title} subtitle={subtitle} icon={icon} headerAside={controls}
     className="h-[370px] w-full max-w-[465px]">
@@ -104,9 +110,20 @@ export function DashboardOrderChartPanel({
             value={search} onChange={event => { setSearch(event.target.value); setPage(1); }}
             className="h-7 min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground" />
         </label>}
-        {!canSearch && <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
-          {categoryData.length > PAGE_SIZE ? "Navegue pelas categorias" : ""}
-        </span>}
+        {!canSearch && <button type="button" aria-label={showNames ? `Voltar ao gráfico de ${title}` : `Ver nomes completos de ${title}`}
+          aria-pressed={showNames} onClick={() => setShowNames(value => !value)}
+          className={cn("inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold",
+            showNames ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
+          {showNames ? <BarChart3 size={12} /> : <List size={12} />}
+          {showNames ? "Gráfico" : "Ver nomes"}
+        </button>}
+        {canSearch && <button type="button" aria-label={showNames ? "Voltar ao gráfico de modelos" : "Ver modelos em lista"}
+          aria-pressed={showNames} onClick={() => setShowNames(value => !value)}
+          className={cn("inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold",
+            showNames ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
+          {showNames ? <BarChart3 size={12} /> : <List size={12} />}
+          <span className="hidden sm:inline">{showNames ? "Gráfico" : "Lista"}</span>
+        </button>}
         <div className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-semibold tabular-nums text-muted-foreground">
           <span>{categoryData.length ? (safePage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(safePage * PAGE_SIZE, categoryData.length)} de {categoryData.length}</span>
           <button type="button" aria-label={`Categorias anteriores de ${title}`}
@@ -124,6 +141,36 @@ export function DashboardOrderChartPanel({
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {!pageData.length
           ? <DashboardEmpty text={search ? "Nenhum modelo corresponde à busca." : "Sem dados para o período."} />
+          : showNames ? <div className="h-full overflow-y-auto divide-y divide-border/70 pr-1 [scrollbar-width:thin]">
+              {pageData.map((point,index) => {
+                const sla = visibleSlaData?.find(value => value.key === point.key);
+                const dotColor = point.color || palette[index % palette.length];
+                return <div key={point.key || point.name} className="py-2">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{backgroundColor:dotColor}}/>
+                    <button type="button" disabled={!onSelect}
+                      className={cn("min-w-0 flex-1 text-left text-xs font-semibold leading-5 text-foreground",
+                        onSelect && "hover:text-primary hover:underline")}
+                      onClick={() => onSelect?.(point)} title={point.name}>{point.name}</button>
+                    <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-foreground">{point.value} OS</span>
+                  </div>
+                  {sla && <div className="mt-1.5 flex flex-wrap gap-1 pl-[18px]">
+                    {([
+                      ["success", "No prazo", "#22c55e"],
+                      ["warning", "Atenção", "#f59e0b"],
+                      ["danger", "Estourado", "#ef4444"],
+                      ["neutral", "Sem SLA", "#94a3b8"],
+                    ] as const).map(([state,label,color]) => <button key={state} type="button"
+                      onClick={() => onSlaSelect?.(sla,state,sla.sla[state])}
+                      disabled={!onSlaSelect || sla.sla[state]===0}
+                      title={`${point.name}: ${label}, ${sla.sla[state]} OS`}
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground disabled:opacity-40 hover:bg-muted">
+                      <span className="size-1.5 rounded-full" style={{backgroundColor:color}}/>{label} {sla.sla[state]}
+                    </button>)}
+                  </div>}
+                </div>;
+              })}
+            </div>
           : visibleSlaData && mode !== "line" ? <DashboardSlaDistributionChart
             data={visibleSlaData} mode={mode} minHeight={chartHeight} fixedHeight={chartHeight}
             hideLegend={mode === "pie"} selectedKey={selectedKey} selectedState={selectedState}
@@ -139,10 +186,10 @@ export function DashboardOrderChartPanel({
             layout={mode === "horizontal" ? "vertical" : "horizontal"} />}
       </div>
       <p className="shrink-0 truncate text-[10px] font-medium text-muted-foreground"
-        title={CHART_EXPLANATIONS[chartKey]}>
-        <span className="mr-1.5 inline-block size-2 rounded-full align-middle"
-          style={{backgroundColor:accent}} aria-hidden="true" />
-        {CHART_EXPLANATIONS[chartKey]}
+        title={explanation}>
+        {chartKey !== "situation" && chartKey !== "status" && <span className="mr-1.5 inline-block size-2 rounded-full align-middle"
+          style={{backgroundColor:accent}} aria-hidden="true" />}
+        {explanation}
       </p>
     </div>
   </DashboardPanel>;
