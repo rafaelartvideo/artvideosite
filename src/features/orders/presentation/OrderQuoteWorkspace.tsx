@@ -280,7 +280,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         <div className="space-y-1">
           <FTextarea rows={4} label="Diagnóstico" required autoCapitalize="sentences"
             maxLength={MAX_TECHNICAL_CHARS} value={draft.diagnosis} disabled={!editable}
-            onChange={(e:any)=>setDraft(current=>({...current,diagnosis:capitalizeSentenceStarts(e.target.value).slice(0,MAX_TECHNICAL_CHARS)}))}/>
+            onChange={(e:any)=>{ const value=capitalizeSentenceStarts(String(e?.target?.value??"")).slice(0,MAX_TECHNICAL_CHARS); setDraft(current=>({...current,diagnosis:value})); }}/>
           <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
             {draft.diagnosis.length}/{MAX_TECHNICAL_CHARS} caracteres
           </p>
@@ -291,7 +291,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         <div className="space-y-1">
           <FTextarea rows={4} label="Solução proposta" required autoCapitalize="sentences"
             maxLength={MAX_TECHNICAL_CHARS} value={draft.proposed_solution} disabled={!editable}
-            onChange={(e:any)=>setDraft(current=>({...current,proposed_solution:capitalizeSentenceStarts(e.target.value).slice(0,MAX_TECHNICAL_CHARS)}))}/>
+            onChange={(e:any)=>{ const value=capitalizeSentenceStarts(String(e?.target?.value??"")).slice(0,MAX_TECHNICAL_CHARS); setDraft(current=>({...current,proposed_solution:value})); }}/>
           <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
             {draft.proposed_solution.length}/{MAX_TECHNICAL_CHARS} caracteres
           </p>
