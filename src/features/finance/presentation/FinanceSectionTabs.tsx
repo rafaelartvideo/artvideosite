@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, CreditCard, FolderTree, Landmark, LayoutDashboard, List, Settings2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, CreditCard, FolderTree, Landmark, LayoutDashboard, List, Settings2, TrendingDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSubsectionTabs, ADMIN_SUBSECTION_TAB_CLASS, ADMIN_SUBSECTION_TAB_ACTIVE_CLASS, ADMIN_SUBSECTION_TAB_INACTIVE_CLASS } from "@/shared/ui/admin/AdminSubsectionTabs";
@@ -11,6 +11,7 @@ const LABELS: Record<FinanceSection, string> = {
   payables: "A pagar",
   movements: "Extrato",
   accounts: "Contas e caixas",
+  losses: "Perdas",
   reports: "Relatórios",
   registries: "Configurações",
 };
@@ -21,6 +22,7 @@ const ICONS: Record<FinanceSection, LucideIcon> = {
   payables: ArrowUpRight,
   movements: List,
   accounts: Landmark,
+  losses: TrendingDown,
   reports: ChartNoAxesCombined,
   registries: Settings2,
 };
