@@ -23,6 +23,7 @@ const createEmptyOrderForm = () => ({
   service_id: "",
   general_service_id: "",
   service_type_id: "",
+  disposal_partner_id: "",
   seller_id: "",
   estimated_price: "",
   status_id: "",
@@ -116,6 +117,7 @@ export function useOrderFormState() {
       service_id: order.service_id || "",
       general_service_id: order.general_service_id || "",
       service_type_id: order.service_type_id || "",
+      disposal_partner_id: order.disposal_partner_id || "",
       seller_id: order.seller_id || "",
       estimated_price:
         order.estimated_price == null ? "" : String(order.estimated_price),
