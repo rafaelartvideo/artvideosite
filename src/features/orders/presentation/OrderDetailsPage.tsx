@@ -26,6 +26,8 @@ import { OrderDetailsContentSkeleton } from "./OrdersSkeletons";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { OrderTerminalExitDialog } from "./OrderTerminalExitDialog";
+import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
 import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { SignatureQrDialog } from "./SignatureQrDialog";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -127,8 +129,8 @@ export function OrderDetailsPage(props: Props) {
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
-  const [disposalConfirmOpen, setDisposalConfirmOpen] = useState(false);
-  const [disposalSubmitting, setDisposalSubmitting] = useState(false);
+  const [terminalOutcome,setTerminalOutcome] = useState<OrderTerminalOutcome|null>(null);
+  const [signaturePreferredDocType,setSignaturePreferredDocType] = useState<string|null>(null);
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [showDelayedSwitchLoading, setShowDelayedSwitchLoading] = useState(false);
   // Trocas rápidas em cache não exibem spinner/overlay: evita uma piscada
@@ -660,28 +662,6 @@ export function OrderDetailsPage(props: Props) {
     return <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Acesso restrito" subtitle="Você não possui permissão para acessar esta seção da OS." maxW="max-w-2xl"><div className="p-5"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>;
   }
 
-  const finalizeDisposal = async () => {
-    if (!detail || !isDisposal || disposalSubmitting || !hasPermission("orders.complete")) return;
-    setDisposalSubmitting(true);
-    try {
-      const { data, error } = await supabase.rpc("complete_disposal_service_order", {
-        p_service_order_id: detail.id,
-        p_organization_id: detail.organization_id,
-      });
-      if (error) throw error;
-      details.setDetail((current: any) => current?.id === detail.id
-        ? { ...current, is_solved: true, completed_at: data?.completed_at || new Date().toISOString(), completed_by: data?.completed_by, final_total: 0, order_status: { ...current.order_status, name: "Fechada" } }
-        : current);
-      setDisposalConfirmOpen(false);
-      notifyAdmin("Descarte finalizado. OS concluída sem lançamento financeiro.", "success");
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
-      void details.retryDetailLoad();
-    } catch (error) {
-      notifyAdmin(systemErrorMessage(error, "Não foi possível finalizar o descarte."), "error");
-    } finally {
-      setDisposalSubmitting(false);
-    }
-  };
 
   return <>
     {detail && (
@@ -695,32 +675,43 @@ export function OrderDetailsPage(props: Props) {
       />
     )}
     {whatsAppModal}
-    {detail && isDisposal && disposalConfirmOpen && <AdminDialog
-      open
-      onClose={() => { if (!disposalSubmitting) setDisposalConfirmOpen(false); }}
-      title="Finalizar descarte"
-      description={`Confirme a destinação da OS ${detail.os_number || ""}.`}
-      className="max-w-lg"
-      footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <BtnSecondary disabled={disposalSubmitting} onClick={() => setDisposalConfirmOpen(false)}>Voltar</BtnSecondary>
-        <BtnPrimary disabled={disposalSubmitting} loading={disposalSubmitting} loadingText="Finalizando..." onClick={() => void finalizeDisposal()}>Confirmar descarte</BtnPrimary>
-      </div>}
-    >
-      <div className="space-y-2 p-1 text-sm text-foreground">
-        <p>Esta ação confirma que o equipamento foi destinado ao descarte e encerra a OS.</p>
-        <p>Instituição destinatária: <strong>{detail.disposal_partner?.name || "Não informada"}</strong>.</p>
-        <p className="text-muted-foreground">Não serão gerados pagamentos, serviços, peças ou garantia.</p>
-      </div>
-    </AdminDialog>}
+    {detail && !monitorView && terminalOutcome && <OrderTerminalExitDialog
+      key={detail.id+"-"+terminalOutcome}
+      order={detail}
+      outcome={terminalOutcome}
+      templates={printTemplates.templates}
+      onRequestSignature={docType=>{
+        setTerminalOutcome(null);
+        setSignaturePreferredDocType(docType);
+        setSignatureRequestOpen(true);
+      }}
+      onClose={()=>setTerminalOutcome(null)}
+      onDone={result=>{
+        setTerminalOutcome(null);
+        details.setDetail((current:any)=>current?.id===detail.id
+          ? {...current,is_solved:true,completed_at:result.completed_at,
+            closure_outcome:result.outcome,final_total:0,
+            order_status:{...(current.order_status||{}),name:"Fechada"}}
+          :current);
+        notifyAdmin(result.outcome==="disposal_confirmed"
+          ? "Descarte confirmado. OS fechada com termo e evidência."
+          : "Devolução sem reparo confirmada. OS fechada com termo e evidência.","success");
+        void queryClient.invalidateQueries({queryKey:["orders"]});
+        void queryClient.invalidateQueries({queryKey:["finance","losses",detail.organization_id]});
+        void queryClient.invalidateQueries({queryKey:["inventory"]});
+        void details.retryDetailLoad();
+      }}
+    />}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
       templates={printTemplates.templates}
+      preferredDocumentType={signaturePreferredDocType}
       usedItems={detailUsedItems}
       partRequests={detailPartRequests}
       history={details.detailHistory}
       printedBy={profileName}
-      onClose={() => setSignatureRequestOpen(false)}
+      onClose={() => {setSignatureRequestOpen(false);setSignaturePreferredDocType(null);}}
       onCreated={result => {
         if (result.link) setSignatureQrLink(result.link);
         const feedback = signatureRequestCreationFeedback(result);
@@ -817,7 +808,7 @@ export function OrderDetailsPage(props: Props) {
               <OrderCustomerDetailsSection
                 detail={detail}
                 hasPermission={hasPermission}
-                onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
+                onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => {setSignaturePreferredDocType(null);setSignatureRequestOpen(true);} : undefined}
                 onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac) ? openOrderWhatsApp : undefined}
               />
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
@@ -868,7 +859,7 @@ export function OrderDetailsPage(props: Props) {
             hasPermission={hasPermission}
             orderImages={orderImages}
             onViewImage={setViewImage}
-            onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
+            onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => {setSignaturePreferredDocType(null);setSignatureRequestOpen(true);} : undefined}
             onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac)
               ? openOrderWhatsApp
               : undefined}
@@ -907,7 +898,8 @@ export function OrderDetailsPage(props: Props) {
         onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }}
         onRequestParts={openPartRequestModal}
         onResolve={() => openSolveOrder(detail)}
-        onComplete={isDisposal ? () => setDisposalConfirmOpen(true) : openCompletion}
+        onComplete={isDisposal ? () => setTerminalOutcome("disposal_confirmed") : openCompletion}
+        onTerminalExit={setTerminalOutcome}
         onEdit={() => { void openEdit(detail); }}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
