@@ -583,7 +583,7 @@ function entityLabel(entry: AuditLogEntry) {
   return ENTITY_LABELS[entry.entity_type || ""] || humanizeKey(entry.entity_type || "Registro");
 }
 
-export function TabAuditLog() {
+export function TabAuditLog({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId } = useAuth();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => initialPageSize([20, 50, 100], ADMIN_PAGE_SIZE_STORAGE_KEY, 20));
@@ -656,6 +656,8 @@ export function TabAuditLog() {
       <PageHeader
         title="Auditoria"
         subtitle="Histórico de alterações realizadas nos dados do CRM."
+        className="flex-row items-center justify-between gap-3 sm:!items-center"
+        actions={<AdminButton variant="secondary" size="sm" onClick={onBack}>Voltar</AdminButton>}
       />
 
       <AdminSearchPanel title="Buscar na auditoria" headerActions={<>
