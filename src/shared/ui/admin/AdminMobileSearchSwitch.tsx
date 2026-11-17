@@ -30,7 +30,7 @@ export function AdminMobileSearchSwitch<T extends string>({
 }) {
   const selected = options.find(option => option.value === value) || options[0];
 
-  return <div className={mobileOnly ? "space-y-3 md:hidden" : "space-y-3"}>
+  return <div className={mobileOnly ? "admin-mobile-search-switch space-y-3 md:hidden" : "admin-mobile-search-switch space-y-3"}>
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
