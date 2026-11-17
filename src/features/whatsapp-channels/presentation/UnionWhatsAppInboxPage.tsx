@@ -11,6 +11,7 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
+import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import {
@@ -348,6 +349,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
   const { activeOrganizationId, hasPermission, user, profile } = useAuth();
+  const sharedActivity = useWhatsAppActivity();
   const location = useLocation();
   const canView = hasPermission("whatsapp.inbox.view");
   const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
@@ -769,6 +771,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
+    // A instância persistente já verificou canal/permissões: não repetir RPC
+    // a cada abertura do módulo ou do modal de atendimento.
+    if (sharedActivity) {
+      setCapabilities(sharedActivity.capabilities);
+      setChannelReady(sharedActivity.channelReady);
+      setActiveChannelId(sharedActivity.channelReady ? sharedActivity.channelId : null);
+      setActiveChannelPhone(sharedActivity.channelReady ? sharedActivity.channelPhone : null);
+      return;
+    }
     try {
       const response = await operateUnionWhatsAppInbox(
         activeOrganizationId, crypto.randomUUID(), "channel_status",
@@ -788,7 +799,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         reportError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
-  }, [activeOrganizationId, canView, reportError]);
+  }, [activeOrganizationId, canView, reportError, sharedActivity?.channelReady,
+      sharedActivity?.channelId, sharedActivity?.channelPhone, sharedActivity?.capabilities]);
   useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setCapabilities({});  void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
@@ -867,12 +879,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
       schedule(threadId,true);
     };
-    const realtime=supabase.channel(`union-whatsapp-${activeOrganizationId}-${activeChannelId}`)
-      .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_conversations",
-        filter:`account_phone=eq.${activeChannelPhone}`},changedConversation)
-      .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_messages",
-        filter:`account_phone=eq.${activeChannelPhone}`},changedMessage)
-      .subscribe();
+    // No admin, os dois painéis consomem o mesmo canal persistente.
+    // O fallback direto é reservado a contextos isolados sem o provedor.
+    let stopShared:(()=>void)|null=null;
+    let realtime:ReturnType<typeof supabase.channel>|null=null;
+    if (sharedActivity) {
+      stopShared=sharedActivity.subscribe(event=>{
+        if(event.kind==="conversation")changedConversation({new:event.row});
+        else changedMessage({eventType:event.eventType,new:event.row});
+      });
+    } else {
+      realtime=supabase.channel(`union-whatsapp-${activeOrganizationId}-${activeChannelId}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_conversations",
+          filter:`account_phone=eq.${activeChannelPhone}`},changedConversation)
+        .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_messages",
+          filter:`account_phone=eq.${activeChannelPhone}`},changedMessage)
+        .subscribe();
+    }
     // Reconcile on returning to the tab, not an expensive 30-second poll.
     let lastResume = 0;
     const onResume = () => {
@@ -886,9 +909,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (debounce !== null) window.clearTimeout(debounce);
       window.removeEventListener("focus", onResume);
       document.removeEventListener("visibilitychange", onResume);
-      void supabase.removeChannel(realtime);
+      stopShared?.();
+      if(realtime)void supabase.removeChannel(realtime);
     };
-  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, refresh, checkChannel]);
+  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, refresh,
+      checkChannel, sharedActivity?.subscribe]);
 
   useLayoutEffect(() => {
     messageCursorRef.current=null;
