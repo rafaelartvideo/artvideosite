@@ -11,6 +11,8 @@ import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate
 import {
   completeServiceOrderWithFinance,
   getOrderCompletionFinanceOptions,
+  listOrderWarrantyPartners,
+  type OrderWarrantyPartner,
   type OrderCompletionFinanceOptions,
 } from "../infrastructure/order-finance.repository";
 import {
@@ -163,6 +165,14 @@ export function useOrderCompletion({
   const [financeOptions, setFinanceOptions] = useState<OrderCompletionFinanceOptions>(emptyFinanceOptions);
   const [financeOptionsLoading, setFinanceOptionsLoading] = useState(false);
   const [financeOptionsError, setFinanceOptionsError] = useState("");
+  const [warrantyPartners,setWarrantyPartners] = useState<OrderWarrantyPartner[]>([]);
+  const [warrantyPartnersLoading,setWarrantyPartnersLoading] = useState(false);
+  const [warrantyPartnersError,setWarrantyPartnersError] = useState("");
+  const [warrantyPayerId,setWarrantyPayerId] = useState("");
+  const [warrantyReceivableValue,setWarrantyReceivableValue] = useState("");
+  const [warrantyReceivableDueDate,setWarrantyReceivableDueDate] = useState(todayIsoDate());
+  const [warrantyReceivableNotes,setWarrantyReceivableNotes] = useState("");
+  const warrantyPartnerRequestRef = useRef(0);
   const [commercialItems, setCommercialItems] = useState<OrderCommercialItem[]>([]);
   const [commercialItemsLoading, setCommercialItemsLoading] = useState(false);
   const [commercialItemsError, setCommercialItemsError] = useState("");
@@ -178,6 +188,8 @@ export function useOrderCompletion({
   const generatesWarranty = Boolean(detail?.service_type?.quote_workflow_enabled === true
     && detail?.service_type?.generates_warranty === true);
   const financeEnabled = financeOptions.finance_enabled;
+  // Garantia de fabricante: consumidor não paga, mas existe um título a receber do parceiro.
+  const noCustomerCharge = detail?.service_type?.charge_customer === false;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
   const priceAtCompletion = !commercialPricing && Boolean(detail?.general_service?.price_at_completion);
   const configuredServicePrice = commercialPricing
@@ -187,7 +199,7 @@ export function useOrderCompletion({
   const servicePrice = priceAtCompletion
     ? (Number.isFinite(parsedServicePriceInput) ? Math.max(0, parsedServicePriceInput) : 0)
     : configuredServicePrice;
-  const servicePriceValidationMessage = priceAtCompletion
+  const servicePriceValidationMessage = priceAtCompletion && !noCustomerCharge
     ? servicePriceInput.trim() === ""
       ? "Informe o valor do serviço."
       : !Number.isFinite(parsedServicePriceInput) || parsedServicePriceInput < 0
@@ -210,16 +222,27 @@ export function useOrderCompletion({
   const maxDiscountPercentage = commercialPricing ? 100 : Number(detail?.general_service?.max_discount_percentage || 0);
   const maxDiscountAmount = commercialPricing ? subtotal : Number(detail?.general_service?.max_discount_amount || 0);
   const discountValue = Math.max(0, Number(discount) || 0);
-  const discountAmount = coverageFree ? subtotal : discountMode === "amount"
+  const discountAmount = coverageFree || noCustomerCharge ? subtotal : discountMode === "amount"
     ? discountValue
     : discountBase * discountValue / 100;
-  const discountPercentage = coverageFree ? (subtotal > 0 ? 100 : 0) : discountMode === "percentage"
+  const discountPercentage = coverageFree || noCustomerCharge ? (subtotal > 0 ? 100 : 0) : discountMode === "percentage"
     ? discountValue
     : discountBase > 0 ? discountAmount * 100 / discountBase : 0;
   const maxDiscount = discountMode === "percentage" ? maxDiscountPercentage : maxDiscountAmount;
-  const discountExceedsMax = !coverageFree && discountValue > maxDiscount;
-  const discountExceedsServicePrice = !coverageFree && discountAmount > discountBase + 0.009;
+  const discountExceedsMax = !coverageFree && !noCustomerCharge && discountValue > maxDiscount;
+  const discountExceedsServicePrice = !coverageFree && !noCustomerCharge && discountAmount > discountBase + 0.009;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+  const warrantyReceivableNumber = Number(warrantyReceivableValue);
+  const warrantyReceivableValidationMessage = !noCustomerCharge ? "" :
+    financeOptionsLoading ? "Consultando Financeiro..." :
+    !financeEnabled ? "Ative o módulo Financeiro para gerar a conta a receber." :
+    Boolean(financeOptionsError) ? "Não foi possível consultar o Financeiro: " + financeOptionsError :
+    warrantyPartnersLoading ? "Consultando parceiros..." :
+    warrantyPartnersError ? "Não foi possível carregar os parceiros: " + warrantyPartnersError :
+    !warrantyPayerId ? "Selecione o fabricante ou parceiro responsável pelo pagamento." :
+    !Number.isFinite(warrantyReceivableNumber) || warrantyReceivableNumber<=0 ? "Informe um valor a receber maior que zero." :
+    !/^\d{4}-\d{2}-\d{2}$/.test(warrantyReceivableDueDate) ? "Informe o vencimento da conta a receber." : "";
 
   const installmentTotal = useMemo(
     () => Math.round(installments.reduce((total, item) => total + Math.max(0, Number(item.amount) || 0), 0) * 100) / 100,
@@ -286,6 +309,19 @@ export function useOrderCompletion({
     finally { setWarrantyLoading(false); }
   };
 
+  const loadWarrantyPartners = async (organizationId:string) => {
+    const requestId=++warrantyPartnerRequestRef.current;
+    setWarrantyPartnersLoading(true);setWarrantyPartnersError("");setWarrantyPartners([]);
+    try{
+      const partners=await listOrderWarrantyPartners(organizationId);
+      if(requestId===warrantyPartnerRequestRef.current)setWarrantyPartners(partners);
+    }catch(error){
+      if(requestId===warrantyPartnerRequestRef.current)setWarrantyPartnersError(formatError(error));
+    }finally{
+      if(requestId===warrantyPartnerRequestRef.current)setWarrantyPartnersLoading(false);
+    }
+  };
+
   const loadFinanceOptions = async (organizationId: string) => {
     setFinanceOptionsLoading(true);
     setFinanceOptionsError("");
@@ -329,11 +365,11 @@ export function useOrderCompletion({
     try {
       const config = await getOrderCompletionEvidenceConfig(organizationId, serviceOrderId);
       if (paymentProofRequirementRequestRef.current !== requestId) return;
-      setPaymentProofEnabled(config.payment_enabled);
+      setPaymentProofEnabled(config.payment_enabled && !freeCoverage);
       setPaymentProofRequired(config.payment_required && !freeCoverage);
       setDeliveryEvidenceEnabled(config.delivery_enabled);
       setDeliveryEvidenceRequired(config.delivery_required);
-      if (config.payment_enabled && !config.payment_attachment_type_id) {
+      if (config.payment_enabled && !freeCoverage && !config.payment_attachment_type_id) {
         throw new Error("O comprovante de pagamento não está configurado para esta empresa.");
       }
       if (config.delivery_enabled && !config.delivery_attachment_type_id) {
@@ -437,6 +473,14 @@ export function useOrderCompletion({
     }
     const targetCoverageFree = Boolean(target?.return_root_id
       && (target.return_classification === "covered" || target.return_classification === "courtesy"));
+    const targetNoCustomerCharge = (target?.service_type ?? detail?.service_type)?.charge_customer === false;
+    setWarrantyPayerId("");
+    setWarrantyReceivableValue("");
+    setWarrantyReceivableDueDate(todayIsoDate());
+    setWarrantyReceivableNotes("");
+    setWarrantyPartners([]);
+    setWarrantyPartnersError("");
+    warrantyPartnerRequestRef.current+=1;
 
     paymentProofRequestRef.current += 1;
     const requirementRequestId = ++paymentProofRequirementRequestRef.current;
@@ -480,7 +524,7 @@ export function useOrderCompletion({
     const targetDiscountAmount = targetDiscountMode === "amount"
       ? targetDiscountValue
       : targetDiscountBase * targetDiscountValue / 100;
-    const targetFinalTotal = targetCoverageFree ? 0 : Math.max(0, Math.round((targetSubtotal - targetDiscountAmount) * 100) / 100);
+    const targetFinalTotal = targetCoverageFree || targetNoCustomerCharge ? 0 : Math.max(0, Math.round((targetSubtotal - targetDiscountAmount) * 100) / 100);
 
     setDiscount(String(targetDiscountValue));
     setDiscountModeState(targetDiscountMode);
@@ -496,9 +540,10 @@ export function useOrderCompletion({
     const organizationId = target?.organization_id || detail?.organization_id;
     if (organizationId) {
       void loadFinanceOptions(String(organizationId));
+      if (targetNoCustomerCharge) void loadWarrantyPartners(String(organizationId));
       if (generatesWarranty) void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
       if (targetOrderId) {
-        void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId, targetCoverageFree);
+        void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId, targetCoverageFree || targetNoCustomerCharge);
       } else {
         setPaymentProofRequirementError("Não foi possível identificar a OS.");
         setPaymentProofRequirementLoading(false);
@@ -561,6 +606,15 @@ export function useOrderCompletion({
   };
 
   const buildFinancePayload = () => {
+    if (noCustomerCharge) return {
+      installments: [], payments: [] as [], reported_receipts: [], payment_plan: [], payment_preferences: [],
+      partner_receivable: {
+        entity_id:warrantyPayerId,
+        amount:Math.round(warrantyReceivableNumber*100)/100,
+        due_date:warrantyReceivableDueDate,
+        notes:warrantyReceivableNotes.trim(),
+      },
+    };
     if (!financeEnabled || finalTotal <= 0) return { installments: [], payments: [] as [], reported_receipts: [], payment_plan: [], payment_preferences: [] };
 
     const installmentPayload = installments.map((item, index) => ({
@@ -604,6 +658,9 @@ export function useOrderCompletion({
       return;
     }
     if (financeValidationMessage) { showToast({ msg: financeValidationMessage, type: "error" }); return; }
+    if (warrantyReceivableValidationMessage) {
+      showToast({ msg: warrantyReceivableValidationMessage, type: "error" }); return;
+    }
     if (generatesWarranty && (warrantyLoading || warrantyError)) {
       showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
       return;
@@ -670,7 +727,7 @@ export function useOrderCompletion({
       }
 
       const priceOverride = commercialPricing ? null : priceAtCompletion ? (coverageFree ? 0 : servicePrice) : null;
-      const response = financeEnabled
+      const response = (financeEnabled || noCustomerCharge)
         ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
         : await completeServiceOrder(detail.id, priceOverride, discountMode, discountValue);
       const { data, error } = response;
@@ -732,7 +789,13 @@ export function useOrderCompletion({
   return {
     open, setOpen, discount, setDiscount, discountMode, setDiscountMode, discountValue, usedItems, commercialPricing,
     generatesWarranty,
-    coverageFree, returnAwaitingClassification,
+    coverageFree, noCustomerCharge, returnAwaitingClassification,
+    warrantyPartners,warrantyPartnersLoading,warrantyPartnersError,
+    warrantyPayerId,setWarrantyPayerId,
+    warrantyReceivableValue,setWarrantyReceivableValue,warrantyReceivableNumber,
+    warrantyReceivableDueDate,setWarrantyReceivableDueDate,
+    warrantyReceivableNotes,setWarrantyReceivableNotes,
+    warrantyReceivableValidationMessage,
     priceAtCompletion, servicePriceInput, setServicePriceInput, servicePrice, servicePriceValidationMessage,
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
