@@ -432,12 +432,16 @@ export function DashboardSlaDistributionChart({
   );
 }
 
-export function DashboardLineChart({ data, color = "#0057e7", money = false, fixedHeight }: { data: DashboardChartPoint[]; color?: string; money?: boolean; fixedHeight?: number }) {
+export function DashboardLineChart({ data, color = "#0057e7", money = false, fixedHeight, onSelect }: { data: DashboardChartPoint[]; color?: string; money?: boolean; fixedHeight?: number; onSelect?: (point: DashboardChartPoint) => void }) {
   if (!data.length) return <DashboardEmpty text="Sem movimentação no período." />;
   return (
     <div className="h-full min-h-[210px] w-full" style={fixedHeight ? {height:fixedHeight,minHeight:fixedHeight}:undefined}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, left: money ? -4 : -22, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: money ? -4 : -22, bottom: 0 }}
+          onClick={(event: any) => {
+            const point = event?.activePayload?.[0]?.payload as DashboardChartPoint | undefined;
+            if (point) onSelect?.(point);
+          }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8edf4" />
           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} minTickGap={18} />
           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#718096" }} tickFormatter={value => money ? `R$ ${Number(value) / 1000 >= 1 ? `${(Number(value) / 1000).toFixed(0)}k` : value}` : String(value)} />
