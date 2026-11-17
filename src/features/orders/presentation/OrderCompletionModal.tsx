@@ -19,7 +19,8 @@ import type { OrderCommercialItem } from "../infrastructure/order-commercial-ite
 import { OrderCompletionPaymentSection, OrderCompletionEvidenceSection } from "./OrderCompletionPaymentSection";
 import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 import { OrderConclusionButton } from "./OrderConclusionButton";
-import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { useAuth } from "@/lib/auth";
+import { useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 
 function customerAddress(customer: any): Address | null {
   const addresses = (Array.isArray(customer?.addresses) ? customer.addresses : []) as Address[];
@@ -41,6 +42,9 @@ function CustomerQuickActions({ customer, orderId, organizationId }: { customer:
   const mapUrl = getAddressMapUrl(address);
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
+  const { hasPermission } = useAuth();
+  const { openWhatsAppConversation, whatsAppModal } = useWhatsAppConversationModal();
+  const canOpenWhatsApp = Boolean(whatsappContact.whatsapp && hasPermission("whatsapp.inbox.view"));
   const actionClass = "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors";
 
   return <>
@@ -64,23 +68,32 @@ function CustomerQuickActions({ customer, orderId, organizationId }: { customer:
       </button>
     )}
 
-    {whatsappContact.whatsapp ? (
-      <CompanyWhatsAppAction
-        phone={customer?.whatsapp || customer?.phone}
-        name={customerName(customer)}
-        organizationId={organizationId}
-        title="Abrir conversa no WhatsApp"
-        className={`${actionClass} border-emerald-200 bg-card text-emerald-700 hover:bg-emerald-50`}
-      >
-        <WhatsAppBrandIcon size={14} />
-        <span className="hidden md:inline">WhatsApp</span>
-      </CompanyWhatsAppAction>
-    ) : (
-      <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${actionClass} cursor-not-allowed border-border bg-card text-muted-foreground opacity-50`}>
-        <WhatsAppBrandIcon size={14} />
-        <span className="hidden md:inline">WhatsApp</span>
-      </button>
-    )}
+    <button
+      type="button"
+      disabled={!canOpenWhatsApp}
+      aria-label="Abrir atendimento WhatsApp"
+      title={!whatsappContact.whatsapp ? "WhatsApp não disponível" :
+        !canOpenWhatsApp ? "Você não possui permissão para visualizar atendimentos WhatsApp" : "Abrir atendimento WhatsApp"}
+      className={`${actionClass} ${canOpenWhatsApp
+        ? "border-emerald-200 bg-card text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+        : "cursor-not-allowed border-border bg-card text-muted-foreground opacity-50"}`}
+      onClick={() => {
+        if (!canOpenWhatsApp) return;
+        openWhatsAppConversation({
+          organizationId,
+          source: {
+            kind: "order",
+            orderId,
+            customerId: customer?.id || undefined,
+            phone: String(customer?.whatsapp || customer?.phone || ""),
+            customerName: customerName(customer),
+          },
+        });
+      }}
+    >
+      <WhatsAppBrandIcon size={14} />
+      <span className="hidden md:inline">WhatsApp</span>
+    </button>
 
     {mapUrl ? (
       <a
@@ -100,6 +113,7 @@ function CustomerQuickActions({ customer, orderId, organizationId }: { customer:
         <span className="hidden md:inline">Mapa</span>
       </button>
     )}
+    {whatsAppModal}
   </>;
 }
 
