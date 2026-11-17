@@ -1,4 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import type { RuleSet } from "../domain/order-rules";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
@@ -26,6 +28,7 @@ function isoToLocalOrderTime(value: string): string {
 }
 
 export function OrderInformationSection({
+  isDisposal = false,
   form,
   editingOrder,
   rules,
@@ -47,6 +50,7 @@ export function OrderInformationSection({
   getSituations,
   getSla,
 }: {
+  isDisposal?: boolean;
   form: any;
   editingOrder: any;
   rules: RuleSet;
@@ -77,6 +81,22 @@ export function OrderInformationSection({
 }) {
   const editingOS = editingOrder;
   const { activeOrganizationId } = useAuth();
+  const disposalPartners = useQuery({
+    queryKey: ["registrations", "disposal-partners", activeOrganizationId || "none"],
+    enabled: isDisposal && Boolean(activeOrganizationId),
+    staleTime: 120_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("entities")
+        .select("id,name,roles:entity_roles!inner(role,is_active)")
+        .eq("organization_id", activeOrganizationId!)
+        .eq("is_active", true)
+        .eq("roles.role", "partner")
+        .eq("roles.is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data || []).map((row: any) => ({ id: String(row.id), name: String(row.name || "") }));
+    },
+  });
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleStart = String(form.scheduled_at || "");
   const scheduleEnd = String(form.scheduled_end_at || "");
@@ -111,8 +131,15 @@ export function OrderInformationSection({
   return (
 <Section title="Informações da OS">
               <div className="grid sm:grid-cols-2 gap-4">
-                <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => { const serviceTypeId = e.target.value; upF("service_type_id", serviceTypeId); const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId); if (form.situation_id && links.length > 0 && !links.some(link => link.situation_id === form.situation_id)) upF("situation_id", ""); }} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
-                <div><FSelect label="Situação" required value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...getSituationsForType(form.service_type_id, editingOS?.situation_id, editingOS?.situation).map(s => ({ value: s.id, label: s.name }))]} />{(() => { const sla = getSlaForOrder(form.service_type_id, form.situation_id); return sla ? <p className="mt-1 text-xs font-semibold text-[#5a6a82]">SLA desta situação: {sla.hours} horas ({sla.isDefault ? "padrão" : "personalizado"})</p> : null; })()}</div>
+                <FSelect label="Tipo de atendimento" required={!editingOS} value={form.service_type_id} onChange={(e: any) => { const serviceTypeId = e.target.value; upF("service_type_id", serviceTypeId); if (!serviceTypes.some(type => type.id === serviceTypeId && type.is_disposal === true)) upF("disposal_partner_id", ""); const links = serviceTypeSituations.filter(link => link.service_type_id === serviceTypeId); if (form.situation_id && links.length > 0 && !links.some(link => link.situation_id === form.situation_id)) upF("situation_id", ""); }} options={[{ value: "", label: "Selecionar tipo..." }, ...serviceTypes.map(type => ({ value: type.id, label: type.title }))]} />
+                <div><FSelect label="Situação" required value={form.situation_id} onChange={(e: any) => upF("situation_id", e.target.value)} options={[{ value: "", label: "Selecionar situação..." }, ...getSituationsForType(form.service_type_id, editingOS?.situation_id, editingOS?.situation).map(s => ({ value: s.id, label: s.name }))]} />{(() => { const sla = getSlaForOrder(form.service_type_id, form.situation_id); return !isDisposal && sla ? <p className="mt-1 text-xs font-semibold text-[#5a6a82]">SLA desta situação: {sla.hours} horas ({sla.isDefault ? "padrão" : "personalizado"})</p> : null; })()}</div>
+                {isDisposal && <div className="sm:col-span-2">
+                  <FSelect label="Instituição destinada ao descarte" value={form.disposal_partner_id || ""}
+                    onChange={(event: any) => upF("disposal_partner_id", event.target.value)}
+                    options={[{ value: "", label: disposalPartners.isPending ? "Carregando parceiros..." : "Selecionar parceiro..." }, ...(disposalPartners.data || []).map(partner => ({ value: partner.id, label: partner.name }))]} />
+                  {disposalPartners.isError && <p className="mt-1 text-xs text-destructive">Não foi possível consultar os parceiros cadastrados.</p>}
+                </div>}
+                {!isDisposal && <>
                 {!editingOS && !needsScheduling && <EmployeeMultiSelect label="Técnicos" employees={employees} loading={employeesLoading} selectedIds={selectedTechnicianIds} onChange={setSelectedTechnicianIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar técnicos" clearLabel="Limpar Técnicos" />}
                 <EmployeeMultiSelect label="Vendedores" employees={employees} loading={employeesLoading} selectedIds={selectedSellerIds} onChange={setSelectedSellerIds} disabled={!hasPermission("orders.assign")} placeholder="Selecionar vendedores" clearLabel="Limpar Vendedores" />
                 <FSelect label="Prioridade" value={editingOS?.return_root_id ? "urgente" : form.priority} disabled={Boolean(editingOS?.return_root_id)} onChange={(e: any) => upF("priority", e.target.value)} options={[{ value: "baixa", label: "Baixa" }, { value: "normal", label: "Normal" }, { value: "alta", label: "Alta" }, { value: "urgente", label: "Urgente" }]} />
@@ -195,11 +222,12 @@ export function OrderInformationSection({
                     />
                   )}
                 </div>}
+                </>}
               </div>
-              <div className="mt-4 space-y-4">
+              {!isDisposal && <div className="mt-4 space-y-4">
                 {(rules.fields.customer_notes?.mode!=="hidden"||Boolean(editingOS&&form.customer_notes))&&<FTextarea label="Descrição do problema" required={!editingOS&&rules.fields.customer_notes?.mode==="required"&&rules.fields.customer_notes?.stage==="create"} autoCapitalize="sentences" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", capitalizeSentenceStarts(e.target.value))} rows={4} />}
                 {(rules.fields.internal_notes?.mode!=="hidden"||Boolean(editingOS&&form.internal_notes))&&<FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />}
-              </div>
+              </div>}
             </Section>
   );
 }
