@@ -138,6 +138,8 @@ export function useOrderCompletion({
   setSaving: Dispatch<SetStateAction<boolean>>;
 }) {
   const [open, setOpen] = useState(false);
+  const [billingPreparing,setBillingPreparing] = useState(false);
+  const [billingError,setBillingError] = useState("");
   const [completionChargeCustomer, setCompletionChargeCustomer] = useState<{orderId:string;value:boolean}|null>(null);
   const completionBillingRequestRef = useRef(0);
   const queryClient = useQueryClient();
@@ -429,39 +431,53 @@ export function useOrderCompletion({
     setFinanceOptionsError("");
   };
 
-  const openCompletion = async (orderOverride?: unknown) => {
+  const closeCompletion = () => {
+    // Invalidar a leitura da cobrança antes de fechar: uma resposta atrasada
+    // nunca deve reabrir um modal que o operador já cancelou.
+    completionBillingRequestRef.current += 1;
+    setBillingPreparing(false);
+    setBillingError("");
+    setOpen(false);
+  };
+  const openCompletion = async (orderOverride?: unknown):Promise<boolean> => {
     const target = isOrderOverride(orderOverride) ? orderOverride : detail;
     if (!hasPermission("orders.complete")) {
       showToast({ msg: "Você não possui permissão para concluir a OS.", type: "error" });
-      return;
+      return false;
     }
     if (!target?.is_solved) {
       showToast({ msg: "Resolva a OS antes de concluir.", type: "error" });
-      return;
+      return false;
     }
     if (target?.completed_at) {
       showToast({ msg: "Esta OS já foi concluída.", type: "error" });
-      return;
+      return false;
     }
     if (target?.return_root_id && (!target?.return_classification || target.return_classification === "analysis")) {
       showToast({ msg: "Classifique a garantia do retorno antes de abrir a conclusão.", type: "error" });
-      return;
+      return false;
     }
     // A configuração pode ter sido alterada depois que a OS entrou no cache do CRM.
     // Consultar sempre o banco evita exibir Pagamento quando o check está desativado.
     if(!target?.id || !target?.organization_id){
       showToast({msg:"Não foi possível identificar a OS para consultar o tipo de cobrança.",type:"error"});
-      return;
+      return false;
     }
     const requestId=++completionBillingRequestRef.current;
+    setBillingError("");
+    setBillingPreparing(true);
+    setOpen(true);
     let chargeCustomer:boolean;
     try{
       chargeCustomer=await getOrderCompletionChargeCustomer(String(target.organization_id),String(target.id));
     }catch(error){
       if(requestId===completionBillingRequestRef.current){
-        showToast({msg:"Não foi possível verificar a cobrança deste atendimento: "+formatError(error),type:"error"});
+        const message="Não foi possível verificar a cobrança deste atendimento: "+formatError(error);
+        setBillingError(message);
+        setBillingPreparing(false);
+        showToast({msg:message,type:"error"});
       }
-      return;
+      return false;
     }
     if(requestId!==completionBillingRequestRef.current)return;
     setCompletionChargeCustomer({orderId:String(target.id),value:chargeCustomer});
@@ -522,8 +538,6 @@ export function useOrderCompletion({
     setFinanceOptions(emptyFinanceOptions());
     setCommercialItems([]);
     setCommercialItemsError("");
-    setOpen(true);
-
     const targetOrderId = target?.id || detail?.id;
     if (targetOrderId) void loadCommercialItems(String(targetOrderId));
     const organizationId = target?.organization_id || detail?.organization_id;
@@ -540,6 +554,8 @@ export function useOrderCompletion({
       setPaymentProofRequirementError("Não foi possível identificar a empresa.");
       setPaymentProofRequirementLoading(false);
     }
+    setBillingPreparing(false);
+    return true;
   };
 
   const setDiscountMode = (mode: OrderCompletionDiscountMode) => {
@@ -785,6 +801,6 @@ export function useOrderCompletion({
     warrantyOptions, warrantyOptionId, setWarrantyOptionId, warrantyLoading, warrantyError,
     completedSuccessfully, issuedCertificate, certificateError, certificateBusy, retryCertificate, printCertificate,
     reloadCommercialItems: () => detail?.id ? loadCommercialItems(String(detail.id)) : Promise.resolve(),
-    openCompletion, submit,
+    openCompletion, closeCompletion, billingPreparing, billingError, submit,
   };
 }
