@@ -49,3 +49,24 @@ test("Estilo 4 mantém contorno do Estilo 3 com cores vermelhas em ambos os tema
   assert.match(quote, /<AdminButton variant="quaternary" disabled=\{busy\} onClick=\{\(\)=>openAction\("reject"\)\}/);
   assert.doesNotMatch(quote, /<AdminButton variant="secondary" disabled=\{busy\} onClick=\{\(\)=>openAction\("reject"\)\}/);
 });
+
+test("editar campos da OS captura value antes dos atualizadores de estado, sem null.value", async () => {
+  const sources = [
+    ["OrderResolutionPage", "src/features/orders/presentation/OrderResolutionPage.tsx"],
+    ["OrderQuoteWorkspace", "src/features/orders/presentation/OrderQuoteWorkspace.tsx"],
+    ["OrderServiceLocationSection", "src/features/orders/presentation/OrderServiceLocationSection.tsx"],
+  ];
+  for (const [name, path] of sources) {
+    const code = source(path);
+    assert.ok((await transformWithEsbuild(code, name + ".tsx", { loader: "tsx" })).code);
+    // React pode executar uma atualização funcional depois de finalizar o evento.
+    // Nunca ler e.target.value DENTRO da função passada ao setState.
+    assert.doesNotMatch(code,
+      /set(?:SolveDraft|Draft|Form)\(\s*(?:current|previous|old)\s*=>[^\n]*?\b(?:e|event)\?\.target\?\.value/,
+      name + " não pode depender do evento dentro do updater");
+    assert.doesNotMatch(code,
+      /set(?:SolveDraft|Draft|Form)\(\s*(?:current|previous|old)\s*=>[^\n]*?\b(?:e|event)\.target\.value/,
+      name + " não pode reter DOM event no updater");
+    assert.match(code, /const value\s*=\s*/, name + " deve capturar o valor antes da atualização");
+  }
+});
