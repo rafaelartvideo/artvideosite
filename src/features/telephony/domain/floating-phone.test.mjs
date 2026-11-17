@@ -118,3 +118,19 @@ test("settings navigation restores originating channel configuration and keeps m
   assert.match(source,/createConnectionRequest=\{createRequest\}/);
   assert.match(source,/footerTarget=\{footerTarget\}/);
 });
+
+
+test("Mini-PABX e mini-Atendimentos usam a mesma borda de destaque da toolbar fixa",()=>{
+  const pbx=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
+  const whatsapp=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const css=read("src/styles/index.css");
+  for(const floating of [pbx,whatsapp]){
+    assert.match(floating,/data-admin-floating-panel="true"/);
+    assert.match(floating,/rounded-2xl border border-border bg-card/);
+  }
+  assert.match(css,/\.admin-crm\[data-admin-floating-panel="true"\] \{/);
+  assert.match(css,/border-color: var\(--primary\) !important/);
+  assert.match(css,/\.dark \.admin-crm\[data-admin-floating-panel="true"\]/);
+  assert.match(css,/border-color: var\(--primary-light\) !important/);
+  assert.match(css,/\[data-admin-sticky-toolbar="true"\]/);
+});
