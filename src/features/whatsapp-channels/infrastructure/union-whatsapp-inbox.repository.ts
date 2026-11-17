@@ -315,12 +315,12 @@ export async function operateUnionWhatsAppInbox(
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { filter?: "in_att"|"finished"|"forwarded"; channel_id?: string; department_filter?: string; text?: string; client_message_id?: string; reply_to_message_id?: string; no_operator_prefix?: boolean; message_ids?: string[]; target_user_id?: string; approve?: boolean; protocol_number?: number;
-    sticker_id?: string; is_favorite?: boolean; media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; unlink?: boolean; linked_conversation_id?: string; registered_phone_field?: "whatsapp"|"phone"; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string; warning_minutes?: number; critical_minutes?: number; show_wait_time?: boolean; show_queue_position?: boolean; show_forward_badges?: boolean } = {},
+    first_message?: string; sticker_id?: string; is_favorite?: boolean; media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; unlink?: boolean; linked_conversation_id?: string; registered_phone_field?: "whatsapp"|"phone"; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string; warning_minutes?: number; critical_minutes?: number; show_wait_time?: boolean; show_queue_position?: boolean; show_forward_badges?: boolean } = {},
   mediaRequestSignal?: AbortSignal,
 ): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; provider_message_id?: string; conversation_id?: string; contact_name?: string; name_source?: "agenda"|"agenda_whatsapp"|"conversa"|"whatsapp"|null; avatar_url?: string | null; contacts?: UnionWhatsAppContact[]; groups?: UnionWhatsAppGroup[]; total?: number; imported?: number; truncated?: boolean; contact?: UnionWhatsAppContact; phone?: string; adjusted?: boolean; distinct_identities?: boolean; verified_name?: string; alternatives?: Array<{phone:string;query?:string;verified_name?:string}>; customer?: {id:string;name:string;customer_type?:string|null;gender?:string|null;document?:string|null;cnpj?:string|null;trade_name?:string|null;legal_name?:string|null;email?:string|null;phone?:string|null;whatsapp?:string|null;state_registration?:string|null;municipal_registration?:string|null;addresses?:Array<{id:string;street:string|null;number:string|null;complement:string|null;neighborhood:string|null;city:string|null;state:string|null;zip_code:string|null;reference:string|null;is_default:boolean|null}>} | null; ambiguous?: boolean; channel_connected?: boolean; channel_id?: string|null; channel_phone?: string|null; staff_role?: "manager"|"operator"|"both"|null; capabilities?: Record<string,boolean>; capability_definitions?: Array<{key:string;label:string;category:"Conversas"|"Administração";sort_order:number;manager:boolean;operator:boolean}>; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean;is_default?:boolean}>; member_ids?: string[]; operators?: Array<{id:string;name:string;eligible:boolean;can_attend:boolean;is_active:boolean;staff_role:"manager"|"operator"|"both";is_manager?:boolean}>;
   operator_counts?: Record<string,number>;
   participants?: UnionWhatsAppParticipant[]; participation_status?: "requested" | "active";
-  found?: boolean; can_start?: boolean; participating?: boolean; responsible_name?: string | null;
+  found?: boolean; can_start?: boolean; first_message_sent?: boolean; participating?: boolean; responsible_name?: string | null;
   queue_settings?: UnionWhatsAppQueueSettings;
   stickers?: UnionWhatsAppSavedSticker[]; saved_message_ids?: string[]; sticker_id?: string; already_saved?: boolean;
   orders?: Array<{id:string;os_number:string;created_at:string;customer_name?:string}>;
@@ -365,12 +365,12 @@ export async function startUnionWhatsAppWithFirstMessage(
   const text=message.trim();
   if(!text)throw new Error("Digite a primeira mensagem antes de iniciar o atendimento.");
   if(text.length>4000)throw new Error("Mensagem muito longa. Reduza o texto.");
-  const started=await operateUnionWhatsAppInbox(
-    organizationId,crypto.randomUUID(),"start",{phone,contact_name:contactName},
-  );
-  if(!started.conversation_id)throw new Error("Não foi possível iniciar a conversa.");
-  await operateUnionWhatsAppInbox(organizationId,started.conversation_id,"send_text",{
-    text,client_message_id:crypto.randomUUID(),
+  // start + envio são tratados como uma única intenção no backend.
+  // A ponte confirma a mensagem antes da criação/reabertura do protocolo.
+  const sent=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"start",{
+    phone,contact_name:contactName,first_message:text,client_message_id:crypto.randomUUID(),
   });
-  return started.conversation_id;
+  if(!sent.conversation_id || !sent.first_message_sent)
+    throw new Error("Não foi possível confirmar o envio da primeira mensagem.");
+  return sent.conversation_id;
 }
