@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video, X } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
   listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox,
@@ -7,6 +7,7 @@ import {
   type UnionWhatsAppSharedTab,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;page:number};
 const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",page:0});
@@ -103,14 +104,16 @@ function MediaTile({item,organization,conversation,onOpen}:{
   </button>;
 }
 
-export function UnionWhatsAppContactDetails({conversation,organizationId,gender,onClose,onEdit}:{
+export function UnionWhatsAppContactDetails({conversation,organizationId,gender,onClose,onEdit,inline=false}:{
   conversation:UnionWhatsAppConversation;
   organizationId:string;
   gender?:string|null;
   onClose:()=>void;
   onEdit?:()=>void;
+  inline?:boolean;
 }){
   const [tab,setTab]=useState<UnionWhatsAppSharedTab>("media");
+  const [historyOpen,setHistoryOpen]=useState(false);
   const [sections,setSections]=useState<Record<UnionWhatsAppSharedTab,Section>>({
     media:empty(),documents:empty(),links:empty(),
   });
@@ -146,11 +149,11 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   },[tab,sections,fetchPage]);
   useEffect(()=>{
     const onKey=(event:KeyboardEvent)=>{
-      if(event.key==="Escape"){event.stopPropagation();if(preview)setPreview(null);else onClose();}
+      if(event.key==="Escape"&&(preview||!inline)){event.stopPropagation();if(preview)setPreview(null);else onClose();}
     };
     document.addEventListener("keydown",onKey,true);
     return()=>document.removeEventListener("keydown",onKey,true);
-  },[onClose,preview]);
+  },[onClose,preview,inline]);
 
   const openShared=async(item:UnionWhatsAppMessage)=>{
     if(previewLoading)return;
@@ -162,19 +165,25 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }finally{setPreviewLoading(false);}
   };
-  return <div className="absolute inset-0 z-[40] flex justify-end bg-black/25" role="presentation"
-    onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}>
-    <aside role="dialog" aria-modal="true" aria-label={"Detalhes do contato "+name}
-      className="flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground shadow-xl">
-      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-        <button type="button" aria-label="Voltar à conversa" onClick={onClose}
+  return <div className={inline?"relative w-full":"pointer-events-none absolute inset-0 z-[40] flex justify-end"} role="presentation">
+    {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
+      onClick={onClose} className="pointer-events-auto absolute inset-0 cursor-default bg-transparent"/>}
+    <aside role={inline?undefined:"dialog"} aria-modal={inline?undefined:true} aria-label={"Detalhes do contato "+name}
+      className={inline
+        ?"relative flex w-full min-h-[230px] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground"
+        :"pointer-events-auto relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
+      {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border px-4">
+        <button type="button" aria-label="Voltar à conversa" onClick={event=>{event.stopPropagation();onClose();}}
           className="rounded-lg p-1.5 hover:bg-muted"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
+        <button type="button" onClick={()=>setHistoryOpen(value=>!value)}
+          aria-expanded={historyOpen} aria-label="Histórico de atendimentos" title="Histórico de atendimentos"
+          className="rounded-lg p-1.5 hover:bg-muted"><History size={18}/></button>
         {onEdit&&<button type="button" onClick={onEdit} aria-label="Editar contato" title="Editar contato"
           className="rounded-lg p-1.5 hover:bg-muted"><Pencil size={17}/></button>}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="flex flex-col items-center gap-2 border-b border-border px-5 py-6 text-center">
+      </div>}
+      <div className={inline?"w-full":"min-h-0 flex-1 overflow-y-auto overscroll-contain"}>
+        {!inline&&<div className="flex flex-col items-center gap-2 border-b border-border px-5 py-6 text-center">
           <div className="rounded-full ring-4 ring-primary/10">
             <WhatsAppContactAvatar name={name} size="detail"
               identity={{organizationId,accountPhone:conversation.account_phone,
@@ -184,7 +193,11 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <p className="text-sm text-muted-foreground">{formatWhatsAppPhone(conversation.contact_phone)}</p>
           <p className="text-xs text-muted-foreground">WhatsApp · Histórico desta conversa</p>
         </div>
-        <div className="border-b border-border px-4 py-4">
+        {historyOpen&&<div className="border-b border-border px-4 py-4">
+          <h3 className="mb-3 text-sm font-bold">Histórico de atendimentos</h3>
+          <UnionWhatsAppProtocolHistory organizationId={organizationId} conversation={conversation}/>
+        </div>}
+        <div className={inline?"px-4 py-4":"border-b border-border px-4 py-4"}>
           <div className="flex items-center gap-2 text-sm font-bold">
             <ImageIcon size={17} className="text-muted-foreground"/> Mídias, documentos e links
           </div>
@@ -242,11 +255,11 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
             </button>}
           </div>
         </div>
-        <div className="px-4 py-4 text-xs text-muted-foreground">
+        {!inline&&<div className="px-4 py-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2"><CalendarDays size={15}/>
             Conversa iniciada em {sharedDate(conversation.created_at)}</div>
           <p className="mt-2">As mídias e documentos usam o histórico desta conversa e respeitam as permissões do CRM.</p>
-        </div>
+        </div>}
       </div>
     </aside>
     {previewLoading&&<div role="status"
