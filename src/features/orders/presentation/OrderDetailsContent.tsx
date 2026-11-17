@@ -88,7 +88,7 @@ export function OrderCustomerDetailsSection({
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
   const whatsappContact = phoneContactLinks(customer?.whatsapp || customer?.phone);
   const customerAddress = (customer?.addresses || []).find((item: Address) => item.is_default) || customer?.addresses?.[0];
-  const customerMapUrl = getAddressMapUrl(customerAddress);
+  const customerMapUrl = detail.service_type?.is_disposal ? null : getAddressMapUrl(customerAddress);
   const contactActionClass = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold normal-case tracking-normal transition-colors sm:h-auto sm:w-auto sm:gap-1.5 sm:px-2.5 sm:py-1.5";
   const actionLabelClass = "hidden sm:inline";
   return hasPermission("orders.section.customer") ? (
@@ -198,6 +198,7 @@ export function OrderDetailsContent({
   const fmtDate = formatDate;
   const stateLabel = formatState;
   const isReturnOrder = Boolean(detail.return_root_id);
+  const isDisposal = detail.service_type?.is_disposal === true;
   const reportedProblem = isReturnOrder ? (detail.return_reason || detail.customer_notes) : detail.customer_notes;
   const getSlaForOrder = getSla;
   void getSlaForOrder;
@@ -211,7 +212,7 @@ export function OrderDetailsContent({
 
       {/* A seção de endereço da OS comum é independente do local do atendimento.
           A ordem de retorno mantém o layout próprio do diagnóstico. */}
-      {!isReturnOrder && hasPermission("orders.section.address") && (
+      {!isReturnOrder && !isDisposal && hasPermission("orders.section.address") && (
         <Section title="Dados de endereço">
           {customerAddress ? <div className="grid gap-3 sm:grid-cols-2">
             {(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => {
@@ -239,20 +240,21 @@ export function OrderDetailsContent({
         <Section title="Informações da OS">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <InfoRow label="Nº da OS" value={detail.os_number} />
-            <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />
+            {!isDisposal && <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />}
             {detail.queue_ticket_number && <InfoRow label="Origem" value="Fila Eletrônica" />}
             {detail.queue_ticket_number && <InfoRow label="Senha da fila" value={detail.queue_ticket_number} />}
             {detail.queue_override_reason && <InfoRow label="Contingência da fila" value={detail.queue_override_reason} />}
             <InfoRow label="Tipo de atendimento" value={(detail.service_type as any)?.title} />
-            <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />
-            <InfoRow label="Responsável" value={getResponsibleName(detail as ServiceOrderWithRelations)} />
-            <InfoRow label="Vendedores" value={(detail.seller_links || []).length ? (detail.seller_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.seller as any)?.full_name || "Nenhum vendedor atribuído"} />
-            <InfoRow label="Técnicos" value={(detail.technician_links || []).length ? (detail.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.technician as any)?.full_name || "Nenhum técnico atribuído"} />
+            {isDisposal && <InfoRow label="Instituição destinatária" value={detail.disposal_partner?.name || "Não definida"} />}
+            {!isDisposal && <InfoRow label="Serviço" value={(detail.general_service as any)?.name || (detail.service as any)?.title} />}
+            {!isDisposal && <InfoRow label="Responsável" value={getResponsibleName(detail as ServiceOrderWithRelations)} />}
+            {!isDisposal && <InfoRow label="Vendedores" value={(detail.seller_links || []).length ? (detail.seller_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.seller as any)?.full_name || "Nenhum vendedor atribuído"} />}
+            {!isDisposal && <InfoRow label="Técnicos" value={(detail.technician_links || []).length ? (detail.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean).join(", ") : (detail.technician as any)?.full_name || "Nenhum técnico atribuído"} />}
             <InfoRow label="Status" value={(detail.order_status as any)?.name} />
             <InfoRow label="Situação" value={(detail.situation as any)?.name} />
-            <InfoRow label="Prioridade" value={getPriorityLabel(detail.priority) || undefined} />
+            {!isDisposal && <InfoRow label="Prioridade" value={getPriorityLabel(detail.priority) || undefined} />}
             <InfoRow label="Data de início" value={fmtDate(detail.created_at, true)} />
-            <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />
+            {!isDisposal && <InfoRow label="Data agendada" value={fmtDate(detail.scheduled_at)} />}
             <InfoRow label="Concluída em" value={detail.completed_at ? fmtDate(detail.completed_at, true) : null} />
             {detail.completed_at && <InfoRow label="Concluída por" value={detail.completed_by_profile?.full_name || "Nome não informado"} />}
           </div>
@@ -264,13 +266,13 @@ export function OrderDetailsContent({
       )}
 
       <div className={isReturnOrder ? "grid min-w-0 gap-4" : "grid min-w-0 items-stretch gap-4 lg:grid-cols-2"}>
-        {reportedProblem && hasPermission("orders.section.problem") && (
+        {!isDisposal && reportedProblem && hasPermission("orders.section.problem") && (
           <Section title={isReturnOrder ? "Motivo do retorno" : "Descrição do problema"}>
             <p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{reportedProblem}</p>
           </Section>
         )}
 
-      {!isReturnOrder && hasPermission("orders.section.service_location") && (
+      {!isReturnOrder && !isDisposal && hasPermission("orders.section.service_location") && (
         <Section title="Local do atendimento">
           <div className="grid gap-3 sm:grid-cols-2">
             <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />
