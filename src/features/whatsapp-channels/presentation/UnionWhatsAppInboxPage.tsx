@@ -2255,7 +2255,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground">{formatWhatsAppPhone(item.contact_phone)}</span>
                   <span className="mt-1.5 flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.last_message || "Conversa recebida"}</span>
+                    <span className="block min-w-0 truncate text-[11px] text-muted-foreground [&>span]:!whitespace-nowrap"><WhatsAppFormattedText text={item.last_message || "Conversa recebida"}/></span>
                     {item.unread_count > 0 && !selected && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
                   {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
