@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type {
   DashboardAccess,
   DashboardOrderGroupItem,
+  DashboardOrdersCharts,
   DashboardOrdersSummary,
   DashboardOverview,
 } from "../domain/dashboard";
@@ -159,4 +160,28 @@ export async function loadDashboardOrderGroupPage({
   });
   if (error) throw error;
   return (Array.isArray(data) ? data : []) as DashboardOrderGroupItem[];
+}
+
+/** Agregações pagas uma única vez pelo banco; respeitam RLS e o período selecionado. */
+export async function loadDashboardOrdersCharts({
+  organizationId,periodDays,
+}: { organizationId:string;periodDays:number }):Promise<DashboardOrdersCharts>{
+  const { data,error } = await supabase.rpc("load_dashboard_orders_charts_v1",{
+    p_organization_id:organizationId,
+    p_period_days:periodDays,
+  });
+  if(error) throw error;
+  const result = (data || {}) as Partial<DashboardOrdersCharts>;
+  const values = (items: unknown) => Array.isArray(items) ? items.map(item=>({
+    name:String(item.name || ""),
+    value:Number(item.value || 0),
+  })) : [];
+  return {
+    opened:values(result.opened),
+    service_types:values(result.service_types),
+    equipment_types:values(result.equipment_types),
+    equipment_models:values(result.equipment_models),
+    quote_approved:values(result.quote_approved),
+    quote_rejected:values(result.quote_rejected),
+  };
 }
