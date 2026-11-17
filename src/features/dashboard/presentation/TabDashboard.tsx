@@ -16,9 +16,6 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
-  PieChart,
-  BarChart3,
-  AlignLeft,
   Package,
   RefreshCw,
   ShoppingCart,
@@ -51,21 +48,22 @@ import type {
 import {
   loadDashboardOrderGroupPage,
   loadDashboardOrdersSummary,
+  loadDashboardOrdersCharts,
   loadDashboardOverview,
 } from "../infrastructure/dashboard.repository";
 import {
-  DashboardBarChart,
   DashboardDonutChart,
   DashboardEmpty,
   DashboardLineChart,
   DashboardMetricCard,
   DashboardModuleNav,
   DashboardPanel,
-  DashboardSlaDistributionChart,
   type DashboardChartPoint,
   type DashboardMetricTone,
   type DashboardSlaChartPoint,
 } from "./DashboardUi";
+import { DashboardOrderChartPanel, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
+import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
 
 type TabDashboardProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -78,6 +76,7 @@ const DAY_MS = 86_400_000;
 const DASHBOARD_ORDER_PAGE_SIZE = 10;
 const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
 const DASHBOARD_ORDER_CHART_MODE_KEY = "union-dashboard-order-chart-mode-v1";
+const DASHBOARD_ORDER_CARD_MODES_KEY = "union-dashboard-order-card-modes-v2";
 const periodOptions = [
   { value: 7, label: "7 dias" },
   { value: 30, label: "30 dias" },
@@ -195,6 +194,29 @@ function readOrderChartMode(): OrderDistributionChartMode {
   return saved === "pie" || saved === "vertical" || saved === "horizontal" ? saved : "horizontal";
 }
 
+function readOrderCardModes(organizationId?:string|null, userId?:string|null):Record<string,DashboardOrderChartMode> {
+  if(typeof window==="undefined" || !organizationId || !userId) return {};
+  try {
+    const saved=JSON.parse(window.localStorage.getItem(`${DASHBOARD_ORDER_CARD_MODES_KEY}:${userId}:${organizationId}`) || "{}");
+    if(!saved || typeof saved!=="object")return {};
+    const valid=["pie","vertical","horizontal","line"];
+    return Object.fromEntries(Object.entries(saved).filter(([,value])=>valid.includes(String(value)))) as Record<string,DashboardOrderChartMode>;
+  } catch {return {};}
+}
+function summarizeChartCategories(values:DashboardChartPoint[], max=8):DashboardChartPoint[]{
+  const sorted=[...values].sort((a,b)=>b.value-a.value);
+  if(sorted.length<=max)return sorted;
+  return [...sorted.slice(0,max-1),{
+    name:"Outros",value:sorted.slice(max-1).reduce((sum,item)=>sum+item.value,0),
+  }];
+}
+function summedChart(values:DashboardChartPoint[]):number{
+  return values.reduce((sum,item)=>sum+Number(item.value||0),0);
+}
+function chartTrend(values:DashboardChartPoint[], days:number):DashboardChartPoint[]{
+  return buildTrend(values,days,row=>row.name+"T12:00:00",row=>Number(row.value||0));
+}
+
 function buildTrend<T>(items: T[], days: number, dateOf: (item: T) => string | null | undefined, valueOf: (item: T) => number = () => 1): DashboardChartPoint[] {
   const bucketCount = days <= 7 ? 7 : days <= 30 ? 10 : days <= 90 ? 9 : 12;
   const bucketDays = Math.max(1, Math.ceil(days / bucketCount));
@@ -266,7 +288,22 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const [metricSelection, setMetricSelection] = useState<MetricSelection | null>(null);
   const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(returnState?.orderDistributionSelection || null);
   const [orderDistributionPage, setOrderDistributionPage] = useState(Math.max(1, returnState?.orderDistributionPage || 1));
-  const [orderDistributionChartMode, setOrderDistributionChartMode] = useState<OrderDistributionChartMode>(readOrderChartMode);
+  const [orderCardModes,setOrderCardModes] = useState<Record<string,DashboardOrderChartMode>>(
+    ()=>readOrderCardModes(activeOrganizationId,user?.id));
+  const widgetSettings=useDashboardWidgetSettings(activeOrganizationId,user?.id||null);
+  const widgetVisible=(key:string)=>widgetSettings.isVisible(activeModule,key);
+  const orderChartMode=(key:string):DashboardOrderChartMode=>
+    orderCardModes[key]||(["opened","quote_approved","quote_rejected"].includes(key)?"line"
+      :["situation","status"].includes(key)?readOrderChartMode():"horizontal");
+  const setOrderChartMode=(key:string,mode:DashboardOrderChartMode)=>{
+    const updated={...orderCardModes,[key]:mode};
+    setOrderCardModes(updated);
+    if(typeof window!=="undefined" && activeOrganizationId && user?.id){
+      try{window.localStorage.setItem(
+        `${DASHBOARD_ORDER_CARD_MODES_KEY}:${user.id}:${activeOrganizationId}`,JSON.stringify(updated));}
+      catch{/* A preferência visual segue disponível nesta sessão. */}
+    }
+  };
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const access = useMemo<DashboardAccess>(() => ({
@@ -301,6 +338,10 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     if (!modules.some(module => module.id === activeModule)) setActiveModule("overview");
   }, [activeModule, modules]);
 
+  useEffect(()=>{
+    setOrderCardModes(readOrderCardModes(activeOrganizationId,user?.id));
+  },[activeOrganizationId,user?.id]);
+
   useEffect(() => {
     if (organizationRef.current === activeOrganizationId) return;
     organizationRef.current = activeOrganizationId;
@@ -325,6 +366,14 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     staleTime: 60_000,
   });
 
+  const orderChartsVisible=["opened","service_type","equipment_type","equipment_model","quote_approved","quote_rejected"]
+    .some(key=>widgetSettings.isVisible("orders",key));
+  const orderChartsQuery=useQuery({
+    queryKey:["dashboard","order-charts",activeOrganizationId,periodDays],
+    queryFn:()=>loadDashboardOrdersCharts({organizationId:activeOrganizationId!,periodDays}),
+    enabled:Boolean(activeOrganizationId && activeModule==="orders" && orderChartsVisible),
+    staleTime:60_000,
+  });
   const orderGroupPageQuery = useQuery({
     queryKey: [
       "dashboard",
@@ -525,200 +574,117 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const moduleContent = () => {
     if (activeModule === "orders") {
       const summary = ordersSummaryQuery.data!;
-      const metrics: Metric[] = [
-        { label: `OS em ${periodDays} dias`, value: summary.orders_in_period, icon: ClipboardList, tone: "blue", hint: "abertas no período" },
-        { label: "Em andamento", value: summary.active_orders, icon: Activity, tone: "purple", hint: "ainda não concluídas" },
-        { label: "Aguardando", value: summary.waiting_orders, icon: Clock3, tone: summary.waiting_orders ? "amber" : "green", hint: "cliente ou pendência" },
-        { label: "Concluídas", value: summary.completed_in_period, icon: CheckCircle2, tone: "green", hint: `nos últimos ${periodDays} dias` },
+      const metrics:Metric[] = [
+        {label:`OS em ${periodDays} dias`,value:summary.orders_in_period,icon:ClipboardList,tone:"blue",hint:"abertas no período"},
+        {label:"Em andamento",value:summary.active_orders,icon:Activity,tone:"purple",hint:"ainda não concluídas"},
+        {label:"Aguardando",value:summary.waiting_orders,icon:Clock3,tone:summary.waiting_orders?"amber":"green",hint:"cliente ou pendência"},
+        {label:"Concluídas",value:summary.completed_in_period,icon:CheckCircle2,tone:"green",hint:`nos últimos ${periodDays} dias`},
       ];
-      const situationData: DashboardSlaChartPoint[] = summary.situations.map(item => ({
-        id: item.id,
-        name: item.name,
-        total: item.total,
-        key: `situation:${item.id || "none"}`,
-        sla: {
-          success: Number(item.sla?.success || 0),
-          warning: Number(item.sla?.warning || 0),
-          danger: Number(item.sla?.danger || 0),
-          neutral: Number(item.sla?.neutral || 0),
+      const situationData:DashboardSlaChartPoint[]=summary.situations.map(item=>({
+        id:item.id,name:item.name,total:item.total,key:`situation:${item.id||"none"}`,
+        sla:{
+          success:Number(item.sla?.success||0),
+          warning:Number(item.sla?.warning||0),
+          danger:Number(item.sla?.danger||0),
+          neutral:Number(item.sla?.neutral||0),
         },
       }));
-      const statusData = distributionPoints(summary.statuses, "status");
-      const selectedName = selectedSummaryGroup?.name || orderDistributionSelection?.name || "";
-      const selectedTitle = orderDistributionSelection
-        ? `OS em ${selectedName}`
-        : "Ordens por seleção";
-      const selectedSubtitle = orderDistributionSelection
-        ? [
-            `${selectedOrderTotal} ${selectedOrderTotal === 1 ? "ordem" : "ordens"}`,
-            orderDistributionSelection.kind === "situation" ? "Situação" : "Status",
-            orderDistributionSelection.slaState ? SLA_STATE_LABELS[orderDistributionSelection.slaState] : null,
-          ].filter(Boolean).join(" · ")
-        : "Clique em um item do gráfico para visualizar as OS";
-
-      const chartInteractionHint = orderDistributionChartMode === "pie"
-        ? "Clique em uma fatia para filtrar"
-        : "Clique em uma barra para filtrar";
-      const situationInteractionHint = orderDistributionChartMode === "pie"
-        ? "Cada fatia mostra o SLA da situação; clique para filtrar"
-        : "Cada barra é dividida pelo SLA; clique em uma cor para filtrar";
-      const setChartMode = (mode: OrderDistributionChartMode) => {
-        setOrderDistributionChartMode(mode);
-        if (typeof window !== "undefined") window.localStorage.setItem(DASHBOARD_ORDER_CHART_MODE_KEY, mode);
+      const situationTotals:DashboardChartPoint[]=situationData.map(item=>({
+        id:item.id,name:item.name,value:item.total,key:item.key,
+      }));
+      const statusData=distributionPoints(summary.statuses,"status");
+      const analytics=orderChartsQuery.data;
+      const selectedName=selectedSummaryGroup?.name||orderDistributionSelection?.name||"";
+      const selectedTitle=orderDistributionSelection?`OS em ${selectedName}`:"Ordens por seleção";
+      const selectedSubtitle=orderDistributionSelection
+        ? [`${selectedOrderTotal} ${selectedOrderTotal===1?"ordem":"ordens"}`,
+          orderDistributionSelection.kind==="situation"?"Situação":"Status",
+          orderDistributionSelection.slaState?SLA_STATE_LABELS[orderDistributionSelection.slaState]:null,
+        ].filter(Boolean).join(" · ")
+        :"Selecione uma situação ou status para listar as OS";
+      const selectDistribution=(kind:OrderDistributionKind)=>(point:DashboardChartPoint)=>{
+        setOrderDistributionSelection({kind,id:point.id||null,name:point.name,total:point.value,slaState:null});
+        setOrderDistributionPage(1);
       };
-      const selectDistribution = (kind: OrderDistributionKind) => (point: DashboardChartPoint) => {
+      const selectSituationSla=(point:DashboardSlaChartPoint,slaState:DashboardSlaState,value:number)=>{
         setOrderDistributionSelection({
-          kind,
-          id: point.id || null,
-          name: point.name,
-          total: point.value,
-          slaState: null,
+          kind:"situation",id:point.id,name:point.name,total:value,slaState,
         });
         setOrderDistributionPage(1);
       };
-      const selectSituationSla = (point: DashboardSlaChartPoint, slaState: DashboardSlaState, value: number) => {
-        setOrderDistributionSelection({
-          kind: "situation",
-          id: point.id,
-          name: point.name,
-          total: value,
-          slaState,
-        });
-        setOrderDistributionPage(1);
+      const charts:ReactNode[]=[];
+      const chart=(key:string,title:string,subtitle:string,values:DashboardChartPoint[],icon:ElementType=BarChart3)=>{
+        if(!widgetVisible(key))return;
+        charts.push(<DashboardOrderChartPanel key={key} title={title} subtitle={subtitle}
+          icon={icon} data={values} mode={orderChartMode(key)}
+          onModeChange={mode=>setOrderChartMode(key,mode)}/>);
       };
-      const renderStatusChart = (data: DashboardChartPoint[]) => {
-        const selectedKey = orderDistributionSelection?.kind === "status"
-          ? `status:${orderDistributionSelection.id || "none"}`
-          : null;
+      if(widgetVisible("situation"))charts.push(
+        <DashboardOrderChartPanel key="situation" title="Situação"
+          subtitle="Situações e SLA · todas as OS" icon={Activity}
+          data={situationTotals} slaData={situationData} mode={orderChartMode("situation")}
+          onModeChange={mode=>setOrderChartMode("situation",mode)}
+          selectedKey={orderDistributionSelection?.kind==="situation"
+            ?`situation:${orderDistributionSelection.id||"none"}`:null}
+          selectedState={orderDistributionSelection?.kind==="situation"
+            ?orderDistributionSelection.slaState||null:null}
+          onSelect={selectDistribution("situation")} onSlaSelect={selectSituationSla}/>);
+      if(widgetVisible("status"))charts.push(
+        <DashboardOrderChartPanel key="status" title="Status"
+          subtitle="Distribuição de todas as OS" icon={CheckCircle2}
+          data={statusData} mode={orderChartMode("status")}
+          onModeChange={mode=>setOrderChartMode("status",mode)}
+          selectedKey={orderDistributionSelection?.kind==="status"
+            ?`status:${orderDistributionSelection.id||"none"}`:null}
+          onSelect={selectDistribution("status")}/>);
+      const whenLoading=<DashboardEmpty text={orderChartsQuery.isPending
+        ?"Carregando indicadores..." : orderChartsQuery.isError
+        ?"Não foi possível consultar os indicadores." : "Sem dados no período."}/>;
+      if(widgetVisible("opened")) {
+        const points=chartTrend(analytics?.opened||[],periodDays);
+        chart("opened","Data de abertura da OS",`Aberturas nos últimos ${periodDays} dias · ${summedChart(analytics?.opened||[])} OS`,
+          points,CalendarDays);
+      }
+      if(widgetVisible("service_type"))chart("service_type","Tipo de atendimento",
+        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.service_types||[]),Wrench);
+      if(widgetVisible("equipment_type"))chart("equipment_type","Tipo de equipamentos",
+        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.equipment_types||[]),Package);
+      if(widgetVisible("equipment_model"))chart("equipment_model","Modelo do equipamento",
+        `OS abertas nos últimos ${periodDays} dias`,summarizeChartCategories(analytics?.equipment_models||[]),Package);
+      if(widgetVisible("quote_approved"))chart("quote_approved","Orçamento aprovado",
+        `Aprovações no período · ${summedChart(analytics?.quote_approved||[])}`,
+        chartTrend(analytics?.quote_approved||[],periodDays),CheckCircle2);
+      if(widgetVisible("quote_rejected"))chart("quote_rejected","Orçamento reprovado",
+        `Reprovações atuais no período · ${summedChart(analytics?.quote_rejected||[])}`,
+        chartTrend(analytics?.quote_rejected||[],periodDays),AlertTriangle);
 
-        if (orderDistributionChartMode === "pie") {
-          return (
-            <DashboardDonutChart
-              data={data}
-              minHeight={230}
-              innerRadius={0}
-              selectedKey={selectedKey}
-              onSelect={selectDistribution("status")}
-            />
-          );
-        }
-
-        return (
-          <DashboardBarChart
-            data={data}
-            layout={orderDistributionChartMode === "horizontal" ? "vertical" : "horizontal"}
-            minHeight={orderDistributionChartMode === "horizontal" ? 190 : 270}
-            selectedKey={selectedKey}
-            onSelect={selectDistribution("status")}
-          />
-        );
-      };
-
-      const distributions = (
-        <DashboardPanel
-          title="Distribuição das OS"
-          subtitle="Situações e status atuais de todas as ordens visíveis"
-          icon={Activity}
-          headerAside={
-            <div className="flex items-center gap-2">
-              <div className="inline-flex shrink-0 rounded-lg border border-border bg-muted/50 p-0.5">
-                {([
-                  ["pie", PieChart, "Gráfico de pizza"],
-                  ["vertical", BarChart3, "Barras verticais"],
-                  ["horizontal", AlignLeft, "Barras horizontais"],
-                ] as const).map(([mode, Icon, title]) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    title={title}
-                    aria-label={title}
-                    aria-pressed={orderDistributionChartMode === mode}
-                    onClick={() => setChartMode(mode)}
-                    className={cn(
-                      "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-                      orderDistributionChartMode === mode
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
-                    )}
-                  >
-                    <Icon size={16} strokeWidth={2.2} />
-                  </button>
-                ))}
+      if(widgetVisible("selection"))charts.push(
+        <DashboardPanel key="selection" title={selectedTitle} subtitle={selectedSubtitle}
+          icon={ClipboardList} onOpen={()=>open("orders")}
+          className="h-[370px] w-full max-w-[465px]">
+          {!orderDistributionSelection? <DashboardEmpty text="Selecione uma situação ou um status no gráfico para visualizar as OS."/>
+          :orderGroupPageQuery.isError?<DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)}/>
+          :<div className="-m-3 flex h-[calc(100%+1.5rem)] min-h-0 flex-col sm:-m-4 sm:h-[calc(100%+2rem)]">
+              <div className={cn("relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-4",
+                orderGroupPageQuery.isFetching && "opacity-55")}>
+                <OrdersList orders={orderGroupPageQuery.data||[]} onOpen={openOrderFromDashboard}
+                  badge={orderDistributionSelection.kind==="situation"?"status":"situation"}/>
               </div>
-              <span className="whitespace-nowrap text-[10px] font-bold text-muted-foreground">
-                Total <strong className="text-xs text-foreground">{summary.total_orders}</strong>
-              </span>
-            </div>
-          }
-        >
-          <div className="space-y-5">
-            <section>
-              <div className="mb-1">
-                <h4 className="text-sm font-black text-foreground">Situações</h4>
-                <p className="text-[11px] font-semibold text-muted-foreground">{situationInteractionHint}</p>
+              <div className="shrink-0 border-t border-border">
+                <PaginationBar page={safeOrderDistributionPage} pageSize={DASHBOARD_ORDER_PAGE_SIZE}
+                  totalItems={selectedOrderTotal} defaultPageSize={DASHBOARD_ORDER_PAGE_SIZE}
+                  showPageSizeSelector={false}
+                  onPageChange={nextPage=>setOrderDistributionPage(Math.max(1,Math.min(nextPage,selectedOrderTotalPages)))}
+                  onPageSizeChange={()=>undefined}/>
               </div>
-              <DashboardSlaDistributionChart
-                data={situationData}
-                mode={orderDistributionChartMode}
-                minHeight={orderDistributionChartMode === "horizontal" ? 220 : orderDistributionChartMode === "vertical" ? 300 : 260}
-                selectedKey={orderDistributionSelection?.kind === "situation" ? `situation:${orderDistributionSelection.id || "none"}` : null}
-                selectedState={orderDistributionSelection?.kind === "situation" ? orderDistributionSelection.slaState || null : null}
-                onSelect={selectSituationSla}
-              />
-            </section>
-
-            <div className="border-t border-[#0d1b2e]/8" />
-
-            <section>
-              <div className="mb-1">
-                <h4 className="text-sm font-black text-foreground">Status</h4>
-                <p className="text-[11px] font-semibold text-muted-foreground">{chartInteractionHint}</p>
-              </div>
-              {renderStatusChart(statusData)}
-            </section>
-          </div>
-        </DashboardPanel>
-      );
-
-      const filteredOrders = (
-        <DashboardPanel title={selectedTitle} subtitle={selectedSubtitle} icon={ClipboardList} onOpen={() => open("orders")}>
-          {!orderDistributionSelection ? (
-            <DashboardEmpty text="Selecione uma situação ou um status no gráfico para ver as OS desse grupo." />
-          ) : orderGroupPageQuery.isError ? (
-            <DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)} />
-          ) : (
-            <div className="-m-3 sm:-m-4">
-              <div className="relative min-h-[480px] p-3 sm:p-4">
-                <div className={cn("transition-opacity duration-150", orderGroupPageQuery.isFetching && "pointer-events-none opacity-55")}>
-                  <OrdersList
-                    orders={orderGroupPageQuery.data || []}
-                    onOpen={openOrderFromDashboard}
-                    badge={orderDistributionSelection.kind === "situation" ? "status" : "situation"}
-                  />
-                </div>
-                {orderGroupPageQuery.isFetching && (
-                  <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-end sm:inset-x-4 sm:top-4">
-                    <span className="rounded-md border border-[#d9e1ec] bg-white/95 px-2.5 py-1 text-[10px] font-bold text-[#5a6a82] shadow-sm">
-                      Carregando...
-                    </span>
-                  </div>
-                )}
-              </div>
-              <PaginationBar
-                page={safeOrderDistributionPage}
-                pageSize={DASHBOARD_ORDER_PAGE_SIZE}
-                totalItems={selectedOrderTotal}
-                defaultPageSize={DASHBOARD_ORDER_PAGE_SIZE}
-                showPageSizeSelector={false}
-                onPageChange={nextPage => setOrderDistributionPage(Math.max(1, Math.min(nextPage, selectedOrderTotalPages)))}
-                onPageSizeChange={() => undefined}
-              />
-            </div>
-          )}
-        </DashboardPanel>
-      );
-
-      return <DashboardArea metrics={metrics} onMetricSelect={showMetric} left={distributions} right={filteredOrders} />;
+            </div>}
+        </DashboardPanel>);
+      return <div className="min-w-0 space-y-3">
+        {widgetVisible("metrics")&&<MetricGrid metrics={metrics} onSelect={showMetric}/>}
+        {charts.length>0?<div className="grid min-w-0 w-full max-w-[1420px] grid-cols-1 items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          {charts}
+        </div>:<DashboardNoWidgets onRestore={()=>widgetSettings.restore("orders")}/>}
+      </div>;
     }
 
     if (activeModule === "registrations") {
