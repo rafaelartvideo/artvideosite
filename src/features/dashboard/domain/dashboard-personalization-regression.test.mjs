@@ -95,3 +95,27 @@ test("gráficos de orçamentos omitem datas sem ocorrências, mantendo total e p
   assert.match(tab,/Reprovações atuais no período/);
   assert.match(tab,/chartTrend\(analytics\?\.quote_rejected\|\|\[\],periodDays\)/);
 });
+
+test("gráfico temporal utiliza o valor de cada dia real, sem agrupar datas distintas",async()=>{
+  const dashboard=read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const begin=dashboard.indexOf("function chartTrend(");
+  const end=dashboard.indexOf("\nfunction buildTrend<",begin);
+  assert.ok(begin>=0&&end>begin,"helper chartTrend encontrado");
+  const helper=dashboard.slice(begin,end).replace("function chartTrend(","export function chartTrend(");
+  const compiled=(await transformWithEsbuild(helper,"chartTrend.ts",{loader:"ts"})).code;
+  const {chartTrend}=await import("data:text/javascript;base64,"+Buffer.from(compiled).toString("base64"));
+  const result=chartTrend([
+    {name:"2026-11-08",value:0},
+    {name:"2026-11-09",value:31},
+    {name:"2026-11-10",value:37},
+    {name:"2026-11-11",value:0},
+  ],30);
+  assert.deepEqual(result,[
+    {name:"09/11",value:31},
+    {name:"10/11",value:37},
+  ]);
+  assert.equal(result.reduce((sum,item)=>sum+item.value,0),68);
+  assert.equal(result.some(item=>item.name==="08/11"),false);
+  assert.match(dashboard,/chartTrend\(analytics\?\.opened\|\|\[\],periodDays\)/);
+  assert.match(dashboard,/chartTrend\(analytics\?\.quote_rejected\|\|\[\],periodDays\)/);
+});
