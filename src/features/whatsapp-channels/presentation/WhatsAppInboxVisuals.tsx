@@ -1,5 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { LoaderCircle } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  fetchSharedAvatar, markSharedAvatarBroken, peekSharedAvatar,
+  sharedAvatarKey, subscribeSharedAvatar, type SharedAvatarIdentity,
+} from "../application/shared-whatsapp-avatar-cache";
+import maleAvatar from "./assets/avatar-masculino.svg";
+import femaleAvatar from "./assets/avatar-feminino.svg";
 
 export function formatWhatsAppPhone(raw: string | null | undefined): string {
   if (!raw) return "Contato WhatsApp";
@@ -27,23 +32,69 @@ export function waitingClasses(minutes: number,warning=5,critical=15): string {
   return "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }
 
-export function WhatsAppContactAvatar({name,src,selected=false,size="list",onError}:{
-  name:string;src:string|null|undefined;selected?:boolean;size?:"list"|"header"|"detail";onError?:()=>void;
+export function WhatsAppContactAvatar({name,src,selected=false,size="list",onError,identity,gender}:{
+  name:string;
+  src?:string|null;
+  selected?:boolean;
+  size?:"list"|"header"|"detail";
+  onError?:()=>void;
+  identity?:SharedAvatarIdentity|null;
+  gender?:string|null;
 }) {
+  const key=identity?sharedAvatarKey(identity):"";
+  const node=useRef<HTMLSpanElement|null>(null);
+  const [visible,setVisible]=useState(false);
+  const [sharedUrl,setSharedUrl]=useState<string|null|undefined>(()=>peekSharedAvatar(key));
+  const [brokenUrl,setBrokenUrl]=useState<string|null>(null);
   const [imageReady,setImageReady]=useState(false);
-  useEffect(()=>setImageReady(false),[src]);
+
+  // O mesmo índice assinado alimenta a inbox, mini, agenda e edição.
+  useEffect(()=>{
+    setSharedUrl(peekSharedAvatar(key));
+    if(!key)return;
+    return subscribeSharedAvatar(key,()=>setSharedUrl(peekSharedAvatar(key)));
+  },[key]);
+  useEffect(()=>{
+    const element=node.current;
+    if(!element || !key){setVisible(false);return;}
+    if(typeof IntersectionObserver==="undefined"){setVisible(true);return;}
+    const observer=new IntersectionObserver(([entry])=>{
+      setVisible(Boolean(entry?.isIntersecting));
+    },{rootMargin:"120px 0px",threshold:0});
+    observer.observe(element);
+    return()=>observer.disconnect();
+  },[key]);
+  // Somente fotos dentro da área visível entram na fila global (3 por vez).
+  useEffect(()=>{
+    if(!visible||!key||!identity||sharedUrl!==undefined)return;
+    void fetchSharedAvatar(identity);
+  },[visible,key,identity?.organizationId,identity?.accountPhone,
+    identity?.chatJid,identity?.conversationId,sharedUrl]);
+
+  const candidate=key ? sharedUrl===undefined?(src||null):sharedUrl : src||null;
+  const imageUrl=candidate&&candidate!==brokenUrl?candidate:null;
+  useEffect(()=>setImageReady(false),[imageUrl]);
   const parts=name.trim().split(/\s+/).filter(Boolean);
   const initials=(parts.length>1 ? parts[0][0]+parts[parts.length-1][0] :
     (parts[0]||"?").slice(0,2)).toUpperCase();
-  const loading=src===undefined || Boolean(src && !imageReady);
-  return <span className={`relative flex ${size==="detail"?"h-16 w-16":size==="list"?"h-11 w-11":"h-10 w-10"} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black
+  const fallback=gender==="M"||gender==="masculino" ? maleAvatar :
+    gender==="F"||gender==="feminino" ? femaleAvatar : null;
+  return <span ref={node} className={`relative flex ${size==="detail"?"h-16 w-16":size==="list"?"h-11 w-11":"h-10 w-10"} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black
     ${selected?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground"}`}>
-    {src && <img src={src} alt="" referrerPolicy="no-referrer"
-      loading="lazy" onLoad={()=>setImageReady(true)} onError={onError}
+    {/* Nunca travar em spinner: as iniciais ou o desenho padrão ficam visíveis
+        enquanto a imagem assíncrona é carregada, ou se ela falhar. */}
+    {fallback ? <img src={fallback} alt="" className="absolute inset-0 h-full w-full object-cover"/> :
+      <span aria-hidden="true">{initials}</span>}
+    {imageUrl && <img src={imageUrl} alt="" referrerPolicy="no-referrer"
+      loading="eager" decoding="async"
+      onLoad={()=>setImageReady(true)}
+      onError={()=>{
+        setImageReady(false);
+        setBrokenUrl(imageUrl);
+        if(key)markSharedAvatarBroken(key,imageUrl);
+        onError?.();
+      }}
       className={`absolute inset-0 h-full w-full object-cover ${imageReady?"":"opacity-0"}`}/>}
-    {loading
-      ? <LoaderCircle size={17} className="animate-spin opacity-70 motion-reduce:animate-none" aria-label="Carregando foto"/>
-      : !src ? initials : null}
   </span>;
 }
 
