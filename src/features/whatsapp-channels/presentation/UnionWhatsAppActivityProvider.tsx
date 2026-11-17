@@ -97,8 +97,6 @@ export function UnionWhatsAppActivityProvider({
   conversationOpenRef.current=Boolean(conversationId);
   const expandedRef=useRef(expanded);
   expandedRef.current=expanded;
-  const filterRef=useRef(filter);
-  filterRef.current=filter;
   const rowsRef=useRef(rows);
   rowsRef.current=[...lists.in_att.items,...lists.waiting.items];
   const capabilitiesRef=useRef(capabilities);
