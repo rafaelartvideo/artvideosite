@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
   listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox,
@@ -8,6 +8,7 @@ import {
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;page:number};
 const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",page:0});
@@ -148,8 +149,9 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,0);
   },[tab,sections,fetchPage]);
   useEffect(()=>{
+    if(inline||preview)return;
     const onKey=(event:KeyboardEvent)=>{
-      if(event.key==="Escape"&&(preview||!inline)){event.stopPropagation();if(preview)setPreview(null);else onClose();}
+      if(event.key==="Escape"){event.stopPropagation();onClose();}
     };
     document.addEventListener("keydown",onKey,true);
     return()=>document.removeEventListener("keydown",onKey,true);
@@ -266,25 +268,9 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       className={inline?"pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center bg-black/55":"pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/55"}>
       <LoaderCircle size={27} className="animate-spin text-white"/>
     </div>}
-    {preview&&<div role="dialog" aria-modal="true" aria-label="Visualizar arquivo"
-      className={inline?"pointer-events-auto fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-black/90 p-4":"pointer-events-auto absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/90 p-4"}>
-      <button type="button" onClick={()=>setPreview(null)} aria-label="Fechar visualização"
-        className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25">
-        <X size={23}/>
-      </button>
-      {preview.type==="image"||preview.type==="sticker"
-        ?<img src={preview.url} alt={preview.name} className="max-h-[78%] max-w-full object-contain"/>
-        :preview.type==="video"
-          ?<video controls autoPlay={false} src={preview.url} className="max-h-[75%] max-w-full"/>
-          :preview.type==="audio"
-            ?<audio controls src={preview.url} className="w-full max-w-sm"/>
-            :<FileText size={54} className="text-white"/>}
-      <div className="flex max-w-full items-center gap-3">
-        <span className="min-w-0 truncate text-sm text-white">{preview.name}</span>
-        <a href={preview.url} target="_blank" rel="noopener noreferrer"
-          className="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-900">Abrir arquivo</a>
-      </div>
-    </div>}
+    {preview&&<UnionWhatsAppMediaViewer url={preview.url} type={preview.type}
+      name={preview.name} placement={inline?"viewport":"drawer"}
+      onClose={()=>setPreview(null)}/>}
     {previewError&&<div role="alert" className={inline?"fixed bottom-4 left-4 right-4 z-[80] rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive":"pointer-events-auto absolute bottom-4 left-4 right-4 z-50 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive"}>
       {previewError}
       <button type="button" className="ml-3 font-semibold underline"
