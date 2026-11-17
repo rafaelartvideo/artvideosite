@@ -8,7 +8,7 @@ const { outputFiles } = await build({
   entryPoints: ["src/features/admin-shell/admin-routes.ts"],
   bundle: true, format: "esm", platform: "browser", write: false,
 });
-const { adminPath, resolveAdminRoute } = await import(
+const { adminPath, resolveAdminRoute, parentAdminTab } = await import(
   `data:text/javascript;base64,${Buffer.from(outputFiles[0].text + "\n//# sourceURL=admin-routes-runtime.mjs").toString("base64")}`
 );
 
@@ -49,4 +49,28 @@ test("configurações dos atendimentos têm URL própria em Ferramentas", () => 
     tab: "tools", resourceId: "sac-digital", subpage: "configuracoes",
   });
   assert.notEqual(resolveAdminRoute("/admin/operation/integrations").tab, "integrations");
+});
+
+test("Auditoria está em Operação, mantém links antigos e possui Voltar no cabeçalho", async () => {
+  const { readFileSync } = await import("node:fs");
+  const root = new URL("../../../../", import.meta.url);
+  const read = file => readFileSync(new URL(file, root), "utf8");
+  const navigation = read("src/features/admin-shell/navigation-config.ts");
+  const admin = read("src/app/Admin.tsx");
+  const page = read("src/features/audit/presentation/TabAuditLog.tsx");
+  const primary = navigation.slice(navigation.indexOf("export const mainItems"), navigation.indexOf("export const siteItems"));
+  const operation = navigation.slice(navigation.indexOf("export const operationItems"), navigation.indexOf("export const utilityItems"));
+
+  assert.equal(adminPath("audit"), "/admin/operation/audit");
+  assert.equal(parentAdminTab("audit"), "operation");
+  assert.deepEqual(resolveAdminRoute("/admin/audit"), {tab:"audit",resourceId:null,subpage:null});
+  assert.deepEqual(resolveAdminRoute("/admin/operation/audit"), {tab:"audit",resourceId:null,subpage:null});
+  assert.doesNotMatch(primary, /id: "audit"/);
+  assert.match(operation, /id: "audit", label: "Auditoria"/);
+  assert.match(operation, /permissionKey: "organizations\\.audit\\.view"/);
+  assert.match(admin, /path="audit\\/\\*" element=\\{<Navigate/);
+  assert.match(admin, /path="operation\\/audit\\/\\*" element=\\{<TabAuditLog onBack=/);
+  assert.match(page, /title="Auditoria"/);
+  assert.match(page, /subtitle="Histórico de alterações realizadas nos dados do CRM\\."/);
+  assert.match(page, /actions=\\{<AdminButton variant="secondary" size="sm" onClick=\\{onBack\\}>Voltar<\\/AdminButton>\\}/);
 });
