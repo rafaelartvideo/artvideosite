@@ -588,16 +588,31 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
     /,"send_text"/);
 });
 
-test("Painel Dados do contato fecha pela seta, clique fora e Esc sem interceptar o chat",()=>{
+test("Painel Dados do contato fecha por seta, clique fora e Esc sem clique fantasma",()=>{
   const drawer=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
-  assert.match(drawer,/const drawerRef=useRef<HTMLElement\|null>\(null\)/);
+  // Fora do componente, o listener global apenas atua quando o alvo
+  // está de fato fora da raiz. Dentro dela, o backdrop é o único dono.
+  assert.match(drawer,/const panelRootRef=useRef<HTMLDivElement\|null>\(null\)/);
+  assert.match(drawer,/panelRootRef\.current\?\.contains\(event\.target\)/);
   assert.match(drawer,/document\.addEventListener\("pointerdown",onOutside,true\)/);
   assert.match(drawer,/document\.removeEventListener\("pointerdown",onOutside,true\)/);
-  assert.match(drawer,/drawerRef\.current\?\.contains\(event\.target\)/);
-  assert.match(drawer,/aria-label="Voltar à conversa" onClick=\{event=>\{event\.preventDefault\(\);event\.stopPropagation\(\);onClose\(\);\}\}/);
+  assert.match(drawer,/event\.stopPropagation\(\)/);
+  assert.match(drawer,/if\(event\.cancelable\)event\.preventDefault\(\)/);
+  const button=drawer.slice(drawer.indexOf('aria-label="Fechar detalhes ao clicar fora"'),
+    drawer.indexOf('<aside ref={drawerRef}'));
+  assert.match(button,/onPointerDown=\{event=>\{/);
+  assert.match(button,/event\.preventDefault\(\)/);
+  assert.match(button,/event\.stopPropagation\(\)/);
+  assert.match(button,/if\(event\.detail===0\)onClose\(\)/);
+  const back=drawer.slice(drawer.indexOf('aria-label="Voltar à conversa"'),
+    drawer.indexOf('<h2 className="min-w-0'));
+  assert.match(back,/onPointerDown=\{event=>\{/);
+  assert.match(back,/event\.preventDefault\(\)/);
+  assert.match(back,/event\.stopPropagation\(\)/);
+  assert.match(back,/if\(event\.detail===0\)onClose\(\)/);
   assert.match(drawer,/document\.addEventListener\("keydown",onKey,true\)/);
-  assert.match(drawer,/event\.key==="Escape"/);
+  assert.match(drawer,/event\.key!=="Escape"/);
   assert.match(drawer,/ref=\{drawerRef\}/);
   assert.match(inbox,/onClose=\{\(\)=>setContactDetailsOpen\(false\)\}/);
 });
