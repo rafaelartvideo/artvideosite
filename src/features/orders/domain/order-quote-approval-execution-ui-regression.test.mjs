@@ -31,8 +31,10 @@ test("aprovação mostra produtos e serviços diretamente na subseção da OS", 
   assert.match(details, /quoteMode=\{quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed\}/);
   assert.match(details, /quoteFooterHostId=\{quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed/);
   const actions = read("src/features/orders/presentation/OrderDetailsActions.tsx");
-  assert.match(actions, /const canResolve = !quoteMode && quoteExecutionAllowed/);
+  // Descarte tem finalização própria e não oferece a ação "Solucionar OS".
+  assert.match(actions, /const canResolve = !isDisposal && !quoteMode && quoteExecutionAllowed/);
   assert.match(actions, /const canComplete = !quoteMode && hasPermission\("orders.complete"\)/);
+  assert.match(actions, /\(isDisposal \|\| detail\.is_solved\)/);
   assert.doesNotMatch(quote, /showExecution|setShowExecution|Abrir produtos e serviços para execução/);
 });
 
