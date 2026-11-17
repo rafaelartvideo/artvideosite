@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, LoaderCircle, UserRound } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, LoaderCircle, Plus, UserRound } from "lucide-react";
 import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-palette";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses } from "../domain/crm-contact-format";
@@ -128,7 +128,7 @@ const panelLabels: Record<Panel, string> = {
 };
 
 export function UnionWhatsAppCrmMenu({
-  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer,
+  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading,
 }: {
   context?: CrmConversationContext;
   open: boolean;
@@ -137,6 +137,8 @@ export function UnionWhatsAppCrmMenu({
   organizationId: string;
   canViewOrders: boolean;
   onOpenCustomer?: (id: string) => void;
+  onNewOrder?: () => void;
+  newOrderLoading?: boolean;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null);
@@ -182,6 +184,7 @@ export function UnionWhatsAppCrmMenu({
 
   return <section aria-label="Dados do cliente no CRM" className="relative z-20 shrink-0 border-b border-border bg-muted/20 px-3 py-2">
     <div ref={menuRef} className="relative">
+      <div className="flex min-w-0 items-center gap-3">
       <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
         aria-haspopup="dialog"
         className="inline-flex max-w-full items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -193,6 +196,14 @@ export function UnionWhatsAppCrmMenu({
         {Boolean(context?.linkedOrders?.length)&&<span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">Vinculado por OS</span>}
         {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
       </button>
+      {onNewOrder && <button type="button" onClick={event=>{event.stopPropagation();onNewOrder();}}
+        disabled={Boolean(newOrderLoading)} title="Criar uma OS para este atendimento"
+        aria-label="Nova OS pelo atendimento"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60">
+        {newOrderLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>}
+        Nova OS
+      </button>}
+      </div>
 
       {open && <div id={regionId} role="dialog" aria-label="Consultar dados do CRM"
         className="absolute left-0 top-[calc(100%+9px)] z-50 flex max-h-[min(62vh,470px)] w-[min(90vw,860px)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
