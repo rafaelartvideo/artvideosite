@@ -1379,7 +1379,7 @@ Deno.serve(async request => {
     }
 
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
-      .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone,status,assigned_to,department_id,service_order_id,last_message_at")
+      .select("id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
