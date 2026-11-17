@@ -27,7 +27,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   documents: "/admin/operation/documents",
   partnerCompanies: "/admin/partner-companies",
   serviceProviders: "/admin/service-providers",
-  audit: "/admin/audit",
+  audit: "/admin/operation/audit",
   site: "/admin/site",
   services: "/admin/site/services",
   categories: "/admin/site/categories",
@@ -60,6 +60,7 @@ const LEGACY_EMPLOYEES_PATH = "/admin/operation/employees";
 const LEGACY_PRODUCTS_PATH = "/admin/site/products";
 const LEGACY_ROOT_PRODUCTS_PATH = "/admin/products";
 const LEGACY_SETTINGS_PATH = "/admin/settings";
+const LEGACY_AUDIT_PATH = "/admin/audit";
 
 const ROUTES_BY_SPECIFICITY = (Object.entries(ADMIN_TAB_PATHS) as Array<[AdminTab, string]>)
   .sort((left, right) => right[1].length - left[1].length);
@@ -78,6 +79,11 @@ function decodeRouteSegment(segment: string) {
 }
 
 export function resolveAdminRoute(pathname: string): AdminRouteParts {
+  if (pathname === LEGACY_AUDIT_PATH || matchPath({ path: `${LEGACY_AUDIT_PATH}/*`, end: false }, pathname)) {
+    const remainder = pathname.slice(LEGACY_AUDIT_PATH.length).replace(/^\/+/, "");
+    const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
+    return { tab: "audit", resourceId: segments[0] || null, subpage: segments[1] || null };
+  }
   if (pathname === LEGACY_SETTINGS_PATH || matchPath({ path: `${LEGACY_SETTINGS_PATH}/*`, end: false }, pathname)) {
     const remainder = pathname.slice(LEGACY_SETTINGS_PATH.length).replace(/^\/+/, "");
     const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
@@ -115,6 +121,6 @@ export function resolveAdminTab(pathname: string): AdminTab {
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
   if (["services", "categories", "brands", "siteSettings", "siteDelivery", "sitePayments", "siteStoreOrders", "siteRequests", "contact"].includes(tab)) return "site";
-  if (["documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles", "settings", "terms"].includes(tab)) return "operation";
+  if (["audit", "documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles", "settings", "terms"].includes(tab)) return "operation";
   return null;
 }
