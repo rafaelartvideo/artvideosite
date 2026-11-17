@@ -269,7 +269,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   // A autenticação HMAC é exigida antes de chamar operate().
   if (action === "engine_info") return engineInfo();
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "quote_capability", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "quote_capability", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check", "groups_list"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   if (action === "delete") {
     const stored = await readSession(id, org);
@@ -353,6 +353,26 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   }
   // Compatibility only: presence subscriptions were removed for account safety.
   if (action === "presence_subscribe") return {ok:true,presence_disabled:true};
+  if(action==="groups_list") {
+    // Somente metadados de grupos da conta autenticada. Não retornar a lista
+    // de participantes nem fazer consultas extras a perfis individuais.
+    const reply=await wuzapi("/group/list",session.token);
+    const payload=reply?.data && typeof reply.data==="object" ? reply.data : reply;
+    const entries=Array.isArray(payload?.Groups) ? payload.Groups :
+      Array.isArray(payload?.groups) ? payload.groups : [];
+    const groups=entries.slice(0,500).flatMap(group=>{
+      const jid=String(group?.JID||group?.jid||"");
+      if(!/^[0-9]{5,30}@g\.us$/.test(jid))return [];
+      return [{
+        jid,
+        name:String(group?.Name||group?.name||"Grupo WhatsApp").replace(/[\x00-\x1f]/g," ").trim().slice(0,160),
+        topic:String(group?.Topic||group?.topic||"").replace(/[\x00-\x1f]/g," ").trim().slice(0,300),
+        participants_count:Array.isArray(group?.Participants)?group.Participants.length:0,
+        is_announce:group?.IsAnnounce===true,
+      }];
+    });
+    return {ok:true,groups,limit_reached:entries.length>500};
+  }
   if(action==="contacts_export") {
     const reply=await wuzapi("/user/contacts",session.token);
     const entries=reply?.data && typeof reply.data==="object" &&
