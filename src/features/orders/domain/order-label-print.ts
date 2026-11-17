@@ -68,9 +68,9 @@ export function renderServiceOrderLabel(
   const externalNumber = cleanText(order.external_os_number);
   const osLabel = `OS ${osNumber}`;
   const osFontSize = fontSizeForNumber(osLabel, [17, 14, 11, 9]);
-  const externalFontSize = fontSizeForNumber(externalNumber, [9, 8, 7, 6]);
+  const externalFontSize = fontSizeForNumber(externalNumber, [13, 11, 9, 8]);
   const caption = externalNumber
-    ? `<div class="external" style="font-size: ${externalFontSize}pt">OS externa ${escapeHtml(externalNumber)}</div>`
+    ? `<div class="external" style="font-size: ${externalFontSize}pt">${escapeHtml(externalNumber)}</div>`
     : "";
   const label = `<div class="label-content">
       <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osLabel)}</strong>
