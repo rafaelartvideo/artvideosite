@@ -336,7 +336,7 @@ Deno.serve(async request => {
     // bridge. We never guess numbers from a public profile or an @lid value.
     const possibleJids=[chatJid,...(phoneJid && phoneJid!==chatJid?[phoneJid]:[])];
     const {data:storedNames,error:contactError}=await admin.from("union_whatsapp_contacts")
-      .select("chat_jid,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
+      .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
       .eq("organization_id",org).eq("channel_id",channelId).eq("account_phone",accountPhone)
       .in("chat_jid",possibleJids);
     if(contactError)throw contactError;
@@ -513,6 +513,34 @@ Deno.serve(async request => {
       }
     }
     if (inserted) {
+      // Uma mensagem recebida cria automaticamente o contato na agenda da
+      // empresa/conta correta. Nunca importar participantes de grupos, mensagens
+      // próprias ou eventos duplicados. PN/LID só são relacionados quando o
+      // próprio WhatsApp confirmou o alias; nomes manuais nunca são substituídos.
+      if (!isFromMe) {
+        const contactJid=savedContact?.chat_jid || phoneJid || chatJid;
+        const known=storedNames?.find(item=>item.chat_jid===contactJid);
+        if (!known) {
+          const {error:contactInsertError}=await admin.from("union_whatsapp_contacts")
+            .upsert({
+              organization_id:org,channel_id:channelId,account_phone:accountPhone,
+              chat_jid:contactJid,contact_phone:phone||null,
+              profile_name:name||null,updated_at:new Date().toISOString(),
+            },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true});
+          if(contactInsertError)throw contactInsertError;
+        } else {
+          const patch:Record<string,unknown>={};
+          if(name && name!==known.profile_name)patch.profile_name=name;
+          if(phone && !known.contact_phone)patch.contact_phone=phone;
+          if(Object.keys(patch).length){
+            patch.updated_at=new Date().toISOString();
+            const {error:contactUpdateError}=await admin.from("union_whatsapp_contacts")
+              .update(patch).eq("organization_id",org).eq("channel_id",channelId)
+              .eq("account_phone",accountPhone).eq("chat_jid",contactJid);
+            if(contactUpdateError)throw contactUpdateError;
+          }
+        }
+      }
       // Do not let delayed historical events replace the latest preview.
       const later = !thread.last_message_at || new Date(timestamp) >= new Date(thread.last_message_at);
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
