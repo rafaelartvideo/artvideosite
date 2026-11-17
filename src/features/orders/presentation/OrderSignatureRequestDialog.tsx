@@ -3,6 +3,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
+import { isOrderTerminalDocumentVisible, isTerminalDocumentType } from "../domain/order-terminal-document-visibility";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import {
   attachFrozenPrintPdf,
@@ -81,9 +82,13 @@ export function OrderSignatureRequestDialog({
       template.is_active !== false
       && template.allow_online_signature === true
       && (!preferredDocumentType || template.document_type === preferredDocumentType)
+      // Assinatura exigida antes do fechamento: somente a ação específica
+      // do modal de descarte/devolução pode preparar antecipadamente o termo.
+      && ((preferredDocumentType === template.document_type && isTerminalDocumentType(preferredDocumentType))
+        || isOrderTerminalDocumentVisible(template.document_type,order))
       && !(template.require_employee_signature === true && template.employee_signature_source === "manual")
     ),
-    [templates,preferredDocumentType],
+    [templates,preferredDocumentType,order?.completed_at,order?.closure_outcome],
   );
   const [templateId, setTemplateId] = useState("");
   const [signerType, setSignerType] = useState<"customer" | "contact">("customer");
