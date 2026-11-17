@@ -1313,11 +1313,11 @@ Deno.serve(async request => {
 
         const {data:firstProfile}=await admin.from("profiles")
           .select("full_name").eq("id",actorId).maybeSingle();
-        const rawFirstName=String(firstProfile?.full_name||"").trim().split(/\\s+/)[0]
-          .replace(/[*_~`\\r\\n]/g,"");
+        const rawFirstName=String(firstProfile?.full_name||"").trim().split(/\s+/)[0]
+          .replace(/[*_~`\r\n]/g,"");
         const senderName=rawFirstName
           ? rawFirstName[0].toLocaleUpperCase("pt-BR")+rawFirstName.slice(1) : null;
-        const outbound=senderName ? `*${senderName}*\\n\\n${firstMessage}` : firstMessage;
+        const outbound=senderName ? `*${senderName}*\n\n${firstMessage}` : firstMessage;
         if(outbound.length>4000)
           return json({success:false,error:"A mensagem excede o limite de caracteres."},400);
 
