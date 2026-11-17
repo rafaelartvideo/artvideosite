@@ -18,12 +18,13 @@ const maskPhone=(raw:string)=>{
 };
 
 export function UnionWhatsAppContactEditDialog({
-  organizationId,accountPhone,contact,initialName,onClose,onSaved,
+  organizationId,accountPhone,contact,initialName,gender,onClose,onSaved,
 }:{
   organizationId:string;
   accountPhone:string;
   contact:UnionWhatsAppContact;
   initialName:string;
+  gender?:string|null;
   onClose:()=>void;
   onSaved:(contact:UnionWhatsAppContact)=>void;
 }) {
@@ -99,6 +100,7 @@ export function UnionWhatsAppContactEditDialog({
     <form onSubmit={event=>{event.preventDefault();void save();}} className="space-y-4 p-1">
       <div className="flex items-center gap-3">
         <WhatsAppContactAvatar name={displayName} size="detail"
+          gender={gender}
           identity={{organizationId,accountPhone,chatJid:contact.chat_jid}}/>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
