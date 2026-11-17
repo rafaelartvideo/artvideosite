@@ -26,6 +26,7 @@ export function useOrderEditorWorkflow({userId,workspace,formState,images,custom
  const save=async()=>{if(saveInFlightRef.current)return false;saveInFlightRef.current=true;try{
   if(!organizationId){showToast({msg:"Selecione uma empresa antes de salvar a OS.",type:"error"});return false;}const editingOrder=formState.editingOS;if(editingOrder?.return_root_id){showToast({msg:"OS de retorno não aceita edição geral.",type:"error"});return false;}if(editingOrder?.organization_id&&editingOrder.organization_id!==organizationId){showToast({msg:"A empresa da OS não pode ser alterada.",type:"error"});return false;}if(editingOrder?!hasPermission("orders.edit"):!hasPermission("orders.create")){showToast({msg:"Você não possui permissão para esta ação na OS.",type:"error"});return false;}
   const isDisposal = workspace.serviceTypes.some((type: any) => type.id === formState.form.service_type_id && type.is_disposal === true);
+   if(isDisposal && !formState.form.equipment_type_id){showToast({msg:"Selecione o equipamento para descarte.",type:"error"});return false;}
    if(!isDisposal && formState.hasAccessories&&!String(formState.form.accessories||"").trim()){showToast({msg:"Descreva os acessórios da OS ou selecione Não.",type:"error"});return false;}
   const unlock=formState.form;
   if(unlock.unlock_dirty){
