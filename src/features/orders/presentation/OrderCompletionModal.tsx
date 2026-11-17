@@ -500,12 +500,7 @@ export function OrderCompletionModal({
           </div>
         </Section>}
       </div>
-      {completion.noCustomerCharge ? (
-        <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs font-semibold text-muted-foreground">
-          Atendimento sem cobrança ao cliente. Uma conta a receber pendente será gerada no Financeiro,
-          onde os dados do fabricante e o pagamento serão informados ao dar baixa.
-        </p>
-      ) : completion.coverageFree ? (
+      {completion.noCustomerCharge ? null : completion.coverageFree ? (
         <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-muted-foreground">
           Atendimento coberto: valor a pagar R$ 0,00. Não serão gerados recebimentos nem exigido comprovante de pagamento.
         </p>
