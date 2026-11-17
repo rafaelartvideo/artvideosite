@@ -8,6 +8,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
+import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 
 const EmbeddedWhatsAppConversation = lazy(() =>
   import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
@@ -19,10 +20,12 @@ const EmbeddedNewOrder = lazy(() =>
     .then(({ TabOrders }) => ({ default: TabOrders })),
 );
 
+type Recipient={kind:"registered"|"linked";name:string;phone:string;field?:"whatsapp"|"phone";conversation_id?:string};
 type State =
   | { status: "loading" }
+  | { status: "choosing"; recipients:Recipient[] }
   | { status: "ready"; conversationId: string; participating?: boolean; responsibleName?: string | null }
-  | { status: "empty"; message: string; canStart: boolean }
+  | { status: "empty"; message: string; canStart: boolean;phone?:string;contactName?:string }
   | { status: "disconnected" | "unauthorized" | "error"; message: string };
 
 function phoneCandidates(value: string): string[] {
@@ -73,6 +76,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const navigate = useNavigate();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
   const canCreateOrder = hasPermission("orders.create");
+  const orderId=source.kind==="order"?source.orderId:"";
   const [state, setState] = useState<State>({ status: "loading" });
   const [starting, setStarting] = useState(false);
   const [embeddedReady, setEmbeddedReady] = useState(false);
@@ -81,6 +85,32 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const [newOrder, setNewOrder] = useState<{ customerId: string | null; key: string } | null>(null);
   const [preparingNewOrder, setPreparingNewOrder] = useState(false);
   const newOrderGateRef = useRef(false);
+
+  const chooseOrderRecipient=useCallback(async(recipient:Recipient)=>{
+    if(!open||!orderId||!canViewInbox||organizationId!==activeOrganizationId)return;
+    setState({status:"loading"});setEmbeddedReady(false);
+    try{
+      const found=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"os_join",{
+        service_order_id:orderId,
+        ...(recipient.kind==="linked"
+          ?{linked_conversation_id:recipient.conversation_id}
+          :{registered_phone_field:recipient.field||"whatsapp"}),
+      });
+      if(found.found&&found.conversation_id){
+        setState({status:"ready",conversationId:found.conversation_id,
+          participating:found.participating===true,responsibleName:found.responsible_name});
+      }else{
+        setState({status:"empty",canStart:found.can_start===true,
+          message:found.can_start
+            ?"Este número ainda não possui conversa no WhatsApp da empresa."
+            :"Não foi possível iniciar atendimento com este contato.",
+          phone:recipient.phone,contactName:recipient.name});
+      }
+    }catch(error){
+      setState({status:"error",
+        message:systemErrorMessage(error,"Não foi possível abrir a conversa deste contato.")});
+    }
+  },[open,orderId,canViewInbox,organizationId,activeOrganizationId]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,6 +128,24 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     if (source.kind==="conversation") {
       set({status:"ready",conversationId:source.conversationId});
       return () => { cancelled = true; };
+    }
+    if(source.kind==="order"){
+      // Escolher uma pessoa ANTES de entrar na conversa. O backend valida
+      // cada opção contra os números cadastrados ou a tabela de vínculos.
+      void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+        "order_recipients",{service_order_id:source.orderId})
+        .then(result=>{
+          if(cancelled)return;
+          const recipients=result.recipients||[];
+          if(recipients.length>1)set({status:"choosing",recipients});
+          else if(recipients.length===1)void chooseOrderRecipient(recipients[0]);
+          else set({status:"empty",canStart:false,
+            message:"Esta OS não possui número WhatsApp cadastrado ou vinculado."});
+        }).catch(error=>{
+          if(!cancelled)set({status:"error",
+            message:systemErrorMessage(error,"Não foi possível consultar os números da OS.")});
+        });
+      return ()=>{cancelled=true;};
     }
     const candidates = phoneCandidates(phone);
     if (!candidates.length) {
@@ -134,7 +182,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     })();
 
     return () => { cancelled = true; };
-  }, [open, organizationId, phone, sourceKey, activeOrganizationId, canViewInbox]);
+  }, [open, organizationId, phone, sourceKey, activeOrganizationId, canViewInbox,chooseOrderRecipient]);
 
   const openNewOrder = async () => {
     if (!canCreateOrder || !canViewInbox || organizationId !== activeOrganizationId ||
@@ -169,7 +217,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const startConversation = async () => {
     if (source.kind==="conversation" || startGateRef.current || state.status !== "empty" || !state.canStart ||
       organizationId !== activeOrganizationId || !canViewInbox) return;
-    const number = phoneCandidates(phone)[0];
+    const number = phoneCandidates(state.phone||phone)[0];
     if (!number) return;
     startGateRef.current = true;
     setStarting(true);
@@ -185,7 +233,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       }
       const created = await operateUnionWhatsAppInbox(
         organizationId, crypto.randomUUID(), "start",
-        { phone: verified.phone, contact_name: customerName.trim() },
+        { phone: verified.phone, contact_name: (state.contactName||customerName).trim() },
       );
       if (!created.conversation_id) throw new Error("Não foi possível confirmar a conversa.");
       // Existing contacts are reopened by the backend, preserving previous history.
@@ -217,6 +265,25 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
       <LoadingState text="Carregando atendimento..." />
+    </div> : state.status === "choosing" ? <div className="flex min-h-0 h-full flex-col px-4 py-5 sm:px-6">
+      <h3 className="text-base font-bold">Escolha com quem falar sobre esta OS</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        O cadastro continua com seus próprios telefones. Contatos vinculados mantêm seus históricos individuais.
+      </p>
+      <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {state.recipients.map((recipient,index)=><button key={recipient.kind+":"+recipient.phone+":"+index}
+          type="button" onClick={()=>void chooseOrderRecipient(recipient)}
+          className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left hover:border-primary hover:bg-primary/5">
+          <WhatsAppBrandIcon size={22} className="shrink-0 text-[#25D366]"/>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold">{recipient.name}</span>
+            <span className="block text-xs text-muted-foreground">{formatWhatsAppPhone(recipient.phone)}</span>
+            <span className="block text-[11px] font-semibold text-primary">{recipient.kind==="linked"
+              ?"Contato vinculado à OS"
+              :recipient.field==="phone"?"Telefone do cadastro":"WhatsApp do cadastro"}</span>
+          </span>
+        </button>)}
+      </div>
     </div> : state.status === "ready" ? <div className="flex h-full min-h-0 flex-col">
       {state.participating && <div role="status" className="flex shrink-0 items-center gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/45 dark:text-sky-200">
         <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
