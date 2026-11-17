@@ -37,8 +37,8 @@ test("cards e gráficos possuem tamanho fixo inclusive pizza e situação SLA", 
   await compile("src/features/dashboard/presentation/DashboardUi.tsx");
   assert.ok(ui.includes("h-[370px]"));
   assert.match(ui,/fixedHeight/);
-  assert.match(panel,/const height=238/);
-  assert.ok(panel.includes("fixedHeight={height}"));
+  assert.ok(panel.includes("const chartHeight = showToolbar ? 203 : 238;"));
+  assert.ok(panel.includes("fixedHeight={chartHeight}"));
   assert.ok(tab.includes("max-w-[1420px]"));
   assert.ok(tab.includes("max-w-[1000px]"));
 });
@@ -55,4 +55,32 @@ test("agregação protege a empresa, agrupa as decisões e não baixa lista de O
   assert.match(repository,/load_dashboard_orders_charts_v1/);
   assert.match(prefs,/ENABLE ROW LEVEL SECURITY/);
   assert.ok(prefs.includes("user_id=(select auth.uid())"));
+});
+
+test("visualização permite ler nomes completos e não agrupa modelos em Outros", async () => {
+  const tab = read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const panel = read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  const ui = read("src/features/dashboard/presentation/DashboardUi.tsx");
+  await compile("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  assert.ok(!tab.includes("summarizeChartCategories"));
+  assert.ok(tab.includes("analytics?.equipment_models||[]"));
+  assert.ok(panel.includes("categoryData.slice("));
+  assert.ok(panel.includes("Buscar modelo"));
+  assert.ok(panel.includes("Ver nomes"));
+  assert.ok(panel.includes("showNames"));
+  assert.ok(ui.includes("overflow-auto [scrollbar-width:thin]"));
+  assert.ok(ui.includes("angle={-38}"));
+  assert.ok(ui.includes("centered />"));
+});
+
+test("aprovados em verde, reprovados em vermelho e centralização dos painéis", () => {
+  const tab = read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const panel = read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  assert.ok(panel.includes('quote_approved: "#059669"'));
+  assert.ok(panel.includes('quote_rejected: "#dc2626"'));
+  assert.ok(panel.includes("não o valor em reais"));
+  assert.ok(panel.includes("CHART_PALETTES.green"));
+  assert.ok(panel.includes("CHART_PALETTES.red"));
+  assert.ok(tab.includes("justify-items-center"));
+  assert.ok(tab.includes("mx-auto"));
 });
