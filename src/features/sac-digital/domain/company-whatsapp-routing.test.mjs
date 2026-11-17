@@ -51,15 +51,27 @@ test("Cadastros e Clientes reutilizam o modal de Atendimentos da OS",async()=>{
  }
 });
 
-test("Conclusão de OS e atalhos de parceiros mantêm roteamento SAC existente",async()=>{
+test("Concluir OS abre o mesmo atendimento WhatsApp dos detalhes, enquanto outros atalhos conservam SAC",async()=>{
+ const conclusion=await source("features/orders/presentation/OrderCompletionModal.tsx");
+ assert.match(conclusion,/useWhatsAppConversationModal/);
+ assert.match(conclusion,/kind: "order"/);
+ assert.match(conclusion,/orderId,/);
+ assert.match(conclusion,/hasPermission\("whatsapp.inbox.view"\)/);
+ assert.doesNotMatch(conclusion,/CompanyWhatsAppAction/);
  for(const path of [
-  "features/orders/presentation/OrderCompletionModal.tsx",
   "features/orders/presentation/OrderDetailsContent.tsx",
   "features/partner-companies/presentation/PartnerCompanyDetails.tsx",
  ]) {
   const body=await source(path);
   assert.match(body,/CompanyWhatsAppAction/,path);
  }
+});
+
+test("Responder na conversa tem rótulo visível e contraste nos dois temas",async()=>{
+ const inbox=await source("features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+ assert.match(inbox,/aria-label="Responder mensagem"[\s\S]*?<span>Responder<\/span>/);
+ assert.match(inbox,/bg-slate-700[\s\S]*?dark:bg-slate-200/);
+ assert.doesNotMatch(inbox,/rounded p-0\.5 text-primary\/75/);
 });
 
 test("signature requests send with SAC when active and open WhatsApp Web when disabled",async()=>{
