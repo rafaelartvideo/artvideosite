@@ -278,6 +278,18 @@ export async function listUnionWhatsAppSharedItems(
   return {items:rows.slice(0,SHARED_PAGE_SIZE),hasMore:rows.length>SHARED_PAGE_SIZE};
 }
 
+// Consulta sob RLS e escopo estrito: somente a conversa do contato selecionado.
+export async function findUnionWhatsAppConversationByContact(
+  organizationId:string,channelId:string,accountPhone:string,chatJid:string,
+):Promise<UnionWhatsAppConversation|null>{
+  const {data,error}=await supabase.from("union_whatsapp_conversations")
+    .select(columns).eq("organization_id",organizationId)
+    .eq("channel_id",channelId).eq("account_phone",accountPhone)
+    .eq("chat_jid",chatJid).maybeSingle();
+  raise(error);
+  return data as UnionWhatsAppConversation|null;
+}
+
 export async function listUnionWhatsAppProtocols(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   page=0,
