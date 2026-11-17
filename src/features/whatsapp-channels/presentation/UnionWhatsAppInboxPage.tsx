@@ -514,6 +514,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
   // Regenerating it automatically would risk sending the same message twice.
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // Keep the composer readable on phones/tablets without making the chat
+  // jump for short messages. The textarea grows until four lines, then scrolls.
+  useLayoutEffect(()=>{
+    const field=inputRef.current;
+    if(!field)return;
+    field.style.height="48px";
+    field.style.height=Math.min(Math.max(field.scrollHeight,48),132)+"px";
+  },[draft,selectedId]);
   useEffect(() => {
     if(!actionPanel)return;
     const onPointer=(event:PointerEvent)=>{
@@ -2341,7 +2349,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 className="absolute bottom-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
                 aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
             </div>
-            <footer className="shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-3 sm:pb-3">
+            <footer className="relative z-30 shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-3 sm:pb-3">
               {canReply ? <div className="mx-auto max-w-4xl">
                 {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
@@ -2372,7 +2380,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) previewUrls.release(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
                     aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
                 </div>}
-                <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                <form ref={actionPanelRef} className="relative flex min-w-0 flex-wrap items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 xl:flex-nowrap"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={stickerFileInputRef} type="file" className="hidden"
                     accept="image/webp,.webp" aria-label="Enviar figurinha WebP"
@@ -2386,13 +2394,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" disabled={Boolean(replyTarget)} aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
+                    className="order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 xl:order-none xl:h-12 xl:w-12 xl:rounded-l-[11px]">
                     <Paperclip size={22}/>
                   </button>
-                  <div className="relative flex h-12 shrink-0">
+                  <div className="relative order-1 flex h-10 shrink-0 xl:order-none xl:h-12">
                     <button type="button" disabled={Boolean(replyTarget)} aria-label="Selecionar figurinha" aria-expanded={stickerOpen}
                       title="Figurinhas da empresa" onClick={()=>{setEmojiOpen(false);setStickerOpen(open=>!open);}}
-                      className={`flex h-12 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted ${stickerOpen?"bg-primary-soft text-primary":""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 ${stickerOpen?"bg-primary-soft text-primary":""}`}>
                       <Sticker size={21}/>
                     </button>
                     {stickerOpen && <UnionWhatsAppStickerPicker
@@ -2404,20 +2412,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       onClose={()=>setStickerOpen(false)}/>}
                     <button type="button" aria-label="Selecionar emoji" aria-expanded={emojiOpen}
                       onClick={() => setEmojiOpen(v => !v)}
-                      className={`flex h-12 w-12 items-center justify-center border-r border-border text-foreground hover:bg-muted ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-12 ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
                       <Smile size={22}/>
                     </button>
                     {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
                   </div>
-                  <div ref={actionPanelRef} className="relative flex h-12 shrink-0">
+                  <div className="order-1 flex h-10 shrink-0 xl:order-none xl:h-12">
                     <button type="button" aria-label="Mais opções da conversa" title="Mais opções da conversa"
                       aria-expanded={Boolean(actionPanel)} aria-haspopup="menu"
                       onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current ? null : "actions");}}
-                      className={`flex h-12 w-10 items-center justify-center border-r border-border text-foreground hover:bg-muted ${actionPanel?"bg-primary-soft text-primary":""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-10 ${actionPanel?"bg-primary-soft text-primary":""}`}>
                       <ChevronUp size={20}/>
                     </button>
                     {actionPanel && <div role="menu" aria-label="Opções da conversa"
-                      className="absolute bottom-[calc(100%+8px)] left-0 z-40 flex h-[216px] max-h-[min(48vh,216px)] w-[min(90vw,640px)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl">
+                      className={`absolute inset-x-0 bottom-[calc(100%+8px)] z-[60] flex w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-border bg-card p-3 text-foreground shadow-xl ${actionPanel==="actions"?"max-h-[min(44dvh,320px)]":"h-[min(44dvh,320px)]"}`}>
                       {actionPanel==="actions" ? <div className="space-y-1">
                         <p className="px-2 pb-1 text-xs font-bold text-muted-foreground">Opções da conversa</p>
                         <button type="button" role="menuitem" onClick={()=>void openQuickReplies()}
@@ -2475,24 +2483,32 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </div>}
                     </div>}
                   </div>
+                  {onPrepareOrderDocument && <button type="button" disabled={Boolean(replyTarget)}
+                    aria-label="Documentos da OS" title="Enviar documento da OS"
+                    onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current==="documents"?null:"documents");}}
+                    className={`order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40 xl:order-none xl:h-12 ${actionPanel==="documents"?"bg-primary-soft text-primary":""}`}>
+                    <FileText size={20}/>
+                  </button>}
+                  <span aria-hidden="true" className="order-1 block h-0 basis-full xl:hidden"/>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
                     lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
                     placeholder={attachment ? "Legenda (opcional)" : "Digite uma mensagem"}
                     onChange={event => setDraft(event.target.value)}
+                    onFocus={()=>setActionPanel(null)}
                     onKeyDown={event => {
                       if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                         event.preventDefault(); sendText();
                       }
                     }}
-                    className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
+                    className="order-2 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 xl:order-none xl:text-sm"
                   />
                   {!replyTarget && !draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
                     title="Gravar áudio" onClick={()=>recording ? stopRecording(false) : void startRecording()}
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center border-l border-border hover:bg-muted ${recording?"text-red-600":"text-foreground"}`}>
+                    className={`order-2 flex h-12 w-11 shrink-0 self-end items-center justify-center border-l border-border hover:bg-muted xl:order-none xl:w-12 ${recording?"text-red-600":"text-foreground"}`}>
                     {recording ? <Square size={20}/> : <Mic size={21}/>}
                   </button>}
                   <button type="submit" disabled={recording || imageOptimizing || (!draft.trim() && !attachment)} aria-label="Enviar mensagem" title="Enviar mensagem"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
+                    className="order-2 flex h-12 w-12 shrink-0 self-end items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45 xl:order-none">
                     <Send size={22}/>
                   </button>
                 </form>
