@@ -27,6 +27,7 @@ function formatAddress(address: Address) {
 }
 
 export function OrderCustomerSection({
+  hideAddress = false,
   selectedCustomer,
   editingCustomer,
   customerDraft,
@@ -52,6 +53,7 @@ export function OrderCustomerSection({
   onClearCustomer,
   onCreateCustomer,
 }: {
+  hideAddress?: boolean;
   selectedCustomer: any;
   editingCustomer: boolean;
   customerDraft: CustomerForm;
@@ -83,7 +85,7 @@ export function OrderCustomerSection({
     || (selectedCustomer?.addresses || []).find((item: Address) => item.is_default)
     || selectedCustomer?.addresses?.[0]
     || customerAddressDraft;
-  const mapUrl = getAddressMapUrl(selectedAddress);
+  const mapUrl = hideAddress ? null : getAddressMapUrl(selectedAddress);
   const setQuickCustomer = (open: boolean) => { if (open) onCreateCustomer(); };
   const compactActionClass = "h-11 w-11 shrink-0 justify-center !p-0 sm:h-auto sm:w-auto sm:!px-4 sm:!py-2.5";
   const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
@@ -100,7 +102,7 @@ export function OrderCustomerSection({
       title="Cliente"
       actions={selectedCustomer && !editingCustomer ? <>
         {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" aria-label="Abrir mapa" title="Abrir mapa" className={compactHeaderLinkClass}><MapPin className={actionIconClass} /><span className={mobileHiddenLabel}>Abrir mapa</span></a>}
-        {hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)} disabled={saving} aria-label={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} title={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} className={compactActionClass}><Link2 className={actionIconClass} /><span className={mobileHiddenLabel}>{selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</span></BtnSecondary>}
+        {!hideAddress && hasPermission("customers.edit") && <BtnSecondary onClick={() => setSharedAddressOpen(value => !value)} disabled={saving} aria-label={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} title={selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"} className={compactActionClass}><Link2 className={actionIconClass} /><span className={mobileHiddenLabel}>{selectedAddress?.shared_map_url ? "Alterar vínculo" : "Vincular endereço"}</span></BtnSecondary>}
       </> : undefined}
     >
       {selectedCustomer ? (
@@ -125,9 +127,9 @@ export function OrderCustomerSection({
                 <FPhoneInput label="Telefone" disabled={saving} copyFromWhatsapp={customerDraft.whatsapp} onCopyWhatsapp={phone => { clearCustomerFieldError("phone"); setCustomerDraft(current => ({ ...current, phone })); }} error={customerFieldErrors.phone} value={customerDraft.phone} onChange={(e: any) => { clearCustomerFieldError("phone"); clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, phone: e.target.value }); }} />
                 <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} error={customerFieldErrors.email} value={customerDraft.email} onChange={(e: any) => { clearCustomerFieldError("email"); setCustomerDraft({ ...customerDraft, email: e.target.value }); }} /></div>
               </div>
-              <Section title="Endereço do cliente">
+              {!hideAddress && <Section title="Endereço do cliente">
                 <AddressFields value={customerAddressDraft} onChange={setCustomerAddressDraft} inputClassName={INPUT} />
-              </Section>
+              </Section>}
               {hasPermission("customers.edit") && <BtnPrimary onClick={saveCustomer} loading={saving} loadingText="Salvando...">Salvar dados</BtnPrimary>}
             </div>
           ) : (
@@ -154,7 +156,7 @@ export function OrderCustomerSection({
                 <InfoRow label="Documento" value={selectedCustomer.document} />
               </div>
 
-              {serviceCustomerAddresses.length > 1 && <div className="border-t border-[#0d1b2e]/8 pt-4">
+              {!hideAddress && serviceCustomerAddresses.length > 1 && <div className="border-t border-[#0d1b2e]/8 pt-4">
                 <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Endereço da OS</p>
                 <RadioGroup value={selectedServiceAddress?.id || ""} onValueChange={addressId => {
                   const address = serviceCustomerAddresses.find(item => item.id === addressId);
@@ -172,8 +174,8 @@ export function OrderCustomerSection({
                 </RadioGroup>
               </div>}
 
-              <button type="button" disabled={saving} onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline disabled:opacity-50">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>
-              {addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço selecionado</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = selectedAddress; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
+              {!hideAddress && <button type="button" disabled={saving} onClick={() => setAddressExpanded(value => !value)} className="text-xs font-bold text-[#0057e7] hover:underline disabled:opacity-50">{addressExpanded ? "Ocultar endereço ▲" : "Mostrar endereço ▼"}</button>}
+              {!hideAddress && addressExpanded && <div className="border-t border-[#0d1b2e]/8 pt-4"><p className="text-[10px] font-bold text-[#5a6a82] uppercase mb-2">Endereço selecionado</p><div className="grid sm:grid-cols-3 gap-3">{(() => { const address = selectedAddress; const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return (["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => address?.[key] ? <InfoRow key={key} label={labels[key]} value={address[key]} /> : null); })()}</div></div>}
               <div className="flex min-w-0 flex-wrap gap-2">{!editingOS && <BtnSecondary onClick={onClearCustomer} disabled={saving} aria-label="Trocar cliente" title="Trocar cliente" className={compactActionClass}><RefreshCcw size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Trocar cliente</span></BtnSecondary>}{hasPermission("customers.edit") && <BtnSecondary onClick={() => setEditingCustomer(true)} disabled={saving} aria-label="Editar dados" title="Editar dados" className={compactActionClass}><Pencil size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Editar</span></BtnSecondary>}</div>
             </>
           )}
