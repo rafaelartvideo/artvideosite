@@ -22,6 +22,7 @@ import {
 } from "@/features/documents/domain/document-signature";
 import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
+import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
 import {
   cancelSignatureRequest,
   getSignatureAdminLink,
@@ -115,7 +116,14 @@ export function OrderSignatureRequestsSection({
   const canResend = hasPermission("documents.signatures.resend");
   const canCancel = hasPermission("documents.signatures.cancel");
   const canAudit = hasPermission("documents.signatures.audit");
-  const onlineTemplates = useMemo(() => templates.filter(template => template.is_active !== false && template.allow_online_signature === true), [templates]);
+  const onlineTemplates = useMemo(() => templates.filter(template =>
+    template.is_active !== false && template.allow_online_signature === true
+      && isOrderTerminalDocumentVisible(template.document_type,order)
+  ), [templates,order?.completed_at,order?.closure_outcome]);
+  const visibleRequests = requests.filter(request => {
+    const template=templates.find(item=>item.id===request.print_template_id);
+    return !template || isOrderTerminalDocumentVisible(template.document_type,order);
+  });
 
   const load = useCallback(async () => {
     if (!canView || !order?.organization_id || !order?.id) return;
@@ -268,7 +276,7 @@ export function OrderSignatureRequestsSection({
 
       {canSend && onlineTemplates.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”. Configure em Operação → Documentos.</div>}
 
-      {loading ? <LoadingState text="Carregando assinaturas..." /> : requests.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-4 py-10 text-center"><FileSignature size={24} className="mx-auto text-[#8a98aa]" /><p className="mt-2 text-sm font-bold text-[#0d1b2e]">Nenhuma solicitação</p><p className="mt-1 text-xs text-[#5a6a82]">Os documentos enviados para assinatura aparecerão aqui.</p></div> : <div className="space-y-3">{requests.map(request => {
+      {loading ? <LoadingState text="Carregando assinaturas..." /> : visibleRequests.length === 0 ? <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-4 py-10 text-center"><FileSignature size={24} className="mx-auto text-[#8a98aa]" /><p className="mt-2 text-sm font-bold text-[#0d1b2e]">Nenhuma solicitação</p><p className="mt-1 text-xs text-[#5a6a82]">Os documentos enviados para assinatura aparecerão aqui.</p></div> : <div className="space-y-3">{visibleRequests.map(request => {
         const active = isActiveSignatureStatus(request.status);
         const signed = request.status === "signed";
         const busy = busyId === request.id;
