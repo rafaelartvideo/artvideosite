@@ -49,7 +49,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "serviceProviders", label: "Prestadores de Serviços", icon: HardHat },
-  { id: "audit", label: "Auditoria", icon: History },
+
   { id: "management", label: "Central de Gestão", icon: Folders },
   { id: "announcements", label: "Avisos", icon: Megaphone },
 ];
@@ -65,6 +65,7 @@ export const siteItems: PermissionAwareHubItem[] = [
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
 export const operationItems: PermissionAwareHubItem[] = [
+  { id: "audit", label: "Auditoria", icon: History, description: "Consulte alterações e ações registradas no CRM.", permissionKey: "organizations.audit.view" },
   { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
   { id: "checklists", label: "Checklists", icon: ClipboardCheck, description: "Crie perfis de Entrada, Diagnóstico e Saída/QC por equipamento.", permissionKey: "checklists.view" },
   { id: "generalServices", label: "Serviços Gerais", icon: ClipboardList, description: "Cadastre os serviços internos da assistência técnica.", permissionKey: "general_services.view" },
