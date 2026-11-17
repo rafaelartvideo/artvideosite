@@ -458,7 +458,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [operatorChoicesLoading,setOperatorChoicesLoading] = useState(false);
   const operatorChoicesCacheRef=useRef<{organizationId:string;loadedAt:number}|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
-  const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
+  const [orderSearch,setOrderSearch]=useState("");
+  const [ordersLoading,setOrdersLoading]=useState(false);
+  const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
+  const [linkedOrders,setLinkedOrders]=useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
   const [handoffs,setHandoffs] = useState<Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
@@ -1304,23 +1307,51 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
   };
-  const showOrders = async () => {
-    if(!activeOrganizationId || !selected)return;
-    setSavingOrder(true);
-    try{
-      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_options");
-      setPossibleOrders(result.orders||[]);setOrdersOpen(true);
-    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar as OS deste cliente."));}
-    finally{setSavingOrder(false);}
+  // Buscar somente quando abrir o modal ou mudar o texto, sem consultar
+  // o Supabase para cada tecla digitada.
+  useEffect(()=>{
+    if(!ordersOpen||!selectedId||!activeOrganizationId)return;
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{
+      setOrdersLoading(true);
+      void operateUnionWhatsAppInbox(activeOrganizationId,selectedId,"order_options",{
+        search:orderSearch.trim(),
+      }).then(result=>{
+        if(cancelled)return;
+        setPossibleOrders(result.orders||[]);
+        setLinkedOrders(result.linked_orders||[]);
+      }).catch(error=>{
+        if(!cancelled)reportError(systemErrorMessage(error,"Não foi possível buscar as OS."));
+      }).finally(()=>{if(!cancelled)setOrdersLoading(false);});
+    },orderSearch?350:0);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[ordersOpen,orderSearch,selectedId,activeOrganizationId,reportError]);
+  const showOrders=()=>{
+    setOrderSearch("");setPossibleOrders([]);setLinkedOrders([]);
+    setOrdersOpen(true);
   };
-  const linkOrder = async (id:string) => {
+  const linkOrder = async (id:string,unlink=false) => {
     if(!activeOrganizationId || !selected)return;
     setSavingOrder(true);
     try{
-      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{service_order_id:id});
-      setConversations(old=>old.map(item=>item.id===selected.id?{...item,service_order_id:id||null}:item));
+      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{
+        service_order_id:id,unlink,
+      });
+      setConversations(old=>old.map(item=>item.id===selected.id
+        ?{...item,service_order_id:unlink
+          ?(item.service_order_id===id?null:item.service_order_id):id}:item));
+      setLinkedCustomers(old=>{const next={...old};delete next[selected.id];return next;});
+      if(unlink){
+        setLinkedOrders(old=>old.filter(order=>order.id!==id));
+      }else{
+        setLinkedOrders(old=>{
+          const result=possibleOrders.find(order=>order.id===id);
+          return result&&!old.some(order=>order.id===id)?[...old,result]:old;
+        });
+      }
       setOrdersOpen(false);
-    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível vincular a OS."));}
+      notifyAdmin(unlink?"Vínculo da OS removido.":"Contato WhatsApp vinculado à OS sem alterar o cadastro.","success");
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível atualizar o vínculo da OS."));}
     finally{setSavingOrder(false);}
   };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
@@ -2869,17 +2900,41 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           <p className="font-bold">Vincular ordem de serviço</p>
           <button type="button" aria-label="Fechar" onClick={()=>setOrdersOpen(false)}><X size={18}/></button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Apenas OS do cadastro verificado por este telefone.</p>
-        <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
-          {possibleOrders.length===0 && <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma OS encontrada para este cliente.</p>}
-          {possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
-            disabled={savingOrder} className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-muted">
-            <span>OS {order.os_number}</span>
-            {selected.service_order_id===order.id && <Check size={16} className="text-primary"/>}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Vincule este WhatsApp à OS desejada sem substituir o telefone do cliente cadastrado.
+        </p>
+        <input type="search" aria-label="Buscar OS por número ou CPF/CNPJ"
+          placeholder="Buscar número da OS, CPF ou CNPJ" value={orderSearch}
+          onChange={event=>setOrderSearch(event.target.value)}
+          className="admin-input mt-3 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+          {linkedOrders.length>0 && <div className="space-y-1">
+            <p className="text-[11px] font-bold uppercase text-muted-foreground">OS vinculadas a este contato</p>
+            {linkedOrders.map(order=><div key={order.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs">
+              <span className="min-w-0 truncate"><strong>OS {order.os_number}</strong> · {order.customer_name||"Cliente"}</span>
+              <button type="button" disabled={savingOrder} onClick={()=>void linkOrder(order.id,true)}
+                className="shrink-0 font-semibold text-primary hover:underline">Desvincular</button>
+            </div>)}
+          </div>}
+          <p className="text-[11px] font-bold uppercase text-muted-foreground">Resultados da busca</p>
+          {ordersLoading&&<div role="status" className="space-y-2">
+            {[0,1,2].map(n=><div key={n} className="h-11 animate-pulse rounded-lg bg-muted"/>)}
+          </div>}
+          {!ordersLoading&&possibleOrders.length===0&&
+            <p className="py-3 text-center text-xs text-muted-foreground">Nenhuma OS encontrada. Busque pelo número ou CPF/CNPJ.</p>}
+          {!ordersLoading&&possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
+            disabled={savingOrder||linkedOrders.some(item=>item.id===order.id)}
+            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60">
+            <span className="min-w-0 truncate"><strong>OS {order.os_number}</strong>
+              <span className="block truncate text-[11px] text-muted-foreground">{order.customer_name||"Cliente"}</span>
+            </span>
+            {linkedOrders.some(item=>item.id===order.id)
+              ?<span className="shrink-0 text-xs font-semibold text-emerald-600">Vinculada</span>
+              :<span className="shrink-0 text-xs font-semibold text-primary">Vincular</span>}
           </button>)}
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          {selected.service_order_id && <AdminButton variant="secondary" disabled={savingOrder} onClick={()=>void linkOrder("")}>Desvincular</AdminButton>}
+        <div className="mt-4 flex justify-end">
           <AdminButton variant="secondary" onClick={()=>setOrdersOpen(false)}>Fechar</AdminButton>
         </div>
       </div>
