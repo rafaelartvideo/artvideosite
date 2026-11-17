@@ -210,7 +210,7 @@ test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídi
   // com TTL e até duas requisições simultâneas.
   assert.match(provider,/if\(!expanded\|\|isPageOpen\|\|!channelId\|\|!channelPhone\|\|conversationId\)return/);
   assert.match(provider,/const available=2-avatarRequestsRef.current.size/);
-  assert.match(provider,/operateUnionWhatsAppInbox\(organizationId,item.id,"contact_avatar"\)/);
+  assert.match(provider,/fetchSharedAvatar\(\{/);
 });
 
 
@@ -294,7 +294,7 @@ test("Mini conversa fica estável e reutiliza fotos sem consulta em cada mudanç
   assert.match(provider,/const avatarRequestsRef=useRef\(new Set<string>\(\)\)/);
   assert.match(provider,/const avatarCheckedAtRef=useRef\(new Map<string,number>\(\)\)/);
   assert.match(provider,/candidates=\[\.\.\.lists\.in_att\.items\.slice\(0,6\),\.\.\.lists\.waiting\.items\.slice\(0,6\)\]/);
-  assert.match(provider,/operateUnionWhatsAppInbox\(organizationId,item\.id,"contact_avatar"\)/);
+  assert.match(provider,/fetchSharedAvatar\(\{/);
   assert.doesNotMatch(provider,/setInterval\(/);
 });
 
@@ -389,4 +389,36 @@ test("Sons distintos usam o mesmo Realtime, sem áudio fictício antes dos arqui
   assert.match(provider,/playUnionWhatsAppSound\("conversation",messageId\)/);
   assert.match(provider,/openConversationsRef.current.has\(id\)/);
   assert.equal((provider.match(/supabase.channel\(/g)||[]).length,1);
+});
+
+test("Avatar compartilhado evita spinner infinito e utiliza a mesma foto nos quatro locais",()=>{
+  const visual=read("src/features/whatsapp-channels/presentation/WhatsAppInboxVisuals.tsx");
+  const shared=read("src/features/whatsapp-channels/application/shared-whatsapp-avatar-cache.ts");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const mini=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const edit=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactEditDialog.tsx");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  assert.match(shared,/identity.organizationId\+":"\+identity.accountPhone\+":"\+identity.chatJid/);
+  assert.match(shared,/const MAX_CONCURRENT=3/);
+  assert.match(shared,/const MAX_ENTRIES=160/);
+  assert.match(shared,/const FOUND_TTL=85\*60_000/);
+  assert.match(shared,/const previous=pending.get\(key\)/);
+  assert.match(shared,/const stored=peekSharedAvatar\(key\)/);
+  assert.match(shared,/subscribeSharedAvatar/);
+  assert.match(shared,/markSharedAvatarBroken/);
+  assert.match(shared,/const genders=new Map/);
+  assert.match(visual,/IntersectionObserver/);
+  assert.match(visual,/rootMargin:"120px 0px"/);
+  assert.match(visual,/setBrokenUrl\(imageUrl\)/);
+  assert.match(visual,/markSharedAvatarBroken\(key,imageUrl\)/);
+  assert.match(visual,/src=\{fallback\}/);
+  assert.match(visual,/genderValue==="M"/);
+  assert.match(visual,/genderValue==="F"/);
+  assert.doesNotMatch(visual,/LoaderCircle|Carregando foto/);
+  for(const view of [inbox,contacts,mini,edit])assert.match(view,/identity=\{\{/);
+  assert.match(inbox,/fetchSharedAvatar\(\{/);
+  assert.match(contacts,/fetchSharedAvatar\(\{/);
+  assert.match(edge,/select\("id,gender,document,cnpj,phone,whatsapp,email"\)/);
+  assert.match(edge,/customer_type,gender,document/);
 });
