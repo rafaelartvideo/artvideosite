@@ -27,7 +27,7 @@ export function UnionWhatsAppStickerPicker({
         : Date.parse(b.created_at)-Date.parse(a.created_at));
   },[stickers,tab]);
   return <div role="dialog" aria-label="Figurinhas da empresa"
-    className="absolute bottom-[calc(100%+10px)] left-0 z-50 w-[min(92vw,370px)] overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
+    className="absolute bottom-[calc(100%+10px)] left-0 z-50 w-[min(80vw,370px)] overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
     <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
       <strong className="text-sm">Figurinhas</strong>
       <div className="flex items-center gap-1">
