@@ -48,6 +48,44 @@ const toDraft = (item: WorkItem) => ({
   assigned_employee_ids: item.assigned_employee_ids || [], customer_id: item.customer_id,
   service_order_id: item.service_order_id,
 });
+const HISTORY_FIELD_LABELS: Record<string, string> = {
+  kind: "Tipo", title: "Título", description: "Descrição", status: "Andamento",
+  outcome: "Resultado", priority: "Prioridade", category: "Categoria",
+  starts_at: "Início", due_at: "Prazo", reminder_minutes: "Lembretes",
+  assigned_employee_ids: "Responsáveis", customer_id: "Cliente vinculado",
+  service_order_id: "OS vinculada",
+};
+function historyValue(field: string, value: string | null): string {
+  if (value == null || value === "" || value === "Não informado") return "Não informado";
+  if (field === "kind") return value === "task" ? "Tarefa" : value === "commitment" ? "Compromisso" : value;
+  if (field === "status") return STATUS.find(status => status.value === value)?.label || value;
+  if (field === "priority") return PRIORITY.find(priority => priority.value === value)?.label || value;
+  if (field === "outcome") return OUTCOME.find(outcome => outcome.value === value)?.label || value;
+  if (field === "starts_at" || field === "due_at") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("pt-BR", {
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  }
+  return value;
+}
+function activityTitle(action: string): string {
+  if (action === "created") return "Atividade criada";
+  if (action === "checklist_added") return "Etapa adicionada";
+  if (action === "checklist_removed") return "Etapa removida";
+  if (action === "checklist_done") return "Etapa concluída";
+  if (action === "checklist_reopened") return "Etapa reaberta";
+  return "Atividade atualizada";
+}
+function legacyActivityDetail(action: string): string | null {
+  if (action === "rescheduled") return "Prazo alterado (os valores anteriores não foram registrados).";
+  if (action === "assigned") return "Responsáveis alterados (os valores anteriores não foram registrados).";
+  if (action.startsWith("status:")) {
+    const next = STATUS.find(status => status.value === action.slice(7))?.label || action.slice(7);
+    return "Andamento alterado para " + next + ".";
+  }
+  return null;
+}
 const fieldLabel = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground";
 const selectClass = cn(INPUT, "h-10 w-full text-sm");
 type WorkCustomer = { id: string; full_name: string; trade_name: string | null; document: string | null; cnpj: string | null; phone: string | null; whatsapp: string | null };
@@ -572,25 +610,51 @@ export function WorkItemDialog({
       {section === "history" && <div className="space-y-3">
         <p className="text-sm font-bold">Linha do tempo</p>
         {details.isPending && <InlineLoading text="Carregando histórico..." />}
-        {details.data?.activity.map(activity => <div className="flex gap-3" key={activity.id}>
-          <div className="flex flex-col items-center">
-            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
-            <span className="min-h-8 w-px flex-1 bg-border" />
-          </div>
-          <div className="min-w-0 flex-1 pb-4">
-            <p className="text-sm font-medium">{activity.action === "created" ? "Atividade criada"
-              : activity.action === "rescheduled" ? "Prazo alterado"
-              : activity.action === "assigned" ? "Responsáveis alterados"
-              : activity.action === "checklist_added" ? "Etapa adicionada"
-              : activity.action === "checklist_removed" ? "Etapa removida"
-              : activity.action === "checklist_done" ? "Etapa concluída"
-              : activity.action === "checklist_reopened" ? "Etapa reaberta"
-              : activity.action.startsWith("status:") ? "Andamento: " + (STATUS.find(s => s.value === activity.action.slice(7))?.label || activity.action.slice(7))
-              : "Atividade atualizada"}</p>
-            {activity.note && <p className="mt-0.5 text-xs text-muted-foreground">{OUTCOME.find(outcome => outcome.value === activity.note)?.label || activity.note}</p>}
-            <p className="text-xs text-muted-foreground">{new Date(activity.created_at).toLocaleString("pt-BR")}</p>
-          </div>
-        </div>)}
+        {details.isError && <p role="alert" className="text-sm text-destructive">Não foi possível carregar o histórico da atividade.</p>}
+        {details.data?.activity.map(activity => {
+          const changes = Array.isArray(activity.changes) ? activity.changes : [];
+          const actor = activity.actor_name_snapshot
+            || employees.find(employee => employee.profile_id === activity.actor_user_id)?.full_name
+            || (activity.actor_user_id ? "Usuário não identificado" : "Sistema");
+          const isChecklist = activity.action.startsWith("checklist_");
+          const legacyDetail = changes.length === 0 && !isChecklist ? legacyActivityDetail(activity.action) : null;
+          return <div className="flex gap-3" key={activity.id}>
+            <div className="flex flex-col items-center">
+              <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
+              <span className="min-h-8 w-px flex-1 bg-border" />
+            </div>
+            <div className="min-w-0 flex-1 pb-4">
+              <p className="text-sm font-bold text-foreground">{activityTitle(activity.action)}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Por <span className="font-semibold text-foreground">{actor}</span>
+                {" · "}{new Date(activity.created_at).toLocaleString("pt-BR")}
+              </p>
+              {changes.length > 0 && <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                {changes.map((change, index) => <div key={change.field + "-" + index} className="min-w-0 text-xs">
+                  <p className="font-bold text-foreground">{HISTORY_FIELD_LABELS[change.field] || change.field}</p>
+                  <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5 leading-5">
+                    <span className="min-w-0 break-words text-muted-foreground">
+                      <span className="font-medium">De:</span> {historyValue(change.field, change.old)}
+                    </span>
+                    <span className="text-primary" aria-hidden="true">→</span>
+                    <span className="min-w-0 break-words text-foreground">
+                      <span className="font-medium">Para:</span> {historyValue(change.field, change.new)}
+                    </span>
+                  </div>
+                </div>)}
+              </div>}
+              {activity.note && (isChecklist || changes.length === 0) &&
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {OUTCOME.find(outcome => outcome.value === activity.note)?.label || activity.note}
+                </p>}
+              {legacyDetail && <p className="mt-1 text-xs text-muted-foreground">{legacyDetail}</p>}
+              {activity.action === "updated" && changes.length === 0 &&
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Os campos alterados não eram registrados quando esta atualização foi feita.
+                </p>}
+            </div>
+          </div>;
+        })}
         {!details.isPending && !details.data?.activity.length && <p className="text-sm text-muted-foreground">Nenhum registro encontrado.</p>}
       </div>}
     </div>
