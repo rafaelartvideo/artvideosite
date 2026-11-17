@@ -128,7 +128,7 @@ const panelLabels: Record<Panel, string> = {
 };
 
 export function UnionWhatsAppCrmMenu({
-  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading,
+  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading, newOrderDisabled,
 }: {
   context?: CrmConversationContext;
   open: boolean;
@@ -139,6 +139,7 @@ export function UnionWhatsAppCrmMenu({
   onOpenCustomer?: (id: string) => void;
   onNewOrder?: () => void;
   newOrderLoading?: boolean;
+  newOrderDisabled?: boolean;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null);
@@ -197,7 +198,7 @@ export function UnionWhatsAppCrmMenu({
         {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
       </button>
       {onNewOrder && <button type="button" onClick={event=>{event.stopPropagation();onNewOrder();}}
-        disabled={Boolean(newOrderLoading)} title="Criar uma OS para este atendimento"
+        disabled={Boolean(newOrderLoading || newOrderDisabled)} title="Criar uma OS para este atendimento"
         aria-label="Nova OS pelo atendimento"
         className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60">
         {newOrderLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>}
