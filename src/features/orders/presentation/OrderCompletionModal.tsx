@@ -246,10 +246,10 @@ export function OrderCompletionModal({
   const close = () => {
     if (saving) return;
     if (preparing && onCancelPreparing) onCancelPreparing();
-    else completion.setOpen(false);
+    else completion.closeCompletion();
   };
 
-  const preparingConclusion = preparing || (
+  const preparingConclusion = preparing || completion.billingPreparing || Boolean(completion.billingError) || (
     completion.open && !completion.completedSuccessfully && (
       completion.commercialItemsLoading
       || completion.financeOptionsLoading
@@ -264,7 +264,8 @@ export function OrderCompletionModal({
     return <AdminDialog open onClose={close}
       title={`Concluir OS ${detail?.os_number || ""}`}
       preparing preparingText="Preparando conclusão..."
-      preparingError={preparingError} onRetryPreparing={onRetryPreparing}
+      preparingError={preparingError || completion.billingError}
+      onRetryPreparing={onRetryPreparing || (()=>{void completion.openCompletion(detail)})}
       className="max-w-xl">
       <span className="hidden" />
     </AdminDialog>;
