@@ -71,7 +71,7 @@ function OrderLabelPrintSettings({ canEdit }: { canEdit: boolean }) {
         {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex shrink-0 flex-col items-center justify-center overflow-hidden border border-dashed border-slate-300" style={{ width: `${layout.width}mm`, height: `${layout.height}mm`, padding: "1mm", boxSizing: "border-box" }}>
           {index < layout.quantity && <div className="flex w-full flex-col items-center justify-center overflow-hidden text-center" style={{ gap: "1mm", transform: `translateY(${layout.verticalOffset}mm)` }}>
             <strong className="block max-w-full whitespace-nowrap" style={{ fontSize: "17pt", fontWeight: 900, lineHeight: 1.08 }}>OS 116</strong>
-            <span className="block max-w-full whitespace-nowrap" style={{ fontSize: "9pt", fontWeight: 700, lineHeight: 1.15 }}>OS externa 000</span>
+            <span className="block max-w-full whitespace-nowrap" style={{ fontSize: "13pt", fontWeight: 700, lineHeight: 1.15 }}>000</span>
           </div>}
         </div>)}
       </div>
