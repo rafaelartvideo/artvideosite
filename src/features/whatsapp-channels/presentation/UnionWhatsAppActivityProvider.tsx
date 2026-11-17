@@ -78,6 +78,8 @@ export function UnionWhatsAppActivityProvider({
   currentAccountRef.current=accountKey;
   const pageOpenRef=useRef(isPageOpen);
   pageOpenRef.current=isPageOpen;
+  const conversationOpenRef=useRef(Boolean(conversationId));
+  conversationOpenRef.current=Boolean(conversationId);
   const expandedRef=useRef(expanded);
   expandedRef.current=expanded;
   const filterRef=useRef(filter);
@@ -211,8 +213,10 @@ export function UnionWhatsAppActivityProvider({
     if(document.visibilityState!=="visible"||reconcileTimerRef.current!==null)return;
     reconcileTimerRef.current=setTimeout(()=>{
       reconcileTimerRef.current=null;
+      // O inbox completo já reconcilia a própria lista: não duplicar sua RPC.
+      if(pageOpenRef.current||conversationOpenRef.current)return;
       void countsFnRef.current();
-      if(expandedRef.current&&!pageOpenRef.current)void rowsFnRef.current();
+      if(expandedRef.current)void rowsFnRef.current();
     },1_200);
   },[]);
 
@@ -228,10 +232,14 @@ export function UnionWhatsAppActivityProvider({
   },[expanded,filter,isPageOpen,refreshRows]);
 
   useEffect(()=>{
-    if(!isPageOpen)return;
-    setExpanded(false);
-    setAlert(null);
-  },[isPageOpen]);
+    if(isPageOpen){
+      setExpanded(false);
+      setAlert(null);
+      return;
+    }
+    // Ao voltar dos módulos, retomar os indicadores com uma única consulta.
+    if(channelId&&channelPhone)void refreshCounts(true);
+  },[isPageOpen,channelId,channelPhone,refreshCounts]);
 
   useEffect(()=>{
     if(!alert)return;
@@ -352,7 +360,10 @@ export function UnionWhatsAppActivityProvider({
       <Suspense fallback={null}>
         <ConversationModal
           key={conversationId}
-          open onClose={()=>setConversationId(null)}
+          open onClose={()=>{
+            setConversationId(null);
+            void refreshCounts(true);
+          }}
           context={{organizationId:activeOrganizationId,
             source:{kind:"conversation",conversationId}}}
         />
