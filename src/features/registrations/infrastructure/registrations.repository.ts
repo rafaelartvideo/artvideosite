@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { findCustomerWhatsappConflict, duplicateWhatsappMessage } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
-export type RegistrationRole = "customer" | "employee" | "supplier";
+export type RegistrationRole = "customer" | "employee" | "supplier" | "partner";
 
 export type SupplierInventoryItem = {
   id: string;
