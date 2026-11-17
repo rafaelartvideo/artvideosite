@@ -62,6 +62,13 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const { organizationId, source } = context;
   const phone = source.kind==="conversation" ? "" : source.phone;
   const customerName = source.kind==="conversation" ? "" : source.customerName;
+  // Depender do objeto source reinicializava o modal quando o painel flutuante
+  // atualizava sua lista. Identidade da conversa é o que determina o join.
+  const sourceKey = source.kind==="conversation"
+    ? "conversation:"+source.conversationId
+    : source.kind==="order"
+      ? "order:"+source.orderId+":"+(source.customerId||"")
+      : "contact:"+(source.entityId||"")+":"+(source.entityContactId||"")+":"+(source.customerId||"");
   const { activeOrganizationId, hasPermission } = useAuth();
   const navigate = useNavigate();
   const canViewInbox = hasPermission("whatsapp.inbox.view");
@@ -127,7 +134,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     })();
 
     return () => { cancelled = true; };
-  }, [open, organizationId, phone, source, activeOrganizationId, canViewInbox]);
+  }, [open, organizationId, phone, sourceKey, activeOrganizationId, canViewInbox]);
 
   const openNewOrder = async () => {
     if (!canCreateOrder || !canViewInbox || organizationId !== activeOrganizationId ||
