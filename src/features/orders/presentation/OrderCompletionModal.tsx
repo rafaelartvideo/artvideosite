@@ -11,7 +11,7 @@ import {
   BtnSecondary,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -128,9 +128,11 @@ function InfoItem({ label, value }: { label: string; value: string }) {
 function CommercialItemRow({
   item,
   formatCurrency,
+  showPrices = true,
 }: {
   item: OrderCommercialItem;
   formatCurrency: (value: number) => string;
+  showPrices?: boolean;
 }) {
   const quantity = Number(item.quantity || 0);
   const unitPrice = Number(item.unit_price || 0);
@@ -153,20 +155,23 @@ function CommercialItemRow({
       </div>
       {item.description_snapshot && <p className="mt-0.5 break-words text-sm text-muted-foreground">{item.description_snapshot}</p>}
       <p className="mt-1 text-sm text-muted-foreground">
-        {formatNumber(quantity)} {item.unit_snapshot || (service ? "serviço" : "un")} × {formatCurrency(unitPrice)}
-        {additionalCost > 0 ? ` + ${formatCurrency(additionalCost)} adicional` : ""}
+        {formatNumber(quantity)} {item.unit_snapshot || (service ? "serviço" : "un")}
+        {showPrices ? ` × ${formatCurrency(unitPrice)}` : ""}
+        {showPrices && additionalCost > 0 ? ` + ${formatCurrency(additionalCost)} adicional` : ""}
       </p>
     </div>
-    <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>
+    {showPrices && <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>}
   </div>;
 }
 
 function ResolutionProductRow({
   item,
   formatCurrency,
+  showPrices = true,
 }: {
   item: any;
   formatCurrency: (value: number) => string;
+  showPrices?: boolean;
 }) {
   const quantity = Number(item.quantity || 0);
   const unitPrice = Number(item.unit_sale_price || item.inventory_item?.sale_price || 0);
@@ -180,11 +185,11 @@ function ResolutionProductRow({
         <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-bold text-violet-700 dark:text-violet-300">Produto</span>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        {formatNumber(quantity)} {item.inventory_item?.unit || "un"} × {formatCurrency(unitPrice)}
+        {formatNumber(quantity)} {item.inventory_item?.unit || "un"}{showPrices ? ` × ${formatCurrency(unitPrice)}` : ""}
         {item.inventory_item?.sku ? ` · SKU ${item.inventory_item.sku}` : ""}
       </p>
     </div>
-    <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>
+    {showPrices && <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(total)}</strong>}
   </div>;
 }
 
@@ -305,13 +310,9 @@ export function OrderCompletionModal({
           {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
         </div>)}
         {completion.noCustomerCharge && <div className="rounded-xl border border-border bg-muted/30 p-4">
-          <p className="text-sm font-bold text-foreground">Conta a receber da garantia gerada</p>
+          <p className="text-sm font-bold text-foreground">Conta a receber de garantia gerada</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Fabricante: {completion.warrantyPartners.find(p=>p.id===completion.warrantyPayerId)?.name||"Parceiro selecionado"}
-            {" · "} Valor a receber: {formatCurrency(completion.warrantyReceivableNumber)}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Sem cobrança ao cliente. Faça a baixa quando o fabricante pagar.
+            Sem cobrança ao cliente. O valor, fabricante e vencimento serão preenchidos no Financeiro ao dar baixa.
           </p>
           <a href={adminPath("finance","receivables",detail?.financial_entry_id||null)}
             target="_blank" rel="noopener noreferrer"
@@ -330,7 +331,6 @@ export function OrderCompletionModal({
     || completion.discountExceedsServicePrice
     || (!completion.coverageFree && Boolean(completion.servicePriceValidationMessage))
     || Boolean(completion.financeValidationMessage)
-    || Boolean(completion.warrantyReceivableValidationMessage)
     || completion.financeOptionsLoading
     || completion.commercialItemsLoading
     || (completion.generatesWarranty && completion.warrantyLoading)
@@ -350,8 +350,8 @@ export function OrderCompletionModal({
     open={completion.open}
     onClose={close}
     title={`Concluir OS ${detail.os_number || ""}`}
-    description={completion.noCustomerCharge ? "Conclua sem cobrar o cliente e gere a conta a receber do fabricante." : "Confira a composição da OS, os valores e o recebimento antes de finalizar."}
-    minimizedDescription={`${customerName(customer)} · ${formatCurrency(completion.finalTotal)}`}
+    description={completion.noCustomerCharge ? "Confira a OS antes de finalizar. A conta a receber será preenchida no Financeiro." : "Confira a composição da OS, os valores e o recebimento antes de finalizar."}
+    minimizedDescription={completion.noCustomerCharge ? customerName(customer) : `${customerName(customer)} · ${formatCurrency(completion.finalTotal)}`}
     minimizable={!saving}
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
@@ -369,7 +369,7 @@ export function OrderCompletionModal({
         title="Cliente e resumo"
         actions={<CustomerQuickActions customer={customer} orderId={detail.id} organizationId={detail.organization_id} />}
       >
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+        <div className={completion.noCustomerCharge ? "grid min-w-0 gap-5" : "grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]"}>
           <div className="min-w-0 space-y-4">
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <InfoItem label="Nome" value={customerName(customer)} />
@@ -404,7 +404,7 @@ export function OrderCompletionModal({
             )}
           </div>
 
-          <div className="space-y-3 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          {!completion.noCustomerCharge && <div className="space-y-3 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">Serviços</span>
               <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
@@ -429,7 +429,7 @@ export function OrderCompletionModal({
               <span className="text-sm font-black text-foreground">{completion.noCustomerCharge ? "Valor ao cliente" : "Valor final"}</span>
               <strong className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.finalTotal)}</strong>
             </div>
-          </div>
+          </div>}
         </div>
       </Section>
 
@@ -454,7 +454,7 @@ export function OrderCompletionModal({
             {!completion.commercialItemsError && !completion.commercialItemsLoading && (hasServices || hasProducts) && <>
               {hasServices && <div>
                 {completion.commercialPricing
-                  ? commercialServices.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)
+                  ? commercialServices.map(item => <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} showPrices={!completion.noCustomerCharge} />)
                   : <div className="flex min-w-0 flex-col gap-3 py-3 sm:flex-row sm:items-center">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400"><Wrench size={17} /></span>
                       <div className="min-w-0 flex-1">
@@ -470,15 +470,15 @@ export function OrderCompletionModal({
                               error={completion.servicePriceValidationMessage || undefined}
                               disabled={saving} />
                           </div>
-                        : <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(completion.servicePrice)}</strong>}
+                        : !completion.noCustomerCharge && <strong className="shrink-0 text-base font-bold tabular-nums text-foreground">{formatCurrency(completion.servicePrice)}</strong>}
                     </div>}
               </div>}
 
               {hasProducts && <div className={hasServices ? "border-t border-border pt-2" : ""}>
                 {completion.commercialPricing && commercialProducts.map(item =>
-                  <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} />)}
+                  <CommercialItemRow key={item.id} item={item} formatCurrency={formatCurrency} showPrices={!completion.noCustomerCharge} />)}
                 {(completion.commercialPricing ? resolutionOnlyItems : usedItems).map(item =>
-                  <ResolutionProductRow key={`used-${item.id}`} item={item} formatCurrency={formatCurrency} />)}
+                  <ResolutionProductRow key={`used-${item.id}`} item={item} formatCurrency={formatCurrency} showPrices={!completion.noCustomerCharge} />)}
               </div>}
             </>}
           </div>
@@ -500,50 +500,10 @@ export function OrderCompletionModal({
         </Section>}
       </div>
       {completion.noCustomerCharge ? (
-        <Section title="Conta a receber do fabricante">
-          <div className="space-y-4">
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              O cliente não paga e não precisa apresentar comprovante de pagamento.
-              Ao concluir, será criada uma conta a receber em Financeiro, vinculada a esta OS.
-              A baixa será realizada posteriormente em Contas a Receber.
-            </p>
-            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <FSelect label="Fabricante / parceiro responsável" value={completion.warrantyPayerId}
-                  disabled={saving || completion.warrantyPartnersLoading}
-                  options={[{
-                    value:"",label:completion.warrantyPartnersLoading?"Consultando parceiros...":"Selecione o parceiro..."
-                  },...completion.warrantyPartners.map(partner=>({value:partner.id,label:partner.name}))]}
-                  onChange={(event:any)=>completion.setWarrantyPayerId(event.target.value)} />
-                {completion.warrantyPartnersError&&<p role="alert" className="mt-1 text-xs text-destructive">{completion.warrantyPartnersError}</p>}
-                {!completion.warrantyPartnersLoading&&!completion.warrantyPartnersError&&!completion.warrantyPartners.length&&
-                  <p className="mt-1 text-xs text-muted-foreground">Cadastre o fabricante em Cadastros → Parceiros para emitir o título.</p>}
-              </div>
-              <FCurrencyInput label="Valor a receber do parceiro" value={completion.warrantyReceivableValue}
-                disabled={saving} onChange={(event:any)=>completion.setWarrantyReceivableValue(event.target.value)}/>
-              <FInput label="Vencimento" type="date" value={completion.warrantyReceivableDueDate}
-                disabled={saving} onChange={(event:any)=>completion.setWarrantyReceivableDueDate(event.target.value)}/>
-              <div className="sm:col-span-2">
-                <label htmlFor="order-warranty-receivable-notes" className="mb-1 block text-xs font-semibold text-foreground">
-                  Observações do recebimento
-                </label>
-                <textarea id="order-warranty-receivable-notes" rows={2}
-                  value={completion.warrantyReceivableNotes} maxLength={500}
-                  onChange={event=>completion.setWarrantyReceivableNotes(event.target.value)} disabled={saving}
-                  placeholder="Ex.: autorização de garantia, referência do fabricante..."
-                  className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"/>
-              </div>
-            </div>
-            {completion.warrantyReceivableValidationMessage&&
-              <p role="alert" className="text-xs font-semibold text-muted-foreground">{completion.warrantyReceivableValidationMessage}</p>}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
-              <span className="font-semibold">A receber do parceiro</span>
-              <strong className="text-lg font-black text-emerald-700 dark:text-emerald-300">
-                {formatCurrency(Number.isFinite(completion.warrantyReceivableNumber)?completion.warrantyReceivableNumber:0)}
-              </strong>
-            </div>
-          </div>
-        </Section>
+        <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs font-semibold text-muted-foreground">
+          Atendimento sem cobrança ao cliente. Uma conta a receber pendente será gerada no Financeiro,
+          onde os dados do fabricante e o pagamento serão informados ao dar baixa.
+        </p>
       ) : completion.coverageFree ? (
         <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-muted-foreground">
           Atendimento coberto: valor a pagar R$ 0,00. Não serão gerados recebimentos nem exigido comprovante de pagamento.
