@@ -95,17 +95,22 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canRequestParts && <AdminButton variant="tertiary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
           {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
-          {canTerminalExit && <DropdownMenu>
+          {canTerminalExit && <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <AdminButton variant="secondary" className="h-10 shrink-0 px-3 text-xs" aria-label="Outros encerramentos" title="Descarte ou devolução sem reparo">
                 <PackageCheck size={16}/><span className="hidden md:inline">Encerrar sem reparo</span>
               </AdminButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[230px]">
-              <DropdownMenuItem onSelect={()=>onTerminalExit("returned_unrepaired")} className="flex items-center gap-2">
+              <DropdownMenuItem onSelect={()=>{
+                // Radix precisa concluir o fechamento do menu antes de abrir outro diálogo.
+                window.requestAnimationFrame(()=>onTerminalExit("returned_unrepaired"));
+              }} className="flex items-center gap-2">
                 <PackageCheck size={15}/> Devolvido sem reparo
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={()=>onTerminalExit("disposal_confirmed")} className="flex items-center gap-2">
+              <DropdownMenuItem onSelect={()=>{
+                window.requestAnimationFrame(()=>onTerminalExit("disposal_confirmed"));
+              }} className="flex items-center gap-2">
                 <Recycle size={15}/> Confirmar descarte
               </DropdownMenuItem>
             </DropdownMenuContent>
