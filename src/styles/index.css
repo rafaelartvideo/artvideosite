@@ -476,6 +476,22 @@ html[data-admin-theme="dark"] {
 	border-color: var(--primary-light) !important;
 }
 
+/* Notificação do mini-Atendimentos e sua seta usam o MESMO contorno do painel,
+ * inclusive no tema escuro. A seta é um losango girado; as classes Tailwind
+ * definem quais duas arestas ficam visíveis em cada orientação. */
+.admin-crm[data-whatsapp-anchored-alert="true"],
+.admin-crm[data-whatsapp-anchored-alert="true"] [data-whatsapp-alert-arrow] {
+  border-color: var(--primary) !important;
+}
+.admin-crm.dark[data-whatsapp-anchored-alert="true"],
+.admin-crm.dark[data-whatsapp-anchored-alert="true"] [data-whatsapp-alert-arrow],
+.dark .admin-crm[data-whatsapp-anchored-alert="true"],
+.dark .admin-crm[data-whatsapp-anchored-alert="true"] [data-whatsapp-alert-arrow],
+html[data-admin-theme="dark"] .admin-crm[data-whatsapp-anchored-alert="true"],
+html[data-admin-theme="dark"] .admin-crm[data-whatsapp-anchored-alert="true"] [data-whatsapp-alert-arrow] {
+  border-color: var(--primary-light) !important;
+}
+
 .admin-crm button[class*="rounded-"] {
 	background-clip: padding-box;
 }
