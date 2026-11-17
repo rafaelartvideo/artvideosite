@@ -231,7 +231,7 @@ export function OrderEquipmentSection({
               onClick={() => scannerInput.current?.click()}
               aria-label="Escanear número de série"
               title="Escanear número de série"
-              className="h-[42px] w-[42px] shrink-0 !p-0 md:hidden"
+              className="h-[42px] w-[42px] shrink-0 !p-0"
             >
               <ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" />
             </AdminButton>
