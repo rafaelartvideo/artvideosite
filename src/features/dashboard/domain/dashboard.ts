@@ -53,6 +53,15 @@ export type DashboardOrderDistributionItem = {
   sla?: Record<DashboardSlaState, number>;
 };
 
+export type DashboardOrdersCharts = {
+  opened: Array<{ name: string; value: number }>;
+  service_types: Array<{ name: string; value: number }>;
+  equipment_types: Array<{ name: string; value: number }>;
+  equipment_models: Array<{ name: string; value: number }>;
+  quote_approved: Array<{ name: string; value: number }>;
+  quote_rejected: Array<{ name: string; value: number }>;
+};
+
 export type DashboardOrdersSummary = {
   total_orders: number;
   orders_in_period: number;
