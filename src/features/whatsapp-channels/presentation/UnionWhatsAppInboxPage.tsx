@@ -43,6 +43,7 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+const supportsOperatorFilter=(value:Filter)=>value==="in_att" || value==="finished" || value==="forwarded";
 // Photo lookups are only for contacts currently displayed, never the imported
 // address book. Refresh lazily to notice profile-photo/privacy changes.
 const hasForwarding=(item:UnionWhatsAppConversation)=>
@@ -565,7 +566,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
   listQueryRef.current={filter,department:departmentFilter,
-    operator:filter==="in_att" && canManage ? operatorFilter : "all",
+    operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
     search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
   const lastListQueryRef=useRef("");
@@ -753,10 +754,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh,embedded]);
 
-  // Carrega uma única vez a relação de operadores ativos ao entrar na aba
-  // "Em atendimento". O endpoint só permite view_all, mesmo se chamado fora da UI.
+  // Carrega operadores ativos para as abas Em atendimento, Encaminhadas e
+  // Finalizados. O endpoint exige view_all mesmo quando chamado fora da UI.
   useEffect(()=>{
-    if(embedded || filter!=="in_att" || !canManage || !activeOrganizationId ||
+    if(embedded || !supportsOperatorFilter(filter) || !canManage || !activeOrganizationId ||
        channelReady!==true)return;
     const cache=operatorChoicesCacheRef.current;
     if(cache?.organizationId===activeOrganizationId &&
@@ -2135,7 +2136,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
-            <div className={canManage && filter==="in_att" ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
+            <div className={canManage && supportsOperatorFilter(filter) ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
               <select aria-label="Filtrar departamento" value={departmentFilter}
                 onChange={event=>{setSelectedId(null);setConversationPage(0);setDepartmentFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
@@ -2143,7 +2144,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <option value="none">Sem departamento</option>
                 {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
-              {canManage && filter==="in_att" && <select aria-label="Filtrar operador"
+              {canManage && supportsOperatorFilter(filter) && <select aria-label="Filtrar operador"
                 value={operatorFilter} disabled={operatorChoicesLoading && operatorChoices.length===0}
                 onChange={event=>{setSelectedId(null);setConversationPage(0);setOperatorFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary disabled:opacity-60">
@@ -2170,8 +2171,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>)}
               </div>
             : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
-              <WhatsAppIcon size={30}/><p>{canManage && filter==="in_att" && operatorFilter!=="all"
-                ? "Nenhuma conversa em atendimento para este operador." : "Nenhuma conversa encontrada."}</p>
+              <WhatsAppIcon size={30}/><p>{canManage && supportsOperatorFilter(filter) && operatorFilter!=="all"
+                ? filter==="finished" ? "Nenhuma conversa finalizada por este operador."
+                  : filter==="forwarded" ? "Nenhuma conversa encaminhada por este operador."
+                  : "Nenhuma conversa em atendimento para este operador."
+                : "Nenhuma conversa encontrada."}</p>
               {counts.total===0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
             : visible.map(item => {
