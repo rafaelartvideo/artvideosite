@@ -529,13 +529,6 @@ export function AdminDashboard({
   />;
 
   return <AdminPageContext.Provider value={{ page, setPage }}>
-    {/* Atendimentos mantém apenas eventos leves entre rotas, como o mini-PABX. */}
-    <UnionWhatsAppActivityProvider
-      key={(user?.id || "anon")+":"+(activeOrganizationId || "none")}
-      enabled={canAccessWhatsAppTool}
-      isPageOpen={activeTab === "tools" && route.resourceId === "union-whatsapp"}
-      onOpenFull={() => navigateAdmin("tools", "union-whatsapp")}
-    >
     <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader
       page={page}
       sidebarOpen={sidebarOpen}
@@ -551,6 +544,13 @@ export function AdminDashboard({
       onSignOut={() => signOut()}
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
+      {/* Fora das rotas, mas dentro do tema e da interface administrativa. */}
+      <UnionWhatsAppActivityProvider
+        key={(user?.id || "anon")+":"+(activeOrganizationId || "none")}
+        enabled={canAccessWhatsAppTool}
+        isPageOpen={activeTab === "tools" && route.resourceId === "union-whatsapp"}
+        onOpenFull={() => navigateAdmin("tools", "union-whatsapp")}
+      >
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         <Suspense fallback={
           activeTab === "orders" && !route.resourceId && !(isPlatformOperatorOrganization && !crmMode)
@@ -698,7 +698,7 @@ export function AdminDashboard({
       <FieldTrackingReporter />
       <TermsAcceptanceGate initialPending={pendingTerms} />
       <CompanySegmentsOnboardingGate hasPendingTerms={pendingTerms.length > 0} />
+      </UnionWhatsAppActivityProvider>
     </AdminLayout>
-    </UnionWhatsAppActivityProvider>
     </AdminPageContext.Provider>;
 }
