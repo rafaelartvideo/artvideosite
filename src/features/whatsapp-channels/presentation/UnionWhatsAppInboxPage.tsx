@@ -2288,7 +2288,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:static lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:flex"} relative min-h-0 min-w-0 flex-col bg-card`}>
+        <section className={`${embedded ? "relative flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:relative lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:relative lg:flex"} min-h-0 min-w-0 flex-col bg-card`}>
           {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
