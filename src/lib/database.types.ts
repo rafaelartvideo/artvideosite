@@ -387,6 +387,8 @@ export interface OsSituation {
 
 export interface ServiceType {
   id: string;
+  /** Tipo sem cobrança ao cliente gera conta a receber do parceiro na conclusão. */
+  charge_customer?: boolean;
   title: string;
   description: string | null;
   forecast_days: number | null;
