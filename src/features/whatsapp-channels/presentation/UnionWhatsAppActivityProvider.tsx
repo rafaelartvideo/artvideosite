@@ -31,6 +31,13 @@ const zeroCounts:UnionWhatsAppConversationCounts={
 const recentFirst=(a:UnionWhatsAppConversation,b:UnionWhatsAppConversation)=>
   (Date.parse(b.last_message_at||"")||0)-(Date.parse(a.last_message_at||"")||0)
   || b.id.localeCompare(a.id);
+// Aguardando usa a entrada na fila (mais antigo primeiro), e nunca
+// a última mensagem: uma nova resposta não deve tirar o cliente do topo.
+const waitingFirst=(a:UnionWhatsAppConversation,b:UnionWhatsAppConversation)=>
+  (Date.parse(a.queue_entered_at||a.created_at)||0)-
+  (Date.parse(b.queue_entered_at||b.created_at)||0)
+  || a.id.localeCompare(b.id);
+const sortForTab=(tab:"in_att"|"waiting")=>tab==="waiting"?waitingFirst:recentFirst;
 const mediaLabel=(kind:unknown)=>({
   image:"Imagem",video:"Vídeo",audio:"Áudio",file:"Documento",sticker:"Figurinha",
   location:"Localização",contact:"Contato",
@@ -215,12 +222,12 @@ export function UnionWhatsAppActivityProvider({
       setLists(prev=>({...prev,[tab]:{...prev[tab],loading:true,error:false}}));
       try{
         const response=await listUnionWhatsAppConversations(organizationId,channelId,channelPhone,{
-          filter:tab,department:"all",search:"",page:0,pageSize:8,sortByRecent:true,
+          filter:tab,department:"all",search:"",page:0,pageSize:8,sortByRecent:tab==="in_att",
           viewerId:userId,canViewAll:capabilities?.view_all===true,
         });
         if(disposedRef.current||scope!==currentAccountRef.current||
           gen!==listGenerationRef.current)return;
-        const sorted=[...response.items].sort(recentFirst);
+        const sorted=[...response.items].sort(sortForTab(tab));
         setLists(prev=>({...prev,[tab]:{
           items:sorted,fetchedAt:Date.now(),loaded:true,loading:false,error:false,
         }}));
@@ -353,7 +360,7 @@ export function UnionWhatsAppActivityProvider({
                 ...item,last_message_at:at,
                 last_message:String(row.body_text||"").trim().slice(0,160)||mediaLabel(row.message_type),
                 unread_count:row.direction==="incoming"?item.unread_count+1:item.unread_count,
-              }:item).sort(recentFirst)};
+              }:item).sort(sortForTab(tab))};
             }
             return changed?result:current;
           });
@@ -388,7 +395,7 @@ export function UnionWhatsAppActivityProvider({
               changed=true;
               const updated=before.filter(item=>item.id!==record.id);
               if(record.status===tab)updated.push({...before.find(item=>item.id===record.id)!,...record});
-              result[tab]={...current[tab],items:updated.sort(recentFirst)};
+              result[tab]={...current[tab],items:updated.sort(sortForTab(tab))};
             }
             return changed?result:current;
           });
