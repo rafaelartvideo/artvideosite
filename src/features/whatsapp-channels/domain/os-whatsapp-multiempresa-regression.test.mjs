@@ -698,6 +698,9 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.match(inbox,/!embedded && hasPermission\("orders\.create"\)/);
   assert.match(crm,/onNewOrder\?: \(\) => void/);
   assert.match(crm,/aria-label="Nova OS pelo atendimento"/);
+  assert.match(crm,/disabled=\{Boolean\(newOrderLoading \|\| newOrderDisabled\)\}/);
+  assert.match(inbox,/newOrderDisabled=\{Boolean\(newOrder\)\}/);
+  assert.match(inbox,/useEffect\(\(\)=>setNewOrder\(null\),\[activeOrganizationId\]\)/);
   assert.match(crm,/onClick=\{event=>\{event\.stopPropagation\(\);onNewOrder\(\);\}\}/);
   assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
   assert.match(inbox,/UnionWhatsAppContactsDialog/);
