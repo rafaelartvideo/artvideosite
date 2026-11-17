@@ -119,3 +119,19 @@ test("gráfico temporal utiliza o valor de cada dia real, sem agrupar datas dist
   assert.match(dashboard,/chartTrend\(analytics\?\.opened\|\|\[\],periodDays\)/);
   assert.match(dashboard,/chartTrend\(analytics\?\.quote_rejected\|\|\[\],periodDays\)/);
 });
+
+test("pizza temporal tem altura reduzida e legenda rolável sem invadir o rodapé", async () => {
+  const panel = read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  const ui = read("src/features/dashboard/presentation/DashboardUi.tsx");
+  await compile("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
+  await compile("src/features/dashboard/presentation/DashboardUi.tsx");
+  assert.match(panel,/chartKey === "opened" \|\| chartKey === "quote_approved" \|\| chartKey === "quote_rejected"/);
+  assert.match(panel,/fixedHeight=\{timeSeries \? 360 : CHART_HEIGHT\}/);
+  assert.match(panel,/innerRadius=\{0\} scrollLegend=\{timeSeries\}/);
+  assert.match(ui,/scrollLegend = false/);
+  assert.match(ui,/overflow-y-auto overscroll-contain/);
+  assert.match(ui,/justify-start overflow-y-auto/);
+  assert.match(ui,/cy=\{scrollLegend \? "44%" : "50%"\}/);
+  assert.match(ui,/outerRadius=\{scrollLegend \? "75%" : "84%"\}/);
+  assert.match(ui,/tabIndex=\{scrollLegend \? 0 : undefined\}/);
+});
