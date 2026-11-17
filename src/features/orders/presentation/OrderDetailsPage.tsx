@@ -222,10 +222,11 @@ export function OrderDetailsPage(props: Props) {
   // independentemente de a OS original ter tipo de atendimento com orcamento.
   const returnDiagnosisActive = Boolean(detail?.return_root_id && detail.return_classification === "analysis");
   const generatesWarranty = Boolean(
-    ((detail?.service_type as any)?.quote_workflow_enabled === true
+    detail?.closure_outcome !== "rejected_quote_return" &&
+    (((detail?.service_type as any)?.quote_workflow_enabled === true
      && (detail?.service_type as any)?.generates_warranty === true)
     || workspace.serviceTypes.some((type: any) =>
-      type.id === detail?.service_type_id && type.quote_workflow_enabled === true && type.generates_warranty === true)
+      type.id === detail?.service_type_id && type.quote_workflow_enabled === true && type.generates_warranty === true))
   );
   const returnRequiresQuote = Boolean(detail?.return_root_id &&
     ["unrelated", "not_covered"].includes(String(detail?.return_classification || "")));
