@@ -7,6 +7,7 @@ import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
+import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses, type CrmContactAddress } from "../domain/crm-contact-format";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import {
   rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
@@ -65,7 +66,8 @@ export function UnionWhatsAppContactsDialog({
   const [crmPanel,setCrmPanel]=useState<"registration"|"equipments"|"orders"|null>(null);
   const [crmEquipmentId,setCrmEquipmentId]=useState<string|null>(null);
   const [crmData,setCrmData]=useState<{
-    customer?:{id:string;name:string;gender?:string|null;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null}|null;
+    customer?:{id:string;name:string;gender?:string|null;phone?:string|null;whatsapp?:string|null;email?:string|null;document?:string|null;cnpj?:string|null;
+      addresses?:CrmContactAddress[]|null}|null;
     equipments?:Array<{id:string;equipment_type_name?:string|null;equipment_brand_name?:string|null;equipment_model_name?:string|null}>;
     crm_orders?:Array<{id:string;os_number:string;created_at:string}>;
     ambiguous?:boolean;
@@ -833,17 +835,33 @@ export function UnionWhatsAppContactsDialog({
                   }} className="mb-3 inline-flex items-center gap-2 rounded-lg px-2 py-2 font-semibold text-primary hover:bg-primary/5">
                     <ArrowLeft size={15}/> Voltar
                   </button>
-                  {crmPanel==="registration"?<div className="grid grid-cols-1 gap-3 px-2 pb-2 sm:grid-cols-2">
-                    {([
-                      ["Cliente",crmData.customer.name],
-                      ["CPF/CNPJ",crmData.customer.cnpj||crmData.customer.document||"Não informado"],
-                      ["Telefone",crmData.customer.phone?formatWhatsAppPhone(crmData.customer.phone):"Não informado"],
-                      ["WhatsApp",crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"],
-                      ["E-mail",crmData.customer.email||"Não informado"],
-                    ] as Array<[string,string]>).map(([label,value])=><div key={label} className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
-                      <p className="mt-1 break-words font-medium">{value}</p>
-                    </div>)}
+                  {crmPanel==="registration"?<div className="space-y-3 px-2 pb-2">
+                    <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
+                      {([
+                        ["Cliente",crmData.customer.name],
+                        [crmData.customer.cnpj || String(crmData.customer.document||"").replace(/\\D/g,"").length===14 ? "CNPJ" : "CPF",
+                          formatCrmDocument(crmData.customer.cnpj||crmData.customer.document)],
+                        ["Telefone",crmData.customer.phone?formatWhatsAppPhone(crmData.customer.phone):"Não informado"],
+                        ["WhatsApp",crmData.customer.whatsapp?formatWhatsAppPhone(crmData.customer.whatsapp):"Não informado"],
+                        ["E-mail",crmData.customer.email||"Não informado"],
+                      ] as Array<[string,string]>).map(([label,value])=><div key={label} className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+                        <p className="mt-1 break-words font-medium text-foreground">{value}</p>
+                      </div>)}
+                    </div>
+                    <div className="space-y-2 border-t border-border pt-3">
+                      {crmData.customer.addresses?.length
+                        ? orderedCrmAddresses(crmData.customer.addresses).map((address,index)=><div key={address.id||index} className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                              {address.is_default || index===0 ? "Endereço principal" : "Endereço "+(index+1)}
+                            </p>
+                            <p className="mt-1 break-words font-medium leading-5 text-foreground">{formatCrmFullAddress(address)}</p>
+                          </div>)
+                        : <div className="text-xs text-muted-foreground">
+                            <p className="font-semibold uppercase">Endereço</p>
+                            <p className="mt-1">Nenhum endereço cadastrado.</p>
+                          </div>}
+                    </div>
                   </div>:crmPanel==="equipments"?(
                     !crmData.equipments?.length?<p className="px-2 py-3 text-muted-foreground">Nenhum equipamento cadastrado.</p>
                     :crmEquipmentId?<div className="grid grid-cols-1 gap-3 px-2 pb-2 sm:grid-cols-2">
