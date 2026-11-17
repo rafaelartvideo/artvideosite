@@ -50,6 +50,10 @@ const queueOnly=(item:UnionWhatsAppConversation)=>item.status==="waiting" && !ha
 const isForwardedFor=(item:UnionWhatsAppConversation,userId:string|undefined)=>
   hasForwarding(item) && (!userId || item.forwarded_by===userId ||
     item.forwarded_to===userId || item.status==="waiting");
+// Consistente com a ordenação paginada do servidor: mensagens novas no topo.
+const latestMessageFirst=(a:UnionWhatsAppConversation,b:UnionWhatsAppConversation)=>
+  (Date.parse(b.last_message_at||"")||0)-(Date.parse(a.last_message_at||"")||0)
+  || b.id.localeCompare(a.id);
 
 const brazilNumberDigits = (raw: string) => {
   const digits=raw.replace(/\D/g, "");
@@ -435,7 +439,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const optimizeSeq = useRef(0);
   const previewUrls = useRef(createMediaPreviewUrls()).current;
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
-  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const discardRecordingRef = useRef(false);
@@ -572,7 +575,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       ]);
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
-      setConversations(page.items);
+      setConversations(options.filter==="in_att"
+        ? [...page.items].sort(latestMessageFirst) : page.items);
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
       setConversationCounts(counts);
@@ -837,10 +841,31 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(String(row.id||"")===selectedIdRef.current)setParticipantsRevision(value=>value+1);
       schedule(String(row.id||""),false);
     };
-    const changedMessage=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
+    const changedMessage=(payload:{eventType?:string;new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
       const row=payload.new||payload.old||{};
       if(row.organization_id && row.organization_id!==activeOrganizationId)return;
-      schedule(String(row.conversation_id||""),true);
+      const threadId=String(row.conversation_id||"");
+      // INSERT pode ser publicado antes do UPDATE do resumo da conversa.
+      // Mover a conversa sem aguardar nova consulta; refresh reconcilia a paginação.
+      if(payload.eventType==="INSERT" && (row.direction==="incoming" || row.direction==="outgoing") &&
+          listQueryRef.current.filter==="in_att" && typeof row.sent_at==="string" &&
+          Number.isFinite(Date.parse(row.sent_at))){
+        const sentAt=row.sent_at as string;
+        setConversations(current=>{
+          let moved=false;
+          const updated=current.map(item=>{
+            if(item.id!==threadId || item.status!=="in_att" ||
+                item.organization_id!==activeOrganizationId ||
+                item.channel_id!==activeChannelId || item.account_phone!==activeChannelPhone ||
+                (Date.parse(item.last_message_at||"")||0)>=Date.parse(sentAt))return item;
+            moved=true;
+            return {...item,last_message_at:sentAt,
+              last_message:quotedSummary(String(row.body_text||""),String(row.message_type||"text"))};
+          });
+          return moved ? updated.sort(latestMessageFirst) : current;
+        });
+      }
+      schedule(threadId,true);
     };
     const realtime=supabase.channel(`union-whatsapp-${activeOrganizationId}-${activeChannelId}`)
       .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_conversations",
@@ -1033,7 +1058,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Todos os filtros são executados no Supabase, não apenas na página atual.
   const counts=conversationCounts;
-  const visible=scopedConversations;
+  const visible=filter==="in_att"
+    ? [...scopedConversations].sort(latestMessageFirst)
+    : scopedConversations;
   const timeline=useMemo(()=>{
     const local=pending.filter(item=>item.conversationId===selectedId &&
       item.organizationId===activeOrganizationId);
@@ -2392,13 +2419,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <input ref={mediaInputRef} type="file" className="hidden"
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
-                  <input ref={documentInputRef} type="file" className="hidden"
-                    accept="application/pdf,text/plain,application/zip,.pdf,.txt,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                    aria-label="Selecionar documento" onChange={event=>{
-                      const file=event.target.files?.[0]||null;
-                      event.currentTarget.value="";
-                      void onChooseMedia(file);
-                    }}/>
                   <button type="button" disabled={Boolean(replyTarget)} aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
@@ -2491,17 +2511,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </div>}
                     </div>}
                   </div>
-                  <button type="button" disabled={Boolean(replyTarget)}
-                    aria-label={onPrepareOrderDocument?"Documentos da OS":"Anexar documento"}
-                    title={onPrepareOrderDocument?"Enviar documento da OS":"Anexar documento"}
-                    onClick={()=>{
-                      setEmojiOpen(false);setStickerOpen(false);
-                      if(onPrepareOrderDocument)setActionPanel(current=>current==="documents"?null:"documents");
-                      else {setActionPanel(null);documentInputRef.current?.click();}
-                    }}
-                    className={`order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40 xl:order-none xl:h-12 ${actionPanel==="documents"?"bg-primary-soft text-primary":""}`}>
-                    <FileText size={20}/>
-                  </button>
                   <span aria-hidden="true" className="order-1 block h-0 basis-full xl:hidden"/>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
                     lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
