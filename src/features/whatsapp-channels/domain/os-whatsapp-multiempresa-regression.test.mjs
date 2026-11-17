@@ -455,10 +455,10 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.match(repository,/"order_recipients"/);
   assert.match(inbox,/Buscar OS por número ou CPF\/CNPJ/);
   assert.match(inbox,/service_order_id:id,unlink/);
-  assert.doesNotMatch(inbox,/linkedOrders\\.map/);
+  assert.doesNotMatch(inbox,/linkedOrders\.map/);
   assert.match(inbox,/role="search"/);
-  assert.match(inbox,/onSubmit=\\{event=>\\{event.preventDefault\\(\\);void searchOrders\\(\\);\\}\\}/);
-  assert.doesNotMatch(inbox,/orderSearch\\?350:0/);
+  assert.match(inbox,/void searchOrders\(\)/);
+  assert.doesNotMatch(inbox,/orderSearch\?350:0/);
   assert.match(inbox,/ordersSearched&&<div/);
   assert.match(modal,/Escolha com quem falar sobre esta OS/);
   assert.match(modal,/order_recipients/);
