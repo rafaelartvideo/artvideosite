@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router";
-import { Building2, Users, UserRound } from "lucide-react";
+import { Building2, Handshake, Users, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -35,12 +35,14 @@ const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
   employee: "Funcionário",
   supplier: "Fornecedor",
+  partner: "Parceiro",
 };
 
 const roleIcons: Record<RegistrationRole, typeof Users> = {
   customer: UserRound,
   employee: Users,
   supplier: Building2,
+  partner: Handshake,
 };
 
 export function RegistrationEditor({
@@ -124,7 +126,7 @@ export function RegistrationEditor({
       {!employeeOnly && (supplierQuickCreate
         ? personTypeButtons
         : <Section title="Tipo e vínculos">{personTypeButtons}
-          {!supplierQuickCreate && <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
+          {!supplierQuickCreate && <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{(["customer", "employee", "supplier", "partner"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
             return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted/40"}`}>
@@ -158,8 +160,8 @@ export function RegistrationEditor({
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCnpj()} disabled={lookups.cnpjLoading}>Consultar</BtnSecondary>
             </div>
           </div>
-          <FInput label="Nome fantasia" required={!form.roles.includes("supplier")} error={fieldErrors.trade_name} value={form.trade_name} onChange={(event: any) => { onClearFieldError("trade_name"); setForm(current => ({ ...current, trade_name: event.target.value })); }} />
-          <FInput label="Razão social" required={form.roles.includes("supplier") && !form.trade_name.trim()} error={fieldErrors.legal_name} value={form.legal_name} onChange={(event: any) => { onClearFieldError("legal_name"); setForm(current => ({ ...current, legal_name: event.target.value })); }} />
+          <FInput label="Nome fantasia" required={!(form.roles.includes("supplier") || form.roles.includes("partner"))} error={fieldErrors.trade_name} value={form.trade_name} onChange={(event: any) => { onClearFieldError("trade_name"); setForm(current => ({ ...current, trade_name: event.target.value })); }} />
+          <FInput label="Razão social" required={(form.roles.includes("supplier") || form.roles.includes("partner")) && !form.trade_name.trim()} error={fieldErrors.legal_name} value={form.legal_name} onChange={(event: any) => { onClearFieldError("legal_name"); setForm(current => ({ ...current, legal_name: event.target.value })); }} />
           <FBrazilianDateInput label="Data de fundação" error={fieldErrors.foundation_date} value={form.foundation_date} onChange={(event: any) => { onClearFieldError("foundation_date"); setForm(current => ({ ...current, foundation_date: event.target.value })); }} />
           <FInput label="Inscrição estadual" value={form.state_registration} onChange={(event: any) => setForm(current => ({ ...current, state_registration: event.target.value }))} />
           <FInput label="Inscrição municipal" value={form.municipal_registration} onChange={(event: any) => setForm(current => ({ ...current, municipal_registration: event.target.value }))} />
@@ -225,7 +227,7 @@ export function RegistrationEditor({
 
       {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
-      {!supplierQuickCreate && form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
+      {!supplierQuickCreate && (form.roles.includes("supplier") || form.roles.includes("partner")) && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
     </div>
   </>;
 
