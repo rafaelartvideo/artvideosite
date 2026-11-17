@@ -98,11 +98,11 @@ test("touch tablets get compact CRM searches and serial scanner without hiding t
   const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   assert.match(switcher,/admin-mobile-search-switch/);
-  assert.match(css,/@media \\(hover: none\\) and \\(pointer: coarse\\)/);
-  assert.match(css,/admin-mobile-search-switch \\+ div\\[class\\\\\*=\\\"hidden\\\"\\]/);
+  assert.match(css,/@media \(hover: none\) and \(pointer: coarse\)/);
+  assert.match(css,/admin-mobile-search-switch \+ div\[class\*="hidden"\]/);
   assert.match(filters,/compactOrderSearchMedia/);
-  assert.match(filters,/\\(pointer: coarse\\)/);
-  assert.match(filters,/mobileOnly=\\{false\\}/);
+  assert.match(filters,/\(pointer: coarse\)/);
+  assert.match(filters,/mobileOnly=\{false\}/);
   assert.match(equipment,/aria-label="Escanear número de série"/);
   assert.doesNotMatch(equipment,/!p-0 md:hidden/);
   assert.match(inbox,/flex-wrap items-stretch rounded-xl/);
