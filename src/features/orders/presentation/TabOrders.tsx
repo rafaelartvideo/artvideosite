@@ -311,7 +311,18 @@ export function TabOrders({
       || detail?.id !== completionFromListId) return;
     // A primeira abertura usa os dados realmente hidratados, não um preview da linha.
     setCompletionFromListStarted(true);
-    completionController.openCompletion(detail);
+    // A abertura faz uma consulta assíncrona de cobrança. Não desmontar a
+    // preparação enquanto a primeira resposta ainda não chegou.
+    let active = true;
+    void completionController.openCompletion(detail).then(started => {
+      if (!active || started) return;
+      // Requisitos inválidos: o hook já informou o motivo em uma notificação.
+      setCompletionFromListId(null);
+      setCompletionFromListStarted(false);
+      setCompletionFromListReady(false);
+      closeDetail();
+    });
+    return () => { active = false; };
   }, [completionFromListId, completionFromListStarted, detailsController.detailReady, detail]);
 
   // Um único estado de preparação cobre a carga do detalhe E das dependências
@@ -328,7 +339,9 @@ export function TabOrders({
   ]);
 
   useEffect(() => {
-    if (!completionFromListId || !completionFromListStarted || completionController.open) return;
+    if (!completionFromListId || !completionFromListReady || completionController.open) return;
+    // Só limpar após o modal ter realmente aberto e concluído sua preparação.
+    // Antes, open=false durante a consulta fazia o modal piscar e desaparecer.
     // Fechar a conclusão devolve diretamente à lista, preservando filtros e paginação.
     setCompletionFromListId(null);
     setCompletionFromListStarted(false);
@@ -537,7 +550,7 @@ export function TabOrders({
 
   const openCompletionFromList = (order: any) => {
     if (!effectiveHasPermission("orders.complete")) return;
-    if (completionController.open) return;
+    if (completionController.open || completionFromListId) return;
     setCompletionFromListStarted(false);
     setCompletionFromListReady(false);
     setCompletionFromListId(order.id);
@@ -912,9 +925,15 @@ export function TabOrders({
         completionPreparing={Boolean(completionFromListId && !completionFromListReady)}
         completionPrepareError={completionFromListId && !completionFromListStarted && detailsController.detailLoadError
           ? systemErrorMessage(detailsController.detailLoadError) : ""}
-        onRetryCompletionPreparation={() => void detailsController.retryDetailLoad()}
+        onRetryCompletionPreparation={() => {
+          if (detailsController.detailLoadError || !detailsController.detailReady) {
+            void detailsController.retryDetailLoad();
+          } else if (detail) {
+            void completionController.openCompletion(detail);
+          }
+        }}
         onCancelCompletionPreparation={() => {
-          completionController.setOpen(false);
+          completionController.closeCompletion();
           setCompletionFromListId(null);
           setCompletionFromListStarted(false);
           setCompletionFromListReady(false);
