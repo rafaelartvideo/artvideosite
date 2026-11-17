@@ -127,3 +127,19 @@ test("editar contato abre modal isolado e campos obrigatórios usam asterisco ve
   assert.match(common, /text-red-600 dark:text-red-400/);
 });
 
+
+test("imagens recebidas abrem visualizador unificado e sem nova aba", async () => {
+  const { readFileSync } = await import("node:fs");
+  const read = file => readFileSync(new URL("../../../../"+file,import.meta.url),"utf8");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const details=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const viewer=read("src/features/whatsapp-channels/presentation/UnionWhatsAppMediaViewer.tsx");
+  assert.match(inbox, /onClick=\{\(\)=>setImageZoom\(true\)\}/);
+  assert.match(inbox, /imageZoom && mediaUrl && <UnionWhatsAppMediaViewer/);
+  assert.doesNotMatch(inbox, /message\.message_type==="image" && <a href=\{mediaUrl\} target="_blank"/);
+  assert.match(details, /preview&&<UnionWhatsAppMediaViewer/);
+  assert.match(viewer, /bg-black\/55/);
+  assert.match(viewer, /onClose/);
+  assert.match(viewer, /event\.key==="Escape"/);
+  assert.match(viewer, /Abrir arquivo/);
+});
