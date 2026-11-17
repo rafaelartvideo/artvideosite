@@ -1837,23 +1837,54 @@ Deno.serve(async request => {
           isParticipant || inQueue)) {
         return json({success:false,error:"Conversa não disponível para consulta."},403);
       }
-      // A LID is not a phone number. Never guess a customer from it.
-      const phone=String(thread.contact_phone||"").replace(/\D/g,"");
-      if(!/^[0-9]{10,15}$/.test(phone)) return json({success:true,customer:null});
-      const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
-        p_organization:org,p_phone:phone,
-      });
-      if(matchError) throw matchError;
-      if(!Array.isArray(matches) || matches.length!==1) {
-        return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
+      // Um número terceirizado pode estar ligado a uma OS de outro cliente.
+      // É um vínculo DOCUMENTAL, não uma alteração do telefone cadastrado.
+      let linkedOrders:Array<{id:string;os_number:string;customer_id:string}>=[];
+      if(permissions.has("orders.details.view")){
+        const {data:links,error:linksError}=await admin.from("union_whatsapp_order_contacts")
+          .select("service_order_id").eq("organization_id",org)
+          .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
+          .eq("conversation_id",thread.id).limit(50);
+        if(linksError)throw linksError;
+        const ids=[...new Set([
+          ...(links||[]).map(item=>item.service_order_id),
+          ...(thread.service_order_id?[thread.service_order_id]:[]),
+        ])];
+        if(ids.length){
+          const {data:orders,error:ordersError}=await admin.from("service_orders")
+            .select("id,os_number,customer_id").eq("organization_id",org)
+            .in("id",ids).limit(50);
+          if(ordersError)throw ordersError;
+          linkedOrders=orders||[];
+        }
       }
-      const customerId=String(matches[0].customer_id);
+      const linkedSummary=linkedOrders.map(item=>({id:item.id,os_number:item.os_number}));
+      // Uma LID não é telefone: só relacionar por um vínculo explícito.
+      const phone=String(thread.contact_phone||"").replace(/\D/g,"");
+      let matches:Array<{customer_id:string;customer_name:string}>=[];
+      if(/^[0-9]{10,15}$/.test(phone)){
+        const {data,error}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+          p_organization:org,p_phone:phone,
+        });
+        if(error)throw error;
+        matches=Array.isArray(data)?data:[];
+      }
+      let linkedViaOrder=false;
+      let customerId="";
+      if(matches.length===1)customerId=String(matches[0].customer_id);
+      else if(matches.length===0){
+        const ids=[...new Set(linkedOrders.map(item=>item.customer_id))];
+        if(ids.length===1){customerId=String(ids[0]);linkedViaOrder=true;}
+      }
+      if(!customerId)return json({success:true,customer:null,
+        linked_orders:linkedSummary,ambiguous:matches.length>1 ||
+          new Set(linkedOrders.map(item=>item.customer_id)).size>1});
       // These details are requested only after expanding "Dados do CRM".
       // Keep every lookup scoped to the matched customer and active organization.
       // Never fetch OS histories or unrelated customers in this endpoint.
       const [customerResult,equipmentResult,orderResult]=await Promise.all([
         admin.from("customers")
-          .select("id,customer_type,gender,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
+          .select("id,full_name,customer_type,gender,document,cnpj,trade_name,legal_name,email,phone,whatsapp,state_registration,municipal_registration,addresses:customer_addresses(id,street,number,complement,neighborhood,city,state,zip_code,reference,is_default)")
           .eq("organization_id",org).eq("id",customerId).maybeSingle(),
         admin.from("customer_equipments")
           .select("id,equipment_type_name,equipment_brand_name,equipment_model_name,serial_number,technical_values,created_at,updated_at")
@@ -1873,8 +1904,12 @@ Deno.serve(async request => {
       const addresses=Array.isArray(customerResult.data.addresses)
         ? [...customerResult.data.addresses].sort((a,b)=>Number(Boolean(b.is_default))-Number(Boolean(a.is_default)))
         : [];
-      return json({success:true,
-        customer:{...customerResult.data,name:matches[0].customer_name,addresses},
+      return json({success:true,linked_via_order:linkedViaOrder,linked_orders:linkedSummary,
+        customer:{...customerResult.data,
+          name:matches.find(item=>String(item.customer_id)===customerId)?.customer_name||
+            String(customerResult.data.full_name||customerResult.data.trade_name||
+              customerResult.data.legal_name||"Cliente"),
+          addresses},
         equipments:equipmentResult.data||[],crm_orders:orderResult.data||[]});
     }
     if(action==="contact_avatar") {
