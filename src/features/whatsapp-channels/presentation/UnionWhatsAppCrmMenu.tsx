@@ -4,6 +4,7 @@ import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses } from "../domain/crm-contact-format";
 import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 type CrmAddress = {
   id: string;
@@ -185,10 +186,10 @@ export function UnionWhatsAppCrmMenu({
 
   return <section aria-label="Dados do cliente no CRM" className="relative z-20 shrink-0 border-b border-border bg-muted/20 px-3 py-2">
     <div ref={menuRef} className="relative">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2">
       <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
         aria-haspopup="dialog"
-        className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="inline-flex min-w-0 max-w-full items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <ContactRound size={15} className="shrink-0 text-foreground"/>
         <span className="shrink-0">Dados do CRM</span>
         <span className="min-w-0 truncate font-normal text-muted-foreground">
@@ -197,13 +198,14 @@ export function UnionWhatsAppCrmMenu({
         {Boolean(context?.linkedOrders?.length)&&<span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">Vinculado por OS</span>}
         {open ? <ChevronUp size={15} className="shrink-0 text-foreground"/> : <ChevronDown size={15} className="shrink-0 text-foreground"/>}
       </button>
-      {onNewOrder && <button type="button" onClick={event=>{event.stopPropagation();onNewOrder();}}
+      {onNewOrder && <AdminButton variant="tertiary" size="sm"
+        onClick={event=>{event.stopPropagation();onNewOrder();}}
         disabled={Boolean(newOrderLoading || newOrderDisabled)} title="Criar uma OS para este atendimento"
         aria-label="Nova OS pelo atendimento"
-        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60">
+        className="!h-7 !shrink-0 !rounded-md !px-2.5">
         {newOrderLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>}
         Nova OS
-      </button>}
+      </AdminButton>}
       </div>
 
       {open && <div id={regionId} role="dialog" aria-label="Consultar dados do CRM"
