@@ -23,7 +23,7 @@ import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
 import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
 import { RegistrationLoginHistory } from "./RegistrationLoginHistory";
 
-const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor" };
+const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor", partner: "Parceiro" };
 
 function detailValue(label: string, value: string) {
   return <div key={label} className="min-w-0">
