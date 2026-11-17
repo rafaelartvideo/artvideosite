@@ -591,33 +591,72 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
     /,"send_text"/);
 });
 
-test("Painel Dados do contato fecha por seta, clique fora e Esc sem clique fantasma",()=>{
+test("Painel Dados do contato usa chaves distintas e fechamento único sem capturadores órfãos",()=>{
   const drawer=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
-  assert.match(drawer,/const panelRootRef=useRef<HTMLDivElement\|null>\(null\)/);
-  assert.match(drawer,/panelRootRef\.current\?\.contains\(event\.target\)/);
-  // Clique fora é capturado no próprio click, antes do handler que reabriria.
-  assert.match(drawer,/document\.addEventListener\("click",onOutside,true\)/);
-  assert.match(drawer,/document\.removeEventListener\("click",onOutside,true\)/);
-  assert.doesNotMatch(drawer,/document\.addEventListener\("pointerdown",onOutside,true\)/);
-  assert.match(drawer,/if\(event\.cancelable\)event\.preventDefault\(\)/);
+  assert.ok(inbox.includes('key={`contact-details:${selected.id}`}'));
+  assert.ok(inbox.includes('key={`crm-menu:${selected.id}`}'));
+  assert.doesNotMatch(inbox,/<UnionWhatsApp(?:ContactDetails|CrmMenu) key=\{selected\.id\}/);
+  assert.match(drawer,/const requestClose=useCallback/);
+  assert.equal((drawer.match(/onClick=\{requestClose\}/g)||[]).length,2);
+  assert.match(drawer,/event\.preventDefault\(\)/);
   assert.match(drawer,/event\.stopPropagation\(\)/);
-  // Seta/backdrop fecham no pointerdown. O click posterior é consumido uma vez.
-  assert.match(drawer,/const closeOnPointer=useCallback/);
-  assert.match(drawer,/document\.addEventListener\("click",swallowClick,true\)/);
-  assert.match(drawer,/document\.removeEventListener\("click",swallowClick,true\)/);
-  assert.match(drawer,/click\.stopImmediatePropagation\(\)/);
-  const backdrop=drawer.slice(drawer.indexOf('aria-label="Fechar detalhes ao clicar fora"'),
-    drawer.indexOf('<aside ref={drawerRef}'));
-  assert.match(backdrop,/onPointerDown=\{closeOnPointer\}/);
-  assert.match(backdrop,/if\(event\.detail===0\)onClose\(\)/);
-  const back=drawer.slice(drawer.indexOf('aria-label="Voltar à conversa"'),
-    drawer.indexOf('<h2 className="min-w-0'));
-  assert.match(back,/onPointerDown=\{closeOnPointer\}/);
-  assert.match(back,/if\(event\.detail===0\)onClose\(\)/);
-  assert.match(drawer,/document\.addEventListener\("keydown",onKey,true\)/);
-  assert.match(drawer,/event\.key!=="Escape"/);
-  assert.match(inbox,/onClose=\{\(\)=>setContactDetailsOpen\(false\)\}/);
+  assert.match(drawer,/className="fixed inset-0 cursor-default bg-transparent"/);
+  assert.doesNotMatch(drawer,/closeOnPointer|swallowClick|onOutside|setTimeout|onPointerDown=|event\.detail/);
+  assert.doesNotMatch(drawer,/document\.addEventListener\("click"/);
+  assert.match(drawer,/window\.addEventListener\("keydown",onKey,true\)/);
+  assert.match(drawer,/window\.removeEventListener\("keydown",onKey,true\)/);
+  assert.match(drawer,/activeDialog!==drawerRef\.current/);
+  assert.match(inbox,/onClose=\{closeContactDetails\}/);
+});
+
+test("o handler real fecha em click de mouse ou teclado e consome somente esse evento",async()=>{
+  const {transform}=await import("esbuild");
+  const source=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const start=source.indexOf("  const requestClose=useCallback");
+  const snippet=source.slice(start,source.indexOf("  useEffect",start));
+  const {code}=await transform(snippet+"\nreturn requestClose;",{loader:"tsx"});
+  let closes=0;
+  const close=new Function("useCallback","onClose",code)(fn=>fn,()=>closes++);
+  for(const detail of [0,1]){
+    const event=new Event("click",{cancelable:true,bubbles:true});
+    Object.defineProperty(event,"detail",{value:detail});
+    close(event);
+    assert.equal(event.defaultPrevented,true);
+    assert.equal(event.cancelBubble,true);
+  }
+  assert.equal(closes,2);
+});
+
+test("o listener real de Escape limpa dez montagens e respeita outro diálogo ativo",async()=>{
+  const {transform}=await import("esbuild");
+  const source=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const start=source.indexOf('  useEffect(()=>{\n    if(inline||preview)return;');
+  assert.ok(start>=0);
+  const ending='  },[requestClose,preview,inline]);';
+  const snippet=source.slice(start,source.indexOf(ending,start)+ending.length);
+  const {code}=await transform(snippet,{loader:"tsx"});
+  const listeners=new Set();
+  const fakeWindow={
+    addEventListener:(type,handler,capture)=>{assert.equal(type,"keydown");assert.equal(capture,true);listeners.add(handler);},
+    removeEventListener:(type,handler,capture)=>{assert.equal(type,"keydown");assert.equal(capture,true);listeners.delete(handler);},
+  };
+  const panel={contains:()=>false};
+  class FakeElement { closest(){return {contains:()=>false};} }
+  let closes=0;
+  for(let i=0;i<10;i++){
+    let cleanup;
+    new Function("useEffect","inline","preview","drawerRef","window","Element","requestClose",code)(
+      fn=>{cleanup=fn();},false,null,{current:panel},fakeWindow,FakeElement,()=>closes++);
+    assert.equal(listeners.size,1);
+    const handler=[...listeners][0];
+    handler({key:"Escape",defaultPrevented:false,target:new FakeElement()});
+    assert.equal(closes,i,"outro modal possui seu próprio Escape");
+    handler({key:"Escape",defaultPrevented:false,target:null});
+    assert.equal(closes,i+1);
+    cleanup();
+    assert.equal(listeners.size,0);
+  }
 });
 
 test("Ações Editar e Nova adotam contraste compartilhado em todo CRM escuro",()=>{

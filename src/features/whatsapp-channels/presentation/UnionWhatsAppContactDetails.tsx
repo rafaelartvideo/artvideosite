@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
@@ -120,7 +120,6 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   });
   const requests=useRef(new Set<UnionWhatsAppSharedTab>());
   const drawerRef=useRef<HTMLElement|null>(null);
-  const panelRootRef=useRef<HTMLDivElement|null>(null);
   const [preview,setPreview]=useState<{url:string;type:string;name:string}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
@@ -150,53 +149,26 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   useEffect(()=>{
     if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,0);
   },[tab,sections,fetchPage]);
-  const closeOnPointer=useCallback((event:ReactPointerEvent<HTMLButtonElement>)=>{
-    console.info("[contact-details trace] close pointer",event.button,event.type);
-    if(event.button!==0)return;
+  const requestClose=useCallback((event:ReactMouseEvent<HTMLButtonElement>|KeyboardEvent)=>{
+    // Close on the completed click, never between pointerdown and click.
     event.preventDefault();
     event.stopPropagation();
-    // Se desmontarmos no pointerdown, o click posterior pode atingir a
-    // conversa por baixo. Bloquear somente esse click evita reabertura
-    // involuntária e não deixa nenhum overlay/capturador permanente.
-    const swallowClick=(click:MouseEvent)=>{
-      click.preventDefault();
-      click.stopPropagation();
-      click.stopImmediatePropagation();
-      document.removeEventListener("click",swallowClick,true);
-    };
-    document.addEventListener("click",swallowClick,true);
-    window.setTimeout(()=>document.removeEventListener("click",swallowClick,true),350);
     onClose();
   },[onClose]);
   useEffect(()=>{
     if(inline||preview)return;
-    // Eventos fora do painel, mas DENTRO do backdrop, são tratados somente
-    // pelo próprio backdrop. Antes, o document capturava pointerdown e
-    // desmontava a camada antes do click, permitindo cliques fantasmas e
-    // deixando os controles do atendimento inconsistentes.
-    const onOutside=(event:MouseEvent)=>{
-      console.info("[contact-details trace] click capture",panelRootRef.current?.contains(event.target as Node),event.detail);
-      if(event.button!==0 || !(event.target instanceof Node))return;
-      if(panelRootRef.current?.contains(event.target))return;
-      // Não deixar o clique atravessar para controles/menus por baixo após desmontar.
-      if(event.cancelable)event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    };
     const onKey=(event:KeyboardEvent)=>{
-      console.info("[contact-details trace] key",event.key);
-      if(event.key!=="Escape")return;
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
+      if(event.key!=="Escape"||event.defaultPrevented)return;
+      const target=event.target instanceof Element?event.target:null;
+      const activeDialog=target?.closest('[role="dialog"],[role="alertdialog"]');
+      // A child editor/media modal owns its own Escape; an ancestor conversation does not.
+      if(activeDialog && activeDialog!==drawerRef.current &&
+          !activeDialog.contains(drawerRef.current))return;
+      requestClose(event);
     };
-    document.addEventListener("click",onOutside,true);
-    document.addEventListener("keydown",onKey,true);
-    return()=>{
-      document.removeEventListener("click",onOutside,true);
-      document.removeEventListener("keydown",onKey,true);
-    };
-  },[onClose,preview,inline]);
+    window.addEventListener("keydown",onKey,true);
+    return()=>window.removeEventListener("keydown",onKey,true);
+  },[requestClose,preview,inline]);
 
   const openShared=async(item:UnionWhatsAppMessage)=>{
     if(previewLoading)return;
@@ -208,28 +180,17 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }finally{setPreviewLoading(false);}
   };
-  return <div ref={panelRootRef} className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
+  return <div data-contact-details-root="true" className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
     {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
-      onPointerDown={closeOnPointer}
-      onClick={event=>{
-        // Click de teclado / leitores de tela. Pointerdown já tratou o mouse.
-        event.preventDefault();
-        event.stopPropagation();
-        if(event.detail===0)onClose();
-      }}
-      className="absolute inset-0 cursor-default bg-transparent"/>}
+      onClick={requestClose}
+      className="fixed inset-0 cursor-default bg-transparent"/>}
     <aside ref={drawerRef} role={inline?undefined:"dialog"} aria-modal={inline?undefined:false} aria-label={"Detalhes do contato "+name}
       className={inline
         ?"relative flex w-full min-h-[230px] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground"
         :"relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
       {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
         <button type="button" aria-label="Voltar à conversa"
-          onPointerDown={closeOnPointer}
-          onClick={event=>{
-            event.preventDefault();
-            event.stopPropagation();
-            if(event.detail===0)onClose();
-          }}
+          onClick={requestClose}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
         <button type="button" onClick={()=>setHistoryOpen(value=>!value)}

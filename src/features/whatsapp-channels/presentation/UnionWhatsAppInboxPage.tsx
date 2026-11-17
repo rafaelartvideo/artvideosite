@@ -495,7 +495,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [contactsOpen,setContactsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
-  useEffect(()=>console.info("[contact-details trace] state",contactDetailsOpen),[contactDetailsOpen]);
+  const closeContactDetails=useCallback(()=>setContactDetailsOpen(false),[]);
   useEffect(()=>setContactDetailsOpen(false),[selectedId]);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
@@ -2475,14 +2475,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
-            {contactDetailsOpen && <UnionWhatsAppContactDetails key={selected.id}
+            {contactDetailsOpen && <UnionWhatsAppContactDetails key={`contact-details:${selected.id}`}
               conversation={selected} organizationId={activeOrganizationId||selected.organization_id}
               gender={linkedCustomers[selected.id]?.customer?.gender}
-              onClose={()=>setContactDetailsOpen(false)}
+              onClose={closeContactDetails}
               onEdit={canAction("manage_contacts")?()=>{
                 setContactDetailsOpen(false);setEditContactId(selected.id);
               }:undefined}/>}
-            {hasPermission("customers.view") && <UnionWhatsAppCrmMenu key={selected.id}
+            {hasPermission("customers.view") && <UnionWhatsAppCrmMenu key={`crm-menu:${selected.id}`}
               context={linkedCustomers[selected.id]}
               open={crmDetailsOpen}
               onToggle={()=>setCrmDetailsOpen(open=>!open)}
