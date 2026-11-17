@@ -329,11 +329,13 @@ export function TabOrders({
   // financeiras/comerciais. Só revela o conteúdo depois que todas concluíram.
   useEffect(() => {
     if (!completionFromListId || !completionFromListStarted || completionFromListReady || !completionController.open) return;
+    if (completionController.billingPreparing || completionController.billingError) return;
     if (completionController.commercialItemsLoading || completionController.financeOptionsLoading
       || completionController.warrantyLoading || completionController.paymentProofRequirementLoading) return;
     setCompletionFromListReady(true);
   }, [
     completionFromListId, completionFromListStarted, completionFromListReady, completionController.open,
+    completionController.billingPreparing, completionController.billingError,
     completionController.commercialItemsLoading, completionController.financeOptionsLoading,
     completionController.warrantyLoading, completionController.paymentProofRequirementLoading,
   ]);
