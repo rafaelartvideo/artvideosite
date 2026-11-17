@@ -16,6 +16,7 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  BarChart3,
   Package,
   RefreshCw,
   ShoppingCart,
@@ -134,7 +135,6 @@ function groupByLabel<T>(items: T[], getLabel: (item: T) => string): DashboardCh
 }
 
 type OrderDistributionKind = "situation" | "status";
-type OrderDistributionChartMode = "pie" | "vertical" | "horizontal";
 type OrderDistributionSelection = {
   kind: OrderDistributionKind;
   id: string | null;
@@ -257,7 +257,7 @@ function registrationRoleLabel(registration: DashboardRegistration) {
 
 function MetricGrid({ metrics, onSelect }: { metrics: Metric[]; onSelect: (metric: Metric) => void }) {
   return (
-    <div className={cn("grid gap-3", metrics.length >= 5 ? "grid-cols-2 xl:grid-cols-6" : "grid-cols-2 xl:grid-cols-4")}>
+    <div className={cn("grid w-full max-w-[1420px] gap-3", metrics.length >= 5 ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "grid-cols-2 md:grid-cols-4")}>
       {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} onClick={() => onSelect(metric)} />)}
     </div>
   );
@@ -637,9 +637,6 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
           selectedKey={orderDistributionSelection?.kind==="status"
             ?`status:${orderDistributionSelection.id||"none"}`:null}
           onSelect={selectDistribution("status")}/>);
-      const whenLoading=<DashboardEmpty text={orderChartsQuery.isPending
-        ?"Carregando indicadores..." : orderChartsQuery.isError
-        ?"Não foi possível consultar os indicadores." : "Sem dados no período."}/>;
       if(widgetVisible("opened")) {
         const points=chartTrend(analytics?.opened||[],periodDays);
         chart("opened","Data de abertura da OS",`Aberturas nos últimos ${periodDays} dias · ${summedChart(analytics?.opened||[])} OS`,
@@ -839,13 +836,29 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   );
 }
 
-function DashboardArea({ metrics, left, right, onMetricSelect }: { metrics: Metric[]; left: ReactNode; right: ReactNode; onMetricSelect: (metric: Metric) => void }) {
-  return (
-    <div className="min-w-0 space-y-3">
-      <MetricGrid metrics={metrics} onSelect={onMetricSelect} />
-      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)] [&>*]:min-h-[280px]">{left}{right}</div>
-    </div>
-  );
+function DashboardNoWidgets({ onRestore }: { onRestore: () => void }) {
+  return <AdminCard className="flex min-h-[180px] max-w-[465px] flex-col items-center justify-center gap-3 p-5 text-center">
+    <p className="text-sm font-bold text-foreground">Nenhum painel selecionado nesta seção.</p>
+    <p className="text-xs text-muted-foreground">Use Personalizar para escolher os gráficos que deseja visualizar.</p>
+    <AdminButton size="sm" onClick={onRestore}>Mostrar todos</AdminButton>
+  </AdminCard>;
+}
+
+function DashboardArea({ metrics, left, right, onMetricSelect, visibility }: {
+  metrics: Metric[];
+  left: ReactNode;
+  right: ReactNode;
+  onMetricSelect: (metric: Metric) => void;
+  visibility?: { metrics: boolean; left: boolean; right: boolean };
+}) {
+  const show=visibility||{metrics:true,left:true,right:true};
+  return <div className="min-w-0 space-y-3">
+    {show.metrics&&<MetricGrid metrics={metrics} onSelect={onMetricSelect}/>}
+    {(show.left||show.right)&&<div className="grid min-w-0 w-full max-w-[1000px] grid-cols-1 items-start gap-3 lg:grid-cols-2">
+      {show.left&&<div className="min-w-0 max-w-[490px]">{left}</div>}
+      {show.right&&<div className="min-w-0 max-w-[490px]">{right}</div>}
+    </div>}
+  </div>;
 }
 
 type DashboardOrderListRow = Pick<DashboardOrder, "id" | "os_number" | "created_at" | "updated_at" | "completed_at" | "customer" | "order_status" | "situation"> & {
