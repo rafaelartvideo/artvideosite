@@ -7,7 +7,7 @@ import {
   type UnionWhatsAppSharedTab,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;page:number};
@@ -179,7 +179,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           className="rounded-lg p-1.5 hover:bg-muted"><ArrowLeft size={20}/></button>
         <h2 className="min-w-0 flex-1 truncate text-base font-bold">Dados do contato</h2>
         <button type="button" onClick={()=>setHistoryOpen(value=>!value)}
-          aria-expanded={historyOpen} aria-label="Histórico de atendimentos" title="Histórico de atendimentos"
+          aria-expanded={historyOpen} aria-label="Histórico geral do contato" title="Histórico geral do contato"
           className="rounded-lg p-1.5 hover:bg-muted"><History size={18}/></button>
         {onEdit&&<button type="button" onClick={onEdit} aria-label="Editar contato" title="Editar contato"
           className="rounded-lg p-1.5 hover:bg-muted"><Pencil size={17}/></button>}
@@ -196,8 +196,8 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <p className="text-xs text-muted-foreground">WhatsApp · Histórico desta conversa</p>
         </div>}
         {historyOpen&&<div className="border-b border-border px-4 py-4">
-          <h3 className="mb-3 text-sm font-bold">Histórico de atendimentos</h3>
-          <UnionWhatsAppProtocolHistory organizationId={organizationId} conversation={conversation}/>
+          <h3 className="mb-3 text-sm font-bold">Histórico geral do contato</h3>
+          <UnionWhatsAppContactHistory organizationId={organizationId} conversation={conversation}/>
         </div>}
         <div className={inline?"px-4 py-4":"border-b border-border px-4 py-4"}>
           <div className="flex items-center gap-2 text-sm font-bold">
