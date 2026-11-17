@@ -67,11 +67,17 @@ test("Concluir OS abre o mesmo atendimento WhatsApp dos detalhes, enquanto outro
  }
 });
 
-test("Responder na conversa tem rótulo visível e contraste nos dois temas",async()=>{
+test("Responder usa o mesmo texto primário de Abrir documento, sem fundo em nenhum tema",async()=>{
  const inbox=await source("features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
- assert.match(inbox,/aria-label="Responder mensagem"[\s\S]*?<span>Responder<\/span>/);
- assert.match(inbox,/bg-slate-700[\s\S]*?dark:bg-slate-200/);
- assert.doesNotMatch(inbox,/rounded p-0\.5 text-primary\/75/);
+ const start=inbox.indexOf('aria-label="Responder mensagem"');
+ assert.ok(start>=0);
+ const end=inbox.indexOf('<span>Responder</span>',start);
+ assert.ok(end>start);
+ const action=inbox.slice(start,end+23);
+ assert.match(action,/<Reply size=\{13\}/);
+ assert.match(action,/text-primary/);
+ assert.match(action,/<span>Responder<\/span>/);
+ assert.doesNotMatch(action,/bg-|border-slate-|text-white|dark:bg-/);
 });
 
 test("signature requests send with SAC when active and open WhatsApp Web when disabled",async()=>{
