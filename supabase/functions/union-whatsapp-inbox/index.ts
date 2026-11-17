@@ -1056,14 +1056,14 @@ Deno.serve(async request => {
         .eq("organization_id",org).eq("id",order.customer_id).maybeSingle();
       if(customerError)throw customerError;
       const normalize=(value:unknown)=>{
-        const digits=String(value||"").replace(/\\D/g,"");
+        const digits=String(value||"").replace(/\D/g,"");
         return digits.length===10||digits.length===11?"55"+digits:digits;
       };
       const recipients:Array<Record<string,unknown>>=[];
       const seen=new Set<string>();
       for(const field of ["whatsapp","phone"] as const){
         const phone=normalize(customer?.[field]);
-        if(!/^55[1-9]\\d{9,10}$/.test(phone)||seen.has(phone))continue;
+        if(!/^55[1-9]\d{9,10}$/.test(phone)||seen.has(phone))continue;
         seen.add(phone);
         recipients.push({kind:"registered",field,
           name:String(customer?.full_name||customer?.trade_name||customer?.legal_name||"Cliente"),
@@ -1074,6 +1074,11 @@ Deno.serve(async request => {
         .eq("state","connected").eq("webhook_ready",true).maybeSingle();
       if(channelError)throw channelError;
       if(!channel)return json({success:true,recipients});
+      // A foto reaproveita o cache privado e a conta WhatsApp desta empresa.
+      for(const recipient of recipients){
+        recipient.account_phone=channel.phone;
+        recipient.chat_jid=String(recipient.phone)+"@s.whatsapp.net";
+      }
       const {data:links,error:linkError}=await admin.from("union_whatsapp_order_contacts")
         .select("conversation_id,chat_jid,contact_name,contact_phone")
         .eq("organization_id",org).eq("service_order_id",orderId)
@@ -1082,10 +1087,12 @@ Deno.serve(async request => {
       if(linkError)throw linkError;
       for(const linked of links||[]){
         const number=normalize(linked.contact_phone);
-        if(!number||seen.has(number))continue;
+        if(!/^55[1-9]\d{9,10}$/.test(number)||seen.has(number))continue;
         seen.add(number);
         recipients.push({kind:"linked",conversation_id:linked.conversation_id,
-          name:linked.contact_name||"Contato vinculado à OS",phone:number});
+          name:linked.contact_name||"Contato vinculado à OS",phone:number,
+          chat_jid:linked.chat_jid||number+"@s.whatsapp.net",
+          account_phone:channel.phone});
       }
       return json({success:true,recipients});
     }
