@@ -97,7 +97,7 @@ export function DashboardPanel({
   className?: string;
 }) {
   return (
-    <AdminCard className={cn("flex h-[370px] min-h-0 max-w-full flex-col overflow-hidden", className)}>
+    <AdminCard className={cn("flex h-[580px] min-h-0 w-full min-w-0 flex-col overflow-hidden", className)}>
       <AdminCardHeader className="min-h-[52px] py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           {Icon && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7]/8 text-[#0057e7]"><Icon size={15} /></div>}
@@ -157,9 +157,7 @@ export function DashboardBarChart({
   const pointKey = (point: DashboardChartPoint) => point.key || point.name;
 
   return (
-    <div className="w-full min-w-0 overflow-auto [scrollbar-width:thin]" style={{ height: fixedHeight ?? chartHeight, minHeight: fixedHeight ?? chartHeight }}>
-      <div style={{height:vertical?Math.max(chartHeight,data.length*39+40):chartHeight,
-        minWidth:vertical?"100%":Math.max(340,data.length*135),width:vertical?"100%":undefined}}>
+    <div className="w-full min-w-0" style={{ height: chartHeight, minHeight: chartHeight }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
@@ -173,18 +171,18 @@ export function DashboardBarChart({
               <YAxis
                 type="category"
                 dataKey="name"
-                width={160}
+                width={194}
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                tickFormatter={value => String(value).length > 28 ? `${String(value).slice(0, 26)}…` : String(value)}
+                tickFormatter={value => String(value).length > 34 ? `${String(value).slice(0, 32)}…` : String(value)}
               />
             </>
           ) : (
             <>
               <XAxis dataKey="name" axisLine={false} tickLine={false} interval={0} height={84} angle={-38} textAnchor="end"
                   tick={{ fontSize: 11, fontWeight: 600, fill: "var(--muted-foreground)" }}
-                  tickFormatter={value => String(value).length > 22 ? `${String(value).slice(0, 20)}…` : String(value)} />
+                  tickFormatter={value => String(value).length > 13 ? `${String(value).slice(0, 11)}…` : String(value)} />
               <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }} />
             </>
           )}
@@ -216,7 +214,6 @@ export function DashboardBarChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      </div>
     </div>
   );
 }
@@ -313,37 +310,27 @@ export function DashboardSlaDistributionChart({
             </PieChart>
           </ResponsiveContainer>
 
-          <div className="max-h-full space-y-2 overflow-y-auto pr-1">
+          <div className="flex h-full min-w-0 flex-col justify-center gap-0.5">
             {data.map(point => (
-              <div key={point.key} className="rounded-lg border border-border/70 bg-card px-2.5 py-2">
-                <p className="line-clamp-2 break-words text-[11px] font-black leading-4 text-foreground" title={point.name}>{point.name}</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div key={point.key} className="flex min-h-0 items-center justify-between gap-1.5 py-0.5">
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground" title={point.name}>{point.name}</span>
+                <span className="flex shrink-0 items-center gap-0.5">
                   {visibleSegments.map(segment => {
                     const value = Number(point.sla[segment.key] || 0);
+                    if (value === 0) return null;
                     const key = segmentKey(point, segment.key);
-                    const selected = selectedSegment === key;
-                    return (
-                      <button
-                        key={segment.key}
-                        type="button"
-                        disabled={!onSelect || value <= 0}
-                        title={`${segment.label}: ${value}`}
-                        aria-label={`${point.name}, ${segment.label}: ${value}`}
-                        onMouseEnter={() => value > 0 && setHoveredSegment(key)}
-                        onMouseLeave={() => setHoveredSegment(null)}
-                        onClick={() => value > 0 && onSelect?.(point, segment.key, value)}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-black transition-all",
-                          value > 0 ? "cursor-pointer" : "cursor-default opacity-35",
-                          selected || hoveredSegment === key ? "border-foreground/35 bg-muted" : "border-transparent bg-muted/45",
-                        )}
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
-                        {value}
-                      </button>
-                    );
+                    return <button key={segment.key} type="button"
+                      disabled={!onSelect}
+                      title={`${point.name} · ${segment.label}: ${value}`}
+                      aria-label={`${point.name}, ${segment.label}: ${value}`}
+                      onMouseEnter={() => setHoveredSegment(key)}
+                      onMouseLeave={() => setHoveredSegment(null)}
+                      onClick={() => onSelect?.(point, segment.key, value)}
+                      className={cn("inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted",selectedSegment === key && "bg-muted")}>
+                      <span className="size-1.5 rounded-full" style={{backgroundColor: segment.color}} />{value}
+                    </button>;
                   })}
-                </div>
+                </span>
               </div>
             ))}
           </div>
@@ -361,13 +348,13 @@ export function DashboardSlaDistributionChart({
     neutral: Number(point.sla.neutral || 0),
   }));
   const chartHeight = fixedHeight ?? (horizontalBars ? Math.max(minHeight, data.length * 44 + 44) : minHeight);
-  const innerChartHeight = horizontalBars ? Math.max(chartHeight-27,data.length*40+26) : chartHeight-27;
+  const innerChartHeight = Math.max(210, chartHeight - 34);
 
   return (
     <div className="flex min-w-0 flex-col" style={{height:chartHeight}}>
       <div className="shrink-0">{legend}</div>
-      <div className="min-h-0 w-full flex-1 overflow-auto [scrollbar-width:thin]">
-        <div style={{height:innerChartHeight,minWidth:horizontalBars?"100%":Math.max(340,data.length*135)}}>
+      <div className="min-h-0 w-full flex-1">
+        <div style={{height:innerChartHeight,width:"100%"}}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={barData}
@@ -381,11 +368,11 @@ export function DashboardSlaDistributionChart({
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={160}
+                  width={194}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                  tickFormatter={value => String(value).length > 28 ? `${String(value).slice(0, 26)}…` : String(value)}
+                  tickFormatter={value => String(value).length > 34 ? `${String(value).slice(0, 32)}…` : String(value)}
                 />
               </>
             ) : (
@@ -395,7 +382,7 @@ export function DashboardSlaDistributionChart({
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 11, fontWeight: 600, fill: "#718096" }}
-                  tickFormatter={value => String(value).length > 22 ? `${String(value).slice(0, 20)}…` : String(value)}
+                  tickFormatter={value => String(value).length > 13 ? `${String(value).slice(0, 11)}…` : String(value)}
                   angle={-38} textAnchor="end" height={84}
                   interval={0}
                 />
@@ -513,7 +500,7 @@ export function DashboardDonutChart({
           <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="max-h-full space-y-2 overflow-y-auto pr-1">
+      <div className="flex h-full min-w-0 flex-col justify-center gap-1">
         {data.map((point, index) => {
           const key = pointKey(point);
           return (
@@ -525,7 +512,7 @@ export function DashboardDonutChart({
               onClick={() => onSelect?.(point)}
               disabled={!onSelect}
               className={cn(
-                "flex w-full min-w-0 items-center gap-2.5 rounded-lg border px-2 py-1.5 text-[11px] transition-all",
+                "flex w-full min-w-0 items-center gap-2 rounded-lg border px-2 py-1 text-[11px] transition-all",
                 onSelect ? "cursor-pointer hover:bg-muted" : "cursor-default",
                 hoveredKey === key ? "border-foreground/35 bg-muted/70" : "border-transparent",
                 selectedKey && selectedKey !== key && "opacity-45",
