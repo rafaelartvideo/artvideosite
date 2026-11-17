@@ -59,7 +59,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   const loading = configurationQuery.isPending;
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, is_disposal: false, generates_warranty: false, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
+  const [form, setForm] = useState({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, is_disposal: false, generates_warranty: false, charge_customer: true, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] as Array<{ situation_id: string; use_default_hours: boolean; sla_hours: string }> });
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; forecast_days?: string; situations?: string; sla?: Record<string, string> }>({});
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
@@ -77,13 +77,13 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
-  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setForm({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, is_disposal: false, generates_warranty: false, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] }); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setForm({ title: "", description: "", forecast_days: "", is_active: true, quote_workflow_enabled: false, is_disposal: false, generates_warranty: false, charge_customer: true, enable_payment_proof_on_completion: true, enable_delivery_evidence_on_completion: false, selectedSituations: [] }); setFormOpen(true); };
   const openEdit = (item: any) => {
     if (!(canViewDetails && canEdit)) return;
     setEditItem(item);
     setFieldErrors({});
     const links = situationLinks.filter(link => link.service_type_id === item.id);
-    setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false, quote_workflow_enabled: item.quote_workflow_enabled === true, is_disposal: item.is_disposal === true, generates_warranty: item.quote_workflow_enabled === true && item.generates_warranty === true, enable_payment_proof_on_completion: item.enable_payment_proof_on_completion !== false, enable_delivery_evidence_on_completion: item.enable_delivery_evidence_on_completion === true, selectedSituations: links.map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })) });
+    setForm({ title: item.title || "", description: item.description || "", forecast_days: item.forecast_days == null ? "" : String(item.forecast_days), is_active: item.is_active !== false, quote_workflow_enabled: item.quote_workflow_enabled === true, is_disposal: item.is_disposal === true, generates_warranty: item.quote_workflow_enabled === true && item.generates_warranty === true, charge_customer: item.charge_customer !== false, enable_payment_proof_on_completion: item.enable_payment_proof_on_completion !== false, enable_delivery_evidence_on_completion: item.enable_delivery_evidence_on_completion === true, selectedSituations: links.map(link => ({ situation_id: link.situation_id, use_default_hours: link.use_default_hours !== false, sla_hours: link.sla_hours == null ? "" : String(link.sla_hours) })) });
     setFormOpen(true);
   };
   const closeForm = () => { if (saving) return; setFormOpen(false); onRouteChange?.(null, null); };
@@ -141,7 +141,8 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             quote_workflow_enabled: !form.is_disposal && form.quote_workflow_enabled,
             is_disposal: form.is_disposal,
             generates_warranty: !form.is_disposal && form.quote_workflow_enabled && form.generates_warranty,
-            enable_payment_proof_on_completion: form.enable_payment_proof_on_completion,
+            charge_customer: form.is_disposal || form.charge_customer,
+            enable_payment_proof_on_completion: !form.is_disposal && form.charge_customer && form.enable_payment_proof_on_completion,
             enable_delivery_evidence_on_completion: form.enable_delivery_evidence_on_completion,
           }
         : {
@@ -152,7 +153,8 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             quote_workflow_enabled: !form.is_disposal && form.quote_workflow_enabled,
             is_disposal: form.is_disposal,
             generates_warranty: !form.is_disposal && form.quote_workflow_enabled && form.generates_warranty,
-            enable_payment_proof_on_completion: form.enable_payment_proof_on_completion,
+            charge_customer: form.is_disposal || form.charge_customer,
+            enable_payment_proof_on_completion: !form.is_disposal && form.charge_customer && form.enable_payment_proof_on_completion,
             enable_delivery_evidence_on_completion: form.enable_delivery_evidence_on_completion,
           };
       await saveServiceType({
@@ -235,10 +237,19 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
               checked={form.generates_warranty} disabled={saving}
               onChange={value => setForm(current => ({ ...current, generates_warranty: value }))} />
           </div>}
-          <div className="border-t border-border pt-4"><FToggle label="Habilitar comprovante de pagamento"
+          <div className="border-t border-border pt-4">
+            <FToggle label="Cobrar pagamento do cliente"
+              description="Desative para garantia de fabricante: cliente paga R$ 0,00, sem parcelas ou comprovante. Na conclusão, informe o valor que o parceiro deverá pagar para gerar Contas a Receber."
+              checked={form.charge_customer} disabled={saving}
+              onChange={charge_customer => setForm(current => ({
+                ...current, charge_customer,
+                enable_payment_proof_on_completion: charge_customer && current.enable_payment_proof_on_completion,
+              }))}/>
+          </div>
+          {form.charge_customer && <div className="border-t border-border pt-4"><FToggle label="Habilitar comprovante de pagamento"
             description="Exibe o campo de comprovante na conclusão das OS deste tipo. A obrigatoriedade é definida em Configurações da OS."
             checked={form.enable_payment_proof_on_completion} disabled={saving}
-            onChange={value => setForm(current => ({ ...current, enable_payment_proof_on_completion: value }))} /></div>
+            onChange={value => setForm(current => ({ ...current, enable_payment_proof_on_completion: value }))} /></div>}
           <div className="border-t border-border pt-4"><FToggle label="Habilitar evidência de entrega"
             description="Exibe o campo de evidência de entrega na conclusão das OS deste tipo. A obrigatoriedade é definida em Configurações da OS."
             checked={form.enable_delivery_evidence_on_completion} disabled={saving}
