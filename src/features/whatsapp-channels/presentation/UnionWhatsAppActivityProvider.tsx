@@ -6,6 +6,7 @@ import {
   type UnionWhatsAppConversation, type UnionWhatsAppConversationCounts,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { UnionWhatsAppFloatingPanel, type FloatingWhatsAppAlert } from "./UnionWhatsAppFloatingPanel";
+import { fetchSharedAvatar, clearSharedAvatarCache } from "../application/shared-whatsapp-avatar-cache";
 import { playUnionWhatsAppSound } from "../application/union-whatsapp-sounds";
 
 const ConversationModal=lazy(()=>import("./WhatsAppConversationModal")
@@ -130,8 +131,9 @@ export function UnionWhatsAppActivityProvider({
     disposedRef.current=false;
     return ()=>{
       disposedRef.current=true;
-    if(reconcileTimerRef.current!==null)clearTimeout(reconcileTimerRef.current);
+      if(reconcileTimerRef.current!==null)clearTimeout(reconcileTimerRef.current);
       listenersRef.current.clear();
+      clearSharedAvatarCache();
     };
   },[]);
 
@@ -321,10 +323,12 @@ export function UnionWhatsAppActivityProvider({
       avatarRequestsRef.current.add(item.id);
       avatarCheckedAtRef.current.set(item.id,now);
       const key=accountKey,generation=listGenerationRef.current;
-      void operateUnionWhatsAppInbox(organizationId,item.id,"contact_avatar")
-        .then(result=>{
+      void fetchSharedAvatar({
+        organizationId,accountPhone:item.account_phone,
+        chatJid:item.chat_jid,conversationId:item.id,
+      }).then(url=>{
           if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
-          setAvatars(prev=>({...prev,[item.id]:result.avatar_url||null}));
+          setAvatars(prev=>({...prev,[item.id]:url||null}));
         }).catch(()=>{
           if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
           setAvatars(prev=>({...prev,[item.id]:prev[item.id]||null}));
