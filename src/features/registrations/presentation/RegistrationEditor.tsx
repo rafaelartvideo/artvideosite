@@ -227,7 +227,7 @@ export function RegistrationEditor({
 
       {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
-      {!supplierQuickCreate && (form.roles.includes("supplier") || form.roles.includes("partner")) && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
+      {!supplierQuickCreate && form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
     </div>
   </>;
 
