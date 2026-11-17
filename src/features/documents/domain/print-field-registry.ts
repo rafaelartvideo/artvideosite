@@ -64,6 +64,8 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     defaultColumns: 3,
     fields: [
       { key: "order.order_type", label: "Tipo da OS" },
+      { key: "order.service_type", label: "Tipo de atendimento" },
+      { key: "order.completed_at", label: "Data de fechamento", kind: "datetime" },
       { key: "order.origin", label: "Origem" },
       { key: "order.priority", label: "Prioridade" },
       { key: "order.status", label: "Status" },
