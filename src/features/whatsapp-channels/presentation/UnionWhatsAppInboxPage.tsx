@@ -23,6 +23,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
+import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation,
@@ -1228,11 +1229,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const generation=avatarScopeGenerationRef.current;
     for(const id of toLoad){
       avatarRequestsRef.current.add(id);
-      void operateUnionWhatsAppInbox(org,id,"contact_avatar")
-        .then(result=>{
+      const item=visible.find(row=>row.id===id)||(selected?.id===id?selected:null);
+      if(!item){avatarRequestsRef.current.delete(id);continue;}
+      void fetchSharedAvatar({
+        organizationId:org,accountPhone:item.account_phone,
+        chatJid:item.chat_jid,conversationId:item.id,
+      }).then(url=>{
           if(avatarScopeGenerationRef.current!==generation)return;
           avatarCheckedAtRef.current.set(id,Date.now());
-          const value=result.avatar_url||null;
+          const value=url||null;
           setAvatars(old=>Object.prototype.hasOwnProperty.call(old,id) && old[id]===value
             ?old:rememberVisibleAvatar(old,id,value));
         })
