@@ -11,6 +11,7 @@ import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate
 import {
   completeServiceOrderWithFinance,
   getOrderCompletionFinanceOptions,
+  getOrderCompletionChargeCustomer,
   type OrderCompletionFinanceOptions,
 } from "../infrastructure/order-finance.repository";
 import {
@@ -137,6 +138,8 @@ export function useOrderCompletion({
   setSaving: Dispatch<SetStateAction<boolean>>;
 }) {
   const [open, setOpen] = useState(false);
+  const [completionChargeCustomer, setCompletionChargeCustomer] = useState<{orderId:string;value:boolean}|null>(null);
+  const completionBillingRequestRef = useRef(0);
   const queryClient = useQueryClient();
   const paymentProofRequestRef = useRef(0);
   const paymentProofRequirementRequestRef = useRef(0);
@@ -179,7 +182,9 @@ export function useOrderCompletion({
     && detail?.service_type?.generates_warranty === true);
   const financeEnabled = financeOptions.finance_enabled;
   // Garantia de fabricante: consumidor não paga, mas existe um título a receber do parceiro.
-  const noCustomerCharge = detail?.service_type?.charge_customer === false;
+  const noCustomerCharge = completionChargeCustomer?.orderId===detail?.id
+    ? completionChargeCustomer.value===false
+    : detail?.service_type?.charge_customer === false;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
   const priceAtCompletion = !commercialPricing && Boolean(detail?.general_service?.price_at_completion);
   const configuredServicePrice = commercialPricing
@@ -419,7 +424,7 @@ export function useOrderCompletion({
     setFinanceOptionsError("");
   };
 
-  const openCompletion = (orderOverride?: unknown) => {
+  const openCompletion = async (orderOverride?: unknown) => {
     const target = isOrderOverride(orderOverride) ? orderOverride : detail;
     if (!hasPermission("orders.complete")) {
       showToast({ msg: "Você não possui permissão para concluir a OS.", type: "error" });
@@ -437,9 +442,30 @@ export function useOrderCompletion({
       showToast({ msg: "Classifique a garantia do retorno antes de abrir a conclusão.", type: "error" });
       return;
     }
+    // A configuração pode ter sido alterada depois que a OS entrou no cache do CRM.
+    // Consultar sempre o banco evita exibir Pagamento quando o check está desativado.
+    if(!target?.id || !target?.organization_id){
+      showToast({msg:"Não foi possível identificar a OS para consultar o tipo de cobrança.",type:"error"});
+      return;
+    }
+    const requestId=++completionBillingRequestRef.current;
+    let chargeCustomer:boolean;
+    try{
+      chargeCustomer=await getOrderCompletionChargeCustomer(String(target.organization_id),String(target.id));
+    }catch(error){
+      if(requestId===completionBillingRequestRef.current){
+        showToast({msg:"Não foi possível verificar a cobrança deste atendimento: "+formatError(error),type:"error"});
+      }
+      return;
+    }
+    if(requestId!==completionBillingRequestRef.current)return;
+    setCompletionChargeCustomer({orderId:String(target.id),value:chargeCustomer});
+    setDetail((current:any)=>current?.id===target.id
+      ? {...current,service_type:{...(current.service_type||{}),charge_customer:chargeCustomer}}
+      : current);
     const targetCoverageFree = Boolean(target?.return_root_id
       && (target.return_classification === "covered" || target.return_classification === "courtesy"));
-    const targetNoCustomerCharge = (target?.service_type ?? detail?.service_type)?.charge_customer === false;
+    const targetNoCustomerCharge = !chargeCustomer;
     paymentProofRequestRef.current += 1;
     const requirementRequestId = ++paymentProofRequirementRequestRef.current;
     setPaymentProofEnabled(true);
