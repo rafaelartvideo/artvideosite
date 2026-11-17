@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { AlertCircle, ArrowLeft, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, GripHorizontal, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import { activateAdminFloatingDialog, clampAdminDialogPosition, preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
@@ -627,7 +627,11 @@ export function AdminDialog({
           title={draggable ? "Segure e arraste para mover. Duplo clique para centralizar." : undefined}
         >
         <div className="min-w-0 flex-1">
-          {title ? <div className="flex items-center gap-2"><DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
+          {title ? <div className="flex items-center gap-2">
+            {draggable && <GripHorizontal size={17} aria-hidden="true"
+              className="pointer-events-none shrink-0 text-muted-foreground" />}
+            <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle>
+          </div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
