@@ -1021,6 +1021,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setLinkedCustomers(old=>({...old,[selectedId]:{
           customer:result.customer||null,equipments:result.equipments||[],
           orders:result.crm_orders||[],ambiguous:result.ambiguous===true,
+          linkedViaOrder:result.linked_via_order===true,linkedOrders:result.linked_orders||[],
         }}));
       }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:{
         customer:null,equipments:[],orders:[],error:true,
