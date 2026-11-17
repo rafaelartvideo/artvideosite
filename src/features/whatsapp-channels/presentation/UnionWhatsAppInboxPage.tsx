@@ -10,6 +10,7 @@ import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
+import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -470,6 +471,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [contactsOpen,setContactsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
+  const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
+  useEffect(()=>setContactDetailsOpen(false),[selectedId]);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const [starting, setStarting] = useState(false);
@@ -2285,7 +2288,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:static lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:flex"} min-h-0 min-w-0 flex-col bg-card`}>
+        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:static lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:flex"} relative min-h-0 min-w-0 flex-col bg-card`}>
           {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
@@ -2311,18 +2314,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);
                 }} aria-label={embedded ? "Fechar conversa" : "Voltar para conversas"}
                 className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted lg:hidden"><ChevronLeft size={25}/></button>
-              <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
-                identity={{organizationId:selected.organization_id,accountPhone:selected.account_phone,
-                  chatJid:selected.chat_jid,conversationId:selected.id}}
-                gender={linkedCustomers[selected.id]?.customer?.gender}
-                src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,selected.id,null));}}/>
+              <button type="button" aria-label="Ver detalhes do contato" title="Ver detalhes do contato"
+                onClick={()=>setContactDetailsOpen(true)} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
+                  identity={{organizationId:selected.organization_id,accountPhone:selected.account_phone,
+                    chatJid:selected.chat_jid,conversationId:selected.id}}
+                  gender={linkedCustomers[selected.id]?.customer?.gender}
+                  src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,selected.id,null));}}/>
+              </button>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
+                  <button type="button" onClick={()=>setContactDetailsOpen(true)}
+                    title="Ver detalhes do contato" className="min-w-0 flex-1 truncate text-left text-sm font-black text-foreground hover:text-primary focus-visible:outline-none focus-visible:underline">
+                    {selected.contact_name}
+                  </button>
 
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
-                   {formatWhatsAppPhone(selected.contact_phone)}{embedded && selected.status==="finished" ? " · Histórico completo" : selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
+                   <button type="button" onClick={()=>setContactDetailsOpen(true)}
+                     className="font-medium hover:text-primary hover:underline focus-visible:outline-none focus-visible:underline"
+                     title="Ver detalhes do contato">{formatWhatsAppPhone(selected.contact_phone)}</button>{embedded && selected.status==="finished" ? " · Histórico completo" : selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    <span className="ml-2 inline-flex max-w-full min-w-0 items-center gap-1 align-middle">
                    <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
                      {embedded && selected.status==="finished" ? "Sem protocolo ativo" : hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
@@ -2384,6 +2395,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
             </header>
+            {contactDetailsOpen && <UnionWhatsAppContactDetails key={selected.id}
+              conversation={selected} organizationId={activeOrganizationId||selected.organization_id}
+              gender={linkedCustomers[selected.id]?.customer?.gender}
+              onClose={()=>setContactDetailsOpen(false)}
+              onEdit={canAction("manage_contacts")?()=>{
+                setContactDetailsOpen(false);setEditContactId(selected.id);
+              }:undefined}/>}
             {hasPermission("customers.view") && <UnionWhatsAppCrmMenu key={selected.id}
               context={linkedCustomers[selected.id]}
               open={crmDetailsOpen}
