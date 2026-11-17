@@ -304,9 +304,10 @@ test("Filtro por operador do gestor usa paginação no banco e permissões do ca
   const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
 
   // Apenas gestores com view_all podem consultar operadores e filtrar.
-  assert.match(inbox, /canManage && filter==="in_att" && <select aria-label="Filtrar operador"/);
+  assert.match(inbox, /canManage && supportsOperatorFilter\(filter\) && <select aria-label="Filtrar operador"/);
+  assert.match(inbox, /const supportsOperatorFilter=\(value:Filter\)=>value==="in_att" \|\| value==="finished" \|\| value==="forwarded"/);
   assert.match(inbox, /"operator_filter_list"/);
-  assert.match(inbox, /operator:filter==="in_att" && canManage \? operatorFilter : "all"/);
+  assert.match(inbox, /operator:canManage && supportsOperatorFilter\(filter\) \? operatorFilter : "all"/);
   assert.match(inbox, /\[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount/);
   assert.match(edge, /operator_filter_list:"view_all"/);
   assert.match(edge, /action==="operator_filter_list"/);
@@ -320,9 +321,14 @@ test("Filtro por operador do gestor usa paginação no banco e permissões do ca
   // O filtro precisa chegar ao PostgREST antes do order/range, não cortar
   // os itens da página já recebida do banco.
   const operatorFilter=repository.indexOf('query=query.eq("assigned_to",options.operator)');
+  const forwardedOperatorFilter=repository.indexOf('query=query.eq("forwarded_by",options.operator)');
   const pagination=repository.indexOf('.range(page*pageSize,(page+1)*pageSize)');
   assert.ok(operatorFilter>0 && pagination>operatorFilter);
-  assert.match(repository, /options\.filter==="in_att" && options\.canViewAll && options\.operator/);
+  assert.ok(forwardedOperatorFilter>0 && pagination>forwardedOperatorFilter);
+  assert.match(repository, /options\.canViewAll && options\.operator && options\.operator!=="all"/);
+  assert.match(repository, /options\.filter==="in_att" \|\| options\.filter==="finished"/);
+  assert.match(repository, /options\.filter==="forwarded"/);
+  assert.match(repository, /query=query\.eq\("forwarded_by",options\.operator\)/);
   assert.match(inbox, /setConversationPage\(0\);setOperatorFilter\(event\.target\.value\)/);
   assert.match(inbox, /scopedConversations\.filter\(item=>item\.status==="in_att" && !hasForwarding\(item\)\)/);
   assert.match(inbox, /scopedConversations\.filter\(queueOnly\)/);
