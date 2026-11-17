@@ -250,7 +250,7 @@ function registrationRoleLabel(registration: DashboardRegistration) {
 
 function MetricGrid({ metrics, onSelect }: { metrics: Metric[]; onSelect: (metric: Metric) => void }) {
   return (
-    <div className={cn("mx-auto grid w-full gap-3", metrics.length >= 5 ? "max-w-[1420px] grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "max-w-[1140px] grid-cols-2 md:grid-cols-4")}>
+    <div className={cn("mx-auto grid w-full gap-4", metrics.length >= 5 ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "grid-cols-2 md:grid-cols-4")}>
       {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} onClick={() => onSelect(metric)} />)}
     </div>
   );
@@ -631,7 +631,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
         if(!widgetVisible(key))return;
         if(orderChartsQuery.isError){
           charts.push(<DashboardPanel key={key} title={title} subtitle="Consulta indisponível" icon={icon}
-            className="h-[370px] w-full max-w-[465px]">
+            className="h-[580px] w-full min-w-0">
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
               <DashboardEmpty text="Não foi possível consultar este gráfico. Os demais indicadores continuam disponíveis."/>
               <AdminButton size="sm" onClick={()=>{void orderChartsQuery.refetch();}}>Tentar novamente</AdminButton>
@@ -682,7 +682,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       if(widgetVisible("selection"))charts.push(
         <DashboardPanel key="selection" title={selectedTitle} subtitle={selectedSubtitle}
           icon={ClipboardList} onOpen={()=>open("orders")}
-          className="h-[370px] w-full max-w-[465px]">
+          className="h-[580px] w-full min-w-0">
           {!orderDistributionSelection? <DashboardEmpty text="Selecione uma situação ou um status no gráfico para visualizar as OS."/>
           :orderGroupPageQuery.isError?<DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)}/>
           :<div className="-m-3 flex h-[calc(100%+1.5rem)] min-h-0 flex-col sm:-m-4 sm:h-[calc(100%+2rem)]">
@@ -700,9 +700,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
               </div>
             </div>}
         </DashboardPanel>);
-      return <div className="mx-auto w-full max-w-[1420px] min-w-0 space-y-3">
+      return <div className="mx-auto w-full min-w-0 space-y-4">
         {widgetVisible("metrics")&&<MetricGrid metrics={metrics} onSelect={showMetric}/>}
-        {charts.length>0?<div className="mx-auto grid min-w-0 w-full max-w-[1420px] grid-cols-1 justify-items-center items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {charts.length>0?<div className="mx-auto grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
           {charts}
         </div>:<DashboardNoWidgets onRestore={()=>widgetSettings.restore("orders")}/>}
       </div>;
@@ -864,7 +864,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
 }
 
 function DashboardNoWidgets({ onRestore }: { onRestore: () => void }) {
-  return <AdminCard className="flex min-h-[180px] max-w-[465px] flex-col items-center justify-center gap-3 p-5 text-center">
+  return <AdminCard className="mx-auto flex min-h-[200px] w-full max-w-[720px] flex-col items-center justify-center gap-3 p-5 text-center">
     <p className="text-sm font-bold text-foreground">Nenhum painel selecionado nesta seção.</p>
     <p className="text-xs text-muted-foreground">Use Personalizar para escolher os gráficos que deseja visualizar.</p>
     <AdminButton size="sm" onClick={onRestore}>Mostrar todos</AdminButton>
@@ -880,11 +880,11 @@ function DashboardArea({ metrics, left, right, onMetricSelect, visibility }: {
 }) {
   const show: {metrics:boolean;left:boolean;right:boolean;restore?:()=>void}=visibility||{metrics:true,left:true,right:true};
   if(!show.metrics&&!show.left&&!show.right)return <DashboardNoWidgets onRestore={show.restore||(()=>undefined)}/>;
-  return <div className="mx-auto w-full max-w-[1420px] min-w-0 space-y-3">
+  return <div className="mx-auto w-full min-w-0 space-y-4">
     {show.metrics&&<MetricGrid metrics={metrics} onSelect={onMetricSelect}/>}
-    {(show.left||show.right)&&<div className="mx-auto grid min-w-0 w-full max-w-[1000px] grid-cols-1 justify-items-center items-start gap-3 lg:grid-cols-2">
-      {show.left&&<div className="w-full min-w-0 max-w-[490px]">{left}</div>}
-      {show.right&&<div className="w-full min-w-0 max-w-[490px]">{right}</div>}
+    {(show.left||show.right)&&<div className="mx-auto grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      {show.left&&<div className="w-full min-w-0">{left}</div>}
+      {show.right&&<div className="w-full min-w-0">{right}</div>}
     </div>}
   </div>;
 }
