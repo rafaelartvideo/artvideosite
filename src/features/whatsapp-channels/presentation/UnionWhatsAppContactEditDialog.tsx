@@ -98,7 +98,8 @@ export function UnionWhatsAppContactEditDialog({
     </div>}>
     <form onSubmit={event=>{event.preventDefault();void save();}} className="space-y-4 p-1">
       <div className="flex items-center gap-3">
-        <WhatsAppContactAvatar name={displayName} size="detail"/>
+        <WhatsAppContactAvatar name={displayName} size="detail"
+          identity={{organizationId,accountPhone,chatJid:contact.chat_jid}}/>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
           <p className="text-xs text-muted-foreground">
