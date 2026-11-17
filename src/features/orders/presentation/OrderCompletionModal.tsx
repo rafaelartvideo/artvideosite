@@ -11,7 +11,7 @@ import {
   BtnSecondary,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FCurrencyInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -314,6 +314,7 @@ export function OrderCompletionModal({
     || completion.discountExceedsServicePrice
     || (!completion.coverageFree && Boolean(completion.servicePriceValidationMessage))
     || Boolean(completion.financeValidationMessage)
+    || Boolean(completion.warrantyReceivableValidationMessage)
     || completion.financeOptionsLoading
     || completion.commercialItemsLoading
     || (completion.generatesWarranty && completion.warrantyLoading)
@@ -333,7 +334,7 @@ export function OrderCompletionModal({
     open={completion.open}
     onClose={close}
     title={`Concluir OS ${detail.os_number || ""}`}
-    description="Confira a composição da OS, os valores e o recebimento antes de finalizar."
+    description={completion.noCustomerCharge ? "Conclua sem cobrar o cliente e gere a conta a receber do fabricante." : "Confira a composição da OS, os valores e o recebimento antes de finalizar."}
     minimizedDescription={`${customerName(customer)} · ${formatCurrency(completion.finalTotal)}`}
     minimizable={!saving}
     className="!max-w-6xl"
@@ -402,14 +403,14 @@ export function OrderCompletionModal({
             </div>
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">
-                {completion.coverageFree ? "Cobertura integral da garantia / cortesia" : completion.discountMode === "percentage"
+                {completion.noCustomerCharge ? "Cobertura integral pelo fabricante" : completion.coverageFree ? "Cobertura integral da garantia / cortesia" : completion.discountMode === "percentage"
                   ? `Desconto (${formatNumber(completion.discountValue, { maximumFractionDigits: 2 })}%)`
                   : "Desconto"}
               </span>
               <strong className="text-red-600 dark:text-red-400">- {formatCurrency(completion.discountAmount)}</strong>
             </div>
             <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
-              <span className="text-sm font-black text-foreground">Valor final</span>
+              <span className="text-sm font-black text-foreground">{completion.noCustomerCharge ? "Valor ao cliente" : "Valor final"}</span>
               <strong className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.finalTotal)}</strong>
             </div>
           </div>
@@ -446,7 +447,7 @@ export function OrderCompletionModal({
                           <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-bold text-blue-700 dark:text-blue-300">Serviço</span>
                         </div>
                       </div>
-                      {completion.priceAtCompletion
+                      {completion.priceAtCompletion && !completion.noCustomerCharge
                         ? <div className="w-full shrink-0 sm:w-[190px]">
                             <FCurrencyInput label="Valor do serviço" value={completion.servicePriceInput}
                               onChange={(event: any) => completion.setServicePriceInput(event.target.value)}
@@ -482,13 +483,58 @@ export function OrderCompletionModal({
           </div>
         </Section>}
       </div>
-      {completion.coverageFree
-        ? <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-            Atendimento coberto: valor a pagar R$ 0,00. Não serão gerados recebimentos nem exigido comprovante de pagamento.
-          </p>
-        : <Section title="Pagamento">
-            <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
-          </Section>}
+      {completion.noCustomerCharge ? (
+        <Section title="Conta a receber do fabricante">
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              O cliente não paga e não precisa apresentar comprovante de pagamento.
+              Ao concluir, será criada uma conta a receber em Financeiro, vinculada a esta OS.
+              A baixa será realizada posteriormente em Contas a Receber.
+            </p>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <FSelect label="Fabricante / parceiro responsável" value={completion.warrantyPayerId}
+                  disabled={saving || completion.warrantyPartnersLoading}
+                  options={[{
+                    value:"",label:completion.warrantyPartnersLoading?"Consultando parceiros...":"Selecione o parceiro..."
+                  },...completion.warrantyPartners.map(partner=>({value:partner.id,label:partner.name}))]}
+                  onChange={(event:any)=>completion.setWarrantyPayerId(event.target.value)} />
+                {completion.warrantyPartnersError&&<p role="alert" className="mt-1 text-xs text-destructive">{completion.warrantyPartnersError}</p>}
+                {!completion.warrantyPartnersLoading&&!completion.warrantyPartnersError&&!completion.warrantyPartners.length&&
+                  <p className="mt-1 text-xs text-muted-foreground">Cadastre o fabricante em Cadastros → Parceiros para emitir o título.</p>}
+              </div>
+              <FCurrencyInput label="Valor a receber do parceiro" value={completion.warrantyReceivableValue}
+                disabled={saving} onChange={(event:any)=>completion.setWarrantyReceivableValue(event.target.value)}/>
+              <FInput label="Vencimento" type="date" value={completion.warrantyReceivableDueDate}
+                disabled={saving} onChange={(event:any)=>completion.setWarrantyReceivableDueDate(event.target.value)}/>
+              <div className="sm:col-span-2">
+                <label htmlFor="order-warranty-receivable-notes" className="mb-1 block text-xs font-semibold text-foreground">
+                  Observações do recebimento
+                </label>
+                <textarea id="order-warranty-receivable-notes" rows={2}
+                  value={completion.warrantyReceivableNotes} maxLength={500}
+                  onChange={event=>completion.setWarrantyReceivableNotes(event.target.value)} disabled={saving}
+                  placeholder="Ex.: autorização de garantia, referência do fabricante..."
+                  className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"/>
+              </div>
+            </div>
+            {completion.warrantyReceivableValidationMessage&&
+              <p role="alert" className="text-xs font-semibold text-muted-foreground">{completion.warrantyReceivableValidationMessage}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+              <span className="font-semibold">A receber do parceiro</span>
+              <strong className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+                {formatCurrency(Number.isFinite(completion.warrantyReceivableNumber)?completion.warrantyReceivableNumber:0)}
+              </strong>
+            </div>
+          </div>
+        </Section>
+      ) : completion.coverageFree ? (
+        <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm font-semibold text-muted-foreground">
+          Atendimento coberto: valor a pagar R$ 0,00. Não serão gerados recebimentos nem exigido comprovante de pagamento.
+        </p>
+      ) : <Section title="Pagamento">
+        <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
+      </Section>}
       {(completion.paymentProofEnabled || completion.deliveryEvidenceEnabled) && (
         <Section title="Evidências de conclusão" actions={
           completion.canAttachPaymentProof && completion.paymentProofOrderId ? (
