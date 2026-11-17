@@ -477,9 +477,10 @@ export function useOrderCompletion({
         setBillingPreparing(false);
         showToast({msg:message,type:"error"});
       }
-      return false;
+      // O diálogo continua aberto e exibe a falha, oferecendo nova tentativa.
+      return true;
     }
-    if(requestId!==completionBillingRequestRef.current)return;
+    if(requestId!==completionBillingRequestRef.current)return false;
     setCompletionChargeCustomer({orderId:String(target.id),value:chargeCustomer});
     setDetail((current:any)=>current?.id===target.id
       ? {...current,service_type:{...(current.service_type||{}),charge_customer:chargeCustomer}}
