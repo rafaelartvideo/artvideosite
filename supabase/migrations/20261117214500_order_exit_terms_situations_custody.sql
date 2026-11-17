@@ -69,8 +69,8 @@ begin
         coalesce((select max(sort_order)+1 from public.os_situations where organization_id=v.id),100),true)
     returning id into sid;
    end if;
-   insert into public.service_type_situations(organization_id,service_type_id,situation_id,use_default_hours,sort_order)
-   select st.organization_id,st.id,sid,true,
+   insert into public.service_type_situations(organization_id,service_type_id,situation_id,use_default_hours,sla_hours,sort_order)
+   select st.organization_id,st.id,sid,false,1,
      coalesce((select max(sort_order)+1 from public.service_type_situations ss where ss.service_type_id=st.id),100)
    from public.service_types st where st.organization_id=v.id
     and not exists(select 1 from public.service_type_situations ss where ss.service_type_id=st.id and ss.situation_id=sid);
