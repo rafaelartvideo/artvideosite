@@ -354,6 +354,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
     queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access: dashboardAccess }),
     enabled: Boolean(activeOrganizationId && activeModule !== "orders"),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false, // Evita multiplicar RPCs quando o servidor retorna timeout 57014.
   });
 
   const ordersSummaryQuery = useQuery({
@@ -363,7 +366,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       periodDays,
     }),
     enabled: Boolean(activeOrganizationId && activeModule === "orders"),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const orderChartsVisible=["opened","service_type","equipment_type","equipment_model","quote_approved","quote_rejected"]
@@ -371,8 +376,12 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const orderChartsQuery=useQuery({
     queryKey:["dashboard","order-charts",activeOrganizationId,periodDays],
     queryFn:()=>loadDashboardOrdersCharts({organizationId:activeOrganizationId!,periodDays}),
-    enabled:Boolean(activeOrganizationId && activeModule==="orders" && orderChartsVisible),
-    staleTime:60_000,
+    // Consulta agregada só inicia depois do resumo, para não concorrerem
+    // pelo mesmo conjunto de OS na primeira abertura da seção.
+    enabled:Boolean(activeOrganizationId && activeModule==="orders" && orderChartsVisible && ordersSummaryQuery.isSuccess),
+    staleTime:5*60_000,
+    refetchOnWindowFocus:false,
+    retry:false,
   });
   const orderGroupPageQuery = useQuery({
     queryKey: [
@@ -395,12 +404,17 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     }),
     enabled: Boolean(activeOrganizationId && activeModule === "orders" && orderDistributionSelection),
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const inventoryPurchasesQuery = useQuery({
     queryKey: ["dashboard", "inventory-purchases", activeOrganizationId, periodDays],
     queryFn: () => listInventoryPurchaseAnalytics(activeOrganizationId!, periodDays),
     enabled: Boolean(activeOrganizationId && activeModule === "inventory" && access.inventory && access.inventoryCosts && canViewInventoryMovements),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const data = dashboardQuery.data ?? { orders: [], registrations: [], inventory: [], appointments: [], quotes: [] };
@@ -615,6 +629,16 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       const charts:ReactNode[]=[];
       const chart=(key:string,title:string,subtitle:string,values:DashboardChartPoint[],icon:ElementType=BarChart3)=>{
         if(!widgetVisible(key))return;
+        if(orderChartsQuery.isError){
+          charts.push(<DashboardPanel key={key} title={title} subtitle="Consulta indisponível" icon={icon}
+            className="h-[370px] w-full max-w-[465px]">
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <DashboardEmpty text="Não foi possível consultar este gráfico. Os demais indicadores continuam disponíveis."/>
+              <AdminButton size="sm" onClick={()=>{void orderChartsQuery.refetch();}}>Tentar novamente</AdminButton>
+            </div>
+          </DashboardPanel>);
+          return;
+        }
         charts.push(<DashboardOrderChartPanel key={key} title={title} subtitle={subtitle}
           icon={icon} data={values} mode={orderChartMode(key)}
           onModeChange={mode=>setOrderChartMode(key,mode)}/>);
@@ -826,11 +850,11 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? (ordersSummaryQuery.error || (orderChartsVisible ? orderChartsQuery.error : null)) : dashboardQuery.error) ? (
+        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
-            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? (ordersSummaryQuery.error || (orderChartsVisible ? orderChartsQuery.error : null)) : dashboardQuery.error)!)}</p></div>
-            <AdminButton size="sm" onClick={() => activeModule === "orders" ? Promise.all([ordersSummaryQuery.refetch(),orderChartsQuery.refetch()]) : dashboardQuery.refetch()}>Tentar novamente</AdminButton>
+            <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? ordersSummaryQuery.error : dashboardQuery.error)!)}</p></div>
+            <AdminButton size="sm" onClick={() => activeModule === "orders" ? ordersSummaryQuery.refetch() : dashboardQuery.refetch()}>Tentar novamente</AdminButton>
           </AdminCard>
         ) : moduleContent()}
       </div>
