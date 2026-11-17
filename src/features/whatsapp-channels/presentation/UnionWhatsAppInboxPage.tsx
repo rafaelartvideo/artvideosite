@@ -2339,7 +2339,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>
                 <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
                    <button type="button" onClick={()=>setContactDetailsOpen(true)}
-                     className="font-medium hover:text-primary hover:underline focus-visible:outline-none focus-visible:underline"
+                     className="text-xs font-medium leading-4 hover:text-primary hover:underline focus-visible:outline-none focus-visible:underline"
                      title="Ver detalhes do contato">{formatWhatsAppPhone(selected.contact_phone)}</button>{embedded && selected.status==="finished" ? " · Histórico completo" : selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    <span className="ml-2 inline-flex max-w-full min-w-0 items-center gap-1 align-middle">
                    <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
