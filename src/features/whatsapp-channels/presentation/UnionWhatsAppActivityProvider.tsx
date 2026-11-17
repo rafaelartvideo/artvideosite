@@ -16,6 +16,7 @@ export type WhatsAppActivityEvent={
   row:Record<string,unknown>;
 };
 type WhatsAppActivityContextValue={
+  isPageOpen:boolean;
   channelReady:boolean|null;
   channelId:string|null;
   channelPhone:string|null;
@@ -331,8 +332,8 @@ export function UnionWhatsAppActivityProvider({
   },[enabled,checkChannel]);
 
   const contextValue=useMemo<WhatsAppActivityContextValue>(()=>({
-    channelReady,channelId,channelPhone,capabilities:capabilities||{},subscribe,
-  }),[channelReady,channelId,channelPhone,capabilities,subscribe]);
+    isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},subscribe,
+  }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,subscribe]);
 
   const selectConversation=(id:string)=>{
     setAlert(null);
