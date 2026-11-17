@@ -274,7 +274,7 @@ test("Mini-Atendimentos mantém o canto inferior, a altura e a lista em cache ao
   assert.match(provider,/const MINI_LIST_TTL=45_000/);
   assert.match(provider,/const MINI_LIST_EVENT_THROTTLE=6_000/);
   assert.match(provider,/refreshLists\(\["in_att","waiting"\]\)/);
-  assert.match(provider,/page:0,pageSize:8,sortByRecent:true/);
+  assert.match(provider,/page:0,pageSize:8,sortByRecent:tab==="in_att"/);
   assert.doesNotMatch(provider,/setRows\(\[\]\)/);
   assert.match(repository,/sortByRecent\?:boolean/);
   assert.match(repository,/options\.filter==="waiting" && !options\.sortByRecent/);
@@ -323,4 +323,21 @@ test("Filtro por operador do gestor usa paginação no banco e permissões do ca
   // Departamento continua combinável; troca de empresa limpa o filtro.
   assert.match(inbox, /setDepartmentFilter\("all"\);\s*setOperatorFilter\("all"\)/);
   assert.match(repository, /query=query.eq\("department_id",options.department\)/);
+});
+
+test("Mini WhatsApp mostra primeiro quem aguarda há mais tempo, sem reordenar por mensagens novas",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const panel=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(provider,/const waitingFirst=/);
+  assert.match(provider,/Date.parse\(a.queue_entered_at\|\|a.created_at\)/);
+  assert.match(provider,/Date.parse\(b.queue_entered_at\|\|b.created_at\)/);
+  assert.match(provider,/const sortForTab=/);
+  assert.match(provider,/sortByRecent:tab==="in_att"/);
+  assert.match(provider,/sort\(sortForTab\(tab\)\)/);
+  assert.match(repository,/options.filter==="waiting" && !options.sortByRecent\?"queue_entered_at"/);
+  assert.match(panel,/filter==="waiting"\?"Mais tempo na fila primeiro":"Mensagens recentes primeiro"/);
+  assert.match(panel,/import \{ WhatsAppBrandIcon \} from "@\/shared\/ui\/icons\/WhatsAppBrandIcon"/);
+  assert.match(panel,/<WhatsAppBrandIcon size=\{18\} className="text-primary"\/>/);
+  assert.doesNotMatch(panel,/<MessageCircle size=/);
 });
