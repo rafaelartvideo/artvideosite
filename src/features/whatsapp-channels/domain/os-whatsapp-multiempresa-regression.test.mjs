@@ -207,3 +207,47 @@ test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídi
   assert.doesNotMatch(provider,/listUnionWhatsAppMessages|contact_avatar|media_view/);
 });
 
+
+test("Mensagem recebida salva contato individual automaticamente, sem importar grupo nem sobrescrever nome salvo",()=>{
+  const webhook=read("supabase/functions/union-whatsapp-webhook/index.ts");
+  assert.match(webhook,/unsupported_chat/);
+  assert.match(webhook,/if \(inserted\) \{/);
+  assert.match(webhook,/if \(!isFromMe\) \{/);
+  assert.match(webhook,/union_whatsapp_contacts/);
+  assert.match(webhook,/const contactJid=savedContact\?\.chat_jid \|\| phoneJid \|\| chatJid/);
+  assert.match(webhook,/ignoreDuplicates:true/);
+  assert.match(webhook,/if\(phone && !known.contact_phone\)/);
+  assert.doesNotMatch(webhook,/patch\.display_name=name/);
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  assert.doesNotMatch(edge,/display_name\.not\.is\.null,device_name\.not\.is\.null,wuzapi_verified_saved\.eq\.true/);
+});
+
+test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos participantes",()=>{
+  const bridge=read("services/union-wuzapi-bridge/server.mjs");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  assert.match(bridge,/wuzapi\("\/group\/list",session\.token\)/);
+  assert.match(bridge,/action==="groups_list"/);
+  assert.match(bridge,/participants_count:/);
+  assert.doesNotMatch(bridge.slice(bridge.indexOf('if(action==="groups_list")'),bridge.indexOf('if(action==="contacts_export")')),/participants:group\.Participants/);
+  assert.match(edge,/contacts_groups:"view_contacts"/);
+  assert.match(edge,/if\(action==="contacts_groups"\)/);
+  assert.match(edge,/group[s]?\.length/);
+  assert.match(contacts,/aria-pressed=\{tab==="groups"\}/);
+  assert.match(contacts,/aria-label="Detalhes do grupo WhatsApp"/);
+  assert.match(contacts,/Esta seção consulta os grupos do número conectado/);
+});
+
+test("Dados do CRM do contato são consultados somente após seleção e com permissões",()=>{
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const dialog=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  assert.match(edge,/contacts_crm_match:"view_contacts"/);
+  assert.match(edge,/if\(!permissions\.has\("customers\.view"\)\)/);
+  assert.match(edge,/\.eq\("account_phone",channel\.phone\)\.eq\("chat_jid",jid\)\.maybeSingle\(\)/);
+  assert.match(edge,/union_whatsapp_find_customer_by_phone/);
+  assert.match(edge,/matches\.length!==1/);
+  assert.match(edge,/permissions\.has\("orders\.details\.view"\)/);
+  assert.match(dialog,/if\(tab!=="contacts"\|\|!selected\|\|creating\|\|!canReadCrm\)/);
+  assert.match(dialog,/"contacts_crm_match",\{chat_jid:selected\.chat_jid\}/);
+  assert.match(dialog,/aria-label="Dados do cliente vinculado no CRM"/);
+});
