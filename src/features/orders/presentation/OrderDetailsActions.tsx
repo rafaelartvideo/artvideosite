@@ -2,7 +2,9 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, PackagePlus, Pencil, Wrench, X } from "lucide-react";
+import { Ban, PackageCheck, PackagePlus, Pencil, Recycle, Wrench, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
+import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
 import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -12,7 +14,7 @@ import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderConclusionButton } from "./OrderConclusionButton";
 
-export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
+export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onTerminalExit, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
   detail: any;
   statuses?: any[];
   situations: any[];
@@ -23,6 +25,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   onRequestParts: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onResolve: () => void;
   onComplete: () => void;
+  onTerminalExit: (outcome: OrderTerminalOutcome) => void;
   onEdit: () => void;
   onCancel?: (reason: string) => Promise<boolean>;
   cancelling?: boolean;
@@ -52,6 +55,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const canResolve = !isDisposal && !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
   const canComplete = !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
+  const canTerminalExit = hasPermission("orders.complete") && !detail.completed_at && !cancelled;
   const canEditOrder = !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
@@ -86,11 +90,26 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={value => { if (value) onSituationChange(value); }} options={[...(!detail.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
-        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || returnAwaitingDiagnosis) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
+        {(canRequestParts || canResolve || canComplete || canTerminalExit || canEditOrder || canCancel || (quoteMode && quoteFooterHostId) || returnAwaitingDiagnosis) && <div className={quoteMode ? "flex min-w-0 flex-1 items-center justify-end gap-1.5 md:flex-initial md:flex-wrap md:gap-2" : "flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2"}>
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1.5 md:w-auto md:flex-wrap md:gap-2" />}
           {canRequestParts && <AdminButton variant="tertiary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
           {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
+          {canTerminalExit && <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <AdminButton variant="secondary" className="h-10 shrink-0 px-3 text-xs" aria-label="Outros encerramentos" title="Descarte ou devolução sem reparo">
+                <PackageCheck size={16}/><span className="hidden md:inline">Encerrar sem reparo</span>
+              </AdminButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[230px]">
+              <DropdownMenuItem onSelect={()=>onTerminalExit("returned_unrepaired")} className="flex items-center gap-2">
+                <PackageCheck size={15}/> Devolvido sem reparo
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={()=>onTerminalExit("disposal_confirmed")} className="flex items-center gap-2">
+                <Recycle size={15}/> Confirmar descarte
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="quaternary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 !px-0 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
           {returnAwaitingDiagnosis && <div id={"os-return-diagnosis-toolbar-" + detail.id}
