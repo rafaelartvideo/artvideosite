@@ -316,7 +316,7 @@ export function DashboardSlaDistributionChart({
           <div className="max-h-full space-y-2 overflow-y-auto pr-1">
             {data.map(point => (
               <div key={point.key} className="rounded-lg border border-border/70 bg-card px-2.5 py-2">
-                <p className="truncate text-[11px] font-black text-foreground" title={point.name}>{point.name}</p>
+                <p className="line-clamp-2 break-words text-[11px] font-black leading-4 text-foreground" title={point.name}>{point.name}</p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {visibleSegments.map(segment => {
                     const value = Number(point.sla[segment.key] || 0);
@@ -532,7 +532,7 @@ export function DashboardDonutChart({
               )}
             >
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: point.color || colors[index % colors.length] }} />
-              <span className="min-w-0 flex-1 truncate text-left font-semibold text-muted-foreground">{point.name}</span>
+              <span className="line-clamp-2 min-w-0 flex-1 break-words text-left font-semibold leading-4 text-muted-foreground" title={point.name}>{point.name}</span>
               <strong className="text-foreground">{point.value}</strong>
             </button>
           );
