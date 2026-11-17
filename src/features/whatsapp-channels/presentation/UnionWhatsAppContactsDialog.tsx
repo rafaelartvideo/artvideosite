@@ -602,6 +602,23 @@ export function UnionWhatsAppContactsDialog({
             className="rounded-lg p-2 hover:bg-muted"><X size={19}/></button>
         </div>
       </div>
+      <div className="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2 sm:px-5">
+        <button type="button" aria-pressed={tab==="contacts"}
+          onClick={()=>{setTab("contacts");setSearch("");setPage(0);setSelectedGroup(null);}}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="contacts"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
+          <ContactRound size={15}/> Contatos <span>{total}</span>
+        </button>
+        <button type="button" aria-pressed={tab==="groups"}
+          onClick={()=>{setTab("groups");setSearch("");setPage(0);}}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="groups"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
+          <Users size={15}/> Grupos {groups.length>0&&<span>{groups.length}</span>}
+        </button>
+        {tab==="groups"&&<button type="button" disabled={groupsLoading}
+          title="Atualizar grupos do WuzAPI" onClick={()=>setGroupRevision(n=>n+1)}
+          className="ml-auto rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-40">
+          {groupsLoading?"Consultando...":"Atualizar grupos"}
+        </button>}
+      </div>
       {(error||notice) && <div role={error?"alert":"status"} className={`mx-4 mt-3 rounded-lg border p-2 text-xs ${error?"border-red-400/40 text-red-600":"border-primary/30 text-foreground"}`}>
         {error||notice}
       </div>}
@@ -610,16 +627,32 @@ export function UnionWhatsAppContactsDialog({
           <div className="flex shrink-0 gap-2 p-3">
             <div className="relative min-w-0 flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input aria-label="Buscar contatos" value={search} onChange={event=>{setSearch(event.target.value);setPage(0);}}
-                placeholder="Nome ou telefone" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
+              <input aria-label={tab==="groups"?"Buscar grupos":"Buscar contatos"} value={search} onChange={event=>{setSearch(event.target.value);setPage(0);}}
+                placeholder={tab==="groups"?"Nome do grupo":"Nome ou telefone"} className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
-            {canEdit && <button type="button" aria-label="Adicionar contato" title="Novo contato"
+            {canEdit && tab==="contacts" && <button type="button" aria-label="Adicionar contato" title="Novo contato"
               onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
               <Plus size={18}/>
             </button>}
           </div>
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto">
+            {tab==="groups" ? <>
+              {groupsLoading&&groups.length===0&&
+                <p role="status" className="p-4 text-center text-xs text-muted-foreground">Consultando grupos vinculados ao número...</p>}
+              {groupsError&&<p role="alert" className="p-4 text-xs text-destructive">{groupsError}</p>}
+              {!groupsLoading&&!groupsError&&groups.length===0&&
+                <p className="p-5 text-center text-xs text-muted-foreground">Nenhum grupo encontrado nesta conta WhatsApp.</p>}
+              {groups.filter(group=>group.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")))
+                .map(group=><button type="button" key={group.jid} onClick={()=>setSelectedGroup(group)}
+                  className={`flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left hover:bg-muted ${selectedGroup?.jid===group.jid?"bg-primary/10":""}`}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary"><Users size={19}/></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{group.name}</span>
+                    <span className="block text-[11px] text-muted-foreground">{group.participants_count} participantes</span>
+                  </span>
+                </button>)}
+            </> : <>
             {loading && contacts.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Carregando contatos...</p>}
             {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe por VCF, Excel ou CSV, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
             {contacts.map(contact=>{
@@ -637,19 +670,42 @@ export function UnionWhatsAppContactsDialog({
                 {contact.display_name && <Check size={15} className="shrink-0 text-primary"/>}
               </button>;
             })}
+            </>}
           </div>
           <div className="flex shrink-0 items-center justify-between border-t border-border p-3 text-xs">
-            <span className="text-muted-foreground">{total?Math.min(page*100+1,total):0}–{Math.min(page*100+contacts.length,total)} de {total}</span>
-            <div className="flex gap-2">
+            {tab==="groups"?<span className="text-muted-foreground">
+              {groups.filter(group=>group.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))).length} de {groups.length} grupos
+            </span>:<span className="text-muted-foreground">{total?Math.min(page*100+1,total):0}–{Math.min(page*100+contacts.length,total)} de {total}</span>}
+            {tab==="contacts"&&<div className="flex gap-2">
               <button type="button" disabled={!page || loading} aria-label="Página anterior" onClick={()=>setPage(n=>Math.max(0,n-1))}
                 className="rounded-lg border border-border p-1.5 disabled:opacity-30"><ChevronLeft size={17}/></button>
               <button type="button" disabled={loading || (page+1)*100>=total} aria-label="Próxima página" onClick={()=>setPage(n=>n+1)}
                 className="rounded-lg border border-border p-1.5 disabled:opacity-30"><ChevronRight size={17}/></button>
-            </div>
+            </div>}
           </div>
         </div>
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-          {!selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+          {tab==="groups" ? (!selectedGroup ?
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+              <Users size={34}/><p>Selecione um grupo para consultar os detalhes.</p>
+            </div>:
+            <section aria-label="Detalhes do grupo WhatsApp" className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Users size={23}/></span>
+                <div className="min-w-0">
+                  <h3 className="truncate font-bold">{selectedGroup.name}</h3>
+                  <p className="text-xs text-muted-foreground">{selectedGroup.participants_count} participantes</p>
+                </div>
+              </div>
+              <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
+                <p><strong>Nome:</strong> {selectedGroup.name}</p>
+                <p><strong>Descrição:</strong> {selectedGroup.topic||"Sem descrição"}</p>
+                <p><strong>Permissão para mensagens:</strong> {selectedGroup.is_announce?"Somente administradores":"Todos os participantes"}</p>
+                <p className="break-all text-muted-foreground"><strong>Identificador:</strong> {selectedGroup.jid}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Esta seção consulta os grupos do número conectado. Conversas de grupos permanecem separadas dos atendimentos individuais.</p>
+            </section>)
+          : !selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
             <ContactRound size={34}/>
             <p>Selecione um contato para editar o nome e o número.</p>
           </div> : <div className="space-y-4">
