@@ -188,7 +188,7 @@ function saveDashboardReturnState(state: DashboardReturnState) {
   window.sessionStorage.setItem(DASHBOARD_RETURN_STATE_KEY, JSON.stringify(state));
 }
 
-function readOrderChartMode(): OrderDistributionChartMode {
+function readOrderChartMode(): DashboardOrderChartMode {
   if (typeof window === "undefined") return "horizontal";
   const saved = window.localStorage.getItem(DASHBOARD_ORDER_CHART_MODE_KEY);
   return saved === "pie" || saved === "vertical" || saved === "horizontal" ? saved : "horizontal";
@@ -853,7 +853,7 @@ function DashboardArea({ metrics, left, right, onMetricSelect, visibility }: {
   onMetricSelect: (metric: Metric) => void;
   visibility?: { metrics: boolean; left: boolean; right: boolean; restore?: () => void };
 }) {
-  const show=visibility||{metrics:true,left:true,right:true};
+  const show: {metrics:boolean;left:boolean;right:boolean;restore?:()=>void}=visibility||{metrics:true,left:true,right:true};
   if(!show.metrics&&!show.left&&!show.right)return <DashboardNoWidgets onRestore={show.restore||(()=>undefined)}/>;
   return <div className="min-w-0 space-y-3">
     {show.metrics&&<MetricGrid metrics={metrics} onSelect={onMetricSelect}/>}
