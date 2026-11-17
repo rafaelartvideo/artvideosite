@@ -258,7 +258,7 @@ Deno.serve(async request => {
       participant_respond:"collaborate",participant_remove:"collaborate",
       participant_request_protocol:"collaborate",
       return_queue:"return_queue",finish:"finish",reopen:"reopen",
-      handoff_history:"view_history",order_recipients:"link_orders",order_options:"link_orders",order_link:"link_orders",
+      handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
     };
     if(required[action] && !capabilities[required[action]] &&
       !(action==="operator_list" && capabilities.manage_queues)){
