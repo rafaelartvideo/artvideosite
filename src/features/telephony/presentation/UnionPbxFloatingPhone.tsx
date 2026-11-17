@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, PhoneIncoming, PhoneCall } from "lucide-react";
+import { useFloatingToolbarClearance } from "@/shared/ui/admin/useFloatingToolbarClearance";
 
 type CallState = "idle" | "dialing" | "incoming" | "active";
 type Connection = "offline" | "connecting" | "registered" | "error";
@@ -13,14 +14,14 @@ const DEFAULT_MARGIN = 20;
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, Math.max(min, max)));
 }
-function bounds(node: HTMLElement) {
+function bounds(node: HTMLElement, toolbarClearance=0) {
   const box = node.getBoundingClientRect();
   return { width: box.width, height: box.height,
     maxX: Math.max(MARGIN, window.innerWidth - box.width - MARGIN),
-    maxY: Math.max(MARGIN, window.innerHeight - box.height - MARGIN) };
+    maxY: Math.max(MARGIN, window.innerHeight - box.height - Math.max(MARGIN,toolbarClearance)) };
 }
-function snapToEdge(point: Point, node: HTMLElement): {point: Point;dock: Dock} {
-  const { maxX, maxY } = bounds(node);
+function snapToEdge(point: Point, node: HTMLElement, toolbarClearance=0): {point: Point;dock: Dock} {
+  const { maxX, maxY } = bounds(node,toolbarClearance);
   const x = clamp(point.x, MARGIN, maxX);
   const y = clamp(point.y, MARGIN, maxY);
   const distances: { side: DockedSide; distance: number }[] = [
@@ -38,10 +39,10 @@ function snapToEdge(point: Point, node: HTMLElement): {point: Point;dock: Dock} 
   const progress=clamp(horizontal ? (maxX-MARGIN < 24 ? 1 : (x-MARGIN)/(maxX-MARGIN))
     : (maxY-MARGIN < 24 ? 1 : (y-MARGIN)/(maxY-MARGIN)),0,1);
   const dock={side,progress};
-  return {point:positionForDock(dock,node),dock};
+  return {point:positionForDock(dock,node,toolbarClearance),dock};
 }
-function positionForDock(dock: Dock, node: HTMLElement): Point {
-  const {maxX,maxY}=bounds(node);
+function positionForDock(dock: Dock, node: HTMLElement, toolbarClearance=0): Point {
+  const {maxX,maxY}=bounds(node,toolbarClearance);
   const x=MARGIN+(maxX-MARGIN)*dock.progress;
   const y=MARGIN+(maxY-MARGIN)*dock.progress;
   switch(dock.side){
@@ -66,6 +67,7 @@ export function UnionPbxFloatingPhone({
   const [expanded,setExpanded]=useState(false);
   const [position,setPosition]=useState<Point|null>(null);
   const nodeRef=useRef<HTMLElement|null>(null);
+  const toolbarClearance=useFloatingToolbarClearance(nodeRef,position,expanded);
   const drag=useRef<DragState|null>(null);
   const lastCallState=useRef<CallState>("idle");
 
@@ -88,7 +90,7 @@ export function UnionPbxFloatingPhone({
       frame=requestAnimationFrame(()=>{
         const dock=dockRef.current;
         if(!dock)return;
-        const next=positionForDock(dock,node);
+        const next=positionForDock(dock,node,toolbarClearance);
         setPosition(current=>current && current.x===next.x && current.y===next.y?current:next);
       });
     };
@@ -96,7 +98,7 @@ export function UnionPbxFloatingPhone({
     observer?.observe(node);
     window.addEventListener("resize",update);
     return()=>{observer?.disconnect();window.removeEventListener("resize",update);cancelAnimationFrame(frame);};
-  },[]);
+  },[toolbarClearance]);
 
   const pointerDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
     if(event.button!==0)return;
@@ -118,7 +120,7 @@ export function UnionPbxFloatingPhone({
     if(!state.moved && Math.abs(dx)+Math.abs(dy)<4)return;
     if(!state.moved) dockRef.current=null;
     state.moved=true;
-    const {maxX,maxY}=bounds(node);
+    const {maxX,maxY}=bounds(node,toolbarClearance);
     setPosition({x:clamp(state.x+dx,MARGIN,maxX),y:clamp(state.y+dy,MARGIN,maxY)});
   };
   const pointerUp=(event:ReactPointerEvent<HTMLDivElement>)=>{
@@ -127,10 +129,10 @@ export function UnionPbxFloatingPhone({
     if(event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
     if(!state?.moved||!nodeRef.current)return;
-    const {maxX,maxY}=bounds(nodeRef.current);
+    const {maxX,maxY}=bounds(nodeRef.current,toolbarClearance);
     const point={x:clamp(state.x+event.clientX-state.startX,MARGIN,maxX),
       y:clamp(state.y+event.clientY-state.startY,MARGIN,maxY)};
-    const snapped=snapToEdge(point,nodeRef.current);
+    const snapped=snapToEdge(point,nodeRef.current,toolbarClearance);
     dockRef.current=snapped.dock;
     setPosition(snapped.point);
   };
@@ -141,8 +143,11 @@ export function UnionPbxFloatingPhone({
   const tone=retrying?"bg-amber-500":callState==="incoming"?"bg-amber-500":registration==="registered"?"bg-emerald-500":
     registration==="connecting"?"bg-amber-500":"bg-red-500";
   const style:CSSProperties=position?{
-    left:position.x,top:position.y,right:"auto",bottom:"auto",
-  }:{right:DEFAULT_MARGIN,bottom:DEFAULT_MARGIN};
+    left:position.x,
+    top:nodeRef.current?clamp(position.y,MARGIN,bounds(nodeRef.current,toolbarClearance).maxY):position.y,
+    right:"auto",bottom:"auto",
+  }:{right:DEFAULT_MARGIN,bottom:Math.max(DEFAULT_MARGIN,toolbarClearance)};
+  if(toolbarClearance>0)style.maxHeight=`max(140px, calc(100dvh - ${toolbarClearance+MARGIN}px))`;
   const keyboardMove=(event:ReactKeyboardEvent<HTMLDivElement>)=>{
     if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home"].includes(event.key))return;
     event.preventDefault();
@@ -153,7 +158,7 @@ export function UnionPbxFloatingPhone({
     const delta=event.shiftKey?40:16;
     const x=box.left+(event.key==="ArrowLeft"?-delta:event.key==="ArrowRight"?delta:0);
     const y=box.top+(event.key==="ArrowUp"?-delta:event.key==="ArrowDown"?delta:0);
-    const {maxX,maxY}=bounds(node);
+    const {maxX,maxY}=bounds(node,toolbarClearance);
     dockRef.current=null;
     setPosition({x:clamp(x,MARGIN,maxX),y:clamp(y,MARGIN,maxY)});
   };
