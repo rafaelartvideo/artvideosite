@@ -422,3 +422,44 @@ test("Avatar compartilhado evita spinner infinito e utiliza a mesma foto nos qua
   assert.match(edge,/select\("id,gender,document,cnpj,phone,whatsapp,email"\)/);
   assert.match(edge,/customer_type,gender,document/);
 });
+
+
+test("Vinculação de terceiros à OS não altera os números do cadastro e permanece isolada por empresa",()=>{
+  const migration=read("supabase/migrations/20261117160500_union_whatsapp_order_contacts.sql");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const crm=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+
+  assert.match(migration,/CREATE TABLE IF NOT EXISTS public\.union_whatsapp_order_contacts/);
+  assert.match(migration,/UNIQUE\(organization_id,service_order_id,conversation_id\)/);
+  assert.match(migration,/ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration,/REVOKE ALL ON TABLE public\.union_whatsapp_order_contacts FROM anon,authenticated/);
+  assert.doesNotMatch(migration,/UPDATE (?:public\.)?customers\s+SET/i);
+
+  const check=edge.slice(edge.indexOf('if (!uuid(org) ||'),edge.indexOf('return json({success:false,error:"Operação inválida."},400);'));
+  assert.equal((check.match(/"order_recipients"/g)||[]).length,2);
+  assert.match(edge,/order_recipients:"link_orders"/);
+  assert.match(edge,/if\(action==="order_recipients"\)/);
+  assert.match(edge,/if\(action==="order_options" \|\| action==="order_link"\)/);
+  assert.match(edge,/digits.length===11\|\|digits.length===14/);
+  assert.match(edge,/\.eq\("organization_id",org\)\.eq\(column,digits\)/);
+  assert.match(edge,/\.eq\("organization_id",org\)\.ilike\("os_number",query\+"%"\)/);
+  assert.match(edge,/onConflict:"organization_id,service_order_id,conversation_id"/);
+  assert.match(edge,/\.eq\("conversation_id",selectedLinkedConversation\)/);
+  assert.match(edge,/Este contato não está vinculado à OS/);
+  assert.doesNotMatch(edge.slice(edge.indexOf('if(action==="order_options" || action==="order_link")'),
+    edge.indexOf('// Legacy clients receive')),/\.update\(\{(?:phone|whatsapp):/);
+
+  assert.match(repository,/"order_recipients"/);
+  assert.match(inbox,/Buscar OS por número ou CPF\/CNPJ/);
+  assert.match(inbox,/service_order_id:id,unlink/);
+  assert.match(inbox,/linkedOrders\.map/);
+  assert.match(modal,/Escolha com quem falar sobre esta OS/);
+  assert.match(modal,/order_recipients/);
+  assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
+  assert.match(modal,/registered_phone_field:recipient\.field/);
+  assert.match(crm,/Vinculado por OS/);
+  assert.match(crm,/Este número pertence a um contato vinculado à OS/);
+});
