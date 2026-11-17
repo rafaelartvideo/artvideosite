@@ -833,6 +833,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // is kept as fallback when tenant replication is temporarily unavailable.
   useEffect(() => {
     if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView) return;
+    // Workspaces retidos fora da tela não executam consultas nem mantêm listeners.
+    // Apenas o hub global permanece conectado; modais embedded continuam ativos.
+    if(sharedActivity && !embedded && !sharedActivity.isPageOpen)return;
     let debounce:number|null=null;
     let refreshSelected=false;
     const schedule=(conversationId?:string,shouldReloadMessages=false)=>{
@@ -913,7 +916,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(realtime)void supabase.removeChannel(realtime);
     };
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, refresh,
-      checkChannel, sharedActivity?.subscribe]);
+      checkChannel, embedded, sharedActivity?.isPageOpen, sharedActivity?.subscribe]);
 
   useLayoutEffect(() => {
     messageCursorRef.current=null;
@@ -1135,14 +1138,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Refresh avatars only when a user returns to the tab (no periodic WhatsApp polling).
   useEffect(()=>{
-    const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
+    const wake=()=>{if(document.visibilityState!=="hidden" &&
+      (embedded || !sharedActivity || sharedActivity.isPageOpen))
+      setAvatarRefreshTick(t=>t+1);};
     window.addEventListener("focus",wake);
     document.addEventListener("visibilitychange",wake);
     return()=>{
       window.removeEventListener("focus",wake);
       document.removeEventListener("visibilitychange",wake);
     };
-  },[]);
+  },[embedded,sharedActivity?.isPageOpen]);
 
   // Selected conversation first, then a small visible subset. Keep old photos
   // while refreshing to avoid flicker; never scan the imported contacts.
@@ -1150,7 +1155,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     .filter((id):id is string=>Boolean(id)))].join(",");
   useEffect(()=>{
     if(!activeOrganizationId || !activeChannelId || !activeChannelPhone ||
-       channelReady!==true || !canView || !previewIds || document.visibilityState==="hidden")return;
+       channelReady!==true || !canView || !previewIds || document.visibilityState==="hidden" ||
+       (sharedActivity && !embedded && !sharedActivity.isPageOpen))return;
     const now=Date.now();
     const toLoad=previewIds.split(",").filter(id=>{
       if(!id || avatarRequestsRef.current.has(id))return false;
