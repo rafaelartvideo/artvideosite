@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, LoaderCircle, UserRound } from "lucide-react";
 import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-palette";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
+import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses } from "../domain/crm-contact-format";
+import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 
 type CrmAddress = {
   id: string;
@@ -77,12 +79,6 @@ export type CrmConversationContext = {
 };
 type Panel = "registration" | "equipments" | "orders";
 
-function formatDocument(value: string | null | undefined) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.length === 11) return digits.slice(0, 3) + "." + digits.slice(3, 6) + "." + digits.slice(6, 9) + "-" + digits.slice(9);
-  if (digits.length === 14) return digits.slice(0, 2) + "." + digits.slice(2, 5) + "." + digits.slice(5, 8) + "/" + digits.slice(8, 12) + "-" + digits.slice(12);
-  return value || "—";
-}
 function dateLabel(value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
@@ -103,18 +99,6 @@ function ColumnField({ label, value }: { label: string; value?: string | number 
     <div className="mb-0.5 text-[10px] font-semibold text-muted-foreground">{label}</div>
     <div className="break-words text-xs leading-5 text-foreground">{value}</div>
   </div>;
-}
-
-function addressText(address: CrmAddress) {
-  const street = [address.street, address.number].filter(Boolean).join(", ");
-  return [
-    street,
-    address.complement,
-    address.neighborhood,
-    [address.city, address.state].filter(Boolean).join(" - "),
-    address.zip_code ? "CEP " + address.zip_code : "",
-    address.reference ? "Referência: " + address.reference : "",
-  ].filter(Boolean).join(" · ") || "Endereço não informado";
 }
 
 /** Mostra o equipamento efetivamente vinculado à OS, com fallback para os dados históricos da OS. */
@@ -281,18 +265,18 @@ export function UnionWhatsAppCrmMenu({
               <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
                 <ColumnField label="Cliente" value={customer.name}/>
                 <ColumnField label={customer.customer_type === "PJ" || customer.cnpj ? "CNPJ" : "CPF"}
-                  value={formatDocument(customer.cnpj || customer.document || "Não informado")}/>
+                  value={formatCrmDocument(customer.cnpj || customer.document)}/>
                 <ColumnField label="E-mail" value={customer.email || "Não informado"}/>
-                <ColumnField label="Telefone" value={customer.phone || customer.whatsapp || "Não informado"}/>
-                {customer.whatsapp && customer.whatsapp !== customer.phone && <ColumnField label="WhatsApp" value={customer.whatsapp}/>}
+                <ColumnField label="Telefone" value={customer.phone ? formatWhatsAppPhone(customer.phone) : customer.whatsapp ? formatWhatsAppPhone(customer.whatsapp) : "Não informado"}/>
+                {customer.whatsapp && customer.whatsapp !== customer.phone && <ColumnField label="WhatsApp" value={formatWhatsAppPhone(customer.whatsapp)}/>}
                 <ColumnField label="Nome fantasia" value={customer.trade_name}/>
                 <ColumnField label="Razão social" value={customer.legal_name}/>
                 <ColumnField label="Inscrição estadual" value={customer.state_registration}/>
                 <ColumnField label="Inscrição municipal" value={customer.municipal_registration}/>
               </div>
-              <div className="grid grid-cols-1 gap-x-5 gap-y-2 border-t border-border pt-2 sm:grid-cols-2">
-                {customer.addresses?.length ? customer.addresses.map((address, index) =>
-                  <ColumnField key={address.id} label={address.is_default ? "Endereço principal" : "Endereço " + (index + 1)} value={addressText(address)}/>
+              <div className="space-y-2 border-t border-border pt-2">
+                {customer.addresses?.length ? orderedCrmAddresses(customer.addresses).map((address, index) =>
+                  <ColumnField key={address.id} label={address.is_default ? "Endereço principal" : "Endereço " + (index + 1)} value={formatCrmFullAddress(address)}/>
                 ) : <ColumnField label="Endereço" value="Nenhum endereço cadastrado."/>}
               </div>
               {onOpenCustomer && <button type="button" onClick={() => onOpenCustomer(customer.id)}
