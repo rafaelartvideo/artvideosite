@@ -553,8 +553,7 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
   assert.match(draft,/setDrafting\(true\)/);
   assert.doesNotMatch(draft,/operateUnionWhatsAppInbox|startUnionWhatsAppWithFirstMessage/);
   assert.match(modal,/onClick=\{startConversation\}>Iniciar conversa/);
-  assert.match(modal,/onClick=\{\(\)=>\{setDrafting\(false\);setFirstMessage\(""
-  /);
+  assert.match(modal, /setDrafting\\(false\\);setFirstMessage\\(""\\)/);
   assert.match(modal,/const conversationId=await startUnionWhatsAppWithFirstMessage\(/);
   assert.match(modal,/!firstMessage\.trim\(\)/);
 
