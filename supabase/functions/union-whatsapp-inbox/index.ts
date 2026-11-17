@@ -1730,8 +1730,8 @@ Deno.serve(async request => {
         const search=String(body.search||"").trim().slice(0,40);
         let orders:Array<{id:string;os_number:string;created_at:string;customer_id:string}>=[];
         if(search){
-          const digits=search.replace(/\\D/g,"");
-          if((digits.length===11||digits.length===14) && /^\\d{11,14}$/.test(digits)){
+          const digits=search.replace(/\D/g,"");
+          if((digits.length===11||digits.length===14) && /^\d{11,14}$/.test(digits)){
             const column=digits.length===14?"cnpj":"document";
             const {data:customers,error:customerError}=await admin.from("customers")
               .select("id").eq("organization_id",org).eq(column,digits).limit(20);
@@ -1746,7 +1746,7 @@ Deno.serve(async request => {
               orders=data||[];
             }
           }else{
-            const query=search.replace(/^#|^OS\\s*/i,"").replace(/[^0-9rR]/g,"").slice(0,18);
+            const query=search.replace(/^#|^OS\s*/i,"").replace(/[^0-9rR]/g,"").slice(0,18);
             if(query){
               const {data,error}=await admin.from("service_orders")
                 .select("id,os_number,created_at,customer_id")
@@ -1757,7 +1757,7 @@ Deno.serve(async request => {
             }
           }
         }else{
-          const phone=String(thread.contact_phone||"").replace(/\\D/g,"");
+          const phone=String(thread.contact_phone||"").replace(/\D/g,"");
           if(/^[0-9]{10,15}$/.test(phone)){
             const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
               p_organization:org,p_phone:phone,
