@@ -69,7 +69,7 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(page,/max-h-\[min\(44dvh,320px\)\]/);
   assert.match(page,/flex-wrap items-stretch rounded-xl/);
   assert.match(page,/xl:flex-nowrap/);
-  assert.match(page,/aria-label="Documentos da OS"/);
+  assert.match(page,/aria-label=\{onPrepareOrderDocument\?"Documentos da OS":"Anexar documento"\}/);
   assert.match(page,/aria-label="Voltar às opções"/);
   assert.match(page,/aria-label="Carregando mensagens rápidas"/);
   assert.match(bridge,/const audio=kind==="audio" \? await toPlayableAudio\(buffer\) : null/);
