@@ -576,3 +576,32 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
   assert.doesNotMatch(repository.slice(repository.indexOf("export async function startUnionWhatsAppWithFirstMessage")),
     /,"send_text"/);
 });
+
+test("Painel Dados do contato fecha pela seta, clique fora e Esc sem interceptar o chat",()=>{
+  const drawer=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(drawer,/const drawerRef=useRef<HTMLElement\|null>\(null\)/);
+  assert.match(drawer,/document\.addEventListener\("pointerdown",onOutside,true\)/);
+  assert.match(drawer,/document\.removeEventListener\("pointerdown",onOutside,true\)/);
+  assert.match(drawer,/drawerRef\.current\?\.contains\(event\.target\)/);
+  assert.match(drawer,/aria-label="Voltar à conversa" onClick=\{event=>\{event\.preventDefault\(\);event\.stopPropagation\(\);onClose\(\);\}\}/);
+  assert.match(drawer,/document\.addEventListener\("keydown",onKey,true\)/);
+  assert.match(drawer,/event\.key==="Escape"/);
+  assert.match(drawer,/ref=\{drawerRef\}/);
+  assert.match(inbox,/onClose=\{\(\)=>setContactDetailsOpen\(false\)\}/);
+});
+
+test("Ações Editar e Nova adotam contraste compartilhado em todo CRM escuro",()=>{
+  const css=read("src/styles/index.css");
+  const admin=read("src/shared/ui/admin/AdminLayout.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(admin,/data-admin-button-variant=\{variant\}/);
+  assert.match(admin,/data-admin-icon-button-variant=\{effectiveVariant\}/);
+  assert.match(css, /--border: rgba\(180, 196, 222, 0\.28\)/);
+  assert.match(css,/\.admin-crm\.dark button:is\(\[aria-label\^="Editar"\]/);
+  assert.match(css,/color: #bac6ff/);
+  assert.match(css,/data-admin-button-variant="secondary"/);
+  assert.match(inbox,/<AdminButton variant="tertiary" size="sm" aria-label="Nova conversa"/);
+  assert.match(inbox,/variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"/);
+  assert.doesNotMatch(inbox,/border-primary\/25 bg-primary\/10 px-2 text-\[11px\] font-bold text-primary/);
+});
