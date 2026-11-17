@@ -120,6 +120,21 @@ test("settings navigation restores originating channel configuration and keeps m
 });
 
 
+test("mobile viewport height is scoped to the CRM shell, not floating WhatsApp/PABX",()=>{
+  const layout=read("src/features/admin-shell/presentation/AdminLayout.tsx");
+  const css=read("src/styles/index.css");
+  const pbx=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
+  const whatsapp=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  assert.match(layout,/data-admin-shell="true"/);
+  assert.match(css,/\.admin-crm\[data-admin-shell="true"\],\s*\.admin-crm\[data-admin-shell="true"\] > main \{\s*height: 100dvh !important;/);
+  assert.doesNotMatch(css,/\.admin-crm:not\(\[data-admin-dialog-content="true"\]\)/);
+  for(const floating of [pbx,whatsapp]){
+    assert.match(floating,/data-admin-floating-panel="true"/);
+    assert.match(floating,/max-h-\[calc\(100dvh-1\.5rem\)\]/);
+  }
+  assert.match(whatsapp,/expanded\?"h-\[min\(555px,calc\(100dvh-2rem\)\)\]/);
+});
+
 test("Mini-PABX e mini-Atendimentos usam a mesma borda de destaque da toolbar fixa",()=>{
   const pbx=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
   const whatsapp=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
