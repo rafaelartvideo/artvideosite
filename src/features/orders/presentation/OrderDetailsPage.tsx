@@ -130,6 +130,13 @@ export function OrderDetailsPage(props: Props) {
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const [terminalOutcome,setTerminalOutcome] = useState<OrderTerminalOutcome|null>(null);
+  const terminalOrderIdRef=useRef<string|null>(detail?.id||null);
+  useEffect(()=>{
+    const orderId=detail?.id||null;
+    // Uma saída especial jamais deve ressurgir automaticamente ao abrir outra OS.
+    if(!visible || terminalOrderIdRef.current!==orderId)setTerminalOutcome(null);
+    terminalOrderIdRef.current=orderId;
+  },[visible,detail?.id]);
   const [signaturePreferredDocType,setSignaturePreferredDocType] = useState<string|null>(null);
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [showDelayedSwitchLoading, setShowDelayedSwitchLoading] = useState(false);
