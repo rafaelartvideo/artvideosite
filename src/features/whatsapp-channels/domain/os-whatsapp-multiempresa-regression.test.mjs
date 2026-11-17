@@ -506,7 +506,8 @@ test("Prévia de mensagens e filtro de operadores mostram formatação e totais 
 
 test("Agenda WhatsApp tem área maior, menus CRM e rodapé fixo alinhado à paginação",()=>{
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
-  assert.match(contacts,/h-\[min\(94dvh,960px\)\]/);
+  assert.match(contacts,/fixed inset-x-0 bottom-0 top-16/);
+  assert.match(contacts,/h-full max-h-\[960px\] min-h-0/);
   assert.match(contacts,/max-w-\[1180px\]/);
   assert.match(contacts,/setCrmPanel\("registration"\)/);
   assert.match(contacts,/setCrmPanel\("equipments"\)/);
