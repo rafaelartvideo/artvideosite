@@ -30,7 +30,17 @@ export type WorkItem = {
 };
 export type WorkEmployee = { id: string; full_name: string; profile_id: string | null };
 export type WorkChecklist = { id: string; work_item_id: string; label: string; done: boolean; sort_order: number };
-export type WorkActivity = { id: number; work_item_id: string; actor_user_id: string | null; action: string; note: string | null; created_at: string };
+export type WorkActivityChange = { field: string; old: string | null; new: string | null };
+export type WorkActivity = {
+  id: number;
+  work_item_id: string;
+  actor_user_id: string | null;
+  actor_name_snapshot: string | null;
+  action: string;
+  note: string | null;
+  changes: WorkActivityChange[];
+  created_at: string;
+};
 
 const itemFields = "*,customer:customers(id,full_name,trade_name,document,cnpj,phone,whatsapp),service_order:service_orders(id,os_number),checklist:work_item_checklist(done)";
 
@@ -138,9 +148,9 @@ export async function loadWorkDetails(organizationId: string, id: string) {
   const [checklist, activity] = await Promise.all([
     supabase.from("work_item_checklist").select("id,work_item_id,label,done,sort_order")
       .eq("organization_id", organizationId).eq("work_item_id", id).order("sort_order"),
-    supabase.from("work_item_activity").select("id,work_item_id,actor_user_id,action,note,created_at")
+    supabase.from("work_item_activity").select("id,work_item_id,actor_user_id,actor_name_snapshot,action,note,changes,created_at")
       .eq("organization_id", organizationId).eq("work_item_id", id)
-      .order("created_at", { ascending: false }).limit(30),
+      .order("created_at", { ascending: false }).limit(200),
   ]);
   if (checklist.error) throw checklist.error;
   if (activity.error) throw activity.error;
