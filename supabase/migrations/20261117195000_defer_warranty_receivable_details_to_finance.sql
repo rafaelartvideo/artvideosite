@@ -495,7 +495,7 @@ begin
     'open_amount',greatest(round(v_final_total-v_paid_total,2),0)
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.search_financial_entry_page_ids_v4(p_organization_id uuid, p_entry_type text, p_page integer DEFAULT 1, p_page_size integer DEFAULT 10, p_search text DEFAULT ''::text, p_approval_status text DEFAULT 'all'::text, p_name text DEFAULT ''::text, p_document text DEFAULT ''::text, p_os text DEFAULT ''::text, p_date_from date DEFAULT NULL::date, p_date_to date DEFAULT NULL::date, p_operational_status text DEFAULT 'all'::text, p_sort text DEFAULT 'newest'::text, p_created_by uuid DEFAULT NULL::uuid)
  RETURNS TABLE(id uuid, total_count bigint)
