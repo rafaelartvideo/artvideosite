@@ -829,6 +829,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   selectedIdRef.current=selectedId;
   const refreshMessagesRef=useRef(refreshMessages);
   refreshMessagesRef.current=refreshMessages;
+  const wasForegroundRef=useRef(embedded || !sharedActivity || sharedActivity.isPageOpen);
+  useEffect(()=>{
+    const foreground=embedded || !sharedActivity || sharedActivity.isPageOpen;
+    const returning=!wasForegroundRef.current && foreground;
+    wasForegroundRef.current=foreground;
+    if(!returning || channelReady!==true || !activeChannelId || !activeChannelPhone)return;
+    // Uma aba retida reabre com a lista atual, sem uma segunda assinatura.
+    void refresh(true);
+    if(selectedIdRef.current)void refreshMessagesRef.current(selectedIdRef.current,true);
+  },[embedded,sharedActivity?.isPageOpen,channelReady,activeChannelId,activeChannelPhone,refresh]);
   // Realtime only while the inbox page is open. A bounded foreground refresh
   // is kept as fallback when tenant replication is temporarily unavailable.
   useEffect(() => {
