@@ -79,14 +79,14 @@ test("WhatsApp e Nova OS usam modais moviveis sem duplicar fundo escuro", () => 
   assert.match(dialog, /showOverlay = true/);
   assert.match(dialog, /ref=\{dragHeaderRef\}/);
   assert.match(dialog, /data-admin-dialog-drag-handle=\{draggable \? "true" : undefined\}/);
-  assert.match(dialog, /showOverlay=\{showOverlay\}/);
+  assert.match(dialog, /showOverlay=\{floatingDesktop \? false : showOverlay\}/);
   assert.match(modal, /title="Atendimento WhatsApp"\s+draggable/);
   assert.match(modal, /Nova OS/);
   assert.match(modal, /<EmbeddedNewOrder/);
   assert.match(modal, /initialCustomerId=\{newOrder\.customerId\}/);
   assert.match(modal, /organizationIdOverride=\{organizationId\}/);
   assert.match(editor, /if \(embeddedDialog\) return <AdminDialog/);
-  assert.match(editor, /draggable modal showOverlay=\{false\}/);
+  assert.match(editor, /draggable floating modal showOverlay=\{false\}/);
   assert.match(editor, /editorBody/);
   assert.match(actions, /inDialog= false|inDialog = false/);
   assert.match(tab, /embeddedDialog=\{embeddedCreate\}/);
@@ -120,8 +120,8 @@ test("Modais moviveis respeitam CSS global; Nova OS rola sem toolbar duplicada",
   assert.match(dialog, /node\.style\.setProperty\("translate", "none", "important"\)/);
   assert.match(dialog, /node\.style\.setProperty\("transform", "none", "important"\)/);
   assert.match(dialog, /position\(bounds\.left, bounds\.top\)/);
-  assert.match(dialog, /const visibleWidth = Math\.min\(drag\.width, 380\)/);
-  assert.match(dialog, /const visibleHeight = Math\.min\(drag\.height, 160\)/);
+  assert.match(dialog, /clampAdminDialogPosition\(\{ left, top, width: bounds\.width, height: bounds\.height/);
+  assert.doesNotMatch(dialog, /visibleWidth|visibleHeight/);
   assert.match(dialog, /header\.addEventListener\("dblclick", center\)/);
   assert.doesNotMatch(dialog, /setPointerCapture|setDragPosition|data-admin-dialog-positioned/);
   assert.match(dialog, /footerClassName/);
@@ -206,3 +206,4 @@ test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídi
   assert.doesNotMatch(provider,/setInterval\(/);
   assert.doesNotMatch(provider,/listUnionWhatsAppMessages|contact_avatar|media_view/);
 });
+

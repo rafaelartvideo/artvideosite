@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
-import { AlertCircle, ArrowLeft, GripHorizontal, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, LoaderCircle, MoreVertical, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
-import { preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
+import { activateAdminFloatingDialog, clampAdminDialogPosition, preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
 import {
   Dialog,
   DialogContent,
@@ -305,6 +305,7 @@ export function AdminDialog({
   className,
   bodyClassName,
   draggable = false,
+  floating = false,
   showOverlay = true,
   modal,
   footerClassName,
@@ -333,6 +334,8 @@ export function AdminDialog({
   bodyClassName?: string;
   /** Permite deslocar a janela pelo cabeçalho, com limites da viewport (desktop). */
   draggable?: boolean;
+  /** Desktop windows share focus and pointer access; mobile keeps modal behavior. */
+  floating?: boolean;
   /** Para janelas sobre outra já aberta, sem uma segunda camada escura. */
   showOverlay?: boolean;
   /** Janelas secundárias dentro de outro diálogo não instalam outro bloqueio de scroll. */
@@ -369,6 +372,15 @@ export function AdminDialog({
   const minimizedTitle = minimizedTitleOverride ?? (typeof title === "string" ? title : "Janela administrativa");
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
   const [browserBottomInset, setBrowserBottomInset] = React.useState(0);
+  const [desktopWindow, setDesktopWindow] = React.useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches);
+  React.useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setDesktopWindow(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const floatingDesktop = floating && desktopWindow;
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const [dialogNode, setDialogNode] = React.useState<HTMLDivElement | null>(null);
   const attachDialogContent = React.useCallback((node: HTMLDivElement | null) => {
@@ -383,30 +395,27 @@ export function AdminDialog({
     const header = dragHeaderRef.current;
     const node = dialogNode;
     if (!header || !node) return;
+    if (floatingDesktop) activateAdminFloatingDialog(node);
 
     let drag: { x: number; y: number; left: number; top: number; width: number; height: number } | null = null;
     const position = (left: number, top: number) => {
+      const bounds = drag ?? node.getBoundingClientRect();
+      const next = clampAdminDialogPosition({ left, top, width: bounds.width, height: bounds.height,
+        viewportWidth: window.innerWidth, viewportHeight: window.innerHeight });
       // Inline !important wins over the CRM global top !important.
-      node.style.setProperty("left", `${left}px`, "important");
-      node.style.setProperty("top", `${top}px`, "important");
+      node.style.setProperty("left", `${next.left}px`, "important");
+      node.style.setProperty("top", `${next.top}px`, "important");
       node.style.setProperty("translate", "none", "important");
       node.style.setProperty("transform", "none", "important");
     };
     const onMove = (event: MouseEvent) => {
       if (!drag) return;
-      const clamp = (value: number, min: number, max: number) =>
-        Math.min(Math.max(min, value), Math.max(min, max));
-      const visibleWidth = Math.min(drag.width, 380);
-      const visibleHeight = Math.min(drag.height, 160);
-      const left = clamp(drag.left + event.clientX - drag.x,
-        visibleWidth - drag.width, window.innerWidth - visibleWidth);
-      const top = clamp(drag.top + event.clientY - drag.y,
-        72, window.innerHeight - visibleHeight);
-      position(left, top);
+      position(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
       if (event.cancelable) event.preventDefault();
     };
     const stopDrag = () => {
       drag = null;
+      header.style.removeProperty("cursor");
       document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("mouseup", stopDrag, true);
       window.removeEventListener("blur", stopDrag);
@@ -416,6 +425,10 @@ export function AdminDialog({
           (event.target instanceof Element &&
             event.target.closest("button,a,input,textarea,select,[data-no-dialog-drag]"))) return;
       const bounds = node.getBoundingClientRect();
+      node.style.setProperty("transition", "none", "important");
+      node.style.setProperty("animation", "none", "important");
+      header.style.cursor = "grabbing";
+      if (floatingDesktop) activateAdminFloatingDialog(node);
       drag = {
         x: event.clientX, y: event.clientY, left: bounds.left, top: bounds.top,
         width: bounds.width, height: bounds.height,
@@ -435,14 +448,30 @@ export function AdminDialog({
     };
     header.addEventListener("mousedown", onMouseDown, true);
     header.addEventListener("dblclick", center);
+    const keepVisible = () => {
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        stopDrag();
+        for (const property of ["left", "top", "translate", "transform", "transition", "animation"])
+          node.style.removeProperty(property);
+      } else if (node.style.left) {
+        const bounds = node.getBoundingClientRect();
+        if (drag) { drag.width = bounds.width; drag.height = bounds.height; }
+        position(bounds.left, bounds.top);
+      }
+    };
+    window.addEventListener("resize", keepVisible);
+    const sizeObserver = new ResizeObserver(keepVisible);
+    sizeObserver.observe(node);
     return () => {
       stopDrag();
       header.removeEventListener("mousedown", onMouseDown, true);
       header.removeEventListener("dblclick", center);
-      for (const property of ["left", "top", "translate", "transform"])
+      window.removeEventListener("resize", keepVisible);
+      sizeObserver.disconnect();
+      for (const property of ["left", "top", "translate", "transform", "transition", "animation", "z-index"])
         node.style.removeProperty(property);
     };
-  }, [open, draggable, dialogNode]);
+  }, [open, draggable, dialogNode, floatingDesktop]);
 
   const scrollNestedDialog = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!nestedScrollAssist) return;
@@ -557,11 +586,16 @@ export function AdminDialog({
     };
   }, [open]);
 
-  return <Dialog open={open} modal={modal} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+  const activateWindow = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    if (floatingDesktop && event.target instanceof Element &&
+        event.target.closest('[data-admin-dialog-content="true"]') === event.currentTarget)
+      activateAdminFloatingDialog(event.currentTarget);
+  };
+  return <Dialog open={open} modal={floatingDesktop ? false : modal} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
     <DialogContent
       ref={attachDialogContent}
       showClose={false}
-      showOverlay={showOverlay}
+      showOverlay={floatingDesktop ? false : showOverlay}
       showMinimizeControl={false}
       minimizable={minimizable}
       minimizedTitle={minimizedTitle}
@@ -572,6 +606,9 @@ export function AdminDialog({
       data-admin-dialog-content="true"
       data-admin-dialog-state={showPreparation ? "preparing" : "ready"}
       data-admin-dialog-draggable={draggable ? "true" : undefined}
+      data-admin-dialog-floating={floatingDesktop ? "true" : undefined}
+      onPointerDownCapture={activateWindow}
+      onFocusCapture={activateWindow}
       style={{
         "--admin-browser-bottom-inset": `${browserBottomInset}px`,
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
@@ -586,11 +623,11 @@ export function AdminDialog({
         : (title || description || onClose) && <div
           ref={dragHeaderRef}
           data-admin-dialog-drag-handle={draggable ? "true" : undefined}
-          className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-move md:select-none md:touch-none")}
+          className={cn("flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4", draggable && "md:cursor-grab md:active:cursor-grabbing md:select-none md:touch-none")}
           title={draggable ? "Segure e arraste para mover. Duplo clique para centralizar." : undefined}
         >
         <div className="min-w-0 flex-1">
-          {title ? <div className="flex items-center gap-2">{draggable && <GripHorizontal size={16} className="shrink-0 text-muted-foreground" aria-hidden="true"/>}<DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
+          {title ? <div className="flex items-center gap-2"><DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle></div> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -602,7 +639,7 @@ export function AdminDialog({
       {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
       <div
         ref={bodyRef}
-        onWheelCapture={nestedScrollAssist ? scrollNestedDialog : undefined}
+        onWheelCapture={nestedScrollAssist && !floatingDesktop ? scrollNestedDialog : undefined}
         data-admin-dialog-preparing={showPreparation ? "true" : undefined}
         data-admin-dialog-ready={!showPreparation ? "true" : undefined}
         className={cn(
@@ -869,4 +906,5 @@ export function InternalBackButton({ onBack, inHeader = false }: { onBack: () =>
   if (!inHeader && contextualBack === onBack) return null;
   return <button type="button" onClick={resolvedBack} className="inline-flex cursor-default items-center gap-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><ArrowLeft size={14} /> Voltar</button>;
 }
+
 

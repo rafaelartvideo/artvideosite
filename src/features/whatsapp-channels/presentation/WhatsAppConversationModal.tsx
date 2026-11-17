@@ -198,6 +198,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     onClose={onClose}
     title="Atendimento WhatsApp"
     draggable
+    floating
     headerActions={canCreateOrder && organizationId === activeOrganizationId && canViewInbox
       ? <AdminButton variant="secondary" size="sm" disabled={preparingNewOrder || Boolean(newOrder)}
           loading={preparingNewOrder} onClick={() => void openNewOrder()}>
@@ -281,3 +282,4 @@ export function useWhatsAppConversationModal() {
       open context={context} onClose={closeWhatsAppConversation}/> : null,
   };
 }
+

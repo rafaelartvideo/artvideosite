@@ -27,3 +27,19 @@ export function dialogSizingClass(isAdminDialog) {
 export function preventAdminDialogOutsideInteraction(event) {
   event.preventDefault();
 }
+
+export function clampAdminDialogPosition({ left, top, width, height, viewportWidth, viewportHeight, topInset = 72, gap = 8 }) {
+  const minTop = Math.min(topInset, Math.max(gap, viewportHeight - height - gap));
+  return {
+    left: Math.max(gap, Math.min(left, Math.max(gap, viewportWidth - width - gap))),
+    top: Math.max(minTop, Math.min(top, Math.max(minTop, viewportHeight - height - gap))),
+  };
+}
+
+export function activateAdminFloatingDialog(node) {
+  for (const dialog of node.ownerDocument.querySelectorAll('[data-admin-dialog-floating="true"]')) {
+    // Keep ordinary dialogs at z-150 above parked windows and preserve their overlays.
+    dialog.style.zIndex = dialog === node ? "150" : "149";
+  }
+}
+

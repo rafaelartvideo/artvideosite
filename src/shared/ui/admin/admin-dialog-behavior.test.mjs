@@ -3,7 +3,52 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import React from "react";
 import { transform } from "esbuild";
+
+test("drag keeps the full window inside every viewport edge", () => {
+  const dimensions = {width:930,height:560,viewportWidth:1280,viewportHeight:720};
+  for (const [left,top,expected] of [
+    [-300,-100,{left:8,top:72}],
+    [2000,2000,{left:342,top:152}],
+    [175,111,{left:175,top:111}],
+  ]) assert.deepEqual(clampAdminDialogPosition({...dimensions,left,top}), expected);
+  const narrow = clampAdminDialogPosition({left:1500,top:900,width:768,height:620,viewportWidth:800,viewportHeight:700});
+  assert.deepEqual(narrow,{left:24,top:72});
+  assert.ok(narrow.left+768<=800 && narrow.top+620<=700);
+});
+
+test("clicking either floating window raises only that window", () => {
+  const windows = [{style:{}},{style:{}}];
+  const ownerDocument = {querySelectorAll: selector => {
+    assert.equal(selector, '[data-admin-dialog-floating="true"]');
+    return windows;
+  }};
+  windows.forEach(node=>node.ownerDocument=ownerDocument);
+  activateAdminFloatingDialog(windows[0]);
+  assert.deepEqual(windows.map(n=>n.style.zIndex),["150","149"]);
+  activateAdminFloatingDialog(windows[1]);
+  assert.deepEqual(windows.map(n=>n.style.zIndex),["149","150"]);
+});
+
+test("floating mode shares desktop focus, preserves mobile modality and removes drag latency", () => {
+  const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
+  assert.match(layout,/floatingDesktop = floating && desktopWindow/);
+  assert.match(layout,/modal=\{floatingDesktop \? false : modal\}/);
+  assert.match(layout,/onPointerDownCapture=\{activateWindow\}/);
+  assert.match(layout,/onFocusCapture=\{activateWindow\}/);
+  assert.match(layout,/event\.target\.closest\('[^']+'\) === event\.currentTarget/);
+  assert.match(layout,/node\.style\.setProperty\("transition", "none", "important"\)/);
+  assert.match(layout,/const bounds = drag \?\? node\.getBoundingClientRect\(\)/);
+  assert.match(layout,/md:cursor-grab md:active:cursor-grabbing/);
+  assert.match(layout,/nestedScrollAssist && !floatingDesktop \? scrollNestedDialog : undefined/);
+  assert.doesNotMatch(layout,/GripHorizontal|md:cursor-move/);
+  const whatsapp = readFileSync("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx", "utf8");
+  const editor = readFileSync("src/features/orders/presentation/OrderEditorPage.tsx", "utf8");
+  assert.match(whatsapp,/title="Atendimento WhatsApp"\s+draggable\s+floating/);
+  assert.match(editor,/draggable floating modal showOverlay=\{false\}/);
+});
 import {
+  activateAdminFloatingDialog,
+  clampAdminDialogPosition,
   dialogSizingClass,
   preventAdminDialogOutsideInteraction,
   resolveAdminBrowserBottomInset,
@@ -87,7 +132,7 @@ test("um único modal mantém o cabeçalho e expande o próprio conteúdo após 
   assert.equal((component.match(/<Dialog open=\{open\}/g) || []).length, 1);
   assert.match(component, /ref=\{attachDialogContent\}/);
   assert.match(component, /contentRef\.current = node/);
-  assert.match(component, /\[open, draggable, dialogNode\]/);
+  assert.match(component, /\[open, draggable, dialogNode, floatingDesktop\]/);
   assert.match(component, /node\.animate\(\[/);
   assert.match(component, /preparedSizeRef\.current/);
   assert.match(component, /height: .*before\.height/);
@@ -159,3 +204,4 @@ test("Financeiro aguarda dados de extratos, contas e recibos na primeira abertur
   assert.match(entries, /preparingKey=\{selectedEntryId\}/);
   assert.match(accounts, /preparingKey=\{selectedAccount.id\}/);
 });
+
