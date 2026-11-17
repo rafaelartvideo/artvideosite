@@ -35,12 +35,12 @@ test("cards e gráficos possuem tamanho fixo inclusive pizza e situação SLA", 
   const tab=read("src/features/dashboard/presentation/TabDashboard.tsx");
   const panel=read("src/features/dashboard/presentation/DashboardOrderChartPanel.tsx");
   await compile("src/features/dashboard/presentation/DashboardUi.tsx");
-  assert.match(ui,/h-\\[370px\\]/);
+  assert.ok(ui.includes("h-[370px]"));
   assert.match(ui,/fixedHeight/);
   assert.match(panel,/const height=238/);
-  assert.match(panel,/fixedHeight=\\{height\\}/);
-  assert.match(tab,/max-w-\\[1420px\\]/);
-  assert.match(tab,/max-w-\\[1000px\\]/);
+  assert.ok(panel.includes("fixedHeight={height}"));
+  assert.ok(tab.includes("max-w-[1420px]"));
+  assert.ok(tab.includes("max-w-[1000px]"));
 });
 
 test("agregação protege a empresa, agrupa as decisões e não baixa lista de OS", async () => {
@@ -49,10 +49,10 @@ test("agregação protege a empresa, agrupa as decisões e não baixa lista de O
   const repository=read("src/features/dashboard/infrastructure/dashboard.repository.ts");
   await compile("src/features/dashboard/infrastructure/dashboard.repository.ts","ts");
   assert.match(rpc,/SECURITY INVOKER/);
-  assert.match(rpc,/private\\.has_tenant_module_permission/);
+  assert.ok(rpc.includes("private.has_tenant_module_permission"));
   assert.match(rpc,/service_order_quote_proposals/);
   assert.match(rpc,/equipment_models/);
   assert.match(repository,/load_dashboard_orders_charts_v1/);
   assert.match(prefs,/ENABLE ROW LEVEL SECURITY/);
-  assert.match(prefs,/user_id=\\(select auth\\.uid\\(\\)\\)/);
+  assert.ok(prefs.includes("user_id=(select auth.uid())"));
 });
