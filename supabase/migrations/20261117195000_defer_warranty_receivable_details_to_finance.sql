@@ -590,7 +590,7 @@ AS $function$
     ranked.id
   limit greatest(1, least(p_page_size, 100))
   offset ((greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 100)));
-$function$
+$function$;
 
 create or replace function public.prepare_warranty_receivable_v1(
   p_organization_id uuid,
