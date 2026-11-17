@@ -6,6 +6,7 @@ import type { UnionWhatsAppConversation, UnionWhatsAppConversationCounts } from 
 
 type Filter="in_att"|"waiting";
 type Point={x:number;y:number};
+type AlertGeometry={left:number;top:number;arrowLeft:number;side:"above"|"below"};
 type Dock={side:"left"|"right"|"top"|"bottom"; progress:number};
 type Drag={id:number;clientX:number;clientY:number;x:number;y:number;moved:boolean};
 export type FloatingWhatsAppAlert={id:string;messageId:string;name:string;preview:string};
@@ -77,6 +78,9 @@ export function UnionWhatsAppFloatingPanel({
     return()=>window.clearInterval(interval);
   },[expanded]);
   const nodeRef=useRef<HTMLElement|null>(null);
+  const whatsappIconRef=useRef<HTMLSpanElement|null>(null);
+  const alertRef=useRef<HTMLDivElement|null>(null);
+  const [alertGeometry,setAlertGeometry]=useState<AlertGeometry|null>(null);
   const dragRef=useRef<Drag|null>(null);
   const dockRef=useRef<Dock|null>(null);
 
@@ -145,9 +149,52 @@ export function UnionWhatsAppFloatingPanel({
     ? {left:position.x,top:position.y,right:"auto",bottom:"auto"}
     : {right:16,bottom:"calc(1rem + env(safe-area-inset-bottom,0px))"};
   const hasAlert=Boolean(alert)&&!expanded&&!hidden;
+  // A notificação acompanha o ícone mesmo depois de arrastar, encaixar,
+  // redimensionar ou restaurar o mini-Atendimentos. O aviso fica fora da
+  // janela porque o próprio painel usa overflow-hidden.
+  useLayoutEffect(()=>{
+    if(!hasAlert){setAlertGeometry(null);return;}
+    const update=()=>{
+      const icon=whatsappIconRef.current,notice=alertRef.current;
+      if(!icon||!notice)return;
+      const origin=icon.getBoundingClientRect(),bounds=notice.getBoundingClientRect();
+      const center=origin.left+origin.width/2;
+      const left=clamp(center-bounds.width/2,EDGE,Math.max(EDGE,window.innerWidth-bounds.width-EDGE));
+      const aboveSpace=origin.top-EDGE,belowSpace=window.innerHeight-origin.bottom-EDGE;
+      const side:AlertGeometry["side"]=aboveSpace>=bounds.height+7||aboveSpace>=belowSpace?"above":"below";
+      const desiredTop=side==="above"?origin.top-bounds.height-7:origin.bottom+7;
+      const top=clamp(desiredTop,EDGE,Math.max(EDGE,window.innerHeight-bounds.height-EDGE));
+      const arrowLeft=clamp(center-left-6,16,Math.max(16,bounds.width-28));
+      setAlertGeometry(previous=>previous?.left===left&&previous.top===top&&
+        previous.arrowLeft===arrowLeft&&previous.side===side
+        ?previous:{left,top,arrowLeft,side});
+    };
+    update();
+    const observer=typeof ResizeObserver==="undefined"?null:new ResizeObserver(update);
+    if(whatsappIconRef.current)observer?.observe(whatsappIconRef.current);
+    if(alertRef.current)observer?.observe(alertRef.current);
+    window.addEventListener("resize",update);
+    window.addEventListener("scroll",update,true);
+    return()=>{
+      observer?.disconnect();
+      window.removeEventListener("resize",update);
+      window.removeEventListener("scroll",update,true);
+    };
+  },[hasAlert,position,alert?.messageId]);
   return <>
-    {hasAlert&&alert&&<div role="status" aria-live="polite"
-      className="admin-crm fixed bottom-[calc(11.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[104] flex max-w-[min(360px,calc(100vw-2rem))] items-start gap-2 rounded-xl border border-primary/30 bg-card p-3 text-foreground shadow-xl">
+    {hasAlert&&alert&&<div ref={alertRef} role="status" aria-live="polite"
+      data-whatsapp-anchored-alert="true"
+      style={alertGeometry
+        ? {left:alertGeometry.left,top:alertGeometry.top,visibility:"visible"}
+        : {left:EDGE,top:EDGE,visibility:"hidden"}}
+      className="admin-crm fixed z-[106] flex w-[min(330px,calc(100vw-1.5rem))] items-start gap-2 rounded-xl border border-primary/30 bg-card p-3 text-foreground shadow-xl">
+      <span aria-hidden="true"
+        data-whatsapp-alert-arrow={alertGeometry?.side||"above"}
+        style={{left:alertGeometry?.arrowLeft??20}}
+        className={"pointer-events-none absolute h-3 w-3 rotate-45 bg-card " +
+          (alertGeometry?.side==="below"
+            ? "-top-[6px] border-l border-t border-primary/30"
+            : "-bottom-[6px] border-b border-r border-primary/30")}/>
       <button type="button" onClick={()=>onSelect(alert.id)}
         className="min-w-0 flex-1 text-left">
         <p className="truncate text-xs font-bold text-primary">{alert.name}</p>
@@ -171,7 +218,7 @@ export function UnionWhatsAppFloatingPanel({
           className="flex min-w-0 flex-1 touch-none select-none items-center gap-2 rounded-lg px-1 py-1.5 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-primary/50"
           style={{cursor:"grab"}}>
           <GripHorizontal size={16} className="shrink-0 text-muted-foreground"/>
-          <span className="relative shrink-0">
+          <span ref={whatsappIconRef} className="relative shrink-0">
             <WhatsAppBrandIcon size={18} className="text-primary"/>
             {counts.unread>0&&<span aria-hidden="true"
               className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500"/>}
