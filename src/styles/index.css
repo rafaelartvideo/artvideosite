@@ -711,9 +711,11 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 	 * root module. This keeps pagination, "Linhas" selectors and final actions
 	 * reachable above Android/iOS browser UI.
 	 */
-	/* O modal também usa admin-crm; não force nele a altura da shell. */
-	.admin-crm:not([data-admin-dialog-content="true"]),
-	.admin-crm > main {
+	/* Somente a shell principal ocupa a tela inteira. Mini-Atendimentos,
+	 * mini-PABX, alertas flutuantes e dialogs também usam admin-crm e
+	 * precisam manter sua altura intrínseca quando recolhidos. */
+	.admin-crm[data-admin-shell="true"],
+	.admin-crm[data-admin-shell="true"] > main {
 		height: 100dvh !important;
 		max-height: 100dvh !important;
 	}
