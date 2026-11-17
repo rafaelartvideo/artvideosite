@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
@@ -150,13 +150,30 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   useEffect(()=>{
     if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,0);
   },[tab,sections,fetchPage]);
+  const closeOnPointer=useCallback((event:ReactPointerEvent<HTMLButtonElement>)=>{
+    if(event.button!==0)return;
+    event.preventDefault();
+    event.stopPropagation();
+    // Se desmontarmos no pointerdown, o click posterior pode atingir a
+    // conversa por baixo. Bloquear somente esse click evita reabertura
+    // involuntária e não deixa nenhum overlay/capturador permanente.
+    const swallowClick=(click:MouseEvent)=>{
+      click.preventDefault();
+      click.stopPropagation();
+      click.stopImmediatePropagation();
+      document.removeEventListener("click",swallowClick,true);
+    };
+    document.addEventListener("click",swallowClick,true);
+    window.setTimeout(()=>document.removeEventListener("click",swallowClick,true),350);
+    onClose();
+  },[onClose]);
   useEffect(()=>{
     if(inline||preview)return;
     // Eventos fora do painel, mas DENTRO do backdrop, são tratados somente
     // pelo próprio backdrop. Antes, o document capturava pointerdown e
     // desmontava a camada antes do click, permitindo cliques fantasmas e
     // deixando os controles do atendimento inconsistentes.
-    const onOutside=(event:PointerEvent)=>{
+    const onOutside=(event:MouseEvent)=>{
       if(event.button!==0 || !(event.target instanceof Node))return;
       if(panelRootRef.current?.contains(event.target))return;
       // Não deixar o clique atravessar para controles/menus por baixo após desmontar.
@@ -170,10 +187,10 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       event.stopPropagation();
       onClose();
     };
-    document.addEventListener("pointerdown",onOutside,true);
+    document.addEventListener("click",onOutside,true);
     document.addEventListener("keydown",onKey,true);
     return()=>{
-      document.removeEventListener("pointerdown",onOutside,true);
+      document.removeEventListener("click",onOutside,true);
       document.removeEventListener("keydown",onKey,true);
     };
   },[onClose,preview,inline]);
@@ -190,12 +207,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   };
   return <div ref={panelRootRef} className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
     {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
-      onPointerDown={event=>{
-        if(event.button!==0)return;
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }}
+      onPointerDown={closeOnPointer}
       onClick={event=>{
         // Click de teclado / leitores de tela. Pointerdown já tratou o mouse.
         event.preventDefault();
@@ -209,12 +221,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
         :"relative z-10 flex h-full min-h-0 w-full max-w-[420px] flex-col border-l border-border bg-card text-foreground"}>
       {!inline&&<div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
         <button type="button" aria-label="Voltar à conversa"
-          onPointerDown={event=>{
-            if(event.button!==0)return;
-            event.preventDefault();
-            event.stopPropagation();
-            onClose();
-          }}
+          onPointerDown={closeOnPointer}
           onClick={event=>{
             event.preventDefault();
             event.stopPropagation();
