@@ -205,7 +205,12 @@ test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídi
   assert.match(provider,/setTimeout\(\(\)=>\{[\s\S]*?\},1_200\)/);
   assert.match(provider,/void supabase.removeChannel\(realtime\)/);
   assert.doesNotMatch(provider,/setInterval\(/);
-  assert.doesNotMatch(provider,/listUnionWhatsAppMessages|contact_avatar|media_view/);
+  assert.doesNotMatch(provider,/listUnionWhatsAppMessages|media_view/);
+  // Avatares são carregados sob demanda apenas com o painel expandido,
+  // com TTL e até duas requisições simultâneas.
+  assert.match(provider,/if\(!expanded\|\|isPageOpen\|\|!channelId\|\|!channelPhone\|\|conversationId\)return/);
+  assert.match(provider,/const available=2-avatarRequestsRef.current.size/);
+  assert.match(provider,/operateUnionWhatsAppInbox\(organizationId,item.id,"contact_avatar"\)/);
 });
 
 
