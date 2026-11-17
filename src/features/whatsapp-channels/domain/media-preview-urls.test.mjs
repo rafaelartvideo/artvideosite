@@ -36,7 +36,7 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   const schema=read("supabase/migrations/20261111175500_union_whatsapp_sticker_library.sql");
 
   assert.match(page,/message\.message_type==="sticker"/);
-  assert.match(page,/max-h-\[124px\] max-w-\[120px\]/);
+  assert.match(page,/max-h-\[min\(44dvh,320px\)\]/);
   assert.match(page,/sender_name &&/);
   assert.match(page,/onSaveSticker=/);
   assert.doesNotMatch(page,/onResendSticker|resendReceivedSticker|> Reenviar/);
@@ -65,8 +65,8 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   assert.match(page,/role="menu" aria-label="Opções da conversa"/);
   // Options must be anchored to the full composer, not the narrow menu
   // button, so touch screens do not clip the panel off the right edge.
-  assert.match(page,/inset-x-0 bottom-\\[calc\\(100%\\+8px\\)\\]/);
-  assert.match(page,/max-h-\\[min\\(44dvh,320px\\)\\]/);
+  assert.match(page,/inset-x-0 bottom-\[calc\(100%\+8px\)\]/);
+  assert.match(page,/max-h-\[min\(44dvh,320px\)\]/);
   assert.match(page,/flex-wrap items-stretch rounded-xl/);
   assert.match(page,/xl:flex-nowrap/);
   assert.match(page,/aria-label="Documentos da OS"/);
