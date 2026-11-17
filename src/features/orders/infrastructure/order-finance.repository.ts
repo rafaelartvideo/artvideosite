@@ -57,6 +57,22 @@ export type OrderCompletionFinancePayload = {
   }>;
 };
 
+// Valida o modo de cobrança diretamente no banco ao abrir a conclusão.
+// Evita usar o serviço/tipo de atendimento em cache após alteração nas configurações.
+export async function getOrderCompletionChargeCustomer(organizationId:string, serviceOrderId:string):Promise<boolean> {
+  const {data,error}=await supabase.from("service_orders")
+    .select("id,service_type_id,service_type:service_types(id,charge_customer)")
+    .eq("organization_id",organizationId)
+    .eq("id",serviceOrderId)
+    .single();
+  if(error)throw error;
+  if(!data)throw new Error("Ordem de Serviço não encontrada para confirmar a cobrança.");
+  const item=data as {service_type_id:string|null;service_type:{charge_customer?:boolean}|null};
+  if(item.service_type_id && (!item.service_type || typeof item.service_type.charge_customer!=="boolean"))
+    throw new Error("Não foi possível consultar a cobrança do tipo de atendimento.");
+  return item.service_type?.charge_customer!==false;
+}
+
 export async function getOrderCompletionFinanceOptions(organizationId: string): Promise<OrderCompletionFinanceOptions> {
   const { data, error } = await supabase.rpc("get_order_completion_finance_options", {
     p_organization_id: organizationId,
