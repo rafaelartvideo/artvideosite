@@ -142,7 +142,7 @@ export async function listUnionWhatsAppConversationCounts(
 
 export async function listUnionWhatsAppConversations(
   organizationId:string,channelId:string,accountPhone:string,
-  options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean},
+  options:{filter:UnionWhatsAppInboxFilter;department:string;operator?:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean},
 ):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean}>{
   const page=Math.max(0,Math.floor(options.page));
   // O mini-Atendimentos solicita só 8 registros; a lista completa mantém 50.
@@ -174,6 +174,10 @@ export async function listUnionWhatsAppConversations(
   }
   if(options.department==="none")query=query.is("department_id",null);
   else if(options.department!=="all")query=query.eq("department_id",options.department);
+  // Filter BEFORE pagination: a manager should see every conversation
+  // assigned to the selected operator, including on subsequent pages.
+  if(options.filter==="in_att" && options.canViewAll && options.operator &&
+      options.operator!=="all")query=query.eq("assigned_to",options.operator);
 
   // Os caracteres de controle do PostgREST são excluídos da pesquisa.
   const search=options.search.trim().replace(/[,()%*\\"']/g," ").replace(/\s+/g," ").trim().slice(0,70);
@@ -261,7 +265,7 @@ export async function listUnionWhatsAppProtocols(
 }
 
 export type UnionWhatsAppParticipant = { user_id:string; name:string; status:"active"|"requested"; requested_by:string|null; decided_by:string|null; created_at:string; updated_at:string };
-export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_groups" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names";
+export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_filter_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_groups" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
