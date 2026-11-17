@@ -28,7 +28,12 @@ test("Garantia conclui OS sem dados financeiros e cria título pendente para dar
   const repository=read("src/features/finance/infrastructure/finance-warranty-receivables.repository.ts");
   const sql=read("supabase/migrations/20261117195000_defer_warranty_receivable_details_to_finance.sql");
 
-  assert.match(hook,/const noCustomerCharge = detail\?\.service_type\?\.charge_customer === false/);
+  assert.match(hook,/const noCustomerCharge = completionChargeCustomer\?\.orderId===detail\?\.id/);
+  assert.match(hook,/const openCompletion = async/);
+  assert.match(hook,/getOrderCompletionChargeCustomer\(String\(target\.organization_id\),String\(target\.id\)\)/);
+  assert.match(hook,/const targetNoCustomerCharge = !chargeCustomer/);
+  assert.match(hook,/setDetail\(\(current:any\)=>current\?\.id===target\.id/);
+  assert.match(read("src/features/orders/infrastructure/order-finance.repository.ts"),/\.select\("id,service_type_id,service_type:service_types\(id,charge_customer\)"\)/);
   assert.match(hook,/if \(noCustomerCharge\) return \{ installments: \[\], payments: \[\] as \[\]/);
   assert.doesNotMatch(hook,/warrantyPayerId|warrantyReceivableValue|partner_receivable: \{/);
   assert.match(hook,/targetCoverageFree \|\| targetNoCustomerCharge \? 0/);
