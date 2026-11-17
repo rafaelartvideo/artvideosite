@@ -809,7 +809,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     || (Boolean(activeOrganizationId) && (
       activeModule === "orders"
         ? (ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
-          || (orderChartsVisible && orderChartsQuery.isPending && !orderChartsQuery.data)
+          || (orderChartsVisible && ordersSummaryQuery.isSuccess && orderChartsQuery.isPending && !orderChartsQuery.data)
         : (dashboardQuery.isPending && !dashboardQuery.data)
           || (activeModule === "inventory" && access.inventory && access.inventoryCosts
             && canViewInventoryMovements && inventoryPurchasesQuery.isPending && !inventoryPurchasesQuery.data)
