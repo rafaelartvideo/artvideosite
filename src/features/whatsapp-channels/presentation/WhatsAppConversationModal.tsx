@@ -279,7 +279,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0"
   >
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
-      <LoadingState text="Carregando atendimento..." />
+      <LoadingState text={state.message || "Consultando números..."} />
     </div> : state.status === "choosing" ? <div className="flex min-h-0 h-full flex-col items-center overflow-y-auto px-4 py-6 sm:px-6">
       <div className="w-full max-w-2xl">
         <h3 className="text-base font-bold text-foreground">Escolha com quem falar sobre esta OS</h3>
@@ -335,7 +335,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       </div>}
       <div className="relative min-h-0 flex-1">
         {!embeddedReady && <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-center justify-center bg-card">
-          <LoadingState text={state.message || "Carregando atendimento..."} />
+          <LoadingState text="Carregando atendimento..." />
         </div>}
         <div className={`h-full min-h-0 ${embeddedReady ? "" : "invisible"}`}>
         <Suspense fallback={null}>
