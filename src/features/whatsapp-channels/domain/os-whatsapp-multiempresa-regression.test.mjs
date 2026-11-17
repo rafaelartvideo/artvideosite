@@ -354,3 +354,39 @@ test("Mini WhatsApp mostra primeiro quem aguarda há mais tempo, sem reordenar p
   assert.match(panel,/<WhatsAppBrandIcon size=\{18\} className="text-primary"\/>/);
   assert.doesNotMatch(panel,/<MessageCircle size=/);
 });
+
+
+test("Notificação fica ancorada ao ícone WhatsApp, segue o drag e não sai da tela",()=>{
+  const floating=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  assert.match(floating,/ref=\{whatsappIconRef\}/);
+  assert.match(floating,/ref=\{alertRef\}/);
+  assert.match(floating,/origin=icon.getBoundingClientRect\(\)/);
+  assert.match(floating,/setAlertGeometry\(/);
+  assert.match(floating,/window.addEventListener\("resize",update\)/);
+  assert.match(floating,/window.addEventListener\("scroll",update,true\)/);
+  assert.match(floating,/ResizeObserver\(update\)/);
+  assert.match(floating,/clamp\(center-bounds.width\/2,EDGE/);
+  assert.match(floating,/const side:AlertGeometry\["side"\]/);
+  assert.match(floating,/data-whatsapp-anchored-alert="true"/);
+  assert.match(floating,/data-whatsapp-alert-arrow=\{alertGeometry\?\.side\|\|"above"\}/);
+  assert.match(floating,/onClick=\{\(\)=>onSelect\(alert.id\)\}/);
+  assert.doesNotMatch(floating,/bottom-\[calc\(11\.5rem/);
+});
+
+test("Sons distintos usam o mesmo Realtime, sem áudio fictício antes dos arquivos",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const sounds=read("src/features/whatsapp-channels/application/union-whatsapp-sounds.ts");
+  assert.match(sounds,/notification:null/);
+  assert.match(sounds,/conversation:null/);
+  assert.match(sounds,/if\(!url \|\| !messageId/);
+  assert.match(sounds,/document.visibilityState!=="visible"/);
+  assert.match(sounds,/seenMessages.has\(key\)/);
+  assert.match(sounds,/void audio.play\(\).catch/);
+  assert.match(provider,/trackOpenConversation:\(id:string\)=>\(\)=>void/);
+  assert.match(inbox,/sharedActivity.trackOpenConversation\(selectedId\)/);
+  assert.match(provider,/playUnionWhatsAppSound\("notification",incoming.messageId\)/);
+  assert.match(provider,/playUnionWhatsAppSound\("conversation",messageId\)/);
+  assert.match(provider,/openConversationsRef.current.has\(id\)/);
+  assert.equal((provider.match(/supabase.channel\(/g)||[]).length,1);
+});
