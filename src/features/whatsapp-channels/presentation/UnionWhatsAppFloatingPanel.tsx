@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { WhatsAppContactAvatar, waitingClasses, waitingLabel, waitingMinutes } from "./WhatsAppInboxVisuals";
 import { ChevronDown, ChevronUp, CornerDownRight, ExternalLink, GripHorizontal, X } from "lucide-react";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
+import { useFloatingToolbarClearance } from "@/shared/ui/admin/useFloatingToolbarClearance";
 import type { UnionWhatsAppConversation, UnionWhatsAppConversationCounts } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Filter="in_att"|"waiting";
@@ -13,13 +14,13 @@ export type FloatingWhatsAppAlert={id:string;messageId:string;name:string;previe
 
 const EDGE=12;
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(value,Math.max(min,max)));
-function dimensions(node:HTMLElement){
+function dimensions(node:HTMLElement,toolbarClearance=0){
   const rect=node.getBoundingClientRect();
   return {maxX:Math.max(EDGE,window.innerWidth-rect.width-EDGE),
-    maxY:Math.max(EDGE,window.innerHeight-rect.height-EDGE)};
+    maxY:Math.max(EDGE,window.innerHeight-rect.height-Math.max(EDGE,toolbarClearance))};
 }
-function positionForDock(dock:Dock,node:HTMLElement):Point{
-  const {maxX,maxY}=dimensions(node);
+function positionForDock(dock:Dock,node:HTMLElement,toolbarClearance=0):Point{
+  const {maxX,maxY}=dimensions(node,toolbarClearance);
   const x=EDGE+(maxX-EDGE)*dock.progress;
   const y=EDGE+(maxY-EDGE)*dock.progress;
   if(dock.side==="left")return {x:EDGE,y};
@@ -27,8 +28,8 @@ function positionForDock(dock:Dock,node:HTMLElement):Point{
   if(dock.side==="top")return {x,y:EDGE};
   return {x,y:maxY};
 }
-function snapToEdge(point:Point,node:HTMLElement):{point:Point;dock:Dock}{
-  const {maxX,maxY}=dimensions(node);
+function snapToEdge(point:Point,node:HTMLElement,toolbarClearance=0):{point:Point;dock:Dock}{
+  const {maxX,maxY}=dimensions(node,toolbarClearance);
   const x=clamp(point.x,EDGE,maxX),y=clamp(point.y,EDGE,maxY);
   const side=([
     {side:"left" as const,distance:x-EDGE},
@@ -40,7 +41,7 @@ function snapToEdge(point:Point,node:HTMLElement):{point:Point;dock:Dock}{
   const progress=clamp(horizontal?(maxX-EDGE<24?1:(x-EDGE)/(maxX-EDGE))
     :(maxY-EDGE<24?1:(y-EDGE)/(maxY-EDGE)),0,1);
   const dock={side,progress};
-  return {point:positionForDock(dock,node),dock};
+  return {point:positionForDock(dock,node,toolbarClearance),dock};
 }
 function previewDate(value:string|null){
   if(!value)return "";
@@ -78,6 +79,7 @@ export function UnionWhatsAppFloatingPanel({
     return()=>window.clearInterval(interval);
   },[expanded]);
   const nodeRef=useRef<HTMLElement|null>(null);
+  const toolbarClearance=useFloatingToolbarClearance(nodeRef,position,expanded);
   const whatsappIconRef=useRef<HTMLSpanElement|null>(null);
   const alertRef=useRef<HTMLDivElement|null>(null);
   const [alertGeometry,setAlertGeometry]=useState<AlertGeometry|null>(null);
@@ -92,7 +94,7 @@ export function UnionWhatsAppFloatingPanel({
       cancelAnimationFrame(frame);
       frame=requestAnimationFrame(()=>{
         if(!dockRef.current)return;
-        const next=positionForDock(dockRef.current,node);
+        const next=positionForDock(dockRef.current,node,toolbarClearance);
         setPosition(previous=>previous?.x===next.x&&previous.y===next.y?previous:next);
       });
     };
@@ -100,7 +102,7 @@ export function UnionWhatsAppFloatingPanel({
     observer?.observe(node);
     window.addEventListener("resize",update);
     return()=>{observer?.disconnect();window.removeEventListener("resize",update);cancelAnimationFrame(frame);};
-  },[]);
+  },[toolbarClearance]);
   const reset=()=>{dockRef.current=null;setPosition(null);};
   const pointerDown=(event:PointerEvent<HTMLDivElement>)=>{
     if(event.button!==0 || !nodeRef.current)return;
@@ -117,7 +119,7 @@ export function UnionWhatsAppFloatingPanel({
     if(!drag.moved&&Math.abs(dx)+Math.abs(dy)<4)return;
     if(!drag.moved)dockRef.current=null;
     drag.moved=true;
-    const {maxX,maxY}=dimensions(node);
+    const {maxX,maxY}=dimensions(node,toolbarClearance);
     setPosition({x:clamp(drag.x+dx,EDGE,maxX),y:clamp(drag.y+dy,EDGE,maxY)});
   };
   const pointerUp=(event:PointerEvent<HTMLDivElement>)=>{
@@ -127,7 +129,7 @@ export function UnionWhatsAppFloatingPanel({
       event.currentTarget.releasePointerCapture(event.pointerId);
     if(!drag?.moved||!nodeRef.current)return;
     const result=snapToEdge({x:drag.x+event.clientX-drag.clientX,
-      y:drag.y+event.clientY-drag.clientY},nodeRef.current);
+      y:drag.y+event.clientY-drag.clientY},nodeRef.current,toolbarClearance);
     dockRef.current=result.dock;
     setPosition(result.point);
   };
@@ -138,7 +140,7 @@ export function UnionWhatsAppFloatingPanel({
     const node=nodeRef.current;
     if(!node)return;
     const rect=node.getBoundingClientRect(),delta=event.shiftKey?40:16;
-    const {maxX,maxY}=dimensions(node);
+    const {maxX,maxY}=dimensions(node,toolbarClearance);
     dockRef.current=null;
     setPosition({
       x:clamp(rect.left+(event.key==="ArrowLeft"?-delta:event.key==="ArrowRight"?delta:0),EDGE,maxX),
@@ -146,8 +148,11 @@ export function UnionWhatsAppFloatingPanel({
     });
   };
   const style:CSSProperties=position
-    ? {left:position.x,top:position.y,right:"auto",bottom:"auto"}
-    : {right:16,bottom:"calc(1rem + env(safe-area-inset-bottom,0px))"};
+    ? {left:position.x,
+       top:nodeRef.current?clamp(position.y,EDGE,dimensions(nodeRef.current,toolbarClearance).maxY):position.y,
+       right:"auto",bottom:"auto"}
+    : {right:16,bottom:toolbarClearance>0?`${toolbarClearance}px`:"calc(1rem + env(safe-area-inset-bottom,0px))"};
+  if(toolbarClearance>0)style.maxHeight=`max(140px, calc(100dvh - ${toolbarClearance+EDGE}px))`;
   const hasAlert=Boolean(alert)&&!expanded&&!hidden;
   // A notificação acompanha o ícone mesmo depois de arrastar, encaixar,
   // redimensionar ou restaurar o mini-Atendimentos. O aviso fica fora da
