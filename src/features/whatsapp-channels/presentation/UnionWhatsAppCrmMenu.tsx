@@ -187,7 +187,7 @@ export function UnionWhatsAppCrmMenu({
       <div className="flex min-w-0 items-center gap-3">
       <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
         aria-haspopup="dialog"
-        className="inline-flex max-w-full items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <ContactRound size={15} className="shrink-0 text-foreground"/>
         <span className="shrink-0">Dados do CRM</span>
         <span className="min-w-0 truncate font-normal text-muted-foreground">
