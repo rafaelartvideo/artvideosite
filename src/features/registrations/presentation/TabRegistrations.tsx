@@ -80,6 +80,7 @@ const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
   employee: "Funcionário",
   supplier: "Fornecedor",
+  partner: "Parceiro",
 };
 
 function accessFormFromResponse(access: any): EmployeeAccessFormState {
@@ -875,7 +876,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           {mobileSearchField === "role" && !platformUsersOnly
             ? <AdminSelect value={roleFilter} onValueChange={value => { setRoleFilter(value as "all" | RegistrationRole); setPage(1); }}
                 ariaLabel="Filtrar por vínculo" className="h-[42px] w-full min-w-0 text-sm"
-                options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+                options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }, { value: "partner", label: "Parceiros" }]} />
             : mobileSearchField === "status"
               ? <AdminSelect value={statusFilter} onValueChange={value => { setStatusFilter(value as "all" | "active" | "inactive"); setPage(1); }}
                   ariaLabel="Filtrar por status" className="h-[42px] w-full min-w-0 text-sm"
@@ -908,7 +909,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           <AdminSearchTextField label="CPF/CNPJ" id="registrations-document" value={documentSearch} onChange={setDocumentSearch} placeholder="CPF ou CNPJ" inputMode="numeric" />
           {!platformUsersOnly && <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vínculo</label>
-            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }, { value: "partner", label: "Parceiros" }]} />
           </div>}
           <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Status</label>
