@@ -1996,9 +1996,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </AdminButton>
           </div>}
       </div>
-    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-250px)] min-h-[360px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:mx-0 md:h-[min(76vh,850px)] md:min-h-[520px]"}>
-      <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1"}>
-        <aside className={`${embedded ? "hidden" : selectedId ? "hidden md:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r`}>
+    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-250px)] min-h-[360px] overflow-hidden rounded-none border border-border bg-card shadow-sm lg:mx-0 lg:h-[min(76vh,850px)] lg:min-h-[520px]"}>
+      <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
+        <aside className={`${embedded ? "hidden" : selectedId ? "hidden lg:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card lg:border-b-0 lg:border-r`}>
           <div className="border-b border-border bg-muted/35 p-2.5 md:p-3">
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
               <p className="text-base font-black text-foreground">Conversas</p>
@@ -2104,7 +2104,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain md:static md:inset-auto md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
+        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:static lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:flex"} min-h-0 min-w-0 flex-col bg-card`}>
           {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
@@ -2124,12 +2124,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <LoadingDots />
             </div>}
           </div> : <>
-            <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
+            <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 lg:min-h-16 lg:flex-nowrap lg:gap-3 lg:px-4 lg:py-0">
               <button type="button" onClick={()=>{
                   if (embedded) { onBack(); return; }
                   setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);
                 }} aria-label={embedded ? "Fechar conversa" : "Voltar para conversas"}
-                className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"><ChevronLeft size={25}/></button>
+                className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted lg:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
                 src={avatars[selected.id]} onError={()=>{avatarCheckedAtRef.current.set(selected.id,Date.now());setAvatars(old=>rememberVisibleAvatar(old,selected.id,null));}}/>
               <div className="min-w-0 flex-1">
@@ -2153,7 +2153,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
-                  (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
+                  (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:border-t-0 lg:py-0 whitespace-nowrap [&>button]:shrink-0">
                 {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <button type="button"
                   title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
@@ -2180,7 +2180,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
                     onClick={()=>void showOrders()} disabled={savingOrder}
-                    className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
+                    className="shrink-0 whitespace-nowrap rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
                   
                   {canAction("transfer") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
