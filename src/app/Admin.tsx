@@ -17,6 +17,7 @@ import { OrdersWorkspaceSkeleton } from "@/features/orders/presentation/OrdersSk
 import { AdminDialog, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import type { UnionPbxSection } from "@/features/telephony/presentation/UnionPbxSectionTabs";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
+import { UnionWhatsAppActivityProvider } from "@/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
@@ -528,6 +529,13 @@ export function AdminDashboard({
   />;
 
   return <AdminPageContext.Provider value={{ page, setPage }}>
+    {/* Atendimentos mantém apenas eventos leves entre rotas, como o mini-PABX. */}
+    <UnionWhatsAppActivityProvider
+      key={(user?.id || "anon")+":"+(activeOrganizationId || "none")}
+      enabled={canAccessWhatsAppTool}
+      isPageOpen={activeTab === "tools" && route.resourceId === "union-whatsapp"}
+      onOpenFull={() => navigateAdmin("tools", "union-whatsapp")}
+    >
     <AdminLayout sidebar={sidebar} mobileSidebarOpen={sidebarOpen} onCloseMobileSidebar={() => setSidebarOpen(false)} header={<AdminHeader
       page={page}
       sidebarOpen={sidebarOpen}
@@ -691,5 +699,6 @@ export function AdminDashboard({
       <TermsAcceptanceGate initialPending={pendingTerms} />
       <CompanySegmentsOnboardingGate hasPendingTerms={pendingTerms.length > 0} />
     </AdminLayout>
+    </UnionWhatsAppActivityProvider>
     </AdminPageContext.Provider>;
 }
