@@ -1278,3 +1278,17 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   white-space: normal;
   text-overflow: clip;
 }
+
+
+/* Tablets com interface touch devem usar a mesma busca em duas etapas do
+   celular: seletor acima, campo abaixo. Os painéis administrativos reutilizam
+   AdminMobileSearchSwitch seguido pela grade de filtros para desktop. Isso
+   evita que o breakpoint md (768px) mostre ambas as versões no tablet. */
+@media (hover: none) and (pointer: coarse) {
+  .admin-crm .admin-search-panel-content > .admin-mobile-search-switch {
+    display: block !important;
+  }
+  .admin-crm .admin-search-panel-content > .admin-mobile-search-switch + div[class*="hidden"] {
+    display: none !important;
+  }
+}
