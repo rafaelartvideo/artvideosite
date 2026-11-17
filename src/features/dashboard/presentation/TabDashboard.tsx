@@ -257,7 +257,7 @@ function registrationRoleLabel(registration: DashboardRegistration) {
 
 function MetricGrid({ metrics, onSelect }: { metrics: Metric[]; onSelect: (metric: Metric) => void }) {
   return (
-    <div className={cn("grid w-full max-w-[1420px] gap-3", metrics.length >= 5 ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "grid-cols-2 md:grid-cols-4")}>
+    <div className={cn("grid w-full gap-3", metrics.length >= 5 ? "max-w-[1420px] grid-cols-2 md:grid-cols-3 xl:grid-cols-6" : "max-w-[1140px] grid-cols-2 md:grid-cols-4")}>
       {metrics.map(metric => <DashboardMetricCard key={metric.label} {...metric} onClick={() => onSelect(metric)} />)}
     </div>
   );
