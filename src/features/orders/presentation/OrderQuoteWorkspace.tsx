@@ -45,7 +45,7 @@ const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
 const ACTION_SUCCESS: Record<QuoteAction,string> = {
   submit: "Orçamento enviado para aprovação. A proposta permanece aguardando uma decisão.",
   approve: "Orçamento aprovado. Os serviços existentes foram preservados e vinculados à proposta, sem duplicação.",
-  reject: "Orçamento rejeitado. O motivo ficou registrado e a negociação poderá ser reaberta.",
+  reject: "Orçamento rejeitado e registrado em Financeiro > Perdas. Renegocie ou finalize a devolução após entregar o equipamento.",
   renegotiate: "Negociação reaberta. Uma nova versão da proposta está pronta para edição.",
   reopen: "Orçamento reaberto com justificativa no histórico. Atualize os itens e envie novamente para aprovação.",
 };
