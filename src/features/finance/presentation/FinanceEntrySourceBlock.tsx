@@ -14,6 +14,35 @@ export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: F
 
   const source = (detail.source_details || {}) as Record<string, any>;
 
+  if (detail.origin_type === "service_order" && source.billing_model === "partner_warranty") {
+    return <AdminCard>
+      <AdminCardHeader>
+        <div className="flex items-center gap-2">
+          {showIcon && <Wrench size={17} className="text-primary"/>}
+          <div>
+            <h3 className="text-sm font-bold text-foreground">Garantia de fabricante · Contas a Receber</h3>
+            <p className="text-xs text-muted-foreground">Cobrança ao parceiro, sem cobrança ao cliente</p>
+          </div>
+        </div>
+      </AdminCardHeader>
+      <AdminCardContent>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Value label="Ordem de serviço" value={source.os_number
+            ? <FinanceServiceOrderLink orderId={detail.origin_reference} number={source.os_number}/>
+            : "—"}/>
+          <Value label="Tipo de atendimento" value={source.service_type_name||"Garantia"}/>
+          <Value label="Fabricante / parceiro" value={detail.counterpart_name_snapshot||"Não identificado"}/>
+          <Value label="Valor cobrado do cliente" value={formatCurrency(0)}/>
+          <Value label="Valor a receber do parceiro" value={<span className="font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(detail.original_amount)}</span>}/>
+          {source.notes&&<Value label="Observações" value={String(source.notes)}/>}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          O recebimento é registrado apenas quando a parcela for baixada no Financeiro.
+        </p>
+      </AdminCardContent>
+    </AdminCard>;
+  }
+
   if (detail.origin_type === "service_order") {
     const serviceNames = Array.isArray(source.service_names)
       ? source.service_names.filter((name: unknown): name is string => typeof name === "string" && Boolean(name.trim()))
