@@ -262,7 +262,8 @@ test("Mini-Atendimentos mantém o canto inferior, a altura e a lista em cache ao
   const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
   const panel=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
   const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
-  assert.match(panel,/bottom:"calc\(1rem \+ env\(safe-area-inset-bottom,0px\)\)"/);
+  assert.match(panel,/bottom:toolbarClearance>0\?/);
+  assert.match(panel,/calc\(1rem \+ env\(safe-area-inset-bottom,0px\)\)/);
   assert.match(panel,/h-\[min\(555px,calc\(100dvh-2rem\)\)\]/);
   assert.match(panel,/aria-label="Carregando conversas"/);
   assert.match(panel,/Array\.from\(\{length:6\}/);
