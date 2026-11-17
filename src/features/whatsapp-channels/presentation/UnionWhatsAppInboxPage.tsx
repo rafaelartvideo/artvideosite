@@ -29,7 +29,7 @@ import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation,
-  operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
+  operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
@@ -425,13 +425,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [replyTarget,setReplyTarget] = useState<UnionWhatsAppMessage|null>(null);
   const swipeReplyRef=useRef<{id:string;x:number;y:number}|null>(null);
   const [highlightQuotedId,setHighlightQuotedId]=useState<string|null>(null);
-  useEffect(()=>{setReplyTarget(null);setHighlightQuotedId(null);},[selectedId]);
+  useEffect(()=>{
+    setReplyTarget(null);setHighlightQuotedId(null);
+    setDraftingFinished(false);setFinishedFirstMessage("");setFinishedStartError("");
+  },[selectedId]);
   useEffect(()=>{
     if(!highlightQuotedId)return;
     const timeout=window.setTimeout(()=>setHighlightQuotedId(null),1700);
     return()=>window.clearTimeout(timeout);
   },[highlightQuotedId]);
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
+  const [draftingFinished,setDraftingFinished] = useState(false);
+  const [finishedFirstMessage,setFinishedFirstMessage] = useState("");
+  const [finishedStartError,setFinishedStartError] = useState("");
+  const [sendingFinishedMessage,setSendingFinishedMessage] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [actionPanel, setActionPanel] = useState<"actions"|"quick"|"documents"|null>(null);
   const [quickReplies,setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
@@ -1561,27 +1568,41 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   };
 
-  // Uma conversa continua unica: iniciar apos finalizar abre outro protocolo.
-  const startNewProtocol = async () => {
+  // Abertura em rascunho: um protocolo finalizado só é reaberto após o
+  // operador solicitar explicitamente o envio da primeira mensagem.
+  const startNewProtocol = () => {
+    if(!embedded || !selected || selected.status!=="finished" ||
+       !selected.contact_phone || !canAction("start") || sendingFinishedMessage)return;
+    setDraftingFinished(true);
+    setFinishedStartError("");
+  };
+  const sendFinishedFirstMessage = async () => {
     if(!embedded || !selected || selected.status!=="finished" ||
        !selected.contact_phone || !activeOrganizationId || !activeChannelId ||
-       !activeChannelPhone || !canAction("start") || runningAction)return;
-    setRunningAction("start");
+       !activeChannelPhone || !canAction("start") || sendingFinishedMessage ||
+       !finishedFirstMessage.trim())return;
+    setSendingFinishedMessage(true);
+    setFinishedStartError("");
     try {
-      await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"start",{
-        phone:selected.contact_phone,contact_name:selected.contact_name,
-      });
+      const conversationId=await startUnionWhatsAppWithFirstMessage(
+        activeOrganizationId,selected.contact_phone,selected.contact_name,finishedFirstMessage,
+      );
+      if(conversationId!==selected.id)
+        throw new Error("A identidade da conversa mudou. Atualize o atendimento.");
       const updated=await getUnionWhatsAppConversation(
         activeOrganizationId,selected.id,activeChannelId,activeChannelPhone);
       if(!updated || updated.status!=="in_att")
-        throw new Error("Não foi possível confirmar a abertura do novo protocolo.");
+        throw new Error("Não foi possível confirmar a conversa depois do envio.");
       setSelectedFallback(updated);
       setConversations(current=>current.map(item=>item.id===updated.id?updated:item));
       setProtocolFilter(null);
       setFilter("in_att");
+      setDraftingFinished(false);
+      setFinishedFirstMessage("");
+      void refreshMessages(selected.id,true);
     }catch(reason){
-      reportError(systemErrorMessage(reason,"Não foi possível iniciar o novo protocolo."));
-    }finally{setRunningAction(null);}
+      setFinishedStartError(systemErrorMessage(reason,"Não foi possível enviar a mensagem."));
+    }finally{setSendingFinishedMessage(false);}
   };
 
   useEffect(()=>{
@@ -2406,11 +2427,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
                    </AdminButton>}
                 </>}
-                {embedded && !protocolFilter && selected.status === "finished" && canAction("start") && selected.contact_phone &&
-                  <AdminButton size="sm" disabled={Boolean(runningAction)} loading={runningAction==="start"}
-                    onClick={() => void startNewProtocol()}>
-                    {runningAction==="start" ? "Iniciando conversa..." : "Iniciar conversa"}
-                  </AdminButton>}
+                {embedded && !protocolFilter && selected.status === "finished" && canAction("start") && selected.contact_phone && !draftingFinished &&
+                  <AdminButton size="sm" disabled={Boolean(runningAction)}
+                    onClick={startNewProtocol}>Iniciar conversa</AdminButton>}
                 {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>}
@@ -2728,7 +2747,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <Send size={22}/>
                   </button>
                 </form>
-              </div> : <p className="py-2 text-center text-xs text-muted-foreground">
+              </div> : embedded && selected.status==="finished" && draftingFinished ? <form
+                className="mx-auto max-w-4xl space-y-2" onSubmit={event=>{event.preventDefault();void sendFinishedFirstMessage();}}>
+                <textarea value={finishedFirstMessage} onChange={event=>setFinishedFirstMessage(event.target.value)}
+                  rows={2} maxLength={4000} autoFocus
+                  placeholder="Escreva a primeira mensagem para iniciar uma nova conversa..."
+                  className="w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"/>
+                {finishedStartError && <p role="alert" className="text-xs text-destructive">{finishedStartError}</p>}
+                <div className="flex justify-end gap-2">
+                  <AdminButton variant="secondary" size="sm" disabled={sendingFinishedMessage}
+                    onClick={()=>{setDraftingFinished(false);setFinishedFirstMessage("");setFinishedStartError("");}}>Cancelar</AdminButton>
+                  <AdminButton size="sm" disabled={sendingFinishedMessage||!finishedFirstMessage.trim()}
+                    loading={sendingFinishedMessage} onClick={()=>void sendFinishedFirstMessage()}>
+                    {sendingFinishedMessage?"Enviando...":"Enviar mensagem"}
+                  </AdminButton>
+                </div>
+              </form> : <p className="py-2 text-center text-xs text-muted-foreground">
                 {selected.status === "waiting" ? "Assuma o atendimento para responder." :
                   selected.status === "finished" ? (embedded ? "Histórico completo. Inicie uma conversa para responder." : "Atendimento finalizado. Reabra para responder.") :
                   "Esta conversa está atribuída a outro atendente."}
