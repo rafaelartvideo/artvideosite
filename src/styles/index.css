@@ -463,6 +463,19 @@ html[data-admin-theme="dark"] {
 	border-top-color: var(--primary-light) !important;
 }
 
+/* Mini-PABX e mini-Atendimentos: o mesmo contorno azul das toolbars
+ * fixas, envolvendo toda a janela e adaptado ao tema escuro. */
+.admin-crm[data-admin-floating-panel="true"] {
+	border-width: 1px;
+	border-style: solid;
+	border-color: var(--primary) !important;
+}
+
+.admin-crm.dark[data-admin-floating-panel="true"],
+.dark .admin-crm[data-admin-floating-panel="true"] {
+	border-color: var(--primary-light) !important;
+}
+
 .admin-crm button[class*="rounded-"] {
 	background-clip: padding-box;
 }
