@@ -421,7 +421,7 @@ test("Avatar compartilhado evita spinner infinito e utiliza a mesma foto nos qua
   for(const view of [inbox,contacts,mini,edit])assert.match(view,/identity=\{\{/);
   assert.match(inbox,/fetchSharedAvatar\(\{/);
   assert.match(contacts,/fetchSharedAvatar\(\{/);
-  assert.match(edge,/select\("id,gender,document,cnpj,phone,whatsapp,email"\)/);
+  assert.match(edge,/select\("id,gender,document,cnpj,phone,whatsapp,email,addresses:customer_addresses/);
   assert.match(edge,/customer_type,gender,document/);
 });
 
