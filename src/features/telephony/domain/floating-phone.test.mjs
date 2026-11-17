@@ -83,7 +83,7 @@ test("mini-PABX snaps to viewport edges, supports keyboard reposition and limits
   const floating=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
   assert.match(floating,/const MARGIN = 12/);
   assert.match(floating,/const DEFAULT_MARGIN = 20/);
-  assert.match(floating,/snapToEdge\(point,nodeRef\.current\)/);
+  assert.match(floating,/snapToEdge\(point,nodeRef\.current,toolbarClearance\)/);
   assert.match(floating,/window\.innerWidth/);
   assert.match(floating,/window\.innerHeight/);
   assert.match(floating,/event\.key==="Home"/);
@@ -98,7 +98,7 @@ test("mini-PABX stays docked and within viewport after dial mode changes resize 
   const phone=read(phonePath);
   assert.match(floating,/new ResizeObserver\(update\)/);
   assert.match(floating,/observer\?\.observe\(node\)/);
-  assert.match(floating,/positionForDock\(dock,node\)/);
+  assert.match(floating,/positionForDock\(dock,node,toolbarClearance\)/);
   assert.match(floating,/dockRef\.current=snapped\.dock/);
   assert.match(floating,/w-\[min\(430px,calc\(100vw-1\.5rem\)\)\]/);
   assert.match(floating,/w-\[min\(370px,calc\(100vw-1\.5rem\)\)\]/);
@@ -148,4 +148,32 @@ test("Mini-PABX e mini-Atendimentos usam a mesma borda de destaque da toolbar fi
   assert.match(css,/\.dark \.admin-crm\[data-admin-floating-panel="true"\]/);
   assert.match(css,/border-color: var\(--primary-light\) !important/);
   assert.match(css,/\[data-admin-sticky-toolbar="true"\]/);
+});
+
+test("Mini-PABX e mini-Atendimentos sobem automaticamente acima de toolbars visiveis",()=>{
+  const pbx=read("src/features/telephony/presentation/UnionPbxFloatingPhone.tsx");
+  const wa=read("src/features/whatsapp-channels/presentation/UnionWhatsAppFloatingPanel.tsx");
+  const hook=read("src/shared/ui/admin/useFloatingToolbarClearance.ts");
+  const toolbar=read("src/shared/ui/admin/AdminLayout.tsx");
+  assert.match(toolbar,/data-admin-sticky-toolbar="true"/);
+  assert.match(hook,/measureFloatingToolbarClearance/);
+  assert.match(hook,/\[data-admin-sticky-toolbar="true"\]/);
+  assert.match(hook,/getBoundingClientRect\(\)/);
+  assert.match(hook,/style\.position !== "sticky" && style\.position !== "fixed"/);
+  assert.match(hook,/document\.querySelectorAll<HTMLElement>\(TOOLBAR_SELECTOR\)/);
+  assert.match(hook,/window\.addEventListener\("scroll", schedule, true\)/);
+  assert.match(hook,/new MutationObserver\(/);
+  assert.match(hook,/new ResizeObserver\(/);
+  assert.match(hook,/Math\.ceil\(viewportHeight - box\.top \+ TOOLBAR_GAP\)/);
+  for(const panel of [pbx,wa]){
+    assert.match(panel,/useFloatingToolbarClearance\(nodeRef,position,expanded\)/);
+    assert.match(panel,/Math\.max\(.*toolbarClearance\)/);
+    assert.match(panel,/style\.maxHeight=/);
+    assert.match(panel,/\},\[toolbarClearance\]\)/);
+    assert.match(panel,/bottom:/);
+  }
+  // O modo sem toolbar mantém a posição original e os movimentos manuais.
+  assert.match(pbx,/Math\.max\(DEFAULT_MARGIN,toolbarClearance\)/);
+  assert.match(wa,/toolbarClearance>0/);
+  assert.match(wa,/safe-area-inset-bottom/);
 });
