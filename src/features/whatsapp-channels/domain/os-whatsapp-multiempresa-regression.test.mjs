@@ -476,7 +476,7 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.match(recipientLookup,/const seen=new Set<string>\(\)/,
     "A lista de destinatários precisa remover números repetidos");
   assert.match(modal,/WhatsAppContactAvatar/);
-  assert.match(modal,/>Vinculado</);
+  assert.match(modal,/recipient\.kind==="linked" \? "Vinculado" : "Cadastro"/);
   assert.match(modal,/Trocar número/);
   assert.match(modal,/order_recipients/);
   assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
@@ -1032,4 +1032,35 @@ test("CRM WhatsApp verification persists by organization and number without rech
   assert.match(detail,/VerifiedWhatsAppPhoneInput verificationMode="edit"/);
   assert.match(migration,/enable row level security/);
   assert.match(migration,/revoke all on public\.union_whatsapp_crm_number_verifications from anon,authenticated/);
+});
+
+
+test("OS usa somente o cabeçalho da conversa e mostra Trocar número apenas para múltiplos destinos",()=>{
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(modal,/if\(recipients\.length>1\)set\(\{status:"choosing",recipients\}\)/);
+  assert.match(modal,/else if\(recipients\.length===1\)void chooseOrderRecipient\(recipients\[0\]\)/);
+  assert.doesNotMatch(modal,/\{source\.kind==="order" && chosenRecipient && <div className="flex shrink-0 items-center gap-3/);
+  assert.match(modal,/onChangeRecipient=\{source\.kind==="order" && orderRecipients\.length>1/);
+  assert.match(inbox,/\{embedded && onChangeRecipient && <AdminButton variant="secondary"/);
+  assert.match(inbox,/title="Escolher outro número desta OS"/);
+});
+
+test("nome editado na Union precede CRM e WhatsApp em contatos e conversas",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const sql=read("supabase/migrations/20261118185000_union_whatsapp_crm_name_priority.sql");
+  assert.match(edge,/if\(action==="contact_names_batch"\)/);
+  assert.match(edge,/const names=await crmNamesFor\(visible\.map\(row=>row\.contact_phone\)\)/);
+  assert.match(edge,/const finalName=String\(known\?\.display_name \|\|/);
+  assert.match(edge,/names\.get\(contactPhoneKey\(row\.contact_phone\)\)/);
+  assert.match(edge,/crm_name:crm\.get\(contactPhoneKey\(row\.contact_phone\)\)/);
+  assert.match(contacts,/contact\.display_name \|\| contact\.crm_name \|\| contact\.device_name/);
+  assert.match(inbox,/"contact_names_batch"/);
+  assert.match(inbox,/contactNameCacheRef/);
+  assert.match(edge,/const preferredName=knownContact\?\.display_name \|\| crmName \|\| customerName/);
+  assert.doesNotMatch(edge,/persistManualName/);
+  assert.match(edge,/const authoritative=String\(known\?\.display_name \|\| crmName/);
+  assert.match(sql,/having count\(distinct b\.id\)=1/);
+  assert.match(sql,/revoke all on function public\.union_whatsapp_crm_names_batch/);
 });
