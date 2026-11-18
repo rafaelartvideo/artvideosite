@@ -369,6 +369,7 @@ export async function operateUnionWhatsAppInbox(
  */
 export async function startUnionWhatsAppWithFirstMessage(
   organizationId:string,phone:string,contactName:string,message:string,
+  clientMessageId:string=crypto.randomUUID(),
 ):Promise<string>{
   const text=message.trim();
   if(!text)throw new Error("Digite a primeira mensagem antes de iniciar o atendimento.");
@@ -376,7 +377,7 @@ export async function startUnionWhatsAppWithFirstMessage(
   // start + envio são tratados como uma única intenção no backend.
   // A ponte confirma a mensagem antes da criação/reabertura do protocolo.
   const sent=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"start",{
-    phone,contact_name:contactName,first_message:text,client_message_id:crypto.randomUUID(),
+    phone,contact_name:contactName,first_message:text,client_message_id:clientMessageId,
   });
   if(!sent.conversation_id || !sent.first_message_sent)
     throw new Error("Não foi possível confirmar o envio da primeira mensagem.");

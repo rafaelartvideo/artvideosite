@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Plus } from "lucide-react";
+import { WhatsAppDraftConversation } from "./WhatsAppDraftConversation";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useAuth } from "@/lib/auth";
@@ -82,11 +83,11 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
   const [orderRecipients,setOrderRecipients] = useState<Recipient[]>([]);
   const [chosenRecipient,setChosenRecipient] = useState<Recipient|null>(null);
   const [starting, setStarting] = useState(false);
-  const [drafting, setDrafting] = useState(false);
-  const [firstMessage, setFirstMessage] = useState("");
   const [embeddedReady, setEmbeddedReady] = useState(false);
   const [startError, setStartError] = useState("");
   const startGateRef = useRef(false);
+  // Retain the idempotency key across a retry of the same first message.
+  const firstSendIdRef = useRef<{ key: string; id: string } | null>(null);
   const [newOrder, setNewOrder] = useState<{ customerId: string | null; key: string } | null>(null);
   const [preparingNewOrder, setPreparingNewOrder] = useState(false);
   const newOrderGateRef = useRef(false);
@@ -127,8 +128,7 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     setChosenRecipient(null);
     setEmbeddedReady(false);
     setStartError("");
-    setDrafting(false);
-    setFirstMessage("");
+    firstSendIdRef.current = null;
 
     if (organizationId !== activeOrganizationId || !canViewInbox) {
       set({ status: "unauthorized", message: "Você não possui acesso aos atendimentos WhatsApp desta empresa." });
@@ -228,33 +228,27 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     }
   };
 
-  const startConversation = () => {
-    // Abrir o rascunho nunca dispara "start" nem cria um protocolo.
-    if (source.kind==="conversation" || state.status!=="empty" || !state.canStart)return;
-    setDrafting(true);
-    setStartError("");
-  };
-
-  const sendFirstMessage = async () => {
+  const sendFirstMessage = async (message: string) => {
+    // Opening the draft never writes a conversation. Only an explicit send does.
     if (source.kind==="conversation" || startGateRef.current || state.status!=="empty" ||
-        !state.canStart || !drafting || !firstMessage.trim() ||
+        !state.canStart || !message.trim() || message.length>3900 ||
         organizationId!==activeOrganizationId || !canViewInbox)return;
-    const number=phoneCandidates(state.phone||phone)[0];
+    const number=phoneCandidates(state.phone||chosenRecipient?.phone||phone)[0];
     if(!number)return;
+    const key=number+":"+message;
+    if(firstSendIdRef.current?.key!==key)
+      firstSendIdRef.current={key,id:crypto.randomUUID()};
     startGateRef.current=true;
     setStarting(true);
     setStartError("");
     try {
-      const verified=await operateUnionWhatsAppInbox(
-        organizationId,crypto.randomUUID(),"check_number",{phone:number},
-      );
-      if(!verified.phone || !/^55[1-9]\\d{9,10}$/.test(verified.phone))
-        throw new Error("O número não foi confirmado pelo WhatsApp.");
+      // The server's "start" action already checks WuzAPI, and only creates
+      // an attendance/protocol after it confirms the first message delivery.
       const conversationId=await startUnionWhatsAppWithFirstMessage(
-        organizationId,verified.phone,(state.contactName||customerName).trim(),firstMessage,
+        organizationId,number,(state.contactName||chosenRecipient?.name||customerName).trim(),
+        message,firstSendIdRef.current.id,
       );
-      setFirstMessage("");
-      setDrafting(false);
+      firstSendIdRef.current=null;
       setEmbeddedReady(false);
       setState({status:"ready",conversationId});
     }catch(reason){
@@ -359,25 +353,19 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
         </Suspense>
         </div>
       </div>
-    </div> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <WhatsAppBrandIcon size={42} className="text-[#25D366]" />
+    </div> : state.status === "empty" && state.canStart ? <WhatsAppDraftConversation
+      organizationId={organizationId}
+      phone={state.phone || chosenRecipient?.phone || phone}
+      name={state.contactName || chosenRecipient?.name || customerName}
+      starting={starting}
+      error={startError}
+      onEditMessage={()=>setStartError("")}
+      onSend={sendFirstMessage}
+      onChangeRecipient={source.kind==="order" && orderRecipients.length>1
+        ? ()=>{firstSendIdRef.current=null;setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}
+        : undefined}
+    /> : <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <p className="max-w-md text-sm text-muted-foreground">{state.message}</p>
-      {state.status === "empty" && state.canStart && !drafting && <AdminButton
-        disabled={starting} onClick={startConversation}>Iniciar conversa</AdminButton>}
-      {state.status === "empty" && state.canStart && drafting && <form
-        className="w-full max-w-xl space-y-3 text-left" onSubmit={event=>{event.preventDefault();void sendFirstMessage();}}>
-        <label className="block text-sm font-semibold text-foreground" htmlFor="whatsapp-first-message">Primeira mensagem</label>
-        <textarea id="whatsapp-first-message" value={firstMessage}
-          onChange={event=>setFirstMessage(event.target.value)} rows={4} maxLength={4000}
-          autoFocus placeholder="Escreva sua mensagem antes de iniciar o atendimento..."
-          className="w-full resize-y rounded-lg border border-border bg-card p-3 text-sm text-foreground outline-none focus:border-primary"/>
-        <div className="flex items-center justify-end gap-2">
-          <AdminButton variant="secondary" size="sm" disabled={starting} onClick={()=>{setDrafting(false);setFirstMessage("");setStartError("");}}>Cancelar</AdminButton>
-          <AdminButton size="sm" disabled={starting||!firstMessage.trim()} loading={starting} onClick={()=>void sendFirstMessage()}>
-            {starting?"Enviando...":"Enviar mensagem"}
-          </AdminButton>
-        </div>
-      </form>}
       {source.kind==="order" && orderRecipients.length>0 && state.status==="error" && <AdminButton
         variant="secondary" size="sm" onClick={()=>setState({status:"choosing",recipients:orderRecipients})}>
         Voltar aos números

@@ -836,3 +836,24 @@ test("The activity provider leaves initial counts to the visible full inbox",()=
     assert.equal(requests,pageOpen?0:1);
   }
 });
+
+
+test("A OS abre um chat completo de rascunho e só inicia após o primeiro envio confirmado", () => {
+  const draft = read("src/features/whatsapp-channels/presentation/WhatsAppDraftConversation.tsx");
+  const repository = read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(modal, /state\.status === "empty" && state\.canStart \? <WhatsAppDraftConversation/);
+  assert.match(modal, /onSend=\{sendFirstMessage\}/);
+  assert.doesNotMatch(modal, /<label[^>]*>Primeira mensagem<\/label>|onClick=\{startConversation\}/);
+  assert.match(draft, /Nenhuma mensagem nesta conversa/);
+  assert.match(draft, /aria-label="Mensagem"/);
+  assert.match(draft, /aria-label="Selecionar emoji"/);
+  assert.match(draft, /Mensagens rápidas/);
+  assert.match(draft, /onSubmit=\{event => \{ event\.preventDefault\(\); submit\(\); \}\}/);
+  assert.match(modal, /startUnionWhatsAppWithFirstMessage\(/);
+  assert.match(modal, /const firstSendIdRef = useRef/);
+  assert.match(repository, /client_message_id:clientMessageId/);
+  const start = edge.slice(edge.indexOf('if(action==="start")'));
+  assert.match(start, /const firstMessage=typeof body\.first_message==="string"/);
+  assert.match(start, /providerId=await signedBridge/);
+  assert.match(start, /first_message_sent:true/);
+});
