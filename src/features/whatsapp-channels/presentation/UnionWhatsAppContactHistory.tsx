@@ -76,7 +76,7 @@ function ChangeCard({change}:{change:UnionWhatsAppContactChange}){
         <span className="text-[10px] text-muted-foreground">{formatWhen(change.created_at)}</span>
       </div>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
-        {change.action==="created"?"Salvo por: ":"Alterado por: "}
+        {change.action==="created"?"Cadastrado por: ":"Alterado por: "}
         <span className="font-semibold text-foreground">{change.actor_name_snapshot||"Responsável não identificado"}</span>
       </p>
       <div className="mt-2 space-y-2">
@@ -85,11 +85,11 @@ function ChangeCard({change}:{change:UnionWhatsAppContactChange}){
             <p className="mb-1 font-semibold text-foreground">{fieldLabels[key]||key}</p>
             {change.action!=="created"&&<p className="break-words text-muted-foreground">
               <span className="font-medium">Anterior: </span>{Object.prototype.hasOwnProperty.call(values||{},"before")
-                ? fieldValue(values?.before,key)
+                ? (values?.before===null||values?.before===undefined||values?.before==="" ? "Não preenchido anteriormente" : fieldValue(values.before,key))
                 : "Valor anterior não registrado neste evento"}
             </p>}
             <p className="mt-0.5 break-words text-foreground">
-              <span className="font-medium">Novo: </span>{fieldValue(values?.after,key)}
+              <span className="font-medium">{change.action==="created"?"Cadastrado: ":"Novo: "}</span>{values?.after===null?"Campo esvaziado":fieldValue(values?.after,key)}
             </p>
           </div>
         )}
