@@ -934,3 +934,29 @@ test("Read receipt advances nullable/sent/delivered rows once, including concurr
   assert.deepEqual(h.writes,["batch-0","batch-1","batch-2"],"replays and delayed delivery cannot downgrade read");
   assert.ok(h.rows.slice(4).every(row=>row.delivery_status==="sent"));
 });
+
+
+test("Verificação de WhatsApp exibe selo dentro do campo e só mostra perfil abaixo quando disponível", () => {
+  const ui = read("src/features/whatsapp-channels/presentation/WhatsAppNumberVerification.tsx");
+  const field = read("src/shared/ui/admin/AdminFormControls.tsx");
+  assert.match(ui,/export function VerifiedWhatsAppPhoneInput/);
+  assert.match(ui,/<FPhoneInput \{\.\.\.inputProps\} value=\{value\} statusAccessory=\{inlineStatus\}/);
+  assert.match(field,/rightActionWide/);
+  assert.match(field,/statusAccessory/);
+  assert.match(field,/pr-\[194px\]/);
+  assert.match(ui,/WhatsApp confirmado/);
+  assert.match(ui,/Não encontrado/);
+  assert.match(ui,/const showProfile = result\?\.kind === "registered" && Boolean\(result\.name \|\| result\.avatar\)/);
+  assert.match(ui,/\{showProfile && result\?\.kind === "registered"/);
+  assert.doesNotMatch(ui,/Número confirmado no WhatsApp<\/span>/);
+  for(const path of [
+    "src/features/orders/presentation/QuickCustomerModal.tsx",
+    "src/features/customers/presentation/CreateCustomerPage.tsx",
+    "src/features/orders/presentation/OrderCustomerSection.tsx",
+    "src/features/registrations/presentation/RegistrationEditor.tsx",
+  ]) {
+    const form = read(path);
+    assert.match(form,/<VerifiedWhatsAppPhoneInput label="WhatsApp"/);
+    assert.doesNotMatch(form,/<WhatsAppNumberVerification phone=/);
+  }
+});

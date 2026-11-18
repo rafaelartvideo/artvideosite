@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { WhatsAppNumberVerification } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
+import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
 import { Link2, MapPin, Pencil, Plus, RefreshCcw, Search } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { formatZipCode, getAddressMapUrl, type Address } from "@/lib/address";
@@ -124,10 +124,7 @@ export function OrderCustomerSection({
                   <FInput label="Fundação" disabled={saving} error={customerFieldErrors.foundation_date} value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => { clearCustomerFieldError("foundation_date"); setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) }); }} />
                 </>}
                 {customerDraft.customerType === "PF" && <FGenderRadio value={customerDraft.gender} onChange={gender => setCustomerDraft(current => ({ ...current, gender }))} disabled={saving}/>}
-                <div className="min-w-0">
-                  <FPhoneInput label="WhatsApp" mobile copyFromPhone={customerDraft.phone} onCopyPhone={phone => { clearCustomerFieldError("whatsapp"); setCustomerDraft(current => ({...current, whatsapp: phone})); }} disabled={saving} error={customerFieldErrors.whatsapp} value={customerDraft.whatsapp} onChange={(e: any) => { clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, whatsapp: e.target.value }); }} />
-                  <WhatsAppNumberVerification phone={customerDraft.whatsapp} />
-                </div>
+                  <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile copyFromPhone={customerDraft.phone} onCopyPhone={phone => { clearCustomerFieldError("whatsapp"); setCustomerDraft(current => ({...current, whatsapp: phone})); }} disabled={saving} error={customerFieldErrors.whatsapp} value={customerDraft.whatsapp} onChange={(e: any) => { clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, whatsapp: e.target.value }); }} />
                 <FPhoneInput label="Telefone" disabled={saving} copyFromWhatsapp={customerDraft.whatsapp} onCopyWhatsapp={phone => { clearCustomerFieldError("phone"); setCustomerDraft(current => ({ ...current, phone })); }} error={customerFieldErrors.phone} value={customerDraft.phone} onChange={(e: any) => { clearCustomerFieldError("phone"); clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, phone: e.target.value }); }} />
                 <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} error={customerFieldErrors.email} value={customerDraft.email} onChange={(e: any) => { clearCustomerFieldError("email"); setCustomerDraft({ ...customerDraft, email: e.target.value }); }} /></div>
               </div>

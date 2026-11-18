@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { WhatsAppNumberVerification } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
+import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router";
 import { Building2, Handshake, Users, UserRound } from "lucide-react";
@@ -149,10 +149,7 @@ export function RegistrationEditor({
           </div>
           <FInput label="Nome completo" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { onClearFieldError("name"); setForm(current => ({ ...current, name: event.target.value })); }} />
           <FPhoneInput label="Telefone" required={creating && form.roles.includes("customer")} copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { onClearFieldError("phone"); setForm(current => ({ ...current, phone })); }} error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { onClearFieldError("phone"); onClearFieldError("whatsapp"); setForm(current => ({ ...current, phone: event.target.value })); }} />
-          <div className="min-w-0">
-            <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
-            <WhatsAppNumberVerification phone={form.whatsapp} />
-          </div>
+            <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
           <FBrazilianDateInput label="Data de nascimento" required error={fieldErrors.birth_date} value={form.birth_date} onChange={(event: any) => { onClearFieldError("birth_date"); setForm(current => ({ ...current, birth_date: event.target.value })); }} />
           {!creating && <FGenderRadio value={form.gender} onChange={gender => setForm(current => ({ ...current, gender }))} disabled={!canModify}/>}
           <FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} />
@@ -170,10 +167,7 @@ export function RegistrationEditor({
           <FInput label="Inscrição estadual" value={form.state_registration} onChange={(event: any) => setForm(current => ({ ...current, state_registration: event.target.value }))} />
           <FInput label="Inscrição municipal" value={form.municipal_registration} onChange={(event: any) => setForm(current => ({ ...current, municipal_registration: event.target.value }))} />
           <FPhoneInput label="Telefone" required={creating && form.roles.includes("customer")} copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => setForm(current => ({ ...current, phone }))} value={form.phone} onChange={(event: any) => setForm(current => ({ ...current, phone: event.target.value }))} />
-          <div className="min-w-0">
-            <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => setForm(current => ({ ...current, whatsapp: phone }))} value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
-            <WhatsAppNumberVerification phone={form.whatsapp} />
-          </div>
+            <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => setForm(current => ({ ...current, whatsapp: phone }))} value={form.whatsapp} onChange={(event: any) => setForm(current => ({ ...current, whatsapp: event.target.value }))} />
           <div className="sm:col-span-2"><FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
         </div>}
         <label className="mt-4 flex items-center gap-2 text-sm font-bold text-foreground"><Checkbox checked={form.is_active} onCheckedChange={checked => setForm(current => ({ ...current, is_active: checked === true }))} /> Cadastro ativo</label>

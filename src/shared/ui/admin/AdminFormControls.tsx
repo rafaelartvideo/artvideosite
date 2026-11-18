@@ -54,7 +54,7 @@ export function AdminSelect({ value, defaultValue, onValueChange, options, disab
 
 export function FInput({ label, required, hint, error, disabled = false, ...props }: { label?: string; required?: boolean; hint?: string; error?: string; disabled?: boolean; [key: string]: any }) {
   const isColorInput = props.type === "color";
-  const { className, type, onChange, value, rightAction, ...restProps } = props;
+  const { className, type, onChange, value, rightAction, rightActionWide = false, ...restProps } = props;
   const commonClassName = cn(INPUT, disabled && "disabled:cursor-default disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65 disabled:hover:bg-muted disabled:focus:ring-0", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40", className);
   const colorText = String(value ?? "");
   const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#1032DC";
@@ -82,13 +82,13 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
         onChange={(event) => onChange?.({ target: { value: event.target.value.toUpperCase() } })}
         className="h-[42px] w-14 shrink-0 cursor-pointer rounded-lg border border-border bg-card p-1 disabled:cursor-default disabled:opacity-60"
       />
-    </div> : <div className="relative min-w-0"><input aria-invalid={Boolean(error) || undefined} className={cn(commonClassName, rightAction && "pr-12")} disabled={disabled} {...restProps} type={type} value={value} onChange={onChange} />{rightAction && <div className="absolute inset-y-0 right-1 flex items-center">{rightAction}</div>}</div>}
+    </div> : <div className="relative min-w-0"><input aria-invalid={Boolean(error) || undefined} className={cn(commonClassName, rightAction && (rightActionWide ? "pr-[194px] max-[430px]:pr-[145px]" : "pr-12"))} disabled={disabled} {...restProps} type={type} value={value} onChange={onChange} />{rightAction && <div className="absolute inset-y-0 right-1 flex items-center">{rightAction}</div>}</div>}
     {error ? <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p> : (hint || isColorInput) && <p className="mt-1 break-words text-[10px] leading-relaxed text-muted-foreground">{hint || "Digite o HEX ou clique no seletor de cor."}</p>}
   </div>;
 }
 
 export function FPhoneInput({
-  value, onChange, mobile = false, copyFromPhone, onCopyPhone, copyFromWhatsapp, onCopyWhatsapp, ...props
+  value, onChange, mobile = false, copyFromPhone, onCopyPhone, copyFromWhatsapp, onCopyWhatsapp, statusAccessory, ...props
 }: {
   value: unknown;
   onChange: (event: { target: { value: string } }) => void;
@@ -97,6 +97,7 @@ export function FPhoneInput({
   onCopyPhone?: (phone: string) => void;
   copyFromWhatsapp?: string;
   onCopyWhatsapp?: (whatsapp: string) => void;
+  statusAccessory?: React.ReactNode;
   [key: string]: any;
 }) {
   // A mesma ação funciona nos dois sentidos. No WhatsApp copiamos o telefone;
@@ -116,7 +117,8 @@ export function FPhoneInput({
     aria-label={alreadyCopied ? "Números iguais" : mobile ? "Preencher WhatsApp com o telefone" : "Preencher telefone com o WhatsApp"}
     className="inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-primary-soft disabled:cursor-default disabled:text-muted-foreground/60 disabled:hover:bg-transparent"
   >{alreadyCopied ? <Check size={16}/> : <Copy size={16}/>}</button> : undefined;
-  return <FInput {...props} rightAction={action} type="tel" inputMode="tel" autoComplete="tel" maxLength={16}
+  const rightAction = statusAccessory ? <div className="flex items-center gap-1">{statusAccessory}{action}</div> : action;
+  return <FInput {...props} rightAction={rightAction} rightActionWide={Boolean(statusAccessory)} type="tel" inputMode="tel" autoComplete="tel" maxLength={16}
     placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")}
     value={formatPhone(value as any)}
     onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({
