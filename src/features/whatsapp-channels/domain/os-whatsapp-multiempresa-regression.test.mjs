@@ -956,7 +956,7 @@ test("Verificação de WhatsApp exibe selo dentro do campo e só mostra perfil a
     "src/features/registrations/presentation/RegistrationEditor.tsx",
   ]) {
     const form = read(path);
-    assert.match(form,/<VerifiedWhatsAppPhoneInput label="WhatsApp"/);
+    assert.match(form,/<VerifiedWhatsAppPhoneInput (?:verificationMode=\{creating \? "create" : "edit"\} |verificationMode="edit" )?label="WhatsApp"/);
     assert.doesNotMatch(form,/<WhatsAppNumberVerification phone=/);
   }
 });
@@ -972,7 +972,7 @@ test("Permissões de contatos e botão Novo não bloqueiam abertura pela OS",()=
   assert.match(edge,/\? "create_contacts"/);
   assert.match(edge,/action==="start" && typeof body\.first_message!=="string"/);
   assert.match(edge,/\? "start_new_conversation" : required\[action\]/);
-  assert.match(edge,/const numberCheckAllowed=action==="check_number"/);
+  assert.match(edge,/const numberCheckAllowed=\(action==="check_number" \|\| action==="number_verification_status"\) &&/);
   assert.match(inbox,/canAction\("start_new_conversation"\) && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa"/);
   assert.match(inbox,/!canAction\("start_new_conversation"\) \|\| !contact\.contact_phone/);
   assert.match(inbox,/canCreate=\{canAction\("create_contacts"\)\}/);
