@@ -963,6 +963,7 @@ test("Verificação de WhatsApp exibe selo dentro do campo e só mostra perfil a
 
 
 test("Permissões de contatos e botão Novo não bloqueiam abertura pela OS",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
   const migration=read("supabase/migrations/20261118154500_union_whatsapp_contact_action_permissions.sql");
   assert.match(edge,/start_new_conversation:\[false,true\]/);
