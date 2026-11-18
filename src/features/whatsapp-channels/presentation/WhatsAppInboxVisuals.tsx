@@ -53,6 +53,13 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
   const sharedUrl=useSyncExternalStore(subscribe,getPhoto,()=>null);
   const knownGender=useSyncExternalStore(subscribe,getGender,()=>null);
   const [brokenUrl,setBrokenUrl]=useState<string|null>(null);
+  // Se a API devolver a mesma URL após um erro transitório, tentar novamente
+  // somente após o backoff; nunca manter a foto oculta indefinidamente.
+  useEffect(()=>{
+    if(!brokenUrl)return;
+    const timer=window.setTimeout(()=>setBrokenUrl(old=>old===brokenUrl?null:old),3*60_000);
+    return()=>window.clearTimeout(timer);
+  },[brokenUrl]);
   const [readyToken,setReadyToken]=useState("");
   const imageNode=useRef<HTMLImageElement|null>(null);
   useEffect(()=>{
@@ -101,7 +108,7 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
       onLoad={()=>setReadyToken(imageToken)}
       onError={()=>{
         setBrokenUrl(imageUrl);
-        if(key)markSharedAvatarBroken(key,imageUrl);
+        if(key)markSharedAvatarBroken(key,imageUrl,identity);
         onError?.();
       }}
       className={`absolute inset-0 h-full w-full object-cover ${readyToken===imageToken?"":"opacity-0"}`}/>}
