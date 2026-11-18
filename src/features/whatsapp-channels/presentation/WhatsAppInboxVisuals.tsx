@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   fetchSharedAvatar, markSharedAvatarBroken, peekSharedAvatar,
   peekSharedAvatarGender, rememberSharedAvatarGender,
@@ -45,21 +45,16 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
   const key=identity?sharedAvatarKey(identity):"";
   const node=useRef<HTMLSpanElement|null>(null);
   const [visible,setVisible]=useState(false);
-  const [sharedUrl,setSharedUrl]=useState<string|null|undefined>(()=>peekSharedAvatar(key));
-  const [knownGender,setKnownGender]=useState<string|null>(()=>peekSharedAvatarGender(key));
+  // Ambos os locais da conversa assinam o MESMO snapshot, sem cópias locais
+  // que podem ser sobrescritas em ordem diferente após uma resposta lenta.
+  const subscribe=useCallback((listener:()=>void)=>subscribeSharedAvatar(key,listener),[key]);
+  const getPhoto=useCallback(()=>peekSharedAvatar(key),[key]);
+  const getGender=useCallback(()=>peekSharedAvatarGender(key),[key]);
+  const sharedUrl=useSyncExternalStore(subscribe,getPhoto,()=>null);
+  const knownGender=useSyncExternalStore(subscribe,getGender,()=>null);
   const [brokenUrl,setBrokenUrl]=useState<string|null>(null);
-  const [imageReady,setImageReady]=useState(false);
-
-  // O mesmo índice assinado alimenta a inbox, mini, agenda e edição.
-  useEffect(()=>{
-    setSharedUrl(peekSharedAvatar(key));
-    setKnownGender(peekSharedAvatarGender(key));
-    if(!key)return;
-    return subscribeSharedAvatar(key,()=>{
-      setSharedUrl(peekSharedAvatar(key));
-      setKnownGender(peekSharedAvatarGender(key));
-    });
-  },[key]);
+  const [readyToken,setReadyToken]=useState("");
+  const imageNode=useRef<HTMLImageElement|null>(null);
   useEffect(()=>{
     if(key&&gender)rememberSharedAvatarGender(key,gender);
   },[key,gender]);
@@ -82,7 +77,13 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
 
   const candidate=key ? sharedUrl===undefined?(src||null):sharedUrl : src||null;
   const imageUrl=candidate&&candidate!==brokenUrl?candidate:null;
-  useEffect(()=>setImageReady(false),[imageUrl]);
+  const imageToken=key+":"+(imageUrl||"");
+  // onLoad pode ocorrer ANTES de um useEffect para fotos presentes no cache
+  // do navegador. Não zerar o estado depois de um carregamento bem-sucedido.
+  useEffect(()=>{
+    if(imageUrl&&imageNode.current?.complete&&imageNode.current.naturalWidth>0)
+      setReadyToken(imageToken);
+  },[imageUrl,imageToken]);
   const parts=name.trim().split(/\s+/).filter(Boolean);
   const initials=(parts.length>1 ? parts[0][0]+parts[parts.length-1][0] :
     (parts[0]||"?").slice(0,2)).toUpperCase();
@@ -95,16 +96,15 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
         enquanto a imagem assíncrona é carregada, ou se ela falhar. */}
     {fallback ? <img src={fallback} alt="" className="absolute inset-0 h-full w-full object-cover"/> :
       <span aria-hidden="true">{initials}</span>}
-    {imageUrl && <img src={imageUrl} alt="" referrerPolicy="no-referrer"
-      loading="eager" decoding="async"
-      onLoad={()=>setImageReady(true)}
+    {imageUrl && <img key={imageToken} ref={imageNode} src={imageUrl} alt="" referrerPolicy="no-referrer"
+      loading={size==="header"?"eager":"lazy"} decoding="async"
+      onLoad={()=>setReadyToken(imageToken)}
       onError={()=>{
-        setImageReady(false);
         setBrokenUrl(imageUrl);
         if(key)markSharedAvatarBroken(key,imageUrl);
         onError?.();
       }}
-      className={`absolute inset-0 h-full w-full object-cover ${imageReady?"":"opacity-0"}`}/>}
+      className={`absolute inset-0 h-full w-full object-cover ${readyToken===imageToken?"":"opacity-0"}`}/>}
   </span>;
 }
 
