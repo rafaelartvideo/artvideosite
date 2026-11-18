@@ -207,11 +207,9 @@ test("Mini-Atendimentos consulta prévias pequenas sem polling intenso nem mídi
   assert.match(provider,/void supabase.removeChannel\(realtime\)/);
   assert.doesNotMatch(provider,/setInterval\(/);
   assert.doesNotMatch(provider,/listUnionWhatsAppMessages|media_view/);
-  // Avatares são carregados sob demanda apenas com o painel expandido,
-  // com TTL e até duas requisições simultâneas.
-  assert.match(provider,/if\(!expanded\|\|isPageOpen\|\|!channelId\|\|!channelPhone\|\|conversationId\)return/);
-  assert.match(provider,/const available=2-avatarRequestsRef.current.size/);
-  assert.match(provider,/fetchSharedAvatar\(\{/);
+  // Nenhum prefetch independente no provider: o próprio avatar observa a visibilidade.
+  assert.doesNotMatch(provider,/fetchSharedAvatar|avatarRequestsRef|avatarCheckedAtRef/);
+  assert.match(provider,/<UnionWhatsAppFloatingPanel/);
 });
 
 
@@ -293,10 +291,9 @@ test("Mini conversa fica estável e reutiliza fotos sem consulta em cada mudanç
   assert.doesNotMatch(modal,/phone, source, activeOrganizationId, canViewInbox/);
   assert.match(provider,/hidden=\{Boolean\(conversationId\)\}/);
   assert.match(panel,/hidden\?"invisible pointer-events-none "/);
-  assert.match(provider,/const avatarRequestsRef=useRef\(new Set<string>\(\)\)/);
-  assert.match(provider,/const avatarCheckedAtRef=useRef\(new Map<string,number>\(\)\)/);
-  assert.match(provider,/candidates=\[\.\.\.lists\.in_att\.items\.slice\(0,6\),\.\.\.lists\.waiting\.items\.slice\(0,6\)\]/);
-  assert.match(provider,/fetchSharedAvatar\(\{/);
+  assert.doesNotMatch(provider,/avatarRequestsRef|avatarCheckedAtRef|fetchSharedAvatar/);
+  assert.doesNotMatch(panel,/avatars:Record<string,string\|null>/);
+  assert.match(panel,/WhatsAppContactAvatar/);
   assert.doesNotMatch(provider,/setInterval\(/);
 });
 
@@ -414,13 +411,19 @@ test("Avatar compartilhado evita spinner infinito e utiliza a mesma foto nos qua
   assert.match(visual,/rootMargin:"120px 0px"/);
   assert.match(visual,/setBrokenUrl\(imageUrl\)/);
   assert.match(visual,/markSharedAvatarBroken\(key,imageUrl\)/);
+  assert.match(visual,/useSyncExternalStore/);
+  assert.match(visual,/readyToken===imageToken/);
+  assert.doesNotMatch(visual,/useEffect\(\(\)=>setImageReady\(false\)/);
+  assert.match(shared,/brokenRetryAfter/);
+  assert.match(shared,/if\(!entry\|\|entry.url!==url\)return/);
+  assert.match(shared,/cacheEpoch\+\+/);
   assert.match(visual,/src=\{fallback\}/);
   assert.match(visual,/genderValue==="M"/);
   assert.match(visual,/genderValue==="F"/);
   assert.doesNotMatch(visual,/LoaderCircle|Carregando foto/);
   for(const view of [inbox,contacts,mini,edit])assert.match(view,/identity=\{\{/);
-  assert.match(inbox,/fetchSharedAvatar\(\{/);
-  assert.match(contacts,/fetchSharedAvatar\(\{/);
+  assert.doesNotMatch(inbox,/fetchSharedAvatar|avatarCheckedAtRef|previewIds/);
+  assert.doesNotMatch(contacts,/fetchSharedAvatar|listAvatars|avatarCheckedAtRef/);
   assert.match(edge,/select\("id,gender,document,cnpj,phone,whatsapp,email,addresses:customer_addresses/);
   assert.match(edge,/customer_type,gender,document/);
 });
