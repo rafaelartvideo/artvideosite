@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { WhatsAppNumberVerification } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import {
@@ -342,7 +343,10 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
 
               <FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(e: any) => { clearFieldError("email"); setForm({ ...form, email: e.target.value }); }} />
               <FPhoneInput label="Telefone" required copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { clearFieldError("phone"); setForm(current => ({...current, phone})); }} error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
-              <FPhoneInput label="WhatsApp" required mobile copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
+              <div className="min-w-0">
+                <FPhoneInput label="WhatsApp" required mobile copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
+                <WhatsAppNumberVerification phone={form.whatsapp} />
+              </div>
             </div>
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} required errorsVisible={addressValidationAttempted} />
