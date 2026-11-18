@@ -21,9 +21,11 @@ export function DetachedWhatsAppOrderPage({
   // persisted admin theme and listen for changes from the main CRM window.
   const [darkTheme,setDarkTheme]=useState(()=>typeof window!=="undefined" &&
     window.localStorage.getItem("unionworld.admin.theme")==="dark");
+  const [currentOrderId,setCurrentOrderId]=useState(orderId);
+  const currentOrderIdRef=useRef(orderId);
   const [documentOptions,setDocumentOptions]=useState<Array<{id:string;label:string}>>([]);
   const requests=useRef(new Map<string,DocumentRequest>());
-  const valid=uuid.test(orderId)&&uuid.test(expectedOrganizationId) &&
+  const valid=uuid.test(currentOrderId)&&uuid.test(expectedOrganizationId) &&
     activeOrganizationId===expectedOrganizationId && hasPermission("whatsapp.inbox.view");
 
   useEffect(()=>{document.title="Union World — Atendimento WhatsApp";},[]);
@@ -47,13 +49,36 @@ export function DetachedWhatsAppOrderPage({
     const opener=window.opener;
     if(!opener || opener.closed)return;
     const send=(message:Record<string,unknown>)=>opener.postMessage({
-      ...message,organizationId:expectedOrganizationId,orderId,
+      ...message,organizationId:expectedOrganizationId,orderId:currentOrderIdRef.current,
     },window.location.origin);
     const onMessage=(event:MessageEvent)=>{
       if(event.origin!==window.location.origin || event.source!==opener ||
         !event.data || typeof event.data!=="object")return;
       const message=event.data as Record<string,unknown>;
-      if(message.organizationId!==expectedOrganizationId || message.orderId!==orderId)return;
+      if(message.organizationId!==expectedOrganizationId)return;
+      if(message.type==="union-whatsapp-detached-switch"){
+        // A new OS was opened in the main CRM. Reuse this physical browser
+        // window and swap only the conversation, not the whole application.
+        if(typeof message.orderId!=="string" || !uuid.test(message.orderId))return;
+        const nextId=message.orderId;
+        if(nextId!==currentOrderIdRef.current){
+          for(const request of requests.current.values()){
+            window.clearTimeout(request.timeout);
+            request.reject(new Error("O atendimento mudou para outra OS."));
+          }
+          requests.current.clear();
+          currentOrderIdRef.current=nextId;
+          setDocumentOptions([]);
+          setCurrentOrderId(nextId);
+          const nextUrl=new URL("/admin/whatsapp-destacado/"+encodeURIComponent(nextId),
+            window.location.origin);
+          nextUrl.searchParams.set("org",expectedOrganizationId);
+          window.history.replaceState(window.history.state,"",nextUrl.toString());
+        }
+        send({type:"union-whatsapp-detached-ready"});
+        return;
+      }
+      if(message.orderId!==currentOrderIdRef.current)return;
       if(message.type==="union-whatsapp-detached-context"){
         const options=Array.isArray(message.documentOptions)?message.documentOptions:[];
         setDocumentOptions(options.filter((item:unknown)=>{
@@ -72,7 +97,7 @@ export function DetachedWhatsAppOrderPage({
           ? message.error:"Não foi possível receber o documento da OS."));
       }else if(message.type==="union-whatsapp-detached-reattached"){
         window.close();
-        if(!window.closed)navigate("/admin/orders/"+orderId,{replace:true});
+        if(!window.closed)navigate("/admin/orders/"+currentOrderIdRef.current,{replace:true});
       }
     };
     window.addEventListener("message",onMessage);
@@ -85,7 +110,7 @@ export function DetachedWhatsAppOrderPage({
       }
       requests.current.clear();
     };
-  },[valid,expectedOrganizationId,orderId,navigate]);
+  },[valid,expectedOrganizationId,navigate]);
 
   const prepareDocument=useCallback((templateId:string):Promise<File>=>{
     const opener=window.opener;
@@ -100,23 +125,23 @@ export function DetachedWhatsAppOrderPage({
       },30000);
       requests.current.set(requestId,{resolve,reject,timeout});
       opener.postMessage({type:"union-whatsapp-detached-document",
-        organizationId:expectedOrganizationId,orderId,templateId,requestId},window.location.origin);
+        organizationId:expectedOrganizationId,orderId:currentOrderId,templateId,requestId},window.location.origin);
     });
-  },[valid,expectedOrganizationId,orderId,documentOptions]);
+  },[valid,expectedOrganizationId,currentOrderId,documentOptions]);
 
   const reintegrate=useCallback((recipient:Recipient|null)=>{
     const opener=window.opener;
     if(!opener || opener.closed){
-      navigate("/admin/orders/"+orderId,{replace:true});
+      navigate("/admin/orders/"+currentOrderId,{replace:true});
       return;
     }
     opener.postMessage({type:"union-whatsapp-detached-reintegrate",
-      organizationId:expectedOrganizationId,orderId,
+      organizationId:expectedOrganizationId,orderId:currentOrderId,
       recipient:recipient ? {
         kind:recipient.kind,phone:recipient.phone,field:recipient.field,
         conversation_id:recipient.conversation_id,
       }:null},window.location.origin);
-  },[expectedOrganizationId,orderId,navigate]);
+  },[expectedOrganizationId,currentOrderId,navigate]);
 
   if(!valid){
     return <main className={`admin-crm ${darkTheme ? "dark" : ""} flex h-dvh items-center justify-center bg-background p-5`}>
@@ -136,7 +161,7 @@ export function DetachedWhatsAppOrderPage({
   const context:WhatsAppModalContext={
     organizationId:expectedOrganizationId,
     source:{
-      kind:"order",orderId,phone:"",customerName:"",
+      kind:"order",orderId:currentOrderId,phone:"",customerName:"",
       documentOptions,
       prepareDocument:documentOptions.length>0?prepareDocument:undefined,
     },
@@ -148,6 +173,7 @@ export function DetachedWhatsAppOrderPage({
   >
     <div className={`admin-crm ${darkTheme ? "dark" : ""} h-dvh overflow-hidden bg-background text-foreground`}>
       <WhatsAppConversationModal
+        key={currentOrderId}
         open detached context={context}
         onClose={()=>window.close()}
         onReintegrate={reintegrate}

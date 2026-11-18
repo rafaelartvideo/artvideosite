@@ -1095,9 +1095,10 @@ test("OS pode destacar Atendimento WhatsApp sem criar novo protocolo ou expor te
   const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
   const popout=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
   const app=read("src/app/App.tsx");
+  const manager=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppWindowManager.ts");
   assert.match(modal,/const canDetach=source\.kind==="order"/);
-  assert.match(modal,/window\.open\(url\.toString\(\)/);
-  assert.match(modal,/admin\/whatsapp-destacado/);
+  assert.match(modal,/window\.open\(detachedWhatsAppOrderUrl\(context\)/);
+  assert.match(manager,/admin\/whatsapp-destacado/);
   assert.match(modal,/aria-label="Destacar janela"/);
   assert.match(modal,/data-whatsapp-detached-order=\{orderId\}/);
   assert.match(modal,/onReintegrate\(chosenRecipient\)/);
@@ -1110,13 +1111,14 @@ test("OS pode destacar Atendimento WhatsApp sem criar novo protocolo ou expor te
 
 test("Janela destacada preserva os documentos da OS e reanexa pelo evento validado",()=>{
   const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const manager=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppWindowManager.ts");
   const popout=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
-  assert.match(modal,/event\.origin!==window\.location\.origin/);
-  assert.match(modal,/event\.source!==detached\.popup/);
-  assert.match(modal,/union-whatsapp-detached-document/);
-  assert.match(modal,/source\.documentOptions\?\.some/);
-  assert.match(modal,/source\.prepareDocument\(msg\.templateId\)/);
-  assert.match(modal,/setContext\(\{\.\.\.original,source:\{\.\.\.original\.source,preferredRecipient:safeRecipient\}\}\)/);
+  assert.match(manager,/event\.origin!==window\.location\.origin/);
+  assert.match(manager,/event\.source!==current\.popup/);
+  assert.match(manager,/union-whatsapp-detached-document/);
+  assert.match(manager,/context\.source\.documentOptions\?\.some/);
+  assert.match(manager,/context\.source\.prepareDocument\(message\.templateId\)/);
+  assert.match(manager,/window\.dispatchEvent\(new CustomEvent\(REATTACH_EVENT/);
   assert.match(popout,/event\.source!==opener/);
   assert.match(popout,/onReintegrate=\{reintegrate\}/);
   assert.match(popout,/prepareDocument:documentOptions\.length>0\?prepareDocument:undefined/);
@@ -1136,4 +1138,27 @@ test("Janela WhatsApp destacada aplica o layout desktop do compositor em 768px s
   assert.match(detached,/unionworld\.admin\.theme/);
   assert.match(detached,/window\.addEventListener\("storage",update\)/);
   assert.match(detached,/document\.documentElement\.classList\.toggle\("dark",darkTheme\)/);
+});
+
+
+test("WhatsApp da nova OS reutiliza a mesma janela destacada sem abrir vários pop-ups",()=>{
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const manager=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppWindowManager.ts");
+  const popup=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
+  assert.match(modal,/reuseDetachedWhatsAppWindow\(next\)/);
+  assert.match(modal,/registerDetachedWhatsAppWindow\(popup,context\)/);
+  assert.match(modal,/detachedWhatsAppPopupName\(\)/);
+  assert.match(modal,/resizable=no/);
+  assert.match(manager,/let session:Session\|null=null/);
+  assert.match(manager,/const popupName="union_whatsapp_detached_"/);
+  assert.match(manager,/current\.context=context/);
+  assert.match(manager,/union-whatsapp-detached-switch/);
+  assert.match(manager,/current\.popup\.focus\(\)/);
+  assert.match(manager,/if\(session\.popup\.closed\)/);
+  assert.match(popup,/message\.type==="union-whatsapp-detached-switch"/);
+  assert.match(popup,/setCurrentOrderId\(nextId\)/);
+  assert.match(popup,/window\.history\.replaceState/);
+  assert.match(popup,/key=\{currentOrderId\}/);
+  assert.match(manager,/message\.type==="union-whatsapp-detached-document"/);
+  assert.match(manager,/message\.type==="union-whatsapp-detached-reintegrate"/);
 });

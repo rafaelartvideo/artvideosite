@@ -10,6 +10,10 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
 import { formatWhatsAppPhone, WhatsAppContactAvatar } from "./WhatsAppInboxVisuals";
+import {
+  addDetachedReattachListener, detachedWhatsAppOrderUrl, detachedWhatsAppPopupName,
+  registerDetachedWhatsAppWindow, reuseDetachedWhatsAppWindow,
+} from "./DetachedWhatsAppWindowManager";
 
 const EmbeddedWhatsAppConversation = lazy(() =>
   import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
@@ -278,14 +282,12 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
     && organizationId===activeOrganizationId && canViewInbox;
   const detachOrder=()=>{
     if(!canDetach || source.kind!=="order")return;
-    // Native browser window, opened synchronously by a real click. No phone,
-    // message, access token, or customer name is serialized into the URL.
-    const url=new URL("/admin/whatsapp-destacado/"+encodeURIComponent(source.orderId),
-      window.location.origin);
-    url.searchParams.set("org",organizationId);
-    const popup=window.open(url.toString(),
-      "union_whatsapp_os_"+organizationId.replace(/-/g,"")+"_"+source.orderId.replace(/-/g,""),
-      "popup=yes,width=1120,height=850,resizable=yes,scrollbars=yes");
+    // A stable window name prevents duplicate floating windows for each OS.
+    // Browsers can ignore "resizable=no" (an advisory feature, not a lock).
+    // The actual window is opened synchronously inside the operator's click.
+    const popup=window.open(detachedWhatsAppOrderUrl(context),
+      detachedWhatsAppPopupName(),
+      "popup=yes,width=1120,height=850,resizable=no,scrollbars=yes");
     if(!popup){
       notifyAdmin("O navegador bloqueou a janela. Permita pop-ups da Union World e tente novamente.","error");
       return;
@@ -448,74 +450,25 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
 /** Reusable WhatsApp launcher for verified OS, registration, customer and thread contexts. */
 export function useWhatsAppConversationModal() {
   const [context,setContext]=useState<WhatsAppModalContext|null>(null);
-  // Lives in the OS page, not inside the modal, so reattach works after
-  // detaching has unmounted the modal and released the main OS workspace.
-  const detachedRef=useRef<{popup:Window;context:WhatsAppModalContext}|null>(null);
-  const openWhatsAppConversation=useCallback((next:WhatsAppModalContext)=>setContext(next),[]);
+  const openWhatsAppConversation=useCallback((next:WhatsAppModalContext)=>{
+    // If the detached popup is alive, the OS toolbar always routes its
+    // WhatsApp button to that same popup, even across OS route unmounts.
+    if(next.source.kind==="order" && reuseDetachedWhatsAppWindow(next)){
+      setContext(null);
+      return;
+    }
+    setContext(next);
+  },[]);
   const closeWhatsAppConversation=useCallback(()=>setContext(null),[]);
   const detachWhatsAppConversation=useCallback((popup:Window)=>{
     if(!context || context.source.kind!=="order")return;
-    detachedRef.current={popup,context};
+    registerDetachedWhatsAppWindow(popup,context);
     setContext(null);
   },[context]);
 
-  useEffect(()=>{
-    const handleMessage=(event:MessageEvent)=>{
-      const detached=detachedRef.current;
-      if(!detached || event.origin!==window.location.origin ||
-        event.source!==detached.popup || !event.data ||
-        typeof event.data!=="object")return;
-      const msg=event.data as Record<string,unknown>;
-      const original=detached.context;
-      if(original.source.kind!=="order" ||
-        msg.organizationId!==original.organizationId ||
-        msg.orderId!==original.source.orderId)return;
-      const reply=(body:Record<string,unknown>)=>{
-        if(!detached.popup.closed)detached.popup.postMessage({
-          ...body,organizationId:original.organizationId,orderId:original.source.kind==="order"
-            ? original.source.orderId:"",},window.location.origin);
-      };
-      if(msg.type==="union-whatsapp-detached-ready"){
-        reply({type:"union-whatsapp-detached-context",
-          documentOptions:original.source.documentOptions||[]});
-      }else if(msg.type==="union-whatsapp-detached-document"){
-        if(typeof msg.requestId!=="string" || !/^[0-9a-f-]{36}$/i.test(msg.requestId) ||
-          typeof msg.templateId!=="string")return;
-        const source=original.source;
-        if(!source.prepareDocument ||
-          !source.documentOptions?.some(item=>item.id===msg.templateId)){
-          reply({type:"union-whatsapp-detached-document-result",
-            requestId:msg.requestId,error:"Documento indisponível nesta OS."});
-          return;
-        }
-        void source.prepareDocument(msg.templateId).then(file=>{
-          reply({type:"union-whatsapp-detached-document-result",
-            requestId:msg.requestId,file});
-        }).catch(error=>{
-          reply({type:"union-whatsapp-detached-document-result",
-            requestId:msg.requestId,error:systemErrorMessage(error,"Não foi possível preparar o documento.")});
-        });
-      }else if(msg.type==="union-whatsapp-detached-reintegrate"){
-        const choice=msg.recipient;
-        const candidate=choice && typeof choice==="object" ? choice as Record<string,unknown> : null;
-        const safeRecipient=candidate &&
-          (candidate.kind==="linked" || candidate.kind==="registered") &&
-          typeof candidate.phone==="string" && /^[0-9]{10,14}$/.test(candidate.phone)
-          ? {
-              kind:candidate.kind as "linked"|"registered",phone:candidate.phone,
-              field:candidate.field==="whatsapp"||candidate.field==="phone"
-                ? candidate.field:undefined,
-              conversation_id:typeof candidate.conversation_id==="string"
-                ? candidate.conversation_id:undefined,
-            } : undefined;
-        setContext({...original,source:{...original.source,preferredRecipient:safeRecipient}});
-        reply({type:"union-whatsapp-detached-reattached"});
-        detachedRef.current=null;
-      }
-    };
-    window.addEventListener("message",handleMessage);
-    return()=>window.removeEventListener("message",handleMessage);
-  },[]);
+  // Registered at the module-level window manager so its state survives
+  // navigation to another OS. This hook only handles restoring the UI.
+  useEffect(()=>addDetachedReattachListener(next=>setContext(next)),[]);
 
   return {
     isWhatsAppModalOpen:Boolean(context),
