@@ -14,7 +14,8 @@ test("edits are audited server-side with the authenticated operator, not a clien
   assert.match(edge,/contacts_save:"manage_contacts"/);
   assert.match(edge,/admin\.rpc\("union_whatsapp_save_contact_audited"/);
   assert.match(edge,/p_contact_phone:number,p_actor:actorId/);
-  assert.doesNotMatch(edge,/action==="contacts_save"[\s\S]*?await mergeContactRows\(/);
+  const saveBranch=edge.slice(edge.indexOf('if(action==="contacts_save")'),edge.indexOf('if(action==="contacts_apply_names")'));
+  assert.doesNotMatch(saveBranch,/await mergeContactRows\(/);
   assert.match(schema,/create or replace function public\.union_whatsapp_save_contact_audited/);
   assert.match(schema,/p_actor uuid/);
   assert.match(schema,/actor_user_id,actor_name_snapshot,action,changed_fields/);
