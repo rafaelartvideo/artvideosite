@@ -86,11 +86,11 @@ function runNext(){
   running++;
   task();
 }
-export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|null>{
+export function fetchSharedAvatar(identity:SharedAvatarIdentity,forceRefresh=false):Promise<string|null>{
   const key=sharedAvatarKey(identity);
   if(!key)return Promise.resolve(null);
   const stored=peekSharedAvatar(key);
-  if(stored!==undefined)return Promise.resolve(stored);
+  if(!forceRefresh&&stored!==undefined)return Promise.resolve(stored);
   const previous=pending.get(key);
   if(previous)return previous;
   const epoch=cacheEpoch;
@@ -109,7 +109,8 @@ export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|
           resolve(epoch===cacheEpoch?url:null);
         })
         .catch(()=>{
-          if(epoch===cacheEpoch)remember(key,null,ERROR_BACKOFF,true);
+          // Falha de renovação não apaga uma foto que funciona nas outras telas.
+          if(epoch===cacheEpoch&&!forceRefresh)remember(key,null,ERROR_BACKOFF,true);
           resolve(null);
         })
         .finally(()=>{
@@ -124,19 +125,16 @@ export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|
   return task;
 }
 /**
- * Uma falha isolada de imagem não apaga a foto dos outros locais permanentemente.
- * Invalidamos somente a URL que falhou e permitimos UMA renovação por janela;
- * falhas repetidas entram em backoff e continuam mostrando as iniciais.
+ * Uma falha isolada de <img> não deve apagar a foto das outras telas.
+ * Revalidar a URL em segundo plano, preservando a anterior até a resposta.
+ * Limitar a uma tentativa por contato a cada 3 minutos.
  */
-export function markSharedAvatarBroken(key:string,url:string){
-  if(!key||!url)return;
+export function markSharedAvatarBroken(key:string,url:string,identity?:SharedAvatarIdentity|null){
+  if(!key||!url||!identity||sharedAvatarKey(identity)!==key)return;
   const entry=cache.get(key);
-  if(!entry||entry.url!==url)return; // ignorar erro de <img> antigo
+  if(!entry||entry.url!==url)return; // ignorar falha de uma URL antiga
   const now=Date.now();
-  if(now<(brokenRetryAfter.get(key)||0)){
-    remember(key,null,ERROR_BACKOFF,true);
-    return;
-  }
+  if(now<(brokenRetryAfter.get(key)||0))return;
   brokenRetryAfter.delete(key);
   brokenRetryAfter.set(key,now+BROKEN_RETRY_MS);
   while(brokenRetryAfter.size>MAX_ENTRIES){
@@ -144,8 +142,7 @@ export function markSharedAvatarBroken(key:string,url:string){
     if(oldest)brokenRetryAfter.delete(oldest);
     else break;
   }
-  cache.delete(key);
-  notify(key); // componentes visíveis buscam uma nova URL assinada, deduplicada
+  void fetchSharedAvatar(identity,true);
 }
 /** Revalidação só após foco/retorno à aba, nunca polling de fotos. */
 function refreshExpiredAvatarEntries(){
