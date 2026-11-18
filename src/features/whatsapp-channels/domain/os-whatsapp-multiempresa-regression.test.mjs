@@ -469,8 +469,12 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.ok(recipientLookup.includes(String.raw`replace(/\D/g,"")`),"Os telefones devem ter pontuação removida");
   assert.ok(recipientLookup.includes(String.raw`/^55[1-9]\d{9,10}$/`),"Validação precisa aceitar dígitos reais");
   assert.ok(!recipientLookup.includes(String.raw`replace(/\\D/g,"")`),"Não usar barra duplicada na normalização");
-  assert.ok(modal.includes('if(recipients.length>0)set({status:"choosing",recipients})'));
-  assert.ok(!modal.includes("chooseOrderRecipient(recipients[0])"));
+  assert.ok(modal.includes('if(recipients.length>1)set({status:"choosing",recipients})'),
+    "Selecionar destinatário apenas quando houver mais de um número");
+  assert.ok(modal.includes('else if(recipients.length===1)void chooseOrderRecipient(recipients[0])'),
+    "Um único número deve abrir automaticamente, sem tela de escolha");
+  assert.match(recipientLookup,/const seen=new Set<string>\(\)/,
+    "A lista de destinatários precisa remover números repetidos");
   assert.match(modal,/WhatsAppContactAvatar/);
   assert.match(modal,/>Vinculado</);
   assert.match(modal,/Trocar número/);
@@ -551,6 +555,8 @@ test("Histórico geral permanece acessível pelo contato e mostra todos os proto
   assert.match(repository,/findUnionWhatsAppConversationByContact/);
   assert.match(repository,/\.eq\("chat_jid",chatJid\)/);
   assert.match(inbox,/variant="secondary" size="sm" title="Vincular OS deste cliente"/);
+  assert.doesNotMatch(inbox,/title="Abrir OS vinculada"/,
+    "O atalho OS no cabeçalho da conversa deve ser removido");
   assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
   assert.match(directory,/UnionWhatsAppContactHistory/);
 });
