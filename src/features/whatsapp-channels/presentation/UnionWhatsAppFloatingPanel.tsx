@@ -52,7 +52,7 @@ function previewDate(value:string|null){
 function safeCount(value:number){return value>99?"99+":String(Math.max(0,value));}
 
 export function UnionWhatsAppFloatingPanel({
-  expanded,onToggle,counts,filter,onFilter,rows,loading,loaded,error,avatars,hidden,onSelect,onOpenFull,alert,onDismissAlert,
+  expanded,onToggle,counts,filter,onFilter,rows,loading,loaded,error,hidden,onSelect,onOpenFull,alert,onDismissAlert,
 }:{
   expanded:boolean;
   onToggle:()=>void;
@@ -63,7 +63,6 @@ export function UnionWhatsAppFloatingPanel({
   loading:boolean;
   loaded:boolean;
   error:boolean;
-  avatars:Record<string,string|null>;
   hidden:boolean;
   onSelect:(id:string)=>void;
   onOpenFull:()=>void;
@@ -288,7 +287,7 @@ export function UnionWhatsAppFloatingPanel({
             return <button key={item.id} type="button" onClick={()=>onSelect(item.id)}
               className={"box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 "+
                 (unread?"border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15":"bg-card hover:bg-muted/55")}>
-              <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]??null}
+              <WhatsAppContactAvatar key={item.id} name={name}
                 identity={{organizationId:item.organization_id,accountPhone:item.account_phone,
                   chatJid:item.chat_jid,conversationId:item.id}}/>
               <span className="min-w-0 flex-1">
