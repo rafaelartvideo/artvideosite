@@ -359,11 +359,13 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, onChangeRecipient, orderDocumentOptions, onPrepareOrderDocument }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, onChangeRecipient, detachedWindow = false, orderDocumentOptions, onPrepareOrderDocument }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
   onEmbeddedReady?: (ready: boolean) => void;
   onChangeRecipient?: () => void;
+  /** The detached browser window uses a desktop composer at tablet widths. */
+  detachedWindow?: boolean;
   orderDocumentOptions?: Array<{id:string;label:string}>;
   onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
@@ -2780,7 +2782,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) previewUrls.release(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
                     aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
                 </div>}
-                <form ref={actionPanelRef} className="relative flex min-w-0 flex-wrap items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 xl:flex-nowrap"
+                <form ref={actionPanelRef} className={`relative flex min-w-0 flex-wrap items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 xl:flex-nowrap ${detachedWindow ? "md:flex-nowrap" : ""}`}
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={stickerFileInputRef} type="file" className="hidden"
                     accept="image/webp,.webp" aria-label="Enviar figurinha WebP"
@@ -2794,13 +2796,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" disabled={Boolean(replyTarget)} aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
-                    className="order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 xl:order-none xl:h-12 xl:w-12 xl:rounded-l-[11px]">
+                    className={`order-1 flex h-10 w-11 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 xl:order-none xl:h-12 xl:w-12 xl:rounded-l-[11px] ${detachedWindow ? "md:order-none md:h-12 md:w-12 md:rounded-l-[11px]" : ""}`}>
                     <Paperclip size={22}/>
                   </button>
-                  <div className="relative order-1 flex h-10 shrink-0 xl:order-none xl:h-12">
+                  <div className={`relative order-1 flex h-10 shrink-0 xl:order-none xl:h-12 ${detachedWindow ? "md:order-none md:h-12" : ""}`}>
                     <button type="button" disabled={Boolean(replyTarget)} aria-label="Selecionar figurinha" aria-expanded={stickerOpen}
                       title="Figurinhas da empresa" onClick={()=>{setEmojiOpen(false);setStickerOpen(open=>!open);}}
-                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 ${stickerOpen?"bg-primary-soft text-primary":""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 ${detachedWindow ? "md:h-12" : ""} ${stickerOpen?"bg-primary-soft text-primary":""}`}>
                       <Sticker size={21}/>
                     </button>
                     {stickerOpen && <UnionWhatsAppStickerPicker
@@ -2812,16 +2814,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       onClose={()=>setStickerOpen(false)}/>}
                     <button type="button" aria-label="Selecionar emoji" aria-expanded={emojiOpen}
                       onClick={() => setEmojiOpen(v => !v)}
-                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-12 ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-12 ${detachedWindow ? "md:h-12 md:w-12" : ""} ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
                       <Smile size={22}/>
                     </button>
                     {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
                   </div>
-                  <div className="order-1 flex h-10 shrink-0 xl:order-none xl:h-12">
+                  <div className={`order-1 flex h-10 shrink-0 xl:order-none xl:h-12 ${detachedWindow ? "md:order-none md:h-12" : ""}`}>
                     <button type="button" aria-label="Mais opções da conversa" title="Mais opções da conversa"
                       aria-expanded={Boolean(actionPanel)} aria-haspopup="menu"
                       onClick={()=>{setEmojiOpen(false);setStickerOpen(false);setActionPanel(current=>current ? null : "actions");}}
-                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-10 ${actionPanel?"bg-primary-soft text-primary":""}`}>
+                      className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-10 ${detachedWindow ? "md:h-12 md:w-10" : ""} ${actionPanel?"bg-primary-soft text-primary":""}`}>
                       <ChevronUp size={20}/>
                     </button>
                     {actionPanel && <div role="menu" aria-label="Opções da conversa"
@@ -2883,7 +2885,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </div>}
                     </div>}
                   </div>
-                  <span aria-hidden="true" className="order-1 block h-0 basis-full xl:hidden"/>
+                  <span aria-hidden="true" className={`order-1 block h-0 basis-full xl:hidden ${detachedWindow ? "md:hidden" : ""}`}/>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
                     lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
                     placeholder={attachment ? "Legenda (opcional)" : "Digite uma mensagem"}
@@ -2894,15 +2896,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         event.preventDefault(); sendText();
                       }
                     }}
-                    className="order-2 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 xl:order-none xl:text-sm"
+                    className={`order-2 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 xl:order-none xl:text-sm ${detachedWindow ? "md:order-none md:text-sm" : ""}`}
                   />
                   {!replyTarget && !draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
                     title="Gravar áudio" onClick={()=>recording ? stopRecording(false) : void startRecording()}
-                    className={`order-2 flex h-12 w-11 shrink-0 self-end items-center justify-center border-l border-border hover:bg-muted xl:order-none xl:w-12 ${recording?"text-red-600":"text-foreground"}`}>
+                    className={`order-2 flex h-12 w-11 shrink-0 self-end items-center justify-center border-l border-border hover:bg-muted xl:order-none xl:w-12 ${detachedWindow ? "md:order-none md:w-12" : ""} ${recording?"text-red-600":"text-foreground"}`}>
                     {recording ? <Square size={20}/> : <Mic size={21}/>}
                   </button>}
                   <button type="submit" disabled={recording || imageOptimizing || (!draft.trim() && !attachment)} aria-label="Enviar mensagem" title="Enviar mensagem"
-                    className="order-2 flex h-12 w-12 shrink-0 self-end items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45 xl:order-none">
+                    className={`order-2 flex h-12 w-12 shrink-0 self-end items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45 xl:order-none ${detachedWindow ? "md:order-none" : ""}`}>
                     <Send size={22}/>
                   </button>
                 </form>

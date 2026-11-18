@@ -362,6 +362,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
             key={state.conversationId}
             embedded
             embeddedFullControls
+            detachedWindow={detached}
             initialConversationId={state.conversationId}
             onEmbeddedReady={setEmbeddedReady}
             onChangeRecipient={source.kind==="order" && orderRecipients.length>1

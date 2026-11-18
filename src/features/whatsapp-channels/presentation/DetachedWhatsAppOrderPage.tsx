@@ -17,12 +17,30 @@ export function DetachedWhatsAppOrderPage({
 }){
   const {activeOrganizationId,hasPermission}=useAuth();
   const navigate=useNavigate();
+  // The standalone route skips AdminLayout, so explicitly inherit the
+  // persisted admin theme and listen for changes from the main CRM window.
+  const [darkTheme,setDarkTheme]=useState(()=>typeof window!=="undefined" &&
+    window.localStorage.getItem("unionworld.admin.theme")==="dark");
   const [documentOptions,setDocumentOptions]=useState<Array<{id:string;label:string}>>([]);
   const requests=useRef(new Map<string,DocumentRequest>());
   const valid=uuid.test(orderId)&&uuid.test(expectedOrganizationId) &&
     activeOrganizationId===expectedOrganizationId && hasPermission("whatsapp.inbox.view");
 
   useEffect(()=>{document.title="Union World — Atendimento WhatsApp";},[]);
+  useEffect(()=>{
+    const update=()=>setDarkTheme(window.localStorage.getItem("unionworld.admin.theme")==="dark");
+    window.addEventListener("storage",update);
+    update();
+    return()=>window.removeEventListener("storage",update);
+  },[]);
+  useEffect(()=>{
+    document.documentElement.classList.toggle("dark",darkTheme);
+    document.documentElement.dataset.adminTheme=darkTheme?"dark":"light";
+    return()=>{
+      document.documentElement.classList.remove("dark");
+      delete document.documentElement.dataset.adminTheme;
+    };
+  },[darkTheme]);
 
   useEffect(()=>{
     if(!valid)return;
@@ -101,7 +119,7 @@ export function DetachedWhatsAppOrderPage({
   },[expectedOrganizationId,orderId,navigate]);
 
   if(!valid){
-    return <main className="admin-crm flex h-dvh items-center justify-center bg-background p-5">
+    return <main className={`admin-crm ${darkTheme ? "dark" : ""} flex h-dvh items-center justify-center bg-background p-5`}>
       <div role="alert" className="max-w-md rounded-xl border border-border bg-card p-6 text-center text-sm text-foreground">
         <h1 className="text-base font-bold">Não foi possível abrir o atendimento.</h1>
         <p className="mt-2 text-muted-foreground">
@@ -128,7 +146,7 @@ export function DetachedWhatsAppOrderPage({
     isPageOpen
     onOpenFull={()=>navigate("/admin/tools/union-whatsapp")}
   >
-    <div className="admin-crm h-dvh overflow-hidden bg-background text-foreground">
+    <div className={`admin-crm ${darkTheme ? "dark" : ""} h-dvh overflow-hidden bg-background text-foreground`}>
       <WhatsAppConversationModal
         open detached context={context}
         onClose={()=>window.close()}

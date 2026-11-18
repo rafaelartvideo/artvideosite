@@ -1116,3 +1116,19 @@ test("Janela destacada preserva os documentos da OS e reanexa pelo evento valida
   assert.match(popout,/onReintegrate=\{reintegrate\}/);
   assert.match(popout,/prepareDocument:documentOptions\.length>0\?prepareDocument:undefined/);
 });
+
+
+test("Janela WhatsApp destacada aplica o layout desktop do compositor em 768px sem mudar o mobile",()=>{
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const detached=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
+  assert.match(modal,/detachedWindow=\{detached\}/);
+  assert.match(inbox,/detachedWindow = false/);
+  assert.match(inbox,/detachedWindow \? "md:flex-nowrap" : ""/);
+  assert.match(inbox,/detachedWindow \? "md:hidden" : ""/);
+  assert.match(inbox,/detachedWindow \? "md:order-none md:text-sm" : ""/);
+  assert.match(inbox,/detachedWindow \? "md:order-none" : ""/);
+  assert.match(detached,/unionworld\.admin\.theme/);
+  assert.match(detached,/window\.addEventListener\("storage",update\)/);
+  assert.match(detached,/document\.documentElement\.classList\.toggle\("dark",darkTheme\)/);
+});
