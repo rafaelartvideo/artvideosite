@@ -1058,7 +1058,8 @@ test("nome editado na Union precede CRM e WhatsApp em contatos e conversas",()=>
   assert.match(contacts,/contact\.display_name \|\| contact\.crm_name \|\| contact\.device_name/);
   assert.match(inbox,/"contact_names_batch"/);
   assert.match(inbox,/contactNameCacheRef/);
-  assert.match(edge,/const preferredName=knownContact\?\.display_name \|\| crmName \|\| customerName/);
+  assert.match(edge,/const preferredName=knownContact\?\.display_name \|\| crmName \|\|/);
+  assert.match(edge,/knownContact\?\.profile_name \|\| verified\.verified_name \|\| customerName/);
   assert.doesNotMatch(edge,/persistManualName/);
   assert.match(edge,/const authoritative=String\(known\?\.display_name \|\| crmName/);
   assert.match(sql,/having count\(distinct b\.id\)=1/);
