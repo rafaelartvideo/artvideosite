@@ -179,8 +179,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -248,7 +248,7 @@ Deno.serve(async request => {
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
-      contacts_groups:"view_contacts",contacts_crm_match:"view_contacts",
+      contacts_groups:"view_contacts",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",start:"start",
@@ -719,7 +719,7 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
-    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(channelError)throw channelError;
@@ -880,6 +880,27 @@ Deno.serve(async request => {
         if(error)throw error;
         return json({success:true,contacts:data||[],total:count||0});
       }
+      if(action==="contacts_history") {
+        const jid=String(body.chat_jid||"");
+        if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)
+          || (body.account_phone && body.account_phone!==channel.phone))
+          return json({success:false,error:"Contato inválido para consulta do histórico."},400);
+        const {data:contact,error:contactError}=await admin.from("union_whatsapp_contacts")
+          .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("account_phone",channel.phone).eq("chat_jid",jid).maybeSingle();
+        if(contactError)throw contactError;
+        if(!contact)return json({success:true,history:[],has_more:false});
+        const page=Math.min(1000,Math.max(0,Math.floor(Number(body.page)||0)));
+        const offset=page*50;
+        const {data:history,error:historyError}=await admin.from("union_whatsapp_contact_audit")
+          .select("id,action,actor_name_snapshot,created_at,changed_fields")
+          .eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("account_phone",channel.phone).eq("contact_id",contact.id)
+          .order("created_at",{ascending:false}).order("id",{ascending:false})
+          .range(offset,offset+50);
+        if(historyError)throw historyError;
+        return json({success:true,history:(history||[]).slice(0,50),has_more:(history||[]).length>50});
+      }
       if(action==="contacts_save") {
         const raw=String(body.chat_jid||"");
         const inputPhone=String(body.phone||"").replace(/\D/g,"");
@@ -917,23 +938,16 @@ Deno.serve(async request => {
         const number=newJid.endsWith("@lid")
           ? (submitted||String(body.phone||"").replace(/\D/g,"")||null)
           : newJid.endsWith("@s.whatsapp.net")?newJid.split("@")[0]:null;
-        await mergeContactRows([{chat_jid:newJid,contact_phone:number,display_name:displayName}]);
-        if(newJid!==jid){
-          // Keep historic messages unchanged: only move the saved contact.
-          const {error:removeError}=await admin.from("union_whatsapp_contacts").delete()
-            .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
-            .eq("chat_jid",jid);
-          if(removeError)throw removeError;
-        }
-        const {data:saved,error:saveError}=await admin.from("union_whatsapp_contacts")
-          .select("id,chat_jid,contact_phone,display_name")
-          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
-          .eq("chat_jid",newJid).single();
+        // Single database transaction: save/rename + snapshot actor + immutable field changes.
+        // The actor comes from scoped.auth.getUser(), never from the request body.
+        const {data:saved,error:saveError}=await admin.rpc("union_whatsapp_save_contact_audited",{
+          p_organization:org,p_channel:channel.id,p_account_phone:channel.phone,
+          p_original_jid:jid,p_target_jid:newJid,p_display_name:displayName,
+          p_contact_phone:number,p_actor:actorId,
+        });
+        if(saveError?.code==="23505")
+          return json({success:false,error:"Este número já está salvo em outro contato. Resolva a duplicidade antes de alterar."},409);
         if(saveError)throw saveError;
-        const {error:renameError}=await admin.from("union_whatsapp_conversations")
-          .update({contact_name:displayName,updated_at:new Date().toISOString()})
-          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",newJid);
-        if(renameError)throw renameError;
         return json({success:true,contact:saved,number_adjusted:newJid!==jid});
       }
       if(action==="contacts_apply_names"){
