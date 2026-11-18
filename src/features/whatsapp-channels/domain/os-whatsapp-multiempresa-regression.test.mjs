@@ -410,11 +410,13 @@ test("Avatar compartilhado evita spinner infinito e utiliza a mesma foto nos qua
   assert.match(visual,/IntersectionObserver/);
   assert.match(visual,/rootMargin:"120px 0px"/);
   assert.match(visual,/setBrokenUrl\(imageUrl\)/);
-  assert.match(visual,/markSharedAvatarBroken\(key,imageUrl\)/);
+  assert.match(visual,/markSharedAvatarBroken\(key,imageUrl,identity\)/);
   assert.match(visual,/useSyncExternalStore/);
   assert.match(visual,/readyToken===imageToken/);
   assert.doesNotMatch(visual,/useEffect\(\(\)=>setImageReady\(false\)/);
   assert.match(shared,/brokenRetryAfter/);
+  assert.match(shared,/fetchSharedAvatar\(identity,true\)/);
+  assert.match(shared,/forceRefresh=false/);
   assert.match(shared,/if\(!entry\|\|entry.url!==url\)return/);
   assert.match(shared,/cacheEpoch\+\+/);
   assert.match(visual,/src=\{fallback\}/);
