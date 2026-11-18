@@ -181,9 +181,6 @@ export function UnionPbxOperatorWorkspace({
     const filter = `organization_id=eq.${activeOrganizationId}`;
     const channel = supabase.channel(`pbx-operator:${activeOrganizationId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "pbx_call_logs", filter }, () => schedule("calls"))
-      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_extensions", filter }, () => schedule("directory"))
-      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_queues", filter }, () => schedule("directory"))
-      .on("postgres_changes", { event: "*", schema: "public", table: "pbx_call_flows", filter }, () => schedule("directory"))
       .subscribe();
     const resume = () => {
       if (document.visibilityState === "hidden") return;

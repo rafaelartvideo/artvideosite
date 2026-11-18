@@ -181,12 +181,24 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       setSession(newSession);
     });
 
+    let permissionRefreshQueued = false;
     const handlePermissionChange = () => {
-      if (scope !== "crm") return;
+      if (scope !== "crm" || permissionRefreshQueued) return;
       const userId = signedInUserRef.current;
       if (!userId) return;
-      accessLoadingKeyRef.current = null;
-      void loadAccess(userId, activeOrganizationIdRef.current, true);
+      const organizationId = activeOrganizationIdRef.current;
+      const requestId = accessRequestRef.current;
+      // O emissor publica nomes atual e legado no mesmo turno. Agrupar só
+      // esse turno evita dois bootstraps sem atrasar a revogação de acesso.
+      permissionRefreshQueued = true;
+      queueMicrotask(() => {
+        permissionRefreshQueued = false;
+        if (cancelled || signedInUserRef.current !== userId
+          || activeOrganizationIdRef.current !== organizationId
+          || accessRequestRef.current !== requestId) return;
+        accessLoadingKeyRef.current = null;
+        void loadAccess(userId, organizationId, true);
+      });
     };
     const removePermissionListener = addCompatibleEventListener(
       PERMISSIONS_CHANGED_EVENT,
@@ -532,13 +544,17 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     const requestKey = `${userId}:${preferredOrganizationId ?? "auto"}`;
     if (accessLoadingKeyRef.current === requestKey) return;
     accessLoadingKeyRef.current = requestKey;
+    // loadAccessData increments this generation synchronously before awaiting.
+    // A previous request for the same user/company cannot own the new lock.
+    const requestId = accessRequestRef.current + 1;
 
     try {
       await loadAccessData(userId, preferredOrganizationId, background);
     } catch (error) {
       // Erros de rede (incluindo 504 e TimeoutError) podem rejeitar a Promise.
       // Nunca deixar o painel preso em 42% sem um botão para tentar novamente.
-      if (accessLoadingKeyRef.current === requestKey && signedInUserRef.current === userId) {
+      if (requestId === accessRequestRef.current
+        && accessLoadingKeyRef.current === requestKey && signedInUserRef.current === userId) {
         console.error("Auth access request failed:", error);
         clearResolvedAccess();
         setProfile(null);
@@ -546,7 +562,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         setLoading(false);
       }
     } finally {
-      if (accessLoadingKeyRef.current === requestKey) {
+      if (requestId === accessRequestRef.current && accessLoadingKeyRef.current === requestKey) {
         accessLoadingKeyRef.current = null;
       }
     }

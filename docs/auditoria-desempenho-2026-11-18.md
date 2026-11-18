@@ -22,3 +22,32 @@ Inspecionados cache global, invalidação por rota, isolamento na troca de empre
 Notificações já usam contingência de 120 s sem polling em segundo plano; não foi aumentado cache de permissões ou dados financeiros. PABX mantém consultas periódicas de autorização; não foram suspensas porque isso exige validar revogação e chamadas ativas. Nenhum serviço reiniciado.
 Pendentes: planos SQL das RPCs custosas e índices, comparação atual de latências/p50/p95 e consumo, perfil de renderização por módulo, VPS/WuzAPI/Asterisk e validação completa de fluxos simultâneos. Nenhuma migração ou Edge Function foi modificada ou publicada nesta etapa.
 Alterações locais anteriores de diálogos preservadas no stash denominado preserve pending dialog changes before performance audit 2026-11-18; arquivos não rastreados anteriores preservados fora do commit.
+
+
+# Etapa 2 — requisições concorrentes e estabilidade de acesso
+
+## Falhas reproduzidas e corrigidas
+- **PABX:** dois componentes observavam extensões, filas e fluxos e recarregavam o mesmo diretório. Um evento gerava duas revisões; uma rajada de 30 eventos gerava 30 imediatas mais uma atrasada. Agora há um único responsável e uma janela fixa de 500 ms: uma revisão por lote. Mantidos SIP, chamadas, histórico, assinatura do ramal registrado em segundo plano e verificações de autorização.
+- **WhatsApp:** conclusão de contadores de uma conta antiga podia liberar a trava de outra conta e sobrescrever seu backoff. A troca de conta também podia não buscar seus contadores. Cada requisição agora tem escopo e identidade próprios. O provider deixa de duplicar a consulta inicial de contadores quando a tela completa já a faz. Preservados a janela de 8 s, o backoff de 30 s, os filtros e os eventos de recebimento.
+- **Notificações:** INSERTs e alterações de leitura ocorridos durante uma RPC podiam reutilizar uma resposta iniciada antes do evento, perder popups ou manter contadores antigos. INSERTs e leituras agora compartilham um lote serializado e, quando necessário, uma resposta nova depois da RPC anterior. Continuam exigidas as permissões retornadas pelo servidor, com o mesmo intervalo de contingência e cooldown de falhas.
+- **Autenticação/permissões:** o par de eventos de compatibilidade disparava dois bootstraps por alteração de permissões. O par agora é agrupado na mesma microtarefa (duas chamadas passam a uma, sem cache de permissões). Respostas antigas de acesso também podiam encerrar a trava ou aplicar erro de uma recarga mais recente para a mesma pessoa/empresa. A geração da requisição agora protege erro e liberação da trava; falhas atuais continuam bloqueando o acesso.
+- **Revisão:** adicionada cobertura para atualização de permissões agendada enquanto uma troca de empresa já começou, mas ainda não terminou; a atualização antiga não deve cancelar a troca. Cobertura de cancelamento de notificações enquanto aguarda outra RPC impede iniciar trabalho depois da desmontagem.
+
+As contagens acima são reproduções determinísticas locais. Não representam percentuais ou latências medidos em produção.
+
+## Banco e limites de segurança desta etapa
+Inspecionadas definições atuais das duas RPCs de notificações/contadores WhatsApp, políticas, índices e estatísticas estimadas de apenas três tabelas. O diagnóstico de saúde não apontou avisos. O relatório de desempenho aponta 380 FKs sem índice de cobertura, 165 índices sem uso observado, 35 casos de políticas permissivas múltiplas e um índice duplicado de service_orders. São sinais para investigação, não autorização para adicionar/remover índices em massa. Referência do diagnóstico: https://supabase.com/docs/guides/database/database-linter
+
+As políticas de notificações executam verificações de permissão por linha. A função materializa dados visíveis para produzir lista e contagem. Isso é um candidato a otimização SQL, mas não justifica trocar RLS ou executar varreduras de produção. A RPC WhatsApp já usa contagem agregada com filtros de organização/canal/conta e possui índices correspondentes. Nenhuma política, tabela, migração, Edge Function ou dado de produção foi alterado nesta etapa.
+
+## Cobertura adicional e pendências
+Inspecionados os contratos de paginação e carregamento de OS/cadastros, carregamento tardio das rotas, cache, fluxos financeiros e histórico de consultas legadas de SAC. As estatísticas históricas não provam execução atual do SAC. Permanecem para etapas específicas: planos SQL e equivalência em ambiente isolado, custo da RLS, paginação dos históricos extensos, perfil de renderizações dos módulos, observação econômica dos serviços na VPS e comparação p50/p95 com amostra adequada. Não se considera o sistema inteiro auditado apenas porque a suíte passou.
+
+
+Na validação autenticada anterior ao segundo deploy, a lista de OS carregou 499 registros totais (paginados), com avisos de lista/referências lentas e erro de referências no console; notificações também registraram contingência após falha. O Financeiro exibiu skeleton inicialmente e depois carregou seu resumo. Não se atribuiu causa ou ganho a essa observação sem rastreamento de rede suficiente. Estatísticas acumuladas de SQL do Financeiro: dashboard média 231,77 ms/máxima 6.652,51 ms; cash-flow média 187,69 ms/máxima 5.698,44 ms; foundation média 172,89 ms/máxima 3.344,02 ms. São estatísticas históricas, não duração ponta a ponta nem p95.
+
+
+## Validação da segunda etapa
+A revisão independente reproduziu as duas condições de navegação citadas acima; ambas receberam testes que falharam antes da correção e passaram depois. Validação final após incorporar a nova main 4b5b6d224 (verificação de números nos cadastros): npm run test:ci, 940 testes: 939 aprovados, um teste dependente de ferramenta indisponível ignorado, zero falhas. Os testes adicionais de autenticação entram permanentemente em test:performance/test:ci; as novas regressões de PABX entram na seleção automática de telefonia. Não se alteraram gates de publicação. Os builds e o deploy são conferidos separadamente antes de declarar publicação.
+
+Builds finais do site e CRM concluídos com sucesso sobre essa mesma base. Testes Python específicos do agente PABX continuam dependentes do Linux no workflow.

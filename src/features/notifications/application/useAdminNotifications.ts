@@ -63,8 +63,10 @@ export function useAdminNotifications(
     if (!normalizedOrganizationId || !normalizedUserId) return;
 
     let disposed = false;
+    const refreshController = new AbortController();
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let stateRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let stateRefreshPending = false;
     let reconcileAfter = 0;
     let lastErrorLogAt = 0;
     const pendingIds = new Set<number>();
@@ -74,7 +76,7 @@ export function useAdminNotifications(
     // e consolida bursts de INSERT em uma unica consulta.
     const flushNotifications = async () => {
       refreshTimer = null;
-      if (disposed || pendingIds.size === 0) return;
+      if (disposed || refreshInFlight || (pendingIds.size === 0 && !stateRefreshPending)) return;
       // Back off all Realtime bursts after a failed request. Do not replay
       // invalidations immediately, which would start another expensive RPC.
       if (Date.now() < reconcileAfter) {
@@ -83,8 +85,11 @@ export function useAdminNotifications(
       }
       const received = new Set(pendingIds);
       pendingIds.clear();
+      const receivedStateChange = stateRefreshPending;
+      stateRefreshPending = false;
+      refreshInFlight = true;
       try {
-        const snapshot = await loadAdminNotifications(normalizedOrganizationId, 50, normalizedUserId);
+        const snapshot = await loadAdminNotifications(normalizedOrganizationId, 50, normalizedUserId, true, refreshController.signal);
         if (disposed) return;
         reconcileAfter = 0;
         queryClient.setQueryData<AdminNotificationsBootstrap>(queryKey, snapshot);
@@ -94,14 +99,17 @@ export function useAdminNotifications(
       } catch (error) {
         if (disposed) return;
         received.forEach(id => pendingIds.add(id));
+        stateRefreshPending ||= receivedStateChange;
         reconcileAfter = Date.now() + 30_000;
         // One diagnostic per minute, never one per notification.
         if (Date.now() - lastErrorLogAt >= 60_000) {
           console.warn("[notifications] Inbox unavailable; scheduling a delayed reconciliation", error);
           lastErrorLogAt = Date.now();
         }
+      } finally {
+        refreshInFlight = false;
       }
-      if (!disposed && pendingIds.size > 0 && refreshTimer === null) {
+      if (!disposed && (pendingIds.size > 0 || stateRefreshPending) && refreshTimer === null) {
         refreshTimer = setTimeout(
           () => void flushNotifications(),
           Math.max(1_000, reconcileAfter - Date.now()),
@@ -114,20 +122,17 @@ export function useAdminNotifications(
         // The home page uses the same React Query key. Flush once instead of
         // invalidating it separately for every inserted notification.
         if (pendingIds.size < 200) pendingIds.add(notification.id);
-        if (refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 1_000);
+        if (!refreshInFlight && refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 1_000);
       },
       onStateChange: () => {
-        if (stateRefreshTimer !== null) return;
-        stateRefreshTimer = setTimeout(() => {
-          stateRefreshTimer = null;
-          if (!disposed) void queryClient.invalidateQueries({ queryKey });
-        }, 1_000);
+        stateRefreshPending = true;
+        if (!refreshInFlight && refreshTimer === null) refreshTimer = setTimeout(() => void flushNotifications(), 1_000);
       },
     });
     return () => {
       disposed = true;
+      refreshController.abort();
       if (refreshTimer !== null) clearTimeout(refreshTimer);
-      if (stateRefreshTimer !== null) clearTimeout(stateRefreshTimer);
       unsubscribe();
     };
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);

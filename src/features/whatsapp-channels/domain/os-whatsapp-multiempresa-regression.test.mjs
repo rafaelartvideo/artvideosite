@@ -756,3 +756,83 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
   assert.match(inbox,/UnionWhatsAppContactsDialog/);
 });
+
+// Execute the actual count-refresh callback with deferred RPCs, without a browser
+// or production connection. The refs remain shared across account transitions.
+function countRefreshHarness(){
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const body=provider.match(/const refreshCounts=useCallback\(async\(force=false\)=>\{([\s\S]*?)\n  \},\[enabled,organizationId,channelId,channelPhone,accountKey\]\);/)[1];
+  const refs={
+    disposedRef:{current:false},currentAccountRef:{current:"A"},
+    countsInFlightRef:{current:null},countsScopeRef:{current:""},
+    lastCountsRef:{current:0},countsRetryAfterRef:{current:0},
+  };
+  const pending=[],results=[];
+  const listUnionWhatsAppConversationCounts=(...args)=>new Promise((resolve,reject)=>pending.push({args,resolve,reject}));
+  const create=new Function("env",`const {enabled,organizationId,channelId,channelPhone,accountKey,disposedRef,currentAccountRef,countsInFlightRef,countsScopeRef,lastCountsRef,countsRetryAfterRef,listUnionWhatsAppConversationCounts,setCounts}=env; return async(force=false)=>{${body}};`);
+  const forAccount=accountKey=>{
+    refs.currentAccountRef.current=accountKey;
+    return create({...refs,enabled:true,organizationId:accountKey,channelId:"channel",channelPhone:"phone",accountKey,listUnionWhatsAppConversationCounts,setCounts:value=>results.push(value)});
+  };
+  return {refs,pending,results,forAccount};
+}
+
+test("Count refresh starts the new account immediately while the previous account RPC is pending",async()=>{
+  const h=countRefreshHarness();
+  const first=h.forAccount("A")(true);
+  const second=h.forAccount("B")(true);
+  assert.equal(h.pending.length,2);
+  h.pending[0].resolve({total:10});h.pending[1].resolve({total:20});
+  await Promise.all([first,second]);
+  assert.deepEqual(h.results,[{total:20}]);
+});
+
+test("An obsolete tenant request cannot unlock a newer count request",async()=>{
+  const h=countRefreshHarness();
+  const first=h.forAccount("A")(true);
+  // Match the provider's tenant-reset effect before its new channel resolves.
+  h.refs.countsInFlightRef.current=null;
+  h.refs.lastCountsRef.current=0;h.refs.countsRetryAfterRef.current=0;
+  const refresh=h.forAccount("B");
+  const second=refresh(true);
+  h.pending[0].resolve({total:10});await first;
+  const duplicate=refresh(true);
+  assert.equal(h.pending.length,2,"only one RPC may run for the current account");
+  await duplicate;
+  h.pending[1].resolve({total:20});await second;
+});
+
+test("An obsolete count failure cannot put the current account into backoff",async()=>{
+  const h=countRefreshHarness();
+  const first=h.forAccount("A")(true);
+  h.refs.countsInFlightRef.current=null;
+  const refresh=h.forAccount("B");
+  const second=refresh(true);
+  h.pending[1].resolve({total:20});await second;
+  h.pending[0].reject(new Error("old request failed"));await first;
+  const third=refresh(true);
+  assert.equal(h.pending.length,3);
+  h.pending[2].resolve({total:21});await third;
+});
+
+test("Count refresh preserves current-account throttle and failure backoff",async()=>{
+  const h=countRefreshHarness(),refresh=h.forAccount("A");
+  const first=refresh(true);
+  await refresh(true);assert.equal(h.pending.length,1);
+  h.pending[0].resolve({total:1});await first;
+  await refresh();assert.equal(h.pending.length,1);
+  const forced=refresh(true);assert.equal(h.pending.length,2);
+  h.pending[1].reject(new Error("current request failed"));await forced;
+  await refresh(true);assert.equal(h.pending.length,2);
+});
+
+test("The activity provider leaves initial counts to the visible full inbox",()=>{
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  const effect=provider.match(/useEffect\(\(\)=>\{\n    if\(!channelId\|\|!channelPhone\|\|!enabled[^\n]*\n    void refreshCounts\(true\);\n  \},\[channelId,channelPhone,enabled,refreshCounts\]\);/)[0];
+  let requests=0;
+  const run=new Function("pageOpenRef","channelId","channelPhone","enabled","refreshCounts","useEffect",effect);
+  for(const pageOpen of [true,false]){
+    run({current:pageOpen},"channel","phone",true,()=>{requests++;},callback=>callback());
+    assert.equal(requests,pageOpen?0:1);
+  }
+});

@@ -118,7 +118,8 @@ export function UnionWhatsAppActivityProvider({
   const notifiedRef=useRef(new Set<string>());
   const openConversationsRef=useRef(new Map<string,number>());
   const reconcileTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
-  const countsInFlightRef=useRef(false);
+  const countsInFlightRef=useRef<{scope:string}|null>(null);
+  const countsScopeRef=useRef("");
   const lastCountsRef=useRef(0);
   const countsRetryAfterRef=useRef(0);
   const listGenerationRef=useRef(0);
@@ -185,7 +186,8 @@ export function UnionWhatsAppActivityProvider({
     channelSeqRef.current+=1;
     checkingRef.current=false;
     lastChannelCheckRef.current=0;
-    countsInFlightRef.current=false;
+    countsInFlightRef.current=null;
+    countsScopeRef.current="";
     lastCountsRef.current=0;
     countsRetryAfterRef.current=0;
     listGenerationRef.current+=1;
@@ -212,19 +214,32 @@ export function UnionWhatsAppActivityProvider({
 
   const refreshCounts=useCallback(async(force=false)=>{
     if(!enabled||!organizationId||!channelId||!channelPhone||disposedRef.current)return;
-    const now=Date.now();
-    if(countsInFlightRef.current||now<countsRetryAfterRef.current||
-      (!force&&now-lastCountsRef.current<8_000))return;
-    countsInFlightRef.current=true;
-    lastCountsRef.current=now;
     const scope=accountKey;
+    if(countsScopeRef.current!==scope){
+      countsScopeRef.current=scope;
+      lastCountsRef.current=0;
+      countsRetryAfterRef.current=0;
+    }
+    const now=Date.now();
+    if(countsInFlightRef.current?.scope===scope||now<countsRetryAfterRef.current||
+      (!force&&now-lastCountsRef.current<8_000))return;
+    // Ownership prevents an old account's completion from unlocking the new
+    // request or overwriting its retry window after an organization switch.
+    const request={scope};
+    countsInFlightRef.current=request;
+    lastCountsRef.current=now;
     try{
       const result=await listUnionWhatsAppConversationCounts(organizationId,channelId,channelPhone);
-      if(!disposedRef.current&&currentAccountRef.current===scope)setCounts(result);
+      if(disposedRef.current||currentAccountRef.current!==scope||
+        countsInFlightRef.current!==request)return;
+      setCounts(result);
       countsRetryAfterRef.current=0;
     }catch{
-      countsRetryAfterRef.current=Date.now()+30_000;
-    }finally{countsInFlightRef.current=false;}
+      if(!disposedRef.current&&currentAccountRef.current===scope&&
+        countsInFlightRef.current===request)countsRetryAfterRef.current=Date.now()+30_000;
+    }finally{
+      if(countsInFlightRef.current===request)countsInFlightRef.current=null;
+    }
   },[enabled,organizationId,channelId,channelPhone,accountKey]);
 
   const refreshLists=useCallback(async(targets:Filter[],urgent=false)=>{
@@ -276,7 +291,7 @@ export function UnionWhatsAppActivityProvider({
   },[]);
 
   useEffect(()=>{
-    if(!channelId||!channelPhone||!enabled)return;
+    if(!channelId||!channelPhone||!enabled||pageOpenRef.current)return;
     void refreshCounts(true);
   },[channelId,channelPhone,enabled,refreshCounts]);
 

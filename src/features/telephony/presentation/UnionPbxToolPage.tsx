@@ -94,21 +94,33 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
   // o ramal está registrado; nunca inicia polling de toda a tabela.
   useEffect(() => {
     if (!activeOrganizationId || (!isPageOpen && registration !== "registered")) return;
+    // Uma alteração pode publicar vários registros; agrupe o diretório em uma leitura.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (timer !== undefined) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        setDirectoryRevision(previous => previous + 1);
+      }, 500);
+    };
     const channel = supabase.channel("pbx-extension-updates-" + activeOrganizationId)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "pbx_extensions",
         filter: "organization_id=eq." + activeOrganizationId,
-      }, () => setDirectoryRevision(previous => previous + 1))
+      }, schedule)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "pbx_queues",
         filter: "organization_id=eq." + activeOrganizationId,
-      }, () => setDirectoryRevision(previous => previous + 1))
+      }, schedule)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "pbx_call_flows",
         filter: "organization_id=eq." + activeOrganizationId,
-      }, () => setDirectoryRevision(previous => previous + 1))
+      }, schedule)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
   }, [activeOrganizationId, isPageOpen, registration]);
   const [callState, setCallState] = useState<CallState>("idle");
   const [callKeypadExpanded, setCallKeypadExpanded] = useState(false);

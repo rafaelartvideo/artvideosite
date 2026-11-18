@@ -43,12 +43,24 @@ export async function loadAdminNotifications(
   organizationId: string,
   limit = 50,
   userId?: string,
+  refreshAfterPending = false,
+  refreshSignal?: AbortSignal,
 ): Promise<AdminNotificationsBootstrap> {
   // User identity is part of the key: never share an in-flight response
   // between users belonging to the same organization.
   const cacheKey = userId ? `${userId}:${organizationId}:${limit}` : null;
   const pending = cacheKey ? notificationLoadsInFlight.get(cacheKey) : null;
-  if (pending) return pending;
+  if (pending) {
+    if (!refreshAfterPending) return pending;
+    // A Realtime event may postdate this RPC's database snapshot. Wait for
+    // it to settle, then share one new request among all waiting refreshes.
+    // A failure still propagates through the existing cooldown.
+    await pending;
+    // Cancellation belongs to the waiting subscription only. Never abort
+    // the shared RPC, which may still be needed by other inbox consumers.
+    refreshSignal?.throwIfAborted();
+    return loadAdminNotifications(organizationId, limit, userId);
+  }
 
   const failure = cacheKey ? notificationLoadFailures.get(cacheKey) : null;
   if (failure && Date.now() < failure.until) throw failure.error;

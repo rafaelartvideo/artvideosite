@@ -39,7 +39,7 @@ test("visualizar e receber sao direitos separados no banco e na UI de perfis", (
 });
 
 test("realtime nao promove avisos sem direito de recebimento e agrupa rajadas", () => {
-  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId\)/);
+  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId, true, refreshController\.signal\)/);
   assert.match(hook, /item\.delivery_allowed === true/);
   assert.match(hook, /pendingIds/);
   assert.match(hook, /refreshTimer/);
@@ -85,7 +85,7 @@ test("RPC de notificações preserva RLS e resolve permissões por escopo, sem c
   assert.match(repository, /notificationLoadsInFlight\.get\(cacheKey\)/);
   assert.match(repository, /Date\.now\(\) < failure\.until/);
   assert.match(repository, /Math\.min\(15_000 \* \(2 \*\* \(attempts - 1\)\), 120_000\)/);
-  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId\)/);
+  assert.match(hook, /loadAdminNotifications\(normalizedOrganizationId, 50, normalizedUserId, true, refreshController\.signal\)/);
   assert.match(home, /loadAdminNotifications\(activeOrganizationId!, 50, user!\.id\)/);
   assert.match(hook, /received\.forEach\(id => pendingIds\.add\(id\)\)/);
 });
