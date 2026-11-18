@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { Plus } from "lucide-react";
+import { ExternalLink, PanelTop, Plus, X } from "lucide-react";
 import { WhatsAppDraftConversation } from "./WhatsAppDraftConversation";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
@@ -50,6 +50,7 @@ export type WhatsAppModalContext = {
         customerName: string;
         documentOptions?: Array<{id:string;label:string}>;
         prepareDocument?: (templateId:string)=>Promise<File>;
+        preferredRecipient?: {kind:"registered"|"linked";phone:string;field?:"whatsapp"|"phone";conversation_id?:string};
       }
     | {
         kind: "contact";
@@ -61,9 +62,16 @@ export type WhatsAppModalContext = {
       }
     | { kind: "conversation"; conversationId: string };
 };
-type Props = { open: boolean; onClose: () => void; context: WhatsAppModalContext };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  context: WhatsAppModalContext;
+  detached?: boolean;
+  onDetach?: (popup: Window) => void;
+  onReintegrate?: (recipient: Recipient | null) => void;
+};
 
-export function WhatsAppConversationModal({ open, onClose, context }: Props) {
+export function WhatsAppConversationModal({ open, onClose, context, detached=false, onDetach, onReintegrate }: Props) {
   const { organizationId, source } = context;
   const phone = source.kind==="conversation" ? "" : source.phone;
   const customerName = source.kind==="conversation" ? "" : source.customerName;
@@ -151,7 +159,14 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
           // Não pedir escolha quando há apenas um número de destino.
           // A API retorna números normalizados e únicos, evitando repetir
           // o telefone do cadastro caso ele também tenha sido vinculado à OS.
-          if(recipients.length>1)set({status:"choosing",recipients});
+          const preferred=source.preferredRecipient;
+          const matching=preferred && recipients.find((item:Recipient)=>
+            item.kind===preferred.kind && item.phone===preferred.phone &&
+            (item.kind==="linked"
+              ? item.conversation_id===preferred.conversation_id
+              : item.field===preferred.field));
+          if(matching)void chooseOrderRecipient(matching);
+          else if(recipients.length>1)set({status:"choosing",recipients});
           else if(recipients.length===1)void chooseOrderRecipient(recipients[0]);
           else set({status:"empty",canStart:false,
             message:"Esta OS não possui número WhatsApp cadastrado ou vinculado."});
@@ -259,22 +274,45 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
     }
   };
 
-  return <>
-  <AdminDialog
-    open={open}
-    onClose={onClose}
-    title="Atendimento WhatsApp"
-    draggable
-    floating
-    headerActions={canCreateOrder && organizationId === activeOrganizationId && canViewInbox
-      ? <AdminButton variant="secondary" size="sm" disabled={preparingNewOrder || Boolean(newOrder)}
-          loading={preparingNewOrder} onClick={() => void openNewOrder()}>
-          <Plus size={15}/> Nova OS
-        </AdminButton>
-      : undefined}
-    className="!h-[min(80dvh,760px)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1080px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
-    bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0"
-  >
+  const canDetach=source.kind==="order" && !detached && Boolean(onDetach)
+    && organizationId===activeOrganizationId && canViewInbox;
+  const detachOrder=()=>{
+    if(!canDetach || source.kind!=="order")return;
+    // Native browser window, opened synchronously by a real click. No phone,
+    // message, access token, or customer name is serialized into the URL.
+    const url=new URL("/admin/whatsapp-destacado/"+encodeURIComponent(source.orderId),
+      window.location.origin);
+    url.searchParams.set("org",organizationId);
+    const popup=window.open(url.toString(),
+      "union_whatsapp_os_"+organizationId.replace(/-/g,"")+"_"+source.orderId.replace(/-/g,""),
+      "popup=yes,width=1120,height=850,resizable=yes,scrollbars=yes");
+    if(!popup){
+      notifyAdmin("O navegador bloqueou a janela. Permita pop-ups da Union World e tente novamente.","error");
+      return;
+    }
+    onDetach?.(popup);
+    popup.focus();
+    onClose();
+  };
+  const headerActions=<>
+    {canDetach && <AdminButton variant="secondary" size="sm" aria-label="Destacar janela"
+      title="Abrir o Atendimento WhatsApp em uma janela independente"
+      onClick={detachOrder}>
+      <ExternalLink size={15}/> <span className="hidden sm:inline">Destacar janela</span>
+    </AdminButton>}
+    {detached && onReintegrate && <AdminButton variant="secondary" size="sm"
+      title="Reintegrar o atendimento ao modal na OS"
+      onClick={()=>onReintegrate(chosenRecipient)}>
+      <PanelTop size={15}/> Reintegrar ao CRM
+    </AdminButton>}
+    {canCreateOrder && organizationId===activeOrganizationId && canViewInbox &&
+      <AdminButton variant="secondary" size="sm"
+        disabled={preparingNewOrder||Boolean(newOrder)}
+        loading={preparingNewOrder} onClick={()=>void openNewOrder()}>
+        <Plus size={15}/> Nova OS
+      </AdminButton>}
+  </>;
+  const content=<>
     {state.status === "loading" ? <div className="flex h-full items-center justify-center">
       <LoadingState text={state.message || "Consultando números..."} />
     </div> : state.status === "choosing" ? <div className="flex min-h-0 h-full flex-col items-center overflow-y-auto px-4 py-6 sm:px-6">
@@ -374,15 +412,110 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
       }}
     />
   </Suspense>}
-  </AdminDialog>
   </>;
+  return detached
+    ? <section className="admin-crm flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-card text-foreground"
+        data-whatsapp-detached-order={orderId}>
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="text-sm font-bold">Atendimento WhatsApp</span>
+            <span className="hidden rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary sm:inline-flex">
+              Janela destacada
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {headerActions}
+            <button type="button" aria-label="Fechar janela destacada"
+              title="Fechar somente esta janela; não finalizar atendimento"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+              <X size={17}/>
+            </button>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1 overflow-hidden">{content}</main>
+      </section>
+    : <AdminDialog
+        open={open} onClose={onClose} title="Atendimento WhatsApp"
+        draggable floating headerActions={headerActions}
+        className="!h-[min(80dvh,760px)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1080px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
+        bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0">
+        {content}
+      </AdminDialog>;
 }
 
 /** Reusable WhatsApp launcher for verified OS, registration, customer and thread contexts. */
 export function useWhatsAppConversationModal() {
   const [context,setContext]=useState<WhatsAppModalContext|null>(null);
+  // Lives in the OS page, not inside the modal, so reattach works after
+  // detaching has unmounted the modal and released the main OS workspace.
+  const detachedRef=useRef<{popup:Window;context:WhatsAppModalContext}|null>(null);
   const openWhatsAppConversation=useCallback((next:WhatsAppModalContext)=>setContext(next),[]);
   const closeWhatsAppConversation=useCallback(()=>setContext(null),[]);
+  const detachWhatsAppConversation=useCallback((popup:Window)=>{
+    if(!context || context.source.kind!=="order")return;
+    detachedRef.current={popup,context};
+    setContext(null);
+  },[context]);
+
+  useEffect(()=>{
+    const handleMessage=(event:MessageEvent)=>{
+      const detached=detachedRef.current;
+      if(!detached || event.origin!==window.location.origin ||
+        event.source!==detached.popup || !event.data ||
+        typeof event.data!=="object")return;
+      const msg=event.data as Record<string,unknown>;
+      const original=detached.context;
+      if(original.source.kind!=="order" ||
+        msg.organizationId!==original.organizationId ||
+        msg.orderId!==original.source.orderId)return;
+      const reply=(body:Record<string,unknown>)=>{
+        if(!detached.popup.closed)detached.popup.postMessage({
+          ...body,organizationId:original.organizationId,orderId:original.source.kind==="order"
+            ? original.source.orderId:"",},window.location.origin);
+      };
+      if(msg.type==="union-whatsapp-detached-ready"){
+        reply({type:"union-whatsapp-detached-context",
+          documentOptions:original.source.documentOptions||[]});
+      }else if(msg.type==="union-whatsapp-detached-document"){
+        if(typeof msg.requestId!=="string" || !/^[0-9a-f-]{36}$/i.test(msg.requestId) ||
+          typeof msg.templateId!=="string")return;
+        const source=original.source;
+        if(!source.prepareDocument ||
+          !source.documentOptions?.some(item=>item.id===msg.templateId)){
+          reply({type:"union-whatsapp-detached-document-result",
+            requestId:msg.requestId,error:"Documento indisponível nesta OS."});
+          return;
+        }
+        void source.prepareDocument(msg.templateId).then(file=>{
+          reply({type:"union-whatsapp-detached-document-result",
+            requestId:msg.requestId,file});
+        }).catch(error=>{
+          reply({type:"union-whatsapp-detached-document-result",
+            requestId:msg.requestId,error:systemErrorMessage(error,"Não foi possível preparar o documento.")});
+        });
+      }else if(msg.type==="union-whatsapp-detached-reintegrate"){
+        const choice=msg.recipient;
+        const candidate=choice && typeof choice==="object" ? choice as Record<string,unknown> : null;
+        const safeRecipient=candidate &&
+          (candidate.kind==="linked" || candidate.kind==="registered") &&
+          typeof candidate.phone==="string" && /^[0-9]{10,14}$/.test(candidate.phone)
+          ? {
+              kind:candidate.kind as "linked"|"registered",phone:candidate.phone,
+              field:candidate.field==="whatsapp"||candidate.field==="phone"
+                ? candidate.field:undefined,
+              conversation_id:typeof candidate.conversation_id==="string"
+                ? candidate.conversation_id:undefined,
+            } : undefined;
+        setContext({...original,source:{...original.source,preferredRecipient:safeRecipient}});
+        reply({type:"union-whatsapp-detached-reattached"});
+        detachedRef.current=null;
+      }
+    };
+    window.addEventListener("message",handleMessage);
+    return()=>window.removeEventListener("message",handleMessage);
+  },[]);
+
   return {
     isWhatsAppModalOpen:Boolean(context),
     openWhatsAppConversation,
@@ -391,7 +524,7 @@ export function useWhatsAppConversationModal() {
       key={context.source.kind==="conversation" ? context.source.conversationId
         : context.source.kind==="order" ? context.source.orderId
         : context.source.entityContactId || context.source.entityId || context.source.customerId}
-      open context={context} onClose={closeWhatsAppConversation}/> : null,
+      open context={context} onClose={closeWhatsAppConversation}
+      onDetach={context.source.kind==="order" ? detachWhatsAppConversation : undefined}/> : null,
   };
 }
-

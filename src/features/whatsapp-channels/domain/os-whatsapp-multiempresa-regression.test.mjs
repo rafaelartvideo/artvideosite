@@ -1084,3 +1084,35 @@ test("Abas usam cache curto, Não lidas consulta todas as páginas e não fecha 
   assert.doesNotMatch(ui,/setSelectedId\(null\);setConversationPage\(0\);setFilter\(item\.value\)/);
   assert.doesNotMatch(ui,/setSelectedId\(null\);setConversationPage\(p=>p\+1\)/);
 });
+
+
+test("OS pode destacar Atendimento WhatsApp sem criar novo protocolo ou expor telefone na URL",()=>{
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const popout=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
+  const app=read("src/app/App.tsx");
+  assert.match(modal,/const canDetach=source\.kind==="order"/);
+  assert.match(modal,/window\.open\(url\.toString\(\)/);
+  assert.match(modal,/admin\/whatsapp-destacado/);
+  assert.match(modal,/aria-label="Destacar janela"/);
+  assert.match(modal,/data-whatsapp-detached-order=\{orderId\}/);
+  assert.match(modal,/onReintegrate\(chosenRecipient\)/);
+  assert.match(popout,/UnionWhatsAppActivityProvider/);
+  assert.match(popout,/WhatsAppConversationModal/);
+  assert.match(app,/detachedOrderMatch=location\.pathname\.match/);
+  assert.match(app,/DetachedWhatsAppOrderPage/);
+  assert.match(app,/if \(activeOrganization && accessWindow && !accessWindow\.allowed\)/);
+});
+
+test("Janela destacada preserva os documentos da OS e reanexa pelo evento validado",()=>{
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const popout=read("src/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage.tsx");
+  assert.match(modal,/event\.origin!==window\.location\.origin/);
+  assert.match(modal,/event\.source!==detached\.popup/);
+  assert.match(modal,/union-whatsapp-detached-document/);
+  assert.match(modal,/source\.documentOptions\?\.some/);
+  assert.match(modal,/source\.prepareDocument\(msg\.templateId\)/);
+  assert.match(modal,/setContext\(\{\.\.\.original,source:\{\.\.\.original\.source,preferredRecipient:safeRecipient\}\}\)/);
+  assert.match(popout,/event\.source!==opener/);
+  assert.match(popout,/onReintegrate=\{reintegrate\}/);
+  assert.match(popout,/prepareDocument:documentOptions\.length>0\?prepareDocument:undefined/);
+});

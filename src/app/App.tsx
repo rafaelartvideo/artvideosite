@@ -25,6 +25,10 @@ const AdminLogin = lazy(() =>
 const AdminDashboard = lazy(() =>
   import("@/app/Admin").then(({ AdminDashboard }) => ({ default: AdminDashboard })),
 );
+const DetachedWhatsAppOrderPage = lazy(() =>
+  import("@/features/whatsapp-channels/presentation/DetachedWhatsAppOrderPage")
+    .then(({ DetachedWhatsAppOrderPage }) => ({ default: DetachedWhatsAppOrderPage })),
+);
 const HomePage = lazy(() => import("@/features/home/presentation/HomePage").then(module => ({ default: module.HomePage })));
 const ServicesPage = lazy(() => import("@/features/public-services/presentation/ServicesPage").then(module => ({ default: module.ServicesPage })));
 const ServiceDetailPage = lazy(() => import("@/features/public-services/presentation/ServiceDetailPage").then(module => ({ default: module.ServiceDetailPage })));
@@ -373,6 +377,21 @@ function AdminEntry() {
         onSignOut={signOut}
       />
     );
+  }
+
+  // The detached OS window passes through exactly the same authentication,
+  // tenant switch and access-window checks as the regular CRM.
+  const detachedOrderMatch=location.pathname.match(/^\/admin\/whatsapp-destacado\/([0-9a-f-]{36})$/i);
+  if(detachedOrderMatch){
+    const expectedOrganizationId=new URLSearchParams(location.search).get("org")||"";
+    return <Suspense fallback={<AdminFallback progress={99} status="Abrindo atendimento destacado" />}>
+      <AdminDialogManagerProvider key={activeOrganization.organization_id}>
+        <DetachedWhatsAppOrderPage
+          orderId={detachedOrderMatch[1]}
+          expectedOrganizationId={expectedOrganizationId}
+        />
+      </AdminDialogManagerProvider>
+    </Suspense>;
   }
 
   return (
