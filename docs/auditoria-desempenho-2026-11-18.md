@@ -69,3 +69,21 @@ Também foram lidos somente os metadados de cron.job: nove agendamentos ativos, 
 Antes do commit da etapa 3 foi incorporada a main 814f0cd04, que introduz o chat completo de rascunho antes do primeiro envio. O único conflito ocorreu nas regressões adicionadas ao fim do mesmo arquivo; preservados os dois conjuntos. O teste anterior de não criar protocolo ainda esperava controles removidos por essa mudança. Foi alinhado ao rascunho novo, mantendo as verificações de envio explícito, mensagem não vazia, nenhum start no componente de rascunho, confirmação do provedor antes do protocolo e chave de idempotência. Os 42 testes desse arquivo passaram depois da reconciliação; a suíte completa é repetida sobre a base final.
 
 Validação final da etapa 3, já incorporando também a correção de testes bafb845cd da main: 943 testes, 942 aprovados, um FFmpeg indisponível ignorado, zero falhas. Builds site e CRM concluídos com sucesso sobre os mesmos arquivos de aplicação (a atualização bafb845cd alterou somente testes).
+
+
+# Etapa 4 — ponte WuzAPI e experimento SQL isolado
+
+## Correção da ponte
+O cache de diretórios de contato retinha objetos completos sem limite ou expulsão, e consultas simultâneas da mesma sessão baixavam o diretório repetidamente. Implementado compartilhamento de requisições em andamento por empresa/conexão/token (chave SHA-256, sem tokens legíveis no cache), TTL de cinco minutos, LRU de 64 diretórios e orçamento estimado de 8 MiB de dados retidos. Permanecem apenas os campos de nome usados na apresentação. Erros não entram no cache; diretórios acima do orçamento são utilizados para a resposta atual sem serem retidos.
+
+Reprodução: 20 consultas simultâneas passaram de 20 downloads do provedor para um. Testes cobrem falha compartilhada/repetição, expiração, expulsão, orçamento, concorrência na rotação de token e isolamento. A revisão encontrou que slice de um nome enorme podia reter a string original: a reprodução mantinha 25.228.416 bytes após GC. A cópia agora destaca os mesmos caracteres UTF-16, incluindo substitutos isolados na borda de 160 caracteres. Esse limite é uma estimativa do cache retido, não limite de memória total/transitória da resposta do provedor.
+
+Preflight autenticado da VPS: serviço union-wuzapi-bridge ativo, código SHA-256 18ceee8c0d47c07599736779b8c7dae5daec5365ef279523f937278bcba4dfb9 idêntico à base do repositório, zero conexões HTTP estabelecidas na porta 19080 na amostra. MemoryCurrent 64.815.104 bytes. Containers WuzAPI e bancos estavam ativos; amostra de CPU abaixo de 1%. Não se executou varredura de contatos, mensagens ou mídias para validar a otimização. Publicação é verificada separadamente, com hash, backup, sintaxe e retorno da API local.
+
+## SQL/RLS: alternativas testadas e rejeitadas
+Foram criados ambiente e dados sintéticos locais, sem conexão com produção. Duas alternativas de materialização da RPC de notificações passaram por 1.440 comparações de resultado JSON sob políticas de RLS, mas apresentaram regressões de desempenho em parte dos cenários. A busca tardia de payload repetiu RLS em históricos pequenos; manter o payload anterior e estreitar só a etapa autorizada aumentou leituras temporárias em históricos maiores. Metadados grandes com TOAST também não significaram automaticamente cópia grande de payload.
+
+Por isso, nenhuma dessas alternativas foi aplicada ao banco. Os experimentos e a forma de reprodução estão em supabase/tests/notification-payload-materialization.md, .mjs e -fixture.sql. Usam PostgreSQL 18.6/WASM/PGlite 0.5.16 e helpers sintéticos simplificados: não são tempos ou p95 de produção PostgreSQL 17. A reprodução de 100 registros também foi executada pelo coordenador. Nenhuma RLS, permissão, migração ou função de produção foi alterada nesta etapa.
+
+## Validação
+Revisão independente aprovada depois de corrigir a retenção de strings. Suite completa: 963 testes, 962 aprovados e um FFmpeg indisponível ignorado, sem falhas. Builds site e CRM passaram; a alteração final da ponte é Node e não altera os arquivos de aplicação desses builds. A cópia anterior de alterações locais dos diálogos permanece preservada no stash, fora das entregas.

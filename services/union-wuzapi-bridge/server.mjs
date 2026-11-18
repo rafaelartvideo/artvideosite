@@ -21,6 +21,43 @@ await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
 const seenNonces = new Map();
 const pendingProvision = new Map();
 const contactsCache = new Map();
+const contactsPending = new Map();
+const CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const CONTACTS_CACHE_MAX_ENTRIES = 64;
+const CONTACTS_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+let contactsCacheBytes = 0;
+function removeContactsCacheEntry(key) {
+  const entry = contactsCache.get(key);
+  if (!entry) return;
+  contactsCacheBytes -= entry.estimatedBytes;
+  contactsCache.delete(key);
+}
+function saveContactsCacheEntry(key, contacts) {
+  // Retain only fields used by lookup, with the same normalization. Provider
+  // metadata and unbounded strings must not fill the shared bridge heap.
+  const compact = Object.create(null);
+  let estimatedBytes = 512 + 2 * key.length;
+  for (const [jid, entry] of Object.entries(contacts)) {
+    if (!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid) || !entry) continue;
+    const fields = { Found: entry.Found !== false };
+    estimatedBytes += 256 + 2 * jid.length;
+    for (const field of ["FullName", "FirstName", "BusinessName", "PushName"]) {
+      // V8 slices may keep the entire provider string alive. Copy UTF-16 code
+      // units into a fresh string, preserving even a truncated lone surrogate.
+      fields[field] = String(entry[field] || "").trim().slice(0,160).split("").join("");
+      estimatedBytes += 2 * fields[field].length;
+    }
+    if (estimatedBytes > CONTACTS_CACHE_MAX_BYTES) return;
+    compact[jid] = fields;
+  }
+  removeContactsCacheEntry(key);
+  contactsCache.set(key, {contacts:compact, at:Date.now(), estimatedBytes});
+  contactsCacheBytes += estimatedBytes;
+  while (contactsCache.size > CONTACTS_CACHE_MAX_ENTRIES ||
+      contactsCacheBytes > CONTACTS_CACHE_MAX_BYTES) {
+    removeContactsCacheEntry(contactsCache.keys().next().value);
+  }
+}
 const avatarCache = new Map();
 const avatarPending = new Map();
 // In-memory only. Estimate UTF-16 string size conservatively so CDN photos
@@ -582,23 +619,48 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const jid=String(chatJid||"");
     if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)) throw new Error("bad_request");
     const now=Date.now();
-    const cached=contactsCache.get(id);
+    // Authorization/session readiness is checked above even for cache hits.
+    // Scope pending and completed results to the exact tenant + session, so
+    // a delayed response cannot overwrite a rotated token's directory.
+    const cacheKey=createHash("sha256").update(JSON.stringify([org,id,session.token])).digest("hex");
+    for(const [key,value] of contactsCache) {
+      if(now-value.at>=CONTACTS_CACHE_TTL_MS)removeContactsCacheEntry(key);
+    }
+    const cached=contactsCache.get(cacheKey);
     let contacts;
-    if(cached && now-cached.at<300000) contacts=cached.contacts;
+    if(cached) {
+      contactsCache.delete(cacheKey);
+      contactsCache.set(cacheKey,cached);
+      contacts=cached.contacts;
+    }
     else {
-      const reply=await wuzapi("/user/contacts",session.token);
-      contacts=reply?.data && typeof reply.data==="object" && !Array.isArray(reply.data)
-        ? reply.data : {};
-      contactsCache.set(id,{contacts,at:now});
+      let pending=contactsPending.get(cacheKey);
+      if(!pending) {
+        pending=(async()=>{
+          const reply=await wuzapi("/user/contacts",session.token);
+          const directory=reply?.data && typeof reply.data==="object" && !Array.isArray(reply.data)
+            ? reply.data : {};
+          saveContactsCacheEntry(cacheKey,directory);
+          return directory;
+        })();
+        contactsPending.set(cacheKey,pending);
+      }
+      try { contacts=await pending; }
+      finally {
+        if(contactsPending.get(cacheKey)===pending)contactsPending.delete(cacheKey);
+      }
     }
     const entry=contacts[jid];
     if(!entry || entry.Found===false) return {ok:true,name:null,source:null};
     // An address-book name belongs to the exact recipient JID. WuzAPI
     // message PushName from outgoing events belongs to our account instead.
-    const full=String(entry.FullName||"").trim().slice(0,160);
-    const first=String(entry.FirstName||"").trim().slice(0,160);
-    const business=String(entry.BusinessName||"").trim().slice(0,160);
-    const push=String(entry.PushName||"").trim().slice(0,160);
+    // Cached fields are already normalized. Trimming a sliced name again
+    // would drop a space at the 160-character boundary on cache hits.
+    const nameField=field=>cached ? entry[field] : String(entry[field]||"").trim().slice(0,160);
+    const full=nameField("FullName");
+    const first=nameField("FirstName");
+    const business=nameField("BusinessName");
+    const push=nameField("PushName");
     // BusinessName is a public business profile, not proof of a phonebook
     // save. Only FullName / FirstName are authoritative saved names.
     const saved=full||first;
