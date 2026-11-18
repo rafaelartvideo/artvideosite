@@ -133,11 +133,18 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const statuses = query.data?.statuses ?? [];
 
   const moveCursor = (amount: number) => {
-    const next = new Date(cursor);
-    if (view === "month") next.setMonth(next.getMonth() + amount);
-    else if (view === "week" || view === "availability") next.setDate(next.getDate() + amount * 7);
-    else next.setDate(next.getDate() + amount);
-    setCursor(next);
+    setCursor(current => {
+      const next = new Date(current);
+      if (view === "month") {
+        const day = next.getDate();
+        next.setDate(1);
+        next.setMonth(next.getMonth() + amount);
+        const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+        next.setDate(Math.min(day, lastDay));
+      } else if (view === "week" || view === "availability") next.setDate(next.getDate() + amount * 7);
+      else next.setDate(next.getDate() + amount);
+      return next;
+    });
   };
 
   const updateEventDate = async (event: CalendarEvent | any, targetDay: string) => {

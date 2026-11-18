@@ -20,6 +20,9 @@ if (secret.length < 32 || adminToken.length < 16 || !Number.isInteger(port) || p
 await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
 const seenNonces = new Map();
 const pendingProvision = new Map();
+// Pending downloads only: never retain fulfilled media or raw credentials.
+const mediaPending = new Map();
+const MEDIA_PENDING_MAX_ENTRIES = 128;
 const contactsCache = new Map();
 const contactsPending = new Map();
 const CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -372,21 +375,40 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(!/^\/(?:o[0-9]+\/)?v\//.test(directPath) || directPath.length>2048 ||
       source.hash || source.port || source.username || source.password)
       throw new Error("bad_request");
-    const result=await wuzapi(endpoints[kind],session.token,"POST",{
+    const fields={
       Url:source.href,DirectPath:directPath,
       MediaKey:mediaKey,Mimetype:mime,FileSHA256:fileSHA256,
       FileEncSHA256:String(fileEncSHA256||""),FileLength:size,
-    });
-    const raw=result?.data??result;
-    // WuzAPI /chat/download* returns {data:{Data:"data:audio/ogg;..."}},
-    // not only the lowercase "data" or the specialized "Audio" field.
-    const encoded=typeof raw==="string" ? raw
-      : String(raw?.Data || raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
-        raw?.Video || raw?.Document || raw?.Media || raw?.data || "");
-    const base64=encoded.replace(/^data:[^,]*,/, "").replace(/\s/g,"");
-    if(!base64 || base64.length>Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
-      throw new Error("media_download_unavailable");
-    return {ok:true,base64};
+    };
+    // All authorization and media validation above still apply to every caller.
+    // Hash the exact normalized provider payload and session scope, so overlapping
+    // token rotations and different encryption metadata never share a download.
+    const pendingKey=createHash("sha256").update(JSON.stringify([
+      org,id,session.token,kind,fields,
+    ])).digest("hex");
+    let pending=mediaPending.get(pendingKey);
+    if(!pending) {
+      pending=(async()=>{
+        const result=await wuzapi(endpoints[kind],session.token,"POST",fields);
+        const raw=result?.data??result;
+        // WuzAPI /chat/download* returns {data:{Data:"data:audio/ogg;..."}},
+        // not only the lowercase "data" or the specialized "Audio" field.
+        const encoded=typeof raw==="string" ? raw
+          : String(raw?.Data || raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
+            raw?.Video || raw?.Document || raw?.Media || raw?.data || "");
+        const base64=encoded.replace(/^data:[^,]*,/, "").replace(/\s/g,"");
+        if(!base64 || base64.length>Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+          throw new Error("media_download_unavailable");
+        return {ok:true,base64};
+      })();
+      // At capacity keep serving downloads without tracking new keys. Do not
+      // evict active owners or reject legitimate media because of other tenants.
+      if(mediaPending.size<MEDIA_PENDING_MAX_ENTRIES)mediaPending.set(pendingKey,pending);
+    }
+    try { return await pending; }
+    finally {
+      if(mediaPending.get(pendingKey)===pending)mediaPending.delete(pendingKey);
+    }
   }
   // Compatibility only: presence subscriptions were removed for account safety.
   if (action === "presence_subscribe") return {ok:true,presence_disabled:true};

@@ -24,6 +24,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
+import { createStoreOrdersRefresh, loadStoreOrdersSnapshot } from "../application/store-orders-refresh.mjs";
 
 type StoreOrder = {
   id: string; order_number: number; inventory_item_id: string | null; created_at: string; status: string; quantity: number;
@@ -187,31 +188,29 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const recipientRequired = nextStatus === "delivered" || nextStatus === "picked_up";
   const issueRequired = nextStatus === "delivery_issue";
 
-  const refresh = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError("");
-    const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
-      supabase.from("artvideo_store_orders")
-        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
-        .order("created_at", { ascending: false }).limit(500),
-      supabase.from("artvideo_store_order_items")
-        .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
-        .order("created_at", { ascending: true }).limit(2000),
-      supabase.from("artvideo_store_fulfillments")
-        .select("order_id,status,updated_at,recipient_name,delivered_at"),
-      supabase.from("artvideo_store_support_cases")
-        .select("order_id,status").order("created_at",{ascending:false}).limit(2000),
-    ]);
-    const issue = orderResult.error || lineResult.error || fulfillmentResult.error || supportResult.error;
-    if (issue) setError(systemErrorMessage(issue));
-    else {
-      setOrders((orderResult.data || []) as StoreOrder[]);
-      setLines((lineResult.data || []) as StoreOrderLine[]);
-      setFulfillments((fulfillmentResult.data || []) as Fulfillment[]);
-      setSupportCases((supportResult.data || []) as SupportCaseSummary[]);
-    }
-    setLoading(false);
-  }, []);
+  const refreshRef = useRef<ReturnType<typeof createStoreOrdersRefresh> | null>(null);
+  const refresh = useCallback((silent = false) => refreshRef.current?.request(silent) ?? Promise.resolve(), []);
+  const scheduleRefresh = useCallback(() => refreshRef.current?.schedule(), []);
+  useEffect(() => {
+    setOrders([]); setLines([]); setFulfillments([]); setSupportCases([]);
+    setSelectedId(null); setEvents([]); setError("");
+    const coordinator = createStoreOrdersRefresh({
+      load: (signal: AbortSignal) => loadStoreOrdersSnapshot(supabase, activeOrganization?.id, signal),
+      onSnapshot: (snapshot: any) => {
+        setOrders(snapshot.orders); setLines(snapshot.lines);
+        setFulfillments(snapshot.fulfillments); setSupportCases(snapshot.supportCases);
+        setError("");
+      },
+      onError: (cause: unknown) => setError(systemErrorMessage(cause)),
+      onLoading: setLoading,
+    });
+    refreshRef.current = coordinator;
+    void coordinator.request();
+    return () => {
+      coordinator.dispose();
+      if (refreshRef.current === coordinator) refreshRef.current = null;
+    };
+  }, [activeOrganization?.id]);
 
   const loadHistory = useCallback(async (orderId: string) => {
     setHistoryLoading(true);
@@ -223,7 +222,6 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     setHistoryLoading(false);
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
   // A confirmação do pagamento chega pelo webhook/conciliador e atualiza a
   // linha no banco. Realtime avisa este painel, sem simular aprovação no cliente.
   useEffect(() => {
@@ -232,23 +230,23 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       .on("postgres_changes", {
         event: "*", schema: "public", table: "artvideo_store_orders",
         filter: "organization_id=eq." + activeOrganization.id,
-      }, () => { if (!document.hidden) void refresh(true); })
+      }, () => { if (!document.hidden) scheduleRefresh(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [activeOrganization?.id, refresh]);
+  }, [activeOrganization?.id, scheduleRefresh]);
   useEffect(() => {
-    const onVisible = () => { if (!document.hidden) void refresh(true); };
+    const onVisible = () => { if (!document.hidden) scheduleRefresh(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [refresh]);
+  }, [scheduleRefresh]);
   useEffect(() => { dialogBodyRef.current?.scrollTo(0, 0); }, [modalView]);
   useEffect(() => {
     if (!selectedId) { setModalView("order"); setPickupHelp(false); setStockLine(null); }
   }, [selectedId]);
   useEffect(() => {
-    const id = window.setInterval(() => { if (!document.hidden) void refresh(true); }, 60000);
+    const id = window.setInterval(() => { if (!document.hidden) scheduleRefresh(); }, 60000);
     return () => window.clearInterval(id);
-  }, [refresh]);
+  }, [scheduleRefresh]);
   useEffect(() => {
     if (!selectedId) { setEvents([]); return; }
     setActionMode("advance"); setNote(""); setRecipient("");

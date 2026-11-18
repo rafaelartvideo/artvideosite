@@ -1,6 +1,46 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformSync } from "esbuild";
+
+function calendarNavigation(date, view) {
+  const source = readFileSync("src/features/appointments/application/useAgendaCalendar.ts", "utf8");
+  const start = source.indexOf("  const moveCursor =");
+  const end = source.indexOf("  const updateEventDate =", start);
+  assert.ok(start >= 0 && end > start);
+  let current = new Date(date);
+  const original = current;
+  const {code} = transformSync(source.slice(start, end), {loader:"ts"});
+  const move = new Function("cursor", "view", "setCursor", `${code}; return moveCursor;`)(
+    current, view, update => {current = typeof update === "function" ? update(current) : update;});
+  return {move, original, get date() {return current;}};
+}
+
+test("a Agenda muda exatamente um mês nos dias 29–31, inclusive em anos bissextos", () => {
+  for (const [year,month,day,delta,expected] of [
+    [2026,0,31,1,[2026,1,28]], [2024,0,31,1,[2024,1,29]],
+    [2026,2,31,-1,[2026,1,28]], [2024,2,31,-1,[2024,1,29]],
+    [2026,0,30,1,[2026,1,28]], [2026,0,29,1,[2026,1,28]],
+    [2026,11,31,1,[2027,0,31]], [2026,0,31,-1,[2025,11,31]],
+  ]) {
+    const initial = new Date(year,month,day,12);
+    const calendar = calendarNavigation(initial,"month"); calendar.move(delta);
+    assert.deepEqual([calendar.date.getFullYear(),calendar.date.getMonth(),calendar.date.getDate()],expected);
+    assert.equal(calendar.date.getHours(),12);
+    assert.equal(calendar.original.getTime(),initial.getTime());
+  }
+});
+
+test("navegação rápida da Agenda acumula movimentos e preserva modos dia/semana", () => {
+  const calendar = calendarNavigation(new Date(2026,0,15,12),"month");
+  calendar.move(1); calendar.move(1);
+  assert.deepEqual([calendar.date.getMonth(),calendar.date.getDate()],[2,15]);
+  for (const view of ["week","availability","day"]) {
+    const navigation = calendarNavigation(new Date(2026,0,15,12),view);
+    navigation.move(1); navigation.move(1);
+    assert.equal(navigation.date.getDate(),view==="day"?17:29);
+  }
+});
 const read = (path) => readFileSync(path, "utf8");
 
 const migration = read("supabase/migrations/20261014195500_individual_service_schedule.sql");

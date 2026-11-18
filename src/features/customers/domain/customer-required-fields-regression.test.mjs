@@ -61,11 +61,16 @@ test("botões dentro dos inputs copiam telefone e WhatsApp nos dois sentidos", (
 });
 
 
-test("abrir Cadastros reaproveita a linha da tabela sem tela de carregamento nem animação", () => {
+test("Cadastros prepara a ficha completa e só reaproveita páginas da mesma empresa", () => {
   const tab = read("src/features/registrations/presentation/TabRegistrations.tsx");
   const details = read("src/features/registrations/presentation/RegistrationDetails.tsx");
-  assert.match(tab, /placeholderData: \(\) => registrationsQuery\.data\?\.items\.find/);
-  assert.match(tab, /item\.id === routeRegistrationId && item\.organization_id === activeOrganizationId/);
+  assert.match(tab, /placeholderData: \(previous, previousQuery\) => previousQuery\?\.queryKey\[2\] === activeOrganizationId \? previous : undefined/);
+  const start = tab.indexOf("  const detailQuery =");
+  const end = tab.indexOf("  const routeRegistration =", start);
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(tab.slice(start, end), /placeholderData/);
+  assert.match(tab, /const registrationPreparing = recordLoading \|\| supplierDetailsPending \|\| employeeAccessPending/);
+  assert.match(tab, /if \(registrationPreparing \|\| registrationPreparationError\) return registrationPreparationPage\(closeDetail\)/);
   assert.match(tab, /preview=\{detailPreview\}/);
   assert.match(details, /smoothMotion=\{false\}/);
   assert.match(details, /\{!preview && <Section title="Endereços"/);

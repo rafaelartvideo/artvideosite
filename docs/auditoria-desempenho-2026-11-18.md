@@ -87,3 +87,40 @@ Por isso, nenhuma dessas alternativas foi aplicada ao banco. Os experimentos e a
 
 ## Validação
 Revisão independente aprovada depois de corrigir a retenção de strings. Suite completa: 963 testes, 962 aprovados e um FFmpeg indisponível ignorado, sem falhas. Builds site e CRM passaram; a alteração final da ponte é Node e não altera os arquivos de aplicação desses builds. A cópia anterior de alterações locais dos diálogos permanece preservada no stash, fora das entregas.
+
+
+# Etapa 5 — fechamento da cobertura e correções adicionais
+
+- **Mídia WhatsApp:** downloads simultâneos idênticos agora compartilham uma promessa pendente na ponte, depois de autenticação e validação de cada solicitante. A chave SHA-256 inclui empresa, conexão, token e todos os campos normalizados enviados ao provedor. Até 128 operações são rastreadas; excesso segue sem cache, sem bloquear recursos. Nenhuma mídia fica em cache depois da resposta. Regressões provam 20 downloads antes e um depois, isolamento, diferenças de payload, falha/repetição, validação de CDN, saturação e liberação das respostas.
+- **Agenda:** navegação mensal fazia Jan31+1 virar março e Mar31-1 continuar em março. Agora limita o dia ao último válido do mês de destino, incluindo anos bissextos. Atualização funcional também acumula cliques rápidos sem perder movimentos; modos diário/semanal foram preservados.
+- **Loja:** pedidos recentes eram combinados aos 2.000 itens mais antigos da empresa. Agora os itens, entregas e suportes pertencem somente à janela de até 500 pedidos selecionados, com paginação completa e filtros de IDs em lotes limitados. Testes incluem 2.100 itens históricos e 2.401 atuais com limite simulado de 73 linhas por resposta. Eventos, retorno ao foco e contingência compartilham uma consulta em andamento com reconciliação final; desmontagem cancela e não aplica respostas antigas.
+- **Clientes compartilhados entre empresas parceiras:** a lista legada baixava todo o índice de clientes/endereço em cada página/filtro, dependendo do limite de resposta do servidor. A nova RPC invoker retorna apenas IDs da página (até 100) e total exato, mantendo a consulta de detalhes filtrada por empresa. Preservados filtros literais por nome/documento e estado/cidade, inclusive endereços distintos, e ordenação natural portuguesa. A lista principal Cadastros usa TabRegistrations e não foi trocada por essa RPC. A migração valida os recursos ICU com valores constantes antes de expor a função; não faz backfill nem altera RLS.
+
+O teste antigo que exigia ficha parcial de Cadastros foi alinhado à decisão já existente na main (3b1cdfe5a) de preparar a ficha completa. As novas verificações exigem isolamento da empresa no cache, ausência de placeholder parcial no detalhe e espera dos dados vinculados; o teste passou a integrar a suíte padrão.
+
+## Cobertura por módulo
+| Área | Verificação realizada | Limite da conclusão |
+|---|---|---|
+| Home/Dashboard | Contratos de queries condicionais, carregamento tardio e navegação | Sem teste de carga multioperador em produção |
+| OS/retornos/orçamentos | Paginação, referências, regressões de regras e navegação | Não se criaram/alteraram OS reais para testes |
+| Cadastros/clientes | Filtros, ordenação, RLS invoker, amostra sintética 1.213 linhas e UI principal | Lista compartilhada validada em fixture; cadastro principal preservado |
+| Atendimentos/WhatsApp | Recebimento, contadores, recibos, nomes, mídia e limpeza de componentes | Não se enviaram mensagens nem baixaram mídias reais para amostragem |
+| PABX | Assinaturas, diretório, autorização, histórico, cenários automáticos e abertura do painel | Não se originaram chamadas reais |
+| Estoque/produtos | Paginação, filtros com debounce, permissões e regressões de movimentos | Escala real dos resumos agregados não foi testada por carga |
+| Financeiro/relatórios | Paginação, gates de permissão/período, agregações e regressões financeiras | Não se efetivaram transações financeiras reais |
+| PDV/vendas | Bootstrap por empresa, busca/histórico paginados e limpeza de teclado | Não se concluíram vendas reais |
+| Agenda | Janela limitada, escopo por usuário/empresa, eventos e bordas de calendário | Sem reagendamento de compromissos reais |
+| Configurações/loja | Janela de pedidos, filhos completos, concorrência e cancelamento | Testes de grande histórico feitos em dados sintéticos |
+| Site público | Rotas tardias, consultas compartilhadas, limpeza de listeners/carrosséis e build | Não se varreu catálogo/mídias de produção |
+
+## Medições exploratórias
+A amostra inicial está em docs/auditoria-navegacao-2026-11-18.json. Tempos incluem a automação até o conteúdo visível, com sessão autenticada e cache progressivamente aquecido. Não são duração isolada de RPC nem Web Vitals. Cinco visitas por módulo significam que p95 é o maior valor observado; não estabelece SLA ou capacidade. Não foi forçado logout de operadores nem ampliado tráfego para fabricar uma amostra de login/p95 representativa. Não se deduz redução causal de tempo a partir de visitas com caches distintos.
+
+| Módulo | n | p50 inicial (ms) | p95 inicial (ms) |
+|---|---:|---:|---:|
+| Home | 5 | 689 | 1226 |
+| OS | 5 | 1013 | 2564 |
+| Financeiro | 5 | 1153 | 3967 |
+| Estoque | 5 | 713 | 1659 |
+
+Validação integrada local final: 993 testes, 991 aprovados, duas limitações ignoradas (FFmpeg ausente e ordenação ICU nativa indisponível no motor SQL local). A lógica SQL sintética foi executada; a migração inclui guarda atômica para provar a ordenação nativa antes da publicação. Os builds site e CRM passaram. Revisão independente não encontrou pendências nos quatro grupos de correção.

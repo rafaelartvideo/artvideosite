@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-18",
+  "baseline_commit": "20122d4e7da5ec06bd9edb669a76507520d09627",
+  "method": "Elapsed wall-clock from menu selection until visible readiness text using the browser automation. Includes automation/IPC overhead; menu expansion excluded. One authenticated session, five serial visits per module, progressively warm caches. Not Web Vitals, login latency, per-RPC latency or a load/capacity test.",
+  "percentile_method": "nearest rank; with n=5, p95 equals maximum; exploratory only",
+  "baseline_ms": {
+    "Home": [
+      1226,
+      624,
+      737,
+      663,
+      689
+    ],
+    "Ordens de Serviço": [
+      2564,
+      1202,
+      1013,
+      1009,
+      802
+    ],
+    "Financeiro": [
+      3967,
+      1571,
+      1153,
+      825,
+      823
+    ],
+    "Estoque": [
+      1659,
+      1182,
+      713,
+      598,
+      559
+    ]
+  }
+}

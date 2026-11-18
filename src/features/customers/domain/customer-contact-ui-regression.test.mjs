@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
+import "./customers-pagination.test.mjs";
 
 const read = path => readFileSync(path, "utf8");
 

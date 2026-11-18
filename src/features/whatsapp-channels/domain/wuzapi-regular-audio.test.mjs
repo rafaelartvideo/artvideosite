@@ -7,6 +7,137 @@ import { join } from "node:path";
 
 const bridge = readFileSync(new URL("../../../../services/union-wuzapi-bridge/server.mjs", import.meta.url), "utf8");
 
+async function mediaHarness(provider) {
+  const sessions=new Map(),calls=[];
+  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+  const source=bridge.replace(/^import .*;\r?\n/gm, "").split("createServer(async (req, res) => {")[0];
+  const api=await new AsyncFunction("deps",`
+    const {process,mkdir,readFile,join,createHash,fetch}=deps;
+    ${source}
+    return {operate,pending:()=>typeof mediaPending==='undefined'?null:mediaPending};
+  `)({
+    process:{env:{UNION_WUZAPI_BRIDGE_SECRET:"s".repeat(32),WUZAPI_ADMIN_TOKEN:"a".repeat(16)}},
+    mkdir:async()=>{},join,createHash,
+    readFile:async path=>JSON.stringify(sessions.get(path.match(/([a-f0-9-]{36})\.json$/)?.[1])),
+    fetch:async (url,options)=>{
+      assert.match(url,/^http:\/\/127\.0\.0\.1:18080\/chat\/download(image|audio|video|document|sticker)$/);
+      const call={url,token:options.headers.Token,body:JSON.parse(options.body)};
+      calls.push(call);
+      const data=await provider(call,calls.length);
+      return {ok:true,json:async()=>({data})};
+    },
+  });
+  const id="10000000-0000-4000-8000-000000000001",org="20000000-0000-4000-8000-000000000001";
+  const install=(connection=id,token="token-a",organization=org,ready=true)=>
+    sessions.set(connection,{organization_id:organization,token,ready});
+  install();
+  return {...api,calls,install,id,org,download:(overrides={})=>api.operate({
+    action:"download_media",connection_id:id,organization_id:org,media_type:"audio",media_mime:"audio/ogg",
+    download_url:"https://mmg.whatsapp.net/v/example?token=original",media_key:"key-a",
+    file_sha256:"sha-a",file_enc_sha256:"enc-a",file_length:12,...overrides,
+  })};
+}
+
+test("media download burst shares only pending provider work and retains no completed media",async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const h=await mediaHarness(async()=>{await gate;return {Data:"data:audio/ogg;base64,Y W J j\n"};});
+  const requests=Array.from({length:20},()=>h.download());
+  await new Promise(resolve=>setImmediate(resolve));
+  const count=h.calls.length;
+  release();
+  const results=await Promise.all(requests);
+  assert.equal(count,1,"20 simultaneous downloads must use one provider request");
+  assert.ok(results.every(result=>result.ok===true&&result.base64==="YWJj"));
+  assert.equal(h.pending().size,0,"fulfilled media must not remain in bridge tracking");
+  await h.download();
+  assert.equal(h.calls.length,2,"later requests must re-download instead of caching media bytes");
+});
+
+test("media singleflight separates every normalized provider field and session scope",async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const h=await mediaHarness(async()=>{await gate;return {Data:"YWJj"};});
+  const requests=[h.download(),h.download({file_length:"12"})];
+  const variants=[{media_key:"key-b"},{file_sha256:"sha-b"},{file_enc_sha256:"enc-b"},
+    {media_mime:"audio/mpeg"},{file_length:13},{download_url:"https://mmg.whatsapp.net/v/example?token=other"},
+    {download_url:"https://media.fbcdn.net/v/example?token=original"},{media_type:"file"}];
+  requests.push(...variants.map(fields=>h.download(fields)));
+  await new Promise(resolve=>setImmediate(resolve));
+  h.install(h.id,"token-b");
+  requests.push(h.download());
+  await new Promise(resolve=>setImmediate(resolve));
+  const otherOrg="20000000-0000-4000-8000-000000000002";
+  await assert.rejects(h.download({organization_id:otherOrg}),/session_mismatch/);
+  h.install(h.id,"token-b",otherOrg);
+  requests.push(h.download({organization_id:otherOrg}));
+  const otherId="10000000-0000-4000-8000-000000000002";
+  h.install(otherId,"token-b",otherOrg);
+  requests.push(h.download({connection_id:otherId,organization_id:otherOrg}));
+  await new Promise(resolve=>setImmediate(resolve));
+  const count=h.calls.length;
+  release();
+  await Promise.all(requests);
+  assert.equal(count,12,"normalized length can share; every distinct payload/session must stay separate");
+  assert.equal(h.pending().size,0);
+});
+
+test("media validation and session readiness run before joining pending downloads",async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const h=await mediaHarness(async()=>{await gate;return {Data:"YWJj"};});
+  const request=h.download();
+  await new Promise(resolve=>setImmediate(resolve));
+  for(const fields of [
+    {download_url:"https://evil.example/v/example"},{download_url:"https://mmg.whatsapp.net:444/v/example"},
+    {download_url:"https://mmg.whatsapp.net/v/example#fragment"},{download_url:"https://mmg.whatsapp.net/not-media"},
+    {media_key:""},{file_length:6*1048576},
+  ])await assert.rejects(h.download(fields),/bad_request/);
+  h.install(h.id,"token-a",h.org,false);
+  await assert.rejects(h.download(),/session_not_ready/);
+  release();
+  await request;
+  assert.equal(h.calls.length,1);
+});
+
+test("failed or invalid media responses release shared pending work for a fresh retry",async()=>{
+  for(const fail of [()=>{throw new Error("provider_error");},()=>({Data:"invalid!"})]){
+    let release;
+    const gate=new Promise(resolve=>{release=resolve;});
+    const h=await mediaHarness(async(_call,number)=>{
+      if(number===1){await gate;return fail();}
+      return {Data:"YWJj"};
+    });
+    const requests=Promise.allSettled([h.download(),h.download()]);
+    await new Promise(resolve=>setImmediate(resolve));
+    release();
+    const results=await requests;
+    assert.ok(results.every(result=>result.status==="rejected"));
+    assert.equal(h.calls.length,1);
+    assert.equal(h.pending().size,0);
+    assert.deepEqual(await h.download(),{ok:true,base64:"YWJj"});
+    assert.equal(h.calls.length,2);
+  }
+});
+
+test("pending media tracking is bounded without rejecting legitimate overflow downloads",async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const h=await mediaHarness(async()=>{await gate;return {Data:"YWJj"};});
+  const requests=Array.from({length:140},(_,i)=>h.download({media_key:"key-"+i}));
+  await new Promise(resolve=>setImmediate(resolve));
+  requests.push(h.download({media_key:"key-0"}));
+  await new Promise(resolve=>setImmediate(resolve));
+  const count=h.calls.length,pending=h.pending();
+  const keys=pending?[...pending.keys()]:[];
+  release();
+  await Promise.all(requests);
+  assert.equal(count,140,"overflow must keep existing pending requests joinable");
+  assert.equal(keys.length,128,"overflow bypasses tracking, without evicting in-flight owners");
+  assert.ok(keys.every(key=>/^[a-f0-9]{64}$/.test(key)),"tracking retains digest keys only");
+  assert.equal(h.pending().size,0);
+});
+
 // Execute the production dispatcher and provider adapter without opening a
 // listening socket or touching real session files/provider credentials.
 async function contactHarness(provider) {
