@@ -675,6 +675,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               if(mapped.has(item.id))nextNames.set(item.id,name);
             });
             if(nextNames.size){
+              // Keep the cached page and its resolved CRM/manual names in sync.
+              // Otherwise a fast tab switch would briefly restore old names.
+              const cachedPage=cache.get(queryKey);
+              if(cachedPage)cache.set(queryKey,{
+                ...cachedPage,
+                items:cachedPage.items.map(item=>nextNames.has(item.id)
+                  ? {...item,contact_name:nextNames.get(item.id)!}:item),
+              });
               setConversations(current=>current.map(item=>nextNames.has(item.id)
                 ? {...item,contact_name:nextNames.get(item.id)!}:item));
               setSelectedFallback(current=>current && nextNames.has(current.id)
