@@ -148,8 +148,11 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
           if(cancelled)return;
           const recipients=result.recipients||[];
           setOrderRecipients(recipients);
-          // A escolha deve ser explícita antes de entrar na conversa.
-          if(recipients.length>0)set({status:"choosing",recipients});
+          // Não pedir escolha quando há apenas um número de destino.
+          // A API retorna números normalizados e únicos, evitando repetir
+          // o telefone do cadastro caso ele também tenha sido vinculado à OS.
+          if(recipients.length>1)set({status:"choosing",recipients});
+          else if(recipients.length===1)void chooseOrderRecipient(recipients[0]);
           else set({status:"empty",canStart:false,
             message:"Esta OS não possui número WhatsApp cadastrado ou vinculado."});
         }).catch(error=>{
