@@ -5,14 +5,9 @@ import { adminPath } from "@/features/admin-shell/admin-routes";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
-import { fetchSharedAvatar } from "../application/shared-whatsapp-avatar-cache";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses, type CrmContactAddress } from "../domain/crm-contact-format";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
-import {
-  rememberVisibleAvatar, VISIBLE_AVATAR_FOUND_TTL_MS, VISIBLE_AVATAR_MISSING_TTL_MS,
-  VISIBLE_AVATAR_RETRY_MS,
-} from "../domain/visible-avatar-cache.mjs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { findUnionWhatsAppConversationByContact, operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppConversation, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
@@ -104,19 +99,7 @@ export function UnionWhatsAppContactsDialog({
   const [phoneCheckNotice,setPhoneCheckNotice]=useState("");
   const [phoneCheckError,setPhoneCheckError]=useState("");
   const phoneCheckSequence=useRef(0);
-  const [avatar,setAvatar]=useState<string|null>(null);
-  const [avatarLoading,setAvatarLoading]=useState(false);
   const contactListRequestRef=useRef(0);
-  const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
-  const avatarRequestsRef=useRef(new Set<string>());
-  const avatarCheckedAtRef=useRef(new Map<string,number>());
-  const previouslyVisibleJidsRef=useRef(new Set<string>());
-  const avatarScopeGenerationRef=useRef(0);
-  const selectedJidRef=useRef(selected?.chat_jid||"");
-  selectedJidRef.current=selected?.chat_jid||"";
-  const [avatarRefreshTick,setAvatarRefreshTick]=useState(0);
-  const listScrollRef=useRef<HTMLDivElement|null>(null);
-  const [visibleAvatarJids,setVisibleAvatarJids]=useState<string[]>([]);
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
   const spreadsheetInputRef=useRef<HTMLInputElement|null>(null);
   const [pendingImport,setPendingImport]=useState<{
@@ -134,23 +117,6 @@ export function UnionWhatsAppContactsDialog({
   // A tab closure pauses after the request in flight. Only the SHA-256 and
   // acknowledged item count are persisted in sessionStorage, never contacts.
   useEffect(()=>()=>{importControlRef.current.intent="pause";},[]);
-  useEffect(()=>{
-    avatarScopeGenerationRef.current++;
-    avatarCheckedAtRef.current.clear();
-    avatarRequestsRef.current.clear();
-    previouslyVisibleJidsRef.current.clear();
-    setListAvatars({});
-  },[organizationId,channelId,accountPhone]);
-  // Refresh only visible contacts when the user returns to the tab.
-  useEffect(()=>{
-    const wake=()=>{if(document.visibilityState!=="hidden")setAvatarRefreshTick(t=>t+1);};
-    window.addEventListener("focus",wake);
-    document.addEventListener("visibilitychange",wake);
-    return()=>{
-      window.removeEventListener("focus",wake);
-      document.removeEventListener("visibilitychange",wake);
-    };
-  },[]);
   useEffect(()=>{
     if(!importing)return;
     const warnIfLeaving=(event:BeforeUnloadEvent)=>{
@@ -205,7 +171,6 @@ export function UnionWhatsAppContactsDialog({
       if(requestId!==contactListRequestRef.current)return;
       setContacts((result.contacts||[]).slice(0,100));
       setTotal(result.total||0);
-      setVisibleAvatarJids([]);
       setError("");
     }catch(reason){
       if(requestId===contactListRequestRef.current)
@@ -218,98 +183,8 @@ export function UnionWhatsAppContactsDialog({
     return()=>window.clearTimeout(t);
   },[refresh,search,page]);
 
-  useEffect(()=>{
-    let canceled=false;
-    setAvatar(null);
-    setAvatarLoading(Boolean(selected));
-    if(!selected)return;
-    void fetchSharedAvatar({organizationId,accountPhone,chatJid:selected.chat_jid})
-      .then(url=>{
-      if(!canceled){
-        setAvatar(url||null);
-        setAvatarLoading(false);
-        avatarCheckedAtRef.current.set(selected!.chat_jid,Date.now());
-        setListAvatars(old=>rememberVisibleAvatar(old,selected!.chat_jid,url||null));
-      }
-    }).catch(()=>{if(!canceled){setAvatar(null);setAvatarLoading(false);}});
-    return()=>{canceled=true;};
-  },[organizationId,selected?.chat_jid]);
-
-  // Only fetch avatars entering the contact list's viewport. The prior
-  // first-12-only cap permanently left all other contacts as initials.
-  useEffect(()=>{
-    const root=listScrollRef.current;
-    if(!root || loading || !contacts.length)return;
-    const observer=new IntersectionObserver(entries=>{
-      setVisibleAvatarJids(old=>{
-        const next=new Set(old);
-        for(const item of entries){
-          const jid=(item.target as HTMLElement).dataset.avatarJid||"";
-          if(!jid)continue;
-          if(item.isIntersecting)next.add(jid);
-          else next.delete(jid);
-        }
-        return next.size===old.length && old.every(jid=>next.has(jid))
-          ?old:[...next];
-      });
-    },{root,rootMargin:"100px 0px",threshold:0.01});
-    root.querySelectorAll<HTMLElement>("[data-avatar-jid]").forEach(node=>observer.observe(node));
-    return()=>observer.disconnect();
-  },[contacts,loading]);
-  // When a scrolled-away photo was evicted, allow fetching it again on
-  // re-entry, but not in an endless loop while the same row stays visible.
-  useEffect(()=>{
-    const active=new Set(visibleAvatarJids);
-    for(const jid of active){
-      if(!previouslyVisibleJidsRef.current.has(jid) &&
-         !Object.prototype.hasOwnProperty.call(listAvatars,jid))
-        avatarCheckedAtRef.current.delete(jid);
-    }
-    previouslyVisibleJidsRef.current=active;
-  },[visibleAvatarJids]);
-  const previewJids=[...new Set([
-    selected?.chat_jid,
-    ...(visibleAvatarJids.length===0?contacts.slice(0,3).map(item=>item.chat_jid):[]),
-    ...visibleAvatarJids.filter(jid=>contacts.some(item=>item.chat_jid===jid)),
-  ].filter((jid):jid is string=>Boolean(jid)))].join(",");
-  useEffect(()=>{
-    if(!previewJids || loading || document.visibilityState==="hidden")return;
-    const now=Date.now();
-    const toFetch=previewJids.split(",").filter(jid=>{
-      if(!jid || avatarRequestsRef.current.has(jid))return false;
-      const checked=avatarCheckedAtRef.current.get(jid);
-      if(!Object.prototype.hasOwnProperty.call(listAvatars,jid))
-        return checked===undefined || now-checked>=VISIBLE_AVATAR_RETRY_MS;
-      if(checked===undefined)return true;
-      return now-checked>=(listAvatars[jid]?VISIBLE_AVATAR_FOUND_TTL_MS:VISIBLE_AVATAR_MISSING_TTL_MS);
-    }).slice(0,Math.max(0,3-avatarRequestsRef.current.size));
-    const generation=avatarScopeGenerationRef.current;
-    for(const jid of toFetch){
-      avatarRequestsRef.current.add(jid);
-      void fetchSharedAvatar({organizationId,accountPhone,chatJid:jid})
-        .then(url=>{
-          if(avatarScopeGenerationRef.current!==generation)return;
-          const value=url||null;
-          avatarCheckedAtRef.current.set(jid,Date.now());
-          setListAvatars(old=>Object.prototype.hasOwnProperty.call(old,jid)&&old[jid]===value
-            ?old:rememberVisibleAvatar(old,jid,value));
-          if(selectedJidRef.current===jid)setAvatar(value);
-        })
-        .catch(()=>{
-          if(avatarScopeGenerationRef.current!==generation)return;
-          const ttl=listAvatars[jid]?VISIBLE_AVATAR_FOUND_TTL_MS:VISIBLE_AVATAR_MISSING_TTL_MS;
-          avatarCheckedAtRef.current.set(jid,Date.now()-(ttl-VISIBLE_AVATAR_RETRY_MS));
-          setListAvatars(old=>Object.prototype.hasOwnProperty.call(old,jid)
-            ?old:rememberVisibleAvatar(old,jid,null));
-        })
-        .finally(()=>{
-          if(avatarScopeGenerationRef.current!==generation)return;
-          avatarRequestsRef.current.delete(jid);
-          setAvatarRefreshTick(t=>t+1);
-        });
-    }
-  },[organizationId,previewJids,listAvatars,loading,avatarRefreshTick]);
-
+  // Os contatos visíveis e o contato selecionado compartilham o cache global,
+  // com carregamento progressivo no próprio componente de avatar.
   const choose=(contact:UnionWhatsAppContact)=>{
     phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
     setSelected(contact);setCreating(false);
@@ -657,12 +532,12 @@ export function UnionWhatsAppContactsDialog({
                 placeholder={tab==="groups"?"Nome do grupo":"Nome ou telefone"} className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
             {canCreate && tab==="contacts" && <button type="button" aria-label="Adicionar contato" title="Novo contato"
-              onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setCrmPanel(null);setCrmEquipmentId(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
+              onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setCrmPanel(null);setCrmEquipmentId(null);setName("");setPhone("");setNotice("");}}
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
               <Plus size={18}/>
             </button>}
           </div>
-          <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {tab==="groups" ? <>
               {groupsLoading&&groups.length===0&&
                 <p role="status" className="p-4 text-center text-xs text-muted-foreground">Consultando grupos vinculados ao número...</p>}
@@ -683,11 +558,10 @@ export function UnionWhatsAppContactsDialog({
             {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe por VCF, Excel ou CSV, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
             {contacts.map(contact=>{
               const display=labelFor(contact);
-              return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
+              return <button type="button" key={contact.id} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
-                <WhatsAppContactAvatar name={display} src={listAvatars[contact.chat_jid]}
-                  identity={{organizationId,accountPhone,chatJid:contact.chat_jid}}
-                  onError={()=>{avatarCheckedAtRef.current.set(contact.chat_jid,Date.now());setListAvatars(old=>rememberVisibleAvatar(old,contact.chat_jid,null));}}/>
+                <WhatsAppContactAvatar name={display}
+                  identity={{organizationId,accountPhone,chatJid:contact.chat_jid}}/>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{display}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
@@ -741,7 +615,7 @@ export function UnionWhatsAppContactsDialog({
               <WhatsAppContactAvatar size="detail" name={currentName}
                 identity={selected?{organizationId,accountPhone,chatJid:selected.chat_jid}:null}
                 gender={crmData?.customer?.gender}
-                src={avatarLoading?undefined:avatar} onError={()=>setAvatar(null)}/>
+                />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-bold">{creating?"Novo contato":currentName}</p>
                 <p className="text-xs text-muted-foreground">{creating?"Salvar na agenda da Union":
