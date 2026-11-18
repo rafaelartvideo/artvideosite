@@ -477,7 +477,7 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
     "A lista de destinatários precisa remover números repetidos");
   assert.match(modal,/WhatsAppContactAvatar/);
   assert.match(modal,/recipient\.kind==="linked" \? "Vinculado" : "Cadastro"/);
-  assert.match(modal,/Trocar número/);
+  assert.match(inbox,/Trocar número/);
   assert.match(modal,/order_recipients/);
   assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
   assert.match(modal,/registered_phone_field:recipient\.field/);
