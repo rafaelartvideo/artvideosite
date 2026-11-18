@@ -23,6 +23,9 @@ const genders=new Map<string,"M"|"F">();
 const pending=new Map<string,Promise<string|null>>();
 const watchers=new Map<string,Set<()=>void>>();
 const queue:Array<()=>void>=[];
+const brokenRetryAfter=new Map<string,number>();
+const BROKEN_RETRY_MS=3*60_000;
+let cacheEpoch=0;
 let running=0;
 
 export function sharedAvatarKey(identity:SharedAvatarIdentity):string{
@@ -90,8 +93,11 @@ export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|
   if(stored!==undefined)return Promise.resolve(stored);
   const previous=pending.get(key);
   if(previous)return previous;
+  const epoch=cacheEpoch;
   const task=new Promise<string|null>(resolve=>{
     queue.push(()=>{
+      // Uma busca enfileirada antes do logout/troca de empresa não acessa o canal antigo.
+      if(epoch!==cacheEpoch){resolve(null);runNext();return;}
       const args=identity.conversationId
         ? {id:identity.conversationId,action:"contact_avatar" as const,body:undefined}
         : {id:crypto.randomUUID(),action:"contacts_avatar" as const,body:{chat_jid:identity.chatJid}};
@@ -99,15 +105,15 @@ export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|
         .then(data=>{
           const url=typeof data.avatar_url==="string"&&data.avatar_url.startsWith("https://")
             ?data.avatar_url:null;
-          remember(key,url,url?FOUND_TTL:MISSING_TTL);
-          resolve(url);
+          if(epoch===cacheEpoch)remember(key,url,url?FOUND_TTL:MISSING_TTL);
+          resolve(epoch===cacheEpoch?url:null);
         })
         .catch(()=>{
-          remember(key,null,ERROR_BACKOFF,true);
+          if(epoch===cacheEpoch)remember(key,null,ERROR_BACKOFF,true);
           resolve(null);
         })
         .finally(()=>{
-          pending.delete(key);
+          if(pending.get(key)===task)pending.delete(key);
           running--;
           runNext();
         });
@@ -117,17 +123,47 @@ export function fetchSharedAvatar(identity:SharedAvatarIdentity):Promise<string|
   pending.set(key,task);
   return task;
 }
-/** Uma URL assinada quebrada nunca mantém o loading girando nem cria retry em loop. */
+/**
+ * Uma falha isolada de imagem não apaga a foto dos outros locais permanentemente.
+ * Invalidamos somente a URL que falhou e permitimos UMA renovação por janela;
+ * falhas repetidas entram em backoff e continuam mostrando as iniciais.
+ */
 export function markSharedAvatarBroken(key:string,url:string){
-  if(!key)return;
+  if(!key||!url)return;
   const entry=cache.get(key);
-  if(entry?.url===url || !entry){
+  if(!entry||entry.url!==url)return; // ignorar erro de <img> antigo
+  const now=Date.now();
+  if(now<(brokenRetryAfter.get(key)||0)){
     remember(key,null,ERROR_BACKOFF,true);
+    return;
+  }
+  brokenRetryAfter.delete(key);
+  brokenRetryAfter.set(key,now+BROKEN_RETRY_MS);
+  while(brokenRetryAfter.size>MAX_ENTRIES){
+    const oldest=brokenRetryAfter.keys().next().value;
+    if(oldest)brokenRetryAfter.delete(oldest);
+    else break;
+  }
+  cache.delete(key);
+  notify(key); // componentes visíveis buscam uma nova URL assinada, deduplicada
+}
+/** Revalidação só após foco/retorno à aba, nunca polling de fotos. */
+function refreshExpiredAvatarEntries(){
+  const now=Date.now();
+  for(const [key,item] of cache){
+    if(now>=item.expiresAt){cache.delete(key);notify(key);}
   }
 }
+if(typeof window!=="undefined")window.addEventListener("focus",refreshExpiredAvatarEntries);
+if(typeof document!=="undefined")document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible")refreshExpiredAvatarEntries();
+});
 /** Chamado ao trocar de empresa ou sair da sessão; nenhuma foto passa entre empresas. */
 export function clearSharedAvatarCache(){
+  cacheEpoch++;
   cache.clear();
+  pending.clear();
   genders.clear();
+  brokenRetryAfter.clear();
   watchers.forEach(subscribers=>subscribers.forEach(callback=>callback()));
 }
