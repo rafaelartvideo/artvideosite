@@ -567,15 +567,18 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
   const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
   const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
 
-  // Abrir a conversa apenas consulta a OS e o cadastro; o botão exibe rascunho.
+  // A OS apenas consulta o cadastro. A tela completa fica em modo rascunho
+  // sem nenhum protocolo até o envio explícito da primeira mensagem.
   assert.match(modal,/source\.kind==="order" \? "os_join" : "contact_join"/);
-  const draft=modal.slice(modal.indexOf("const startConversation = () =>"),modal.indexOf("const sendFirstMessage = async ()"));
-  assert.match(draft,/setDrafting\(true\)/);
+  const draft=read("src/features/whatsapp-channels/presentation/WhatsAppDraftConversation.tsx");
+  assert.match(modal,/state\.status === "empty" && state\.canStart \? <WhatsAppDraftConversation/);
+  assert.match(draft,/Nenhuma mensagem nesta conversa/);
+  assert.match(draft,/aria-label="Mensagem"/);
+  assert.match(draft,/onSubmit=\{event => \{ event\.preventDefault\(\); submit\(\); \}\}/);
   assert.doesNotMatch(draft,/operateUnionWhatsAppInbox|startUnionWhatsAppWithFirstMessage/);
-  assert.match(modal,/onClick=\{startConversation\}>Iniciar conversa/);
-  assert.ok(modal.includes('setDrafting(false);setFirstMessage("");'));
+  assert.doesNotMatch(modal,/onClick=\{startConversation\}|setDrafting\(true\)/);
   assert.match(modal,/const conversationId=await startUnionWhatsAppWithFirstMessage\(/);
-  assert.match(modal,/!firstMessage\.trim\(\)/);
+  assert.match(modal,/!message\.trim\(\)/);
 
   // Reabrir uma conversa finalizada na OS tambem requer uma mensagem.
   const finished=inbox.slice(inbox.indexOf("const startNewProtocol = () =>"),
@@ -592,7 +595,7 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
   assert.ok(first.indexOf("providerId=await signedBridge(")<
     first.indexOf('upsert({organization_id:org,channel_id:channel.id'));
   assert.match(first,/first_message_sent:true/);
-  assert.match(repository,/first_message:text,client_message_id:crypto.randomUUID\(\)/);
+  assert.match(repository,/first_message:text,client_message_id:clientMessageId/);
   assert.doesNotMatch(repository.slice(repository.indexOf("export async function startUnionWhatsAppWithFirstMessage")),
     /,"send_text"/);
 });
