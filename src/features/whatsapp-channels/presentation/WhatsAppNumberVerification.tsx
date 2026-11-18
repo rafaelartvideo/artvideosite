@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { useAuth } from "@/lib/auth";
 import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
@@ -10,10 +10,13 @@ type VerifiedNumber = {
   nameLabel: string;
   avatar: string | null;
   adjusted: boolean;
+  verifiedAt: string | null;
+  savedVerification: boolean;
 };
 type LookupResult =
   | VerifiedNumber
   | { kind: "unregistered" }
+  | { kind: "unverified" }
   | { kind: "unavailable"; message: string };
 type LookupState = { key: string; result: LookupResult | { kind: "checking" } };
 const recentChecks = new Map<string, { expiresAt: number; result: LookupResult }>();
@@ -34,14 +37,17 @@ function labelForName(source: string | null | undefined, verifiedName: boolean):
 }
 
 /**
- * Preview-only: does not create a contact, conversation or protocol, does not
- * change the typed customer name and never exposes WuzAPI tokens to the UI.
- * The existing Edge Function enforces organization, operator and capability
- * permissions. Use one component for every CRM registration flow.
+ * The WhatsApp provider check is performed only while creating a new record,
+ * or after an explicit click while editing. Previously verified numbers are
+ * read from the tenant-scoped server confirmation: opening an existing record
+ * never calls WuzAPI. The status is not proof of number ownership.
  */
-export function VerifiedWhatsAppPhoneInput({ value, ...inputProps }: {
+export function VerifiedWhatsAppPhoneInput({
+  value, verificationMode = "create", ...inputProps
+}: {
   value: unknown;
   onChange: (event: { target: { value: string } }) => void;
+  verificationMode?: "create" | "edit";
   [key: string]: any;
 }) {
   const phone = String(value ?? "");
@@ -50,73 +56,107 @@ export function VerifiedWhatsAppPhoneInput({ value, ...inputProps }: {
   const normalized = brazilianWhatsAppNumber(phone);
   const key = activeOrganizationId && normalized ? activeOrganizationId + ":" + normalized : "";
   const [state, setState] = useState<LookupState | null>(null);
-  const [retry, setRetry] = useState(0);
+  const requestVersion = useRef(0);
+  const currentKey = useRef(key);
+  currentKey.current = key;
+
+  const checkAtProvider = useCallback(async (organizationId: string, number: string, requestKey: string, version: number) => {
+    let next: LookupResult;
+    try {
+      const response = await operateUnionWhatsAppInbox(
+        organizationId, crypto.randomUUID(), "check_number", { phone: number },
+      );
+      if (!response.phone) throw new Error("O WhatsApp não retornou confirmação.");
+      const name = String(response.contact_name || response.verified_name || "").trim().slice(0, 120);
+      next = {
+        kind: "registered",
+        name,
+        nameLabel: labelForName(response.name_source, !response.contact_name && Boolean(response.verified_name)),
+        avatar: response.avatar_url || null,
+        adjusted: Boolean(response.adjusted),
+        verifiedAt: response.verified_at || null,
+        savedVerification: false,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível consultar o WhatsApp.";
+      next = /O WhatsApp confirmou que esse telefone não está cadastrado/i.test(message)
+        ? { kind: "unregistered" }
+        : { kind: "unavailable", message };
+    }
+    if (requestVersion.current !== version || currentKey.current !== requestKey) return;
+    setState({ key: requestKey, result: next });
+    if (next.kind === "registered" || next.kind === "unregistered") {
+      if (recentChecks.size >= 100) recentChecks.delete(recentChecks.keys().next().value || "");
+      recentChecks.set(requestKey, {
+        result: next,
+        expiresAt: Date.now() + (next.kind === "registered" ? 10 : 5) * 60_000,
+      });
+    }
+  }, []);
 
   useEffect(() => {
+    const version = ++requestVersion.current;
     if (!canVerify || !key || !activeOrganizationId) {
       setState(null);
-      return;
-    }
-    const cached = recentChecks.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      setState({ key, result: cached.result });
-      return;
+      return () => { requestVersion.current++; };
     }
 
-    let active = true;
     setState({ key, result: { kind: "checking" } });
+    if (verificationMode === "create") {
+      const cached = recentChecks.get(key);
+      if (cached && cached.expiresAt > Date.now()) {
+        setState({ key, result: cached.result });
+        return () => { requestVersion.current++; };
+      }
+      const timer = setTimeout(() => {
+        void checkAtProvider(activeOrganizationId, normalized, key, version);
+      }, 900);
+      return () => { clearTimeout(timer); requestVersion.current++; };
+    }
+
+    // Editing: only query the small, private confirmation table. No WuzAPI,
+    // avatars, conversation creation, or repeat provider verification.
     const timer = setTimeout(async () => {
       let next: LookupResult;
       try {
         const response = await operateUnionWhatsAppInbox(
-          activeOrganizationId, crypto.randomUUID(), "check_number", { phone: normalized },
+          activeOrganizationId, crypto.randomUUID(), "number_verification_status", { phone: normalized },
         );
-        if (!response.phone) throw new Error("O WhatsApp não retornou confirmação.");
-        const name = String(response.contact_name || response.verified_name || "").trim().slice(0, 120);
-        next = {
-          kind: "registered",
-          name,
-          nameLabel: labelForName(response.name_source, !response.contact_name && Boolean(response.verified_name)),
-          avatar: response.avatar_url || null,
-          adjusted: Boolean(response.adjusted),
-        };
+        next = response.verified === true ? {
+          kind: "registered", name: "", nameLabel: "", avatar: null, adjusted: false,
+          verifiedAt: response.verified_at || null, savedVerification: true,
+        } : { kind: "unverified" };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Não foi possível consultar o WhatsApp.";
-        next = /O WhatsApp confirmou que esse telefone não está cadastrado/i.test(message)
-          ? { kind: "unregistered" }
-          : { kind: "unavailable", message };
+        next = { kind: "unavailable",
+          message: error instanceof Error ? error.message : "Não foi possível consultar a confirmação salva." };
       }
-      // Do not apply the result of an old field value or an unmounted modal.
-      if (!active) return;
+      if (requestVersion.current !== version || currentKey.current !== key) return;
       setState({ key, result: next });
-      if (next.kind === "registered" || next.kind === "unregistered") {
-        if (recentChecks.size >= 100) recentChecks.delete(recentChecks.keys().next().value || "");
-        recentChecks.set(key, {
-          result: next,
-          expiresAt: Date.now() + (next.kind === "registered" ? 10 : 5) * 60_000,
-        });
-      }
-    }, 900);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [activeOrganizationId, canVerify, key, normalized, retry]);
+    }, 300);
+    return () => { clearTimeout(timer); requestVersion.current++; };
+  }, [activeOrganizationId, canVerify, checkAtProvider, key, normalized, verificationMode]);
 
-  // Only render a status for the current, complete number. No separate
-  // status card: the badge belongs inside the phone field alongside copy.
+  const verifyManually = () => {
+    if (!canVerify || !key || !activeOrganizationId || inputProps.disabled) return;
+    const version = ++requestVersion.current;
+    setState({ key, result: { kind: "checking" } });
+    void checkAtProvider(activeOrganizationId, normalized, key, version);
+  };
+
   const result = canVerify && key && state?.key === key ? state.result : null;
   const showProfile = result?.kind === "registered" && Boolean(result.name || result.avatar);
+  const verifiedTitle = result?.kind === "registered" && result.savedVerification && result.verifiedAt
+    ? "Confirmado no WhatsApp em " + new Date(result.verifiedAt).toLocaleString("pt-BR") + ". A situação pode mudar com o tempo."
+    : "Número confirmado no WhatsApp";
   const inlineStatus = result ? (
     result.kind === "checking" ? (
-      <span role="status" aria-label="Verificando WhatsApp" title="Consultando número no WhatsApp"
+      <span role="status" aria-label={verificationMode === "edit" ? "Consultando confirmação salva" : "Verificando WhatsApp"}
         className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-semibold text-muted-foreground">
         <Loader2 size={13} className="animate-spin" />
-        <span className="hidden min-[431px]:inline">Verificando...</span>
+        <span className="hidden min-[431px]:inline">{verificationMode === "edit" ? "Consultando..." : "Verificando..."}</span>
       </span>
     ) : result.kind === "registered" ? (
-      <span role="status" aria-label="WhatsApp confirmado"
-        title={result.adjusted ? "WhatsApp confirmado com tratamento do nono dígito" : "Número confirmado no WhatsApp"}
+      <span role="status" aria-label="WhatsApp confirmado" title={verifiedTitle}
         className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
         <CheckCircle2 size={13} className="shrink-0" />
         <span className="hidden min-[431px]:inline">WhatsApp confirmado</span>
@@ -130,17 +170,25 @@ export function VerifiedWhatsAppPhoneInput({ value, ...inputProps }: {
         <span className="hidden min-[431px]:inline">Não encontrado</span>
         <span className="min-[431px]:hidden">Ausente</span>
       </span>
+    ) : result.kind === "unverified" ? (
+      <button type="button" disabled={inputProps.disabled}
+        aria-label="Verificar número no WhatsApp" title="Ainda não verificado. Clique para consultar o WhatsApp."
+        onClick={verifyManually}
+        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-1.5 py-1 text-[10px] font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">
+        <ShieldCheck size={13} className="shrink-0" />
+        <span>Verificar</span>
+      </button>
     ) : (
       <span className="inline-flex shrink-0 items-center gap-0.5">
-        <span role="status" aria-label="Consulta WhatsApp indisponível"
-          title={result.message}
+        <span role="status" aria-label="Consulta WhatsApp indisponível" title={result.message}
           className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-muted px-1.5 py-1 text-[10px] font-semibold text-muted-foreground">
           <AlertCircle size={13} />
           <span className="hidden min-[431px]:inline">Indisponível</span>
         </span>
-        <button type="button" aria-label="Consultar WhatsApp novamente" title="Tentar verificar novamente"
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10"
-          onClick={() => { recentChecks.delete(key); setRetry(value => value + 1); }}>
+        <button type="button" disabled={inputProps.disabled}
+          aria-label="Consultar WhatsApp novamente" title="Tentar novamente"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10 disabled:opacity-50"
+          onClick={verifyManually}>
           <RefreshCw size={13} />
         </button>
       </span>
@@ -164,9 +212,7 @@ export function VerifiedWhatsAppPhoneInput({ value, ...inputProps }: {
                 <p className="text-muted-foreground">{result.nameLabel}</p>
               </>
             )}
-            {!result.name && result.avatar && (
-              <p className="text-muted-foreground">Foto de perfil do WhatsApp</p>
-            )}
+            {!result.name && result.avatar && <p className="text-muted-foreground">Foto de perfil do WhatsApp</p>}
           </div>
         </div>
       )}

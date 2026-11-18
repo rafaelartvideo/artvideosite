@@ -181,8 +181,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -256,7 +256,7 @@ Deno.serve(async request => {
       contacts_groups:"view_contacts",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
-      contacts_apply_names:"import_contacts",check_number:"start",start:"start",
+      contacts_apply_names:"import_contacts",check_number:"start",number_verification_status:"start",start:"start",
       assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_saved_ids:"send",sticker_prepare:"send",sticker_commit:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
       members:"transfer",transfer:"transfer",transfer_department:"transfer",
       participants:"collaborate",participant_add:"collaborate",
@@ -273,7 +273,7 @@ Deno.serve(async request => {
         ? "start_new_conversation" : required[action];
     // Number lookups are read-only and may be used while creating/editing
     // contacts, even when this operator cannot open a new attendance.
-    const numberCheckAllowed=action==="check_number" &&
+    const numberCheckAllowed=(action==="check_number" || action==="number_verification_status") &&
       ["start","start_new_conversation","create_contacts","manage_contacts"]
         .some(capability=>capabilities[capability]);
     if(requiredCapability && !capabilities[requiredCapability] && !numberCheckAllowed &&
@@ -354,6 +354,18 @@ Deno.serve(async request => {
         operator:savedOverrides.get("operator:"+def.key) ?? def.operator_default,
         both:savedOverrides.get("both:"+def.key) ?? (def.manager_default || def.operator_default),
       }))});
+    }
+
+    // Lightweight, tenant-scoped lookup for existing CRM records. This route
+    // never contacts WuzAPI, reads media, or creates conversations.
+    if(action==="number_verification_status"){
+      const digits=String(body.phone||"").replace(/\D/g,"");
+      const phone=/^55[1-9]\d{9,10}$/.test(digits)?digits:"";
+      if(!phone)return json({success:false,error:"Informe telefone brasileiro com DDD válido."},400);
+      const {data:stored,error:storedError}=await admin.from("union_whatsapp_crm_number_verifications")
+        .select("verified_at").eq("organization_id",org).eq("phone_e164",phone).maybeSingle();
+      if(storedError)throw storedError;
+      return json({success:true,verified:Boolean(stored),verified_at:stored?.verified_at||null});
     }
 
     // Validate before writing contacts or conversations; no phantom chats for invalid numbers.
@@ -529,7 +541,20 @@ Deno.serve(async request => {
         contactName=cached||profileName||String(verified.verified_name||"").trim().slice(0,120);
         if(contactName)nameSource="whatsapp";
       }
-      return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
+      // Persist only a positive provider confirmation (not a customer identity,
+      // contact, profile name or photo). Exact tenant+typed-number scoped key;
+      // a changed CRM field will never inherit another number's seal.
+      const verifiedAt=new Date().toISOString();
+      const enteredPhone=String(body.phone||"").replace(/\D/g,"");
+      const nationalPhone=enteredPhone.startsWith("55")&&enteredPhone.length>11
+        ? enteredPhone.slice(2):enteredPhone;
+      const inputE164="55"+nationalPhone;
+      const {error:recordError}=await admin.from("union_whatsapp_crm_number_verifications")
+        .upsert({organization_id:org,phone_e164:inputE164,
+          provider_phone_e164:verified.phone,verified_at:verifiedAt},
+          {onConflict:"organization_id,phone_e164"});
+      if(recordError)throw recordError;
+      return json({success:true,verified_at:verifiedAt,phone:verified.phone,adjusted:verified.adjusted,
         alternatives:verified.alternatives?.map(item=>({phone:item.phone,verified_name:item.verified_name})),
         verified_name:verified.verified_name,
         identity_type:verified.jid?.endsWith("@lid")?"lid":"phone",

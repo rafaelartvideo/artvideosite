@@ -1008,3 +1008,28 @@ test("Gestor + Operador possui matriz independente no UI, servidor e RLS",()=>{
   assert.match(migration,/b\.staff_role='both' and coalesce\(combo\.enabled/);
   assert.doesNotMatch(migration,/b\.staff_role in \('manager','both'\)/);
 });
+
+
+test("CRM WhatsApp verification persists by organization and number without rechecking an edited record",()=>{
+  const ui=read("src/features/whatsapp-channels/presentation/WhatsAppNumberVerification.tsx");
+  const reg=read("src/features/registrations/presentation/RegistrationEditor.tsx");
+  const order=read("src/features/orders/presentation/OrderCustomerSection.tsx");
+  const detail=read("src/features/customers/presentation/CustomerDetailsPage.tsx");
+  const migration=read("supabase/migrations/20261118174500_whatsapp_crm_number_verification.sql");
+  assert.match(edge,/if\(action==="number_verification_status"\)/);
+  assert.match(edge,/"union_whatsapp_crm_number_verifications"/);
+  assert.match(edge,/\.upsert\(\{organization_id:org,phone_e164:inputE164/);
+  assert.match(edge,/phone_e164:inputE164/);
+  assert.match(edge,/\.eq\("organization_id",org\)\.eq\("phone_e164",phone\)/);
+  assert.match(ui,/verificationMode = "create"/);
+  assert.match(ui,/if \(verificationMode === "create"\)/);
+  assert.match(ui,/"number_verification_status"/);
+  assert.match(ui,/onClick=\{verifyManually\}/);
+  assert.match(ui,/WhatsApp confirmado/);
+  assert.match(ui,/if \(requestVersion\.current !== version \|\| currentKey\.current !== key\) return/);
+  assert.match(reg,/verificationMode=\{creating \? "create" : "edit"\}/);
+  assert.match(order,/verificationMode="edit"/);
+  assert.match(detail,/VerifiedWhatsAppPhoneInput verificationMode="edit"/);
+  assert.match(migration,/enable row level security/);
+  assert.match(migration,/revoke all on public\.union_whatsapp_crm_number_verifications from anon,authenticated/);
+});
