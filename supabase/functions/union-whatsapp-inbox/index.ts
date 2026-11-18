@@ -181,8 +181,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -762,6 +762,57 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
+    // Batch CRM names by organization. The only source of manual overrides
+    // is union_whatsapp_contacts.display_name; never write CRM names there.
+    const contactPhoneKey=(value:unknown):string=>{
+      const digits=String(value||"").replace(/\D/g,"");
+      const number=/^[1-9]\d{9,10}$/.test(digits)?"55"+digits:digits;
+      return /^55[1-9]\d{9,10}$/.test(number)?number:"";
+    };
+    const crmNamesFor=async(phones:unknown[]):Promise<Map<string,string>>=>{
+      if(!permissions.has("customers.view"))return new Map();
+      const normalized=[...new Set(phones.map(contactPhoneKey).filter(Boolean))].slice(0,100);
+      if(!normalized.length)return new Map();
+      const {data,error}=await admin.rpc("union_whatsapp_crm_names_batch",{
+        p_organization:org,p_phones:normalized,
+      });
+      if(error)throw error;
+      return new Map((data||[]).map((item:{phone_e164:string;crm_name:string})=>
+        [item.phone_e164,item.crm_name]));
+    };
+
+    if(action==="contact_names_batch"){
+      const ids=Array.isArray(body.conversation_ids)?body.conversation_ids:[];
+      if(!ids.length || ids.length>100 || ids.some((id:unknown)=>!uuid(id)) ||
+        new Set(ids).size!==ids.length)
+        return json({success:false,error:"Selecione até 100 conversas válidas."},400);
+      const {data:visible,error:visibleError}=await scoped.from("union_whatsapp_conversations")
+        .select("id,chat_jid,contact_phone,contact_name,channel_id,account_phone")
+        .eq("organization_id",org).in("id",ids);
+      if(visibleError)throw visibleError;
+      if(!visible?.length)return json({success:true,display_names:[]});
+      // RLS already checked which conversations this caller can view.
+      const {data:manualContacts,error:contactError}=await admin.from("union_whatsapp_contacts")
+        .select("channel_id,account_phone,chat_jid,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
+        .eq("organization_id",org)
+        .in("channel_id",[...new Set(visible.map(row=>row.channel_id))])
+        .in("chat_jid",[...new Set(visible.map(row=>row.chat_jid))]).limit(100);
+      if(contactError)throw contactError;
+      const byIdentity=new Map((manualContacts||[]).map(row=>
+        [row.channel_id+":"+row.account_phone+":"+row.chat_jid,row]));
+      const names=await crmNamesFor(visible.map(row=>row.contact_phone));
+      const displayNames=visible.map(row=>{
+        const known=byIdentity.get(row.channel_id+":"+row.account_phone+":"+row.chat_jid);
+        const finalName=String(known?.display_name ||
+          names.get(contactPhoneKey(row.contact_phone)) ||
+          known?.device_name ||
+          (known?.wuzapi_verified_saved?known.imported_name:null) ||
+          known?.profile_name || row.contact_name || row.contact_phone ||"Contato WhatsApp").trim();
+        return {id:row.id,name:finalName.slice(0,160)};
+      });
+      return json({success:true,display_names:displayNames});
+    }
+
     if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").maybeSingle();
@@ -921,7 +972,10 @@ Deno.serve(async request => {
         const {data,error,count}=await q.order("updated_at",{ascending:false})
           .range(page*100,page*100+99);
         if(error)throw error;
-        return json({success:true,contacts:data||[],total:count||0});
+        const crm=await crmNamesFor((data||[]).map(row=>row.contact_phone));
+        return json({success:true,contacts:(data||[]).map(row=>({
+          ...row,crm_name:crm.get(contactPhoneKey(row.contact_phone))||null,
+        })),total:count||0});
       }
       if(action==="contacts_history") {
         const jid=String(body.chat_jid||"");
@@ -1343,27 +1397,12 @@ Deno.serve(async request => {
         .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
         .eq("chat_jid",jid).maybeSingle();
       if(knownError)throw knownError;
-      const preferredName=customerName || knownContact?.display_name ||
+      const crmName=(await crmNamesFor([phone])).get(contactPhoneKey(phone)) || "";
+      // Starting from OS does not count as a manual contact edit.
+      const preferredName=knownContact?.display_name || crmName || customerName ||
         knownContact?.device_name ||
         (knownContact?.wuzapi_verified_saved ? knownContact.imported_name : null) ||
         knownContact?.profile_name || phone;
-      const persistManualName=async()=>{
-        if(!customerName)return;
-        const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
-          organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
-          contact_phone:phone,display_name:customerName,
-          device_name:knownContact?.device_name??null,
-          imported_name:knownContact?.imported_name??null,
-          profile_name:knownContact?.profile_name??null,
-          wuzapi_verified_saved:knownContact?.wuzapi_verified_saved===true,
-          updated_at:new Date().toISOString(),
-        },{onConflict:"channel_id,account_phone,chat_jid"});
-        if(contactError)throw contactError;
-        const {error:renameError}=await admin.from("union_whatsapp_conversations")
-          .update({contact_name:customerName})
-          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",jid);
-        if(renameError)throw renameError;
-      };
       // Always look for the authoritative JID FIRST; never substitute another
       // identity just because two contact_phone display values are similar.
       const {data:knownThreads,error:matchError}=await admin.from("union_whatsapp_conversations")
@@ -1471,9 +1510,6 @@ Deno.serve(async request => {
           .update({last_message:outbound,last_message_at:now,updated_at:now})
           .eq("organization_id",org).eq("id",conversationId);
         if(previewError)throw previewError;
-        try {await persistManualName();}catch(error){
-          console.warn("union-whatsapp-inbox: first_message_name_sync_failed",String(error));
-        }
         if(!previouslyKnown || previousState!=="in_att")
           await admin.from("union_whatsapp_handoffs").insert({
             organization_id:org,conversation_id:conversationId,actor_id:actorId,action:"start",
@@ -1495,7 +1531,7 @@ Deno.serve(async request => {
         .select("id").maybeSingle();
       if(createError) throw createError;
       if(created) {
-        await persistManualName();
+        
         await admin.from("union_whatsapp_handoffs").insert({
           organization_id:org,conversation_id:created.id,actor_id:actorId,action:"start"
         });
@@ -1508,7 +1544,7 @@ Deno.serve(async request => {
       const {data:existing,error:existingError}=readExisting;
       if(existingError || !existing) throw existingError || Error("conversation_not_found");
       if(existing.status==="in_att" && existing.assigned_to===actorId) {
-        await persistManualName();
+        
         return json({success:true,conversation_id:existing.id,already_open:true});
       }
       if(existing.status==="in_att" && existing.assigned_to!==actorId)
@@ -1526,7 +1562,7 @@ Deno.serve(async request => {
         .select("id").maybeSingle();
       if(claimError) throw claimError;
       if(!claimed) return json({success:false,error:"A conversa foi assumida por outro funcionário."},409);
-      await persistManualName();
+      
       await admin.from("union_whatsapp_handoffs").insert({
         organization_id:org,conversation_id:claimed.id,actor_id:actorId,action:"start"
       });
@@ -2146,27 +2182,22 @@ Deno.serve(async request => {
       const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
         .select("display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
         .eq("organization_id",org).eq("channel_id",thread.channel_id)
-        .eq("chat_jid",thread.chat_jid).maybeSingle();
+        .eq("account_phone",thread.account_phone).eq("chat_jid",thread.chat_jid).maybeSingle();
       if(knownError)throw knownError;
-      const authoritative=String(known?.display_name||known?.device_name||
-        (known?.wuzapi_verified_saved?known.imported_name:null)||"").trim();
       const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
         .select("contact_name,contact_phone").eq("id",thread.id)
         .eq("organization_id",org).maybeSingle();
       if(existingError)throw existingError;
       const current=String(existing?.contact_name||"").trim();
+      const crmName=(await crmNamesFor([existing?.contact_phone])).get(
+        contactPhoneKey(existing?.contact_phone))||"";
+      const authoritative=String(known?.display_name || crmName ||
+        known?.device_name ||
+        (known?.wuzapi_verified_saved?known.imported_name:null) ||
+        known?.profile_name ||"").trim();
+      if(authoritative)return json({success:true,contact_name:authoritative});
       const placeholder=!current || current==="Contato WhatsApp" ||
-        (existing?.contact_phone && current===existing.contact_phone) ||
-        (known?.profile_name && current===known.profile_name);
-      if(authoritative){
-        if(current!==authoritative && (known?.display_name || placeholder)){
-          const {error:writeError}=await admin.from("union_whatsapp_conversations")
-            .update({contact_name:authoritative})
-            .eq("id",thread.id).eq("organization_id",org);
-          if(writeError)throw writeError;
-        }
-        return json({success:true,contact_name:known?.display_name||(!placeholder?current:authoritative)});
-      }
+        (existing?.contact_phone && current===existing.contact_phone);
       if(!placeholder)return json({success:true,contact_name:current});
       try{
         const value=await signedBridge(
@@ -2175,14 +2206,9 @@ Deno.serve(async request => {
         );
         const cut=value.indexOf(":");
         const candidate=cut>=0?value.slice(cut+1).trim():"";
-        if(candidate && candidate!==current){
-          const {error}=await admin.from("union_whatsapp_conversations")
-            .update({contact_name:candidate}).eq("id",thread.id).eq("organization_id",org);
-          if(error)throw error;
-          return json({success:true,contact_name:candidate});
-        }
-      }catch{/* Directory unavailability cannot block the inbox. */}
-      return json({success:true,contact_name:current});
+        if(candidate)return json({success:true,contact_name:candidate});
+      }catch{/* WuzAPI availability cannot block the inbox. */}
+      return json({success:true,contact_name:current||existing?.contact_phone||"Contato WhatsApp"});
     }
     if(action==="media_view") {
       const messageId=String(body.message_id||"");
