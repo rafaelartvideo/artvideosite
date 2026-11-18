@@ -951,6 +951,16 @@ Deno.serve(async request => {
         const number=newJid.endsWith("@lid")
           ? (submitted||String(body.phone||"").replace(/\D/g,"")||null)
           : newJid.endsWith("@s.whatsapp.net")?newJid.split("@")[0]:null;
+        // An operator with only "Criar contatos" must never rename an
+        // already-saved contact merely by entering an existing WhatsApp number.
+        if(!raw){
+          const {data:existingContact,error:existingContactError}=await admin.from("union_whatsapp_contacts")
+            .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("account_phone",channel.phone).eq("chat_jid",newJid).maybeSingle();
+          if(existingContactError)throw existingContactError;
+          if(existingContact)
+            return json({success:false,error:"Este número já existe nos contatos. Abra o contato existente para editar."},409);
+        }
         // Single database transaction: save/rename + snapshot actor + immutable field changes.
         // The actor comes from scoped.auth.getUser(), never from the request body.
         const {data:saved,error:saveError}=await admin.rpc("union_whatsapp_save_contact_audited",{
