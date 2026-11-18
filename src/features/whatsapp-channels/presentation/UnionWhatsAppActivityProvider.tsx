@@ -6,7 +6,7 @@ import {
   type UnionWhatsAppConversation, type UnionWhatsAppConversationCounts,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { UnionWhatsAppFloatingPanel, type FloatingWhatsAppAlert } from "./UnionWhatsAppFloatingPanel";
-import { fetchSharedAvatar, clearSharedAvatarCache } from "../application/shared-whatsapp-avatar-cache";
+import { clearSharedAvatarCache } from "../application/shared-whatsapp-avatar-cache";
 import { playUnionWhatsAppSound } from "../application/union-whatsapp-sounds";
 
 const ConversationModal=lazy(()=>import("./WhatsAppConversationModal")
@@ -89,9 +89,6 @@ export function UnionWhatsAppActivityProvider({
   const rowsLoading=lists[filter].loading;
   const rowsLoaded=lists[filter].loaded;
   const rowsError=lists[filter].error;
-  const [avatars,setAvatars]=useState<Record<string,string|null>>({});
-  const avatarRequestsRef=useRef(new Set<string>());
-  const avatarCheckedAtRef=useRef(new Map<string,number>());
   const [alert,setAlert]=useState<FloatingWhatsAppAlert|null>(null);
   const [conversationId,setConversationId]=useState<string|null>(null);
 
@@ -202,9 +199,6 @@ export function UnionWhatsAppActivityProvider({
     setAccount(null);
     setCounts(zeroCounts);
     setLists(emptyLists());
-    setAvatars({});
-    avatarCheckedAtRef.current.clear();
-    avatarRequestsRef.current.clear();
     setAlert(null);
     setConversationId(null);
     setExpanded(false);
@@ -317,40 +311,6 @@ export function UnionWhatsAppActivityProvider({
     const timer=setTimeout(()=>setAlert(current=>current?.messageId===alert.messageId?null:current),7_000);
     return()=>clearTimeout(timer);
   },[alert]);
-
-  // Mensagens só geram avisos após confirmação da conversa no mesmo canal.
-  // Não notificamos um operador sobre atendimento de outro, salvo view_all.
-  // Fotos carregadas somente para até seis linhas visíveis de cada aba.
-  // TTL por contato, duas requisições concorrentes e nenhum polling do WuzAPI.
-  useEffect(()=>{
-    if(!expanded||isPageOpen||!channelId||!channelPhone||conversationId)return;
-    const candidates=[...lists.in_att.items.slice(0,6),...lists.waiting.items.slice(0,6)];
-    const now=Date.now();
-    const available=2-avatarRequestsRef.current.size;
-    if(available<=0)return;
-    const toLoad=candidates.filter(item=>{
-      if(avatarRequestsRef.current.has(item.id))return false;
-      const last=avatarCheckedAtRef.current.get(item.id);
-      const ttl=avatars[item.id]?60*60_000:15*60_000;
-      return last===undefined||now-last>=ttl;
-    }).slice(0,available);
-    for(const item of toLoad){
-      avatarRequestsRef.current.add(item.id);
-      avatarCheckedAtRef.current.set(item.id,now);
-      const key=accountKey,generation=listGenerationRef.current;
-      void fetchSharedAvatar({
-        organizationId,accountPhone:item.account_phone,
-        chatJid:item.chat_jid,conversationId:item.id,
-      }).then(url=>{
-          if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
-          setAvatars(prev=>({...prev,[item.id]:url||null}));
-        }).catch(()=>{
-          if(currentAccountRef.current!==key||generation!==listGenerationRef.current)return;
-          setAvatars(prev=>({...prev,[item.id]:prev[item.id]||null}));
-        }).finally(()=>avatarRequestsRef.current.delete(item.id));
-    }
-  },[expanded,isPageOpen,channelId,channelPhone,conversationId,organizationId,
-    accountKey,lists.in_att.items,lists.waiting.items,avatars]);
 
   const notifyFor=useCallback((row:UnionWhatsAppConversation,incoming:Incoming)=>{
     if(pageOpenRef.current||expandedRef.current||conversationOpenRef.current||
@@ -500,7 +460,7 @@ export function UnionWhatsAppActivityProvider({
         hidden={Boolean(conversationId)}
         expanded={expanded} onToggle={()=>setExpanded(value=>!value)}
         counts={counts} filter={filter} onFilter={setFilter}
-        rows={rows} loading={rowsLoading} loaded={rowsLoaded} error={rowsError} avatars={avatars}
+        rows={rows} loading={rowsLoading} loaded={rowsLoaded} error={rowsError}
         onSelect={selectConversation}
         onOpenFull={onOpenFull} alert={alert} onDismissAlert={()=>setAlert(null)}
       />}
