@@ -12,6 +12,10 @@ const repository=read("src/features/whatsapp-channels/infrastructure/union-whats
 test("edits are audited server-side with the authenticated operator, not a client-provided user",()=>{
   assert.match(edge,/const actorId=userData\.user\.id;/);
   assert.match(edge,/contacts_save:"manage_contacts"/);
+  assert.match(edge,/action==="contacts_save" && !String\(body\.chat_jid\|\|""\)\.trim\(\)/);
+  assert.match(edge,/\? "create_contacts"/);
+  assert.match(edge,/if\(!raw\)\{/);
+  assert.match(edge,/if\(existingContact\)/);
   assert.match(edge,/admin\.rpc\("union_whatsapp_save_contact_audited"/);
   assert.match(edge,/p_contact_phone:number,p_actor:actorId/);
   const saveBranch=edge.slice(edge.indexOf('if(action==="contacts_save")'),edge.indexOf('if(action==="contacts_apply_names")'));
