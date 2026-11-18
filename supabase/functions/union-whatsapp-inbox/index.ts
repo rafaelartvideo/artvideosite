@@ -1399,10 +1399,10 @@ Deno.serve(async request => {
       if(knownError)throw knownError;
       const crmName=(await crmNamesFor([phone])).get(contactPhoneKey(phone)) || "";
       // Starting from OS does not count as a manual contact edit.
-      const preferredName=knownContact?.display_name || crmName || customerName ||
+      const preferredName=knownContact?.display_name || crmName ||
         knownContact?.device_name ||
         (knownContact?.wuzapi_verified_saved ? knownContact.imported_name : null) ||
-        knownContact?.profile_name || phone;
+        knownContact?.profile_name || verified.verified_name || customerName || phone;
       // Always look for the authoritative JID FIRST; never substitute another
       // identity just because two contact_phone display values are similar.
       const {data:knownThreads,error:matchError}=await admin.from("union_whatsapp_conversations")
