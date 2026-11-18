@@ -178,7 +178,11 @@ Deno.serve(async request => {
         .eq("organization_id",channel.organization_id).eq("channel_id",channelId).eq("account_phone",accountPhone)
         .eq("conversation_id",receiptThread.id)
         .eq("direction","outgoing").in("provider_message_id",uniqueIds);
-      if(state==="delivered") query=query.neq("delivery_status","read");
+      // Apply only forward transitions in the UPDATE itself. Replayed receipts
+      // must not write unchanged rows, and legacy NULL statuses can advance.
+      query=query.or(state==="read"
+        ? "delivery_status.is.null,delivery_status.in.(sent,delivered)"
+        : "delivery_status.is.null,delivery_status.in.(sent)");
       const {error:receiptError}=await query;
       if(receiptError) throw receiptError;
       return json({ok:true});

@@ -576,6 +576,9 @@ test("Abrir WhatsApp pela OS ou Cadastros nao cria protocolo antes da primeira m
   assert.match(draft,/aria-label="Mensagem"/);
   assert.match(draft,/onSubmit=\{event => \{ event\.preventDefault\(\); submit\(\); \}\}/);
   assert.doesNotMatch(draft,/operateUnionWhatsAppInbox|startUnionWhatsAppWithFirstMessage/);
+  assert.match(draft,/if \(starting \|\| !message\.trim\(\)\) return;/);
+  assert.match(draft,/void onSend\(message\.trim\(\)\)/);
+  assert.match(modal,/onSend=\{sendFirstMessage\}/);
   assert.doesNotMatch(modal,/onClick=\{startConversation\}|setDrafting\(true\)/);
   assert.match(modal,/const conversationId=await startUnionWhatsAppWithFirstMessage\(/);
   assert.match(modal,/!message\.trim\(\)/);
@@ -859,4 +862,75 @@ test("A OS abre um chat completo de rascunho e só inicia após o primeiro envio
   assert.match(start, /const firstMessage=typeof body\.first_message==="string"/);
   assert.match(start, /providerId=await signedBridge/);
   assert.match(start, /first_message_sent:true/);
+});
+
+function receiptUpdateHarness(){
+  const webhook=read("supabase/functions/union-whatsapp-webhook/index.ts");
+  const start=webhook.indexOf('let query = admin.from("union_whatsapp_messages")');
+  const end=webhook.indexOf('if(receiptError) throw receiptError;',start);
+  assert.ok(start>=0 && end>start,"execute the real receipt UPDATE block");
+  const AsyncFunction=Object.getPrototypeOf(async()=>{}).constructor;
+  const apply=new AsyncFunction("admin","channel","channelId","accountPhone","receiptThread","uniqueIds","state",
+    webhook.slice(start,end+'if(receiptError) throw receiptError;'.length));
+  const scope={organization_id:"org",channel_id:"channel",account_phone:"phone",conversation_id:"thread",direction:"outgoing"};
+  const rows=[null,"sent","delivered","read"].map((delivery_status,index)=>({
+    ...scope,provider_message_id:"batch-"+index,delivery_status,
+  }));
+  for(const [field,value] of Object.entries({organization_id:"other-org",channel_id:"other-channel",account_phone:"other-phone",conversation_id:"other-thread",direction:"incoming"})){
+    rows.push({...scope,[field]:value,provider_message_id:"excluded-"+field,delivery_status:"sent"});
+  }
+  rows.push({...scope,provider_message_id:"outside-batch",delivery_status:"sent"});
+  const writes=[];
+  const admin={from(table){
+    assert.equal(table,"union_whatsapp_messages");
+    const filters=[];
+    let patch;
+    const query={
+      update(value){patch=value;return query;},
+      eq(column,value){filters.push(row=>row[column]===value);return query;},
+      // SQL comparisons exclude NULL; treating null !== value as SQL true
+      // would hide the original nullable-status bug.
+      neq(column,value){filters.push(row=>row[column]!==null && row[column]!==value);return query;},
+      in(column,values){filters.push(row=>values.includes(row[column]));return query;},
+      or(expression){
+        const match=/^delivery_status\.is\.null,delivery_status\.in\.\(([^)]+)\)$/.exec(expression);
+        assert.ok(match,"status alternatives must be one server-side NULL-or-IN predicate");
+        const accepted=match[1].split(",");
+        filters.push(row=>row.delivery_status===null || accepted.includes(row.delivery_status));
+        return query;
+      },
+      then(resolve,reject){
+        // Evaluate filters at UPDATE execution, as a database does after
+        // locking a row, rather than taking a stale preliminary snapshot.
+        for(const row of rows)if(filters.every(matches=>matches(row))){
+          writes.push(row.provider_message_id);Object.assign(row,patch);
+        }
+        return Promise.resolve({error:null}).then(resolve,reject);
+      },
+    };
+    return query;
+  }};
+  const ids=rows.filter(row=>row.provider_message_id!=="outside-batch").map(row=>row.provider_message_id);
+  const run=state=>apply(admin,{organization_id:"org"},"channel","phone",{id:"thread"},ids,state);
+  return {rows,writes,run};
+}
+
+test("Delivered receipt updates nullable/sent batch rows once and preserves every tenant boundary",async()=>{
+  const h=receiptUpdateHarness();
+  await h.run("delivered");
+  assert.deepEqual(h.rows.slice(0,4).map(row=>row.delivery_status),["delivered","delivered","delivered","read"]);
+  assert.deepEqual(h.writes,["batch-0","batch-1"]);
+  await h.run("delivered");
+  assert.deepEqual(h.writes,["batch-0","batch-1"],"receipt replay must perform no further writes");
+  assert.ok(h.rows.slice(4).every(row=>row.delivery_status==="sent"));
+});
+
+test("Read receipt advances nullable/sent/delivered rows once, including concurrent replay",async()=>{
+  const h=receiptUpdateHarness();
+  await Promise.all([h.run("read"),h.run("read")]);
+  assert.deepEqual(h.writes,["batch-0","batch-1","batch-2"]);
+  assert.ok(h.rows.slice(0,4).every(row=>row.delivery_status==="read"));
+  await h.run("read");await h.run("delivered");
+  assert.deepEqual(h.writes,["batch-0","batch-1","batch-2"],"replays and delayed delivery cannot downgrade read");
+  assert.ok(h.rows.slice(4).every(row=>row.delivery_status==="sent"));
 });

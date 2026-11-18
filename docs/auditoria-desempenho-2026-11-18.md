@@ -51,3 +51,21 @@ Na validação autenticada anterior ao segundo deploy, a lista de OS carregou 49
 A revisão independente reproduziu as duas condições de navegação citadas acima; ambas receberam testes que falharam antes da correção e passaram depois. Validação final após incorporar a nova main 4b5b6d224 (verificação de números nos cadastros): npm run test:ci, 940 testes: 939 aprovados, um teste dependente de ferramenta indisponível ignorado, zero falhas. Os testes adicionais de autenticação entram permanentemente em test:performance/test:ci; as novas regressões de PABX entram na seleção automática de telefonia. Não se alteraram gates de publicação. Os builds e o deploy são conferidos separadamente antes de declarar publicação.
 
 Builds finais do site e CRM concluídos com sucesso sobre essa mesma base. Testes Python específicos do agente PABX continuam dependentes do Linux no workflow.
+
+
+# Etapa 3 — confirmações de entrega/leitura do WhatsApp
+
+A função union-whatsapp-webhook publicada (v48) foi lida e comparada com o repositório antes de editar: conteúdo idêntico. A gravação de recibos repetia UPDATEs de estados já entregues/lidos, gerando WAL e eventos sem mudança de informação. O filtro anterior de entregas também excluía estados NULL por semântica SQL.
+
+Correção: o UPDATE agora seleciona atomicamente apenas transições válidas: NULL/sent para delivered e NULL/sent/delivered para read. Replay não volta a gravar a mesma linha; um delivered atrasado não rebaixa read. Permanecem os seis filtros de organização, canal, conta, conversa, direção e IDs do lote. Não foi adicionada consulta preliminar nem cache de recibos. Autenticação HMAC/token, verify_jwt existente e tratamento de mensagens não foram alterados.
+
+Duas regressões executam o bloco real de UPDATE com semântica de filtros avaliada na execução. Antes da correção, o caso delivered falhava ao avançar NULL e o replay concorrente de read fazia 8 gravações em vez das 3 transições elegíveis. Depois, o mesmo lote faz somente 3; os próximos replays não fazem gravações. É um teste controlado local, não teste de carga ou concorrência no banco de produção. Revisão independente aprovada. Testes completos: 942 casos, 941 aprovados, um teste FFmpeg indisponível ignorado, zero falhas.
+
+Frontend da etapa 2: commit 109260ff073028551130fdd44505d3106c84b00a publicado por FTPS no CRM e site; execução https://github.com/rafaelartvideo/artvideosite/actions/runs/44307089595 com os passos Publish via FTPS confirmados como sucesso. PABX abriu após recarregar a versão publicada; OS exibiu os dados paginados atuais. Não foi iniciada chamada nem enviado atendimento.
+
+Também foram lidos somente os metadados de cron.job: nove agendamentos ativos, sem duplicação evidente nas configurações. Nenhum foi alterado. Auditoria local da ponte WuzAPI identificou oportunidades pendentes de confirmar/deployar na VPS: coalescer/bounded cache de contatos, deduplicar downloads simultâneos de mídia e confirmar necessidade da assinatura HistorySync. Não se reiniciaram serviços nem se consultaram logs históricos. Essas melhorias da ponte ainda não foram implementadas/publicadas.
+
+
+Antes do commit da etapa 3 foi incorporada a main 814f0cd04, que introduz o chat completo de rascunho antes do primeiro envio. O único conflito ocorreu nas regressões adicionadas ao fim do mesmo arquivo; preservados os dois conjuntos. O teste anterior de não criar protocolo ainda esperava controles removidos por essa mudança. Foi alinhado ao rascunho novo, mantendo as verificações de envio explícito, mensagem não vazia, nenhum start no componente de rascunho, confirmação do provedor antes do protocolo e chave de idempotência. Os 42 testes desse arquivo passaram depois da reconciliação; a suíte completa é repetida sobre a base final.
+
+Validação final da etapa 3, já incorporando também a correção de testes bafb845cd da main: 943 testes, 942 aprovados, um FFmpeg indisponível ignorado, zero falhas. Builds site e CRM concluídos com sucesso sobre os mesmos arquivos de aplicação (a atualização bafb845cd alterou somente testes).
