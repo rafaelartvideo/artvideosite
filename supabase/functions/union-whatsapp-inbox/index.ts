@@ -227,17 +227,20 @@ Deno.serve(async request => {
       .select("staff_role,capability,enabled").eq("organization_id",org);
     if(rolePermissionError)throw rolePermissionError;
     const overridesMap=new Map((overrides||[]).map(row=>[row.staff_role+":"+row.capability,row.enabled===true]));
-    const roleAllowed=(role:"manager"|"operator",capability:string)=>{
+    const roleAllowed=(role:"manager"|"operator"|"both",capability:string)=>{
       const defaults=WHATSAPP_ROLE_DEFAULTS[capability];
       if(!defaults)return false;
-      return overridesMap.get(role+":"+capability) ?? defaults[role==="manager"?0:1];
+      const defaultValue=role==="both" ? (defaults[0] || defaults[1])
+        : defaults[role==="manager"?0:1];
+      return overridesMap.get(role+":"+capability) ?? defaultValue;
     };
     const allowed=(capability:string)=>{
       if(!staffRole)return false;
       if(["send","start","start_new_conversation","assume"].includes(capability) && !permissions.has("whatsapp.inbox.send"))return false;
       if(capability==="link_orders" && !permissions.has("orders.details.view"))return false;
-      return (staffRole!=="operator" && roleAllowed("manager",capability)) ||
-        (staffRole!=="manager" && roleAllowed("operator",capability));
+      // A single, exact profile defines the permission. "both" is NOT an OR
+      // of the independent manager and operator profiles.
+      return roleAllowed(staffRole,capability);
     };
     const capabilities=Object.fromEntries(Object.keys(WHATSAPP_ROLE_DEFAULTS).map(key=>[
       key, (canConfigure && (key==="manage_operators" || key==="manage_queues")) || allowed(key),
@@ -314,7 +317,7 @@ Deno.serve(async request => {
       if(action==="role_permissions_save"){
         const role=String(body.staff_role||"");
         const edits=body.permissions;
-        if(role!=="manager" && role!=="operator")
+        if(role!=="manager" && role!=="operator" && role!=="both")
           return json({success:false,error:"Perfil inválido para configuração."},400);
         if(!Array.isArray(edits) || edits.length!==(definitions||[]).length ||
           edits.some((item:Record<string,unknown>)=>!item ||
@@ -325,14 +328,15 @@ Deno.serve(async request => {
         const proposed=new Map(overridesMap);
         edits.forEach((item:{capability:string;enabled:boolean})=>
           proposed.set(role+":"+item.capability,item.enabled));
-        const keepManagement=(proposed.get("manager:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[0]) ||
-          (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]);
+        const proposedManagement=(role:"manager"|"operator"|"both")=>{
+          const defaults=WHATSAPP_ROLE_DEFAULTS.manage_operators;
+          return proposed.get(role+":manage_operators") ??
+            (role==="both" ? (defaults[0] || defaults[1]) : defaults[role==="manager"?0:1]);
+        };
+        const keepManagement=(["manager","operator","both"] as const).some(proposedManagement);
         if(!keepManagement)return json({success:false,error:
           "Mantenha Gerenciar operadores e perfis habilitado em pelo menos um perfil para evitar bloqueio das configurações."},409);
-        const selfCanStillManage=(staffRole!=="operator" &&
-          (proposed.get("manager:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[0])) ||
-          (staffRole!=="manager" &&
-          (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]));
+        const selfCanStillManage=Boolean(staffRole && proposedManagement(staffRole));
         if(!canConfigure && !selfCanStillManage)return json({success:false,error:
           "Você não pode retirar seu próprio acesso à administração de perfis. Peça a outro gestor autorizado para realizar essa alteração."},409);
         const {error:saveError}=await admin.from("union_whatsapp_role_permissions").upsert(
@@ -348,6 +352,7 @@ Deno.serve(async request => {
         key:def.key,label:def.label,category:def.category,sort_order:def.sort_order,
         manager:savedOverrides.get("manager:"+def.key) ?? def.manager_default,
         operator:savedOverrides.get("operator:"+def.key) ?? def.operator_default,
+        both:savedOverrides.get("both:"+def.key) ?? (def.manager_default || def.operator_default),
       }))});
     }
 

@@ -7,8 +7,8 @@ import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
-type Role = "manager" | "operator";
-type Profile = Role | "both";
+type Role = "manager" | "operator" | "both";
+type Profile = Role;
 type Permission = {
   key: string;
   label: string;
@@ -16,12 +16,13 @@ type Permission = {
   sort_order: number;
   manager: boolean;
   operator: boolean;
+  both: boolean;
 };
 type Values = Record<Role, Record<string, boolean>>;
 
-const roles: Role[] = ["manager", "operator"];
+const roles: Role[] = ["manager", "operator", "both"];
 const categories = ["Conversas", "Administração"] as const;
-const emptyValues = (): Values => ({ manager: {}, operator: {} });
+const emptyValues = (): Values => ({ manager: {}, operator: {}, both: {} });
 const notifyError=(message:string)=>{if(message)notifyAdmin(message,"error");};
 const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success");};
 
@@ -50,10 +51,11 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
       for (const item of definitions) {
         initial.manager[item.key] = item.manager;
         initial.operator[item.key] = item.operator;
+        initial.both[item.key] = item.both;
       }
       setRows(definitions);
       setBaseline(initial);
-      setDraft({ manager: { ...initial.manager }, operator: { ...initial.operator } });
+      setDraft({ manager: { ...initial.manager }, operator: { ...initial.operator }, both: { ...initial.both } });
     } catch (reason) {
       notifyError(systemErrorMessage(reason, "Não foi possível carregar as permissões dos perfis."));
     } finally {
@@ -66,8 +68,9 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
   const changes = useMemo(() => ({
     manager: rows.filter(item => draft.manager[item.key] !== baseline.manager[item.key]).length,
     operator: rows.filter(item => draft.operator[item.key] !== baseline.operator[item.key]).length,
+    both: rows.filter(item => draft.both[item.key] !== baseline.both[item.key]).length,
   }), [rows, draft, baseline]);
-  const pendingCount = changes.manager + changes.operator;
+  const pendingCount = changes.manager + changes.operator + changes.both;
 
   const toggle = (role: Role, key: string, enabled: boolean) => {
     setDraft(current => ({
@@ -81,6 +84,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
     setDraft({
       manager: { ...baseline.manager },
       operator: { ...baseline.operator },
+      both: { ...baseline.both },
     });
     
     
@@ -121,9 +125,8 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
     }
   };
 
-  const selected = (key: string) => profile === "both"
-    ? Boolean(draft.manager[key] || draft.operator[key])
-    : Boolean(draft[profile][key]);
+  // Each role, including Gestor + Operador, has its own independent matrix.
+  const selected = (key: string) => Boolean(draft[profile][key]);
 
   const content = <div className="space-y-5">
     <AdminSegmentedControl<Profile>
@@ -146,10 +149,10 @@ export function WhatsAppRolePermissions({ onSaved, onClose, onBack, footerTarget
           {rows.filter(item => item.category === category).map(item =>
             <button key={item.key} type="button"
               aria-pressed={selected(item.key)}
-              disabled={saving || profile === "both"}
-              onClick={() => { if(profile !== "both") toggle(profile,item.key,!selected(item.key)); }}
+              disabled={saving}
+              onClick={() => toggle(profile,item.key,!selected(item.key))}
               className="flex min-w-0 items-start gap-2.5 border-b border-border/40 py-3 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-default disabled:hover:text-inherit">
-              <Checkbox checked={selected(item.key)} disabled={saving || profile === "both"}
+              <Checkbox checked={selected(item.key)} disabled={saving}
                 tabIndex={-1} aria-hidden="true"
                 className="mt-0.5 pointer-events-none"/>
               <span className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-foreground">

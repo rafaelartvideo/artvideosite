@@ -986,3 +986,25 @@ test("Permissões de contatos e botão Novo não bloqueiam abertura pela OS",()=
   assert.match(modal,/startUnionWhatsAppWithFirstMessage/);
   assert.match(edge,/can_start:!selectedLinkedConversation&&allowed\("start"\)/);
 });
+
+
+test("Gestor + Operador possui matriz independente no UI, servidor e RLS",()=>{
+  const ui=read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
+  const migration=read("supabase/migrations/20261118160000_whatsapp_independent_combined_role.sql");
+  assert.match(ui,/type Role = "manager" \| "operator" \| "both"/);
+  assert.match(ui,/const roles: Role\[\] = \["manager", "operator", "both"\]/);
+  assert.match(ui,/initial\.both\[item\.key\] = item\.both/);
+  assert.match(ui,/both: rows\.filter/);
+  assert.match(ui,/const selected = \(key: string\) => Boolean\(draft\[profile\]\[key\]\)/);
+  assert.match(ui,/onClick=\{\(\) => toggle\(profile,item\.key,!selected\(item\.key\)\)\}/);
+  assert.doesNotMatch(ui,/draft\.manager\[key\] \|\| draft\.operator\[key\]/);
+  assert.doesNotMatch(ui,/profile === "both" \|\| profile !== "both"/);
+  assert.match(edge,/return roleAllowed\(staffRole,capability\)/);
+  assert.match(edge,/if\(role!=="manager" && role!=="operator" && role!=="both"\)/);
+  assert.match(edge,/both:savedOverrides\.get\("both:"\+def\.key\)/);
+  assert.match(edge,/const selfCanStillManage=Boolean\(staffRole && proposedManagement\(staffRole\)\)/);
+  assert.match(migration,/check \(staff_role in \('manager','operator','both'\)\)/);
+  assert.match(migration,/on conflict \(organization_id,staff_role,capability\) do nothing/);
+  assert.match(migration,/b\.staff_role='both' and coalesce\(combo\.enabled/);
+  assert.doesNotMatch(migration,/b\.staff_role in \('manager','both'\)/);
+});
