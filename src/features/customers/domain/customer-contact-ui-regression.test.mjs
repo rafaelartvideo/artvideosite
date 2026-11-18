@@ -27,8 +27,9 @@ test("campos compartilhados permitem copiar números brasileiros nos dois sentid
   assert.match(controls, /onCopyPhone/);
   assert.match(controls, /onCopyWhatsapp/);
   assert.match(controls, /alreadyCopied/);
-  assert.match(controls, /rightAction=\{action\}/);
-  assert.match(controls, /rightAction && "pr-12"/);
+  assert.match(controls, /rightAction=\{rightAction\}/);
+  assert.match(controls, /statusAccessory \? <div className="flex items-center gap-1">\{statusAccessory\}\{action\}/);
+  assert.match(controls, /rightActionWide \? "pr-\[194px\] max-\[430px\]:pr-\[145px\]" : "pr-12"/);
 });
 
 test("validações de cadastro e modal aceitam telefone fixo válido como WhatsApp", () => {
