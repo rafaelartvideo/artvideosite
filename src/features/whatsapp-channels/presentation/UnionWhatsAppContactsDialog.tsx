@@ -757,12 +757,12 @@ export function UnionWhatsAppContactsDialog({
               <h3 className="mb-3 text-sm font-bold">Histórico geral do contato</h3>
               {conversationLoading?<p role="status" className="flex items-center justify-center gap-2 py-5 text-center text-xs text-muted-foreground">
                 <LoaderCircle size={15} className="animate-spin"/> Consultando histórico...
-              </p>:contactConversation?.chat_jid===selected.chat_jid?
-                <UnionWhatsAppContactHistory key={contactConversation.id} organizationId={organizationId}
-                  conversation={contactConversation}/>:
-                <p className="py-4 text-center text-xs text-muted-foreground">
-                  {conversationError||"Nenhum atendimento registrado para este contato."}
-                </p>}
+              </p>:<>
+                {conversationError&&<p role="alert" className="mb-2 text-xs text-destructive">{conversationError}</p>}
+                <UnionWhatsAppContactHistory key={organizationId+":"+selected.id} organizationId={organizationId}
+                  contactJid={selected.chat_jid} accountPhone={accountPhone}
+                  conversation={contactConversation?.chat_jid===selected.chat_jid?contactConversation:null}/>
+              </>}
             </section>}
             <div>
               <label className="block text-xs font-semibold" htmlFor="union-contact-name"><RequiredFieldLabel label="Nome salvo na Union" required/></label>
