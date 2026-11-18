@@ -36,12 +36,13 @@ const mask = (value:string) => {
 };
 
 export function UnionWhatsAppContactsDialog({
-  organizationId, accountPhone,channelId,canImport, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
+  organizationId, accountPhone,channelId,canImport, canCreate, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
 }:{
   organizationId:string;
   accountPhone:string;
   channelId:string;
   canImport:boolean;
+  canCreate:boolean;
   canEdit:boolean;
   onClose:()=>void;
   onSaved:()=>void;
@@ -539,7 +540,7 @@ export function UnionWhatsAppContactsDialog({
     onClose();
   };
   const checkContactPhone=async()=>{
-    if(!canEdit || phoneChecking || busy)return;
+    if(!(creating ? canCreate : canEdit) || phoneChecking || busy)return;
     const sequence=++phoneCheckSequence.current;
     setPhoneCheckNotice("");setPhoneCheckError("");
     const number=normalizePhone(phone);
@@ -563,7 +564,7 @@ export function UnionWhatsAppContactsDialog({
   };
 
   const save=async()=>{
-    if(!canEdit || busy)return;
+    if(!(creating ? canCreate : canEdit) || busy)return;
     if(name.trim().length<2){setError("Informe um nome com pelo menos dois caracteres.");return;}
     const number=normalizePhone(phone);
     if((creating || (selected?.contact_phone && "55"+number!==selected.contact_phone) || (!selected?.contact_phone && number)) && !/^[1-9][0-9][0-9]{8,9}$/.test(number)){
@@ -655,7 +656,7 @@ export function UnionWhatsAppContactsDialog({
               <input aria-label={tab==="groups"?"Buscar grupos":"Buscar contatos"} value={search} onChange={event=>{setSearch(event.target.value);setPage(0);}}
                 placeholder={tab==="groups"?"Nome do grupo":"Nome ou telefone"} className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
-            {canEdit && tab==="contacts" && <button type="button" aria-label="Adicionar contato" title="Novo contato"
+            {canCreate && tab==="contacts" && <button type="button" aria-label="Adicionar contato" title="Novo contato"
               onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setCrmPanel(null);setCrmEquipmentId(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
               <Plus size={18}/>
@@ -766,7 +767,7 @@ export function UnionWhatsAppContactsDialog({
             </section>}
             <div>
               <label className="block text-xs font-semibold" htmlFor="union-contact-name"><RequiredFieldLabel label="Nome salvo na Union" required/></label>
-              <input id="union-contact-name" value={name} disabled={!canEdit}
+              <input id="union-contact-name" value={name} disabled={!(creating ? canCreate : canEdit)}
                 onChange={event=>setName(event.target.value)} maxLength={160} placeholder="Nome do contato"
                 className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"/>
             </div>
@@ -774,14 +775,14 @@ export function UnionWhatsAppContactsDialog({
               <label htmlFor="union-contact-phone" className="block text-xs font-semibold"><RequiredFieldLabel label="WhatsApp" required/></label>
               <div className="mt-1 flex overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
                 <span className="border-r border-border bg-muted px-3 py-2.5 text-sm font-semibold">+55</span>
-                <input id="union-contact-phone" inputMode="tel" value={phone} disabled={!canEdit}
+                <input id="union-contact-phone" inputMode="tel" value={phone} disabled={!(creating ? canCreate : canEdit)}
                   onChange={event=>{
                     phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
                     setPhone(mask(event.target.value));
                   }} placeholder="(79) 98803-7605"
                   className="min-w-0 flex-1 bg-background px-3 py-2.5 text-sm outline-none disabled:opacity-60"/>
                 <button type="button" aria-label="Verificar número no WhatsApp" title="Verificar número no WhatsApp"
-                  disabled={!canEdit || busy || phoneChecking || !phone.trim()}
+                  disabled={!(creating ? canCreate : canEdit) || busy || phoneChecking || !phone.trim()}
                   onClick={()=>void checkContactPhone()}
                   className="inline-flex shrink-0 items-center justify-center gap-2 border-l border-border px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40">
                   {phoneChecking?<LoaderCircle size={16} className="animate-spin"/>:
@@ -920,7 +921,7 @@ export function UnionWhatsAppContactsDialog({
           </div>
           <div className="flex min-h-[58px] shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-4 py-2.5 sm:px-5">
             {tab==="contacts" && (selected||creating) && <>
-              {canEdit&&<AdminButton disabled={busy||name.trim().length<2} onClick={()=>void save()}>
+              {(creating ? canCreate : canEdit)&&<AdminButton disabled={busy||name.trim().length<2} onClick={()=>void save()}>
                 <Pencil size={15}/> {busy?"Salvando...":"Salvar contato"}
               </AdminButton>}
               {!creating&&selected&&<AdminButton variant="secondary"

@@ -8,6 +8,7 @@ const WHATSAPP_ROLE_DEFAULTS: Record<string,[boolean,boolean]> = {
   view_queues:[true,true],
   assume:[false,true],
   start:[false,true],
+  start_new_conversation:[false,true],
   send:[false,true],
   transfer:[true,true],
   return_queue:[true,true],
@@ -17,6 +18,7 @@ const WHATSAPP_ROLE_DEFAULTS: Record<string,[boolean,boolean]> = {
   manage_queues:[true,false],
   view_contacts:[true,true],
   manage_contacts:[true,true],
+  create_contacts:[true,true],
   import_contacts:[true,false],
   view_history:[true,false],
   link_orders:[true,false],
@@ -232,7 +234,7 @@ Deno.serve(async request => {
     };
     const allowed=(capability:string)=>{
       if(!staffRole)return false;
-      if(["send","start","assume"].includes(capability) && !permissions.has("whatsapp.inbox.send"))return false;
+      if(["send","start","start_new_conversation","assume"].includes(capability) && !permissions.has("whatsapp.inbox.send"))return false;
       if(capability==="link_orders" && !permissions.has("orders.details.view"))return false;
       return (staffRole!=="operator" && roleAllowed("manager",capability)) ||
         (staffRole!=="manager" && roleAllowed("operator",capability));
@@ -260,7 +262,18 @@ Deno.serve(async request => {
       return_queue:"return_queue",finish:"finish",reopen:"reopen",
       handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
     };
-    if(required[action] && !capabilities[required[action]] &&
+    // Independent actions: the inbox "Novo" button, OS/Cadastros first
+    // message and contact creation/editing must never grant one another.
+    const requiredCapability=action==="contacts_save" && !String(body.chat_jid||"").trim()
+      ? "create_contacts"
+      : action==="start" && typeof body.first_message!=="string"
+        ? "start_new_conversation" : required[action];
+    // Number lookups are read-only and may be used while creating/editing
+    // contacts, even when this operator cannot open a new attendance.
+    const numberCheckAllowed=action==="check_number" &&
+      ["start","start_new_conversation","create_contacts","manage_contacts"]
+        .some(capability=>capabilities[capability]);
+    if(requiredCapability && !capabilities[requiredCapability] && !numberCheckAllowed &&
       !(action==="operator_list" && capabilities.manage_queues)){
       return json({success:false,error:"Seu perfil não possui permissão para esta operação."},403);
     }

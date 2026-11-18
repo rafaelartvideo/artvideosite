@@ -1670,7 +1670,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setContactsOpen(false);
       return true;
     }
-    if(!canAction("start") || !contact.contact_phone){
+    if(!canAction("start_new_conversation") || !contact.contact_phone){
       reportError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
       return false;
     }
@@ -1715,7 +1715,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const startConversation = async () => {
-    if (!activeOrganizationId || !canAction("start") || starting || checkingNumber || !verifiedContact)return;
+    if (!activeOrganizationId || !canAction("start_new_conversation") || starting || checkingNumber || !verifiedContact)return;
     const digits = brazilNumberDigits(newPhone);
     // Client-side gate only. The server still checks the WhatsApp identity
     // again before creating or reopening a conversation.
@@ -2259,7 +2259,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
                   <ContactRound size={15}/> Contatos
                 </button>}
-                {canAction("start") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
+                {canAction("start_new_conversation") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
                   numberCheckSequence.current+=1;
                   setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
                   setNewConversationOpen(true);
@@ -2818,6 +2818,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       key={activeChannelPhone}
       organizationId={activeOrganizationId} accountPhone={activeChannelPhone!} channelId={activeChannelId!}
       canImport={canAction("import_contacts")}
+      canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>void refresh(true)}
@@ -2845,7 +2846,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           void refresh(true);
         }}
       />}
-    {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+    {newConversationOpen && canAction("start_new_conversation") && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
       <form onSubmit={event => {
           event.preventDefault();

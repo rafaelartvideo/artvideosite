@@ -960,3 +960,28 @@ test("Verificação de WhatsApp exibe selo dentro do campo e só mostra perfil a
     assert.doesNotMatch(form,/<WhatsAppNumberVerification phone=/);
   }
 });
+
+
+test("Permissões de contatos e botão Novo não bloqueiam abertura pela OS",()=>{
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const migration=read("supabase/migrations/20261118154500_union_whatsapp_contact_action_permissions.sql");
+  assert.match(edge,/start_new_conversation:\[false,true\]/);
+  assert.match(edge,/create_contacts:\[true,true\]/);
+  assert.match(edge,/const requiredCapability=action==="contacts_save"/);
+  assert.match(edge,/\? "create_contacts"/);
+  assert.match(edge,/action==="start" && typeof body\.first_message!=="string"/);
+  assert.match(edge,/\? "start_new_conversation" : required\[action\]/);
+  assert.match(edge,/const numberCheckAllowed=action==="check_number"/);
+  assert.match(inbox,/canAction\("start_new_conversation"\) && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa"/);
+  assert.match(inbox,/!canAction\("start_new_conversation"\) \|\| !contact\.contact_phone/);
+  assert.match(inbox,/canCreate=\{canAction\("create_contacts"\)\}/);
+  assert.match(inbox,/canEdit=\{canAction\("manage_contacts"\)\}/);
+  assert.match(contacts,/\{canCreate && tab==="contacts" && <button type="button" aria-label="Adicionar contato"/);
+  assert.match(contacts,/\(creating \? canCreate : canEdit\)/);
+  assert.match(migration,/'create_contacts','Criar contatos'/);
+  assert.match(migration,/'start_new_conversation','Iniciar conversa pelo botão Novo'/);
+  assert.match(migration,/set label='Editar contatos'/);
+  assert.match(migration,/set label='Iniciar atendimentos pela OS e Cadastros'/);
+  assert.match(modal,/startUnionWhatsAppWithFirstMessage/);
+  assert.match(edge,/can_start:!selectedLinkedConversation&&allowed\("start"\)/);
+});
