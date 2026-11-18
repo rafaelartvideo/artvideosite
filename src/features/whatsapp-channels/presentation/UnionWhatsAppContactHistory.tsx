@@ -165,7 +165,7 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
       })
       .finally(()=>{if(!cancelled)setChangesLoading(false);});
     return()=>{cancelled=true;};
-  },[organizationId,conversation?.id,jid,account,revision]);
+  },[organizationId,conversation?.id,conversation?.contact_name,jid,account,revision]);
 
   const loadOlder=async()=>{
     if(!conversation||!cursor||loading||olderLoading||!hasMore)return;
