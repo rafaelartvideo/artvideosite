@@ -363,6 +363,10 @@ const FIELD_LABELS: Record<string, string> = {
   situation_name_snapshot: "Situação",
   sku: "SKU",
   solution: "Solução",
+  order_rules_snapshot: "Regras da OS",
+  custom_field_values: "Campos personalizados",
+  exited_at: "Saída da situação em",
+  exited_by: "Saída registrada por",
   solved_at: "Solucionado em",
   solved_by: "Solucionado por",
   sort_order: "Ordem",
@@ -520,7 +524,7 @@ function formatAuditValue(value: unknown, field?: string) {
   }
   if (typeof value === "string") {
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-      return "Registro relacionado";
+      return "Identificador: " + value;
     }
     if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
       const date = new Date(value);
@@ -551,6 +555,97 @@ function formatAuditValue(value: unknown, field?: string) {
     try { return JSON.stringify(value); } catch { return String(value); }
   }
   return String(value);
+}
+
+
+const RULE_MODE_LABELS: Record<string, string> = {
+  required: "Obrigatório",
+  optional: "Opcional",
+  hidden: "Oculto",
+  disabled: "Desabilitado",
+};
+const RULE_STAGE_LABELS: Record<string, string> = {
+  create: "na entrada",
+  finish: "na conclusão",
+  edit: "na edição",
+};
+
+function auditRuleDescription(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return formatAuditValue(value);
+  const rule = value as Record<string, unknown>;
+  const mode = RULE_MODE_LABELS[String(rule.mode || "")] || String(rule.mode || "Não configurado");
+  const stage = RULE_STAGE_LABELS[String(rule.stage || "")] || "";
+  const minimum = typeof rule.minCount === "number" && rule.minCount > 0
+    ? " · mínimo de " + rule.minCount + (rule.minCount === 1 ? " item" : " itens")
+    : "";
+  return mode + (stage ? " " + stage : "") + minimum;
+}
+
+function AuditOrderRulesValue({ value }: { value: Record<string, unknown> }) {
+  const fields = value.fields && typeof value.fields === "object" && !Array.isArray(value.fields)
+    ? Object.entries(value.fields as Record<string, unknown>) : [];
+  const photos = value.photos && typeof value.photos === "object" && !Array.isArray(value.photos)
+    ? Object.entries(value.photos as Record<string, unknown>) : [];
+  const custom = Array.isArray(value.custom_fields) ? value.custom_fields : [];
+  if (!fields.length && !photos.length && !custom.length) return <span>Nenhuma regra definida</span>;
+  return (
+    <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border border-border p-2">
+      {fields.length > 0 && <div>
+        <p className="mb-1 font-bold text-foreground">Campos da OS</p>
+        {fields.map(([key, rule]) => <p key={key} className="py-0.5">
+          <span className="font-semibold text-foreground">{humanizeKey(key)}:</span> {auditRuleDescription(rule)}
+        </p>)}
+      </div>}
+      {photos.length > 0 && <div>
+        <p className="mb-1 font-bold text-foreground">Fotografias</p>
+        {photos.map(([key, rule]) => <p key={key} className="py-0.5">
+          <span className="font-semibold text-foreground">{key === "label" ? "Etiqueta" : key === "equipment" ? "Equipamento" : humanizeKey(key)}:</span> {auditRuleDescription(rule)}
+        </p>)}
+      </div>}
+      {custom.length > 0 && <div>
+        <p className="mb-1 font-bold text-foreground">Campos personalizados</p>
+        <AuditFormattedValue value={custom} phase="snapshot" />
+      </div>}
+    </div>
+  );
+}
+
+function AuditFormattedValue({value, field, phase = "snapshot"}: {
+  value: unknown;
+  field?: string;
+  phase?: "before" | "after" | "snapshot";
+}) {
+  if (value === undefined) return <span>{phase === "before"
+    ? "Valor anterior não registrado neste evento"
+    : phase === "after" ? "Novo valor não registrado neste evento" : "Não registrado"}</span>;
+  if (value === null || value === "") {
+    if (field === "order_rules_snapshot" && phase === "before")
+      return <span>Sem regras registradas anteriormente para esta OS</span>;
+    if (field === "exited_at" && phase === "before")
+      return <span>Situação ainda em andamento</span>;
+    return <span>{phase === "before" ? "Não preenchido anteriormente"
+      : phase === "after" ? "Campo esvaziado" : "Não preenchido"}</span>;
+  }
+  if (Array.isArray(value)) return value.length === 0
+    ? <span>Nenhum item</span>
+    : <ul className="max-h-72 list-disc space-y-1 overflow-y-auto pl-4">
+      {value.map((item, index) => <li key={index}><AuditFormattedValue value={item} phase="snapshot" /></li>)}
+    </ul>;
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (field === "order_rules_snapshot") return <AuditOrderRulesValue value={record} />;
+    const properties = Object.entries(record);
+    return properties.length === 0 ? <span>Nenhuma informação</span>
+      : <dl className="max-h-72 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
+        {properties.map(([key, child]) => <div key={key} className="min-w-0">
+          <dt className="font-semibold text-foreground">{humanizeKey(key)}</dt>
+          <dd className="min-w-0 pl-2 text-muted-foreground">
+            <AuditFormattedValue value={child} field={key} phase="snapshot" />
+          </dd>
+        </div>)}
+      </dl>;
+  }
+  return <span>{formatAuditValue(value, field)}</span>;
 }
 
 function changedFieldEntries(entry: AuditLogEntry) {
@@ -876,11 +971,11 @@ function AuditDetailsDialog({
                   <p className="text-xs font-black text-[#0d1b2e]">{humanizeKey(field, entry.table_name)}</p>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-wider text-[#8a96a8]">Antes</p>
-                    <p className="mt-1 break-words text-xs font-semibold text-[#52647c]">{formatAuditValue(value?.before, field)}</p>
+                    <div className="mt-1 min-w-0 break-words text-xs font-semibold text-[#52647c]"><AuditFormattedValue value={value?.before} field={field} phase="before" /></div>
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-wider text-[#8a96a8]">Depois</p>
-                    <p className="mt-1 break-words text-xs font-semibold text-[#0d1b2e]">{formatAuditValue(value?.after, field)}</p>
+                    <div className="mt-1 min-w-0 break-words text-xs font-semibold text-[#0d1b2e]"><AuditFormattedValue value={value?.after} field={field} phase="after" /></div>
                   </div>
                 </div>
               ))}
@@ -893,7 +988,7 @@ function AuditDetailsDialog({
             <h3 className="mb-2 text-sm font-black text-[#0d1b2e]">{entry.operation === "delete" ? "Dados excluídos" : "Dados criados"}</h3>
             <div className="grid gap-x-4 gap-y-3 rounded-xl border border-[#0d1b2e]/8 bg-white p-4 sm:grid-cols-2">
               {snapshot.map(([field, value]) => (
-                <Detail key={field} label={humanizeKey(field, entry.table_name)} value={formatAuditValue(value, field)} />
+                <div key={field} className="min-w-0"><p className="text-[9px] font-black uppercase tracking-wider text-[#8a96a8]">{humanizeKey(field, entry.table_name)}</p><div className="mt-1 break-words text-xs font-semibold text-[#0d1b2e]"><AuditFormattedValue value={value} field={field} phase="snapshot" /></div></div>
               ))}
             </div>
           </div>
