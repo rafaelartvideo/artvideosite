@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
 
-const read = (path) => readFileSync(path, "utf8");
+const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 const order = read("src/features/orders/presentation/OrderDetailsPage.tsx");
 const modal = read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
 const edge = read("supabase/functions/union-whatsapp-inbox/index.ts");

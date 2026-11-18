@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
 
-const read = file => readFileSync(file, "utf8");
+const read = file => readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 
 test("atributos e códigos relacionados seguem Section do CRM", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");

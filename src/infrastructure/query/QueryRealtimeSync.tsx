@@ -4,6 +4,7 @@ import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "./query-keys";
+import { invalidateRealtimeBatch } from "./realtime-invalidation";
 
 type RealtimePayload = {
   eventType?: string;
@@ -433,26 +434,24 @@ export function QueryRealtimeSync() {
     // Notificações e avisos possuem seus próprios canais específicos.
     if (subscribedConfigs.length === 0) return;
 
-    const pending = new Map<string, ReturnType<typeof window.setTimeout>>();
+    const pending = new Map<string, QueryKey>();
+    let flushTimer: ReturnType<typeof window.setTimeout> | undefined;
     let channel = supabase.channel(
       `query-cache-sync:${activeOrganizationId}:${isPlatformOperator ? "platform" : "tenant"}:${scope.replace(/[^a-z0-9/-]/gi, "-")}`,
     );
 
     const scheduleInvalidation = (queryKey: QueryKey) => {
-      const id = JSON.stringify(queryKey);
-      // Throttle em vez de debounce: eventos contínuos nunca podem deixar a
-      // tela sem atualização, nem gerar um SELECT para cada linha alterada.
-      if (pending.has(id)) return;
-      pending.set(
-        id,
-        window.setTimeout(() => {
-          pending.delete(id);
-          void queryClient.invalidateQueries({
-            queryKey,
-            refetchType: isForegroundQuery(queryKey, pathnameRef.current) ? "active" : "none",
-          });
-        }, 900),
-      );
+      pending.set(JSON.stringify(queryKey), queryKey);
+      // Uma janela fixa para todo o lote: prefixos sobrepostos não cancelam
+      // e reiniciam a mesma consulta. Eventos contínuos não adiam o flush.
+      if (flushTimer !== undefined) return;
+      flushTimer = window.setTimeout(() => {
+        flushTimer = undefined;
+        const keys = [...pending.values()];
+        pending.clear();
+        void invalidateRealtimeBatch(queryClient, keys,
+          key => isForegroundQuery(key, pathnameRef.current));
+      }, 900);
     };
 
     for (const { table, keys } of subscribedConfigs) {
@@ -491,7 +490,8 @@ export function QueryRealtimeSync() {
     channel.subscribe();
 
     return () => {
-      for (const timeout of pending.values()) window.clearTimeout(timeout);
+      if (flushTimer !== undefined) window.clearTimeout(flushTimer);
+      pending.clear();
       void supabase.removeChannel(channel);
     };
   }, [queryClient, activeOrganizationId, isPlatformOperator, scope]);
