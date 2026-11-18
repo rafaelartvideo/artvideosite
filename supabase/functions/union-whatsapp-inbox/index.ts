@@ -882,7 +882,7 @@ Deno.serve(async request => {
       }
       if(action==="contacts_history") {
         const jid=String(body.chat_jid||"");
-        if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)
+        if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)
           || (body.account_phone && body.account_phone!==channel.phone))
           return json({success:false,error:"Contato inválido para consulta do histórico."},400);
         const {data:contact,error:contactError}=await admin.from("union_whatsapp_contacts")
