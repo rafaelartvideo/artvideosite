@@ -359,10 +359,11 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, orderDocumentOptions, onPrepareOrderDocument }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, onChangeRecipient, orderDocumentOptions, onPrepareOrderDocument }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
   onEmbeddedReady?: (ready: boolean) => void;
+  onChangeRecipient?: () => void;
   orderDocumentOptions?: Array<{id:string;label:string}>;
   onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
@@ -619,6 +620,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
     search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
+  const contactNameCacheRef=useRef(new Map<string,{name:string;expires:number}>());
   const lastListQueryRef=useRef("");
   const refresh=useCallback(async(silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
@@ -633,8 +635,44 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       ]);
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
+      const namesCache=contactNameCacheRef.current;
+      const now=Date.now();
+      const enriched=page.items.map(item=>{
+        const saved=namesCache.get(activeOrganizationId+":"+item.id);
+        return saved && saved.expires>now
+          ? {...item,contact_name:saved.name} : item;
+      });
       setConversations(options.filter==="in_att"
-        ? [...page.items].sort(latestMessageFirst) : page.items);
+        ? [...enriched].sort(latestMessageFirst) : enriched);
+      // One bounded name lookup per visible page, cached for ten minutes.
+      // Real-time refreshes reuse the cache instead of scanning CRM repeatedly.
+      const unresolved=page.items.filter(item=>{
+        const saved=namesCache.get(activeOrganizationId+":"+item.id);
+        return !saved || saved.expires<=now;
+      });
+      if(unresolved.length){
+        void operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
+          "contact_names_batch",{conversation_ids:unresolved.map(item=>item.id)})
+          .then(result=>{
+            if(sequence!==conversationLoadSeq.current ||
+               organizationRef.current!==activeOrganizationId ||
+               accountRef.current!==activeChannelPhone)return;
+            const mapped=new Map((result.display_names||[]).map(item=>[item.id,item.name]));
+            const nextNames=new Map<string,string>();
+            unresolved.forEach(item=>{
+              const name=mapped.get(item.id)||item.contact_name;
+              namesCache.set(activeOrganizationId+":"+item.id,
+                {name,expires:Date.now()+10*60_000});
+              if(mapped.has(item.id))nextNames.set(item.id,name);
+            });
+            if(nextNames.size){
+              setConversations(current=>current.map(item=>nextNames.has(item.id)
+                ? {...item,contact_name:nextNames.get(item.id)!}:item));
+              setSelectedFallback(current=>current && nextNames.has(current.id)
+                ? {...current,contact_name:nextNames.get(current.id)!}:current);
+            }
+          }).catch(()=>undefined);
+      }
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
       setConversationCounts(counts);
@@ -1045,8 +1083,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void operateUnionWhatsAppInbox(org,selectedId,"resolve_contact")
       .then(result=>{
         if(cancelled || organizationRef.current!==org || !result.contact_name) return;
+        contactNameCacheRef.current.set(org+":"+selectedId,
+          {name:result.contact_name!,expires:Date.now()+10*60_000});
         setConversations(current=>current.map(item=>item.id===selectedId
           ? {...item,contact_name:result.contact_name!} : item));
+        setSelectedFallback(current=>current?.id===selectedId
+          ? {...current,contact_name:result.contact_name!} : current);
       }).catch(()=>undefined);
     return ()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,canView,channelReady]);
@@ -2433,6 +2475,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </div>
               {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:border-t-0 lg:py-0 whitespace-nowrap [&>button]:shrink-0">
+                {embedded && onChangeRecipient && <AdminButton variant="secondary" size="sm"
+                  title="Escolher outro número desta OS" aria-label="Trocar número"
+                  onClick={onChangeRecipient} className="!h-8 !px-2.5">Trocar número</AdminButton>}
                 {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <AdminButton
                   variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
@@ -2821,7 +2866,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
       onClose={()=>setContactsOpen(false)}
-      onSaved={()=>void refresh(true)}
+      onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
@@ -2843,6 +2888,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             setSelectedFallback(current=>current?.id===editContactId
               ? {...current,contact_name:saved.display_name||current.contact_name}:current);
           }
+          contactNameCacheRef.current.clear();
           void refresh(true);
         }}
       />}

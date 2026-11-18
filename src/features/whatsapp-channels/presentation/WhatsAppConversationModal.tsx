@@ -310,22 +310,6 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
         </div>
       </div>
     </div> : state.status === "ready" ? <div className="flex h-full min-h-0 flex-col">
-      {source.kind==="order" && chosenRecipient && <div className="flex shrink-0 items-center gap-3 border-b border-border bg-muted/25 px-3 py-2 sm:px-4">
-        <WhatsAppContactAvatar name={chosenRecipient.name} size="header"
-          identity={chosenRecipient.account_phone&&chosenRecipient.chat_jid
-            ? {organizationId,accountPhone:chosenRecipient.account_phone,chatJid:chosenRecipient.chat_jid,
-                conversationId:chosenRecipient.conversation_id||null}
-            : null}/>
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-foreground">
-            <span className="truncate">{chosenRecipient.name}</span>
-            {chosenRecipient.kind==="linked" && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Vinculado</span>}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">{formatWhatsAppPhone(chosenRecipient.phone)}</span>
-        </span>
-        {orderRecipients.length>1 && <AdminButton variant="secondary" size="sm"
-          onClick={()=>{setEmbeddedReady(false);setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}}>Trocar número</AdminButton>}
-      </div>}
       {state.participating && <div role="status" className="flex shrink-0 items-center gap-2 border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/45 dark:text-sky-200">
         <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
         <span>{state.responsibleName ? `Atendimento com ${state.responsibleName}.` : "Atendimento com outro operador."} Você entrou como <strong>Participando</strong>, sem alterar o responsável.</span>
@@ -342,6 +326,9 @@ export function WhatsAppConversationModal({ open, onClose, context }: Props) {
             embeddedFullControls
             initialConversationId={state.conversationId}
             onEmbeddedReady={setEmbeddedReady}
+            onChangeRecipient={source.kind==="order" && orderRecipients.length>1
+              ? ()=>{setEmbeddedReady(false);setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}
+              : undefined}
             orderDocumentOptions={source.kind==="order" ? source.documentOptions : undefined}
             onPrepareOrderDocument={source.kind==="order" ? source.prepareDocument : undefined}
             onBack={onClose}

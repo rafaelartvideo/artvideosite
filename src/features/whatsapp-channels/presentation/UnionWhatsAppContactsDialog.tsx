@@ -21,7 +21,7 @@ import {
 } from "../domain/contact-file-import";
 
 const labelFor = (contact: UnionWhatsAppContact) =>
-  contact.display_name || contact.device_name || contact.imported_name || contact.profile_name ||
+  contact.display_name || contact.crm_name || contact.device_name || contact.imported_name || contact.profile_name ||
   contact.contact_phone || "Contato sem nome";
 
 const normalizePhone = (value:string) => {
@@ -314,7 +314,7 @@ export function UnionWhatsAppContactsDialog({
     phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
     setSelected(contact);setCreating(false);
     setCrmPanel(null);setCrmEquipmentId(null);
-    setName(contact.display_name||contact.device_name||contact.imported_name||contact.profile_name||"");
+    setName(contact.display_name||contact.crm_name||contact.device_name||contact.imported_name||contact.profile_name||"");
     setPhone(contact.contact_phone ? mask(contact.contact_phone) : "");
     setNotice("");
   };
