@@ -1065,3 +1065,22 @@ test("nome editado na Union precede CRM e WhatsApp em contatos e conversas",()=>
   assert.match(sql,/having count\(distinct b\.id\)=1/);
   assert.match(sql,/revoke all on function public\.union_whatsapp_crm_names_batch/);
 });
+
+
+test("Abas usam cache curto, Não lidas consulta todas as páginas e não fecha a conversa",()=>{
+  const ui=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(repo,/UnionWhatsAppInboxFilter=.*"unread"/);
+  assert.match(repo,/if\(options\.filter==="unread"\)\{/);
+  assert.match(repo,/query=query\.gt\("unread_count",0\)/);
+  assert.match(repo,/\.range\(page\*pageSize,\(page\+1\)\*pageSize\)/);
+  assert.match(ui,/Ver todas as conversas não lidas/);
+  assert.match(ui,/conversationPageCacheRef/);
+  assert.match(ui,/Date\.now\(\)-cached\.savedAt<45_000/);
+  assert.match(ui,/conversationPageCacheRef\.current\.clear\(\)/);
+  assert.match(ui,/if\(selectedFallback\?\.id===selectedId\)return/);
+  assert.match(ui,/if\(selectedInPage\)setSelectedFallback\(selectedInPage\)/);
+  assert.match(ui,/setSelectedFallback\(item\);setSelectedId\(item\.id\)/);
+  assert.doesNotMatch(ui,/setSelectedId\(null\);setConversationPage\(0\);setFilter\(item\.value\)/);
+  assert.doesNotMatch(ui,/setSelectedId\(null\);setConversationPage\(p=>p\+1\)/);
+});

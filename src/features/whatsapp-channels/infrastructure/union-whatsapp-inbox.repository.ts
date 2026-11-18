@@ -118,7 +118,7 @@ export type UnionWhatsAppContact = {
 
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
-export type UnionWhatsAppInboxFilter="waiting"|"in_att"|"forwarded"|"finished";
+export type UnionWhatsAppInboxFilter="waiting"|"in_att"|"forwarded"|"finished"|"unread";
 export type UnionWhatsAppConversationCounts={
   waiting:number;in_att:number;forwarded:number;finished:number;total:number;unread:number;
 };
@@ -168,7 +168,10 @@ export async function listUnionWhatsAppConversations(
     query=query.eq("viewer_membership.user_id",options.viewerId)
       .eq("viewer_membership.status","active");
   }
-  if(options.filter==="forwarded"){
+  if(options.filter==="unread"){
+    // Filter server-side before pagination; don't download the whole inbox.
+    query=query.gt("unread_count",0);
+  }else if(options.filter==="forwarded"){
     query=query.not("forwarded_at","is",null).neq("status","finished").neq("status","abandoned");
     // The sender does not retain an operator inbox entry after handing off.
     // Manager visibility is preserved through view_all and the database policy.

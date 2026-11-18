@@ -49,7 +49,7 @@ const filters = [
   { value: "forwarded", label: "Encaminhadas", tone: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300" },
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
-type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+type Filter = UnionWhatsAppInboxFilter;
 const supportsOperatorFilter=(value:Filter)=>value==="in_att" || value==="finished" || value==="forwarded";
 // Photo lookups are only for contacts currently displayed, never the imported
 // address book. Refresh lazily to notice profile-photo/privacy changes.
@@ -622,6 +622,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const conversationLoadSeq=useRef(0);
   const contactNameCacheRef=useRef(new Map<string,{name:string;expires:number}>());
   const lastListQueryRef=useRef("");
+  // Only retain paginated 50-row results, scoped to the organization,
+  // channel, filters and page. Incoming realtime invalidates stale pages.
+  const conversationPageCacheRef=useRef(new Map<string,{
+    items:UnionWhatsAppConversation[];hasMore:boolean;savedAt:number;
+  }>());
   const refresh=useCallback(async(silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
     const sequence=++conversationLoadSeq.current;
@@ -644,6 +649,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       });
       setConversations(options.filter==="in_att"
         ? [...enriched].sort(latestMessageFirst) : enriched);
+      const cache=conversationPageCacheRef.current;
+      cache.delete(queryKey);
+      cache.set(queryKey,{items:enriched,hasMore:page.hasMore,savedAt:Date.now()});
+      while(cache.size>12)cache.delete(cache.keys().next().value!);
       // One bounded name lookup per visible page, cached for ten minutes.
       // Real-time refreshes reuse the cache instead of scanning CRM repeatedly.
       const unresolved=page.items.filter(item=>{
@@ -757,6 +766,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(() => {
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
+    conversationPageCacheRef.current.clear();
+    contactNameCacheRef.current.clear();
     setConversations([]);
     setMessagesHasMore(false);messageCursorRef.current=null;setMessagesOlderLoading(false);
     setConversationHasMore(false);
@@ -808,6 +819,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
+    conversationPageCacheRef.current.clear();
+    contactNameCacheRef.current.clear();
     listQueryRef.current={filter:"waiting",department:"all",operator:"all",search:"",page:0};
     setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
     setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
@@ -880,6 +893,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(readyAccount!==identity || embedded)return;
     const key=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,listQueryRef.current]);
     if(lastListQueryRef.current===key)return;
+    const cached=conversationPageCacheRef.current.get(key);
+    if(cached){
+      setConversations(cached.items);
+      setConversationHasMore(cached.hasMore);
+      setConversationPageLoading(false);
+      lastListQueryRef.current=key;
+      if(Date.now()-cached.savedAt<45_000){
+        conversationLoadSeq.current+=1;
+        return;
+      }
+      // Show cached rows instantly, refresh silently in background.
+      void refresh(true);
+      return;
+    }
     setConversationPageLoading(true);
     setConversations([]);
     void refresh(true);
@@ -976,6 +1003,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     let debounce:number|null=null;
     let refreshSelected=false;
     const schedule=(conversationId?:string,shouldReloadMessages=false)=>{
+      conversationPageCacheRef.current.clear();
       if(shouldReloadMessages && (!conversationId||conversationId===selectedIdRef.current))
         refreshSelected=true;
       if(debounce!==null)window.clearTimeout(debounce);
@@ -990,7 +1018,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const changedConversation=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
       const row=payload.new||payload.old||{};
       if(row.organization_id && row.organization_id!==activeOrganizationId)return;
-      if(String(row.id||"")===selectedIdRef.current)setParticipantsRevision(value=>value+1);
+      if(String(row.id||"")===selectedIdRef.current){
+        setParticipantsRevision(value=>value+1);
+        if(payload.new){
+          setSelectedFallback(current=>{
+            if(!current || current.id!==row.id)return current;
+            const next={...current};
+            if(typeof row.status==="string" &&
+               ["waiting","in_att","abandoned","finished"].includes(row.status))
+              next.status=row.status as UnionWhatsAppConversation["status"];
+            if(typeof row.unread_count==="number")next.unread_count=row.unread_count;
+            if(typeof row.last_message==="string")next.last_message=row.last_message;
+            if(typeof row.last_message_at==="string")next.last_message_at=row.last_message_at;
+            if(typeof row.assigned_to==="string" || row.assigned_to===null)
+              next.assigned_to=row.assigned_to as string|null;
+            return next;
+          });
+        }
+      }
       schedule(String(row.id||""),false);
     };
     const changedMessage=(payload:{eventType?:string;new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
@@ -1183,6 +1228,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
   const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
+  // Retain the selected conversation outside of the currently visible page.
+  // Switching tabs never causes a second conversation preparation.
+  useEffect(()=>{
+    if(selectedInPage)setSelectedFallback(selectedInPage);
+  },[selectedInPage]);
   const openNewOrderFromConversation=async()=>{
     if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
       !hasPermission("orders.create") || newOrderGateRef.current || newOrder)return;
@@ -1223,8 +1273,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setSelectedFallback(null);setFallbackErrorId(null);return;
     }
     if(conversations.some(item=>item.id===selectedId)){
-      setSelectedFallback(null);setFallbackErrorId(null);return;
+      setFallbackErrorId(null);return;
     }
+    if(selectedFallback?.id===selectedId)return;
     let cancelled=false;
     setFallbackErrorId(null);
     void getUnionWhatsAppConversation(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
@@ -1530,6 +1581,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setSelectedFallback(current=>current?.id===threadId
       ? {...current,unread_count:0}:current);
     setConversationCounts(current=>({...current,unread:Math.max(0,current.unread-1)}));
+    conversationPageCacheRef.current.clear();
     void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
       .catch(reason=>{
         reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida."));
@@ -2314,16 +2366,28 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               {counts.total} conversa(s) · {counts.unread} não lida(s)
             </p>
             <div className="mt-2.5 grid grid-cols-2 gap-1.5 md:mt-3">
-              {filters.map(item => <button key={item.value} type="button" onClick={() => {setSelectedId(null);setConversationPage(0);setFilter(item.value);}}
+              {filters.map(item => <button key={item.value} type="button" onClick={() => {setConversationPage(0);setFilter(item.value);}}
                 aria-pressed={filter === item.value}
                 className={`flex min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors md:gap-1.5 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
                 <span className="truncate">{item.label}</span>
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
+            <button type="button" aria-pressed={filter==="unread"}
+              aria-label={"Ver todas as conversas não lidas: "+counts.unread}
+              onClick={()=>{setConversationPage(0);setFilter("unread");}}
+              className={filter==="unread"
+                ? "mt-2 flex w-full items-center justify-between rounded-lg border border-primary bg-primary-soft px-3 py-2 text-xs font-semibold text-primary"
+                : "mt-2 flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted"}>
+              <span className="inline-flex items-center gap-2">
+                <MessageCircle size={15}/> Não lidas
+                <span className="hidden text-[11px] font-normal text-muted-foreground sm:inline">· todas as páginas</span>
+              </span>
+              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unread}</span>
+            </button>
             <div className={canManage && supportsOperatorFilter(filter) ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
               <select aria-label="Filtrar departamento" value={departmentFilter}
-                onChange={event=>{setSelectedId(null);setConversationPage(0);setDepartmentFilter(event.target.value);}}
+                onChange={event=>{setConversationPage(0);setDepartmentFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
                 <option value="all">Todos os departamentos</option>
                 <option value="none">Sem departamento</option>
@@ -2331,7 +2395,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </select>
               {canManage && supportsOperatorFilter(filter) && <select aria-label="Filtrar operador"
                 value={operatorFilter} disabled={operatorChoicesLoading && operatorChoices.length===0}
-                onChange={event=>{setSelectedId(null);setConversationPage(0);setOperatorFilter(event.target.value);}}
+                onChange={event=>{setConversationPage(0);setOperatorFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary disabled:opacity-60">
                 <option value="all">{operatorChoicesLoading && operatorChoices.length===0 ? "Carregando operadores..." : "Todos os operadores"}</option>
                 {operatorChoices.map(person=><option key={person.id} value={person.id}
@@ -2340,7 +2404,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
             <div className="relative mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input value={query} onChange={event => {setSelectedId(null);setConversationPage(0);setQuery(event.target.value);}} type="search" aria-label="Buscar conversa"
+              <input value={query} onChange={event => {setConversationPage(0);setQuery(event.target.value);}} type="search" aria-label="Buscar conversa"
                 placeholder="Nome, telefone ou protocolo"
                 className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
             </div>
@@ -2367,7 +2431,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             : visible.map(item => {
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
-              return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
+              return <button key={item.id} type="button" onClick={() => {setSelectedFallback(item);setSelectedId(item.id);}}
                 className={`box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-2.5 py-2.5 text-left transition-colors last:border-b-0 md:gap-3 md:px-3 md:py-3 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
                   identity={{organizationId:item.organization_id,accountPhone:item.account_phone,
@@ -2401,13 +2465,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Página anterior de conversas"
                 disabled={conversationPage===0||conversationPageLoading}
-                onClick={()=>{setSelectedId(null);setConversationPage(p=>Math.max(0,p-1));}}
+                onClick={()=>setConversationPage(p=>Math.max(0,p-1))}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
                 <ChevronLeft size={16}/>
               </button>
               <button type="button" aria-label="Próxima página de conversas"
                 disabled={!conversationHasMore||conversationPageLoading}
-                onClick={()=>{setSelectedId(null);setConversationPage(p=>p+1);}}
+                onClick={()=>setConversationPage(p=>p+1)}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
                 <ChevronRight size={16}/>
               </button>
