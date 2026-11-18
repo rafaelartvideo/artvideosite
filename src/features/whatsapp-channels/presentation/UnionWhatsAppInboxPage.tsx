@@ -2451,8 +2451,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {(!embedded || embeddedFullControls) && !protocolFilter && selected.status === "in_att" && canOperateSelected && <>
-                  {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
-                    onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <AdminButton
                     variant="secondary" size="sm" title="Vincular OS deste cliente"
                     onClick={()=>void showOrders()} disabled={savingOrder}>
