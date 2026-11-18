@@ -59,7 +59,7 @@ const fieldValue=(value:unknown,key:string)=>{
   return value;
 };
 const changeTitle=(change:UnionWhatsAppContactChange)=>{
-  if(change.action==="created")return "Contato salvo na Union";
+  if(change.action==="created")return "Contato cadastrado na Union";
   const keys=Object.keys(change.changed_fields||{});
   if(keys.length===1&&keys[0]==="display_name")return "Nome do contato alterado";
   if(keys.length===1&&keys[0]==="contact_phone")return "WhatsApp alterado";
@@ -80,12 +80,14 @@ function ChangeCard({change}:{change:UnionWhatsAppContactChange}){
         <span className="font-semibold text-foreground">{change.actor_name_snapshot||"Responsável não identificado"}</span>
       </p>
       <div className="mt-2 space-y-2">
-        {Object.entries(change.changed_fields||{}).map(([key,values])=>
+        {Object.entries(change.changed_fields||{}).filter(([,values])=>change.action!=="created"||(values?.after!==null&&values?.after!==undefined&&values?.after!=="")).map(([key,values])=>
           <div key={key} className="rounded-md bg-muted/60 p-2 text-[11px]">
             <p className="mb-1 font-semibold text-foreground">{fieldLabels[key]||key}</p>
-            <p className="break-words text-muted-foreground">
-              <span className="font-medium">Anterior: </span>{fieldValue(values?.before,key)}
-            </p>
+            {change.action!=="created"&&<p className="break-words text-muted-foreground">
+              <span className="font-medium">Anterior: </span>{Object.prototype.hasOwnProperty.call(values||{},"before")
+                ? fieldValue(values?.before,key)
+                : "Valor anterior não registrado neste evento"}
+            </p>}
             <p className="mt-0.5 break-words text-foreground">
               <span className="font-medium">Novo: </span>{fieldValue(values?.after,key)}
             </p>
