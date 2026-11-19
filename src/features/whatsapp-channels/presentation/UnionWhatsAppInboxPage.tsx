@@ -882,10 +882,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(embedded)setReadyAccount(identity);
     void Promise.allSettled([
       embedded ? Promise.resolve() : refresh(true),
-      operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
-        .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
-          setDepartments(result.departments||[]);})
-        .catch(reason=>{if(!cancelled)reportError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
+      // The transfer dialog loads departments on demand; no extra RPC at
+      // each embedded OS/CRM conversation opening.
+      embedded ? Promise.resolve() :
+        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
+          .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
+            setDepartments(result.departments||[]);})
+          .catch(reason=>{if(!cancelled)reportError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS);})
