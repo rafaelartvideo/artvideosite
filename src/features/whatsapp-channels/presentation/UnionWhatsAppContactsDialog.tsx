@@ -32,7 +32,7 @@ const mask = (value:string) => {
 };
 
 export function UnionWhatsAppContactsDialog({
-  organizationId, accountPhone,channelId,canImport, canCreate, canEdit, canManageGroups, canSendGroups, onClose, onSaved, onChoose, initialContact, initialName,
+  organizationId, accountPhone,channelId,canImport, canCreate, canEdit, canManageGroups, canSendGroups, onClose, onSaved, onChoose, onOpenGroups, initialContact, initialName,
 }:{
   organizationId:string;
   accountPhone:string;
@@ -45,6 +45,7 @@ export function UnionWhatsAppContactsDialog({
   onClose:()=>void;
   onSaved:()=>void;
   onChoose:(contact:UnionWhatsAppContact)=>boolean;
+  onOpenGroups?:()=>void;
   initialContact?:UnionWhatsAppContact|null;
   initialName?:string;
 }) {
@@ -518,7 +519,7 @@ export function UnionWhatsAppContactsDialog({
           <ContactRound size={15}/> Contatos <span>{total}</span>
         </button>
         <button type="button" aria-pressed={tab==="groups"}
-          onClick={()=>{setTab("groups");setSearch("");setPage(0);}}
+          onClick={()=>{if(onOpenGroups){onOpenGroups();return;}setTab("groups");setSearch("");setPage(0);}}
           className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="groups"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
           <Users size={15}/> Grupos {groups.length>0&&<span>{groups.length}</span>}
         </button>
