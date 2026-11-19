@@ -65,6 +65,25 @@ test("Modal da OS seleciona conversa vinculada sem esperar configuracoes secunda
   assert.match(inbox, /if\(!embedded && !cancelled && organizationRef\.current===activeOrganizationId/);
 });
 
+test("WhatsApp da OS antecipa codigo sem antecipar consultas e revela a conversa progressivamente", () => {
+  const order=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(modal, /export function preloadEmbeddedWhatsAppConversation\(\)/);
+  assert.match(modal, /inboxModulePromise = loadInboxModule\(\)/);
+  assert.match(modal, /void preloadEmbeddedWhatsAppConversation\(\)\.catch\(\(\) => undefined\)/);
+  assert.match(order, /if \(!visible \|\| !detail\?\.id \|\| !canUseWhatsAppModal\) return/);
+  assert.match(order, /connection\?\.saveData/);
+  assert.match(order, /window\.requestIdleCallback/);
+  assert.match(order, /preloadEmbeddedWhatsAppConversation\(\)/);
+  // A conversa continua protegida pelo os_join; nao prefetch de mensagens/contatos.
+  assert.match(modal, /"order_recipients"/);
+  assert.match(modal, /"os_join"/);
+  assert.match(inbox, /if\(conversationOpeningError \|\| selected\?\.id===initialConversationId\)/);
+  assert.match(inbox, /!conversationOpening && \(!embedded \|\| embeddedFullControls/);
+  assert.match(inbox, /conversationOpening \? <div role="status"/);
+  assert.match(inbox, /messagesResolvedId!==selectedId && !conversationOpeningError/);
+});
+
 test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encerrado", () => {
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   const crm=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
