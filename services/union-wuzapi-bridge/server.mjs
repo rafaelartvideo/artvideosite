@@ -305,7 +305,8 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   group_command: groupCommand, group_jid: groupJid, group_name: groupName,
   group_topic: groupTopic, group_phones: groupPhones, group_participant_action: groupParticipantAction,
   group_message: groupMessage, group_mode: groupMode, group_duration: groupDuration,
-  group_invite_code: groupInviteCode, group_reset: groupReset, group_photo: groupPhoto }) {
+  group_invite_code: groupInviteCode, group_reset: groupReset, group_photo: groupPhoto,
+  group_before: groupBefore }) {
   // Consulta de infraestrutura não usa tenant ou sessão de WhatsApp.
   // A autenticação HMAC é exigida antes de chamar operate().
   if (action === "engine_info") return engineInfo();
@@ -426,7 +427,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const phones=Array.isArray(groupPhones)?[...new Set(groupPhones.map(String))]:[];
     const validPhone=value=>/^[1-9][0-9]{7,14}$/.test(value) ||
       /^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(value);
-    if(!["create","details","leave","participants","name","topic","send","invite","announce","locked","memberaddmode","ephemeral","joinapproval","join","inviteinfo","requests","requests_update","photo","photo_remove"].includes(command) ||
+    if(!["create","details","leave","participants","name","topic","send","invite","announce","locked","memberaddmode","ephemeral","joinapproval","join","inviteinfo","requests","requests_update","photo","photo_remove","history","send_image"].includes(command) ||
       (!["create","join","inviteinfo"].includes(command) && !validJid))throw new Error("bad_request");
     if(command==="join"||command==="inviteinfo"){
       const rawCode=String(groupInviteCode||"").trim();
@@ -468,6 +469,48 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
           return [{jid:participantJid,is_admin:member?.IsAdmin===true,
             is_super_admin:member?.IsSuperAdmin===true}];
         }),participants_count:rawMembers.length};
+    }
+    if(command==="history"){
+      const before=Number(groupBefore||0);
+      if(!Number.isSafeInteger(before)||before<0)throw new Error("bad_request");
+      let reply;
+      try{
+        reply=await wuzapi("/chat/messages?chat_jid="+encodeURIComponent(jid)+
+          "&limit=30"+(before?"&before="+before:""),session.token);
+      }catch{
+        return {ok:true,jid,history_available:false,messages:[],has_more:false,next_before:null};
+      }
+      const data=reply?.data&&typeof reply.data==="object"?reply.data:reply;
+      const list=Array.isArray(data?.messages)?data.messages:[];
+      const messages=list.slice(0,30).flatMap(item=>{
+        if(String(item?.chat_jid||"")!==jid)return [];
+        const id=Number(item.id);
+        if(!Number.isSafeInteger(id)||id<=0)return [];
+        const sentAt=String(item.sent_at||item.timestamp||"").slice(0,45);
+        const sender=String(item.sender_jid||"").slice(0,70);
+        const kind=String(item.message_type||"unknown").slice(0,30).toLowerCase();
+        return [{id,sender_jid:sender,sent_at:sentAt,message_type:kind,
+          text:String(item.text_content||"").slice(0,4000)}];
+      });
+      const next=Number(data?.next_before||0);
+      return {ok:true,jid,history_available:true,messages,
+        has_more:data?.has_more===true,
+        next_before:Number.isSafeInteger(next)&&next>0?next:null};
+    }
+    if(command==="send_image"){
+      const photo=String(groupPhoto||"");
+      const base64=photo.replace(/^data:image\/jpeg;base64,/,"");
+      const caption=String(groupMessage||"").slice(0,4000);
+      const clientId=String(clientMessageId||"");
+      if(!uuid(clientId)||!photo.startsWith("data:image/jpeg;base64,") ||
+        base64.length<100||base64.length>140000||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+        throw new Error("bad_request");
+      const result=await wuzapi("/chat/send/image",session.token,"POST",{
+        Phone:jid,Image:photo,Caption:caption,Id:clientId.replaceAll("-","").toUpperCase(),
+      });
+      const providerMessageId=String(result?.data?.Id||result?.data?.id||"");
+      if(!providerMessageId)throw new Error("provider_confirmation_unknown");
+      return {ok:true,jid,provider_message_id:providerMessageId};
     }
     if(command==="invite"){
       const reset=groupReset===true;
