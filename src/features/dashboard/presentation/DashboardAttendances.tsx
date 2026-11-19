@@ -248,9 +248,9 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
       {visible("operators")&&<Panel title="Desempenho dos operadores" subtitle="Protocolos atribuídos no período; sem contagem artificial de mensagens">
         {data.operators.length===0?<p className="py-14 text-center text-xs text-muted-foreground">Nenhum operador no período.</p>
         :<div className="max-h-[520px] overflow-auto">
-          <table className="w-full min-w-[620px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[730px] border-collapse text-left text-xs">
             <thead className="sticky top-0 bg-card text-muted-foreground"><tr>
-              {["Operador","Ativos","Recebidos","Finalizados","1ª resposta","SLA"].map(h=><th key={h} className="border-b border-border px-3 py-3 font-semibold">{h}</th>)}
+              {["Operador","Ativos","Recebidos","Finalizados","1ª resposta","Em escala","SLA"].map(h=><th key={h} className="border-b border-border px-3 py-3 font-semibold">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-border">{data.operators.map(o=><tr key={o.id} className="hover:bg-muted/30">
               <td className="px-3 py-3"><button type="button" onClick={()=>onOpenInbox?.("in_att",undefined,o.id)} className="font-semibold text-primary hover:underline">{o.name}</button></td>
@@ -258,6 +258,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
               <td className="px-3 py-3 tabular-nums">{number(o.opened)}</td>
               <td className="px-3 py-3 tabular-nums">{number(o.finished)}</td>
               <td className="px-3 py-3 tabular-nums">{duration(clockMode==="useful"?o.avg_first_reply_minutes:o.avg_first_reply_elapsed_minutes)}</td>
+              <td className="px-3 py-3 tabular-nums">{duration(o.avg_personal_schedule_minutes)}</td>
               <td className="px-3 py-3 tabular-nums">{ratio(o.within_sla,o.answered)}</td>
             </tr>)}</tbody>
           </table>
@@ -273,6 +274,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
             do remetente: mensagens anteriores a esse registro não são atribuídas ao responsável atual.
             O tempo até a finalização inclui somente protocolos encerrados. A escala individual é
             configurada separadamente; o SLA oficial segue o calendário da empresa ou departamento.
+            Em escala usa a jornada cadastrada do operador, quando existe; o SLA oficial não muda.
             O volume de mensagens não é utilizado como ranking de produtividade.
           </p>
         </Panel>}
