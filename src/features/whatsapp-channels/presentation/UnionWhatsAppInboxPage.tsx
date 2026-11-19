@@ -343,7 +343,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
           className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
           Abrir
         </button>}
-        {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
+        {!hasStoredMedia && <span className="text-[10px] opacity-70" title="Esta mensagem não contém os dados necessários para recuperar o anexo. Solicite o reenvio do arquivo.">(arquivo indisponível · solicite reenvio)</span>}
       </div>)}
     {content && <p className="text-sm leading-5"><WhatsAppFormattedText text={content}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}

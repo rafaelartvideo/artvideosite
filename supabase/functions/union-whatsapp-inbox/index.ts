@@ -162,7 +162,7 @@ async function signedBridge(
       return "reply_supported";
     }
     if (download) {
-      const maxBytes=download.type==="video" ? 20*1048576 : 5*1048576;
+      const maxBytes=download.type==="video" || download.type==="file" ? 20*1048576 : 5*1048576;
       if(typeof result.base64 !== "string" ||
         result.base64.length > Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.base64))
         throw Error("media_download_unavailable");
@@ -2378,7 +2378,7 @@ if(action==="contacts_groups_manage") {
         } catch {
           return json({success:false,code:"media_unavailable",error:"Não foi possível recuperar esta mídia pelo WhatsApp. Tente novamente mais tarde."},502);
         }
-        const maxBytes=ref.media_type==="video" ? 20*1048576 : 5*1048576;
+        const maxBytes=ref.media_type==="video" || ref.media_type==="file" ? 20*1048576 : 5*1048576;
         // Reject before allocation if the provider response is oversized.
         if(base64.length>Math.ceil(maxBytes/3)*4+8)
           return json({success:false,error:"Arquivo maior que o limite permitido para este tipo de mídia."},413);
