@@ -8,7 +8,7 @@ BASE=/opt/union-wuzapi-bridge
 NODE="$BASE/runtime/node-v24.22.0/bin/node"
 TARGET="$BASE/server.mjs"
 SERVICE=union-wuzapi-bridge.service
-COMMIT=96e8669fadb421e3112861831f10c6daf54fb098
+COMMIT=9143af8530374fa184e29ae6189a5d53b8f68e8b
 URL="https://raw.githubusercontent.com/rafaelartvideo/artvideosite/$COMMIT/services/union-wuzapi-bridge/server.mjs"
 
 for command in curl systemctl grep cp install mktemp; do
@@ -25,6 +25,8 @@ trap cleanup EXIT
 curl --fail --location --silent --show-error --retry 2 "$URL" -o "$TMP"
 grep -Fq 'if(action==="groups_list")' "$TMP" || { echo "Código sem consulta de grupos."; exit 1; }
 grep -Fq 'if(action==="groups_manage")' "$TMP" || { echo "Código sem administração de grupos."; exit 1; }
+grep -Fq 'if(command==="history")' "$TMP" || { echo "Código sem histórico paginado."; exit 1; }
+grep -Fq 'if(command==="send_image")' "$TMP" || { echo "Código sem envio de imagens."; exit 1; }
 "$NODE" --check "$TMP"
 
 BACKUP="$BASE/server.mjs.before-groups-$(date +%Y%m%d-%H%M%S)"
