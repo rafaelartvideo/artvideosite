@@ -4,7 +4,7 @@ import {Activity,AlertCircle,ArrowLeftRight,CheckCircle2,Clock3,MessageSquare,Re
 import {CartesianGrid,Legend,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 import {AdminButton,AdminCard} from "@/shared/ui/admin/AdminLayout";
 import {systemErrorMessage} from "@/shared/domain/error-message";
-import {loadDashboardAttendances,type AttendanceDashboardData,type AttendanceAlert}
+import {loadDashboardAttendances,loadDashboardAttendanceFollowups,type AttendanceDashboardData,type AttendanceAlert}
   from "../infrastructure/dashboard-attendances.repository";
 
 type View="overview"|"operators"|"analytics";
@@ -131,6 +131,12 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
   const [view,setView]=useState<View>("overview");
   const [clockMode,setClockMode]=useState<"useful"|"elapsed">("useful");
   // Só é montado quando o usuário abre esta subseção. Nenhuma consulta no Dashboard geral.
+  const followups=useQuery({
+    queryKey:["dashboard","attendance-followups",organizationId,periodDays],
+    queryFn:({signal})=>loadDashboardAttendanceFollowups({organizationId,periodDays,signal}),
+    enabled:Boolean(organizationId&&view==="analytics"&&visible("operations")),
+    staleTime:300_000,refetchOnWindowFocus:false,retry:false,
+  });
   const report=useQuery({
     queryKey:["dashboard","attendances",organizationId,periodDays],
     queryFn:({signal})=>loadDashboardAttendances({organizationId,periodDays,signal}),
@@ -292,6 +298,28 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
           detail="Primeiro contato fora do horário" icon={Clock3} tone="amber"/>
         <Stat title="Não lidas" value={number(m.unread)} detail="Conversas agora" icon={MessageSquare} onClick={()=>onOpenInbox?.("unread")}/>
       </div>}
+      {visible("operations")&&<Panel title="Tempo entre respostas" subtitle="Agrupa mensagens consecutivas do cliente antes da próxima resposta humana">
+        {followups.isPending&&!followups.data
+          ?<div className="h-24 animate-pulse rounded-lg bg-muted" aria-label="Calculando tempo entre respostas"/>
+          :followups.isError&&!followups.data
+            ?<p className="text-xs text-destructive">Não foi possível consultar os tempos entre respostas.</p>
+            :followups.data&&<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat title="Resposta seguinte" value={duration(clockMode==="useful"
+                ?followups.data.avg_followup_useful_minutes
+                :followups.data.avg_followup_elapsed_minutes)}
+                detail={clockMode==="useful"?"Média útil":"Média corrida"} icon={Clock3}/>
+              <Stat title="SLA entre respostas" value={ratio(followups.data.sla_met,followups.data.sla_valid)}
+                detail={number(followups.data.sla_valid)+" medidos"} icon={CheckCircle2} tone="green"/>
+              <Stat title="Ciclos respondidos" value={number(followups.data.responded)}
+                detail="Após a primeira resposta" icon={MessageSquare}/>
+              <Stat title="Ainda aguardando" value={number(followups.data.unresolved)}
+                detail="Ciclos em protocolos abertos" icon={Clock3} tone="amber"/>
+            </div>}
+        {followups.data&&<p className="mt-3 text-xs text-muted-foreground">
+          {number(followups.data.unscored)} ciclo(s) sem calendário válido ficaram fora do SLA útil.
+          Esta análise é carregada somente ao abrir a aba Análises.
+        </p>}
+      </Panel>}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {visible("hours")&&<Panel title="Horários de maior movimento" subtitle="Aberturas por hora local">
           <Bars limit={24} values={data.hours.map(h=>({name:String(h.hour).padStart(2,"0")+":00",total:h.total}))}/>
