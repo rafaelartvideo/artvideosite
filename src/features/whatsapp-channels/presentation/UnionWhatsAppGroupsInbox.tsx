@@ -63,8 +63,6 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-black text-foreground sm:text-base">Conversas</h2>
           <div className="flex gap-1.5">
-            <button type="button" className={smallButton} aria-label="Voltar às conversas individuais"
-              onClick={onBack}><ChevronLeft size={15}/>Conversas</button>
             {canManage&&<button type="button" className="inline-flex h-9 items-center gap-1 rounded-lg bg-primary px-2.5 text-xs font-bold text-primary-foreground"
               onClick={()=>{setCreating(true);setSelectedJid(null);setInfoOpen(false);}}><Plus size={14}/>Novo</button>}
           </div>
