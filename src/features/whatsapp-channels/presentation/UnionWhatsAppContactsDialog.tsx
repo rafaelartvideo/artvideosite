@@ -134,7 +134,7 @@ export function UnionWhatsAppContactsDialog({
 
   // Grupos são sincronizados somente quando sua aba é aberta ou atualizada.
   useEffect(()=>{
-    if(tab!=="groups")return;
+    if(tab!=="groups"||!canManageGroups)return;
     let cancelled=false;
     setGroupsLoading(true);setGroupsError("");
     void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups")
@@ -147,7 +147,14 @@ export function UnionWhatsAppContactsDialog({
         "Não foi possível consultar os grupos do WhatsApp."));})
       .finally(()=>{if(!cancelled)setGroupsLoading(false);});
     return()=>{cancelled=true;};
-  },[organizationId,channelId,accountPhone,tab,groupRevision]);
+  },[organizationId,channelId,accountPhone,tab,groupRevision,canManageGroups]);
+  useEffect(()=>{
+    if(tab!=="groups"||!canManageGroups)return;
+    const refresh=()=>{if(document.visibilityState==="visible")setGroupRevision(v=>v+1);};
+    const timer=window.setInterval(refresh,30000);
+    window.addEventListener("focus",refresh);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);};
+  },[tab,canManageGroups]);
 
   // Buscar vínculo por número EXATO e confirmado no banco, somente depois
   // da seleção do contato. Não gerar uma RPC para cada linha da agenda.
@@ -518,21 +525,17 @@ export function UnionWhatsAppContactsDialog({
           className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="contacts"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
           <ContactRound size={15}/> Contatos <span>{total}</span>
         </button>
-        <button type="button" aria-pressed={tab==="groups"}
+        {canManageGroups&&<button type="button" aria-pressed={tab==="groups"}
           onClick={()=>{if(onOpenGroups){onOpenGroups();return;}setTab("groups");setSearch("");setPage(0);}}
           className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="groups"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
           <Users size={15}/> Grupos {groups.length>0&&<span>{groups.length}</span>}
-        </button>
+        </button>}
         {tab==="groups"&&canManageGroups&&<button type="button"
            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
            onClick={()=>{setGroupCreating(true);setSelectedGroup(null);}}>
            <Plus size={14}/> Novo grupo
          </button>}
-         {tab==="groups"&&<button type="button" disabled={groupsLoading}
-          title="Atualizar grupos do WuzAPI" onClick={()=>setGroupRevision(n=>n+1)}
-          className="ml-auto rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-40">
-          {groupsLoading?"Consultando...":"Atualizar grupos"}
-        </button>}
+
       </div>
       {(error||notice) && <div role={error?"alert":"status"} className={`mx-4 mt-3 rounded-lg border p-2 text-xs ${error?"border-red-400/40 text-red-600":"border-primary/30 text-foreground"}`}>
         {error||notice}

@@ -254,8 +254,8 @@ test("Grupos são conversas do Atendimento: mesma disposição, painel de dados 
   const groupChat=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupChat.tsx");
   const groupManager=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsManager.tsx");
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
-  assert.match(inbox,/groupConversationsOpen&&activeOrganizationId&&activeChannelPhone/);
-  assert.match(inbox,/onOpenGroups=\{\(\)=>\{setContactsOpen\(false\);setSelectedId\(null\);setGroupConversationsOpen\(true\);\}\}/);
+  assert.match(inbox,/groupConversationsOpen&&canAction\("manage_groups"\)&&activeOrganizationId&&activeChannelPhone/);
+  assert.match(inbox,/onOpenGroups=\{canAction\("manage_groups"\)\?/);
   assert.match(contacts,/if\(onOpenGroups\)\{onOpenGroups\(\);return;\}/);
   assert.match(groupInbox,/lg:grid-cols-\[340px_minmax\(0,1fr\)\]/);
   assert.match(groupInbox,/aria-label="Buscar conversa de grupo"/);
