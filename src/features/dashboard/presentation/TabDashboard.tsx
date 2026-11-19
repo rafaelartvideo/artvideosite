@@ -16,6 +16,7 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  MessageSquare,
   BarChart3,
   Package,
   RefreshCw,
@@ -65,10 +66,12 @@ import {
 } from "./DashboardUi";
 import { DashboardOrderChartPanel, type DashboardOrderChartKey, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
 import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
+import { DashboardAttendances } from "./DashboardAttendances";
 
 type TabDashboardProps = {
   onNavigate?: (tab: AdminTab) => void;
   onOpenOrder?: (orderId: string) => void;
+  onOpenWhatsApp?: (filter: string, conversationId?: string, operatorId?: string) => void;
 };
 type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: DashboardMetricTone; hint?: string };
 type MetricSelection = { title: string; value: ReactNode; description: string; rows: AdminMetricDetailRow[]; tab: AdminTab | null };
@@ -79,6 +82,7 @@ const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
 const DASHBOARD_ORDER_CHART_MODE_KEY = "union-dashboard-order-chart-mode-v1";
 const DASHBOARD_ORDER_CARD_MODES_KEY = "union-dashboard-order-card-modes-v2";
 const periodOptions = [
+  { value: 1, label: "Hoje" },
   { value: 7, label: "7 dias" },
   { value: 30, label: "30 dias" },
   { value: 90, label: "90 dias" },
@@ -283,7 +287,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
   return onClick ? <button type="button" onClick={onClick} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 hover:bg-[#f8fafc]">{content}</button> : <div className="flex items-center gap-3 px-1 py-2.5">{content}</div>;
 }
 
-export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
+export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDashboardProps) {
   const { activeOrganizationId, activeOrganization, user, hasPermission, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
@@ -309,6 +313,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   };
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
+  const canViewAttendanceDashboard = hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
     registrations: hasPermission("customers.view") || hasPermission("employees.view"),
@@ -325,7 +330,8 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     { id: "agenda" as const, label: "Agenda", icon: CalendarDays, visible: access.agenda },
     { id: "quotes" as const, label: "Orçamentos", icon: FileText, visible: access.quotes },
     { id: "finance" as const, label: "Financeiro", icon: Banknote, visible: access.orders },
-  ].filter(item => item.visible), [access]);
+    { id: "attendances" as const, label: "Atendimentos", icon: MessageSquare, visible: canViewAttendanceDashboard },
+  ].filter(item => item.visible), [access, canViewAttendanceDashboard]);
 
   const dashboardAccess = useMemo<DashboardAccess>(() => ({
     orders: access.orders && (activeModule === "overview" || activeModule === "finance" || activeModule === "quotes"),
@@ -356,7 +362,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
     queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access: dashboardAccess }),
-    enabled: Boolean(activeOrganizationId && activeModule !== "orders"),
+    enabled: Boolean(activeOrganizationId && activeModule !== "orders" && activeModule !== "attendances"),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: false, // Evita multiplicar RPCs quando o servidor retorna timeout 57014.
@@ -593,6 +599,13 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   };
 
   const moduleContent = () => {
+    if (activeModule === "attendances") {
+      return <DashboardAttendances organizationId={activeOrganizationId!}
+        periodDays={periodDays}
+        visible={key=>widgetVisible(key)}
+        onRestore={()=>widgetSettings.restore("attendances")}
+        onOpenInbox={onOpenWhatsApp}/>;
+    }
     if (activeModule === "orders") {
       const summary = ordersSummaryQuery.data || {
         total_orders:0,orders_in_period:0,active_orders:0,waiting_orders:0,
@@ -817,7 +830,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const dashboardInitialLoading = authLoading
     || (Boolean(activeOrganizationId && user?.id) && widgetSettings.settings.isPending)
     || (Boolean(activeOrganizationId) && (
-      activeModule === "orders"
+      activeModule === "attendances" ? false : activeModule === "orders"
         ? (orderSummaryNeeded && ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
           || (orderChartsVisible && (!orderSummaryNeeded || ordersSummaryQuery.isSuccess)
             && orderChartsQuery.isPending && !orderChartsQuery.data)
@@ -861,7 +874,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error) ? (
+        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "attendances" ? null : activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
             <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error)!)}</p></div>
