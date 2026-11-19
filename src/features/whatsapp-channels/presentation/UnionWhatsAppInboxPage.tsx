@@ -393,6 +393,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [debouncedQuery,setDebouncedQuery]=useState("");
   const [conversationPage,setConversationPage]=useState(0);
   const [conversationHasMore,setConversationHasMore]=useState(false);
+  const [conversationTotal,setConversationTotal]=useState<number|null>(null);
   const [conversationPageLoading,setConversationPageLoading]=useState(false);
   const [conversationCounts,setConversationCounts]=useState<UnionWhatsAppConversationCounts>({
     waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,
@@ -608,7 +609,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
     filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
-  listQueryRef.current={filter,department:departmentFilter,
+  listQueryRef.current={filter,department:canManage?departmentFilter:"all",
     operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
     search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
@@ -617,17 +618,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Only retain paginated 50-row results, scoped to the organization,
   // channel, filters and page. Incoming realtime invalidates stale pages.
   const conversationPageCacheRef=useRef(new Map<string,{
-    items:UnionWhatsAppConversation[];hasMore:boolean;savedAt:number;
+    items:UnionWhatsAppConversation[];hasMore:boolean;total:number;savedAt:number;
   }>());
+  // As contagens são reutilizadas entre páginas e atualizações realtime.
+  const conversationTotalCacheRef=useRef(new Map<string,{total:number;savedAt:number}>());
   const refresh=useCallback(async(silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
     const sequence=++conversationLoadSeq.current;
     const options={...listQueryRef.current};
     const queryKey=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,options]);
+    const countKey=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,
+      options.filter,options.department,options.operator,options.search,options.viewerId,options.canViewAll]);
+    const cachedTotal=conversationTotalCacheRef.current.get(countKey);
+    const includeCount=!cachedTotal || Date.now()-cachedTotal.savedAt>45_000;
     if(!silent)setConversationPageLoading(true);
     try{
       const [page,counts]=await Promise.all([
-        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,options),
+        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,{...options,includeCount}),
         listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone),
       ]);
       if(sequence!==conversationLoadSeq.current ||
@@ -641,9 +648,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       });
       setConversations(options.filter==="in_att"
         ? [...enriched].sort(latestMessageFirst) : enriched);
+      const total=page.total??cachedTotal?.total??(options.page*50+page.items.length);
+      if(page.total!==null){
+        const totals=conversationTotalCacheRef.current;
+        totals.set(countKey,{total,savedAt:Date.now()});
+        while(totals.size>25)totals.delete(totals.keys().next().value!);
+      }
+      setConversationTotal(total);
       const cache=conversationPageCacheRef.current;
       cache.delete(queryKey);
-      cache.set(queryKey,{items:enriched,hasMore:page.hasMore,savedAt:Date.now()});
+      cache.set(queryKey,{items:enriched,hasMore:page.hasMore,total,savedAt:Date.now()});
       while(cache.size>12)cache.delete(cache.keys().next().value!);
       // One bounded name lookup per visible page, cached for ten minutes.
       // Real-time refreshes reuse the cache instead of scanning CRM repeatedly.
@@ -767,6 +781,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
     conversationPageCacheRef.current.clear();
+    conversationTotalCacheRef.current.clear();
+    setConversationTotal(null);
     contactNameCacheRef.current.clear();
     setConversations([]);
     setMessagesHasMore(false);messageCursorRef.current=null;setMessagesOlderLoading(false);
@@ -862,7 +878,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setOperatorCounts({});
     void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"operator_filter_list",{
       filter:filter as "in_att"|"finished"|"forwarded",channel_id:activeChannelId||"",
-      account_phone:activeChannelPhone||"",department_filter:departmentFilter,
+      account_phone:activeChannelPhone||"",department_filter:canManage?departmentFilter:"all",
     }).then(result=>{
         if(cancelled || organizationRef.current!==org)return;
         const options=(result.operators||[]).map(item=>({id:item.id,name:item.name}));
@@ -890,6 +906,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(cached){
       setConversations(cached.items);
       setConversationHasMore(cached.hasMore);
+       setConversationTotal(cached.total);
       setConversationPageLoading(false);
       lastListQueryRef.current=key;
       if(Date.now()-cached.savedAt<45_000){
@@ -902,6 +919,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
     setConversationPageLoading(true);
     setConversations([]);
+    setConversationTotal(null);
     void refresh(true);
   },[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
@@ -2318,13 +2336,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unread}</span>
             </button>
             <div className={canManage && supportsOperatorFilter(filter) ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
-              <select aria-label="Filtrar departamento" value={departmentFilter}
+              {canManage && <select aria-label="Filtrar departamento" value={departmentFilter}
                 onChange={event=>{setConversationPage(0);setDepartmentFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
                 <option value="all">Todos os departamentos</option>
                 <option value="none">Sem departamento</option>
                 {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              </select>}
               {canManage && supportsOperatorFilter(filter) && <select aria-label="Filtrar operador"
                 value={operatorFilter} disabled={operatorChoicesLoading && operatorChoices.length===0}
                 onChange={event=>{setConversationPage(0);setOperatorFilter(event.target.value);}}
@@ -2391,8 +2409,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </button>;
             })}
           </div>
-          {(conversationPage>0||conversationHasMore) && <div className="flex shrink-0 items-center justify-between border-t border-border bg-card px-3 py-2">
-            <span className="text-xs text-muted-foreground">Página {conversationPage+1}</span>
+          {!embedded && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card px-3 py-2">
+             <div className="min-w-0 text-[11px] text-muted-foreground" aria-live="polite">
+               <span className="block tabular-nums">{conversationPageLoading ? "Consultando..." : `${visible.length} nesta página · ${conversationTotal??0} no total`}</span>
+               <span className="block tabular-nums">Página {conversationPage+1} de {conversationTotal===null?"…":Math.max(1,Math.ceil(conversationTotal/50))}</span>
+             </div>
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Página anterior de conversas"
                 disabled={conversationPage===0||conversationPageLoading}
