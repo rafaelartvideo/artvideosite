@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Atualiza apenas o servidor da ponte Union WuzAPI para incluir consulta
-# de grupos. Não altera tokens, sessões, Docker, firewall ou outros serviços.
+# Atualiza a ponte Union WuzAPI com gestão de grupos (criar, participantes,
+# editar, enviar e sair). Não altera tokens, sessões, Docker ou firewall.
 set -Eeuo pipefail
 if [ "$(id -u)" -ne 0 ]; then echo "Execute como root na VPS."; exit 1; fi
 
@@ -8,7 +8,7 @@ BASE=/opt/union-wuzapi-bridge
 NODE="$BASE/runtime/node-v24.22.0/bin/node"
 TARGET="$BASE/server.mjs"
 SERVICE=union-wuzapi-bridge.service
-COMMIT=215eca8305ed95aacfcba94e282c1e0affe06a65
+COMMIT=96e8669fadb421e3112861831f10c6daf54fb098
 URL="https://raw.githubusercontent.com/rafaelartvideo/artvideosite/$COMMIT/services/union-wuzapi-bridge/server.mjs"
 
 for command in curl systemctl grep cp install mktemp; do
@@ -23,7 +23,8 @@ BACKUP=""
 cleanup(){ rm -f "$TMP"; }
 trap cleanup EXIT
 curl --fail --location --silent --show-error --retry 2 "$URL" -o "$TMP"
-grep -Fq 'if(action==="groups_list")' "$TMP" || { echo "O código baixado não contém o recurso de grupos."; exit 1; }
+grep -Fq 'if(action==="groups_list")' "$TMP" || { echo "Código sem consulta de grupos."; exit 1; }
+grep -Fq 'if(action==="groups_manage")' "$TMP" || { echo "Código sem administração de grupos."; exit 1; }
 "$NODE" --check "$TMP"
 
 BACKUP="$BASE/server.mjs.before-groups-$(date +%Y%m%d-%H%M%S)"
@@ -37,5 +38,5 @@ if ! systemctl is-active --quiet "$SERVICE"; then
   systemctl restart "$SERVICE"
   exit 1
 fi
-echo "Ponte Union atualizada. Grupos disponíveis para consulta."
+echo "Ponte Union atualizada. Consulta e gerenciamento de grupos habilitados."
 echo "Cópia da versão anterior: $BACKUP"
