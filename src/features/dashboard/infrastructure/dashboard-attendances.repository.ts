@@ -7,6 +7,9 @@ export type AttendanceMetrics = {
   forwarded:number; opened:number; finished:number;
   avg_first_reply_minutes:number|null; avg_first_reply_elapsed_minutes:number|null;
   avg_handle_minutes:number|null; avg_handle_useful_minutes:number|null;
+  queue_avg_elapsed_minutes:number|null;queue_avg_useful_minutes:number|null;
+  queue_overdue_useful:number;
+  pending_reply_avg_elapsed_minutes:number|null;pending_reply_avg_useful_minutes:number|null;
   sla_valid:number; sla_met:number; invalid_reply_times:number;
   transfers:number; reopened:number; received_outside_hours:number;
   unscored_without_calendar:number;
@@ -26,6 +29,7 @@ export type AttendanceAlert = {
 export type AttendanceDashboardData = {
   threshold_minutes:number;
   calendar_configured:boolean;
+  company_calendar_configured:boolean;
   unanswered_overdue_sla:number;
   unanswered_after_minutes:number;
   metrics:AttendanceMetrics;
@@ -54,6 +58,7 @@ export async function loadDashboardAttendances({
   return {
     threshold_minutes:Number(result.threshold_minutes||15),
     calendar_configured:result.calendar_configured===true,
+    company_calendar_configured:result.company_calendar_configured===true,
     unanswered_overdue_sla:Number(result.unanswered_overdue_sla||0),
     unanswered_after_minutes:Number(result.unanswered_after_minutes||15),
     metrics:result.metrics,
