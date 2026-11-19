@@ -609,12 +609,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   organizationRef.current=activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
-  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
+  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean;prioritizeUnanswered?:boolean;priorityMinutes?:number}>({
     filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
   listQueryRef.current={filter,department:canManage?departmentFilter:"all",
     operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
-    search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
+    search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage,
+    prioritizeUnanswered:queueSettings.auto_prioritize_unanswered,
+    priorityMinutes:queueSettings.unanswered_priority_minutes};
   const conversationLoadSeq=useRef(0);
   const contactNameCacheRef=useRef(new Map<string,{name:string;expires:number}>());
   const lastListQueryRef=useRef("");
@@ -649,7 +651,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return saved && saved.expires>now
           ? {...item,contact_name:saved.name} : item;
       });
-      setConversations(options.filter==="in_att"
+      setConversations(options.filter==="in_att" && !options.prioritizeUnanswered
         ? [...enriched].sort(latestMessageFirst) : enriched);
       const total=page.total??cachedTotal?.total??(options.page*50+page.items.length);
       if(page.total!==null){
@@ -925,7 +927,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setConversationTotal(null);
     void refresh(true);
   },[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount,
-      activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
+      activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh,
+      queueSettings.auto_prioritize_unanswered,queueSettings.unanswered_priority_minutes]);
+
+  // Revalida uma unica pagina por minuto apenas quando visivel, pois conversas
+  // antigas podem cruzar o limite sem receber outro evento do WhatsApp.
+  useEffect(()=>{
+    if(embedded || !documentVisible || filter!=="in_att" ||
+      !queueSettings.auto_prioritize_unanswered || channelReady!==true ||
+      !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
+      (sharedActivity && !sharedActivity.isPageOpen))return;
+    const id=window.setInterval(()=>{
+      conversationPageCacheRef.current.clear();
+      void refresh(true);
+    },60_000);
+    return()=>window.clearInterval(id);
+  },[embedded,documentVisible,filter,queueSettings.auto_prioritize_unanswered,
+    activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,
+    sharedActivity?.isPageOpen,refresh]);
 
   // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
   useEffect(() => {
@@ -1044,6 +1063,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             if(typeof row.unread_count==="number")next.unread_count=row.unread_count;
             if(typeof row.last_message==="string")next.last_message=row.last_message;
             if(typeof row.last_message_at==="string")next.last_message_at=row.last_message_at;
+            if(typeof row.awaiting_reply_since==="string" || row.awaiting_reply_since===null)
+              next.awaiting_reply_since=row.awaiting_reply_since as string|null;
             if(typeof row.assigned_to==="string" || row.assigned_to===null)
               next.assigned_to=row.assigned_to as string|null;
             return next;
@@ -1071,9 +1092,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 (Date.parse(item.last_message_at||"")||0)>=Date.parse(sentAt))return item;
             moved=true;
             return {...item,last_message_at:sentAt,
+              awaiting_reply_since:row.direction==="outgoing" ? null :
+                (item.awaiting_reply_since||sentAt),
               last_message:quotedSummary(String(row.body_text||""),String(row.message_type||"text"))};
           });
-          return moved ? updated.sort(latestMessageFirst) : current;
+          return moved ? (queueSettings.auto_prioritize_unanswered ? updated : updated.sort(latestMessageFirst)) : current;
         });
       }
       schedule(threadId,true);
@@ -1233,7 +1256,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
   const bootLoading=channelReady===null || (channelReady===true && readyAccount!==accountIdentity);
   useEffect(()=>{
-    if(bootLoading || (filter!=="waiting" && !selectedId))return;
+    if(bootLoading || (filter!=="waiting" && filter!=="in_att" && !selectedId))return;
     setClockNow(Date.now());
     const id=window.setInterval(()=>setClockNow(Date.now()),selectedId?4000:30000);
     return()=>window.clearInterval(id);
@@ -1331,7 +1354,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // aguarda a resposta do Supabase. Assim "Em atendimento" não exibe
   // clientes com etiqueta/tempo da fila "Aguardando" por um frame.
   const visible=filter==="in_att"
-    ? scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item)).sort(latestMessageFirst)
+    ? (queueSettings.auto_prioritize_unanswered
+      ? scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item))
+      : scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item)).sort(latestMessageFirst))
     : filter==="waiting"
       ? scopedConversations.filter(queueOnly)
       : scopedConversations;
@@ -2413,7 +2438,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
-                  {item.viewer_participating && <span
+                  {item.status==="in_att" && item.awaiting_reply_since && queueSettings.show_wait_time &&
+                      <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
+                        Sem resposta {waitingLabel(waitingMinutes(item.awaiting_reply_since,clockNow))}
+                        {queueSettings.auto_prioritize_unanswered &&
+                          waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes
+                          ? " · Prioridade" : ""}
+                      </span>}
+                    {item.viewer_participating && <span
                     className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
                 </span>
