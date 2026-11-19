@@ -101,7 +101,7 @@ export type UnionWhatsAppGroup = {
 };
 
 export type UnionWhatsAppGroupMember = {
-  jid:string;is_admin:boolean;is_super_admin:boolean;
+  jid:string;is_admin:boolean;is_super_admin:boolean;name?:string|null;
 };
 export type UnionWhatsAppGroupDetails = UnionWhatsAppGroup & {
   is_locked:boolean;participants:UnionWhatsAppGroupMember[];
@@ -356,7 +356,7 @@ export async function listUnionWhatsAppProtocols(
 }
 
 export type UnionWhatsAppParticipant = { user_id:string; name:string; status:"active"|"requested"; requested_by:string|null; decided_by:string|null; created_at:string; updated_at:string };
-export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "number_verification_status" | "contact_names_batch" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_filter_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_recipients" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_avatar" | "contacts_groups" | "contacts_groups_manage" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names" | "contacts_history";
+export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "number_verification_status" | "contact_names_batch" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_filter_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_recipients" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_avatar" | "contacts_groups" | "contacts_groups_avatar" | "contacts_groups_manage" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names" | "contacts_history";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,

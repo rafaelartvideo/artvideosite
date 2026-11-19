@@ -4,6 +4,7 @@ import { operateUnionWhatsAppInbox, type UnionWhatsAppGroup, type UnionWhatsAppG
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppGroupAdvanced } from "./UnionWhatsAppGroupAdvanced";
 import { UnionWhatsAppGroupChat } from "./UnionWhatsAppGroupChat";
+import { UnionWhatsAppGroupAvatar } from "./UnionWhatsAppGroupAvatar";
 
 type Mode = "view"|"name"|"topic"|"participants"|"send"|"leave";
 type ParticipantAction = "add"|"remove"|"promote"|"demote";
@@ -134,7 +135,8 @@ export function UnionWhatsAppGroupsManager({
   const formMode=creating||mode!=="view";
   return <section aria-label="Gerenciar grupo WhatsApp" className="space-y-4">
     <div className="flex items-center gap-3">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Users size={23}/></span>
+      {group?<UnionWhatsAppGroupAvatar organizationId={organizationId} accountPhone={accountPhone} groupJid={group.jid} size="lg" />:
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Users size={23}/></span>}
       <div className="min-w-0 flex-1">
         <h3 className="truncate font-bold">{creating?"Criar grupo":group?.name}</h3>
         {!creating&&<p className="text-xs text-muted-foreground">{details?.participants_count??group?.participants_count} participantes</p>}
@@ -162,7 +164,7 @@ export function UnionWhatsAppGroupsManager({
           {!loading&&!members.length&&<p className="text-xs text-muted-foreground">Informações de membros indisponíveis.</p>}
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {members.map(item=><div key={item.jid} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2 text-xs last:border-b-0">
-              <span className="break-all">{item.jid}</span>
+              <span className="min-w-0 break-words" title={item.jid}>{item.name||(/^[0-9]+@s\.whatsapp\.net$/.test(item.jid)?item.jid.split("@")[0]:"Participante do WhatsApp")}</span>
               {item.is_super_admin?<span className="text-primary">Criador</span>:item.is_admin?<span className="text-primary">Admin</span>:null}
             </div>)}
           </div>

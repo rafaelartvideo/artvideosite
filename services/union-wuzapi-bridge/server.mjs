@@ -649,7 +649,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   }
   if (action === "contact_avatar") {
     const jid=String(chatJid||"");
-    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
+    if(!/^[0-9]{5,30}@(s\.whatsapp\.net|lid|g\.us)$/.test(jid))
       throw new Error("bad_request");
     const cacheKey=id+"|"+jid;
     const existing=avatarCache.get(cacheKey);

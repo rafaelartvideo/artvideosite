@@ -16,6 +16,7 @@ const WHATSAPP_ROLE_DEFAULTS: Record<string,[boolean,boolean]> = {
   reopen:[true,false],
   manage_operators:[true,false],
   manage_queues:[true,false],
+  manage_groups:[true,false],
   view_contacts:[true,true],
   manage_contacts:[true,true],
   create_contacts:[true,true],
@@ -192,8 +193,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -264,7 +265,7 @@ Deno.serve(async request => {
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
-      contacts_groups:"view_contacts",contacts_groups_manage:"view_contacts",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
+      contacts_groups:"manage_groups",contacts_groups_avatar:"manage_groups",contacts_groups_manage:"manage_groups",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",number_verification_status:"start",start:"start",
@@ -829,7 +830,7 @@ Deno.serve(async request => {
       return json({success:true,display_names:displayNames});
     }
 
-    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(channelError)throw channelError;
@@ -905,6 +906,17 @@ Deno.serve(async request => {
           return json({success:true,avatar_url:photo||null});
         }catch{return json({success:true,avatar_url:null});}
       }
+      if(action==="contacts_groups_avatar") {
+        const jid=String(body.group_jid||"");
+        if(!/^[0-9]{5,30}@g\.us$/.test(jid) || body.account_phone!==channel.phone)
+          return json({success:false,error:"Grupo inválido para consulta da foto."},400);
+        try{
+          const avatar=await cachedWhatsAppAvatar(admin,org,channel,jid,()=>
+            signedBridge({id:channel.id,organization_id:org},"",jid,crypto.randomUUID(),
+              undefined,undefined,false,true));
+          return json({success:true,avatar_url:avatar||null});
+        }catch{return json({success:true,avatar_url:null});}
+      }
       if(action==="contacts_groups") {
         // Grupos são consultados sob demanda e nunca importados na agenda.
         // A ponte devolve metadados sanitizados sem os JIDs dos participantes.
@@ -934,13 +946,11 @@ if(action==="contacts_groups_manage") {
         // Mensagens e histórico seguem a permissão de envio; operações
         // administrativas exigem view_all independentemente do botão na UI.
         const command=String(body.group_command||"");
+        const canManageGroups=allowed("manage_groups");
+        if(!canManageGroups)return json({success:false,error:"Sem permissão para gerenciar grupos."},403);
         const isMessage=["send","send_image"].includes(command);
         const readMessages=command==="history";
         if(isMessage && !canSend)return json({success:false,error:"Sem permissão para enviar mensagens."},403);
-        if(readMessages && !canSend && !canManage)
-          return json({success:false,error:"Sem permissão para consultar mensagens de grupos."},403);
-        if(!isMessage && !readMessages && command!=="details" && !canManage)
-          return json({success:false,error:"Somente gestores podem administrar grupos."},403);
         if(body.account_phone!==channel.phone)
           return json({success:false,error:"O canal selecionado mudou."},409);
         const jid=String(body.group_jid||"");
@@ -985,13 +995,26 @@ if(action==="contacts_groups_manage") {
             ["send","send_image"].includes(command)?messageId:crypto.randomUUID(),
             undefined,undefined,false,false,false,false,false,undefined,false,false,payload);
           const result=JSON.parse(raw) as Record<string,unknown>;
+          if(["photo","photo_remove"].includes(command)){
+            const {error:invalidateError}=await admin.from("union_whatsapp_avatar_cache")
+              .delete().eq("organization_id",org).eq("channel_id",channel.id)
+              .eq("account_phone",channel.phone).eq("chat_jid",jid);
+            if(invalidateError)console.warn("group_avatar_invalidate_failed");
+          }
           if(command==="details"){
-            const members=Array.isArray(result.participants)?result.participants.slice(0,1000):[];
+            const members=Array.isArray(result.participants)?result.participants.slice(0,1000) as Array<{jid:string;is_admin:boolean;is_super_admin:boolean}>:[];
+            const memberJids=members.slice(0,250).map(member=>String(member.jid||"")).filter(Boolean);
+            const {data:savedContacts}=memberJids.length
+              ?await admin.from("union_whatsapp_contacts").select("chat_jid,display_name")
+                .eq("organization_id",org).eq("channel_id",channel.id)
+                .eq("account_phone",channel.phone).in("chat_jid",memberJids)
+              :{data:[]};
+            const names=new Map((savedContacts||[]).map(row=>[row.chat_jid,row.display_name]));
             return json({success:true,group:{jid,name:String(result.name||"").slice(0,160),
               topic:String(result.topic||"").slice(0,500),is_announce:result.is_announce===true,
               is_locked:result.is_locked===true,
               participants_count:Number(result.participants_count)||0,
-              participants:members}});
+              participants:members.map(member=>({...member,name:names.get(member.jid)||null}))}});
           }
           const link=String(result.invite_link||"");
           if(command==="invite" && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{18,32}$/.test(link))

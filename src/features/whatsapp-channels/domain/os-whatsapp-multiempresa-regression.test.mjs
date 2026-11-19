@@ -236,15 +236,15 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(bridge,/action==="groups_list"/);
   assert.match(bridge,/participants_count:/);
   assert.doesNotMatch(bridge.slice(bridge.indexOf('if(action==="groups_list")'),bridge.indexOf('if(action==="contacts_export")')),/participants:group\.Participants/);
-  assert.match(edge,/contacts_groups:"view_contacts"/);
+  assert.match(edge,/contacts_groups:"manage_groups"/);
   assert.match(edge,/if\(action==="contacts_groups"\)/);
   assert.match(edge,/group[s]?\.length/);
   assert.match(contacts,/aria-pressed=\{tab==="groups"\}/);
   assert.match(contacts,/UnionWhatsAppGroupsManager/);
   assert.match(manager,/aria-label="Gerenciar grupo WhatsApp"/);
   assert.match(manager,/group_command:command/);
-  assert.match(edge,/contacts_groups_manage:"view_contacts"/);
-  assert.match(edge,/!isMessage && !readMessages && command!=="details" && !canManage/);
+  assert.match(edge,/contacts_groups_manage:"manage_groups"/);
+  assert.match(edge,/if\(!canManageGroups\)return json/);
   assert.match(contacts,/canManageGroups/);
 });
 
@@ -1188,4 +1188,19 @@ test("WhatsApp da nova OS reutiliza a mesma janela destacada sem abrir vários p
   assert.match(popup,/key=\{currentOrderId\}/);
   assert.match(manager,/message\.type==="union-whatsapp-detached-document"/);
   assert.match(manager,/message\.type==="union-whatsapp-detached-reintegrate"/);
+});
+
+test("Permissao propria de grupos, fotos privadas e wallpaper sem sobreposicao escura",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const groups=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsInbox.tsx");
+  const chat=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupChat.tsx");
+  const avatar=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupAvatar.tsx");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  assert.match(inbox,/canAction\("manage_groups"\)/);
+  assert.match(edge,/contacts_groups:"manage_groups"/);
+  assert.match(groups,/aria-modal="false"/);
+  assert.doesNotMatch(groups,/bg-black\/35/);
+  assert.doesNotMatch(groups,/aria-label="Atualizar grupos"/);
+  assert.match(chat,/whatsapp-chat-pattern\.svg/);
+  assert.match(avatar,/contacts_groups_avatar/);
 });

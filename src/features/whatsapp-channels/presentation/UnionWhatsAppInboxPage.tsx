@@ -2321,16 +2321,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
       </div>
     </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-220px)] min-h-[380px] overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:mx-0 lg:h-[min(76vh,850px)] lg:min-h-[520px]"}>
-      {!embedded&&groupConversationsOpen&&activeOrganizationId&&activeChannelPhone
+      {!embedded&&groupConversationsOpen&&canAction("manage_groups")&&activeOrganizationId&&activeChannelPhone
         ? <UnionWhatsAppGroupsInbox organizationId={activeOrganizationId} accountPhone={activeChannelPhone}
-          canManage={canManage} canSend={canSend} onBack={()=>setGroupConversationsOpen(false)}/>
+          canManage={canAction("manage_groups")} canSend={canSend} onBack={()=>setGroupConversationsOpen(false)}/>
         : <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
         <aside className={`${embedded ? "hidden" : selectedId ? "hidden lg:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card lg:border-b-0 lg:border-r`}>
           <div className="border-b border-border bg-muted/35 px-3 py-3 md:p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
               <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
-                {canAction("view_contacts") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
+                {canAction("manage_groups") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
                   title="Conversas de grupos" aria-label="Abrir conversas de grupos"
                   className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
                   <Users size={15}/> Grupos
@@ -2923,12 +2923,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       canImport={canAction("import_contacts")}
       canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
-      canManageGroups={canAction("view_all")}
+      canManageGroups={canAction("manage_groups")}
       canSendGroups={canAction("send")}
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
-      onOpenGroups={()=>{setContactsOpen(false);setSelectedId(null);setGroupConversationsOpen(true);}}
+      onOpenGroups={canAction("manage_groups")?()=>{setContactsOpen(false);setSelectedId(null);setGroupConversationsOpen(true);}:undefined}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
       <UnionWhatsAppContactEditDialog

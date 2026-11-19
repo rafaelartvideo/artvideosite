@@ -52,6 +52,7 @@ export function UnionWhatsAppGroupAdvanced({organizationId,accountPhone,group,on
       }else{
         if(command==="requests_update"){setRequestsLoaded(false);setRequests([]);}
         setNotice("Alteração confirmada pelo WhatsApp.");
+        if(command==="photo_remove")window.dispatchEvent(new CustomEvent("union:whatsapp-group-photo-changed",{detail:{jid:group.jid}}));
         onChanged();
       }
     }catch(reason){
@@ -84,7 +85,9 @@ export function UnionWhatsAppGroupAdvanced({organizationId,accountPhone,group,on
         await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups_manage",{
           account_phone:accountPhone,group_command:"photo",group_jid:group.jid,group_photo:jpeg,
         });
-        setNotice("Foto atualizada no WhatsApp.");onChanged();
+        setNotice("Foto atualizada no WhatsApp.");
+        window.dispatchEvent(new CustomEvent("union:whatsapp-group-photo-changed",{detail:{jid:group.jid}}));
+        onChanged();
       }finally{bitmap.close();}
     }catch(reason){
       setError(systemErrorMessage(reason,"Não foi possível trocar a foto do grupo."));

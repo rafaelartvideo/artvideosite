@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ContactRound, Info, LoaderCircle, Plus, RefreshCw, Search, Users, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, Info, Plus, Search, Users, X } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppGroupsManager } from "./UnionWhatsAppGroupsManager";
 import { UnionWhatsAppGroupChat } from "./UnionWhatsAppGroupChat";
+import { UnionWhatsAppGroupAvatar } from "./UnionWhatsAppGroupAvatar";
 
 const smallButton="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 
@@ -24,6 +25,7 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
   const [infoOpen,setInfoOpen]=useState(false);
   const [notice,setNotice]=useState("");
   const [loaded,setLoaded]=useState(false);
+  const infoPanelRef=useRef<HTMLDivElement|null>(null);
   const selected=groups.find(group=>group.jid===selectedJid)||null;
   const filtered=useMemo(()=>{
     const q=query.trim().toLocaleLowerCase("pt-BR");
@@ -46,6 +48,25 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
     return()=>{cancelled=true;};
   },[organizationId,accountPhone,revision]);
 
+  useEffect(()=>{
+    const refreshVisible=()=>{if(document.visibilityState==="visible")setRevision(v=>v+1);};
+    const timer=window.setInterval(refreshVisible,30000);
+    window.addEventListener("focus",refreshVisible);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refreshVisible);};
+  },[]);
+  useEffect(()=>{
+    if(!infoOpen)return;
+    const key=(event:KeyboardEvent)=>{if(event.key==="Escape")setInfoOpen(false);};
+    const outside=(event:PointerEvent)=>{
+      const target=event.target as Element|null;
+      if(target&&!infoPanelRef.current?.contains(target)&&
+        !target.closest('[aria-label="Informações do grupo"],[aria-label="Dados do grupo"]'))
+        setInfoOpen(false);
+    };
+    window.addEventListener("keydown",key);
+    window.addEventListener("pointerdown",outside,true);
+    return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerdown",outside,true);};
+  },[infoOpen]);
   useEffect(()=>{setInfoOpen(false);setNotice("");},[selectedJid]);
   const changeGroup=(jid?:string|null)=>{
     if(jid===null){setSelectedJid(null);setInfoOpen(false);setCreating(false);}
@@ -62,23 +83,16 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
       <div className="shrink-0 border-b border-border bg-muted/35 px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-black text-foreground sm:text-base">Conversas</h2>
-          <div className="flex gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button type="button" className={smallButton} onClick={onBack}
+              aria-label="Voltar aos atendimentos"><ChevronLeft size={15}/>Atendimentos</button>
             {canManage&&<button type="button" className="inline-flex h-9 items-center gap-1 rounded-lg bg-primary px-2.5 text-xs font-bold text-primary-foreground"
               onClick={()=>{setCreating(true);setSelectedJid(null);setInfoOpen(false);}}><Plus size={14}/>Novo</button>}
           </div>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          {loading?"Atualizando grupos...":groups.length+" grupos deste WhatsApp"}
+          {loading&&!loaded?"Carregando grupos...":groups.length+" grupos deste WhatsApp"}
         </p>
-        <div role="tablist" aria-label="Tipo de conversa" className="mt-3 grid grid-cols-2 gap-2">
-          <button role="tab" type="button" aria-selected={false} className={smallButton+" w-full"} onClick={onBack}>
-            <ContactRound size={14}/>Atendimentos
-          </button>
-          <button role="tab" type="button" aria-selected={true}
-            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-2.5 text-xs font-bold text-primary">
-            <Users size={14}/>Grupos <span className="text-[10px]">({groups.length})</span>
-          </button>
-        </div>
         <div className="relative mt-3">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
           <input type="search" aria-label="Buscar conversa de grupo" value={query}
@@ -109,9 +123,7 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
             aria-current={active?"true":undefined}
             className={"box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors "+
               (active?"border-l-[3px] border-l-primary bg-primary-soft":"bg-card hover:bg-muted/55")}>
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Users size={21}/>
-            </span>
+            <UnionWhatsAppGroupAvatar organizationId={organizationId} accountPhone={accountPhone} groupJid={group.jid} />
             <span className="min-w-0 flex-1">
               <span className="flex items-center justify-between gap-2">
                 <span className="truncate text-sm font-black text-foreground">{group.name}</span>
@@ -128,10 +140,7 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
       </div>
       <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card px-3 py-2.5">
         <span className="text-[11px] text-muted-foreground">{filtered.length} de {groups.length} grupos</span>
-        <button type="button" className={smallButton} disabled={loading} onClick={()=>setRevision(v=>v+1)}
-          title="Atualizar a lista de grupos" aria-label="Atualizar grupos">
-          {loading?<LoaderCircle size={15} className="animate-spin"/>:<RefreshCw size={15}/>}
-        </button>
+        <span className="text-[10px] text-muted-foreground">Sincronização automática</span>
       </footer>
     </aside>
     <section className={(chatVisible?"fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full lg:relative lg:inset-auto lg:h-auto":"hidden lg:relative lg:flex")+
@@ -157,9 +166,7 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
             onClick={()=>{setSelectedJid(null);setInfoOpen(false);}}><ChevronLeft size={24}/></button>
           <button type="button" aria-label="Informações do grupo" className="shrink-0"
             onClick={()=>setInfoOpen(true)}>
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Users size={22}/>
-            </span>
+            <UnionWhatsAppGroupAvatar organizationId={organizationId} accountPhone={accountPhone} groupJid={selected.jid} />
           </button>
           <button type="button" className="min-w-0 flex-1 text-left" onClick={()=>setInfoOpen(true)}>
             <span className="block truncate text-sm font-black text-foreground">{selected.name}</span>
@@ -174,10 +181,9 @@ export function UnionWhatsAppGroupsInbox({organizationId,accountPhone,canManage,
         <UnionWhatsAppGroupChat key={selected.jid} layout="conversation"
           organizationId={organizationId} accountPhone={accountPhone}
           groupJid={selected.jid} canSend={canSend}/>
-        {infoOpen&&<div className="absolute inset-0 z-20 flex justify-end bg-black/35"
-          onClick={event=>{if(event.target===event.currentTarget)setInfoOpen(false);}}>
-          <div role="dialog" aria-modal="true" aria-label="Dados do grupo"
-            className="flex h-full w-full max-w-md flex-col overflow-hidden border-l border-border bg-card shadow-xl">
+        {infoOpen&&<div className="pointer-events-none absolute inset-0 z-20 flex justify-end">
+          <div ref={infoPanelRef} role="dialog" aria-modal="false" aria-label="Dados do grupo"
+            className="pointer-events-auto flex h-full w-full max-w-md flex-col overflow-hidden border-l border-border bg-card shadow-xl">
             <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
               <h3 className="text-sm font-black">Dados do grupo</h3>
               <button className="rounded-lg p-2 hover:bg-muted" aria-label="Fechar dados do grupo"

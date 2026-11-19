@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ImagePlus, LoaderCircle, RefreshCw, Send, X } from "lucide-react";
+import { ImagePlus, LoaderCircle, Send, X } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroupMessage } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
@@ -41,7 +41,8 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
       setAvailable(result.history_available===true);
       setMessages([...(result.messages||[])].reverse());
       setHasMore(result.has_more===true);setBefore(result.next_before??null);
-      setLocalSent([]);
+      setLocalSent(current=>current.filter(item=>!(result.messages||[]).some(saved=>
+        saved.text===item.text && Math.abs(Date.parse(saved.sent_at)-Date.parse(item.sent_at))<15000)));
     }).catch(reason=>{
       if(cancelled||request!==requestRef.current)return;
       setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));
@@ -50,6 +51,12 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
     return()=>{cancelled=true;};
   },[organizationId,accountPhone,groupJid,revision]);
 
+  useEffect(()=>{
+    const refreshVisible=()=>{if(document.visibilityState==="visible"&&!sending)setRevision(v=>v+1);};
+    const timer=window.setInterval(refreshVisible,20000);
+    window.addEventListener("focus",refreshVisible);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refreshVisible);};
+  },[sending]);
   const loadOlder=async()=>{
     if(loadingOlder||!hasMore||!before)return;
     setLoadingOlder(true);setError("");
@@ -133,23 +140,17 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
   return <section aria-label="Mensagens do grupo" className={inbox
       ?"flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
       :"space-y-3 rounded-xl border border-border p-3 sm:p-4"}>
-    <div className={inbox?"flex shrink-0 items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5":"flex items-center justify-between gap-2"}>
-      {!inbox&&<h4 className="text-sm font-bold">Mensagens do grupo</h4>}
-      <button type="button" className={btn} disabled={loading||sending} onClick={()=>setRevision(v=>v+1)}>
-        <RefreshCw size={13} className="mr-1 inline"/>Atualizar
-      </button>
-    </div>
     {error&&<p role="alert" className="mx-3 mt-2 rounded-lg border border-destructive/30 p-2 text-xs text-destructive">{error}</p>}
     {available===false&&<p className="px-3 pt-2 text-xs text-muted-foreground">
-      O histórico local de grupos não está disponível nesta versão ou configuração do WuzAPI.
-      O envio continua disponível quando autorizado.
+      O WhatsApp não disponibilizou o histórico deste grupo. A recuperação depende da configuração de histórico na VPS.
     </p>}
     {loading&&<p role="status" className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
       <LoaderCircle size={14} className="animate-spin"/>Buscando mensagens...
     </p>}
     {available&&hasMore&&<button type="button" className={btn+" w-full"} disabled={loadingOlder}
       onClick={()=>void loadOlder()}>{loadingOlder?"Carregando...":"Carregar mensagens anteriores"}</button>}
-    <div ref={chatScrollRef} className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}>
+    <div ref={chatScrollRef} className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}
+      style={{backgroundImage:"url('/assets/crm/whatsapp-chat-pattern.svg')",backgroundRepeat:"repeat",backgroundSize:"270px 270px"}}>
       {!loading&&!timeline.length&&<p className="py-6 text-center text-xs text-muted-foreground">Nenhuma mensagem disponível.</p>}
       <div className="mx-auto flex max-w-4xl flex-col gap-2">{timeline.map((message,index)=>{
         const own=localSent.includes(message)||message.sender_jid.replace(/\D/g,"")===accountPhone.replace(/\D/g,"");
@@ -190,7 +191,7 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
           {sending?<LoaderCircle size={17} className="animate-spin"/>:<Send size={17}/>}
         </button>
       </div>
-      {!inbox&&<p className="mt-2 text-[11px] text-muted-foreground">Texto e imagens JPEG otimizadas. A atualização do histórico é manual para reduzir consultas.</p>}
+      {!inbox&&<p className="mt-2 text-[11px] text-muted-foreground">Texto e imagens JPEG otimizadas.</p>}
     </footer>}
   </section>;
 }
