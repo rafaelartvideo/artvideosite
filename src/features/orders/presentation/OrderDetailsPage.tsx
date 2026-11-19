@@ -46,7 +46,7 @@ import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
-import { useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
+import { preloadEmbeddedWhatsAppConversation, useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
@@ -227,6 +227,31 @@ export function OrderDetailsPage(props: Props) {
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const canUseWhatsAppModal = !monitorView && Boolean(detail?.organization_id) && hasPermission("whatsapp.inbox.view");
+  // Code-only warm-up after the OS settles. No RPC, media download or conversation
+  // prefetch; skip constrained connections and keep the initial OS load fast.
+  useEffect(() => {
+    if (!visible || !detail?.id || !canUseWhatsAppModal) return;
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType || "")) return;
+    let idleId: number | undefined;
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState !== "visible") return;
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(
+          () => { void preloadEmbeddedWhatsAppConversation().catch(() => undefined); },
+          { timeout: 2500 },
+        );
+      } else {
+        void preloadEmbeddedWhatsAppConversation().catch(() => undefined);
+      }
+    }, 1500);
+    return () => {
+      window.clearTimeout(timer);
+      if (idleId !== undefined && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+    };
+  }, [visible, detail?.id, canUseWhatsAppModal]);
   const { statuses, situations } = workspace;
   // A rota já conhece o tipo da OS: não aguarde a carga ampla das
   // referências para reconhecer o orçamento e iniciar a consulta da proposta.
