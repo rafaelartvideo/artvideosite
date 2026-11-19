@@ -151,8 +151,8 @@ export async function listUnionWhatsAppConversationCounts(
 
 export async function listUnionWhatsAppConversations(
   organizationId:string,channelId:string,accountPhone:string,
-  options:{filter:UnionWhatsAppInboxFilter;department:string;operator?:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean},
-):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean}>{
+  options:{filter:UnionWhatsAppInboxFilter;department:string;operator?:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean;includeCount?:boolean},
+):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean;total:number|null}>{
   const page=Math.max(0,Math.floor(options.page));
   // O mini-Atendimentos solicita só 8 registros; a lista completa mantém 50.
   const pageSize=options.pageSize===undefined?INBOX_PAGE_SIZE:
@@ -160,7 +160,7 @@ export async function listUnionWhatsAppConversations(
   // RLS exposes only the current operator's membership. Embed it in the same
   // paginated request to avoid one participation lookup per conversation.
   let query=supabase.from("union_whatsapp_conversations")
-    .select(`${columns},viewer_membership:union_whatsapp_conversation_participants(user_id,status)`)
+    .select(`${columns},viewer_membership:union_whatsapp_conversation_participants(user_id,status)`,options.includeCount===false?undefined:{count:"exact"})
     .eq("organization_id",organizationId)
     .eq("channel_id",channelId)
     .eq("account_phone",accountPhone);
@@ -176,7 +176,7 @@ export async function listUnionWhatsAppConversations(
     // The sender does not retain an operator inbox entry after handing off.
     // Manager visibility is preserved through view_all and the database policy.
     if(!options.canViewAll){
-      if(!options.viewerId) return {items:[],hasMore:false};
+      if(!options.viewerId) return {items:[],hasMore:false,total:0};
       query=query.neq("forwarded_by",options.viewerId);
     }
   }else{
@@ -213,7 +213,7 @@ export async function listUnionWhatsAppConversations(
   }
   const sort=options.filter==="waiting" && !options.sortByRecent?"queue_entered_at":
     options.filter==="forwarded"?"forwarded_at":"last_message_at";
-  const {data,error}=await query.order(sort,{ascending:options.filter==="waiting" && !options.sortByRecent,nullsFirst:false})
+  const {data,error,count}=await query.order(sort,{ascending:options.filter==="waiting" && !options.sortByRecent,nullsFirst:false})
     .order("id",{ascending:options.filter==="waiting" && !options.sortByRecent})
     .range(page*pageSize,(page+1)*pageSize);
   raise(error);
@@ -226,7 +226,7 @@ export async function listUnionWhatsAppConversations(
       Boolean(options.viewerId && conversation.assigned_to!==options.viewerId &&
         viewer_membership?.some(member=>member.user_id===options.viewerId && member.status==="active")),
   }));
-  return {items,hasMore:entries.length>pageSize};
+  return {items,hasMore:entries.length>pageSize,total:count??null};
 }
 
 // Carrega pontualmente o atendimento aberto por um atalho, mesmo quando
