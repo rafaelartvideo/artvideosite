@@ -218,8 +218,8 @@ export async function listUnionWhatsAppConversations(
   // A prioridade e calculada no banco ANTES de paginar, preservando a RLS.
   // Uma unica RPC substitui a consulta da pagina em vez de buscar todas as mensagens.
   if(options.filter==="in_att" && options.prioritizeUnanswered){
-    const protocol=search.match(/^(?:ATD[-\\s]*)?(\\d{1,12})$/i);
-    const digits=options.search.replace(/\\D/g,"").slice(0,15);
+    const protocol=search.match(/^(?:ATD[-\s]*)?(\d{1,12})$/i);
+    const digits=options.search.replace(/\D/g,"").slice(0,15);
     const {data,error}=await supabase.rpc("union_whatsapp_prioritized_in_att",{
       p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
       p_department:options.department,
@@ -235,7 +235,7 @@ export async function listUnionWhatsAppConversations(
     return {items,hasMore:(page+1)*pageSize<total,total};
   }
   if(search){
-    const term=search.replace(/\\s+/g,"%");
+    const term=search.replace(/\s+/g,"%");
     const digits=options.search.replace(/\D/g,"").slice(0,15);
     const where=[
       `contact_name.ilike.%${term}%`,
