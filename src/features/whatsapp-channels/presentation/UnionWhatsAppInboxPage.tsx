@@ -1634,7 +1634,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(channelReady===false){onEmbeddedReady(true);return;}
     if(channelReady!==true || !initialConversationId || selectedId!==initialConversationId ||
        readyAccount!==accountIdentity)return;
-    if(conversationOpeningError || (selected?.id===initialConversationId && !conversationOpening))
+    // Uncover the conversation when its scoped metadata is available.
+    // Messages and participation still load with sending disabled until verified.
+    if(conversationOpeningError || selected?.id===initialConversationId)
       onEmbeddedReady(true);
   },[embedded,onEmbeddedReady,channelReady,initialConversationId,selectedId,readyAccount,
      accountIdentity,selected?.id,conversationOpening,conversationOpeningError]);
@@ -2606,7 +2608,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
         </aside>
         <section className={`${embedded ? "relative flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:relative lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:relative lg:flex"} min-h-0 min-w-0 flex-col overflow-hidden bg-card`}>
-          {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+          {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
                 ? <p className="text-sm text-muted-foreground">Não foi possível preparar a conversa.</p>
@@ -2664,7 +2666,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </p>
 
               </div>
-              {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
+              {!conversationOpening && (!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:border-t-0 lg:py-0 whitespace-nowrap [&>button]:shrink-0">
                 {embedded && onChangeRecipient && <AdminButton variant="secondary" size="sm"
                   title="Escolher outro número desta OS" aria-label="Trocar número"
@@ -2754,9 +2756,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {messagesOlderLoading?"Carregando mensagens anteriores...":"Carregar mensagens anteriores"}
                 </button>
               </div>}
-              {messagesLoading && timeline.length === 0 ? <LoadingState text="Carregando mensagens..."/>
-              : timeline.length === 0 ?
-                <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
+              {conversationOpeningError && <div role="alert" className="mx-auto mb-3 flex max-w-md flex-col items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-xs text-destructive">
+                Não foi possível carregar todas as informações da conversa.
+                <AdminButton size="sm" variant="secondary" onClick={()=>{
+                  setMessagesErrorId(null);setParticipantsErrorId(null);setFallbackErrorId(null);
+                  setFallbackRetry(value=>value+1);
+                  if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
+                }}>Tentar novamente</AdminButton>
+              </div>}
+              {(messagesLoading || (messagesResolvedId!==selectedId && !conversationOpeningError)) && timeline.length===0
+                ? <LoadingState text="Carregando mensagens..."/>
+                : timeline.length===0 ?
+                  conversationOpeningError
+                    ? <p className="p-5 text-center text-xs text-muted-foreground">Histórico temporariamente indisponível.</p>
+                    : <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {chatTimeline.map((entry,index) => <Fragment key={entry.id}>
                   {(index===0 || chatDayKey(entry.sentAt)!==chatDayKey(chatTimeline[index-1].sentAt)) &&
@@ -2878,7 +2891,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
             </div>
             <footer className="relative z-30 shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-3 sm:pb-3">
-              {canReply ? <div className="mx-auto max-w-4xl">
+              {conversationOpening ? <div role="status" className="mx-auto max-w-4xl py-2 text-center text-xs text-muted-foreground">
+                {conversationOpeningError ? "Aguardando recuperação das informações da conversa." : "Preparando atendimento..."}
+              </div> : canReply ? <div className="mx-auto max-w-4xl">
                 {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
                 </div>}
