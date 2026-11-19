@@ -1483,6 +1483,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </span>;
   };
 
+  const finalizedBadge=(item:UnionWhatsAppConversation)=>{
+    // A etiqueta de autoria só se aplica ao encerramento feito por terceiros.
+    if(item.status!=="finished" || !item.finished_by || !item.finished_by_name ||
+       item.finished_by===item.assigned_to)return null;
+    return <span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+      <CheckCircle2 size={12} className="shrink-0"/>
+      <span className="truncate">{"Finalizado por: "+item.finished_by_name}</span>
+    </span>;
+  };
+
   // Cada WhatsAppContactAvatar carrega apenas quando visível e assina o
   // cache global. Sem prefetch das primeiras linhas ou estados paralelos.
   const loadDepartments = async () => {
@@ -2536,6 +2546,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {item.viewer_participating && <span
                     className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
+                  {finalizedBadge(item)}
                 </span>
               </button>;
             })}
@@ -2614,6 +2625,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      <span className="inline-flex shrink-0 items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                    {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
+                   {finalizedBadge(selected)}
                    </span>
 
                  </p>
