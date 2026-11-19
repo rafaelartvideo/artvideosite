@@ -5,7 +5,8 @@ export type DashboardModule =
   | "inventory"
   | "agenda"
   | "quotes"
-  | "finance";
+  | "finance"
+  | "attendances";
 
 export type DashboardAccess = {
   orders: boolean;
