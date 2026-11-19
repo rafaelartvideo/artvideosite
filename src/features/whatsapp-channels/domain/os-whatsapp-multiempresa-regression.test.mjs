@@ -231,6 +231,7 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   const bridge=read("services/union-wuzapi-bridge/server.mjs");
   const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const manager=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsManager.tsx");
   assert.match(bridge,/wuzapi\("\/group\/list",session\.token\)/);
   assert.match(bridge,/action==="groups_list"/);
   assert.match(bridge,/participants_count:/);
@@ -239,8 +240,11 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(edge,/if\(action==="contacts_groups"\)/);
   assert.match(edge,/group[s]?\.length/);
   assert.match(contacts,/aria-pressed=\{tab==="groups"\}/);
-  assert.match(contacts,/aria-label="Detalhes do grupo WhatsApp"/);
-  assert.match(contacts,/Esta seção consulta os grupos do número conectado/);
+  assert.match(contacts,/UnionWhatsAppGroupsManager/);
+  assert.match(manager,/aria-label="Gerenciar grupo WhatsApp"/);
+  assert.match(manager,/group_command:command/);
+  assert.match(edge,/contacts_groups_manage:"view_all"/);
+  assert.match(contacts,/canManageGroups/);
 });
 
 test("Dados do CRM do contato são consultados somente após seleção e com permissões",()=>{
@@ -518,7 +522,9 @@ test("Prévia de mensagens e filtro de operadores mostram formatação e totais 
   assert.match(inbox,/WhatsAppFormattedText text=\{item\.last_message/);
   assert.match(inbox,/operatorCounts\[person\.id\]\|\|0/);
   assert.match(inbox,/person\.name\.trim\(\)\.split\(\/\\s\+\/\)\[0\]/);
-  assert.match(inbox,/department_filter:departmentFilter/);
+  assert.match(inbox,/department_filter:canManage\?departmentFilter:"all"/);
+  assert.match(inbox,/canManage && <select aria-label="Filtrar departamento"/);
+  assert.match(inbox,/conversationTotal\/50/);
   assert.match(inbox,/filter:filter as "in_att"\|"finished"\|"forwarded"/);
   assert.match(repo,/operator_counts\?: Record<string,number>/);
   assert.match(edge,/operator_counts:filterCounts/);
