@@ -24,7 +24,7 @@ import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
   operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -1732,18 +1732,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setCheckingNumber(false);setNewPhone("");setNewName("");
   },[newConversationOpen]);
 
-  const openFromContact = (contact:UnionWhatsAppContact):boolean => {
-    const existing=conversations.find(item=>item.chat_jid===contact.chat_jid ||
-      (contact.contact_phone && item.contact_phone===contact.contact_phone));
+  const openFromContact = async(contact:UnionWhatsAppContact):Promise<boolean> => {
+    if(!activeOrganizationId||!activeChannelId||!activeChannelPhone)return false;
+    // Busca exata no servidor, inclusive entre outras abas e fora da página 1.
+    // A RLS impede abrir conversas às quais o operador não tem acesso.
+    const existing=await findUnionWhatsAppConversationByContact(
+      activeOrganizationId,activeChannelId,activeChannelPhone,contact.chat_jid);
     if(existing){
-      setDepartmentFilter("all");
+      setDepartmentFilter("all");setOperatorFilter("all");
+      setQuery("");setDebouncedQuery("");setConversationPage(0);
+      setProtocolFilter(null);setSelectedFallback(existing);
       setFilter(hasForwarding(existing)?"forwarded":existing.status==="abandoned"?"waiting":existing.status);
       setSelectedId(existing.id);
       setContactsOpen(false);
       return true;
     }
     if(!canAction("start_new_conversation") || !contact.contact_phone){
-      reportError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
+      reportError("Este contato não possui conversa acessível nem permissão ou número para iniciar outra.");
       return false;
     }
     const display=contact.display_name||contact.imported_name||contact.profile_name||"";
@@ -2327,26 +2332,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         : <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
         <aside className={`${embedded ? "hidden" : selectedId ? "hidden lg:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card lg:border-b-0 lg:border-r`}>
           <div className="border-b border-border bg-muted/35 px-3 py-3 md:p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
-              <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
-                {canAction("manage_groups") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
-                  title="Conversas de grupos" aria-label="Abrir conversas de grupos"
-                  className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
-                  <Users size={15}/> Grupos
-                </button>}
-                {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
-                  className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
-                  <ContactRound size={15}/> Contatos
-                </button>}
-                {canAction("start_new_conversation") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
-                  numberCheckSequence.current+=1;
-                  setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
-                  setNewConversationOpen(true);
-                }} className="!h-9 !gap-1.5 !px-2.5">
-                  <Plus size={15}/> Nova
-                </AdminButton>}
-              </div>
+            <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
+            <div className="mt-2 flex w-full flex-wrap items-center gap-1.5" aria-label="Ações das conversas">
+              {canAction("manage_groups") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
+                title="Conversas de grupos" aria-label="Abrir conversas de grupos"
+                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-card px-1.5 text-[11px] font-semibold text-foreground hover:bg-muted">
+                <Users size={14} className="shrink-0"/> <span className="truncate">Grupos</span>
+              </button>}
+              {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
+                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-card px-1.5 text-[11px] font-semibold text-foreground hover:bg-muted">
+                <ContactRound size={14} className="shrink-0"/> <span className="truncate">Contatos</span>
+              </button>}
+              {canAction("start_new_conversation") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
+                numberCheckSequence.current+=1;
+                setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
+                setNewConversationOpen(true);
+              }} className="!h-9 !min-w-0 !flex-1 !gap-1 !px-1.5 !text-[11px]">
+                <Plus size={14} className="shrink-0"/> Nova
+              </AdminButton>}
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {counts.total} conversa(s) · {counts.unread} não lida(s)
@@ -2923,12 +2926,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       canImport={canAction("import_contacts")}
       canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
-      canManageGroups={canAction("manage_groups")}
-      canSendGroups={canAction("send")}
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
-      onOpenGroups={canAction("manage_groups")?()=>{setContactsOpen(false);setSelectedId(null);setGroupConversationsOpen(true);}:undefined}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
       <UnionWhatsAppContactEditDialog
