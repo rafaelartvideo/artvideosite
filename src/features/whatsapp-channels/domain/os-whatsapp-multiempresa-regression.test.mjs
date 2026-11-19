@@ -239,8 +239,8 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(edge,/contacts_groups:"manage_groups"/);
   assert.match(edge,/if\(action==="contacts_groups"\)/);
   assert.match(edge,/group[s]?\.length/);
-  assert.match(contacts,/aria-pressed=\{tab==="groups"\}/);
-  assert.match(contacts,/UnionWhatsAppGroupsManager/);
+  assert.doesNotMatch(contacts,/aria-pressed=\{tab==="groups"\}/);
+  assert.doesNotMatch(contacts,/UnionWhatsAppGroupsManager/);
   assert.match(manager,/aria-label="Gerenciar grupo WhatsApp"/);
   assert.match(manager,/group_command:command/);
   assert.match(edge,/contacts_groups_manage:"manage_groups"/);
@@ -255,8 +255,8 @@ test("Grupos são conversas do Atendimento: mesma disposição, painel de dados 
   const groupManager=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsManager.tsx");
   const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
   assert.match(inbox,/groupConversationsOpen&&canAction\("manage_groups"\)&&activeOrganizationId&&activeChannelPhone/);
-  assert.match(inbox,/onOpenGroups=\{canAction\("manage_groups"\)\?/);
-  assert.match(contacts,/if\(onOpenGroups\)\{onOpenGroups\(\);return;\}/);
+  assert.doesNotMatch(contacts,/onOpenGroups/);
+  assert.match(inbox,/aria-label="Ações das conversas"/);
   assert.match(groupInbox,/lg:grid-cols-\[340px_minmax\(0,1fr\)\]/);
   assert.match(groupInbox,/aria-label="Buscar conversa de grupo"/);
   assert.match(groupInbox,/group=\{selected\} creating=\{false\}[\s\S]*?hideChat/);
@@ -265,6 +265,7 @@ test("Grupos são conversas do Atendimento: mesma disposição, painel de dados 
   assert.match(groupChat,/shrink-0 border-t border-border bg-card/);
   assert.match(groupChat,/useLayoutEffect/);
   assert.match(groupChat,/role="separator"/);
+  assert.doesNotMatch(groupChat,/group_command:"history"/);
   assert.match(groupManager,/!hideChat&&\(canManage\|\|canSend\)/);
 });
 
@@ -1009,7 +1010,7 @@ test("Permissões de contatos e botão Novo não bloqueiam abertura pela OS",()=
   assert.match(inbox,/!canAction\("start_new_conversation"\) \|\| !contact\.contact_phone/);
   assert.match(inbox,/canCreate=\{canAction\("create_contacts"\)\}/);
   assert.match(inbox,/canEdit=\{canAction\("manage_contacts"\)\}/);
-  assert.match(contacts,/\{canCreate && tab==="contacts" && <button type="button" aria-label="Adicionar contato"/);
+  assert.match(contacts,/\{canCreate && <button type="button" aria-label="Adicionar contato"/);
   assert.match(contacts,/\(creating \? canCreate : canEdit\)/);
   assert.match(migration,/'create_contacts','Criar contatos'/);
   assert.match(migration,/'start_new_conversation','Iniciar conversa pelo botão Novo'/);
@@ -1203,4 +1204,18 @@ test("Permissao propria de grupos, fotos privadas e wallpaper sem sobreposicao e
   assert.doesNotMatch(groups,/aria-label="Atualizar grupos"/);
   assert.match(chat,/whatsapp-chat-pattern\.svg/);
   assert.match(avatar,/contacts_groups_avatar/);
+});
+
+test("Contatos tem um unico fluxo e abre a conversa global fora do filtro e pagina",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const groupChat=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupChat.tsx");
+  assert.doesNotMatch(contacts,/setTab\("groups"\)|setGroupsLoading|groups\.filter/);
+  assert.match(contacts,/animate-spin text-primary/);
+  assert.match(contacts,/openingConversation/);
+  assert.match(inbox,/await findUnionWhatsAppConversationByContact/);
+  assert.match(inbox,/setSelectedFallback\(existing\)/);
+  assert.match(inbox,/setProtocolFilter\(null\)/);
+  assert.match(inbox,/setConversationPage\(0\)/);
+  assert.doesNotMatch(groupChat,/group_command:"history"|history_available|setInterval/);
 });
