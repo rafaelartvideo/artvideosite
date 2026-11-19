@@ -877,6 +877,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
     let cancelled=false;
+    // O identificador da conta ja esta validado. Configuracoes secundarias
+    // nao podem bloquear a abertura de uma conversa no modal da OS.
+    if(embedded)setReadyAccount(identity);
     void Promise.allSettled([
       embedded ? Promise.resolve() : refresh(true),
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
@@ -887,7 +890,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS);})
         .catch(()=>undefined),
-    ]).then(()=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
+    ]).then(()=>{if(!embedded && !cancelled && organizationRef.current===activeOrganizationId &&
       accountRef.current===activeChannelPhone)setReadyAccount(identity);});
     return()=>{cancelled=true;};
   },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh,embedded]);
@@ -979,9 +982,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Navegação contextual do Dashboard > Atendimentos e do Painel do Técnico.
   // Apenas filtros existentes; nunca recarregar o histórico completo de mensagens.
   useEffect(() => {
-    if(embedded || channelReady!==true || !activeOrganizationId || !activeChannelId ||
+    if(channelReady!==true || !activeOrganizationId || !activeChannelId ||
       !activeChannelPhone ||
       readyAccount!==activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone)return;
+    // Na OS, no cadastro e no mini-atendimento a lista lateral fica oculta.
+    // Selecionar o ID validado no join, caso contrario nada abre a conversa.
+    if(embedded){
+      if(initialConversationId && /^[0-9a-f-]{36}$/i.test(initialConversationId))
+        setSelectedId(current=>current===initialConversationId?current:initialConversationId);
+      return;
+    }
     const params=new URLSearchParams(location.search);
     const dashboardFilter=params.get("dashboardFilter");
     const validFilters:Filter[]=["waiting","in_att","unanswered","unread","forwarded","finished"];
