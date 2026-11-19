@@ -63,10 +63,11 @@ test('an obsolete access failure cannot clear newer access or unlock its in-flig
   const key = {current:null}, requestId = {current:0};
   const requests = []; let failures = 0;
   const load = new Function('accessLoadingKeyRef','accessRequestRef','signedInUserRef',
-    'loadAccessData','clearResolvedAccess','setProfile','setAccessError','setLoading','console',
+    'activeOrganizationIdRef','loadAccessData','clearResolvedAccess','setProfile','setAccessError','setLoading','setLoadingProgress','console',
     `${code}; return loadAccess;`)(key, requestId, {current:'user-a'},
+      {current:'org-a'},
       () => {requestId.current++; return new Promise((resolve,reject)=>requests.push({resolve,reject}));},
-      () => {failures++;},()=>{},()=>{},()=>{}, {error(){}});
+      () => {failures++;},()=>{},()=>{},()=>{},()=>{}, {error(){},warn(){}});
   const previous = load('user-a','org-a',true);
   key.current=null; // A subsequent real permission event requires a fresh bootstrap.
   const current = load('user-a','org-a',true);
