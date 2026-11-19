@@ -72,7 +72,7 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
     setLoading(true);
     try{
       const {data,error}=await supabase.rpc("union_whatsapp_business_calendar",{
-        p_org:activeOrganizationId,p_action:"get",p_scope:scope,p_scope_id:scopeId||null,
+        p_org:activeOrganizationId,p_action:"get",p_scope:(scope!=="company"&&!scopeId)?"company":scope,p_scope_id:scopeId||null,
       });
       if(error)throw error;
       const response=data as Result;
