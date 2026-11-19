@@ -77,8 +77,8 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
         canvas.width=size;canvas.height=size;
         const context=canvas.getContext("2d");
         if(!context)throw new Error("Não foi possível preparar a imagem.");
-        context.drawImage(bitmap,0,0,bitmap.width,bitmap.height,
-          0,0,Math.round(bitmap.width*size/square),Math.round(bitmap.height*size/square));
+        context.drawImage(bitmap,(bitmap.width-square)/2,(bitmap.height-square)/2,square,square,
+          0,0,size,size);
         let result="";
         for(const quality of [0.82,0.7,0.56,0.42]){
           result=canvas.toDataURL("image/jpeg",quality);
