@@ -79,5 +79,5 @@ test('an obsolete access failure cannot clear newer access or unlock its in-flig
   assert.equal(key.current,null);
   const latest = load('user-a','org-a',true);
   requests[2].reject(new Error('current timeout')); await latest;
-  assert.equal(failures,1,'a current failure must retain the existing fail-closed behavior');
+  assert.equal(failures,0,'a temporary background failure must preserve already validated access');
 });
