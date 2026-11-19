@@ -288,7 +288,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
 }
 
 export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDashboardProps) {
-  const { activeOrganizationId, activeOrganization, user, hasPermission, loading: authLoading } = useAuth();
+  const { activeOrganizationId, activeOrganization, user, hasPermission, hasModule, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
@@ -313,7 +313,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDas
   };
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
-  const canViewAttendanceDashboard = hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
+  const canViewAttendanceDashboard = hasModule("whatsapp") && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
     registrations: hasPermission("customers.view") || hasPermission("employees.view"),
