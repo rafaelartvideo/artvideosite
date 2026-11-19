@@ -2880,6 +2880,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       canImport={canAction("import_contacts")}
       canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
+      canManageGroups={canAction("view_all")}
+      canSendGroups={canAction("send")}
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
