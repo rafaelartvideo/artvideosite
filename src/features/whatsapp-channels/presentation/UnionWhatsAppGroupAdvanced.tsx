@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ClipboardCopy, ImagePlus, LoaderCircle, RefreshCcw, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
+import { ClipboardCopy, ImagePlus, LoaderCircle, RefreshCcw, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroupDetails, type UnionWhatsAppGroupJoinRequest } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
 const field="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:border-primary";
 const btn="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 type GroupCommand="invite"|"announce"|"locked"|"memberaddmode"|"ephemeral"|"joinapproval"|"requests"|"requests_update"|"photo"|"photo_remove";
-type GroupMode=boolean|"admin_add"|"all_member_add";
 type GroupDuration="off"|"24h"|"7d"|"90d";
 
 export function UnionWhatsAppGroupAdvanced({organizationId,accountPhone,group,onChanged}:{
