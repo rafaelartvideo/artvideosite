@@ -100,7 +100,9 @@ function Queue({rows,limit,onOpenInbox}:{
   return <div className="max-h-[360px] divide-y divide-border overflow-y-auto">
     {rows.map(row=>{
       const diff=row.waiting_since?(Date.now()-Date.parse(row.waiting_since))/60000:0;
-      const critical=diff>=limit;
+      const paused=row.business_open_now===false;
+      const effective=row.waiting_useful_minutes;
+      const critical=!paused&&(effective??diff)>=limit;
       return <button key={row.conversation_id} type="button"
         onClick={()=>onOpenInbox?.(row.status==="waiting"?"waiting":"in_att",row.conversation_id)}
         className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-3 text-left hover:bg-muted/40">
@@ -108,8 +110,18 @@ function Queue({rows,limit,onOpenInbox}:{
           <p className="truncate text-sm font-semibold text-foreground">{row.contact_name||row.contact_phone||"Contato"}</p>
           <p className="mt-1 truncate text-[11px] text-muted-foreground">{row.operator_name+" · "+row.department_name}</p>
         </div>
-        <span className={"shrink-0 rounded-md px-2 py-1 text-[11px] font-bold "+(critical?"bg-red-500/10 text-red-600 dark:text-red-400":"bg-amber-500/10 text-amber-700 dark:text-amber-300")}>
-          {waitingDuration(row.waiting_since)}
+        <span className="shrink-0 space-y-1 text-right">
+          <span className={"inline-block rounded-md px-2 py-1 text-[11px] font-bold "+
+            (paused?"bg-muted text-muted-foreground":critical?"bg-red-500/10 text-red-600 dark:text-red-400":
+            "bg-amber-500/10 text-amber-700 dark:text-amber-300")}>
+            {waitingDuration(row.waiting_since)} corridos
+          </span>
+          <span className="block text-[10px] text-muted-foreground">
+            {effective!=null?duration(effective)+" úteis":"Útil: sem cobertura"}
+          </span>
+          {paused&&<span className="block text-[10px] font-bold text-blue-600 dark:text-blue-400">
+            Fora do expediente · SLA pausado
+          </span>}
         </span>
       </button>;
     })}
