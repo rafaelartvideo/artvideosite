@@ -243,7 +243,8 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(contacts,/UnionWhatsAppGroupsManager/);
   assert.match(manager,/aria-label="Gerenciar grupo WhatsApp"/);
   assert.match(manager,/group_command:command/);
-  assert.match(edge,/contacts_groups_manage:"view_all"/);
+  assert.match(edge,/contacts_groups_manage:"view_contacts"/);
+  assert.match(edge,/!isMessage && !readMessages && command!=="details" && !canManage/);
   assert.match(contacts,/canManageGroups/);
 });
 
