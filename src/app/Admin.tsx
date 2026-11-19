@@ -574,6 +574,7 @@ export function AdminDashboard({
               isPlatformOperatorOrganization={isPlatformOperatorOrganization}
             />} />
             <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))}
+              onOpenAttendanceSettings={()=>navigate(adminPath("tools","union-whatsapp","configuracoes")+"?section=hours")}
               onOpenWhatsApp={(filter,conversationId,operatorId)=>{
                 const params=new URLSearchParams();
                 params.set("dashboardFilter",filter);
