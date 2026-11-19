@@ -4,8 +4,8 @@ import { operateUnionWhatsAppInbox, type UnionWhatsAppGroupMessage } from "../in
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
 const btn="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
-export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,canSend}:{
-  organizationId:string;accountPhone:string;groupJid:string;canSend:boolean;
+export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,canSend,layout="embedded"}:{
+  organizationId:string;accountPhone:string;groupJid:string;canSend:boolean;layout?:"embedded"|"conversation";
 }){
   const [messages,setMessages]=useState<UnionWhatsAppGroupMessage[]>([]);
   const [localSent,setLocalSent]=useState<UnionWhatsAppGroupMessage[]>([]);
@@ -117,57 +117,61 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
     return Number.isNaN(date.getTime())?"Data indisponível":
       date.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
   };
-  return <section aria-label="Mensagens do grupo" className="space-y-3 rounded-xl border border-border p-3 sm:p-4">
-    <div className="flex items-center justify-between gap-2">
-      <h4 className="text-sm font-bold">Mensagens do grupo</h4>
+  const inbox=layout==="conversation";
+  return <section aria-label="Mensagens do grupo" className={inbox
+      ?"flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
+      :"space-y-3 rounded-xl border border-border p-3 sm:p-4"}>
+    <div className={inbox?"flex shrink-0 items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5":"flex items-center justify-between gap-2"}>
+      {!inbox&&<h4 className="text-sm font-bold">Mensagens do grupo</h4>}
       <button type="button" className={btn} disabled={loading||sending} onClick={()=>setRevision(v=>v+1)}>
         <RefreshCw size={13} className="mr-1 inline"/>Atualizar
       </button>
     </div>
-    {error&&<p role="alert" className="rounded-lg border border-destructive/30 p-2 text-xs text-destructive">{error}</p>}
-    {available===false&&<p className="text-xs text-muted-foreground">
+    {error&&<p role="alert" className="mx-3 mt-2 rounded-lg border border-destructive/30 p-2 text-xs text-destructive">{error}</p>}
+    {available===false&&<p className="px-3 pt-2 text-xs text-muted-foreground">
       O histórico local de grupos não está disponível nesta versão ou configuração do WuzAPI.
       O envio continua disponível quando autorizado.
     </p>}
-    {loading&&<p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+    {loading&&<p role="status" className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
       <LoaderCircle size={14} className="animate-spin"/>Buscando mensagens...
     </p>}
     {available&&hasMore&&<button type="button" className={btn+" w-full"} disabled={loadingOlder}
       onClick={()=>void loadOlder()}>{loadingOlder?"Carregando...":"Carregar mensagens anteriores"}</button>}
-    <div className="max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3">
+    <div className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}>
       {!loading&&!timeline.length&&<p className="py-6 text-center text-xs text-muted-foreground">Nenhuma mensagem disponível.</p>}
-      {timeline.map(message=>{
-        const own=localSent.includes(message)||message.sender_jid.replace(/\D/g,"")===accountPhone;
+      <div className="mx-auto flex max-w-4xl flex-col gap-2">{timeline.map(message=>{
+        const own=localSent.includes(message)||message.sender_jid.replace(/\D/g,"")===accountPhone.replace(/\D/g,"");
         return <div key={message.id} className={"flex "+(own?"justify-end":"justify-start")}>
-          <div className={"min-w-0 max-w-[90%] rounded-xl border px-3 py-2 text-xs "+(own?"border-primary/20 bg-primary/10":"border-border bg-card")}>
+          <div className={"min-w-0 max-w-[88%] rounded-lg px-3 py-2 text-xs shadow-sm sm:max-w-[72%] "+(own?"bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50":"border border-border bg-card text-foreground")}>
             <p className="mb-1 break-all text-[10px] font-semibold text-muted-foreground">{own?"Você":message.sender_jid||"Participante"}</p>
-            <p className="whitespace-pre-wrap break-words">{message.text||({"image":"Imagem","video":"Vídeo","audio":"Áudio","document":"Documento"} as Record<string,string>)[message.message_type]||"Mídia ou evento do grupo"}</p>
+            <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.text||({"image":"Imagem","video":"Vídeo","audio":"Áudio","document":"Documento"} as Record<string,string>)[message.message_type]||"Mídia ou evento do grupo"}</p>
             <p className="mt-1 text-right text-[10px] text-muted-foreground">{dateLabel(message.sent_at)}</p>
           </div>
         </div>;
-      })}
+      })}</div>
     </div>
-    {canSend&&<div className="space-y-2">
+    {canSend&&<footer className={inbox?"shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3":"space-y-2"}>
       {image&&<div className="relative inline-block">
         <img src={image} alt="Imagem pronta para envio" className="h-20 w-20 rounded-lg border border-border object-cover"/>
         <button type="button" aria-label="Remover anexo" className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"
           onClick={()=>setImage(null)}><X size={14}/></button>
       </div>}
-      <div className="flex items-end gap-2">
+      <div className="mx-auto flex max-w-4xl items-end gap-2 rounded-xl border border-border bg-card">
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
           aria-label="Anexar imagem ao grupo" onChange={event=>void chooseImage(event.target.files?.[0]||null)}/>
-        <button type="button" disabled={sending} className={btn} title="Enviar imagem" aria-label="Enviar imagem"
+        <button type="button" disabled={sending} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-xl hover:bg-muted disabled:opacity-50" title="Anexar imagem" aria-label="Anexar imagem"
           onClick={()=>fileRef.current?.click()}><ImagePlus size={17}/></button>
         <textarea aria-label="Escrever mensagem para o grupo" value={draft} maxLength={4000}
           onChange={event=>{setDraft(event.target.value);clientId.current=crypto.randomUUID();}}
-          rows={2} placeholder="Escrever mensagem..."
-          className="min-w-0 flex-1 resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"/>
-        <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50"
+          rows={1} placeholder="Digite uma mensagem..." lang="pt-BR" spellCheck={true} autoCapitalize="sentences"
+          onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void send();}}}
+          className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-base leading-6 outline-none placeholder:text-muted-foreground/65 xl:text-sm"/>
+        <button type="button" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-xl border-l border-primary/20 bg-primary text-primary-foreground disabled:opacity-50"
           aria-label="Enviar mensagem ao grupo" disabled={sending||(!draft.trim()&&!image)} onClick={()=>void send()}>
           {sending?<LoaderCircle size={17} className="animate-spin"/>:<Send size={17}/>}
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground">Texto e imagens JPEG otimizadas. A atualização do histórico é manual para reduzir consultas.</p>
-    </div>}
+      {!inbox&&<p className="mt-2 text-[11px] text-muted-foreground">Texto e imagens JPEG otimizadas. A atualização do histórico é manual para reduzir consultas.</p>}
+    </footer>}
   </section>;
 }
