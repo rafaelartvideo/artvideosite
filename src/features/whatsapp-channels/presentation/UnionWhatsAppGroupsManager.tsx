@@ -154,7 +154,7 @@ export function UnionWhatsAppGroupsManager({
           <button type="button" className={buttonClass} onClick={()=>choose("name")}>Renomear</button>
           <button type="button" className={buttonClass} onClick={()=>choose("topic")}>Descrição</button>
           <button type="button" className={buttonClass} onClick={()=>choose("participants")}>Participantes</button>
-          {canSend&&<button type="button" className={buttonClass} onClick={()=>choose("send")}><Send size={13} className="mr-1 inline"/>Escrever</button>}
+          {canSend&&!hideChat&&<button type="button" className={buttonClass} onClick={()=>choose("send")}><Send size={13} className="mr-1 inline"/>Escrever</button>}
           <button type="button" className={buttonClass+" text-destructive"} onClick={()=>choose("leave")}>Sair do grupo</button>
         </div>
         <div className="rounded-lg border border-border p-3">
