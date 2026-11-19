@@ -32,7 +32,7 @@ export function SiteRequestsPage({
     && hasPermission("site.view")
     && hasPermission("site_settings.view")
     && isAdminModuleEnabled("siteStoreOrders", hasModule);
-  const organizationId = activeOrganizationId || activeOrganization?.id;
+  const organizationId = activeOrganizationId || activeOrganization?.organization_id;
   const quoteCountQuery = useQuery({
     queryKey: ["site-requests", organizationId, "quotes-total"],
     enabled: Boolean(canQuotes && organizationId),

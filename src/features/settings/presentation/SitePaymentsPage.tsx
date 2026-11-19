@@ -32,9 +32,9 @@ type HomologationInvitation = {
  * Ferramentas e históricos de testes continuam no servidor, mas não ocupam a tela.
  */
 export function SitePaymentsPage({ onBack }: { onBack: () => void }) {
-  const { activeOrganization, hasPermission } = useAuth();
+  const { activeOrganization, activeOrganizationId, hasPermission } = useAuth();
   const canUpdate = hasPermission("site_settings.update");
-  const orgId = activeOrganization?.id;
+  const orgId = activeOrganizationId || activeOrganization?.organization_id;
   const [providers, setProviders] = useState<Gateway[]>([]);
   const [settings, setSettings] = useState<PaymentSettings>(emptySettings);
   const [savedSettings, setSavedSettings] = useState<PaymentSettings>(emptySettings);

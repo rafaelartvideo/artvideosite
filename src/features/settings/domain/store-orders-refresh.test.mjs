@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import "./site-organization-context.test.mjs";
 
 test("Store order refresh uses scoped complete snapshots instead of an unrelated historical item window", () => {
   const source = readFileSync("src/features/settings/presentation/SiteStoreOrdersPage.tsx", "utf8");
