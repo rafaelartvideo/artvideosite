@@ -3334,8 +3334,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </span>
               <span className="text-xs text-muted-foreground">
                 {protocol.message_count} mensagem(ns)
-                {duration!==null ? ` · Duração: ${duration} min` : ""}
-                {protocol.first_reply_at ? ` · Primeira resposta: ${Math.max(0,Math.round((Date.parse(protocol.first_reply_at)-Date.parse(protocol.opened_at))/60000))} min` : ""}
+                {duration!==null ? ` · Duração corrida: ${duration} min` : ""}
+                {protocol.first_reply_at ? " · Resposta registrada" : ""}
               </span>
               {canAction("view_history") && handoffs.filter(event=>event.protocol_id===protocol.id).slice(0,6)
                 .map(event=><span key={event.id} className="text-[11px] text-muted-foreground">
