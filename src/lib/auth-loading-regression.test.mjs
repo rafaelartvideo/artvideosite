@@ -40,3 +40,15 @@ test("logout do CRM não pisca por reload e não reseta o acesso duas vezes", ()
   assert.match(app, /if \(loading \|\| session \|\| \(location\.pathname === "\/admin"/);
   assert.match(app, /navigate\("\/admin", \{ replace: true \}\)/);
 });
+
+test("atualização em segundo plano não desmonta o CRM após timeout e loader possui recuperação",()=>{
+  const auth=readFileSync("src/lib/auth.tsx","utf8");
+  const app=readFileSync("src/app/App.tsx","utf8");
+  assert.ok(auth.includes("background && accessWindowRef.current?.allowed"));
+  assert.ok(auth.includes("isTransientAccessFailure(error)"));
+  assert.ok(auth.includes("Falha temporária ao atualizar permissões"));
+  assert.ok(auth.includes("SESSION_RESTORE_TIMEOUT_MS=15_000"));
+  assert.ok(auth.includes("Promise.race([supabase.auth.getSession(),sessionTimeout])"));
+  assert.ok(app.includes("O carregamento está demorando mais que o esperado"));
+  assert.ok(app.includes("Falha ao restaurar sessão"));
+});

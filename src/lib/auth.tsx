@@ -50,6 +50,21 @@ interface AuthContextValue {
 const LOGIN_NOTICE_KEY = "unionworld:login:notice";
 const SCHEDULE_WARNING_MS = 10 * 60_000;
 
+// Preserve an already authorized CRM session only for transient infrastructure
+// failures. Authorization denials and unexpected errors remain fail-closed.
+function isTransientAccessFailure(error: unknown): boolean {
+  const detail=error && typeof error==="object" ? error as Record<string,unknown> : {};
+  const status=Number(detail.status);
+  if(status===408 || status===429 || (status>=500 && status<=504))return true;
+  const code=String(detail.code||"").toUpperCase();
+  if(["57014","PGRST000","PGRST001","PGRST002","ETIMEDOUT","ECONNRESET"].includes(code))return true;
+  const name=String(detail.name||"");
+  if(name==="AbortError" || name==="TimeoutError")return true;
+  const message=String(detail.message||"").toLowerCase();
+  if(name==="TypeError" && /fetch|network|connection/.test(message))return true;
+  return /failed to fetch|networkerror|network request failed|connection refused|statement timeout|timed out|gateway timeout/.test(message);
+}
+
 const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
@@ -85,6 +100,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessWindow, setAccessWindow] = useState<MyEmployeeAccessWindow | null>(null);
+  const accessWindowRef=useRef<MyEmployeeAccessWindow|null>(null);
+  accessWindowRef.current=accessWindow;
   const [pendingTerms, setPendingTerms] = useState<PendingOrganizationTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(8);
@@ -101,7 +118,15 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    // Session restoration can stall during network incidents. A bounded wait
+    // must show an explicit retry instead of leaving the global loader forever.
+    const SESSION_RESTORE_TIMEOUT_MS=15_000;
+    let sessionTimeoutId:number|null=null;
+    const sessionTimeout=new Promise<never>((_,reject)=>{
+      sessionTimeoutId=window.setTimeout(()=>reject(new Error("session_restore_timeout")),SESSION_RESTORE_TIMEOUT_MS);
+    });
+    void Promise.race([supabase.auth.getSession(),sessionTimeout]).then(async ({ data, error }) => {
+      if(error)throw error;
       if (cancelled) return;
       // Contas do site não possuem permissões de funcionários nem SLA de inatividade do CRM.
       if (scope === "customer") {
@@ -129,6 +154,14 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         setLoadingProgress(100);
         setLoading(false);
       }
+    }).catch(error=>{
+      if(cancelled || activeOrganizationIdRef.current || accessLoadingKeyRef.current)return;
+      console.warn("[ACESSO] Não foi possível recuperar a sessão inicial:",error);
+      setAccessError("Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.");
+      setLoadingProgress(100);
+      setLoading(false);
+    }).finally(()=>{
+      if(sessionTimeoutId!==null)window.clearTimeout(sessionTimeoutId);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
@@ -208,6 +241,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
 
     return () => {
       cancelled = true;
+      if(sessionTimeoutId!==null)window.clearTimeout(sessionTimeoutId);
       cancelScheduledAccessLoad();
       listener.subscription.unsubscribe();
       removePermissionListener();
@@ -555,6 +589,17 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       // Nunca deixar o painel preso em 42% sem um botão para tentar novamente.
       if (requestId === accessRequestRef.current
         && accessLoadingKeyRef.current === requestKey && signedInUserRef.current === userId) {
+        if(background && accessWindowRef.current?.allowed &&
+          activeOrganizationIdRef.current &&
+          (!preferredOrganizationId || activeOrganizationIdRef.current===preferredOrganizationId) &&
+          isTransientAccessFailure(error)){
+          // A network failure during a permission refresh is NOT a revocation.
+          // Keep the last server-authorized session and its scheduled access
+          // deadline; successful server revocation still clears access below.
+          console.warn("[ACESSO] Atualização em segundo plano falhou:",error);
+          setLoadingProgress(100);
+          return;
+        }
         console.error("Auth access request failed:", error);
         clearResolvedAccess();
         setProfile(null);
@@ -595,6 +640,13 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     if (requestId !== accessRequestRef.current) return;
 
     if (error) {
+      if(background && accessWindowRef.current?.allowed &&
+        activeOrganizationIdRef.current===requestedOrganizationId &&
+        isTransientAccessFailure(error)){
+        console.warn("[ACESSO] Falha temporária ao atualizar permissões:",error);
+        setLoadingProgress(100);
+        return;
+      }
       console.error("Auth access bootstrap error:", error);
       clearResolvedAccess();
       setProfile(null);
@@ -664,6 +716,15 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         () => checkMyEmployeeAccessWindow(resolvedOrganization.organization_id));
     } catch (scheduleError) {
       if (requestId !== accessRequestRef.current) return;
+      if(background && activeOrganizationIdRef.current===requestedOrganizationId &&
+        accessWindowRef.current?.allowed && accessWindowRef.current?.next_end_at &&
+        isTransientAccessFailure(scheduleError)){
+        // Existing restricted sessions remain guarded by the scheduled
+        // sign-out timer and server-side access checks during brief failures.
+        console.warn("[ACESSO] Consulta de horário indisponível durante atualização:",scheduleError);
+        setLoadingProgress(100);
+        return;
+      }
       console.error("Access schedule validation error:", scheduleError);
       clearResolvedAccess();
       setAccessError("Não foi possível verificar o horário de acesso. Tente novamente.");
