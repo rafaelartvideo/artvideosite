@@ -8,6 +8,7 @@ import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPick
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
@@ -492,6 +493,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [handoffs,setHandoffs] = useState<Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [contactsOpen,setContactsOpen] = useState(false);
+  const [groupConversationsOpen,setGroupConversationsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
   const closeContactDetails=useCallback(()=>setContactDetailsOpen(false),[]);
@@ -580,6 +582,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [activeChannelId,setActiveChannelId]=useState<string|null>(null);
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
+  useEffect(()=>setGroupConversationsOpen(false),[activeOrganizationId,activeChannelPhone]);
   // O provedor persistente escolhe um único som por mensagem recebida:
   // na conversa aberta usa "conversation"; fora dela usa "notification".
   // Não cria listener Realtime extra nem toca sons ao carregar históricos.
@@ -2293,12 +2296,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
       </div>
     </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-220px)] min-h-[380px] overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:mx-0 lg:h-[min(76vh,850px)] lg:min-h-[520px]"}>
-      <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
+      {!embedded&&groupConversationsOpen&&activeOrganizationId&&activeChannelPhone
+        ? <UnionWhatsAppGroupsInbox organizationId={activeOrganizationId} accountPhone={activeChannelPhone}
+          canManage={canManage} canSend={canSend} onBack={()=>setGroupConversationsOpen(false)}/>
+        : <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
         <aside className={`${embedded ? "hidden" : selectedId ? "hidden lg:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card lg:border-b-0 lg:border-r`}>
           <div className="border-b border-border bg-muted/35 px-3 py-3 md:p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
               <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+                {canAction("view_contacts") && <button type="button" onClick={()=>setGroupConversationsOpen(true)}
+                  title="Conversas de grupos" aria-label="Abrir conversas de grupos"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
+                  <Users size={15}/> Grupos
+                </button>}
                 {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
                   className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
                   <ContactRound size={15}/> Contatos
@@ -2872,7 +2883,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </footer>
           </>}
         </section>
-      </div>
+      </div>}
     </div>}
     {contactsOpen && !editContactId && activeOrganizationId && <UnionWhatsAppContactsDialog
       key={activeChannelPhone}
@@ -2885,6 +2896,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
+      onOpenGroups={()=>{setContactsOpen(false);setGroupConversationsOpen(true);}}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
       <UnionWhatsAppContactEditDialog
