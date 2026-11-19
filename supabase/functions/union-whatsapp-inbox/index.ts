@@ -264,7 +264,7 @@ Deno.serve(async request => {
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
-      contacts_groups:"view_contacts",contacts_groups_manage:"view_all",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
+      contacts_groups:"view_contacts",contacts_groups_manage:"view_contacts",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",number_verification_status:"start",start:"start",
@@ -926,10 +926,18 @@ Deno.serve(async request => {
       
 if(action==="contacts_groups_manage") {
         // Ações de gestão só são executadas para o canal da empresa e por gestor.
-        if(!canManage)return json({success:false,error:"Somente gestores podem administrar grupos."},403);
+        // Mensagens e histórico seguem a permissão de envio; operações
+        // administrativas exigem view_all independentemente do botão na UI.
+        const command=String(body.group_command||"");
+        const isMessage=["send","send_image"].includes(command);
+        const readMessages=command==="history";
+        if(isMessage && !canSend)return json({success:false,error:"Sem permissão para enviar mensagens."},403);
+        if(readMessages && !canSend && !canManage)
+          return json({success:false,error:"Sem permissão para consultar mensagens de grupos."},403);
+        if(!isMessage && !readMessages && command!=="details" && !canManage)
+          return json({success:false,error:"Somente gestores podem administrar grupos."},403);
         if(body.account_phone!==channel.phone)
           return json({success:false,error:"O canal selecionado mudou."},409);
-        const command=String(body.group_command||"");
         const jid=String(body.group_jid||"");
         const name=String(body.group_name||"").trim();
         const topic=String(body.group_topic||"").trim();
