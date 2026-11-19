@@ -2477,7 +2477,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className={`${embedded ? "relative flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:relative lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:relative lg:flex"} min-h-0 min-w-0 flex-col bg-card`}>
+        <section className={`${embedded ? "relative flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:relative lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:relative lg:flex"} min-h-0 min-w-0 flex-col overflow-hidden bg-card`}>
           {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
@@ -2605,7 +2605,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
               <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
             </div>}
-            <div className="relative min-h-0 flex-1">
+            <div className="relative min-h-0 flex-1 overflow-hidden">
               {showFloatingDay && floatingDayKey && <div aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-3">
                 <span className="rounded-lg border border-border/70 bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
@@ -2770,7 +2770,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) previewUrls.release(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
                     aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
                 </div>}
-                <form ref={actionPanelRef} className={`relative flex min-w-0 flex-wrap items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 xl:flex-nowrap ${detachedWindow ? "md:flex-nowrap" : ""}`}
+                <form ref={actionPanelRef} className={`relative flex min-w-0 flex-wrap items-end rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 xl:flex-nowrap ${detachedWindow ? "md:flex-nowrap" : ""}`}
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={stickerFileInputRef} type="file" className="hidden"
                     accept="image/webp,.webp" aria-label="Enviar figurinha WebP"
@@ -2884,7 +2884,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         event.preventDefault(); sendText();
                       }
                     }}
-                    className={`order-2 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 xl:order-none xl:text-sm ${detachedWindow ? "md:order-none md:text-sm" : ""}`}
+                    className={`order-2 min-h-12 max-h-[132px] min-w-0 flex-1 self-end resize-none overflow-y-auto bg-transparent px-3 py-3 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 xl:order-none xl:text-sm ${detachedWindow ? "md:order-none md:text-sm" : ""}`}
                   />
                   {!replyTarget && !draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
                     title="Gravar áudio" onClick={()=>recording ? stopRecording(false) : void startRecording()}

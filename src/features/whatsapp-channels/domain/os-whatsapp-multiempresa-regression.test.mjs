@@ -1219,3 +1219,14 @@ test("Contatos tem um unico fluxo e abre a conversa global fora do filtro e pagi
   assert.match(inbox,/setConversationPage\(0\)/);
   assert.doesNotMatch(groupChat,/group_command:"history"|history_available|setInterval/);
 });
+
+test("WhatsApp multiline cresce o compositor para cima e reduz somente o historico visivel",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(inbox,/min-h-0 min-w-0 flex-col overflow-hidden bg-card/);
+  assert.match(inbox,/relative min-h-0 flex-1 overflow-hidden/);
+  assert.match(inbox,/relative z-30 shrink-0 border-t border-border bg-card/);
+  assert.match(inbox,/relative flex min-w-0 flex-wrap items-end rounded-xl/);
+  assert.match(inbox,/min-h-12 max-h-\[132px\].*self-end resize-none overflow-y-auto/);
+  assert.match(inbox,/field\.style\.height=Math\.min\(Math\.max\(field\.scrollHeight,48\),132\)/);
+  assert.match(inbox,/observer\.observe\(box\)/);
+});
