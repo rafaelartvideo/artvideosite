@@ -143,3 +143,28 @@ test("imagens recebidas abrem visualizador unificado e sem nova aba", async () =
   assert.match(viewer, /event\.key==="Escape"/);
   assert.match(viewer, /Abrir arquivo/);
 });
+
+test("Nomes dos documentos WhatsApp nao usam o UUID interno do Storage",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const read=path=>readFileSync(new URL("../../../../"+path,import.meta.url),"utf8");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const bridge=read("services/union-wuzapi-bridge/server.mjs");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const details=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const viewer=read("src/features/whatsapp-channels/presentation/UnionWhatsAppMediaViewer.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const order=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const warranty=read("src/features/orders/application/order-warranty.ts");
+  assert.match(order,/generatedFileName\(template.name \|\| "Documento"/);
+  assert.match(warranty,/new File\(\[blob\],"Certificado de Garantia - "\+safeNumber\+"\.pdf"/);
+  assert.match(bridge,/Document:dataUrl,FileName:name/);
+  assert.match(edge,/kind==="file" \? \{download:name\} : undefined/);
+  assert.match(edge,/createSignedUrl\(\s*mediaPath,120,\{download:originalName\}\)/);
+  assert.match(edge,/download_url:downloadUrl/);
+  assert.match(edge,/mediaFileName=String\(ref.file_name\|\|mediaFileName\)/);
+  assert.match(repository,/download_url\?: string\|null/);
+  assert.match(inbox,/href=\{mediaDownloadUrl\|\|mediaUrl\}/);
+  assert.match(details,/downloadUrl:links.downloadUrl/);
+  assert.match(viewer,/href=\{downloadUrl\|\|url\}/);
+  assert.match(viewer,/download=\{name\}/);
+});

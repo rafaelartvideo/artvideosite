@@ -3,6 +3,7 @@ import { FileText, X } from "lucide-react";
 
 type WhatsAppMediaViewerProps = {
   url:string;
+  downloadUrl?:string|null;
   type:string;
   name:string;
   onClose:()=>void;
@@ -12,7 +13,7 @@ type WhatsAppMediaViewerProps = {
 // A mesma visualização para imagens da conversa e arquivos do perfil do contato.
 // "Abrir arquivo" continua opcional; tocar na imagem nunca abre outra guia.
 export function UnionWhatsAppMediaViewer({
-  url,type,name,onClose,placement="viewport",
+  url,downloadUrl,type,name,onClose,placement="viewport",
 }:WhatsAppMediaViewerProps){
   useEffect(()=>{
     const onEscape=(event:KeyboardEvent)=>{
@@ -42,6 +43,10 @@ export function UnionWhatsAppMediaViewer({
         className="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-900">
         Abrir arquivo
       </a>
+      {type==="file" && <a href={downloadUrl||url} target="_blank" rel="noopener noreferrer"
+        download={name} className="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-900">
+        Baixar
+      </a>}
     </div>
   </div>;
 }

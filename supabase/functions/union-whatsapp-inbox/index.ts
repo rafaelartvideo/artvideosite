@@ -2344,11 +2344,13 @@ if(action==="contacts_groups_manage") {
         return json({success:false,error:"Sem acesso ao arquivo deste atendimento."},403);
       }
       const {data:mediaMessage,error:mediaError}=await admin.from("union_whatsapp_messages")
-        .select("media_path,media_name,media_mime,media_available")
+        .select("media_path,media_name,media_mime,media_available,message_type")
         .eq("id",messageId).eq("organization_id",org).eq("conversation_id",thread.id).maybeSingle();
       if(mediaError) throw mediaError;
       if(!mediaMessage) return json({success:false,error:"Mensagem não encontrada."},404);
       let mediaPath=mediaMessage.media_path as string|null;
+      let mediaFileName=String(mediaMessage.media_name||"");
+      let mediaMime=String(mediaMessage.media_mime||"");
       if(!mediaPath && mediaMessage.media_available) {
         const {data:ref,error:refError}=await admin.from("union_whatsapp_inbound_media_refs")
           .select("file_url,media_key,file_sha256,file_enc_sha256,file_length,mime_type,media_type,file_name")
@@ -2395,8 +2397,10 @@ if(action==="contacts_groups_manage") {
         const {error:uploadError}=await admin.storage.from("union-whatsapp-media")
           .upload(mediaPath,bytes,{contentType:ref.mime_type,upsert:false});
         if(uploadError && !String(uploadError.message||"").includes("already exists")) throw uploadError;
+        mediaFileName=String(ref.file_name||mediaFileName);
+        mediaMime=String(ref.mime_type||mediaMime);
         const {error:saveError}=await admin.from("union_whatsapp_messages")
-          .update({media_path:mediaPath,media_name:ref.file_name,media_mime:ref.mime_type})
+          .update({media_path:mediaPath,media_name:mediaFileName||null,media_mime:mediaMime||null})
           .eq("id",messageId).eq("organization_id",org).eq("conversation_id",thread.id);
         if(saveError) throw saveError;
       }
@@ -2405,10 +2409,28 @@ if(action==="contacts_groups_manage") {
         !mediaPath.startsWith(org+"/stickers/")) {
         return json({success:false,error:"Arquivo inválido."},403);
       }
-      const {data:link,error:linkError}=await admin.storage.from("union-whatsapp-media")
-        .createSignedUrl(mediaPath,120);
+      const safeOriginalName=mediaFileName.replace(/[^\\p{L}\\p{N}._() -]/gu,"").trim().slice(0,160);
+      const mimeExt=mediaMime==="application/pdf"?"pdf":
+        mediaMime==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"?"docx":
+        mediaMime==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"?"xlsx":
+        mediaMime==="application/vnd.openxmlformats-officedocument.presentationml.presentation"?"pptx":
+        mediaMime==="text/plain"?"txt":"bin";
+      const originalName=safeOriginalName || (mediaMessage.message_type==="file"?"Documento."+mimeExt:"");
+      const storage=admin.storage.from("union-whatsapp-media");
+      const {data:link,error:linkError}=await storage.createSignedUrl(mediaPath,120);
       if(linkError || !link?.signedUrl) throw linkError||Error("signed_url_unavailable");
-      return json({success:true,url:link.signedUrl,filename:mediaMessage.media_name,mime:mediaMessage.media_mime});
+      // A cross-origin <a download> is ignored by browsers. Sign an actual
+      // download URL with Content-Disposition so the user gets the real title.
+      let downloadUrl:string|null=null;
+      if(mediaMessage.message_type==="file" && originalName){
+        const {data:downloadLink,error:downloadError}=await storage.createSignedUrl(
+          mediaPath,120,{download:originalName});
+        if(downloadError || !downloadLink?.signedUrl)
+          throw downloadError||Error("named_download_unavailable");
+        downloadUrl=downloadLink.signedUrl;
+      }
+      return json({success:true,url:link.signedUrl,download_url:downloadUrl,
+        filename:originalName||null,mime:mediaMime||null});
     }
     if(action==="members" || action==="transfer") {
       // Same-company, active operators only. Never trust a client-provided
@@ -2714,7 +2736,8 @@ if(action==="contacts_groups_manage") {
     let signedMedia:{url:string;mime:string;name:string;type:string}|undefined;
     if(isMedia && mediaPath) {
       const {data:shortLink,error:shortError}=await admin.storage.from("union-whatsapp-media")
-        .createSignedUrl(mediaPath,180);
+        .createSignedUrl(mediaPath,180,
+          kind==="file" ? {download:name} : undefined);
       if(shortError || !shortLink?.signedUrl) throw shortError||Error("signed_media_unavailable");
       signedMedia={url:shortLink.signedUrl,mime,name,type:kind};
     }

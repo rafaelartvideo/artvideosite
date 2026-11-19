@@ -184,6 +184,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   stickerSaved?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaDownloadUrl,setMediaDownloadUrl]=useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [mediaRequested,setMediaRequested]=useState(false);
@@ -215,6 +216,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
       if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
       setMediaUrl(data.url);
+      setMediaDownloadUrl(data.download_url||"");
       if(message.message_type==="sticker"){
         if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
         stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
@@ -233,7 +235,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   // Fotos e figurinhas são consultadas quando estiverem próximas da área visível,
   // evitando um download simultâneo para cada imagem do histórico.
   useEffect(()=>{
-    setMediaUrl("");setMediaError("");setMediaRequested(false);
+    setMediaUrl("");setMediaDownloadUrl("");setMediaError("");setMediaRequested(false);
     if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
       (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
     const element=mediaTargetRef.current;
@@ -327,7 +329,8 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
       <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
-      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
+      <a href={mediaDownloadUrl||mediaUrl} target="_blank" rel="noopener noreferrer"
+        download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
     </div>}
     {!mediaUrl && (mediaLoading ?
       <div role="status" aria-label="Carregando arquivo" className="flex min-h-9 items-center justify-center">

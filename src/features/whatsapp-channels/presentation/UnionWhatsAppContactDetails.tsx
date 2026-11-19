@@ -18,8 +18,9 @@ const labels:{key:UnionWhatsAppSharedTab;label:string}[]=[
 
 // Signed URLs expire after 120 seconds. Reuse only inside their safe lifetime,
 // never persist private media URLs in localStorage or the contact directory.
-const urlCache=new Map<string,{url:string|null;until:number}>();
-const pending=new Map<string,Promise<string|null>>();
+type SharedMediaLinks={url:string;downloadUrl:string|null};
+const urlCache=new Map<string,{links:SharedMediaLinks|null;until:number}>();
+const pending=new Map<string,Promise<SharedMediaLinks|null>>();
 const jobs:Array<()=>void>=[];
 let active=0;
 function nextJob(){
@@ -32,19 +33,21 @@ function nextJob(){
 function signedMedia(organization:string,conversation:string,messageId:string){
   const key=organization+":"+conversation+":"+messageId;
   const cached=urlCache.get(key);
-  if(cached&&cached.until>Date.now())return Promise.resolve(cached.url);
+  if(cached&&cached.until>Date.now())return Promise.resolve(cached.links);
   const previous=pending.get(key);
   if(previous)return previous;
-  const job=new Promise<string|null>(resolve=>{
+  const job=new Promise<SharedMediaLinks|null>(resolve=>{
     jobs.push(()=>{
       void operateUnionWhatsAppInbox(organization,conversation,"media_view",{message_id:messageId})
         .then(data=>{
           const url=typeof data.url==="string"&&data.url.startsWith("https://")?data.url:null;
-          urlCache.set(key,{url,until:Date.now()+(url?100_000:60_000)});
+          const links=url?{url,downloadUrl:typeof data.download_url==="string" &&
+            data.download_url.startsWith("https://")?data.download_url:null}:null;
+          urlCache.set(key,{links,until:Date.now()+(links?100_000:60_000)});
           if(urlCache.size>160)urlCache.delete(urlCache.keys().next().value||"");
-          resolve(url);
+          resolve(links);
         }).catch(()=>{
-          urlCache.set(key,{url:null,until:Date.now()+45_000});
+          urlCache.set(key,{links:null,until:Date.now()+45_000});
           resolve(null);
         }).finally(()=>{
           pending.delete(key);
@@ -86,7 +89,7 @@ function MediaTile({item,organization,conversation,onOpen}:{
   useEffect(()=>{
     if(!visible)return;
     let cancelled=false;
-    void signedMedia(organization,conversation,item.id).then(value=>{if(!cancelled)setUrl(value);});
+    void signedMedia(organization,conversation,item.id).then(value=>{if(!cancelled)setUrl(value?.url||null);});
     return()=>{cancelled=true;};
   },[visible,item.id,organization,conversation]);
   return <button ref={node} type="button" onClick={onOpen}
@@ -120,7 +123,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   });
   const requests=useRef(new Set<UnionWhatsAppSharedTab>());
   const drawerRef=useRef<HTMLElement|null>(null);
-  const [preview,setPreview]=useState<{url:string;type:string;name:string}|null>(null);
+  const [preview,setPreview]=useState<{url:string;downloadUrl:string|null;type:string;name:string}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
   const name=conversation.contact_name||"Contato WhatsApp";
@@ -174,9 +177,9 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     if(previewLoading)return;
     setPreviewError("");setPreviewLoading(true);
     try{
-      const url=await signedMedia(organizationId,conversation.id,item.id);
-      if(!url){setPreviewError("Este arquivo não está mais disponível.");return;}
-      setPreview({url,type:item.message_type,
+      const links=await signedMedia(organizationId,conversation.id,item.id);
+      if(!links){setPreviewError("Este arquivo não está mais disponível.");return;}
+      setPreview({url:links.url,downloadUrl:links.downloadUrl,type:item.message_type,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }finally{setPreviewLoading(false);}
   };
@@ -285,7 +288,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       className={inline?"pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center bg-black/55":"pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/55"}>
       <LoaderCircle size={27} className="animate-spin text-white"/>
     </div>}
-    {preview&&<UnionWhatsAppMediaViewer url={preview.url} type={preview.type}
+    {preview&&<UnionWhatsAppMediaViewer url={preview.url} downloadUrl={preview.downloadUrl} type={preview.type}
       name={preview.name} placement={inline?"viewport":"drawer"}
       onClose={()=>setPreview(null)}/>}
     {previewError&&<div role="alert" className={inline?"fixed bottom-4 left-4 right-4 z-[80] rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive":"pointer-events-auto absolute bottom-4 left-4 right-4 z-50 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive"}>
