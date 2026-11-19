@@ -2510,7 +2510,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
-                    {item.viewer_participating && <span
+                  {item.status==="in_att" && item.awaiting_reply_since && queueSettings.show_wait_time &&
+                    waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes &&
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
+                      Sem resposta {waitingLabel(waitingMinutes(item.awaiting_reply_since,clockNow))}
+                    </span>}
+                  {item.viewer_participating && <span
                     className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
                 </span>
