@@ -419,12 +419,12 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     // Membership is checked against this account, never another WhatsApp login.
     const command=String(groupCommand||"");
     const jid=String(groupJid||"");
-    const validJid=/^[0-9]{5,30}@g\\.us$/.test(jid);
+    const validJid=/^[0-9]{5,30}@g\.us$/.test(jid);
     const name=String(groupName||"").trim();
     const topic=String(groupTopic||"").trim();
     const phones=Array.isArray(groupPhones)?[...new Set(groupPhones.map(String))]:[];
     const validPhone=value=>/^[1-9][0-9]{7,14}$/.test(value) ||
-      /^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(value);
+      /^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(value);
     if(!["create","details","leave","participants","name","topic","send"].includes(command) ||
       (command!=="create" && !validJid))throw new Error("bad_request");
     if(command==="create"){
@@ -433,7 +433,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       const created=await wuzapi("/group/create",session.token,"POST",{name,participants:phones});
       const group=created?.data??created;
       const newJid=String(group?.JID||group?.jid||"");
-      if(!/^[0-9]{5,30}@g\\.us$/.test(newJid))throw new Error("provider_confirmation_unknown");
+      if(!/^[0-9]{5,30}@g\.us$/.test(newJid))throw new Error("provider_confirmation_unknown");
       return {ok:true,jid:newJid};
     }
     const list=await wuzapi("/group/list",session.token);
@@ -449,7 +449,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         is_announce:group.IsAnnounce===true,is_locked:group.IsLocked===true,
         participants:rawMembers.slice(0,1000).flatMap(member=>{
           const participantJid=String(member?.JID||member?.jid||"");
-          if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(participantJid))return [];
+          if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(participantJid))return [];
           return [{jid:participantJid,is_admin:member?.IsAdmin===true,
             is_super_admin:member?.IsSuperAdmin===true}];
         }),participants_count:rawMembers.length};
