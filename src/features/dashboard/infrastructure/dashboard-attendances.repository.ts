@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 // Uma única RPC indexada para protocolos, conversas e encaminhamentos.
 // Não lê mensagens, arquivos, fotos, logs ou o SAC Digital desativado.
 export type AttendanceMetrics = {
-  active:number; waiting:number; unread:number; unanswered:number;
+  active:number; waiting:number; closed_total:number; unread:number; unanswered:number;
   forwarded:number; opened:number; finished:number;
   avg_first_reply_minutes:number|null; avg_handle_minutes:number|null;
   sla_valid:number; sla_met:number; invalid_reply_times:number;
