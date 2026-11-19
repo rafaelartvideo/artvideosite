@@ -73,6 +73,7 @@ type TabDashboardProps = {
   onNavigate?: (tab: AdminTab) => void;
   onOpenOrder?: (orderId: string) => void;
   onOpenWhatsApp?: (filter: string, conversationId?: string, operatorId?: string) => void;
+  onOpenAttendanceSettings?: () => void;
 };
 type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: DashboardMetricTone; hint?: string };
 type MetricSelection = { title: string; value: ReactNode; description: string; rows: AdminMetricDetailRow[]; tab: AdminTab | null };
@@ -288,7 +289,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
   return onClick ? <button type="button" onClick={onClick} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 hover:bg-[#f8fafc]">{content}</button> : <div className="flex items-center gap-3 px-1 py-2.5">{content}</div>;
 }
 
-export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDashboardProps) {
+export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAttendanceSettings }: TabDashboardProps) {
   const { activeOrganizationId, activeOrganization, user, hasPermission, hasModule, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
@@ -625,7 +626,8 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDas
           periodDays={periodDays}
           visible={key=>widgetVisible(key)}
           onRestore={()=>widgetSettings.restore("attendances")}
-          onOpenInbox={onOpenWhatsApp}/>
+          onOpenInbox={onOpenWhatsApp}
+          onConfigureHours={onOpenAttendanceSettings}/>
       </Suspense>;
     }
     if (activeModule === "orders") {
