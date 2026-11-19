@@ -165,6 +165,11 @@ test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por e
   assert.match(ui,/refetchIntervalInBackground:false/);
   assert.match(ui,/Sem resposta/);
   assert.match(ui,/unanswered_after_minutes/);
+  assert.match(ui,/value=\{number\(m.closed_total\)\}/);
+  assert.match(ui,/value=\{number\(m.finished\)\}/);
+  assert.match(repo,/closed_total:number/);
+  assert.match(read("supabase/migrations/20261119221000_dashboard_attendances_finished_snapshot.sql"),/'closed_total',coalesce\(cs.closed_total,0\)/);
+  assert.match(dashboard,/activeModule==="attendances"\?attendancePeriodOptions:periodOptions/);
   assert.match(ui,/aria-label="Painéis de atendimentos"/);
   assert.match(ui,/role="tab"/);
   assert.match(admin,/params.set\("dashboardFilter",filter\)/);
