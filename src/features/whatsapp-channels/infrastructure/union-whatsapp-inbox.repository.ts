@@ -168,22 +168,44 @@ export async function listUnionWhatsAppUnansweredCount(
   return count??0;
 }
 
-export async function listUnionWhatsAppConversationCounts(
+// Counts do not need to run on every message event or page refresh.
+// Share concurrent requests and reuse tenant/channel-scoped results briefly.
+// Failed requests are evicted immediately so the next refresh can recover.
+const WHATSAPP_COUNTS_CACHE_TTL_MS=20_000;
+const whatsappCountsCache=new Map<string,{
+  expiresAt:number;request:Promise<UnionWhatsAppConversationCounts>;
+}>();
+export function listUnionWhatsAppConversationCounts(
   organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,
 ):Promise<UnionWhatsAppConversationCounts>{
-  const [{data,error},unanswered]=await Promise.all([
-    supabase.rpc("union_whatsapp_inbox_counts",{
-      p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
-    }),
-    listUnionWhatsAppUnansweredCount(organizationId,channelId,accountPhone,priorityMinutes),
-  ]);
-  raise(error);
-  const row=Array.isArray(data)?data[0]:data;
-  return {
-    waiting:Number(row?.waiting_count||0),in_att:Number(row?.in_att_count||0),
-    forwarded:Number(row?.forwarded_count||0),finished:Number(row?.finished_count||0),
-    total:Number(row?.total_count||0),unread:Number(row?.unread_count||0),unanswered,
-  };
+  const minutes=Math.min(1440,Math.max(1,Math.floor(priorityMinutes||15)));
+  const key=JSON.stringify([organizationId,channelId,accountPhone,minutes]);
+  const now=Date.now();
+  const cached=whatsappCountsCache.get(key);
+  if(cached && cached.expiresAt>now)return cached.request;
+  const request=(async():Promise<UnionWhatsAppConversationCounts>=>{
+    const [{data,error},unanswered]=await Promise.all([
+      supabase.rpc("union_whatsapp_inbox_counts",{
+        p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
+      }),
+      listUnionWhatsAppUnansweredCount(organizationId,channelId,accountPhone,minutes),
+    ]);
+    raise(error);
+    const row=Array.isArray(data)?data[0]:data;
+    return {
+      waiting:Number(row?.waiting_count||0),in_att:Number(row?.in_att_count||0),
+      forwarded:Number(row?.forwarded_count||0),finished:Number(row?.finished_count||0),
+      total:Number(row?.total_count||0),unread:Number(row?.unread_count||0),unanswered,
+    };
+  })();
+  whatsappCountsCache.delete(key);
+  whatsappCountsCache.set(key,{expiresAt:now+WHATSAPP_COUNTS_CACHE_TTL_MS,request});
+  while(whatsappCountsCache.size>16)
+    whatsappCountsCache.delete(whatsappCountsCache.keys().next().value!);
+  void request.catch(()=>{
+    if(whatsappCountsCache.get(key)?.request===request)whatsappCountsCache.delete(key);
+  });
+  return request;
 }
 
 export async function listUnionWhatsAppConversations(
