@@ -294,26 +294,31 @@ Deno.serve(async request => {
 
     if(action==="queue_settings_get" || action==="queue_settings_save"){
       const defaults={warning_minutes:5,critical_minutes:15,
-        show_wait_time:true,show_queue_position:true,show_forward_badges:true};
+        show_wait_time:true,show_queue_position:true,show_forward_badges:true,
+        auto_prioritize_unanswered:true,unanswered_priority_minutes:15};
       if(action==="queue_settings_save"){
         const warning=Number(body.warning_minutes),critical=Number(body.critical_minutes);
+        const priorityMinutes=Number(body.unanswered_priority_minutes);
         if(!Number.isInteger(warning) || warning<1 || warning>720 ||
           !Number.isInteger(critical) || critical<=warning || critical>1440 ||
-          ["show_wait_time","show_queue_position","show_forward_badges"]
+          !Number.isInteger(priorityMinutes) || priorityMinutes<1 || priorityMinutes>1440 ||
+          ["show_wait_time","show_queue_position","show_forward_badges","auto_prioritize_unanswered"]
             .some(key=>typeof body[key]!=="boolean"))
           return json({success:false,error:"Configure tempos válidos, com a espera crítica maior que a de atenção."},400);
         const {data:updated,error:saveError}=await admin.from("union_whatsapp_queue_settings")
           .upsert({organization_id:org,warning_minutes:warning,critical_minutes:critical,
             show_wait_time:body.show_wait_time,show_queue_position:body.show_queue_position,
-            show_forward_badges:body.show_forward_badges,updated_by:actorId,updated_at:new Date().toISOString()},
+            show_forward_badges:body.show_forward_badges,
+            auto_prioritize_unanswered:body.auto_prioritize_unanswered,
+            unanswered_priority_minutes:priorityMinutes,updated_by:actorId,updated_at:new Date().toISOString()},
             {onConflict:"organization_id"})
-          .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges")
+          .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges,auto_prioritize_unanswered,unanswered_priority_minutes")
           .single();
         if(saveError)throw saveError;
         return json({success:true,queue_settings:updated});
       }
       const {data:settings,error:settingsError}=await admin.from("union_whatsapp_queue_settings")
-        .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges")
+        .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges,auto_prioritize_unanswered,unanswered_priority_minutes")
         .eq("organization_id",org).maybeSingle();
       if(settingsError)throw settingsError;
       return json({success:true,queue_settings:settings||defaults});
