@@ -58,7 +58,7 @@ test("customer SQL fixture preserves large pages, exact filters and invoker RLS"
   try {
     await database.exec(readFileSync("src/features/customers/domain/customers-pagination.fixture.sql", "utf8"));
     await database.exec(`create collation pg_catalog."pt-BR-x-icu" (provider=icu,locale='pt-BR');`);
-    const migration = readFileSync("supabase/migrations/20261118224040_customers_exact_filtered_page.sql", "utf8");
+    const migration = readFileSync("supabase/migrations/20261118225700_customers_exact_filtered_page.sql", "utf8");
     // PGlite can accept ICU DDL while ignoring ICU options. Verify that the
     // actual migration refuses this environment before testing its SQL logic.
     let nativeIcu = true;

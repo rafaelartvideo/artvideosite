@@ -8,6 +8,7 @@ import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPick
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
@@ -393,6 +394,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [debouncedQuery,setDebouncedQuery]=useState("");
   const [conversationPage,setConversationPage]=useState(0);
   const [conversationHasMore,setConversationHasMore]=useState(false);
+  const [conversationTotal,setConversationTotal]=useState<number|null>(null);
   const [conversationPageLoading,setConversationPageLoading]=useState(false);
   const [conversationCounts,setConversationCounts]=useState<UnionWhatsAppConversationCounts>({
     waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,
@@ -491,6 +493,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [handoffs,setHandoffs] = useState<Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [contactsOpen,setContactsOpen] = useState(false);
+  const [groupConversationsOpen,setGroupConversationsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
   const closeContactDetails=useCallback(()=>setContactDetailsOpen(false),[]);
@@ -579,6 +582,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [activeChannelId,setActiveChannelId]=useState<string|null>(null);
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
+  useEffect(()=>setGroupConversationsOpen(false),[activeOrganizationId,activeChannelPhone]);
   // O provedor persistente escolhe um único som por mensagem recebida:
   // na conversa aberta usa "conversation"; fora dela usa "notification".
   // Não cria listener Realtime extra nem toca sons ao carregar históricos.
@@ -608,7 +612,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
     filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
-  listQueryRef.current={filter,department:departmentFilter,
+  listQueryRef.current={filter,department:canManage?departmentFilter:"all",
     operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
     search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
@@ -617,17 +621,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Only retain paginated 50-row results, scoped to the organization,
   // channel, filters and page. Incoming realtime invalidates stale pages.
   const conversationPageCacheRef=useRef(new Map<string,{
-    items:UnionWhatsAppConversation[];hasMore:boolean;savedAt:number;
+    items:UnionWhatsAppConversation[];hasMore:boolean;total:number;savedAt:number;
   }>());
+  // As contagens são reutilizadas entre páginas e atualizações realtime.
+  const conversationTotalCacheRef=useRef(new Map<string,{total:number;savedAt:number}>());
   const refresh=useCallback(async(silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
     const sequence=++conversationLoadSeq.current;
     const options={...listQueryRef.current};
     const queryKey=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,options]);
+    const countKey=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,
+      options.filter,options.department,options.operator,options.search,options.viewerId,options.canViewAll]);
+    const cachedTotal=conversationTotalCacheRef.current.get(countKey);
+    const includeCount=!cachedTotal || Date.now()-cachedTotal.savedAt>45_000;
     if(!silent)setConversationPageLoading(true);
     try{
       const [page,counts]=await Promise.all([
-        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,options),
+        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,{...options,includeCount}),
         listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone),
       ]);
       if(sequence!==conversationLoadSeq.current ||
@@ -641,9 +651,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       });
       setConversations(options.filter==="in_att"
         ? [...enriched].sort(latestMessageFirst) : enriched);
+      const total=page.total??cachedTotal?.total??(options.page*50+page.items.length);
+      if(page.total!==null){
+        const totals=conversationTotalCacheRef.current;
+        totals.set(countKey,{total,savedAt:Date.now()});
+        while(totals.size>25)totals.delete(totals.keys().next().value!);
+      }
+      setConversationTotal(total);
       const cache=conversationPageCacheRef.current;
       cache.delete(queryKey);
-      cache.set(queryKey,{items:enriched,hasMore:page.hasMore,savedAt:Date.now()});
+      cache.set(queryKey,{items:enriched,hasMore:page.hasMore,total,savedAt:Date.now()});
       while(cache.size>12)cache.delete(cache.keys().next().value!);
       // One bounded name lookup per visible page, cached for ten minutes.
       // Real-time refreshes reuse the cache instead of scanning CRM repeatedly.
@@ -767,6 +784,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
     conversationPageCacheRef.current.clear();
+    conversationTotalCacheRef.current.clear();
+    setConversationTotal(null);
     contactNameCacheRef.current.clear();
     setConversations([]);
     setMessagesHasMore(false);messageCursorRef.current=null;setMessagesOlderLoading(false);
@@ -862,7 +881,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setOperatorCounts({});
     void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"operator_filter_list",{
       filter:filter as "in_att"|"finished"|"forwarded",channel_id:activeChannelId||"",
-      account_phone:activeChannelPhone||"",department_filter:departmentFilter,
+      account_phone:activeChannelPhone||"",department_filter:canManage?departmentFilter:"all",
     }).then(result=>{
         if(cancelled || organizationRef.current!==org)return;
         const options=(result.operators||[]).map(item=>({id:item.id,name:item.name}));
@@ -890,6 +909,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(cached){
       setConversations(cached.items);
       setConversationHasMore(cached.hasMore);
+       setConversationTotal(cached.total);
       setConversationPageLoading(false);
       lastListQueryRef.current=key;
       if(Date.now()-cached.savedAt<45_000){
@@ -902,6 +922,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
     setConversationPageLoading(true);
     setConversations([]);
+    setConversationTotal(null);
     void refresh(true);
   },[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
@@ -2244,7 +2265,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </button>
     </nav>
       </div>
-      <div className="flex w-full min-w-0 items-center justify-between gap-2 md:w-auto md:shrink-0 md:justify-end">
+      <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
           <button type="button" data-whatsapp-attendance-settings-trigger="true" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
             onClick={onConfigure}
@@ -2274,33 +2295,41 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </AdminButton>
           </div>}
       </div>
-    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-250px)] min-h-[360px] overflow-hidden rounded-none border border-border bg-card shadow-sm lg:mx-0 lg:h-[min(76vh,850px)] lg:min-h-[520px]"}>
-      <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
+    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "-mx-2 h-[calc(100dvh-220px)] min-h-[380px] overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:mx-0 lg:h-[min(76vh,850px)] lg:min-h-[520px]"}>
+      {!embedded&&groupConversationsOpen&&activeOrganizationId&&activeChannelPhone
+        ? <UnionWhatsAppGroupsInbox organizationId={activeOrganizationId} accountPhone={activeChannelPhone}
+          canManage={canManage} canSend={canSend} onBack={()=>setGroupConversationsOpen(false)}/>
+        : <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1"}>
         <aside className={`${embedded ? "hidden" : selectedId ? "hidden lg:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card lg:border-b-0 lg:border-r`}>
-          <div className="border-b border-border bg-muted/35 p-2.5 md:p-3">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-              <p className="text-base font-black text-foreground">Conversas</p>
+          <div className="border-b border-border bg-muted/35 px-3 py-3 md:p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
               <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+                {canAction("view_contacts") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
+                  title="Conversas de grupos" aria-label="Abrir conversas de grupos"
+                  className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
+                  <Users size={15}/> Grupos
+                </button>}
                 {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
-                  className="flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
+                  className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-[11px] font-semibold text-foreground hover:bg-muted md:gap-1.5 md:px-2.5 md:text-xs">
                   <ContactRound size={15}/> Contatos
                 </button>}
                 {canAction("start_new_conversation") && <AdminButton variant="tertiary" size="sm" aria-label="Nova conversa" onClick={() => {
                   numberCheckSequence.current+=1;
                   setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
                   setNewConversationOpen(true);
-                }} className="!h-8 !gap-1.5 !px-2.5">
+                }} className="!h-9 !gap-1.5 !px-2.5">
                   <Plus size={15}/> Nova
                 </AdminButton>}
               </div>
             </div>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
+            <p className="mt-1 text-[11px] text-muted-foreground">
               {counts.total} conversa(s) · {counts.unread} não lida(s)
             </p>
-            <div className="mt-2.5 grid grid-cols-2 gap-1.5 md:mt-3">
+            <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible md:pb-0">
               {filters.map(item => <button key={item.value} type="button" onClick={() => {setConversationPage(0);setFilter(item.value);}}
                 aria-pressed={filter === item.value}
-                className={`flex min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-2 text-[11px] font-bold transition-colors md:gap-1.5 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
+                className={`flex min-h-9 shrink-0 items-center justify-between gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-bold transition-colors md:min-w-0 md:shrink md:gap-1.5 md:px-2 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
                 <span className="truncate">{item.label}</span>
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
@@ -2309,22 +2338,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               aria-label={"Ver todas as conversas não lidas: "+counts.unread}
               onClick={()=>{setConversationPage(0);setFilter("unread");}}
               className={filter==="unread"
-                ? "mt-2 flex w-full items-center justify-between rounded-lg border border-primary bg-primary-soft px-3 py-2 text-xs font-semibold text-primary"
-                : "mt-2 flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted"}>
+                ? "mt-1 flex min-h-9 w-full items-center justify-between rounded-lg border border-primary bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary md:mt-2 md:py-2"
+                : "mt-1 flex min-h-9 w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted md:mt-2 md:py-2"}>
               <span className="inline-flex items-center gap-2">
                 <MessageCircle size={15}/> Não lidas
                 <span className="hidden text-[11px] font-normal text-muted-foreground sm:inline">· todas as páginas</span>
               </span>
               <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unread}</span>
             </button>
-            <div className={canManage && supportsOperatorFilter(filter) ? "mt-3 grid grid-cols-2 gap-2" : "mt-3"}>
-              <select aria-label="Filtrar departamento" value={departmentFilter}
+            <div className={canManage && supportsOperatorFilter(filter) ? "mt-2 grid grid-cols-2 gap-2 md:mt-3" : "mt-2 md:mt-3"}>
+              {canManage && <select aria-label="Filtrar departamento" value={departmentFilter}
                 onChange={event=>{setConversationPage(0);setDepartmentFilter(event.target.value);}}
                 className="min-w-0 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
                 <option value="all">Todos os departamentos</option>
                 <option value="none">Sem departamento</option>
                 {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              </select>}
               {canManage && supportsOperatorFilter(filter) && <select aria-label="Filtrar operador"
                 value={operatorFilter} disabled={operatorChoicesLoading && operatorChoices.length===0}
                 onChange={event=>{setConversationPage(0);setOperatorFilter(event.target.value);}}
@@ -2334,11 +2363,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   title={person.name}>{person.name.trim().split(/\s+/)[0]||"Operador"} ({operatorCounts[person.id]||0})</option>)}
               </select>}
             </div>
-            <div className="relative mt-3">
+            <div className="relative mt-2 md:mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={query} onChange={event => {setConversationPage(0);setQuery(event.target.value);}} type="search" aria-label="Buscar conversa"
                 placeholder="Nome, telefone ou protocolo"
-                className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
+                className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 md:py-2.5"/>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -2391,8 +2420,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </button>;
             })}
           </div>
-          {(conversationPage>0||conversationHasMore) && <div className="flex shrink-0 items-center justify-between border-t border-border bg-card px-3 py-2">
-            <span className="text-xs text-muted-foreground">Página {conversationPage+1}</span>
+          {!embedded && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card px-3 py-2.5">
+             <div className="min-w-0 text-[11px] text-muted-foreground" aria-live="polite">
+               <span className="block tabular-nums">{conversationPageLoading ? "Consultando..." : `${visible.length} nesta página · ${conversationTotal??0} no total`}</span>
+               <span className="block tabular-nums">Página {conversationPage+1} de {conversationTotal===null?"…":Math.max(1,Math.ceil(conversationTotal/50))}</span>
+             </div>
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Página anterior de conversas"
                 disabled={conversationPage===0||conversationPageLoading}
@@ -2851,7 +2883,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </footer>
           </>}
         </section>
-      </div>
+      </div>}
     </div>}
     {contactsOpen && !editContactId && activeOrganizationId && <UnionWhatsAppContactsDialog
       key={activeChannelPhone}
@@ -2859,9 +2891,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       canImport={canAction("import_contacts")}
       canCreate={canAction("create_contacts")}
       canEdit={canAction("manage_contacts")}
+      canManageGroups={canAction("view_all")}
+      canSendGroups={canAction("send")}
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
+      onOpenGroups={()=>{setContactsOpen(false);setSelectedId(null);setGroupConversationsOpen(true);}}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
       <UnionWhatsAppContactEditDialog

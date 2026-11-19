@@ -8,6 +8,7 @@ import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisua
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses, type CrmContactAddress } from "../domain/crm-contact-format";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
+import { UnionWhatsAppGroupsManager } from "./UnionWhatsAppGroupsManager";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { findUnionWhatsAppConversationByContact, operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppConversation, type UnionWhatsAppGroup } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
@@ -31,7 +32,7 @@ const mask = (value:string) => {
 };
 
 export function UnionWhatsAppContactsDialog({
-  organizationId, accountPhone,channelId,canImport, canCreate, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
+  organizationId, accountPhone,channelId,canImport, canCreate, canEdit, canManageGroups, canSendGroups, onClose, onSaved, onChoose, onOpenGroups, initialContact, initialName,
 }:{
   organizationId:string;
   accountPhone:string;
@@ -39,9 +40,12 @@ export function UnionWhatsAppContactsDialog({
   canImport:boolean;
   canCreate:boolean;
   canEdit:boolean;
+  canManageGroups:boolean;
+  canSendGroups:boolean;
   onClose:()=>void;
   onSaved:()=>void;
   onChoose:(contact:UnionWhatsAppContact)=>boolean;
+  onOpenGroups?:()=>void;
   initialContact?:UnionWhatsAppContact|null;
   initialName?:string;
 }) {
@@ -53,6 +57,7 @@ export function UnionWhatsAppContactsDialog({
   const [groupsLoading,setGroupsLoading]=useState(false);
   const [groupsError,setGroupsError]=useState("");
   const [selectedGroup,setSelectedGroup]=useState<UnionWhatsAppGroup|null>(null);
+  const [groupCreating,setGroupCreating]=useState(false);
   const [groupRevision,setGroupRevision]=useState(0);
   const [crmLoading,setCrmLoading]=useState(false);
   const [contactConversation,setContactConversation]=useState<UnionWhatsAppConversation|null>(null);
@@ -133,7 +138,11 @@ export function UnionWhatsAppContactsDialog({
     let cancelled=false;
     setGroupsLoading(true);setGroupsError("");
     void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups")
-      .then(result=>{if(!cancelled)setGroups(result.groups||[]);})
+      .then(result=>{if(!cancelled){
+         const received=result.groups||[];
+         setGroups(received);
+         setSelectedGroup(current=>current ? received.find(item=>item.jid===current.jid)||current : null);
+       }})
       .catch(reason=>{if(!cancelled)setGroupsError(systemErrorMessage(reason,
         "Não foi possível consultar os grupos do WhatsApp."));})
       .finally(()=>{if(!cancelled)setGroupsLoading(false);});
@@ -505,16 +514,21 @@ export function UnionWhatsAppContactsDialog({
       </div>
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-4 py-2 sm:px-5">
         <button type="button" aria-pressed={tab==="contacts"}
-          onClick={()=>{setTab("contacts");setSearch("");setPage(0);setSelectedGroup(null);}}
+          onClick={()=>{setTab("contacts");setSearch("");setPage(0);setSelectedGroup(null);setGroupCreating(false);}}
           className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="contacts"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
           <ContactRound size={15}/> Contatos <span>{total}</span>
         </button>
         <button type="button" aria-pressed={tab==="groups"}
-          onClick={()=>{setTab("groups");setSearch("");setPage(0);}}
+          onClick={()=>{if(onOpenGroups){onOpenGroups();return;}setTab("groups");setSearch("");setPage(0);}}
           className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${tab==="groups"?"bg-primary/10 text-primary":"text-muted-foreground hover:bg-muted"}`}>
           <Users size={15}/> Grupos {groups.length>0&&<span>{groups.length}</span>}
         </button>
-        {tab==="groups"&&<button type="button" disabled={groupsLoading}
+        {tab==="groups"&&canManageGroups&&<button type="button"
+           className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+           onClick={()=>{setGroupCreating(true);setSelectedGroup(null);}}>
+           <Plus size={14}/> Novo grupo
+         </button>}
+         {tab==="groups"&&<button type="button" disabled={groupsLoading}
           title="Atualizar grupos do WuzAPI" onClick={()=>setGroupRevision(n=>n+1)}
           className="ml-auto rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-40">
           {groupsLoading?"Consultando...":"Atualizar grupos"}
@@ -545,7 +559,7 @@ export function UnionWhatsAppContactsDialog({
               {!groupsLoading&&!groupsError&&groups.length===0&&
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhum grupo encontrado nesta conta WhatsApp.</p>}
               {groups.filter(group=>group.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")))
-                .map(group=><button type="button" key={group.jid} onClick={()=>setSelectedGroup(group)}
+                .map(group=><button type="button" key={group.jid} onClick={()=>{setSelectedGroup(group);setGroupCreating(false);}}
                   className={`flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left hover:bg-muted ${selectedGroup?.jid===group.jid?"bg-primary/10":""}`}>
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary"><Users size={19}/></span>
                   <span className="min-w-0 flex-1">
@@ -587,27 +601,18 @@ export function UnionWhatsAppContactsDialog({
         </div>
         <div className="flex min-h-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {tab==="groups" ? (!selectedGroup ?
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
-              <Users size={34}/><p>Selecione um grupo para consultar os detalhes.</p>
-            </div>:
-            <section aria-label="Detalhes do grupo WhatsApp" className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Users size={23}/></span>
-                <div className="min-w-0">
-                  <h3 className="truncate font-bold">{selectedGroup.name}</h3>
-                  <p className="text-xs text-muted-foreground">{selectedGroup.participants_count} participantes</p>
-                </div>
-              </div>
-              <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
-                <p><strong>Nome:</strong> {selectedGroup.name}</p>
-                <p><strong>Descrição:</strong> {selectedGroup.topic||"Sem descrição"}</p>
-                <p><strong>Permissão para mensagens:</strong> {selectedGroup.is_announce?"Somente administradores":"Todos os participantes"}</p>
-                <p className="break-all text-muted-foreground"><strong>Identificador:</strong> {selectedGroup.jid}</p>
-              </div>
-              <p className="text-xs text-muted-foreground">Esta seção consulta os grupos do número conectado. Conversas de grupos permanecem separadas dos atendimentos individuais.</p>
-            </section>)
-          : !selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+          {tab==="groups" ? <UnionWhatsAppGroupsManager
+               organizationId={organizationId} accountPhone={accountPhone}
+               group={groupCreating?null:selectedGroup} creating={groupCreating}
+               canManage={canManageGroups} canSend={canSendGroups}
+               onCancelCreate={()=>setGroupCreating(false)}
+               onChanged={jid=>{
+                 if(jid===null){setSelectedGroup(null);setGroupCreating(false);}
+                 else if(jid){setSelectedGroup({jid,name:"Novo grupo",topic:"",participants_count:0,is_announce:false});setGroupCreating(false);}
+                 setGroupRevision(n=>n+1);
+               }}
+             />
+           : !selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
             <ContactRound size={34}/>
             <p>Selecione um contato para editar o nome e o número.</p>
           </div> : <div className="space-y-4">
