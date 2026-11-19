@@ -13,6 +13,7 @@ type Props={
   organizationId:string;periodDays:number;
   visible:(key:string)=>boolean;onRestore:()=>void;
   onOpenInbox?:(filter:InboxFilter,conversationId?:string,operatorId?:string)=>void;
+  onConfigureHours?:()=>void;
 };
 const number=(value:number|null|undefined)=>Number(value||0).toLocaleString("pt-BR");
 const duration=(value:number|null|undefined)=>{
@@ -114,8 +115,9 @@ function Queue({rows,limit,onOpenInbox}:{
     })}
   </div>;
 }
-export function DashboardAttendances({organizationId,periodDays,visible,onRestore,onOpenInbox}:Props){
+export function DashboardAttendances({organizationId,periodDays,visible,onRestore,onOpenInbox,onConfigureHours}:Props){
   const [view,setView]=useState<View>("overview");
+  const [clockMode,setClockMode]=useState<"useful"|"elapsed">("useful");
   // Só é montado quando o usuário abre esta subseção. Nenhuma consulta no Dashboard geral.
   const report=useQuery({
     queryKey:["dashboard","attendances",organizationId,periodDays],
@@ -136,6 +138,8 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
   </AdminCard>;
   if(!data)return null;
   const m=data.metrics;
+  const firstReply=clockMode==="useful"?m.avg_first_reply_minutes:m.avg_first_reply_elapsed_minutes;
+  const handleTime=clockMode==="useful"?m.avg_handle_useful_minutes:m.avg_handle_minutes;
   const visibleCount=["metrics","trend","situation","attention","operators","departments","hours","operations"].filter(visible).length;
   if(visibleCount===0)return <AdminCard className="p-8 text-center">
     <p className="mb-3 font-semibold text-foreground">Nenhum painel selecionado nesta seção.</p>
@@ -165,15 +169,41 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         </button>
       </div>
     </div>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3">
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-foreground">Medição dos tempos</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Tempo útil desconta períodos fechados; o tempo corrido mostra a espera completa.</p>
+      </div>
+      <div className="inline-flex gap-1 rounded-lg border border-border bg-muted/30 p-1">
+        {([["useful","Tempo útil"],["elapsed","Tempo corrido"]] as const).map(([id,label])=>
+          <button type="button" key={id} onClick={()=>setClockMode(id)}
+            aria-pressed={clockMode===id}
+            className={"rounded-md px-3 py-2 text-xs font-bold "+(clockMode===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted")}>
+            {label}
+          </button>)}
+      </div>
+    </div>
+    {!data.calendar_configured&&<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+      <p className="text-xs leading-5 text-amber-700 dark:text-amber-300">
+        Horário comercial ainda não configurado para toda a empresa. O tempo útil e SLA ficam indisponíveis;
+        não foram presumidos horários. Os tempos corridos continuam disponíveis.
+      </p>
+      {onConfigureHours&&<button type="button" onClick={onConfigureHours}
+        className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10">
+        Configurar expediente
+      </button>}
+    </div>}
     {view==="overview"&&<>
-      {visible("metrics")&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      {visible("metrics")&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
         <Stat title="Em atendimento" value={number(m.active)} detail="Conversas ativas" icon={Activity} onClick={()=>onOpenInbox?.("in_att")}/>
         <Stat title="Aguardando" value={number(m.waiting)} detail="Na fila agora" icon={Clock3} tone="amber" onClick={()=>onOpenInbox?.("waiting")}/>
         <Stat title="Sem resposta" value={number(m.unanswered)} detail={"Há "+data.unanswered_after_minutes+" min ou mais"} icon={MessageSquare} tone="red" onClick={()=>onOpenInbox?.("unanswered")}/>
         <Stat title="Finalizados" value={number(m.closed_total)} detail="Conversas finalizadas" icon={CheckCircle2} tone="green" onClick={()=>onOpenInbox?.("finished")}/>
-        <Stat title="Primeira resposta" value={duration(m.avg_first_reply_minutes)} detail="Média válida" icon={Clock3}/>
-        <Stat title="Dentro do SLA" value={ratio(m.sla_met,m.sla_valid)}
-          detail={"Até "+data.threshold_minutes+" min · "+number(m.sla_valid)+" respostas"} icon={CheckCircle2} tone="green"/>
+        <Stat title="Primeira resposta" value={duration(firstReply)} detail={clockMode==="useful"?"Média em tempo útil":"Média em tempo corrido"} icon={Clock3}/>
+        <Stat title="Dentro do SLA útil" value={ratio(m.sla_met,m.sla_valid)}
+          detail={"Até "+data.threshold_minutes+" min · "+number(m.sla_valid)+" respostas avaliáveis"} icon={CheckCircle2} tone="green"/>
+        <Stat title="Atrasados no SLA" value={data.calendar_configured?number(data.unanswered_overdue_sla):"—"}
+          detail="Pendências por tempo útil" icon={AlertCircle} tone="amber"/>
       </div>}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {visible("trend")&&<Panel title="Evolução dos atendimentos" subtitle="Novos protocolos x finalizados por dia">
@@ -215,7 +245,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
               <td className="px-3 py-3 tabular-nums">{number(o.active)}</td>
               <td className="px-3 py-3 tabular-nums">{number(o.opened)}</td>
               <td className="px-3 py-3 tabular-nums">{number(o.finished)}</td>
-              <td className="px-3 py-3 tabular-nums">{duration(o.avg_first_reply_minutes)}</td>
+              <td className="px-3 py-3 tabular-nums">{duration(clockMode==="useful"?o.avg_first_reply_minutes:o.avg_first_reply_elapsed_minutes)}</td>
               <td className="px-3 py-3 tabular-nums">{ratio(o.within_sla,o.answered)}</td>
             </tr>)}</tbody>
           </table>
@@ -225,10 +255,13 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         {visible("operators")&&<Panel title="Carga atual por operador"><Bars values={data.operators.map(o=>({name:o.name,total:o.active}))}/></Panel>}
         {visible("operations")&&<Panel title="Critérios de medição">
           <p className="text-sm leading-6 text-muted-foreground">
-            A primeira resposta só é calculada quando o horário é válido e posterior à abertura.
-            O SLA usa o limite crítico configurado de {data.threshold_minutes} minutos.
-            O tempo médio até a finalização inclui somente protocolos encerrados.
-            O número de mensagens enviadas não é usado como indicador de produtividade.
+            A primeira resposta começa na primeira mensagem efetivamente recebida do cliente e termina
+            na primeira mensagem humana posterior enviada pelo Union. O SLA de {data.threshold_minutes} minutos
+            desconta os intervalos fechados. A autoria da resposta só é atribuída quando há ID autenticado
+            do remetente: mensagens anteriores a esse registro não são atribuídas ao responsável atual.
+            O tempo até a finalização inclui somente protocolos encerrados. A escala individual é
+            configurada separadamente; o SLA oficial segue o calendário da empresa ou departamento.
+            O volume de mensagens não é utilizado como ranking de produtividade.
           </p>
         </Panel>}
       </div>
@@ -237,10 +270,12 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
       {visible("operations")&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat title="Novos protocolos" value={number(m.opened)} detail="Abertos no período" icon={MessageSquare}/>
         <Stat title="Finalizações no período" value={number(m.finished)} detail="Protocolos encerrados" icon={CheckCircle2} tone="green"/>
-        <Stat title="Duração média" value={duration(m.avg_handle_minutes)} detail="Finalizados com horários válidos" icon={Clock3}/>
+        <Stat title="Duração média" value={duration(handleTime)} detail={clockMode==="useful"?"Expediente efetivo":"Tempo corrido até encerrar"} icon={Clock3}/>
         <Stat title="Encaminhamentos" value={number(m.transfers)} detail="Transferências do período" icon={ArrowLeftRight}/>
         <Stat title="Clientes que retornaram" value={number(data.recurrent_contacts)} detail="Possuem protocolo anterior" icon={Users}/>
         <Stat title="Reaberturas" value={number(m.reopened)} detail="Eventos do período" icon={RefreshCw}/>
+        <Stat title="Recebidos fora do expediente" value={data.calendar_configured?number(m.received_outside_hours):"—"}
+          detail="Primeiro contato fora do horário" icon={Clock3} tone="amber"/>
         <Stat title="Não lidas" value={number(m.unread)} detail="Conversas agora" icon={MessageSquare} onClick={()=>onOpenInbox?.("unread")}/>
       </div>}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -254,9 +289,11 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
     </>}
     {Number(m.invalid_reply_times||0)>0&&<div className="flex gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
       <AlertCircle size={17} className="shrink-0"/>
-      {number(m.invalid_reply_times)} protocolos apresentam resposta anterior à abertura e foram excluídos das médias e do SLA.
+      {number(m.invalid_reply_times)} registros antigos possuem resposta anterior à abertura do protocolo.
+      A medição atual utiliza as mensagens reais, e não esse horário incorreto.
     </div>}
     <p className="text-[11px] leading-5 text-muted-foreground">
+      {number(m.unscored_without_calendar)} resposta(s) sem calendário válido para toda a espera ficaram fora do SLA útil.
       Dados exclusivos do WhatsApp Union. Situação atual e métricas históricas são diferentes.
       Atualização automática a cada 2 minutos apenas enquanto esta subseção estiver aberta.
       Não realiza consultas no histórico de mensagens nem no SAC Digital antigo.
