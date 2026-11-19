@@ -2305,7 +2305,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-black text-foreground sm:text-base">Conversas</p>
               <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
-                {canAction("view_contacts") && <button type="button" onClick={()=>setGroupConversationsOpen(true)}
+                {canAction("view_contacts") && <button type="button" onClick={()=>{setSelectedId(null);setGroupConversationsOpen(true);}}
                   title="Conversas de grupos" aria-label="Abrir conversas de grupos"
                   className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
                   <Users size={15}/> Grupos
@@ -2896,7 +2896,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       onClose={()=>setContactsOpen(false)}
       onSaved={()=>{contactNameCacheRef.current.clear();void refresh(true);}}
       onChoose={openFromContact}
-      onOpenGroups={()=>{setContactsOpen(false);setGroupConversationsOpen(true);}}
+      onOpenGroups={()=>{setContactsOpen(false);setSelectedId(null);setGroupConversationsOpen(true);}}
     />}
     {editContactId && selected?.id===editContactId && activeOrganizationId && activeChannelPhone &&
       <UnionWhatsAppContactEditDialog
