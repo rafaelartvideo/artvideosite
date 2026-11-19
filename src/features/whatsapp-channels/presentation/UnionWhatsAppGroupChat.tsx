@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, RefreshCw, Send, X } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroupMessage } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -20,6 +20,7 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
   const [error,setError]=useState("");
   const [revision,setRevision]=useState(0);
   const fileRef=useRef<HTMLInputElement|null>(null);
+  const chatScrollRef=useRef<HTMLDivElement|null>(null);
   const requestRef=useRef(0);
   const clientId=useRef(crypto.randomUUID());
 
@@ -112,10 +113,21 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
     }finally{setSending(false);}
   };
   const timeline=[...messages,...localSent];
+  // Open at the latest message like the individual attendance conversations,
+  // but never scroll away from history when older pages are prepended.
+  useLayoutEffect(()=>{
+    const pane=chatScrollRef.current;
+    if(!pane||loading||loadingOlder)return;
+    pane.scrollTop=pane.scrollHeight;
+  },[loading,groupJid,revision,localSent.length]);
   const dateLabel=(value:string)=>{
     const date=new Date(value);
     return Number.isNaN(date.getTime())?"Data indisponível":
       date.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  };
+  const calendarDay=(value:string)=>{
+    const date=new Date(value);
+    return Number.isNaN(date.getTime())?"":date.toLocaleDateString("pt-BR");
   };
   const inbox=layout==="conversation";
   return <section aria-label="Mensagens do grupo" className={inbox
@@ -137,17 +149,24 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
     </p>}
     {available&&hasMore&&<button type="button" className={btn+" w-full"} disabled={loadingOlder}
       onClick={()=>void loadOlder()}>{loadingOlder?"Carregando...":"Carregar mensagens anteriores"}</button>}
-    <div className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}>
+    <div ref={chatScrollRef} className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}>
       {!loading&&!timeline.length&&<p className="py-6 text-center text-xs text-muted-foreground">Nenhuma mensagem disponível.</p>}
-      <div className="mx-auto flex max-w-4xl flex-col gap-2">{timeline.map(message=>{
+      <div className="mx-auto flex max-w-4xl flex-col gap-2">{timeline.map((message,index)=>{
         const own=localSent.includes(message)||message.sender_jid.replace(/\D/g,"")===accountPhone.replace(/\D/g,"");
-        return <div key={message.id} className={"flex "+(own?"justify-end":"justify-start")}>
+        return <Fragment key={message.id}>
+          {(index===0||calendarDay(message.sent_at)!==calendarDay(timeline[index-1].sent_at))&&
+            <div className="my-3 flex justify-center" role="separator">
+              <span className="rounded-lg border border-border/60 bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+                {calendarDay(message.sent_at)||"Data indisponível"}
+              </span>
+            </div>}
+          <div className={"flex "+(own?"justify-end":"justify-start")}>
           <div className={"min-w-0 max-w-[88%] rounded-lg px-3 py-2 text-xs shadow-sm sm:max-w-[72%] "+(own?"bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50":"border border-border bg-card text-foreground")}>
             <p className="mb-1 break-all text-[10px] font-semibold text-muted-foreground">{own?"Você":message.sender_jid||"Participante"}</p>
             <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.text||({"image":"Imagem","video":"Vídeo","audio":"Áudio","document":"Documento"} as Record<string,string>)[message.message_type]||"Mídia ou evento do grupo"}</p>
             <p className="mt-1 text-right text-[10px] text-muted-foreground">{dateLabel(message.sent_at)}</p>
           </div>
-        </div>;
+        </div></Fragment>;
       })}</div>
     </div>
     {canSend&&<footer className={inbox?"shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3":"space-y-2"}>
