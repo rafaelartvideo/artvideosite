@@ -119,7 +119,9 @@ async function signedBridge(
         participants_count:result.participants_count,name:result.name,topic:result.topic,
         is_announce:result.is_announce,is_locked:result.is_locked,
         changed:result.changed,provider_message_id:result.provider_message_id,
-        invite_link:result.invite_link,invite_info:result.invite_info,requests:result.requests});
+        invite_link:result.invite_link,invite_info:result.invite_info,requests:result.requests,
+        history_available:result.history_available,messages:result.messages,
+        has_more:result.has_more,next_before:result.next_before});
     }
     if(groupsList){
       if(!Array.isArray(result.groups))throw Error("groups_list_outdated_bridge");
@@ -940,19 +942,22 @@ if(action==="contacts_groups_manage") {
         const inviteCode=String(body.group_invite_code||"");
         const reset=body.group_reset===true;
         const photo=String(body.group_photo||"");
-        if(!["create","details","leave","participants","name","topic","send","invite","announce","locked","memberaddmode","ephemeral","joinapproval","join","inviteinfo","requests","requests_update","photo","photo_remove"].includes(command) ||
+        const before=Number(body.group_before||0);
+        if(!["create","details","leave","participants","name","topic","send","invite","announce","locked","memberaddmode","ephemeral","joinapproval","join","inviteinfo","requests","requests_update","photo","photo_remove","history","send_image"].includes(command) ||
           (!["create","join","inviteinfo"].includes(command) && !/^[0-9]{5,30}@g\.us$/.test(jid)) ||
           name.length>100 || topic.length>500 || phones.length>50 || message.length>4000 ||
           inviteCode.length>150 || photo.length>150100 ||
+          !Number.isSafeInteger(before) || before<0 ||
           (["announce","locked","joinapproval"].includes(command) && typeof mode!=="boolean") ||
           (command==="memberaddmode" && !["admin_add","all_member_add"].includes(mode)) ||
           (command==="ephemeral" && !["off","24h","7d","90d"].includes(duration)) ||
           (["join","inviteinfo"].includes(command) && !inviteCode) ||
           (command==="requests_update" && !["approve","reject"].includes(participantAction)))
           return json({success:false,error:"Dados do grupo inválidos."},400);
-        if(command==="send" && !canSend)
+        if(["send","send_image"].includes(command) && !canSend)
           return json({success:false,error:"Sem permissão para enviar mensagens."},403);
-        if(command==="send" && (!message || !uuid(messageId)))
+        if((command==="send" && !message || command==="send_image") && !uuid(messageId) ||
+          (command==="send" && !message))
           return json({success:false,error:"Digite uma mensagem válida."},400);
         if(command==="create" && (name.length<2 || phones.length<1))
           return json({success:false,error:"Informe o nome e ao menos um participante."},400);
@@ -960,11 +965,11 @@ if(action==="contacts_groups_manage") {
           group_command:command,group_jid:jid,group_name:name,group_topic:topic,
           group_phones:phones,group_participant_action:participantAction,group_message:message,
           group_mode:mode,group_duration:duration,group_invite_code:inviteCode,
-          group_reset:reset,group_photo:photo,
+          group_reset:reset,group_photo:photo,group_before:before,
         };
         try{
           const raw=await signedBridge({id:channel.id,organization_id:org},"","",
-            command==="send"?messageId:crypto.randomUUID(),
+            ["send","send_image"].includes(command)?messageId:crypto.randomUUID(),
             undefined,undefined,false,false,false,false,false,undefined,false,false,payload);
           const result=JSON.parse(raw) as Record<string,unknown>;
           if(command==="details"){
@@ -984,7 +989,11 @@ if(action==="contacts_groups_manage") {
             provider_message_id:String(result.provider_message_id||""),
             invite_link:command==="invite"?link:undefined,
             invite_info:command==="inviteinfo"?inviteInfo:undefined,
-            requests:command==="requests"?requests:undefined});
+            requests:command==="requests"?requests:undefined,
+            history_available:command==="history"?result.history_available===true:undefined,
+            messages:command==="history"&&Array.isArray(result.messages)?result.messages.slice(0,30):undefined,
+            has_more:command==="history"?result.has_more===true:undefined,
+            next_before:command==="history"?result.next_before:undefined});
         }catch{
           return json({success:false,error:"Operação não confirmada pelo WhatsApp. Verifique sua permissão de administrador e a conexão da VPS."},502);
         }
