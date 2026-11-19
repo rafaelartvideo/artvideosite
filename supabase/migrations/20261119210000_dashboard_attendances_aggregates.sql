@@ -129,9 +129,9 @@ BEGIN
       ORDER BY active DESC,opened DESC,name) FROM operator_data),'[]'::jsonb),
     'departments',coalesce((SELECT jsonb_agg(jsonb_build_object('name',name,'total',total)
       ORDER BY total DESC,name) FROM departments),'[]'::jsonb),
-    'hours',coalesce((SELECT jsonb_agg(jsonb_build_object('hour',hour,'total',total) ORDER BY hour)
-      FROM (SELECT extract(hour from opened_at AT TIME ZONE 'America/Sao_Paulo')::integer hour,
-          count(*) total FROM period_protocols GROUP BY 1) h),'[]'::jsonb),
+    'hours',coalesce((SELECT jsonb_agg(jsonb_build_object('hour',h.hour_of_day,'total',h.total) ORDER BY h.hour_of_day)
+      FROM (SELECT extract(hour from opened_at AT TIME ZONE 'America/Sao_Paulo')::integer AS hour_of_day,
+          count(*) AS total FROM period_protocols GROUP BY 1) h),'[]'::jsonb),
     'recurrent_contacts',(SELECT count(*) FROM
        (SELECT distinct p.conversation_id FROM period_protocols p
           WHERE EXISTS(SELECT 1 FROM public.union_whatsapp_protocols old
