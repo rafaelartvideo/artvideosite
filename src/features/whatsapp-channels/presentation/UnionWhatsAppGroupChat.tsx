@@ -25,7 +25,7 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
 
   useEffect(()=>{
     setMessages([]);setLocalSent([]);setAvailable(null);setHasMore(false);setBefore(null);
-    setDraft("");setImage(null);setError("");setRevision(value=>value+1);
+    setDraft("");setImage(null);setError("");
     clientId.current=crypto.randomUUID();
   },[groupJid,organizationId,accountPhone]);
 
