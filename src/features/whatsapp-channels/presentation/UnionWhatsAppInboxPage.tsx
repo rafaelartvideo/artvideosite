@@ -641,10 +641,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const includeCount=!cachedTotal || Date.now()-cachedTotal.savedAt>45_000;
     if(!silent)setConversationPageLoading(true);
     try{
-      const [page,counts]=await Promise.all([
+      // A slow count must not blank the WhatsApp inbox when its page loaded.
+      const [pageResult,countResult]=await Promise.allSettled([
         listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,{...options,includeCount}),
         listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone,options.priorityMinutes),
       ]);
+      if(pageResult.status==="rejected")throw pageResult.reason;
+      const page=pageResult.value;
+      const counts=countResult.status==="fulfilled"?countResult.value:null;
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       const namesCache=contactNameCacheRef.current;
@@ -705,7 +709,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
-      setConversationCounts(counts);
+      if(counts)setConversationCounts(counts);
       
     }catch(reason){
       if(sequence===conversationLoadSeq.current&&organizationRef.current===activeOrganizationId)
