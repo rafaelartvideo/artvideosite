@@ -201,10 +201,10 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
           </button>)}
       </div>
     </div>
-    {!data.calendar_configured&&<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+    {!data.company_calendar_configured&&<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
       <p className="text-xs leading-5 text-amber-700 dark:text-amber-300">
-        Horário comercial ainda não configurado para toda a empresa. O tempo útil e SLA ficam indisponíveis;
-        não foram presumidos horários. Os tempos corridos continuam disponíveis.
+        Expediente geral não configurado. Somente departamentos com horário próprio podem ter SLA útil válido;
+        os demais ficam sem cobertura. Não foram presumidos horários.
       </p>
       {onConfigureHours&&<button type="button" onClick={onConfigureHours}
         className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10">
@@ -297,6 +297,14 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         <Stat title="Recebidos fora do expediente" value={data.calendar_configured?number(m.received_outside_hours):"—"}
           detail="Primeiro contato fora do horário" icon={Clock3} tone="amber"/>
         <Stat title="Não lidas" value={number(m.unread)} detail="Conversas agora" icon={MessageSquare} onClick={()=>onOpenInbox?.("unread")}/>
+        <Stat title="Espera média na fila" value={duration(clockMode==="useful"
+          ?m.queue_avg_useful_minutes:m.queue_avg_elapsed_minutes)}
+          detail={clockMode==="useful"?"Fila: tempo útil":"Fila: tempo corrido"} icon={Clock3} tone="amber"/>
+        <Stat title="Espera sem resposta" value={duration(clockMode==="useful"
+          ?m.pending_reply_avg_useful_minutes:m.pending_reply_avg_elapsed_minutes)}
+          detail={clockMode==="useful"?"Média útil atual":"Média corrida atual"} icon={MessageSquare} tone="amber"/>
+        <Stat title="Fila fora do SLA" value={data.calendar_configured?number(m.queue_overdue_useful):"—"}
+          detail="Atraso medido por tempo útil" icon={AlertCircle} tone="red"/>
       </div>}
       {visible("operations")&&<Panel title="Tempo entre respostas" subtitle="Agrupa mensagens consecutivas do cliente antes da próxima resposta humana">
         {followups.isPending&&!followups.data
