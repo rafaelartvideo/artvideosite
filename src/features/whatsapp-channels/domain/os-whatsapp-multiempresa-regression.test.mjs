@@ -248,6 +248,26 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(contacts,/canManageGroups/);
 });
 
+test("Grupos são conversas do Atendimento: mesma disposição, painel de dados separado e composer fixo",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const groupInbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsInbox.tsx");
+  const groupChat=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupChat.tsx");
+  const groupManager=read("src/features/whatsapp-channels/presentation/UnionWhatsAppGroupsManager.tsx");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  assert.match(inbox,/groupConversationsOpen&&activeOrganizationId&&activeChannelPhone/);
+  assert.match(inbox,/onOpenGroups=\{\(\)=>\{setContactsOpen\(false\);setSelectedId\(null\);setGroupConversationsOpen\(true\);\}\}/);
+  assert.match(contacts,/if\(onOpenGroups\)\{onOpenGroups\(\);return;\}/);
+  assert.match(groupInbox,/lg:grid-cols-\[340px_minmax\(0,1fr\)\]/);
+  assert.match(groupInbox,/aria-label="Buscar conversa de grupo"/);
+  assert.match(groupInbox,/group=\{selected\} creating=\{false\}[\s\S]*?hideChat/);
+  assert.match(groupInbox,/layout="conversation"/);
+  assert.match(groupChat,/flex min-h-0 flex-1 flex-col overflow-hidden bg-card/);
+  assert.match(groupChat,/shrink-0 border-t border-border bg-card/);
+  assert.match(groupChat,/useLayoutEffect/);
+  assert.match(groupChat,/role="separator"/);
+  assert.match(groupManager,/!hideChat&&\(canManage\|\|canSend\)/);
+});
+
 test("Dados do CRM do contato são consultados somente após seleção e com permissões",()=>{
   const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
   const dialog=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
