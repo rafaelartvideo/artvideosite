@@ -25,6 +25,8 @@ export type UnionWhatsAppConversation = {
   forwarded_by_name: string | null;
   forwarded_to_name: string | null;
   forwarded_at: string | null;
+  finished_by?: string | null;
+  finished_by_name?: string | null;
   viewer_participating?: boolean;
 };
 
@@ -151,6 +153,73 @@ const INBOX_PAGE_SIZE=50;
 const MESSAGE_PAGE_SIZE=60;
 const PROTOCOL_PAGE_SIZE=25;
 const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,awaiting_reply_since,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
+
+type FinishAttribution = {assignedTo:string|null;closedBy:string|null;actorName:string|null;cachedAt:number};
+const finishAttributionCache=new Map<string,FinishAttribution>();
+const FINISH_ATTRIBUTION_TTL_MS=120_000;
+const finishAttributionKey=(org:string,item:UnionWhatsAppConversation)=>
+  org+":"+item.id+":"+item.last_protocol_number;
+
+// Consulta em lote apenas os protocolos finalizados na página visível.
+// A atribuição continua vinculada ao protocolo, não ao histórico completo.
+async function withFinishAttributions(
+  organizationId:string,channelId:string,accountPhone:string,
+  conversations:UnionWhatsAppConversation[],
+):Promise<UnionWhatsAppConversation[]>{
+  const finished=conversations.filter(item=>item.status==="finished" && item.last_protocol_number!=null);
+  if(!finished.length)return conversations;
+  const now=Date.now();
+  const missing=finished.filter(item=>{
+    const cached=finishAttributionCache.get(finishAttributionKey(organizationId,item));
+    return !cached || now-cached.cachedAt>=FINISH_ATTRIBUTION_TTL_MS;
+  });
+  if(missing.length){
+    try{
+      const numbers=[...new Set(missing.map(item=>Number(item.last_protocol_number)))];
+      const {data:protocols,error}=await supabase.from("union_whatsapp_protocols")
+        .select("conversation_id,protocol_number,assigned_to,closed_by")
+        .eq("organization_id",organizationId).eq("channel_id",channelId)
+        .eq("account_phone",accountPhone).eq("status","finished")
+        .in("protocol_number",numbers);
+      raise(error);
+      const byProtocol=new Map((protocols||[]).map(row=>[
+        row.conversation_id+":"+row.protocol_number,row,
+      ]));
+      const actorIds=[...new Set((protocols||[])
+        .filter(row=>row.closed_by && row.assigned_to && row.closed_by!==row.assigned_to)
+        .map(row=>row.closed_by as string))];
+      const {data:profiles,error:profileError}=actorIds.length
+        ? await supabase.from("profiles").select("id,full_name,username").in("id",actorIds)
+        : {data:[],error:null};
+      raise(profileError);
+      const names=new Map((profiles||[]).map(profile=>[
+        profile.id,String(profile.full_name||profile.username||"").trim(),
+      ]));
+      for(const item of missing){
+        const record=byProtocol.get(item.id+":"+item.last_protocol_number);
+        finishAttributionCache.set(finishAttributionKey(organizationId,item),{
+          assignedTo:record?.assigned_to||null,
+          closedBy:record?.closed_by||null,
+          actorName:record?.closed_by ? names.get(record.closed_by)||"Usuário" : null,
+          cachedAt:now,
+        });
+      }
+      while(finishAttributionCache.size>300)
+        finishAttributionCache.delete(finishAttributionCache.keys().next().value!);
+    }catch{
+      // Uma falha de atribuição complementar nunca bloqueia o atendimento.
+    }
+  }
+  return conversations.map(item=>{
+    if(item.status!=="finished" || item.last_protocol_number==null)return item;
+    const attribution=finishAttributionCache.get(finishAttributionKey(organizationId,item));
+    if(!attribution?.closedBy || !attribution.assignedTo ||
+       attribution.closedBy===attribution.assignedTo)return item;
+    return {...item,finished_by:attribution.closedBy,
+      finished_by_name:attribution.actorName||"Usuário"};
+  });
+}
+
 
 // Uses the existing partial index and RLS. Count only; never fetch all messages or contacts.
 const unansweredCutoff=(minutes:number):string=>
@@ -289,7 +358,8 @@ export async function listUnionWhatsAppConversations(
       Boolean(options.viewerId && conversation.assigned_to!==options.viewerId &&
         viewer_membership?.some(member=>member.user_id===options.viewerId && member.status==="active")),
   }));
-  return {items,hasMore:entries.length>pageSize,total:count??null};
+  return {items:await withFinishAttributions(organizationId,channelId,accountPhone,items),
+    hasMore:entries.length>pageSize,total:count??null};
 }
 
 // Carrega pontualmente o atendimento aberto por um atalho, mesmo quando
@@ -302,7 +372,8 @@ export async function getUnionWhatsAppConversation(
     .eq("channel_id",channelId).eq("account_phone",accountPhone)
     .eq("id",conversationId).maybeSingle();
   raise(error);
-  return data as UnionWhatsAppConversation|null;
+  return data ? (await withFinishAttributions(organizationId,channelId,accountPhone,
+    [data as UnionWhatsAppConversation]))[0] : null;
 }
 
 export async function listUnionWhatsAppMessages(
@@ -362,7 +433,8 @@ export async function findUnionWhatsAppConversationByContact(
     .eq("channel_id",channelId).eq("account_phone",accountPhone)
     .eq("chat_jid",chatJid).maybeSingle();
   raise(error);
-  return data as UnionWhatsAppConversation|null;
+  return data ? (await withFinishAttributions(organizationId,channelId,accountPhone,
+    [data as UnionWhatsAppConversation]))[0] : null;
 }
 
 // Lightweight metadata for chat separators. A conversation with just one
