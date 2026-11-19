@@ -3,7 +3,7 @@ import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSk
 import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -67,7 +67,7 @@ import {
 } from "./DashboardUi";
 import { DashboardOrderChartPanel, type DashboardOrderChartKey, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
 import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
-import { DashboardAttendances } from "./DashboardAttendances";
+const DashboardAttendances = lazy(() => import("./DashboardAttendances").then(({DashboardAttendances}) => ({default:DashboardAttendances})));
 
 type TabDashboardProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -618,11 +618,15 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDas
 
   const moduleContent = () => {
     if (activeModule === "attendances") {
-      return <DashboardAttendances organizationId={activeOrganizationId!}
-        periodDays={periodDays}
-        visible={key=>widgetVisible(key)}
-        onRestore={()=>widgetSettings.restore("attendances")}
-        onOpenInbox={onOpenWhatsApp}/>;
+      return <Suspense fallback={<div aria-label="Preparando painel de atendimentos" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {Array.from({length:6},(_,i)=><div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}
+      </div>}>
+        <DashboardAttendances organizationId={activeOrganizationId!}
+          periodDays={periodDays}
+          visible={key=>widgetVisible(key)}
+          onRestore={()=>widgetSettings.restore("attendances")}
+          onOpenInbox={onOpenWhatsApp}/>
+      </Suspense>;
     }
     if (activeModule === "orders") {
       const summary = ordersSummaryQuery.data || {
