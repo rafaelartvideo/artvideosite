@@ -21,10 +21,10 @@ function parsePhones(raw:string):string[]{
 }
 
 export function UnionWhatsAppGroupsManager({
-  organizationId,accountPhone,group,creating,canManage,canSend,onChanged,onCancelCreate,
+  organizationId,accountPhone,group,creating,canManage,canSend,onChanged,onCancelCreate,hideChat=false,
 }:{
   organizationId:string;accountPhone:string;group:UnionWhatsAppGroup|null;
-  creating:boolean;canManage:boolean;canSend:boolean;
+  creating:boolean;canManage:boolean;canSend:boolean;hideChat?:boolean;
   onChanged:(jid?:string|null)=>void;onCancelCreate:()=>void;
 }){
   const [mode,setMode]=useState<Mode>("view");
@@ -168,8 +168,8 @@ export function UnionWhatsAppGroupsManager({
           </div>
         </div>
       </>}
-      <p className="text-xs text-muted-foreground">Grupos são separados dos atendimentos individuais. Ações administrativas dependem dos privilégios deste número no WhatsApp.</p>
-      {(canManage||canSend)&&<UnionWhatsAppGroupChat
+      {!hideChat&&<p className="text-xs text-muted-foreground">Grupos são separados dos atendimentos individuais. Ações administrativas dependem dos privilégios deste número no WhatsApp.</p>}
+      {!hideChat&&(canManage||canSend)&&<UnionWhatsAppGroupChat
         organizationId={organizationId} accountPhone={accountPhone}
         groupJid={group.jid} canSend={canSend}
       />}
