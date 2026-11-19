@@ -83,12 +83,12 @@ const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
 const DASHBOARD_ORDER_CHART_MODE_KEY = "union-dashboard-order-chart-mode-v1";
 const DASHBOARD_ORDER_CARD_MODES_KEY = "union-dashboard-order-card-modes-v2";
 const periodOptions = [
-  { value: 1, label: "Hoje" },
   { value: 7, label: "7 dias" },
   { value: 30, label: "30 dias" },
   { value: 90, label: "90 dias" },
   { value: 365, label: "12 meses" },
 ];
+const attendancePeriodOptions = [{ value: 1, label: "Hoje" }, ...periodOptions];
 
 function normalized(value?: string | null) {
   return (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -876,13 +876,17 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDas
             onToggle={key=>widgetSettings.toggle(activeModule,key)}
             onRestore={()=>widgetSettings.restore(activeModule)} />
           <div className="w-28 sm:w-32">
-            <AdminSelect value={periodDays} options={periodOptions}
+            <AdminSelect value={periodDays} options={activeModule==="attendances"?attendancePeriodOptions:periodOptions}
               onValueChange={value=>{setMetricSelection(null);setPeriodDays(Number(value));}}
               ariaLabel="Período do dashboard" className="min-h-9 text-xs font-black"/>
           </div>
         </div>}/>
 
-      <DashboardModuleNav items={modules} value={activeModule} onChange={next => { setMetricSelection(null); setActiveModule(next); }} />
+      <DashboardModuleNav items={modules} value={activeModule} onChange={next => {
+        setMetricSelection(null);
+        if(next!=="attendances" && periodDays===1)setPeriodDays(7);
+        setActiveModule(next);
+      }} />
 
       {metricSelection && <AdminMetricDetailDialog
         open onClose={() => setMetricSelection(null)} title={metricSelection.title}
