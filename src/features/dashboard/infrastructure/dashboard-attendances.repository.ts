@@ -20,6 +20,7 @@ export type AttendanceAlert = {
 };
 export type AttendanceDashboardData = {
   threshold_minutes:number;
+  unanswered_after_minutes:number;
   metrics:AttendanceMetrics;
   trend:Array<{day:string;opened:number;finished:number}>;
   operators:AttendanceOperator[];
@@ -45,6 +46,7 @@ export async function loadDashboardAttendances({
   }
   return {
     threshold_minutes:Number(result.threshold_minutes||15),
+    unanswered_after_minutes:Number(result.unanswered_after_minutes||15),
     metrics:result.metrics,
     trend:result.trend,
     operators:result.operators,
