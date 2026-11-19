@@ -63,9 +63,10 @@ test('an obsolete access failure cannot clear newer access or unlock its in-flig
   const key = {current:null}, requestId = {current:0};
   const requests = []; let failures = 0;
   const load = new Function('accessLoadingKeyRef','accessRequestRef','signedInUserRef',
-    'activeOrganizationIdRef','loadAccessData','clearResolvedAccess','setProfile','setAccessError','setLoading','setLoadingProgress','console',
+    'activeOrganizationIdRef','accessWindowRef','isTransientAccessFailure','loadAccessData','clearResolvedAccess','setProfile','setAccessError','setLoading','setLoadingProgress','console',
     `${code}; return loadAccess;`)(key, requestId, {current:'user-a'},
-      {current:'org-a'},
+      {current:'org-a'}, {current:{allowed:true,next_end_at:null}},
+      error=>error?.message?.includes('timeout'),
       () => {requestId.current++; return new Promise((resolve,reject)=>requests.push({resolve,reject}));},
       () => {failures++;},()=>{},()=>{},()=>{},()=>{}, {error(){},warn(){}});
   const previous = load('user-a','org-a',true);
