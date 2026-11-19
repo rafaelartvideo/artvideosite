@@ -169,7 +169,7 @@ export function UnionWhatsAppGroupsManager({
         </div>
       </>}
       <p className="text-xs text-muted-foreground">Grupos são separados dos atendimentos individuais. Ações administrativas dependem dos privilégios deste número no WhatsApp.</p>
-      {canManage&&<UnionWhatsAppGroupChat
+      {(canManage||canSend)&&<UnionWhatsAppGroupChat
         organizationId={organizationId} accountPhone={accountPhone}
         groupJid={group.jid} canSend={canSend}
       />}
