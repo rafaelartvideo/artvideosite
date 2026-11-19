@@ -1230,3 +1230,18 @@ test("WhatsApp multiline cresce o compositor para cima e reduz somente o histori
   assert.match(inbox,/field\.style\.height=Math\.min\(Math\.max\(field\.scrollHeight,48\),132\)/);
   assert.match(inbox,/observer\.observe\(box\)/);
 });
+
+test("Fila WhatsApp mantem o tempo original ao assumir/devolver e reinicia somente em novo ciclo",()=>{
+  const migration=read("supabase/migrations/20261119141000_union_whatsapp_preserve_queue_cycle.sql");
+  const original=read("supabase/migrations/20261021184500_union_whatsapp_queue_wait_times.sql");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(original,/queue_entered_at.*now\(\)/);
+  assert.match(migration,/if new.status='in_att' then[\s\S]*?new.queue_entered_at:=old.queue_entered_at/);
+  assert.match(migration,/when old.status='in_att' then coalesce\(old.queue_entered_at,now\(\)\)/);
+  assert.match(migration,/else now\(\)[\s\S]*?end;/);
+  assert.match(migration,/h.action='assume'/);
+  assert.match(migration,/h.created_at>=p.opened_at/);
+  assert.match(repository,/options.filter==="waiting" && !options.sortByRecent\?"queue_entered_at"/);
+  assert.match(inbox,/waitingMinutes\(item.queue_entered_at\|\|item.created_at,clockNow\)/);
+});
