@@ -3,6 +3,7 @@ import { LoaderCircle, Plus, Send, Users } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroup, type UnionWhatsAppGroupDetails } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppGroupAdvanced } from "./UnionWhatsAppGroupAdvanced";
+import { UnionWhatsAppGroupChat } from "./UnionWhatsAppGroupChat";
 
 type Mode = "view"|"name"|"topic"|"participants"|"send"|"leave";
 type ParticipantAction = "add"|"remove"|"promote"|"demote";
@@ -168,6 +169,10 @@ export function UnionWhatsAppGroupsManager({
         </div>
       </>}
       <p className="text-xs text-muted-foreground">Grupos são separados dos atendimentos individuais. Ações administrativas dependem dos privilégios deste número no WhatsApp.</p>
+      {canManage&&<UnionWhatsAppGroupChat
+        organizationId={organizationId} accountPhone={accountPhone}
+        groupJid={group.jid} canSend={canSend}
+      />}
       {canManage&&details&&<UnionWhatsAppGroupAdvanced
         organizationId={organizationId} accountPhone={accountPhone} group={details}
         onChanged={()=>{setRevision(n=>n+1);onChanged();}}
