@@ -151,7 +151,9 @@ test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por e
   await compile("src/features/dashboard/presentation/TabDashboard.tsx");
   assert.match(dashboard,/label: "Atendimentos"/);
   assert.match(dashboard,/activeModule !== "orders" && activeModule !== "attendances"/);
-  assert.match(dashboard,/hasModule\("whatsapp"\) && hasPermission\("whatsapp.inbox.view"\) && hasPermission\("whatsapp.inbox.manage"\)/);
+  assert.match(dashboard,/canRequestAttendanceDashboard = hasModule\("whatsapp"\)/);
+  assert.match(dashboard,/attendanceManagerQuery\.data===true/);
+  assert.match(dashboard,/union_whatsapp_operator_bindings/);
   assert.match(dashboard,/onOpenInbox=\{onOpenWhatsApp\}/);
   for(const section of ["metrics","trend","situation","attention","operators","operations","hours","departments"]){
     assert.match(widgets,new RegExp('id: "'+section+'"'));
@@ -172,6 +174,7 @@ test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por e
   assert.match(schema,/private.has_tenant_module_permission/);
   assert.match(schema,/REVOKE SELECT ON TABLE/);
   assert.match(latest,/unanswered_priority_minutes/);
+  assert.match(read("supabase/migrations/20261119215000_dashboard_attendances_view_all_acl.sql"),/private.union_whatsapp_allowed\(p_organization_id,'view_all'\)/);
   assert.match(latest,/make_interval\(mins=>v_unanswered_limit\)/);
   assert.doesNotMatch(latest,/FROM public.union_whatsapp_messages/);
   assert.doesNotMatch(latest,/FROM public.sac_digital_messages/);
