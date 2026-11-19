@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Plus, Send, Users } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroup, type UnionWhatsAppGroupDetails } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { UnionWhatsAppGroupAdvanced } from "./UnionWhatsAppGroupAdvanced";
 
 type Mode = "view"|"name"|"topic"|"participants"|"send"|"leave";
 type ParticipantAction = "add"|"remove"|"promote"|"demote";
-type GroupCommand = "create"|"details"|"leave"|"participants"|"name"|"topic"|"send";
+type GroupCommand = "create"|"join"|"details"|"leave"|"participants"|"name"|"topic"|"send";
 
 const buttonClass = "rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 const inputClass = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
@@ -30,6 +31,8 @@ export function UnionWhatsAppGroupsManager({
   const [topic,setTopic]=useState("");
   const [phones,setPhones]=useState("");
   const [message,setMessage]=useState("");
+  const [creationMode,setCreationMode]=useState<"create"|"join">("create");
+  const [inviteCode,setInviteCode]=useState("");
   const [action,setAction]=useState<ParticipantAction>("add");
   const [memberJid,setMemberJid]=useState("");
   const [details,setDetails]=useState<UnionWhatsAppGroupDetails|null>(null);
@@ -43,7 +46,7 @@ export function UnionWhatsAppGroupsManager({
 
   useEffect(()=>{
     setMode("view");setName(group?.name||"");setTopic(group?.topic||"");
-    setPhones("");setMessage("");setMemberJid("");
+    setPhones("");setMessage("");setMemberJid("");setInviteCode("");setCreationMode("create");
     setAction("add");setError("");setNotice("");setConfirmed(false);
     messageId.current=crypto.randomUUID();
   },[group?.jid,creating]);
@@ -69,10 +72,13 @@ export function UnionWhatsAppGroupsManager({
   const submit=async()=>{
     if(busy||(!group&&!creating)||!canManage)return;
     setError("");setNotice("");
-    const command:GroupCommand=creating?"create":mode==="view"?"details":mode;
+    const command:GroupCommand=creating?creationMode:mode==="view"?"details":mode;
     if(command==="details")return;
     const list=command==="create"||(command==="participants"&&action==="add")?parsePhones(phones):
       command==="participants"?[memberJid]:[];
+    if(command==="join" && !inviteCode.trim()){
+      setError("Informe o link ou código de convite.");return;
+    }
     if((command==="create"||command==="name")&&(name.trim().length<2||name.trim().length>100)){
       setError("Informe um nome de 2 a 100 caracteres.");return;
     }
@@ -95,6 +101,7 @@ export function UnionWhatsAppGroupsManager({
         account_phone:accountPhone,group_command:command,group_jid:group?.jid||"",
         group_name:name.trim(),group_topic:topic,group_phones:list,
         group_participant_action:action,group_message:message.trim(),
+        group_invite_code:inviteCode.trim(),
         ...(command==="send"?{client_message_id:messageId.current}:{}),
       });
       if(command==="send"){
@@ -103,7 +110,7 @@ export function UnionWhatsAppGroupsManager({
       }else if(command==="leave"){
         onChanged(null);setNotice("Você saiu do grupo.");choose("view");
         return;
-      }else if(command==="create"){
+      }else if(command==="create"||command==="join"){
         onCancelCreate();onChanged(result.jid||undefined);
         return;
       }else{
@@ -161,15 +168,31 @@ export function UnionWhatsAppGroupsManager({
         </div>
       </>}
       <p className="text-xs text-muted-foreground">Grupos são separados dos atendimentos individuais. Ações administrativas dependem dos privilégios deste número no WhatsApp.</p>
+      {canManage&&details&&<UnionWhatsAppGroupAdvanced
+        organizationId={organizationId} accountPhone={accountPhone} group={details}
+        onChanged={()=>{setRevision(n=>n+1);onChanged();}}
+      />}
     </>}
     {formMode&&<div className="space-y-3 rounded-xl border border-border p-4">
-      {(creating||mode==="name")&&<label className="block space-y-1 text-xs font-semibold">
+      {creating&&<div className="flex flex-wrap gap-2">
+        <button type="button" className={buttonClass+(creationMode==="create"?" border-primary text-primary":"")}
+          onClick={()=>{setCreationMode("create");setError("");}}>Criar grupo</button>
+        <button type="button" className={buttonClass+(creationMode==="join"?" border-primary text-primary":"")}
+          onClick={()=>{setCreationMode("join");setError("");}}>Entrar por convite</button>
+      </div>}
+      {creating&&creationMode==="join"&&<label className="block space-y-1 text-xs font-semibold">
+        <span>Convite do WhatsApp</span>
+        <input className={inputClass} value={inviteCode} onChange={e=>setInviteCode(e.target.value)}
+          placeholder="https://chat.whatsapp.com/..." autoFocus/>
+        <span className="block font-normal text-muted-foreground">Informe um convite válido. A entrada poderá depender de aprovação pelo administrador do grupo.</span>
+      </label>}
+      {((creating&&creationMode==="create")||mode==="name")&&<label className="block space-y-1 text-xs font-semibold">
         <span>Nome do grupo</span><input className={inputClass} maxLength={100} value={name} onChange={e=>setName(e.target.value)} placeholder="Nome do grupo" autoFocus/>
       </label>}
       {mode==="topic"&&!creating&&<label className="block space-y-1 text-xs font-semibold">
         <span>Descrição</span><textarea className={inputClass} rows={4} maxLength={500} value={topic} onChange={e=>setTopic(e.target.value)}/>
       </label>}
-      {(creating||(mode==="participants"&&action==="add"))&&<label className="block space-y-1 text-xs font-semibold">
+      {((creating&&creationMode==="create")||(mode==="participants"&&action==="add"))&&<label className="block space-y-1 text-xs font-semibold">
         <span>{creating?"Participantes iniciais":"Adicionar contatos"}</span>
         <textarea className={inputClass} rows={5} value={phones} onChange={e=>setPhones(e.target.value)}
           placeholder={"5599999999999\n5588888888888"}/>
@@ -209,7 +232,7 @@ export function UnionWhatsAppGroupsManager({
         <button type="button" disabled={busy} onClick={()=>void submit()}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
           {busy?<LoaderCircle size={14} className="animate-spin"/>:creating?<Plus size={14}/>:mode==="send"?<Send size={14}/>:null}
-          {creating?"Criar grupo":mode==="leave"?"Confirmar saída":mode==="send"?"Enviar":mode==="participants"?(action==="add"?"Adicionar":action==="remove"?"Remover":action==="promote"?"Promover":"Revogar admin"):"Salvar"}
+          {creating?(creationMode==="join"?"Entrar no grupo":"Criar grupo"):mode==="leave"?"Confirmar saída":mode==="send"?"Enviar":mode==="participants"?(action==="add"?"Adicionar":action==="remove"?"Remover":action==="promote"?"Promover":"Revogar admin"):"Salvar"}
         </button>
       </div>
     </div>}
