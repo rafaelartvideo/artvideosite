@@ -15,8 +15,21 @@ import {
   registerDetachedWhatsAppWindow, reuseDetachedWhatsAppWindow,
 } from "./DetachedWhatsAppWindowManager";
 
+// One cached code-only import, shared by OS idle preloading and the modal.
+// This does not request conversations, messages or any Supabase data.
+const loadInboxModule = () => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage");
+let inboxModulePromise: ReturnType<typeof loadInboxModule> | null = null;
+export function preloadEmbeddedWhatsAppConversation() {
+  if (!inboxModulePromise) {
+    inboxModulePromise = loadInboxModule().catch(error => {
+      inboxModulePromise = null;
+      throw error;
+    });
+  }
+  return inboxModulePromise;
+}
 const EmbeddedWhatsAppConversation = lazy(() =>
-  import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
+  preloadEmbeddedWhatsAppConversation()
     .then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })),
 );
 // Compartilha o formulario, as regras e o fluxo de persistencia do modulo OS.
@@ -156,6 +169,10 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       set({ status: "unauthorized", message: "Você não possui acesso aos atendimentos WhatsApp desta empresa." });
       return () => { cancelled = true; };
     }
+
+    // Download the chat UI while the authorized server lookup is in flight,
+    // rather than starting this large import only after the join completes.
+    void preloadEmbeddedWhatsAppConversation().catch(() => undefined);
 
     if (source.kind==="conversation") {
       set({status:"ready",conversationId:source.conversationId});
