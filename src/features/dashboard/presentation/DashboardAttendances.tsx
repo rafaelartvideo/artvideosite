@@ -145,7 +145,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
     {name:"Em atendimento",total:m.active,filter:"in_att",color:"#0131CD"},
     {name:"Aguardando",total:m.waiting,filter:"waiting",color:"#eab308"},
     {name:"Encaminhados",total:m.forwarded,filter:"forwarded",color:"#8b5cf6"},
-    {name:"Finalizados no período",total:m.finished,filter:"finished",color:"#059669"},
+    {name:"Finalizados atualmente",total:m.closed_total,filter:"finished",color:"#059669"},
   ];
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -170,7 +170,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         <Stat title="Em atendimento" value={number(m.active)} detail="Conversas ativas" icon={Activity} onClick={()=>onOpenInbox?.("in_att")}/>
         <Stat title="Aguardando" value={number(m.waiting)} detail="Na fila agora" icon={Clock3} tone="amber" onClick={()=>onOpenInbox?.("waiting")}/>
         <Stat title="Sem resposta" value={number(m.unanswered)} detail={"Há "+data.unanswered_after_minutes+" min ou mais"} icon={MessageSquare} tone="red" onClick={()=>onOpenInbox?.("unanswered")}/>
-        <Stat title="Finalizados" value={number(m.finished)} detail="No período" icon={CheckCircle2} tone="green" onClick={()=>onOpenInbox?.("finished")}/>
+        <Stat title="Finalizados" value={number(m.closed_total)} detail="Conversas finalizadas" icon={CheckCircle2} tone="green" onClick={()=>onOpenInbox?.("finished")}/>
         <Stat title="Primeira resposta" value={duration(m.avg_first_reply_minutes)} detail="Média válida" icon={Clock3}/>
         <Stat title="Dentro do SLA" value={ratio(m.sla_met,m.sla_valid)}
           detail={"Até "+data.threshold_minutes+" min · "+number(m.sla_valid)+" respostas"} icon={CheckCircle2} tone="green"/>
@@ -179,7 +179,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         {visible("trend")&&<Panel title="Evolução dos atendimentos" subtitle="Novos protocolos x finalizados por dia">
           <Trend values={data.trend}/>
         </Panel>}
-        {visible("situation")&&<Panel title="Distribuição por situação" subtitle="Status atual e encerramentos no período">
+        {visible("situation")&&<Panel title="Distribuição por situação" subtitle="Fotografia atual das conversas">
           <div className="space-y-4">
             {status.map(row=><button key={row.name} type="button" onClick={()=>onOpenInbox?.(row.filter)}
               className="block w-full rounded-lg p-1 text-left hover:bg-muted/40">
@@ -190,7 +190,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
                 <div className="h-full rounded-full" style={{background:row.color,width:(100*row.total/Math.max(1,...status.map(s=>s.total)))+"%"}}/>
               </div>
             </button>)}
-            <p className="text-[11px] text-muted-foreground">Encaminhados integra as conversas em atendimento; não deve ser somado às demais situações.</p>
+            <p className="text-[11px] text-muted-foreground">Encaminhados integra as conversas em atendimento; não deve ser somado às demais situações. Finalizados reflete o estado atual, enquanto Análises apresenta as finalizações no período.</p>
           </div>
         </Panel>}
         {visible("attention")&&<Panel title="Clientes que precisam de atenção" subtitle={"Fila e sem resposta há "+data.unanswered_after_minutes+" min ou mais"}>
@@ -236,6 +236,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
     {view==="analytics"&&<>
       {visible("operations")&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat title="Novos protocolos" value={number(m.opened)} detail="Abertos no período" icon={MessageSquare}/>
+        <Stat title="Finalizações no período" value={number(m.finished)} detail="Protocolos encerrados" icon={CheckCircle2} tone="green"/>
         <Stat title="Duração média" value={duration(m.avg_handle_minutes)} detail="Finalizados com horários válidos" icon={Clock3}/>
         <Stat title="Encaminhamentos" value={number(m.transfers)} detail="Transferências do período" icon={ArrowLeftRight}/>
         <Stat title="Clientes que retornaram" value={number(data.recurrent_contacts)} detail="Possuem protocolo anterior" icon={Users}/>
