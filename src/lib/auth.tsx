@@ -59,8 +59,9 @@ function isTransientAccessFailure(error: unknown): boolean {
   const code=String(detail.code||"").toUpperCase();
   if(["57014","PGRST000","PGRST001","PGRST002","ETIMEDOUT","ECONNRESET"].includes(code))return true;
   const name=String(detail.name||"");
-  if(name==="AbortError" || name==="TimeoutError" || name==="TypeError")return true;
+  if(name==="AbortError" || name==="TimeoutError")return true;
   const message=String(detail.message||"").toLowerCase();
+  if(name==="TypeError" && /fetch|network|connection/.test(message))return true;
   return /failed to fetch|networkerror|network request failed|connection refused|statement timeout|timed out|gateway timeout/.test(message);
 }
 
