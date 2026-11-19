@@ -641,14 +641,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const includeCount=!cachedTotal || Date.now()-cachedTotal.savedAt>45_000;
     if(!silent)setConversationPageLoading(true);
     try{
-      // A slow count must not blank the WhatsApp inbox when its page loaded.
-      const [pageResult,countResult]=await Promise.allSettled([
-        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,{...options,includeCount}),
-        listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone,options.priorityMinutes),
-      ]);
-      if(pageResult.status==="rejected")throw pageResult.reason;
-      const page=pageResult.value;
-      const counts=countResult.status==="fulfilled"?countResult.value:null;
+      // Count requests are independent: never delay or blank the inbox page
+      // just because a global count RPC is slow or times out.
+      void listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,
+        activeChannelPhone,options.priorityMinutes).then(counts=>{
+          if(sequence===conversationLoadSeq.current &&
+            organizationRef.current===activeOrganizationId &&
+            accountRef.current===activeChannelPhone)
+            setConversationCounts(counts);
+        }).catch(()=>undefined);
+      const page=await listUnionWhatsAppConversations(activeOrganizationId,
+        activeChannelId,activeChannelPhone,{...options,includeCount});
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       const namesCache=contactNameCacheRef.current;
@@ -709,7 +712,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
-      if(counts)setConversationCounts(counts);
       
     }catch(reason){
       if(sequence===conversationLoadSeq.current&&organizationRef.current===activeOrganizationId)
