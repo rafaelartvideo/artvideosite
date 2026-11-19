@@ -169,7 +169,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
       {visible("metrics")&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <Stat title="Em atendimento" value={number(m.active)} detail="Conversas ativas" icon={Activity} onClick={()=>onOpenInbox?.("in_att")}/>
         <Stat title="Aguardando" value={number(m.waiting)} detail="Na fila agora" icon={Clock3} tone="amber" onClick={()=>onOpenInbox?.("waiting")}/>
-        <Stat title="Sem resposta" value={number(m.unanswered)} detail="Clientes esperando" icon={MessageSquare} tone="red" onClick={()=>onOpenInbox?.("unanswered")}/>
+        <Stat title="Sem resposta" value={number(m.unanswered)} detail={"Há "+data.unanswered_after_minutes+" min ou mais"} icon={MessageSquare} tone="red" onClick={()=>onOpenInbox?.("unanswered")}/>
         <Stat title="Finalizados" value={number(m.finished)} detail="No período" icon={CheckCircle2} tone="green" onClick={()=>onOpenInbox?.("finished")}/>
         <Stat title="Primeira resposta" value={duration(m.avg_first_reply_minutes)} detail="Média válida" icon={Clock3}/>
         <Stat title="Dentro do SLA" value={ratio(m.sla_met,m.sla_valid)}
@@ -193,7 +193,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
             <p className="text-[11px] text-muted-foreground">Encaminhados integra as conversas em atendimento; não deve ser somado às demais situações.</p>
           </div>
         </Panel>}
-        {visible("attention")&&<Panel title="Clientes que precisam de atenção" subtitle="Fila e conversas sem resposta mais antigas">
+        {visible("attention")&&<Panel title="Clientes que precisam de atenção" subtitle={"Fila e sem resposta há "+data.unanswered_after_minutes+" min ou mais"}>
           <Queue rows={data.attention} limit={data.threshold_minutes} onOpenInbox={onOpenInbox}/>
         </Panel>}
         {visible("operators")&&<Panel title="Carga de trabalho" subtitle="Conversas ativas por operador">
