@@ -134,9 +134,6 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
     if(dirty&&!window.confirm("Descartar alterações não salvas e trocar o calendário?"))return;
     setScope(next);setScopeId("");
   };
-  const updateSlot=(day:string,index:number,key:keyof Slot,value:string)=>{
-    setWeekly(old=>({...old,[day]:(old[day]||[]).map((slot,i)=>i===index?{...slot,[key]:value}:slot)}));
-  };
   const intervalEditor=(slots:Slot[],update:(next:Slot[])=>void)=><div className="space-y-2">
     {slots.map((slot,index)=><div key={index} className="flex items-center gap-2">
       <input aria-label="Início" type="time" value={slot.start}
