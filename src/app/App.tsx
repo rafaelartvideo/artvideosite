@@ -116,7 +116,23 @@ function CaptureFallback() {
 }
 
 function AdminFallback({ progress = 12, status = "Carregando painel" }: { progress?: number; status?: string }) {
-  return <AdminPanelLoader progress={progress} status={status} />;
+  const [delayed,setDelayed]=useState(false);
+  useEffect(()=>{
+    setDelayed(false);
+    const id=window.setTimeout(()=>setDelayed(true),20_000);
+    return()=>window.clearTimeout(id);
+  },[status]);
+  return <div className="relative min-h-dvh">
+    <AdminPanelLoader progress={progress} status={status}/>
+    {delayed && <div role="alert" className="fixed inset-x-4 bottom-10 z-[150] mx-auto max-w-sm rounded-xl border border-white/30 bg-[#102452] p-4 text-center text-sm font-semibold text-white shadow-2xl">
+      <p>O carregamento está demorando mais que o esperado.</p>
+      <p className="mt-1 text-xs font-normal text-white/80">A conexão pode estar instável. Sua sessão não foi encerrada.</p>
+      <button type="button" onClick={()=>window.location.reload()}
+        className="mt-3 rounded-lg border border-white/50 bg-white px-4 py-2 text-xs font-bold text-[#102452]">
+        Tentar carregar novamente
+      </button>
+    </div>}
+  </div>;
 }
 
 function AdminAccessMessage({
@@ -336,6 +352,15 @@ function AdminEntry() {
     }
     navigate("/");
   };
+
+  if (!session && accessError) {
+    return <AdminAccessMessage
+      title="Falha ao restaurar sessão"
+      message={accessError}
+      onRetry={()=>window.location.reload()}
+      onSignOut={signOut}
+    />;
+  }
 
   if (!session) {
     return (
