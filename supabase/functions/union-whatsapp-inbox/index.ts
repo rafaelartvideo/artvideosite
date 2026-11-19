@@ -1619,7 +1619,7 @@ if(action==="contacts_groups_manage") {
         if(echo){
           const {error:updateError}=await admin.from("union_whatsapp_messages")
             .update({protocol_id:activeProtocol.id,body_text:outbound,
-              sender_name:senderName,origin:"union",delivery_status:"sent"})
+              sender_name:senderName,sender_user_id:actorId,origin:"union",delivery_status:"sent"})
             .eq("organization_id",org).eq("id",echo.id).eq("conversation_id",conversationId);
           if(updateError)throw updateError;
         }else{
@@ -1627,7 +1627,7 @@ if(action==="contacts_groups_manage") {
             .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,
               conversation_id:conversationId,provider_message_id:providerId,
               direction:"outgoing",message_type:"text",body_text:outbound,
-              sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+              sender_name:senderName,sender_user_id:actorId,sent_at:now,delivery_status:"sent",origin:"union",
             },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true});
           if(messageError)throw messageError;
         }
@@ -2764,7 +2764,7 @@ if(action==="contacts_groups_manage") {
       .upsert({
         organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
-        body_text:outboundText,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+        body_text:outboundText,sender_name:senderName,sender_user_id:actorId,sent_at:now,delivery_status:"sent",origin:"union",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
         ...(reply ? {reply_to_provider_message_id:reply.id,reply_to_text:reply.text,
           reply_to_message_type:reply.type,reply_to_direction:reply.direction} : {}),
@@ -2777,7 +2777,7 @@ if(action==="contacts_groups_manage") {
       // WuzAPI can echo the outgoing event before this signed send request
       // returns. It has the same provider ID; enrich the existing row instead
       // of showing two separate bubbles or dropping the private attachment.
-      const patch:Record<string,unknown>={origin:"union"};
+      const patch:Record<string,unknown>={origin:"union",sender_user_id:actorId};
       if(senderName) patch.sender_name=senderName;
       if(outboundText) patch.body_text=outboundText;
       if(reply){
