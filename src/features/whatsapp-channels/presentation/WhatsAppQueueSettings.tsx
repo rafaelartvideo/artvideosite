@@ -23,7 +23,9 @@ export function WhatsAppQueueSettings({footerTarget,footerInParent=false}: {
   const dirty=JSON.stringify(values)!==JSON.stringify(saved);
   const valid=Number.isInteger(values.warning_minutes) && values.warning_minutes>=1 &&
     values.warning_minutes<=720 && Number.isInteger(values.critical_minutes) &&
-    values.critical_minutes>values.warning_minutes && values.critical_minutes<=1440;
+    values.critical_minutes>values.warning_minutes && values.critical_minutes<=1440 &&
+    Number.isInteger(values.unanswered_priority_minutes) &&
+    values.unanswered_priority_minutes>=1 && values.unanswered_priority_minutes<=1440;
   const load=useCallback(async()=>{
     if(!activeOrganizationId)return;
     setLoading(true);
@@ -69,7 +71,23 @@ export function WhatsAppQueueSettings({footerTarget,footerInParent=false}: {
           <span className="mt-1 block font-normal text-muted-foreground">Muda a identificação de espera para vermelho.</span>
         </label>
       </div>
-      {!valid && <p role="alert" className="text-xs text-red-600">A espera crítica precisa ser maior que a de atenção, respeitando os limites indicados.</p>}
+      <div className="rounded-lg border border-border p-3 space-y-3">
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <Checkbox checked={values.auto_prioritize_unanswered}
+            onCheckedChange={checked=>setValues(current=>({...current,auto_prioritize_unanswered:checked===true}))}/>
+          <span className="min-w-0"><span className="block text-xs font-semibold">Priorizar conversas sem resposta</span>
+            <span className="mt-1 block text-xs text-muted-foreground">Em atendimento, conversas vencidas sobem para o topo em todas as páginas. Na fila, continua a ordem de chegada.</span></span>
+        </label>
+        <label className="block text-xs font-semibold text-foreground">
+          Priorizar após (minutos)
+          <input type="number" min={1} max={1440} step={1} value={values.unanswered_priority_minutes}
+            disabled={!values.auto_prioritize_unanswered}
+            onChange={event=>setValues(current=>({...current,unanswered_priority_minutes:numeric(Number(event.target.value))}))}
+            className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"/>
+          <span className="mt-1 block font-normal text-muted-foreground">Padrão: 15 minutos. A prioridade termina assim que o operador responde.</span>
+        </label>
+      </div>
+      {!valid && <p role="alert" className="text-xs text-red-600">Verifique os tempos: espera crítica acima de atenção e prioridade entre 1 e 1440 minutos.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {([
           ["show_wait_time","Exibir tempo de espera","Atualizado automaticamente enquanto o atendimento está na fila."],
