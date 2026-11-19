@@ -65,3 +65,21 @@ export async function loadDashboardAttendances({
     attention:Array.isArray(result.attention)?result.attention:[],
   };
 }
+
+export type AttendanceFollowupSummary={
+  episodes:number;responded:number;unresolved:number;unscored:number;
+  avg_followup_elapsed_minutes:number|null;avg_followup_useful_minutes:number|null;
+  sla_valid:number;sla_met:number;
+};
+// Carregada somente na aba Análises; não entra no resumo principal.
+export async function loadDashboardAttendanceFollowups({
+  organizationId,periodDays,signal,
+}:{organizationId:string;periodDays:number;signal?:AbortSignal}):Promise<AttendanceFollowupSummary>{
+  const query=supabase.rpc("load_dashboard_attendance_followups_v1",{
+    p_org:organizationId,p_days:Math.max(1,Math.min(365,Math.trunc(periodDays||30))),
+  });
+  const {data,error}=await (signal?query.abortSignal(signal):query);
+  if(error)throw error;
+  if(!data||typeof data!=="object")throw new Error("Resumo dos tempos entre respostas indisponível.");
+  return data as AttendanceFollowupSummary;
+}
