@@ -13,7 +13,7 @@ type Weekly=Record<string,Slot[]>;
 type Exception={date:string;closed:boolean;reason:string;intervals:Slot[]};
 type CalendarValue={
   id:string;timezone:string;weekly:Weekly;exceptions:Exception[];
-  effective_at:string;
+  effective_at:string;retrospective_effective_date?:string|null;
 };
 type ScopeType="company"|"department"|"operator";
 type Option={id:string;name:string};
@@ -56,6 +56,11 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
   const [departments,setDepartments]=useState<Option[]>([]);
   const [operators,setOperators]=useState<Option[]>([]);
   const [effectiveAt,setEffectiveAt]=useState<string|null>(null);
+  const [retrospectiveSet,setRetrospectiveSet]=useState(false);
+  const [retroDate,setRetroDate]=useState("");
+  const [retroNote,setRetroNote]=useState("");
+  const [retroConfirmed,setRetroConfirmed]=useState(false);
+  const [retroSaving,setRetroSaving]=useState(false);
   const [savedSignature,setSavedSignature]=useState("");
   const [loading,setLoading]=useState(false);
   const [saving,setSaving]=useState(false);
@@ -83,6 +88,8 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
       setTimezone(tz);setWeekly(days);setExceptions(special);
       setSavedSignature(JSON.stringify({timezone:tz,weekly:days,exceptions:special}));
       setEffectiveAt(cal?.effective_at||null);
+      setRetrospectiveSet(Boolean(cal?.retrospective_effective_date));
+      setRetroDate("");setRetroNote("");setRetroConfirmed(false);
       setDepartments(response?.departments||[]);setOperators(response?.operators||[]);
     }catch(error){
       notifyAdmin(systemErrorMessage(error,"Não foi possível consultar os horários de atendimento."),"error");
@@ -105,6 +112,23 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
       notifyAdmin("Expediente salvo. A nova versão vale a partir de agora.","success");
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível salvar o expediente."),"error");}
     finally{setSaving(false);}
+  };
+  const confirmHistory=async()=>{
+    if(!canManage||!activeOrganizationId||!effectiveAt||!retroDate||
+      retroNote.trim().length<8||!retroConfirmed||retroSaving||dirty)return;
+    if(!window.confirm("Confirma que este horário era válido desde a data informada? Isso recalculará indicadores históricos quando existirem mensagens suficientes."))return;
+    setRetroSaving(true);
+    try{
+      const {error}=await supabase.rpc("union_whatsapp_business_calendar_backdate",{
+        p_org:activeOrganizationId,p_scope:scope,p_scope_id:scopeId||null,
+        p_date:retroDate,p_note:retroNote.trim(),p_confirmed:true,
+      });
+      if(error)throw error;
+      await queryClient.invalidateQueries({queryKey:["dashboard","attendances",activeOrganizationId]});
+      notifyAdmin("Vigência histórica confirmada. Indicadores serão calculados com os eventos existentes.","success");
+      await read();
+    }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível confirmar o calendário anterior."),"error");}
+    finally{setRetroSaving(false);}
   };
   const switchScope=(next:ScopeType)=>{
     if(dirty&&!window.confirm("Descartar alterações não salvas e trocar o calendário?"))return;
@@ -218,6 +242,42 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
           </div>)}
           {!exceptions.length&&<p className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-xs text-muted-foreground">Nenhuma exceção cadastrada.</p>}
         </div>
+        {effectiveAt&&canManage&&<details className="rounded-xl border border-border p-3">
+          <summary className="cursor-pointer text-xs font-semibold text-foreground">
+            Confirmar expediente anterior para recalcular o histórico
+          </summary>
+          {retrospectiveSet?<p className="mt-3 text-xs text-muted-foreground">
+            A data histórica deste calendário já foi confirmada e registrada em auditoria.
+          </p>:<div className="mt-3 space-y-3">
+            <p className="text-xs leading-5 text-muted-foreground">
+              Opcional e somente na primeira versão: use se puder confirmar que estes mesmos horários
+              já valiam anteriormente. Nenhuma informação é inventada nem mensagens são alteradas.
+              Uma data histórica incorreta distorcerá SLAs antigos.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+              <label className="space-y-1 text-xs font-semibold">Válido desde
+                <input type="date" value={retroDate}
+                  min={new Date(Date.now()-365*86400000).toISOString().slice(0,10)}
+                  max={new Date().toISOString().slice(0,10)}
+                  onChange={event=>setRetroDate(event.target.value)} className={inputStyle}/>
+              </label>
+              <label className="space-y-1 text-xs font-semibold">Justificativa
+                <input type="text" value={retroNote} maxLength={500}
+                  onChange={event=>setRetroNote(event.target.value)}
+                  placeholder="Ex.: horário confirmado no registro interno da empresa"
+                  className={inputStyle}/>
+              </label>
+            </div>
+            <label className="flex items-start gap-2 text-xs text-foreground">
+              <input type="checkbox" checked={retroConfirmed}
+                onChange={event=>setRetroConfirmed(event.target.checked)}/>
+              Confirmo que o expediente era este durante o período informado.
+            </label>
+            <AdminButton size="sm" variant="secondary" loading={retroSaving}
+              disabled={dirty||!retroDate||retroNote.trim().length<8||!retroConfirmed||retroSaving}
+              onClick={()=>void confirmHistory()}>Confirmar vigência anterior</AdminButton>
+          </div>}
+        </details>}
         {!valid&&<p role="alert" className="text-xs text-destructive">Revise as datas e intervalos. Não pode haver sobreposição ou duplicação.</p>}
       </>}
     {footerTarget?createPortal(footer,footerTarget):!footerInParent&&<div className="border-t border-border pt-3">{footer}</div>}
