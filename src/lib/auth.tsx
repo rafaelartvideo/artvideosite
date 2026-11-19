@@ -50,6 +50,20 @@ interface AuthContextValue {
 const LOGIN_NOTICE_KEY = "unionworld:login:notice";
 const SCHEDULE_WARNING_MS = 10 * 60_000;
 
+// Preserve an already authorized CRM session only for transient infrastructure
+// failures. Authorization denials and unexpected errors remain fail-closed.
+function isTransientAccessFailure(error: unknown): boolean {
+  const detail=error && typeof error==="object" ? error as Record<string,unknown> : {};
+  const status=Number(detail.status);
+  if(status===408 || status===429 || (status>=500 && status<=504))return true;
+  const code=String(detail.code||"").toUpperCase();
+  if(["57014","PGRST000","PGRST001","PGRST002","ETIMEDOUT","ECONNRESET"].includes(code))return true;
+  const name=String(detail.name||"");
+  if(name==="AbortError" || name==="TimeoutError" || name==="TypeError")return true;
+  const message=String(detail.message||"").toLowerCase();
+  return /failed to fetch|networkerror|network request failed|connection refused|statement timeout|timed out|gateway timeout/.test(message);
+}
+
 const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
@@ -85,6 +99,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationAccess | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessWindow, setAccessWindow] = useState<MyEmployeeAccessWindow | null>(null);
+  const accessWindowRef=useRef<MyEmployeeAccessWindow|null>(null);
+  accessWindowRef.current=accessWindow;
   const [pendingTerms, setPendingTerms] = useState<PendingOrganizationTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(8);
@@ -572,8 +588,10 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
       // Nunca deixar o painel preso em 42% sem um botão para tentar novamente.
       if (requestId === accessRequestRef.current
         && accessLoadingKeyRef.current === requestKey && signedInUserRef.current === userId) {
-        if(background && activeOrganizationIdRef.current &&
-          (!preferredOrganizationId || activeOrganizationIdRef.current===preferredOrganizationId)){
+        if(background && accessWindowRef.current?.allowed &&
+          activeOrganizationIdRef.current &&
+          (!preferredOrganizationId || activeOrganizationIdRef.current===preferredOrganizationId) &&
+          isTransientAccessFailure(error)){
           // A network failure during a permission refresh is NOT a revocation.
           // Keep the last server-authorized session and its scheduled access
           // deadline; successful server revocation still clears access below.
@@ -621,7 +639,9 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     if (requestId !== accessRequestRef.current) return;
 
     if (error) {
-      if(background && activeOrganizationIdRef.current===requestedOrganizationId){
+      if(background && accessWindowRef.current?.allowed &&
+        activeOrganizationIdRef.current===requestedOrganizationId &&
+        isTransientAccessFailure(error)){
         console.warn("[ACESSO] Falha temporária ao atualizar permissões:",error);
         setLoadingProgress(100);
         return;
@@ -696,7 +716,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     } catch (scheduleError) {
       if (requestId !== accessRequestRef.current) return;
       if(background && activeOrganizationIdRef.current===requestedOrganizationId &&
-        accessWindow?.allowed && accessWindow.next_end_at){
+        accessWindowRef.current?.allowed && accessWindowRef.current?.next_end_at &&
+        isTransientAccessFailure(scheduleError)){
         // Existing restricted sessions remain guarded by the scheduled
         // sign-out timer and server-side access checks during brief failures.
         console.warn("[ACESSO] Consulta de horário indisponível durante atualização:",scheduleError);
