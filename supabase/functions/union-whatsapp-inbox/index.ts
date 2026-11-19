@@ -1497,6 +1497,9 @@ if(action==="contacts_groups_manage") {
     }
 
     if(action==="start") {
+      if(typeof body.first_message!=="string" || !body.first_message.trim())
+        return json({success:false,code:"first_message_required",
+          error:"Envie a primeira mensagem para iniciar o atendimento."},400);
       const inputDigits=String(body.phone||"").replace(/\D/g,"");
       const national=inputDigits.startsWith("55") && inputDigits.length>11
         ? inputDigits.slice(2) : inputDigits;
@@ -2507,9 +2510,13 @@ if(action==="contacts_groups_manage") {
       if(error) throw error;
       return json({success:true});
     }
-    if(action==="return_queue" || action==="finish" || action==="reopen") {
+    if(action==="reopen") {
+      return json({success:false,code:"first_message_required",
+        error:"Para reabrir um atendimento finalizado, envie a primeira mensagem."},409);
+    }
+    if(action==="return_queue" || action==="finish") {
       if(!owned && !canManage) return json({success:false,error:"Conversa não atribuída a você."},403);
-      const required=action==="reopen"?"finished":"in_att";
+      const required="in_att";
       if(thread.status !== required) return json({success:false,code:"invalid_state",error:"A situação da conversa mudou. Atualize a lista."},409);
       const patch:Record<string,unknown>=
         action==="finish" ? {status:"finished",unread_count:0,assigned_to:thread.assigned_to} :

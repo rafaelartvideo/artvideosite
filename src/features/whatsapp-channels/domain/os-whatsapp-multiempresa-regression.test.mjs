@@ -62,7 +62,8 @@ test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encer
   assert.match(modal, /Carregando atendimento\.\.\./);
   assert.match(inbox, /embedded && !protocolFilter && selected\.status === "finished" && canAction\("start"\)/);
   assert.match(inbox, /onClick=\{startNewProtocol\}>Iniciar conversa/);
-  assert.match(inbox, /!embedded && !protocolFilter && selected\.status === "finished" && canAction\("reopen"\)/);
+  assert.match(inbox, /!embedded && !protocolFilter && selected\.status === "finished"/);
+  assert.match(inbox, /canAction\("reopen"\) && canAction\("start"\)/);
   assert.match(inbox, /embedded && selected\.status==="finished" \? " · Histórico completo"/);
   assert.match(inbox, /setProtocolFilter\(null\)/);
   assert.match(inbox, /embedded \? Promise\.resolve\(\) : refresh\(true\)/);
@@ -1260,4 +1261,21 @@ test("Marcadores de inicio/fim surgem no chat somente quando ha mais de um atend
   assert.match(inbox,/entry\.kind==="protocol_start" \|\| entry\.kind==="protocol_end"/);
   assert.match(inbox,/Atendimento \{entry\.kind==="protocol_start"\?"iniciado":"finalizado"\}/);
   assert.match(inbox,/role="note"/);
+});
+
+test("Atendimento finalizado nao volta para Aguardando sem primeira mensagem",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const edge=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  // Botão manual exibe o rascunho, sem chamada que recria o protocolo vazio.
+  assert.doesNotMatch(inbox,/onClick=\{\(\) => void operate\("reopen"\)\}/);
+  assert.match(inbox,/canAction\("reopen"\) && canAction\("start"\) && selected\.contact_phone && !draftingFinished/);
+  assert.match(inbox,/onClick=\{startNewProtocol\}>/);
+  assert.match(inbox,/\} : selected\.status==="finished" && draftingFinished \? <form/);
+  assert.match(inbox,/if\(!selected \|\| selected\.status!=="finished"/);
+  assert.match(inbox,/await startUnionWhatsAppWithFirstMessage\(/);
+  assert.match(repository,/if\(!text\)throw new Error\("Digite a primeira mensagem antes de iniciar o atendimento\."/);
+  // Além da UI, chamadas antigas da API devem ser rejeitadas antes de alterar o status.
+  assert.match(edge,/if\(action==="reopen"\) \{\s*return json\(\{success:false,code:"first_message_required"/);
+  assert.match(edge,/if\(typeof body\.first_message!=="string" \|\| !body\.first_message\.trim\(\)\)/);
 });

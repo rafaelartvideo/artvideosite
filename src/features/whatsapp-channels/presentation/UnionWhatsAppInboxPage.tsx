@@ -1741,15 +1741,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Abertura em rascunho: um protocolo finalizado só é reaberto após o
   // operador solicitar explicitamente o envio da primeira mensagem.
   const startNewProtocol = () => {
-    if(!embedded || !selected || selected.status!=="finished" ||
-       !selected.contact_phone || !canAction("start") || sendingFinishedMessage)return;
+    if(!selected || selected.status!=="finished" ||
+       !selected.contact_phone || !canAction("start") ||
+       (!embedded && !canAction("reopen")) || sendingFinishedMessage)return;
     setDraftingFinished(true);
     setFinishedStartError("");
   };
   const sendFinishedFirstMessage = async () => {
-    if(!embedded || !selected || selected.status!=="finished" ||
+    if(!selected || selected.status!=="finished" ||
        !selected.contact_phone || !activeOrganizationId || !activeChannelId ||
-       !activeChannelPhone || !canAction("start") || sendingFinishedMessage ||
+       !activeChannelPhone || !canAction("start") ||
+       (!embedded && !canAction("reopen")) || sendingFinishedMessage ||
        !finishedFirstMessage.trim())return;
     setSendingFinishedMessage(true);
     setFinishedStartError("");
@@ -2628,8 +2630,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {embedded && !protocolFilter && selected.status === "finished" && canAction("start") && selected.contact_phone && !draftingFinished &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)}
                     onClick={startNewProtocol}>Iniciar conversa</AdminButton>}
-                {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
-                  <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
+                {!embedded && !protocolFilter && selected.status === "finished" &&
+                  canAction("reopen") && canAction("start") && selected.contact_phone && !draftingFinished &&
+                  <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)}
+                    onClick={startNewProtocol}><MessageSquareText size={15}/> Iniciar conversa</AdminButton>}
               </div>}
             </header>
             {contactDetailsOpen && <UnionWhatsAppContactDetails key={`contact-details:${selected.id}`}
@@ -2955,7 +2959,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <Send size={22}/>
                   </button>
                 </form>
-              </div> : embedded && selected.status==="finished" && draftingFinished ? <form
+              </div> : selected.status==="finished" && draftingFinished ? <form
                 className="mx-auto max-w-4xl space-y-2" onSubmit={event=>{event.preventDefault();void sendFinishedFirstMessage();}}>
                 <textarea value={finishedFirstMessage} onChange={event=>setFinishedFirstMessage(event.target.value)}
                   rows={2} maxLength={4000} autoFocus
@@ -2972,7 +2976,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>
               </form> : <p className="py-2 text-center text-xs text-muted-foreground">
                 {selected.status === "waiting" ? "Assuma o atendimento para responder." :
-                  selected.status === "finished" ? (embedded ? "Histórico completo. Inicie uma conversa para responder." : "Atendimento finalizado. Reabra para responder.") :
+                  selected.status === "finished" ? "Atendimento finalizado. Inicie uma conversa para responder." :
                   "Esta conversa está atribuída a outro atendente."}
               </p>}
             </footer>
