@@ -3,73 +3,24 @@ import { ImagePlus, LoaderCircle, Send, X } from "lucide-react";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppGroupMessage } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
-const btn="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,canSend,layout="embedded"}:{
   organizationId:string;accountPhone:string;groupJid:string;canSend:boolean;layout?:"embedded"|"conversation";
 }){
-  const [messages,setMessages]=useState<UnionWhatsAppGroupMessage[]>([]);
+  // O WhatsApp nao disponibiliza historico retroativo de grupos.
+  // Nao consultar /chat/messages e nao manter polling desnecessario.
   const [localSent,setLocalSent]=useState<UnionWhatsAppGroupMessage[]>([]);
-  const [loading,setLoading]=useState(false);
-  const [loadingOlder,setLoadingOlder]=useState(false);
   const [sending,setSending]=useState(false);
-  const [available,setAvailable]=useState<boolean|null>(null);
-  const [hasMore,setHasMore]=useState(false);
-  const [before,setBefore]=useState<number|null>(null);
   const [draft,setDraft]=useState("");
   const [image,setImage]=useState<string|null>(null);
   const [error,setError]=useState("");
-  const [revision,setRevision]=useState(0);
   const fileRef=useRef<HTMLInputElement|null>(null);
   const chatScrollRef=useRef<HTMLDivElement|null>(null);
-  const requestRef=useRef(0);
   const clientId=useRef(crypto.randomUUID());
-
   useEffect(()=>{
-    setMessages([]);setLocalSent([]);setAvailable(null);setHasMore(false);setBefore(null);
-    setDraft("");setImage(null);setError("");
+    setLocalSent([]);setDraft("");setImage(null);setError("");
     clientId.current=crypto.randomUUID();
   },[groupJid,organizationId,accountPhone]);
 
-  useEffect(()=>{
-    let cancelled=false;
-    const request=++requestRef.current;
-    setLoading(true);setError("");
-    void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups_manage",{
-      account_phone:accountPhone,group_command:"history",group_jid:groupJid,
-    }).then(result=>{
-      if(cancelled||request!==requestRef.current)return;
-      setAvailable(result.history_available===true);
-      setMessages([...(result.messages||[])].reverse());
-      setHasMore(result.has_more===true);setBefore(result.next_before??null);
-      setLocalSent(current=>current.filter(item=>!(result.messages||[]).some(saved=>
-        saved.text===item.text && Math.abs(Date.parse(saved.sent_at)-Date.parse(item.sent_at))<15000)));
-    }).catch(reason=>{
-      if(cancelled||request!==requestRef.current)return;
-      setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));
-      setAvailable(false);
-    }).finally(()=>{if(!cancelled&&request===requestRef.current)setLoading(false);});
-    return()=>{cancelled=true;};
-  },[organizationId,accountPhone,groupJid,revision]);
-
-  useEffect(()=>{
-    const refreshVisible=()=>{if(document.visibilityState==="visible"&&!sending)setRevision(v=>v+1);};
-    const timer=window.setInterval(refreshVisible,20000);
-    window.addEventListener("focus",refreshVisible);
-    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refreshVisible);};
-  },[sending]);
-  const loadOlder=async()=>{
-    if(loadingOlder||!hasMore||!before)return;
-    setLoadingOlder(true);setError("");
-    try{
-      const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_groups_manage",{
-        account_phone:accountPhone,group_command:"history",group_jid:groupJid,group_before:before,
-      });
-      const older=[...(result.messages||[])].reverse();
-      setMessages(current=>[...older.filter(message=>!current.some(existing=>existing.id===message.id)),...current]);
-      setHasMore(result.has_more===true);setBefore(result.next_before??null);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar mensagens antigas."));}
-    finally{setLoadingOlder(false);}
-  };
   const chooseImage=async(file:File|null)=>{
     if(!file)return;
     if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>8*1024*1024){
@@ -119,14 +70,14 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
       setError(systemErrorMessage(reason,"Não foi possível enviar esta mensagem."));
     }finally{setSending(false);}
   };
-  const timeline=[...messages,...localSent];
+  const timeline=localSent;
   // Open at the latest message like the individual attendance conversations,
   // but never scroll away from history when older pages are prepended.
   useLayoutEffect(()=>{
     const pane=chatScrollRef.current;
-    if(!pane||loading||loadingOlder)return;
+    if(!pane)return;
     pane.scrollTop=pane.scrollHeight;
-  },[loading,groupJid,revision,localSent.length]);
+  },[groupJid,localSent.length]);
   const dateLabel=(value:string)=>{
     const date=new Date(value);
     return Number.isNaN(date.getTime())?"Data indisponível":
@@ -141,17 +92,9 @@ export function UnionWhatsAppGroupChat({organizationId,accountPhone,groupJid,can
       ?"flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
       :"space-y-3 rounded-xl border border-border p-3 sm:p-4"}>
     {error&&<p role="alert" className="mx-3 mt-2 rounded-lg border border-destructive/30 p-2 text-xs text-destructive">{error}</p>}
-    {available===false&&<p className="px-3 pt-2 text-xs text-muted-foreground">
-      O WhatsApp não disponibilizou o histórico deste grupo. A recuperação depende da configuração de histórico na VPS.
-    </p>}
-    {loading&&<p role="status" className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
-      <LoaderCircle size={14} className="animate-spin"/>Buscando mensagens...
-    </p>}
-    {available&&hasMore&&<button type="button" className={btn+" w-full"} disabled={loadingOlder}
-      onClick={()=>void loadOlder()}>{loadingOlder?"Carregando...":"Carregar mensagens anteriores"}</button>}
     <div ref={chatScrollRef} className={inbox?"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5":"max-h-96 min-h-32 space-y-2 overflow-y-auto rounded-lg bg-muted/30 p-3"}
       style={{backgroundImage:"url('/assets/crm/whatsapp-chat-pattern.svg')",backgroundRepeat:"repeat",backgroundSize:"270px 270px"}}>
-      {!loading&&!timeline.length&&<p className="py-6 text-center text-xs text-muted-foreground">Nenhuma mensagem disponível.</p>}
+
       <div className="mx-auto flex max-w-4xl flex-col gap-2">{timeline.map((message,index)=>{
         const own=localSent.includes(message)||message.sender_jid.replace(/\D/g,"")===accountPhone.replace(/\D/g,"");
         return <Fragment key={message.id}>
