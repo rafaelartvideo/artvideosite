@@ -5,21 +5,27 @@ import { supabase } from "@/lib/supabase";
 export type AttendanceMetrics = {
   active:number; waiting:number; closed_total:number; unread:number; unanswered:number;
   forwarded:number; opened:number; finished:number;
-  avg_first_reply_minutes:number|null; avg_handle_minutes:number|null;
+  avg_first_reply_minutes:number|null; avg_first_reply_elapsed_minutes:number|null;
+  avg_handle_minutes:number|null; avg_handle_useful_minutes:number|null;
   sla_valid:number; sla_met:number; invalid_reply_times:number;
-  transfers:number; reopened:number;
+  transfers:number; reopened:number; received_outside_hours:number;
+  unscored_without_calendar:number;
 };
 export type AttendanceOperator = {
   id:string; name:string; active:number; opened:number; finished:number;
-  avg_first_reply_minutes:number|null; answered:number; within_sla:number;
+  avg_first_reply_minutes:number|null; avg_first_reply_elapsed_minutes:number|null;
+  answered:number; within_sla:number;
 };
 export type AttendanceAlert = {
   conversation_id:string; contact_name:string|null; contact_phone:string|null;
   last_protocol_number:number|null; status:string; waiting_since:string|null;
   operator_name:string; department_name:string;
+  waiting_useful_minutes:number|null; business_open_now:boolean|null;
 };
 export type AttendanceDashboardData = {
   threshold_minutes:number;
+  calendar_configured:boolean;
+  unanswered_overdue_sla:number;
   unanswered_after_minutes:number;
   metrics:AttendanceMetrics;
   trend:Array<{day:string;opened:number;finished:number}>;
@@ -46,6 +52,8 @@ export async function loadDashboardAttendances({
   }
   return {
     threshold_minutes:Number(result.threshold_minutes||15),
+    calendar_configured:result.calendar_configured===true,
+    unanswered_overdue_sla:Number(result.unanswered_overdue_sla||0),
     unanswered_after_minutes:Number(result.unanswered_after_minutes||15),
     metrics:result.metrics,
     trend:result.trend,
