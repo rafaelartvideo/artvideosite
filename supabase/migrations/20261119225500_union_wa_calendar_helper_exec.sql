@@ -1,0 +1,2 @@
+-- SQL-invoker wrapper precisa EXECUTE no helper, que valida ACL e tenant internamente.
+GRANT EXECUTE ON FUNCTION private.union_wa_calendar_manage(uuid,text,text,uuid,text,jsonb,jsonb) TO authenticated;
