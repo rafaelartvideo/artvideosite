@@ -245,7 +245,7 @@ test("Grupos WuzAPI ficam separados da agenda e não carregam os JIDs dos partic
   assert.match(manager,/group_command:command/);
   assert.match(edge,/contacts_groups_manage:"manage_groups"/);
   assert.match(edge,/if\(!canManageGroups\)return json/);
-  assert.match(contacts,/canManageGroups/);
+  assert.doesNotMatch(contacts,/canManageGroups/);
 });
 
 test("Grupos são conversas do Atendimento: mesma disposição, painel de dados separado e composer fixo",()=>{
@@ -278,7 +278,7 @@ test("Dados do CRM do contato são consultados somente após seleção e com per
   assert.match(edge,/union_whatsapp_find_customer_by_phone/);
   assert.match(edge,/matches\.length!==1/);
   assert.match(edge,/permissions\.has\("orders\.details\.view"\)/);
-  assert.match(dialog,/if\(tab!=="contacts"\|\|!selected\|\|creating\|\|!canReadCrm\)/);
+  assert.match(dialog,/if\(!selected\|\|creating\|\|!canReadCrm\)/);
   assert.match(dialog,/"contacts_crm_match",\{chat_jid:selected\.chat_jid\}/);
   assert.match(dialog,/aria-label="Dados do cliente vinculado no CRM"/);
 });
