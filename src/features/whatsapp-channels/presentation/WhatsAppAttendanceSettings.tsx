@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft, Building2, CircleHelp, Link2, ListFilter, MessageSquareText,
-  Plus, Settings2, ShieldCheck, UsersRound,
+  Plus, Settings2, ShieldCheck, UsersRound, CalendarClock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -9,19 +9,21 @@ import { WhatsAppChannelsPage } from "./WhatsAppChannelsPage";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { WhatsAppQuickRepliesSettings } from "./WhatsAppQuickRepliesSettings";
+import { WhatsAppBusinessCalendarSettings } from "./WhatsAppBusinessCalendarSettings";
 import type { WhatsAppSettingsInlinePane, WhatsAppSettingsInlinePaneChange } from "./WhatsAppSettingsInlinePane";
 
 // Dedicated route: /admin/tools/union-whatsapp/configuracoes.
 // The gear opens this menu over the existing Atendimentos conversation.
 // Every option is a modal, never a redirect to Canais de Atendimento.
 export type AttendanceSettingsSection =
-  "configuration"|"connections"|"departments"|"queues"|"operators"|"permissions"|"quick-replies";
+  "configuration"|"connections"|"departments"|"queues"|"operators"|"permissions"|"quick-replies"|"hours";
 
 const sections = [
   {id:"configuration",title:"Configuração do canal",description:"Ativação, conexão e recebimento em etapas.",icon:Settings2},
   {id:"connections",title:"Conexões",description:"Números, sessões e QR Code do WhatsApp.",icon:Link2},
   {id:"departments",title:"Departamentos",description:"Organize equipes e setores.",icon:Building2},
   {id:"queues",title:"Filas",description:"Entrada, distribuição e prioridades.",icon:ListFilter},
+  {id:"hours",title:"Horário de atendimento",description:"Expediente, feriados, escalas e SLA.",icon:CalendarClock},
   {id:"operators",title:"Operadores",description:"Vínculos e funções de cada funcionário.",icon:UsersRound},
   {id:"permissions",title:"Perfis e permissões",description:"Ações autorizadas em cada perfil de atendimento.",icon:ShieldCheck},
   {id:"quick-replies",title:"Mensagens rápidas",description:"Respostas com variáveis e saudações automáticas.",icon:MessageSquareText},
@@ -214,6 +216,7 @@ export function WhatsAppAttendanceSettings({
                 createRequest={createRequest} onCanCreateChange={setCanCreateDepartment}
                 footerTarget={footerTarget} embedded onInlinePaneChange={onInlinePaneChange}/>
             : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget} footerInParent/>
+            : section==="hours" ? <WhatsAppBusinessCalendarSettings footerTarget={footerTarget} footerInParent/>
             : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded
                 footerTarget={footerTarget} onInlinePaneChange={onInlinePaneChange}/>}
       </div>}
