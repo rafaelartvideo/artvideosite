@@ -24,9 +24,9 @@ import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
   operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppProtocolMarker, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 // Reutiliza exatamente a mesma Nova OS flutuante do WhatsApp aberto pela OS.
@@ -379,6 +379,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [messagesOlderLoading,setMessagesOlderLoading]=useState(false);
   const messageCursorRef=useRef<UnionWhatsAppMessageCursor|null>(null);
   const [protocolFilter,setProtocolFilter] = useState<{id:string;label:string}|null>(null);
+  const [chatProtocolMarkers,setChatProtocolMarkers] = useState<{scope:string;items:UnionWhatsAppProtocolMarker[]}|null>(null);
   const [protocolsOpen,setProtocolsOpen] = useState(false);
   const [protocolsLoading,setProtocolsLoading] = useState(false);
   const [protocolsMoreLoading,setProtocolsMoreLoading] = useState(false);
@@ -1155,6 +1156,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
   useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setHandoffs([]);}, [selectedId]);
+  // Fetch only protocol timestamps, scoped to the current chat and company.
+  // No labels are rendered for conversations with a single attendance.
+  useEffect(()=>{
+    const scope=[activeOrganizationId,activeChannelId,activeChannelPhone,selectedId].join(":");
+    setChatProtocolMarkers(null);
+    if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
+      !canView||channelReady!==true)return;
+    let cancelled=false;
+    void listUnionWhatsAppProtocolMarkers(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
+      .then(items=>{if(!cancelled)setChatProtocolMarkers({scope,items});})
+      .catch(()=>{if(!cancelled)setChatProtocolMarkers({scope,items:[]});});
+    return()=>{cancelled=true;};
+  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,
+    channelReady,canView,selected?.status,selected?.last_protocol_number]);
+
 
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
@@ -1373,6 +1389,42 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         .map(item=>({kind:"optimistic" as const,id:item.id,sentAt:item.sentAt,pending:item})),
     ].sort((a,b)=>Date.parse(a.sentAt)-Date.parse(b.sentAt)||a.id.localeCompare(b.id));
   },[pending,messages,selectedId,activeOrganizationId]);
+  // Insert the real protocol boundaries into the chronological message stream.
+  // Only the visible message window is annotated: older pages get their own
+  // boundaries as they load, without showing distant events in the wrong place.
+  const chatTimeline=useMemo(()=>{
+    const scope=[activeOrganizationId,activeChannelId,activeChannelPhone,selectedId].join(":");
+    if(protocolFilter||chatProtocolMarkers?.scope!==scope||
+      !chatProtocolMarkers||chatProtocolMarkers.items.length<2||!timeline.length)return timeline;
+    const oldest=Date.parse(timeline[0].sentAt);
+    const latest=Date.parse(timeline[timeline.length-1].sentAt);
+    if(!Number.isFinite(oldest)||!Number.isFinite(latest))return timeline;
+    const boundaries:Array<{
+      kind:"protocol_start"|"protocol_end";id:string;sentAt:string;protocolNumber:number;
+    }>=[];
+    const add=(kind:"protocol_start"|"protocol_end",id:string,at:string|null,protocolNumber:number)=>{
+      if(!at)return;
+      const timestamp=Date.parse(at);
+      if(!Number.isFinite(timestamp))return;
+      if(messagesHasMore && timestamp<oldest)return;
+      // The latest message page is always loaded; closure may be after its
+      // last message, and a newly opened cycle may have no messages yet.
+      if(timestamp<oldest && messagesHasMore)return;
+      boundaries.push({kind,id, sentAt:at,protocolNumber});
+    };
+    for(const protocol of chatProtocolMarkers.items){
+      add("protocol_start","protocol-start:"+protocol.id,protocol.opened_at,protocol.protocol_number);
+      add("protocol_end","protocol-end:"+protocol.id,protocol.closed_at,protocol.protocol_number);
+    }
+    return [...timeline,...boundaries].sort((a,b)=>{
+      const delta=Date.parse(a.sentAt)-Date.parse(b.sentAt);
+      if(delta)return delta;
+      // At a shared timestamp start precedes messages; finish follows them.
+      const order=(kind:string)=>kind==="protocol_start"?-1:kind==="protocol_end"?1:0;
+      return order(a.kind)-order(b.kind)||a.id.localeCompare(b.id);
+    });
+  },[timeline,chatProtocolMarkers,selectedId,activeOrganizationId,
+    activeChannelId,activeChannelPhone,protocolFilter,messagesHasMore]);
   useEffect(()=>{
     // Reconcile only confirmed sends with the actual provider IDs. Never
     // remove unknown/failed sends: their warning prevents accidental resend.
@@ -2627,8 +2679,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               : timeline.length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
-                {timeline.map((entry,index) => <Fragment key={entry.id}>
-                  {(index===0 || chatDayKey(entry.sentAt)!==chatDayKey(timeline[index-1].sentAt)) &&
+                {chatTimeline.map((entry,index) => <Fragment key={entry.id}>
+                  {(index===0 || chatDayKey(entry.sentAt)!==chatDayKey(chatTimeline[index-1].sentAt)) &&
                     <div data-chat-day={chatDayKey(entry.sentAt)}
                       className="my-3 flex justify-center" role="separator"
                       aria-label={chatDayLabel(chatDayKey(entry.sentAt),clockNow)}>
@@ -2636,7 +2688,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         {chatDayLabel(chatDayKey(entry.sentAt),clockNow)}
                       </span>
                     </div>}
-                  {entry.kind==="persisted" ? (
+                  {entry.kind==="protocol_start" || entry.kind==="protocol_end" ?
+                    <div className="my-1.5 flex justify-center px-2" role="note"
+                      aria-label={`${unionWhatsAppProtocolLabel(entry.protocolNumber)}: atendimento ${entry.kind==="protocol_start"?"iniciado":"finalizado"}`}>
+                      <span className="rounded-lg border border-border/60 bg-card/80 px-3 py-1 text-center text-[10px] font-medium text-muted-foreground">
+                        {unionWhatsAppProtocolLabel(entry.protocolNumber)} · Atendimento {entry.kind==="protocol_start"?"iniciado":"finalizado"} · {clock(entry.sentAt)}
+                      </span>
+                    </div>
+                  : entry.kind==="persisted" ? (
                   <div key={entry.id} data-wa-provider-id={entry.message.provider_message_id}
                     onTouchStart={event=>{const t=event.touches[0];if(t)swipeReplyRef.current={id:entry.id,x:t.clientX,y:t.clientY};}}
                     onTouchEnd={event=>{

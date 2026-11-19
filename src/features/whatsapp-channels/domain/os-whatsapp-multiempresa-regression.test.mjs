@@ -1245,3 +1245,19 @@ test("Fila WhatsApp mantem o tempo original ao assumir/devolver e reinicia somen
   assert.match(repository,/options.filter==="waiting" && !options.sortByRecent\?"queue_entered_at"/);
   assert.match(inbox,/waitingMinutes\(item.queue_entered_at\|\|item.created_at,clockNow\)/);
 });
+
+test("Marcadores de inicio/fim surgem no chat somente quando ha mais de um atendimento",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const repository=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  assert.match(repository,/export async function listUnionWhatsAppProtocolMarkers/);
+  assert.match(repository,/select\("id,protocol_number,opened_at,closed_at"\)/);
+  assert.match(repository,/\.eq\("organization_id",organizationId\)\.eq\("channel_id",channelId\)/);
+  assert.match(repository,/\.eq\("account_phone",accountPhone\)\.eq\("conversation_id",conversationId\)/);
+  assert.match(inbox,/chatProtocolMarkers\.items\.length<2\|\|!timeline\.length/);
+  assert.match(inbox,/if\(protocolFilter\|\|chatProtocolMarkers\?\.scope!==scope/);
+  assert.match(inbox,/chatTimeline\.map\(\(entry,index\) =>/);
+  assert.match(inbox,/chatDayKey\(chatTimeline\[index-1\]\.sentAt\)/);
+  assert.match(inbox,/entry\.kind==="protocol_start" \|\| entry\.kind==="protocol_end"/);
+  assert.match(inbox,/Atendimento \{entry\.kind==="protocol_start"\?"iniciado":"finalizado"\}/);
+  assert.match(inbox,/role="note"/);
+});

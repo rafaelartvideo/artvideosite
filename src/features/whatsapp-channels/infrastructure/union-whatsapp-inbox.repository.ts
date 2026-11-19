@@ -44,6 +44,7 @@ export type UnionWhatsAppProtocol = {
   closed_by: string | null;
 };
 export const unionWhatsAppProtocolLabel = (number: number) => `ATD-${String(number).padStart(6,"0")}`;
+export type UnionWhatsAppProtocolMarker = Pick<UnionWhatsAppProtocol,"id"|"protocol_number"|"opened_at"|"closed_at">;
 
 export type UnionWhatsAppMessage = {
   id: string;
@@ -336,6 +337,28 @@ export async function findUnionWhatsAppConversationByContact(
     .eq("chat_jid",chatJid).maybeSingle();
   raise(error);
   return data as UnionWhatsAppConversation|null;
+}
+
+// Lightweight metadata for chat separators. A conversation with just one
+// attendance receives no separators; no message history is fetched here.
+export async function listUnionWhatsAppProtocolMarkers(
+  organizationId:string,conversationId:string,channelId:string,accountPhone:string,
+):Promise<UnionWhatsAppProtocolMarker[]>{
+  const pageSize=100;
+  const markers:UnionWhatsAppProtocolMarker[]=[];
+  for(let offset=0;offset<2000;offset+=pageSize){
+    const {data,error}=await supabase.from("union_whatsapp_protocols")
+      .select("id,protocol_number,opened_at,closed_at")
+      .eq("organization_id",organizationId).eq("channel_id",channelId)
+      .eq("account_phone",accountPhone).eq("conversation_id",conversationId)
+      .order("opened_at",{ascending:false}).order("id",{ascending:false})
+      .range(offset,offset+pageSize-1);
+    raise(error);
+    const page=(data||[]) as UnionWhatsAppProtocolMarker[];
+    markers.push(...page);
+    if(page.length<pageSize)break;
+  }
+  return markers;
 }
 
 export async function listUnionWhatsAppProtocols(
