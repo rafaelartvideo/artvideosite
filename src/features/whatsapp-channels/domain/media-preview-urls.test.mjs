@@ -144,6 +144,21 @@ test("imagens recebidas abrem visualizador unificado e sem nova aba", async () =
   assert.match(viewer, /Abrir arquivo/);
 });
 
+test("visualizador do WhatsApp oferece zoom, arrastar e controles com cores do tema", async () => {
+  const { readFileSync } = await import("node:fs");
+  const viewer=readFileSync(new URL("../presentation/UnionWhatsAppMediaViewer.tsx",import.meta.url),"utf8");
+  assert.match(viewer,/aria-label="Ampliar zoom"/);
+  assert.match(viewer,/aria-label="Reduzir zoom"/);
+  assert.match(viewer,/aria-label="Restaurar zoom"/);
+  assert.match(viewer,/addEventListener\("wheel",onWheel,\{passive:false\}\)/);
+  assert.match(viewer,/onPointerDown=\{onPointerDown\}/);
+  assert.match(viewer,/onPointerMove=\{onPointerMove\}/);
+  assert.match(viewer,/onDoubleClick=/);
+  assert.match(viewer,/touchAction:"none"/);
+  assert.match(viewer,/bg-card px-3 py-2 text-xs font-bold text-card-foreground/);
+  assert.doesNotMatch(viewer,/rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-900/);
+});
+
 test("Nomes dos documentos WhatsApp nao usam o UUID interno do Storage",async()=>{
   const {readFileSync}=await import("node:fs");
   const read=path=>readFileSync(new URL("../../../../"+path,import.meta.url),"utf8");
