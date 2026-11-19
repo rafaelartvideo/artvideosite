@@ -67,7 +67,7 @@ test("Atendimentos distingue figurinhas, autoria interna e coleção privada por
   // button, so touch screens do not clip the panel off the right edge.
   assert.match(page,/inset-x-0 bottom-\[calc\(100%\+8px\)\]/);
   assert.match(page,/max-h-\[min\(44dvh,320px\)\]/);
-  assert.match(page,/flex-wrap items-stretch rounded-xl/);
+  assert.match(page,/flex-wrap items-end rounded-xl/);
   assert.match(page,/xl:flex-nowrap/);
   assert.match(page,/aria-label="Mais opções da conversa"/);
   assert.match(page,/onClick=\{\(\)=>setActionPanel\("documents"\)\}/);
