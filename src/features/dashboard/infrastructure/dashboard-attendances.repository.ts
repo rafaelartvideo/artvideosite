@@ -14,6 +14,7 @@ export type AttendanceMetrics = {
 export type AttendanceOperator = {
   id:string; name:string; active:number; opened:number; finished:number;
   avg_first_reply_minutes:number|null; avg_first_reply_elapsed_minutes:number|null;
+  avg_personal_schedule_minutes:number|null;
   answered:number; within_sla:number;
 };
 export type AttendanceAlert = {
