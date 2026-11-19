@@ -138,7 +138,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
         setLoading(false);
       }
     }).catch(error=>{
-      if(cancelled || activeOrganizationIdRef.current)return;
+      if(cancelled || activeOrganizationIdRef.current || accessLoadingKeyRef.current)return;
       console.warn("[ACESSO] Não foi possível recuperar a sessão inicial:",error);
       setAccessError("Não foi possível recuperar a sessão. Verifique sua conexão e tente novamente.");
       setLoadingProgress(100);
