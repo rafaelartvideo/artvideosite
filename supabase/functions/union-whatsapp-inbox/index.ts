@@ -925,7 +925,7 @@ Deno.serve(async request => {
       }
       
 if(action==="contacts_groups_manage") {
-        // Ações de gestão só são executadas para o canal da empresa e por gestor.
+        // Todas as ações são limitadas ao canal autenticado desta empresa.
         // Mensagens e histórico seguem a permissão de envio; operações
         // administrativas exigem view_all independentemente do botão na UI.
         const command=String(body.group_command||"");
