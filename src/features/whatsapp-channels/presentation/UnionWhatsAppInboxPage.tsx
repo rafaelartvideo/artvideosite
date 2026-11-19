@@ -1156,22 +1156,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
   useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setHandoffs([]);}, [selectedId]);
-  // Fetch only protocol timestamps, scoped to the current chat and company.
-  // No labels are rendered for conversations with a single attendance.
-  useEffect(()=>{
-    const scope=[activeOrganizationId,activeChannelId,activeChannelPhone,selectedId].join(":");
-    setChatProtocolMarkers(null);
-    if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
-      !canView||channelReady!==true)return;
-    let cancelled=false;
-    void listUnionWhatsAppProtocolMarkers(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
-      .then(items=>{if(!cancelled)setChatProtocolMarkers({scope,items});})
-      .catch(()=>{if(!cancelled)setChatProtocolMarkers({scope,items:[]});});
-    return()=>{cancelled=true;};
-  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,
-    channelReady,canView,selected?.status,selected?.last_protocol_number]);
-
-
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
   useEffect(() => {
@@ -1281,6 +1265,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
   const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
+  // Fetch only protocol timestamps, scoped to the current chat and company.
+  // No labels are rendered for conversations with a single attendance.
+  useEffect(()=>{
+    const scope=[activeOrganizationId,activeChannelId,activeChannelPhone,selectedId].join(":");
+    setChatProtocolMarkers(null);
+    if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
+      !canView||channelReady!==true)return;
+    let cancelled=false;
+    void listUnionWhatsAppProtocolMarkers(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
+      .then(items=>{if(!cancelled)setChatProtocolMarkers({scope,items});})
+      .catch(()=>{if(!cancelled)setChatProtocolMarkers({scope,items:[]});});
+    return()=>{cancelled=true;};
+  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,
+    channelReady,canView,selected?.status,selected?.last_protocol_number]);
+
+
+
   // Retain the selected conversation outside of the currently visible page.
   // Switching tabs never causes a second conversation preparation.
   useEffect(()=>{
@@ -1406,10 +1407,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(!at)return;
       const timestamp=Date.parse(at);
       if(!Number.isFinite(timestamp))return;
+      // The latest page is always loaded. Hide boundaries older than the
+      // loaded window until the user requests the previous message page.
       if(messagesHasMore && timestamp<oldest)return;
-      // The latest message page is always loaded; closure may be after its
-      // last message, and a newly opened cycle may have no messages yet.
-      if(timestamp<oldest && messagesHasMore)return;
       boundaries.push({kind,id, sentAt:at,protocolNumber});
     };
     for(const protocol of chatProtocolMarkers.items){
