@@ -55,6 +55,16 @@ test("Cadastros e Clientes abrem o mesmo modal de Atendimentos da OS", () => {
   assert.match(join, /allowed\("collaborate"\)/);
 });
 
+test("Modal da OS seleciona conversa vinculada sem esperar configuracoes secundarias", () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const selection=inbox.slice(inbox.indexOf("// Navegação contextual do Dashboard"),
+    inbox.indexOf("const checkChannel ="));
+  assert.match(selection, /if\(embedded\)\{[\s\S]*?initialConversationId[\s\S]*?setSelectedId\(current=>current===initialConversationId\?current:initialConversationId\)/);
+  assert.doesNotMatch(selection, /if\(embedded \|\| channelReady/);
+  assert.match(inbox, /if\(embedded\)setReadyAccount\(identity\)/);
+  assert.match(inbox, /if\(!embedded && !cancelled && organizationRef\.current===activeOrganizationId/);
+});
+
 test("Atalhos da OS e Cadastros mostram o histórico sem reabrir protocolo encerrado", () => {
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   const crm=read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
