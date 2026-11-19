@@ -27,6 +27,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -313,7 +314,24 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp }: TabDas
   };
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
-  const canViewAttendanceDashboard = hasModule("whatsapp") && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
+  const canRequestAttendanceDashboard = hasModule("whatsapp")
+    && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
+  // Uma única leitura indexada do vínculo próprio; gerentes usam o painel
+  // e operadores sem view_all não veem os indicadores de toda a equipe.
+  const attendanceManagerQuery = useQuery({
+    queryKey:["dashboard","attendance-manager",activeOrganizationId,user?.id],
+    queryFn:async()=>{
+      const {data,error}=await supabase.from("union_whatsapp_operator_bindings")
+        .select("staff_role,is_active")
+        .eq("organization_id",activeOrganizationId!)
+        .eq("user_id",user!.id).maybeSingle();
+      if(error)throw error;
+      return Boolean(data?.is_active && (data.staff_role==="manager" || data.staff_role==="both"));
+    },
+    enabled:Boolean(canRequestAttendanceDashboard && activeOrganizationId && user?.id),
+    staleTime:5*60_000,refetchOnWindowFocus:false,retry:false,
+  });
+  const canViewAttendanceDashboard=canRequestAttendanceDashboard && attendanceManagerQuery.data===true;
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
     registrations: hasPermission("customers.view") || hasPermission("employees.view"),
