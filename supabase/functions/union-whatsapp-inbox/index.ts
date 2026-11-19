@@ -57,6 +57,7 @@ async function signedBridge(
   reply?: {id:string;participant:string},
   quoteProbe = false,
   groupsList = false,
+  groupsManage?: Record<string,unknown>,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -67,10 +68,11 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: groupsList ? "groups_list" : quoteProbe ? "quote_capability" : numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: groupsManage ? "groups_manage" : groupsList ? "groups_list" : quoteProbe ? "quote_capability" : numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(reply ? {reply_to_id:reply.id,reply_participant:reply.participant} : {}),
+    ...(groupsManage||{}),
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
     ...(download ? {download_url:download.url,media_key:download.key,
       file_sha256:download.sha,file_enc_sha256:download.encSha,
@@ -112,6 +114,12 @@ async function signedBridge(
         status:result.status,distinct_identities:result.distinct_identities===true});
     }
     if (presence) return "";
+    if(groupsManage){
+      return JSON.stringify({jid:result.jid,participants:result.participants,
+        participants_count:result.participants_count,name:result.name,topic:result.topic,
+        is_announce:result.is_announce,is_locked:result.is_locked,
+        changed:result.changed,provider_message_id:result.provider_message_id});
+    }
     if(groupsList){
       if(!Array.isArray(result.groups))throw Error("groups_list_outdated_bridge");
       return JSON.stringify(result.groups.slice(0,500));
@@ -181,8 +189,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -253,7 +261,7 @@ Deno.serve(async request => {
       department_save:"manage_queues",department_members:"manage_queues",
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
-      contacts_groups:"view_contacts",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
+      contacts_groups:"view_contacts",contacts_groups_manage:"view_all",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",number_verification_status:"start",start:"start",
@@ -813,7 +821,7 @@ Deno.serve(async request => {
       return json({success:true,display_names:displayNames});
     }
 
-    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_crm_match","contacts_history"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(channelError)throw channelError;
@@ -911,6 +919,53 @@ Deno.serve(async request => {
             is_announce:row.is_announce===true}];
         });
         return json({success:true,groups,total:groups.length});
+      }
+      
+if(action==="contacts_groups_manage") {
+        // Ações de gestão só são executadas para o canal da empresa e por gestor.
+        if(!canManage)return json({success:false,error:"Somente gestores podem administrar grupos."},403);
+        if(body.account_phone!==channel.phone)
+          return json({success:false,error:"O canal selecionado mudou."},409);
+        const command=String(body.group_command||"");
+        const jid=String(body.group_jid||"");
+        const name=String(body.group_name||"").trim();
+        const topic=String(body.group_topic||"").trim();
+        const phones=Array.isArray(body.group_phones)?body.group_phones.map(String):[];
+        const participantAction=String(body.group_participant_action||"");
+        const message=String(body.group_message||"").trim();
+        const messageId=String(body.client_message_id||"");
+        if(!["create","details","leave","participants","name","topic","send"].includes(command) ||
+          (command!=="create" && !/^[0-9]{5,30}@g\.us$/.test(jid)) ||
+          name.length>100 || topic.length>500 || phones.length>50 || message.length>4000)
+          return json({success:false,error:"Dados do grupo inválidos."},400);
+        if(command==="send" && !canSend)
+          return json({success:false,error:"Sem permissão para enviar mensagens."},403);
+        if(command==="send" && (!message || !uuid(messageId)))
+          return json({success:false,error:"Digite uma mensagem válida."},400);
+        if(command==="create" && (name.length<2 || phones.length<1))
+          return json({success:false,error:"Informe o nome e ao menos um participante."},400);
+        const payload={
+          group_command:command,group_jid:jid,group_name:name,group_topic:topic,
+          group_phones:phones,group_participant_action:participantAction,group_message:message,
+        };
+        try{
+          const raw=await signedBridge({id:channel.id,organization_id:org},"","",
+            command==="send"?messageId:crypto.randomUUID(),
+            undefined,undefined,false,false,false,false,false,undefined,false,false,payload);
+          const result=JSON.parse(raw) as Record<string,unknown>;
+          if(command==="details"){
+            const members=Array.isArray(result.participants)?result.participants.slice(0,1000):[];
+            return json({success:true,group:{jid,name:String(result.name||"").slice(0,160),
+              topic:String(result.topic||"").slice(0,500),is_announce:result.is_announce===true,
+              is_locked:result.is_locked===true,
+              participants_count:Number(result.participants_count)||0,
+              participants:members}});
+          }
+          return json({success:true,jid:String(result.jid||""),changed:Number(result.changed)||0,
+            provider_message_id:String(result.provider_message_id||"")});
+        }catch{
+          return json({success:false,error:"Operação não confirmada pelo WhatsApp. Verifique sua permissão de administrador e a conexão da VPS."},502);
+        }
       }
       if(action==="contacts_crm_match") {
         if(!permissions.has("customers.view"))
