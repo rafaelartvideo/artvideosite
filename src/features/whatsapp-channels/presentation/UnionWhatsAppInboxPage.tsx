@@ -1,5 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
@@ -416,6 +417,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>document.removeEventListener("visibilitychange",handle);
   },[]);
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
+  // Um snapshot compacto por empresa. Não abre outra conexão Realtime.
+  const businessClock=useQuery<{
+    configured:boolean;company_open:boolean|null;departments:Record<string,boolean|null>;
+  }>({
+    queryKey:["whatsapp","business-clock",activeOrganizationId],
+    queryFn:async()=>{
+      const {data,error}=await supabase.rpc("union_whatsapp_business_clock",{p_org:activeOrganizationId!});
+      if(error)throw error;
+      return data as {configured:boolean;company_open:boolean|null;departments:Record<string,boolean|null>};
+    },
+    enabled:Boolean(activeOrganizationId&&canView&&!embedded),
+    staleTime:120_000,refetchInterval:180_000,refetchIntervalInBackground:false,
+    refetchOnWindowFocus:false,retry:false,
+  });
   const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesResolvedId,setMessagesResolvedId]=useState<string|null>(null);
@@ -2517,6 +2532,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             : visible.map(item => {
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
+               const isSlaPaused=businessClock.data?.configured===true &&
+                 (item.department_id
+                   ? businessClock.data.departments?.[item.department_id]===false
+                   : businessClock.data.company_open===false);
               return <button key={item.id} type="button" onClick={() => {setSelectedFallback(item);setSelectedId(item.id);}}
                 className={`box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-2.5 py-2.5 text-left transition-colors last:border-b-0 md:gap-3 md:px-3 md:py-3 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} selected={selected}
@@ -2534,16 +2553,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     {item.unread_count > 0 && !selected && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
                   {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
-                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${isSlaPaused?"border-border bg-muted text-muted-foreground":waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
                   {item.status==="in_att" && item.awaiting_reply_since && queueSettings.show_wait_time &&
                     waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes &&
-                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${isSlaPaused?"border-border bg-muted text-muted-foreground":waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
                       Sem resposta {waitingLabel(waitingMinutes(item.awaiting_reply_since,clockNow))}
                     </span>}
-                  {item.viewer_participating && <span
+                  {isSlaPaused && (queueOnly(item)||(item.status==="in_att" && item.awaiting_reply_since)) &&
+                     <span className="mt-1.5 inline-flex w-fit rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                       Fora do horário · SLA pausado
+                     </span>}
+                   {item.viewer_participating && <span
                     className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
                   {finalizedBadge(item)}
