@@ -301,12 +301,15 @@ async function engineInfo() {
     observed_at: typeof report.observed_at === "string" ? report.observed_at : null,
   };
 }
-async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength, reply_to_id: replyToId, reply_participant: replyParticipant }) {
+async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength, reply_to_id: replyToId, reply_participant: replyParticipant,
+  group_command: groupCommand, group_jid: groupJid, group_name: groupName,
+  group_topic: groupTopic, group_phones: groupPhones, group_participant_action: groupParticipantAction,
+  group_message: groupMessage }) {
   // Consulta de infraestrutura não usa tenant ou sessão de WhatsApp.
   // A autenticação HMAC é exigida antes de chamar operate().
   if (action === "engine_info") return engineInfo();
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "quote_capability", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check", "groups_list"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "quote_capability", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check", "groups_list", "groups_manage"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   if (action === "delete") {
     const stored = await readSession(id, org);
@@ -409,6 +412,77 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       }];
     });
     return {ok:true,groups,limit_reached:entries.length>500};
+  }
+
+  if(action==="groups_manage"){
+    // All group mutations are bound to the signed tenant/channel session.
+    // Membership is checked against this account, never another WhatsApp login.
+    const command=String(groupCommand||"");
+    const jid=String(groupJid||"");
+    const validJid=/^[0-9]{5,30}@g\\.us$/.test(jid);
+    const name=String(groupName||"").trim();
+    const topic=String(groupTopic||"").trim();
+    const phones=Array.isArray(groupPhones)?[...new Set(groupPhones.map(String))]:[];
+    const validPhone=value=>/^[1-9][0-9]{7,14}$/.test(value) ||
+      /^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(value);
+    if(!["create","details","leave","participants","name","topic","send"].includes(command) ||
+      (command!=="create" && !validJid))throw new Error("bad_request");
+    if(command==="create"){
+      if(name.length<2 || name.length>100 || phones.length<1 || phones.length>50 ||
+        phones.some(value=>!/^[1-9][0-9]{7,14}$/.test(value)))throw new Error("bad_request");
+      const created=await wuzapi("/group/create",session.token,"POST",{name,participants:phones});
+      const group=created?.data??created;
+      const newJid=String(group?.JID||group?.jid||"");
+      if(!/^[0-9]{5,30}@g\\.us$/.test(newJid))throw new Error("provider_confirmation_unknown");
+      return {ok:true,jid:newJid};
+    }
+    const list=await wuzapi("/group/list",session.token);
+    const envelope=list?.data&&typeof list.data==="object"?list.data:list;
+    const entries=Array.isArray(envelope?.Groups)?envelope.Groups:
+      Array.isArray(envelope?.groups)?envelope.groups:[];
+    const group=entries.find(row=>String(row?.JID||row?.jid||"")===jid);
+    if(!group)throw new Error("group_not_found");
+    if(command==="details"){
+      const rawMembers=Array.isArray(group.Participants)?group.Participants:[];
+      return {ok:true,jid,name:String(group.Name||group.name||"").slice(0,160),
+        topic:String(group.Topic||group.topic||"").slice(0,500),
+        is_announce:group.IsAnnounce===true,is_locked:group.IsLocked===true,
+        participants:rawMembers.slice(0,1000).flatMap(member=>{
+          const participantJid=String(member?.JID||member?.jid||"");
+          if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(participantJid))return [];
+          return [{jid:participantJid,is_admin:member?.IsAdmin===true,
+            is_super_admin:member?.IsSuperAdmin===true}];
+        }),participants_count:rawMembers.length};
+    }
+    if(command==="participants"){
+      const operation=String(groupParticipantAction||"");
+      if(!["add","remove","promote","demote"].includes(operation) ||
+        phones.length<1 || phones.length>50 || phones.some(value=>!validPhone(value)))
+        throw new Error("bad_request");
+      await wuzapi("/group/updateparticipants",session.token,"POST",
+        {GroupJID:jid,Phone:phones,Action:operation});
+      return {ok:true,jid,changed:phones.length};
+    }
+    if(command==="name"){
+      if(name.length<2||name.length>100)throw new Error("bad_request");
+      await wuzapi("/group/name",session.token,"POST",{GroupJID:jid,Name:name});
+    } else if(command==="topic"){
+      if(topic.length>500)throw new Error("bad_request");
+      await wuzapi("/group/topic",session.token,"POST",{GroupJID:jid,Topic:topic});
+    } else if(command==="leave"){
+      await wuzapi("/group/leave",session.token,"POST",{GroupJID:jid});
+    } else if(command==="send"){
+      const message=typeof groupMessage==="string"?groupMessage.trim():"";
+      const idText=String(clientMessageId||"");
+      if(!message || message.length>4000 || !uuid(idText))throw new Error("bad_request");
+      const sent=await wuzapi("/chat/send/text",session.token,"POST",{
+        Phone:jid,Body:message,Id:idText.replaceAll("-","").toUpperCase(),
+      });
+      const providerMessageId=String(sent?.data?.Id||sent?.data?.id||"");
+      if(!providerMessageId)throw new Error("provider_confirmation_unknown");
+      return {ok:true,jid,provider_message_id:providerMessageId};
+    }
+    return {ok:true,jid};
   }
   if(action==="contacts_export") {
     const reply=await wuzapi("/user/contacts",session.token);
