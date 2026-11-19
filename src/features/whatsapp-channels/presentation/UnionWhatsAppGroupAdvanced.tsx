@@ -51,7 +51,7 @@ export function UnionWhatsAppGroupAdvanced({organizationId,accountPhone,group,on
       }else if(command==="requests"){
         setRequests(result.requests||[]);setRequestsLoaded(true);
       }else{
-        if(command==="requests_update")setRequestsLoaded(false);
+        if(command==="requests_update"){setRequestsLoaded(false);setRequests([]);}
         setNotice("Alteração confirmada pelo WhatsApp.");
         onChanged();
       }
