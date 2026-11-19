@@ -62,7 +62,8 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
   const [retroConfirmed,setRetroConfirmed]=useState(false);
   const [retroSaving,setRetroSaving]=useState(false);
   const [savedSignature,setSavedSignature]=useState("");
-  const [loading,setLoading]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState(false);
   const [saving,setSaving]=useState(false);
   const serial=JSON.stringify({timezone,weekly,exceptions});
   const dirty=serial!==savedSignature;
@@ -74,7 +75,7 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
 
   const read=useCallback(async()=>{
     if(!activeOrganizationId)return;
-    setLoading(true);
+    setLoading(true);setLoadError(false);
     try{
       const {data,error}=await supabase.rpc("union_whatsapp_business_calendar",{
         p_org:activeOrganizationId,p_action:"get",p_scope:(scope!=="company"&&!scopeId)?"company":scope,p_scope_id:scopeId||null,
@@ -92,6 +93,7 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
       setRetroDate("");setRetroNote("");setRetroConfirmed(false);
       setDepartments(response?.departments||[]);setOperators(response?.operators||[]);
     }catch(error){
+      setLoadError(true);
       notifyAdmin(systemErrorMessage(error,"Não foi possível consultar os horários de atendimento."),"error");
     }finally{setLoading(false);}
   },[activeOrganizationId,scope,scopeId]);
@@ -108,7 +110,10 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
       const result=data as Result;
       setSavedSignature(serial);
       setEffectiveAt(result?.calendar?.effective_at||null);
-      await queryClient.invalidateQueries({queryKey:["dashboard","attendances",activeOrganizationId]});
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["dashboard","attendances",activeOrganizationId]}),
+        queryClient.invalidateQueries({queryKey:["whatsapp","business-clock",activeOrganizationId]}),
+      ]);
       notifyAdmin("Expediente salvo. A nova versão vale a partir de agora.","success");
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível salvar o expediente."),"error");}
     finally{setSaving(false);}
@@ -124,7 +129,10 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
         p_date:retroDate,p_note:retroNote.trim(),p_confirmed:true,
       });
       if(error)throw error;
-      await queryClient.invalidateQueries({queryKey:["dashboard","attendances",activeOrganizationId]});
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["dashboard","attendances",activeOrganizationId]}),
+        queryClient.invalidateQueries({queryKey:["whatsapp","business-clock",activeOrganizationId]}),
+      ]);
       notifyAdmin("Vigência histórica confirmada. Indicadores serão calculados com os eventos existentes.","success");
       await read();
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível confirmar o calendário anterior."),"error");}
@@ -157,7 +165,7 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
   </div>;
   const footer=<div className="flex flex-wrap justify-end gap-2">
     <AdminButton variant="secondary" disabled={!dirty||saving} onClick={()=>void read()}>Descartar</AdminButton>
-    <AdminButton disabled={!canManage||!dirty||!valid||loading||saving||(scope!=="company"&&!scopeId)}
+    <AdminButton disabled={!canManage||!dirty||!valid||loading||loadError||saving||(scope!=="company"&&!scopeId)}
       loading={saving} onClick={()=>void save()}>Salvar expediente</AdminButton>
   </div>;
   return <section className="space-y-5">
@@ -190,6 +198,10 @@ export function WhatsAppBusinessCalendarSettings({footerTarget,footerInParent=fa
         </select>
       </label>
     </div>
+    {loadError&&<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+      Não foi possível carregar este calendário. O salvamento foi bloqueado para evitar sobrescrever dados.
+      <button type="button" className="ml-2 font-bold underline" onClick={()=>void read()}>Tentar novamente</button>
+    </div>}
     {loading?<LoadingState text="Preparando calendário..."/>:
       (scope!=="company"&&!scopeId)?<p className="p-6 text-center text-xs text-muted-foreground">Selecione um departamento ou operador para editar sua escala.</p>
       :<>
