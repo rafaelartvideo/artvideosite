@@ -136,9 +136,9 @@ export type UnionWhatsAppContact = {
 
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
-export type UnionWhatsAppInboxFilter="waiting"|"in_att"|"forwarded"|"finished"|"unread";
+export type UnionWhatsAppInboxFilter="waiting"|"in_att"|"forwarded"|"finished"|"unread"|"unanswered";
 export type UnionWhatsAppConversationCounts={
-  waiting:number;in_att:number;forwarded:number;finished:number;total:number;unread:number;
+  waiting:number;in_att:number;forwarded:number;finished:number;total:number;unread:number;unanswered:number;
 };
 export type UnionWhatsAppMessageCursor={sent_at:string;id:string};
 export type UnionWhatsAppMessagePage={
@@ -152,18 +152,37 @@ const MESSAGE_PAGE_SIZE=60;
 const PROTOCOL_PAGE_SIZE=25;
 const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,awaiting_reply_since,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
 
+// Uses the existing partial index and RLS. Count only; never fetch all messages or contacts.
+const unansweredCutoff=(minutes:number):string=>
+  new Date(Date.now()-Math.min(1440,Math.max(1,Math.floor(minutes||15)))*60_000).toISOString();
+
+export async function listUnionWhatsAppUnansweredCount(
+  organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,
+):Promise<number>{
+  const {count,error}=await supabase.from("union_whatsapp_conversations")
+    .select("id",{count:"exact",head:true})
+    .eq("organization_id",organizationId).eq("channel_id",channelId)
+    .eq("account_phone",accountPhone).eq("status","in_att")
+    .is("forwarded_at",null).lte("awaiting_reply_since",unansweredCutoff(priorityMinutes));
+  raise(error);
+  return count??0;
+}
+
 export async function listUnionWhatsAppConversationCounts(
-  organizationId:string,channelId:string,accountPhone:string,
+  organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,
 ):Promise<UnionWhatsAppConversationCounts>{
-  const {data,error}=await supabase.rpc("union_whatsapp_inbox_counts",{
-    p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
-  });
+  const [{data,error},unanswered]=await Promise.all([
+    supabase.rpc("union_whatsapp_inbox_counts",{
+      p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
+    }),
+    listUnionWhatsAppUnansweredCount(organizationId,channelId,accountPhone,priorityMinutes),
+  ]);
   raise(error);
   const row=Array.isArray(data)?data[0]:data;
   return {
     waiting:Number(row?.waiting_count||0),in_att:Number(row?.in_att_count||0),
     forwarded:Number(row?.forwarded_count||0),finished:Number(row?.finished_count||0),
-    total:Number(row?.total_count||0),unread:Number(row?.unread_count||0),
+    total:Number(row?.total_count||0),unread:Number(row?.unread_count||0),unanswered,
   };
 }
 
@@ -186,7 +205,11 @@ export async function listUnionWhatsAppConversations(
     query=query.eq("viewer_membership.user_id",options.viewerId)
       .eq("viewer_membership.status","active");
   }
-  if(options.filter==="unread"){
+  if(options.filter==="unanswered"){
+    // Filter overdue active chats globally BEFORE pagination; normal inbox stays recent-first.
+    query=query.eq("status","in_att").is("forwarded_at",null)
+      .lte("awaiting_reply_since",unansweredCutoff(options.priorityMinutes??15));
+  }else if(options.filter==="unread"){
     // Filter server-side before pagination; don't download the whole inbox.
     query=query.gt("unread_count",0);
   }else if(options.filter==="forwarded"){
@@ -216,25 +239,6 @@ export async function listUnionWhatsAppConversations(
 
   // Os caracteres de controle do PostgREST são excluídos da pesquisa.
   const search=options.search.trim().replace(/[,()%*\\"']/g," ").replace(/\s+/g," ").trim().slice(0,70);
-  // A prioridade e calculada no banco ANTES de paginar, preservando a RLS.
-  // Uma unica RPC substitui a consulta da pagina em vez de buscar todas as mensagens.
-  if(options.filter==="in_att" && options.prioritizeUnanswered){
-    const protocol=search.match(/^(?:ATD[-\s]*)?(\d{1,12})$/i);
-    const digits=options.search.replace(/\D/g,"").slice(0,15);
-    const {data,error}=await supabase.rpc("union_whatsapp_prioritized_in_att",{
-      p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
-      p_department:options.department,
-      p_operator:options.canViewAll && options.operator && options.operator!=="all" ? options.operator : null,
-      p_search:search,p_digits:digits,
-      p_protocol:protocol?Number(protocol[1]):null,
-      p_page:page,p_page_size:pageSize,p_priority_minutes:options.priorityMinutes??15,
-    });
-    raise(error);
-    const result=data as {items?:UnionWhatsAppConversation[];total?:number}|null;
-    const items=Array.isArray(result?.items)?result.items.slice(0,pageSize):[];
-    const total=Number(result?.total||0);
-    return {items,hasMore:(page+1)*pageSize<total,total};
-  }
   if(search){
     const term=search.replace(/\s+/g,"%");
     const digits=options.search.replace(/\D/g,"").slice(0,15);
