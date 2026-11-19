@@ -130,12 +130,13 @@ export function UnionWhatsAppMediaViewer({
 
   return <div role="dialog" aria-modal="true" aria-label="Visualizar arquivo"
     onClick={event=>{if(event.target===event.currentTarget)onClose();}}
-    className={String.raw`${placement==="drawer"?"pointer-events-auto absolute inset-0 z-50":"fixed inset-0 z-[200]"} flex flex-col items-center gap-3 bg-black/55 p-4`}>
+    className={`${placement==="drawer"?"pointer-events-auto absolute inset-0 z-50":"fixed inset-0 z-[200]"} flex flex-col items-center gap-3 bg-black/55 p-4`}>
     <button type="button" onClick={onClose} aria-label="Fechar visualização"
       className="absolute right-4 top-4 z-10 rounded-full border border-white/30 bg-black/65 p-2 text-white hover:bg-black/80">
       <X size={23}/>
     </button>
     <div ref={viewportRef} className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+      onClick={event=>{if(event.target===event.currentTarget)onClose();}}
       aria-label={isImage?"Visualização da imagem — use a roda do mouse, dois dedos ou os botões para ampliar":undefined}>
       {isImage
         ?<img ref={imageRef} src={url} alt={name} draggable={false}
