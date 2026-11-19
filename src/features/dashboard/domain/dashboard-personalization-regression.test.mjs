@@ -151,6 +151,7 @@ test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por e
   await compile("src/features/dashboard/presentation/TabDashboard.tsx");
   assert.match(dashboard,/label: "Atendimentos"/);
   assert.match(dashboard,/activeModule !== "orders" && activeModule !== "attendances"/);
+  assert.match(dashboard,/const DashboardAttendances = lazy\(\(\) => import\("\.\/DashboardAttendances"\)/);
   assert.match(dashboard,/canRequestAttendanceDashboard = hasModule\("whatsapp"\)/);
   assert.match(dashboard,/attendanceManagerQuery\.data===true/);
   assert.match(dashboard,/union_whatsapp_operator_bindings/);
