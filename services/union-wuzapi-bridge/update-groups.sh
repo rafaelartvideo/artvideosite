@@ -8,7 +8,7 @@ BASE=/opt/union-wuzapi-bridge
 NODE="$BASE/runtime/node-v24.22.0/bin/node"
 TARGET="$BASE/server.mjs"
 SERVICE=union-wuzapi-bridge.service
-COMMIT=9143af8530374fa184e29ae6189a5d53b8f68e8b
+COMMIT=65ee09682ccbbc7e091eb7eda6770af7a3537a79
 URL="https://raw.githubusercontent.com/rafaelartvideo/artvideosite/$COMMIT/services/union-wuzapi-bridge/server.mjs"
 
 for command in curl systemctl grep cp install mktemp; do

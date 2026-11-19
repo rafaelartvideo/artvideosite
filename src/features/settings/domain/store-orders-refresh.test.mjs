@@ -9,6 +9,30 @@ test("Store order refresh uses scoped complete snapshots instead of an unrelated
 });
 
 const helpers = () => import("../application/store-orders-refresh.mjs");
+
+test("The page effect loads the real authentication organization contract", async () => {
+  const { transform } = await import("esbuild");
+  const { createStoreOrdersRefresh, loadStoreOrdersSnapshot } = await helpers();
+  const source = readFileSync("src/features/settings/presentation/SiteStoreOrdersPage.tsx", "utf8");
+  const auth = source.slice(source.indexOf("  const { activeOrganization"), source.indexOf("  const [orders"));
+  const effect = source.slice(source.indexOf("  const refreshRef ="), source.indexOf("  const loadHistory ="));
+  const { code } = await transform(auth + effect, { loader: "tsx" });
+  const applied = [], effects = [];
+  const client = mockClient({ artvideo_store_orders: [{ id: "order", organization_id: "real-org", created_at: "2026-11-19" }] });
+  const names = ["useAuth", "useRef", "useCallback", "useEffect", "supabase", "createStoreOrdersRefresh", "loadStoreOrdersSnapshot", "systemErrorMessage", "setOrders", "setLines", "setFulfillments", "setSupportCases", "setSelectedId", "setEvents", "setError", "setLoading"];
+  const noop = () => {};
+  new Function(...names, code)(
+    () => ({ activeOrganizationId: "real-org", activeOrganization: { organization_id: "real-org" }, hasPermission: () => true }),
+    value => ({ current: value }), callback => callback, effect => effects.push(effect()), client,
+    createStoreOrdersRefresh, loadStoreOrdersSnapshot, String, value => applied.push(value),
+    noop, noop, noop, noop, noop, noop, noop,
+  );
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(applied.at(-1)?.[0]?.id, "order", "the page must query the organization from the real auth context");
+  assert.ok(client.calls.length > 0, "a missing .id must not silently bypass the query");
+  effects.forEach(cleanup => cleanup?.());
+});
+
 function mockClient(tables, cap = 73) {
   const calls = [];
   return { calls, from(table) {

@@ -124,3 +124,30 @@ A amostra inicial está em docs/auditoria-navegacao-2026-11-18.json. Tempos incl
 | Estoque | 5 | 713 | 1659 |
 
 Validação integrada local final: 993 testes, 991 aprovados, duas limitações ignoradas (FFmpeg ausente e ordenação ICU nativa indisponível no motor SQL local). A lógica SQL sintética foi executada; a migração inclui guarda atômica para provar a ordenação nativa antes da publicação. Os builds site e CRM passaram. Revisão independente não encontrou pendências nos quatro grupos de correção.
+
+# Fechamento de publicação — 19/11/2026
+
+Código integrado à main em 65ee09682ccbbc7e091eb7eda6770af7a3537a79, preservando os 41 commits mais recentes de grupos WhatsApp. Revisão independente confirmou que a única diferença da ponte frente à main remota era o compartilhamento de downloads de mídia. Validação integrada: 994 testes, 992 aprovados, zero falhas e dois ignorados pelas limitações locais já descritas; site e CRM compilados com sucesso. Os testes Linux de provisionamento PABX permanecem obrigatórios na publicação.
+
+**Supabase:** migração customers_exact_filtered_page aplicada como 20261118225700. A guarda ICU passou no PostgreSQL de produção: Empresa 2 precede Empresa 10, Álvaro/alvaro equivalem na ordenação, e o filtro João/joao continua distinguindo acentos. Sete constantes sintéticas produziram a mesma ordem ascendente/descendente de Intl em JavaScript. SECURITY INVOKER confirmado, execução permitida a authenticated e negada a anon; chamada autenticada para organização inexistente retornou página vazia em transação revertida. MD5 do corpo da função 1674f43fe7d0de9487756d04e5c2b54d, idêntico ao arquivo versionado. Nenhum cliente real criado ou alterado. A Edge Function union-whatsapp-inbox v107 está ACTIVE e seu index.ts é idêntico ao código integrado; não precisou de outra publicação.
+
+**VPS:** a versão encontrada em 19/11 correspondia ao commit remoto 9143af853, já com grupos. A versão integrada foi aplicada após conferir ausência de conexões HTTP na ponte e estabilidade do processo, com validação de sintaxe e hash do arquivo publicado. SHA-256 ativo: c4f7b8f58fbd41310c9b29493e5d787d949f6af94479834c42707182b5fafa5f. Backup: /opt/union-wuzapi-bridge/server.mjs.before-media-singleflight-20261119T104229Z. Somente union-wuzapi-bridge.service foi reiniciado; saúde local respondeu 401 sem autenticação, conforme contrato, em 0,130 s após iniciar a troca. Serviço ativo, PID 218386. WuzAPI, bancos, RabbitMQ e Redis continuaram ativos há duas semanas. Não se baixaram mídias nem diretórios reais para diagnóstico. Memória fria de 17.625.088 bytes não permite inferir redução percentual. O script update-groups.sh também passa a apontar à versão integrada para não restaurar acidentalmente a ponte anterior.
+
+O primeiro bloqueio de hash no preflight ocorreu pela diferença CRLF/LF entre checkout Windows e blob Git: nenhum arquivo ativo havia sido alterado. Confirmada igualdade do download ao blob publicado e ao checkout normalizado antes da instalação.
+
+**HostGator:** execução https://github.com/rafaelartvideo/artvideosite/actions/runs/44508065872 concluída com sucesso. Conferidos testes, builds e os dois passos Publish via FTPS (CRM e site), ambos sucesso na primeira tentativa; fingerprints publicados vinculados a 65ee09682. Não foi apenas um commit verde.
+
+**Navegador:** sessão autenticada recarregada após FTPS; Home, OS, Financeiro e Estoque chegaram ao conteúdo esperado nas 20 visitas. Agenda abriu e navegou novembro/dezembro/novembro sem editar agendamentos. A primeira validação de pedidos revelou uma regressão introduzida nesta etapa: o efeito novo utilizava activeOrganization.id, mas o contrato real tem organization_id. O helper recebia undefined e devolvia lista vazia sem erro, enquanto a aba contava sete pedidos. Corrigidos carga, dependências, Realtime e filtro de retirada para activeOrganizationId com fallback organization_id. Um teste executa as declarações de autenticação e o efeito reais, com objeto sem .id: falhou antes e passou após a correção. A reprodução anterior com mocks do helper isolado não cobria essa integração.
+
+| Módulo | p50 anterior (ms) | p95 anterior (ms) | p50 após 65ee09682 (ms) | p95 após (ms) |
+|---|---:|---:|---:|---:|
+| Home | 689 | 1226 | 939 | 1704 |
+| OS | 1013 | 2564 | 1188 | 1924 |
+| Financeiro | 1153 | 3967 | 861 | 1956 |
+| Estoque | 713 | 1659 | 1005 | 1024 |
+
+Cinco visitas por módulo em dias e condições de cache/rede diferentes: resultados mistos, sem conclusão causal de ganho ou regressão de latência. Esses quatro módulos não foram alterados diretamente nesta última leva. Os ganhos comprovados são as reduções de requisições nos testes reproduzíveis e a correção dos defeitos descritos. Dados brutos preservados no JSON da auditoria.
+
+**Limites restantes:** não se mediu novo login frio, perfil de renderizações React/heap de cada tela, capacidade multioperador ou p95 representativo. Não se fizeram vendas, pagamentos, ligações, envios de mensagens ou alterações de OS reais. Alternativas SQL de notificações foram rejeitadas por regressões em experimentos; alertas de índices não justificaram alterações em massa. Não se declara capacidade de carga validada a partir destes testes. Alterações antigas de diálogos continuam preservadas em stash fora da main, sem mistura com a auditoria.
+
+Validação após a correção do contrato de empresa: 995 testes, 993 aprovados, zero falhas, dois ignorados pelas limitações já descritas. Builds site/CRM passaram novamente. Revisão independente aprovou o contrato, os filtros e os schemas das consultas auxiliares. Atendimentos abriu após recarregar a publicação, sem enviar mensagens nem consultar diretórios ou mídias para diagnóstico.

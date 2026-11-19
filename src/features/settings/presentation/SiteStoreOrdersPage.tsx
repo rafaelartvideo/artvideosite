@@ -136,7 +136,8 @@ function DeliveryBadge({ status }: { status: FulfillmentStatus }) {
 }
 
 export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () => void; embedded?: boolean }) {
-  const { activeOrganization, hasPermission } = useAuth();
+  const { activeOrganization, activeOrganizationId, hasPermission } = useAuth();
+  const organizationId = activeOrganizationId || activeOrganization?.organization_id;
   const canManage = hasPermission("site_settings.update");
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [lines, setLines] = useState<StoreOrderLine[]>([]);
@@ -195,7 +196,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     setOrders([]); setLines([]); setFulfillments([]); setSupportCases([]);
     setSelectedId(null); setEvents([]); setError("");
     const coordinator = createStoreOrdersRefresh({
-      load: (signal: AbortSignal) => loadStoreOrdersSnapshot(supabase, activeOrganization?.id, signal),
+      load: (signal: AbortSignal) => loadStoreOrdersSnapshot(supabase, organizationId, signal),
       onSnapshot: (snapshot: any) => {
         setOrders(snapshot.orders); setLines(snapshot.lines);
         setFulfillments(snapshot.fulfillments); setSupportCases(snapshot.supportCases);
@@ -210,7 +211,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       coordinator.dispose();
       if (refreshRef.current === coordinator) refreshRef.current = null;
     };
-  }, [activeOrganization?.id]);
+  }, [organizationId]);
 
   const loadHistory = useCallback(async (orderId: string) => {
     setHistoryLoading(true);
@@ -225,15 +226,15 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   // A confirmação do pagamento chega pelo webhook/conciliador e atualiza a
   // linha no banco. Realtime avisa este painel, sem simular aprovação no cliente.
   useEffect(() => {
-    if (!activeOrganization?.id) return;
-    const channel = supabase.channel("artvideo-store-orders-" + activeOrganization.id)
+    if (!organizationId) return;
+    const channel = supabase.channel("artvideo-store-orders-" + organizationId)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "artvideo_store_orders",
-        filter: "organization_id=eq." + activeOrganization.id,
+        filter: "organization_id=eq." + organizationId,
       }, () => { if (!document.hidden) scheduleRefresh(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [activeOrganization?.id, scheduleRefresh]);
+  }, [organizationId, scheduleRefresh]);
   useEffect(() => {
     const onVisible = () => { if (!document.hidden) scheduleRefresh(); };
     document.addEventListener("visibilitychange", onVisible);
@@ -362,7 +363,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         const [orderResult,linesResult,fulfillmentResult]=await Promise.all([
           supabase.from("artvideo_store_orders")
             .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
-            .eq("id",orderId).eq("organization_id",activeOrganization!.id).maybeSingle(),
+            .eq("id",orderId).eq("organization_id",organizationId!).maybeSingle(),
           supabase.from("artvideo_store_order_items")
             .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
             .eq("order_id",orderId),
