@@ -961,14 +961,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,
     sharedActivity?.isPageOpen,refresh]);
 
-  // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
+  // Navegação contextual do Dashboard > Atendimentos e do Painel do Técnico.
+  // Apenas filtros existentes; nunca recarregar o histórico completo de mensagens.
   useEffect(() => {
-    const conversationId=initialConversationId || (!embedded ? new URLSearchParams(location.search).get("conversation") : null);
-    if(!conversationId || !/^[0-9a-f-]{36}$/i.test(conversationId) ||
-      channelReady!==true || !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
+    if(embedded || channelReady!==true || !activeOrganizationId || !activeChannelId ||
+      !activeChannelPhone ||
       readyAccount!==activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone)return;
-    setFilter("in_att");
-    setSelectedId(conversationId);
+    const params=new URLSearchParams(location.search);
+    const dashboardFilter=params.get("dashboardFilter");
+    const validFilters:Filter[]=["waiting","in_att","unanswered","unread","forwarded","finished"];
+    if(dashboardFilter && validFilters.includes(dashboardFilter as Filter)){
+      setFilter(dashboardFilter as Filter);
+      setConversationPage(0);
+    }
+    const operatorId=params.get("dashboardOperator");
+    if(operatorId && /^[0-9a-f-]{36}$/i.test(operatorId))setOperatorFilter(operatorId);
+    const conversationId=initialConversationId||params.get("conversation");
+    if(conversationId && /^[0-9a-f-]{36}$/i.test(conversationId)){
+      if(!dashboardFilter)setFilter("in_att");
+      setSelectedId(conversationId);
+    }
   },[location.search,initialConversationId,embedded,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,readyAccount]);
 
   const checkChannel = useCallback(async () => {
