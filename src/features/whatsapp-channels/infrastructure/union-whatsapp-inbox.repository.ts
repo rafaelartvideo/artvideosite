@@ -18,6 +18,7 @@ export type UnionWhatsAppConversation = {
   created_at: string;
   last_protocol_number: number | null;
   queue_entered_at: string | null;
+  awaiting_reply_since: string | null;
   forwarded_by: string | null;
   forwarded_to: string | null;
   forwarded_to_department: string | null;
@@ -82,10 +83,13 @@ export type UnionWhatsAppQueueSettings = {
   show_wait_time:boolean;
   show_queue_position:boolean;
   show_forward_badges:boolean;
+  auto_prioritize_unanswered:boolean;
+  unanswered_priority_minutes:number;
 };
 export const DEFAULT_WHATSAPP_QUEUE_SETTINGS:UnionWhatsAppQueueSettings = {
   warning_minutes:5,critical_minutes:15,
   show_wait_time:true,show_queue_position:true,show_forward_badges:true,
+  auto_prioritize_unanswered:true,unanswered_priority_minutes:15,
 };
 
 export type UnionWhatsAppGroup = {
@@ -145,7 +149,7 @@ export type UnionWhatsAppProtocolPage={
 const INBOX_PAGE_SIZE=50;
 const MESSAGE_PAGE_SIZE=60;
 const PROTOCOL_PAGE_SIZE=25;
-const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
+const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,awaiting_reply_since,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
 
 export async function listUnionWhatsAppConversationCounts(
   organizationId:string,channelId:string,accountPhone:string,
@@ -164,7 +168,7 @@ export async function listUnionWhatsAppConversationCounts(
 
 export async function listUnionWhatsAppConversations(
   organizationId:string,channelId:string,accountPhone:string,
-  options:{filter:UnionWhatsAppInboxFilter;department:string;operator?:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean;includeCount?:boolean},
+  options:{filter:UnionWhatsAppInboxFilter;department:string;operator?:string;search:string;page:number;pageSize?:number;sortByRecent?:boolean;viewerId?:string;canViewAll?:boolean;includeCount?:boolean;prioritizeUnanswered?:boolean;priorityMinutes?:number},
 ):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean;total:number|null}>{
   const page=Math.max(0,Math.floor(options.page));
   // O mini-Atendimentos solicita só 8 registros; a lista completa mantém 50.
@@ -211,8 +215,27 @@ export async function listUnionWhatsAppConversations(
 
   // Os caracteres de controle do PostgREST são excluídos da pesquisa.
   const search=options.search.trim().replace(/[,()%*\\"']/g," ").replace(/\s+/g," ").trim().slice(0,70);
+  // A prioridade e calculada no banco ANTES de paginar, preservando a RLS.
+  // Uma unica RPC substitui a consulta da pagina em vez de buscar todas as mensagens.
+  if(options.filter==="in_att" && options.prioritizeUnanswered){
+    const protocol=search.match(/^(?:ATD[-\\s]*)?(\\d{1,12})$/i);
+    const digits=options.search.replace(/\\D/g,"").slice(0,15);
+    const {data,error}=await supabase.rpc("union_whatsapp_prioritized_in_att",{
+      p_organization:organizationId,p_channel:channelId,p_account_phone:accountPhone,
+      p_department:options.department,
+      p_operator:options.canViewAll && options.operator && options.operator!=="all" ? options.operator : null,
+      p_search:search,p_digits:digits,
+      p_protocol:protocol?Number(protocol[1]):null,
+      p_page:page,p_page_size:pageSize,p_priority_minutes:options.priorityMinutes??15,
+    });
+    raise(error);
+    const result=data as {items?:UnionWhatsAppConversation[];total?:number}|null;
+    const items=Array.isArray(result?.items)?result.items.slice(0,pageSize):[];
+    const total=Number(result?.total||0);
+    return {items,hasMore:(page+1)*pageSize<total,total};
+  }
   if(search){
-    const term=search.replace(/\s+/g,"%");
+    const term=search.replace(/\\s+/g,"%");
     const digits=options.search.replace(/\D/g,"").slice(0,15);
     const where=[
       `contact_name.ilike.%${term}%`,
@@ -340,7 +363,7 @@ export async function operateUnionWhatsAppInbox(
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { filter?: "in_att"|"finished"|"forwarded"; channel_id?: string; department_filter?: string; text?: string; client_message_id?: string; reply_to_message_id?: string; no_operator_prefix?: boolean; message_ids?: string[]; target_user_id?: string; approve?: boolean; protocol_number?: number;
-    first_message?: string; conversation_ids?: string[]; sticker_id?: string; is_favorite?: boolean; media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; unlink?: boolean; linked_conversation_id?: string; registered_phone_field?: "whatsapp"|"phone"; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string; group_command?: "create"|"details"|"leave"|"participants"|"name"|"topic"|"send"|"invite"|"announce"|"locked"|"memberaddmode"|"ephemeral"|"joinapproval"|"join"|"inviteinfo"|"requests"|"requests_update"|"photo"|"photo_remove"|"history"|"send_image"; group_jid?: string; group_name?: string; group_topic?: string; group_phones?: string[]; group_participant_action?: "add"|"remove"|"promote"|"demote"; group_message?: string; group_mode?:boolean|"admin_add"|"all_member_add"; group_duration?:"off"|"24h"|"7d"|"90d"; group_invite_code?:string; group_reset?:boolean; group_photo?:string; group_before?:number; warning_minutes?: number; critical_minutes?: number; show_wait_time?: boolean; show_queue_position?: boolean; show_forward_badges?: boolean } = {},
+    first_message?: string; conversation_ids?: string[]; sticker_id?: string; is_favorite?: boolean; media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; unlink?: boolean; linked_conversation_id?: string; registered_phone_field?: "whatsapp"|"phone"; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string; group_command?: "create"|"details"|"leave"|"participants"|"name"|"topic"|"send"|"invite"|"announce"|"locked"|"memberaddmode"|"ephemeral"|"joinapproval"|"join"|"inviteinfo"|"requests"|"requests_update"|"photo"|"photo_remove"|"history"|"send_image"; group_jid?: string; group_name?: string; group_topic?: string; group_phones?: string[]; group_participant_action?: "add"|"remove"|"promote"|"demote"; group_message?: string; group_mode?:boolean|"admin_add"|"all_member_add"; group_duration?:"off"|"24h"|"7d"|"90d"; group_invite_code?:string; group_reset?:boolean; group_photo?:string; group_before?:number; warning_minutes?: number; critical_minutes?: number; show_wait_time?: boolean; show_queue_position?: boolean; show_forward_badges?: boolean; auto_prioritize_unanswered?:boolean; unanswered_priority_minutes?:number } = {},
   mediaRequestSignal?: AbortSignal,
 ): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; provider_message_id?: string; conversation_id?: string; contact_name?: string; name_source?: "agenda"|"agenda_whatsapp"|"conversa"|"whatsapp"|null; avatar_url?: string | null; contacts?: UnionWhatsAppContact[]; groups?: UnionWhatsAppGroup[]; group?: UnionWhatsAppGroupDetails; jid?:string; changed?:number; invite_link?:string; invite_info?:UnionWhatsAppInviteInfo; requests?:UnionWhatsAppGroupJoinRequest[]; history_available?:boolean; messages?:UnionWhatsAppGroupMessage[]; next_before?:number|null; history?: UnionWhatsAppContactChange[]; has_more?: boolean; total?: number; imported?: number; truncated?: boolean; contact?: UnionWhatsAppContact; phone?: string; verified?: boolean; verified_at?: string | null; adjusted?: boolean; distinct_identities?: boolean; verified_name?: string; alternatives?: Array<{phone:string;query?:string;verified_name?:string}>; customer?: {id:string;name:string;customer_type?:string|null;gender?:string|null;document?:string|null;cnpj?:string|null;trade_name?:string|null;legal_name?:string|null;email?:string|null;phone?:string|null;whatsapp?:string|null;state_registration?:string|null;municipal_registration?:string|null;addresses?:Array<{id:string;street:string|null;number:string|null;complement:string|null;neighborhood:string|null;city:string|null;state:string|null;zip_code:string|null;reference:string|null;is_default:boolean|null}>} | null; ambiguous?: boolean; channel_connected?: boolean; channel_id?: string|null; channel_phone?: string|null; staff_role?: "manager"|"operator"|"both"|null; capabilities?: Record<string,boolean>; capability_definitions?: Array<{key:string;label:string;category:"Conversas"|"Administração";sort_order:number;manager:boolean;operator:boolean}>; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean;is_default?:boolean}>; member_ids?: string[]; operators?: Array<{id:string;name:string;eligible:boolean;can_attend:boolean;is_active:boolean;staff_role:"manager"|"operator"|"both";is_manager?:boolean}>;
   operator_counts?: Record<string,number>;
