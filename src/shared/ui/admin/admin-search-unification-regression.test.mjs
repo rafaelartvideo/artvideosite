@@ -105,7 +105,7 @@ test("touch tablets get compact CRM searches and serial scanner without hiding t
   assert.match(filters,/mobileOnly=\{false\}/);
   assert.match(equipment,/aria-label="Escanear número de série"/);
   assert.doesNotMatch(equipment,/!p-0 md:hidden/);
-  assert.match(inbox,/flex-wrap items-stretch rounded-xl/);
+  assert.match(inbox,/flex-wrap items-end rounded-xl/);
   assert.match(inbox,/xl:flex-nowrap/);
   for(const [name,code] of [["OrdersFilters",filters],["OrderEquipmentSection",equipment],["UnionWhatsAppInboxPage",inbox]]){
     assert.ok((await transformWithEsbuild(code,name+".tsx",{loader:"tsx"})).code,name);
