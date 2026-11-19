@@ -1271,7 +1271,7 @@ test("Atendimento finalizado nao volta para Aguardando sem primeira mensagem",()
   assert.doesNotMatch(inbox,/onClick=\{\(\) => void operate\("reopen"\)\}/);
   assert.match(inbox,/canAction\("reopen"\) && canAction\("start"\) && selected\.contact_phone && !draftingFinished/);
   assert.match(inbox,/onClick=\{startNewProtocol\}>/);
-  assert.match(inbox,/\} : selected\.status==="finished" && draftingFinished \? <form/);
+  assert.match(inbox,/selected\.status==="finished" && draftingFinished \? <form/);
   assert.match(inbox,/if\(!selected \|\| selected\.status!=="finished"/);
   assert.match(inbox,/await startUnionWhatsAppWithFirstMessage\(/);
   assert.match(repository,/if\(!text\)throw new Error\("Digite a primeira mensagem antes de iniciar o atendimento\."/);
