@@ -359,6 +359,6 @@ export function OrderTerminalExitDialog({
         <AlertTriangle size={15} className="shrink-0"/>{error}
         <button type="button" className="ml-auto underline" onClick={()=>{setError("");setRefresh(x=>x+1)}}>Tentar novamente</button>
       </p>}
-    </div>
+    </div>}
   </AdminDialog>;
 }
