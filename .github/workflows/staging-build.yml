@@ -1,0 +1,46 @@
+name: Build CRM Homologacao (sem deploy)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: homologacao
+    env:
+      VITE_UNION_STAGING_PROJECT_ID: ${{ secrets.STAGING_SUPABASE_PROJECT_ID }}
+      VITE_UNION_STAGING_PUBLIC_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLIC_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Verificar ambiente totalmente separado
+        run: |
+          set -euo pipefail
+          if [ -z "$VITE_UNION_STAGING_PROJECT_ID" ] || [ -z "$VITE_UNION_STAGING_PUBLIC_ANON_KEY" ]; then
+            echo "::error::Configure secrets de homologacao no ambiente GitHub homologacao."
+            exit 1
+          fi
+          if [ "$VITE_UNION_STAGING_PROJECT_ID" = "wmjmtcjpunmzvonlkjcu" ]; then
+            echo "::error::Supabase de producao proibido para homologacao."
+            exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:ci
+      - name: Build com backend staging
+        run: npx vite build --mode crm-staging --outDir dist-crm-staging
+      - name: Rejeitar qualquer referencia ao banco real
+        run: node scripts/staging/verify-staging-bundle.mjs dist-crm-staging
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crm-homologacao
+          path: dist-crm-staging/
+          if-no-files-found: error
+          retention-days: 3
+      - name: Nao publicar
+        run: echo "Artefato de homologacao gerado. NENHUMA publicacao FTPS, Supabase ou VPS executada."
