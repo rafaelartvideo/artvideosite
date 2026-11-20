@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import path from "path";
+import { execFileSync } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -134,6 +135,7 @@ export default defineConfig(({ mode }) => {
       appDomainMetadata(target),
     ],
     define: {
+      __APP_BUILD_SHA__: JSON.stringify(process.env.GITHUB_SHA || execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()),
       __APP_TARGET__: JSON.stringify(target),
       __PUBLIC_SITE_URL__: JSON.stringify(PUBLIC_SITE_URL),
     },

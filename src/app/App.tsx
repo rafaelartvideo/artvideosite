@@ -9,6 +9,8 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 // A estrutura completa do site público não entra no bundle inicial do CRM.
 const PublicShell = lazy(() => import("@/features/public-shell/presentation/PublicShell").then(({ PublicShell }) => ({ default: PublicShell })));
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
+import { LocalPerformanceObserver } from "@/infrastructure/query/LocalPerformanceObserver";
+import { LocalPerformancePanel } from "@/infrastructure/query/LocalPerformancePanel";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -196,6 +198,8 @@ export default function App() {
   return (
     <AuthProvider key={scope} scope={scope}>
       <ScrollToTop />
+      <LocalPerformanceObserver />
+      {scope === "crm" && <LocalPerformancePanel />}
       <AuthenticatedAdminRealtimeSync />
       {APP_TARGET === "site" ? (
         <PublicApplication />

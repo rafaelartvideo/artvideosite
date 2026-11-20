@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { performanceFetch } from "@/infrastructure/query/local-performance-runtime";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
@@ -80,6 +81,7 @@ const persistentAuthStorage = typeof window === "undefined"
 // Single reusable client — only uses the public anon key.
 // Never import or use the service_role key on the frontend.
 export const supabase = createClient(supabaseUrl, publicAnonKey, {
+  global: { fetch: performanceFetch },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
