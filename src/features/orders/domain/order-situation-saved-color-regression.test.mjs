@@ -23,8 +23,11 @@ test("badge de situação prioriza sempre a cor salva, mesmo em nomes reconhecid
 test("lista de OS usa a situação cadastrada nos badges desktop e mobile", async () => {
   const table = read("src/features/orders/presentation/OrdersTable.tsx");
   assert.ok((await transformWithEsbuild(table, "OrdersTable.tsx", { loader: "tsx" })).code);
-  const badge = /<StatusBadge status=\{\(o\.situation as any\)\.name\} color=\{\(o\.situation as any\)\?\.color\} \/>/g;
-  assert.equal((table.match(badge) || []).length, 2, "mesma cor salva no celular e desktop");
+  // Badge compartilhado: a cor salva é passada pela mesma função nos dois layouts.
+  assert.match(table, /<StatusBadge status=\{order\.situation\.name\} color=\{order\.situation\?\.color\} \/>/);
+  assert.equal((table.match(/\{situationDisplay\(o\)\}/g)||[]).length, 2,
+    "A listagem usa a mesma apresentação no desktop e no mobile.");
+  assert.match(table, /order\.completed_at && order\.closure_outcome === "rejected_quote_return"/);
 });
 
 test("legenda de OS compartilha a cor da barra vertical, sem cores duplicadas", async () => {
