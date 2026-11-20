@@ -66,6 +66,16 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const safePage = page;
   const openDetails = (order: any) => { if (canOpenDetails) onOpen(order); };
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
+  // Um orçamento reprovado pode ser seguido da devolução do equipamento.
+  // Nesse caso, a situação operacional anterior fica apenas no histórico.
+  const isRejectedQuoteReturnClosed = (order: any) =>
+    Boolean(order.completed_at && order.closure_outcome === "rejected_quote_return");
+  const situationDisplay = (order: any) => isRejectedQuoteReturnClosed(order)
+    ? <span
+        className="inline-flex max-w-full items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[10px] font-bold text-foreground"
+        title={`OS fechada após devolução. Última situação: ${order.situation?.name || "não informada"}`}
+      >DEVOLVIDA SEM REPARO</span>
+    : <StatusBadge status={order.situation.name} color={order.situation?.color} />;
   const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order)
     && (!order.return_root_id || order.return_classification !== "analysis");
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
@@ -269,9 +279,9 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                   {hasPermission("orders.table.actions") && <div onClick={event => event.stopPropagation()}>{quickActions(o)}</div>}
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  {canViewSituation && ((o.situation as any)?.name
+                  {canViewSituation && ((o.situation as any)?.name || isRejectedQuoteReturnClosed(o)
                     ? <div className="inline-flex min-w-0 items-center gap-1">
-                        <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                        {situationDisplay(o)}
                         {situationHistoryButton(o)}
                       </div>
                     : <span className="text-xs text-muted-foreground">—</span>)}
@@ -314,10 +324,10 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
                 {hasPermission("orders.table.equipment") && <td className="text-xs text-muted-foreground">{equipmentSummary(o)}</td>}
                 <td className="text-xs text-muted-foreground">{o.created_at ? fmtDate(o.created_at, true) : "—"}</td>
                 {hasPermission("orders.table.scheduled_at") && <td className="text-xs text-muted-foreground">{o.scheduled_at ? fmtDate(o.scheduled_at, true) : "—"}</td>}
-                {canViewSituation && <td className="w-60 min-w-[235px]">{(o.situation as any)?.name
+                {canViewSituation && <td className="w-60 min-w-[235px]">{(o.situation as any)?.name || isRejectedQuoteReturnClosed(o)
                   ? <div className="flex min-w-0 items-center gap-1.5">
-                      <div className="orders-situation-clamp min-w-0 flex-1" title={(o.situation as any).name}>
-                        <StatusBadge status={(o.situation as any).name} color={(o.situation as any)?.color} />
+                      <div className="orders-situation-clamp min-w-0 flex-1" title={isRejectedQuoteReturnClosed(o) ? "Devolvida sem reparo" : (o.situation as any).name}>
+                        {situationDisplay(o)}
                       </div>
                       {situationHistoryButton(o)}
                     </div>
