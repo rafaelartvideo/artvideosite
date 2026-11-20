@@ -85,6 +85,7 @@ export function OrderTerminalExitDialog({
   const [step,setStep]=useState<"form"|"signature"|"qr">("form");
   const [qrLink,setQrLink]=useState<string|null>(null);
   const [signatureBusy,setSignatureBusy]=useState(false);
+  useEffect(()=>{if(step!=="signature")setSignatureBusy(false);},[step]);
   const signatureRefreshInFlight=useRef(false);
 
   const template=templates.find(t=>t.is_active!==false&&t.document_type===cfg.docType);
