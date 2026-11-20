@@ -32,7 +32,7 @@ import {
   resendSignatureEmail,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
-import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
+import { getOrderWhatsAppAvailability, sendOrderSignatureViaUnionWhatsApp, signatureInviteText } from "../application/order-signature-whatsapp";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -159,6 +159,15 @@ export function OrderSignatureRequestsSection({
     finally { setBusyId(null); }
   };
 
+  const [unionConnected,setUnionConnected]=useState<boolean|null>(null);
+  useEffect(()=>{
+    let active=true;
+    void getOrderWhatsAppAvailability(order.organization_id)
+      .then(connected=>{if(active)setUnionConnected(connected);})
+      .catch(()=>{if(active)setUnionConnected(null);});
+    return()=>{active=false;};
+  },[order.organization_id]);
+
   const getLink = async (request: DocumentSignatureRequestSummary) => getSignatureAdminLink(order.organization_id, request.id);
 
   const openLink = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
@@ -174,31 +183,37 @@ export function OrderSignatureRequestsSection({
 
   const openWhatsApp = (request: DocumentSignatureRequestSummary) => {
     if (busyId) return;
-    // Reservar a aba no clique para permitir abrir o WhatsApp Web depois da
-    // geração assíncrona do link, sem ser bloqueado pelo navegador.
-    const tab = window.open("about:blank", "_blank");
+    // Reservar a aba só enquanto o canal não estiver confirmado como ativo.
+    const tab = unionConnected === false || unionConnected === null
+      ? window.open("about:blank", "_blank") : null;
     if (tab) tab.opener = null;
     void withBusy(request.id, async () => {
       try {
-        if (!request.external_signer_phone) throw new Error("O assinante não possui WhatsApp/telefone informado nesta solicitação.");
-        const integration = await getSacDigitalIntegrationStatus(order.organization_id);
-        const link = await getLink(request);
-        if (integration.enabled === true) {
-          if (tab && !tab.closed) tab.close();
-          await sendSacDigitalSignatureInvite(order.organization_id, order.id, request.id, link);
-          setMessage({ text: "Convite de assinatura enviado pelo SAC Digital.", type: "success" });
-          return;
-        }
-        const company = await getCompanyPrintContext(order.organization_id);
+        if (!request.external_signer_phone)
+          throw new Error("O assinante não possui WhatsApp/telefone nesta solicitação.");
+        const [connected,link,company] = await Promise.all([
+          getOrderWhatsAppAvailability(order.organization_id),
+          getLink(request),
+          getCompanyPrintContext(order.organization_id),
+        ]);
         const whatsappUrl = buildSignatureWhatsAppUrl(request.external_signer_phone, link, {
-          companyName: company.name,
-          documentName: request.template_name_snapshot,
-          signerName: request.external_signer_name,
-          operatorName: printedBy,
+          companyName: company.name, documentName: request.template_name_snapshot,
+          signerName: request.external_signer_name, operatorName: printedBy,
         });
-        if (!whatsappUrl) throw new Error("Não foi possível preparar a mensagem do WhatsApp.");
-        if (tab && !tab.closed) tab.location.replace(whatsappUrl);
-        else throw new Error("Permita novas abas para abrir o convite no WhatsApp Web.");
+        if (!whatsappUrl) throw new Error("Não foi possível preparar o convite.");
+        if (connected) {
+          if (tab && !tab.closed) tab.close();
+          await sendOrderSignatureViaUnionWhatsApp({
+            organizationId:order.organization_id,orderId:order.id,
+            phone:request.external_signer_phone,
+            signerName:request.external_signer_name || "",
+            message:signatureInviteText(whatsappUrl),
+          });
+          setMessage({text:"Convite enviado pelo WhatsApp da Union.",type:"success"});
+        } else if (tab && !tab.closed) {
+          tab.location.replace(whatsappUrl);
+        } else throw new Error("O canal está desconectado. Abra novamente para usar o WhatsApp Web.");
+        setUnionConnected(connected);
       } catch (error) {
         if (tab && !tab.closed) tab.close();
         throw error;
