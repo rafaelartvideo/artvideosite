@@ -233,14 +233,9 @@ export function OrderTerminalExitDialog({
 
   return <AdminDialog open minimizable={false}
     onClose={()=>{if(submitting||uploading||signatureBusy)return;if(step==="form")onClose();else setStep("form");}}
-    title={step==="signature"?"Enviar para assinatura":step==="qr"?"Assinatura pronta":cfg.title}
-    description={`OS #${order.os_number||""}`}
-    className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
-    transitionKey={step}
-    preparing={(loading||templatesLoading)&&step==="form"}
-    preparingKey={orderId+":"+outcome}
-    preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
-    headerActions={step==="form" && <Popover>
+    title={step==="form"
+      ? <span className="inline-flex items-center gap-2">{cfg.title}
+          <Popover>
       <PopoverTrigger asChild>
         <button type="button" aria-label="Informações sobre o encerramento" title="Informações sobre o encerramento"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -252,7 +247,15 @@ export function OrderTerminalExitDialog({
         <p>A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa.</p>
         <p className="mt-2">Só as peças recuperadas e conferidas fisicamente voltarão ao estoque.</p>
       </PopoverContent>
-    </Popover>}
+    </Popover>
+        </span>
+      : step==="signature"?"Enviar para assinatura":"Assinatura pronta"}
+    description={`OS #${order.os_number||""}`}
+    className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
+    transitionKey={step}
+    preparing={(loading||templatesLoading)&&step==="form"}
+    preparingKey={orderId+":"+outcome}
+    preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
     footer={step==="form" ? <div className="flex flex-wrap justify-end gap-2">
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
       <AdminButton disabled={!canFinish} loading={submitting} onClick={()=>void confirm()}>
