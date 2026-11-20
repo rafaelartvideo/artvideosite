@@ -52,9 +52,11 @@ export function OrderSignatureRequestDialog({
   onClose,
   onCreated,
   embedded = false,
+  onBusyChange,
 }: {
   open: boolean;
   embedded?: boolean;
+  onBusyChange?: (busy:boolean)=>void;
   order: any;
   templates: PrintTemplate[];
   preferredDocumentType?: string | null;
@@ -99,6 +101,7 @@ export function OrderSignatureRequestDialog({
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(()=>{onBusyChange?.(saving);},[saving,onBusyChange]);
   const [unionEnabled, setUnionEnabled] = useState<boolean | null>(null);
   const [channelStatusError, setChannelStatusError] = useState("");
   const [directRequests, setDirectRequests] = useState<DocumentSignatureRequestSummary[]>([]);
@@ -380,7 +383,7 @@ export function OrderSignatureRequestDialog({
       <BtnPrimary
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
         loading={saving}
-        loadingText={activeRequest ? "Enviando..." : "Enviando..."}
+        loadingText="Enviando..."
         disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (unionEnabled === null || Boolean(channelStatusError)))}
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>;
