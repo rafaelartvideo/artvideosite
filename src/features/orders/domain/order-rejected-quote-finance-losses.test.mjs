@@ -33,6 +33,14 @@ test("orçamento reprovado permite devolução documentada sem execução de rep
   assert.match(dialog, /attachOrderSituationDocument/);
   assert.match(dialog, /isDeliveryEvidenceName/);
   assert.match(page, /DEVOLVIDA SEM REPARO/);
+  // A situação de avaliação não deve aparecer como ativa após fechar a devolução.
+  assert.match(page, /!\(detail\.completed_at && detail\.closure_outcome === "rejected_quote_return"\)/);
+  const table = read("src/features/orders/presentation/OrdersTable.tsx");
+  assert.ok((await transformWithEsbuild(table,"OrdersTable.tsx",{loader:"tsx"})).code);
+  assert.match(table, /const isRejectedQuoteReturnClosed/);
+  assert.match(table, /order\.completed_at && order\.closure_outcome === "rejected_quote_return"/);
+  assert.equal((table.match(/situationDisplay\(o\)/g)||[]).length,2);
+  assert.match(table, /Última situação:/);
 });
 
 test("perdas preservam valor, motivo e versão sem criar título financeiro", () => {
