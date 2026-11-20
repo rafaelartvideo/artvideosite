@@ -375,7 +375,7 @@ export function OrderSignatureRequestDialog({
   const preparing = checkingRequests;
 
   const formFooter = preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+      <BtnSecondary onClick={onClose} disabled={saving}>{embedded ? "Voltar" : "Cancelar"}</BtnSecondary>
       <BtnPrimary
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
         loading={saving}
@@ -389,8 +389,8 @@ export function OrderSignatureRequestDialog({
         <LoadingState text="Preparando envio para assinatura..." />
       </div>
     ) : <div className="space-y-5">
-        {channelStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{channelStatusError}</p>}
-        {currentRequestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{currentRequestsError}</p>}
+        {channelStatusError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{channelStatusError}</p>}
+        {currentRequestsError && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{currentRequestsError}</p>}
         {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
           <p className="mt-1">Assinante: {activeRequest.external_signer_name || "não informado"}. O link é válido até {new Date(activeRequest.expires_at).toLocaleString("pt-BR")}.</p>
