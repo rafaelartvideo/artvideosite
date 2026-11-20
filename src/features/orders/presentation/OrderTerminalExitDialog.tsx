@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileSignature, ImagePlus, PackageCheck, RefreshCcw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, FileSignature, ImagePlus, Info, PackageCheck, ShieldCheck } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
+import { supabase } from "@/lib/supabase";
+import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { SignatureQrDialog } from "./SignatureQrDialog";
+import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -44,12 +49,16 @@ const STOCK_OPTIONS=[
 ];
 
 export function OrderTerminalExitDialog({
-  order,outcome,templates,onRequestSignature,onClose,onDone,
+  order,outcome,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,
 }:{
   order:any;
   outcome:OrderTerminalOutcome;
   templates:PrintTemplate[];
-  onRequestSignature:(docType:string)=>void;
+  templatesLoading?:boolean;
+  usedItems:any[];
+  partRequests:any[];
+  history:any[];
+  printedBy?:string|null;
   onClose:()=>void;
   onDone:(result:{id:string;outcome:OrderTerminalOutcome;completed_at:string;returned_to_stock:number})=>void;
 }){
@@ -73,6 +82,9 @@ export function OrderTerminalExitDialog({
   const [refresh,setRefresh]=useState(0);
   const [submitting,setSubmitting]=useState(false);
   const [acknowledged,setAcknowledged]=useState(false);
+  const [step,setStep]=useState<"form"|"signature"|"qr">("form");
+  const [qrLink,setQrLink]=useState<string|null>(null);
+  const signatureRefreshInFlight=useRef(false);
 
   const template=templates.find(t=>t.is_active!==false&&t.document_type===cfg.docType);
   const signedRequests=useMemo(()=>requests.filter(r=>
@@ -103,6 +115,36 @@ export function OrderTerminalExitDialog({
     }).finally(()=>{if(alive)setLoading(false)});
     return()=>{alive=false};
   },[org,orderId,outcome,refresh,cfg.evidence]);
+
+  // O estado da assinatura é atualizado por evento e, enquanto aguarda,
+  // por fallback leve de 15s somente com a OS aberta e aba visível.
+  const refreshSignatures=useCallback(async()=>{
+    if(signatureRefreshInFlight.current)return;
+    signatureRefreshInFlight.current=true;
+    try {setRequests(await listOrderSignatureRequests(org,orderId));}
+    catch (cause) {console.warn("order-terminal-signatures: refresh",systemErrorMessage(cause));}
+    finally {signatureRefreshInFlight.current=false;}
+  },[org,orderId]);
+  useEffect(()=>{
+    if(!org||!orderId)return;
+    const channel=supabase.channel("order-terminal-signatures:"+orderId)
+      .on("postgres_changes",{
+        event:"*",schema:"public",table:"document_signature_requests",
+        filter:"service_order_id=eq."+orderId,
+      },()=>{void refreshSignatures();})
+      .subscribe();
+    const onVisibility=()=>{if(document.visibilityState==="visible")void refreshSignatures();};
+    document.addEventListener("visibilitychange",onVisibility);
+    const timer=window.setInterval(()=>{
+      if(document.visibilityState==="visible" && step!=="signature" && signedRequests.length===0)
+        void refreshSignatures();
+    },15000);
+    return()=>{
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange",onVisibility);
+      void supabase.removeChannel(channel);
+    };
+  },[org,orderId,refreshSignatures,step,signedRequests.length]);
 
   useEffect(()=>{
     setSignatureId(current=>signedRequests.some(x=>x.id===current)?current:(signedRequests[0]?.id||""));
