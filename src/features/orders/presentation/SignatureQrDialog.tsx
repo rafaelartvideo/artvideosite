@@ -26,7 +26,7 @@ export function SignatureQrDialog({ link, onClose, embedded = false }: { link: s
     </div> : <p className="text-sm text-destructive">Não foi possível montar o QR Code deste link.</p>}
   </>;
   const qrFooter = <div className="flex flex-wrap justify-end gap-2">
-      <BtnSecondary onClick={() => { setCopied(false); onClose(); }}>Voltar</BtnSecondary>
+      <BtnSecondary onClick={() => { setCopied(false); onClose(); }}>{embedded ? "Voltar" : "Fechar"}</BtnSecondary>
       {validLink && <BtnPrimary onClick={() => window.open(validLink, "_blank", "noopener,noreferrer")}><ExternalLink size={14} className="mr-2 inline" />Abrir assinatura</BtnPrimary>}
     </div>;
   if (embedded) return <div className="space-y-4" data-signature-qr-inline="true">
