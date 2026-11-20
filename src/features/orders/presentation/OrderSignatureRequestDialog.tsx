@@ -145,7 +145,7 @@ export function OrderSignatureRequestDialog({
     setChannelStatusError("");
     void getOrderWhatsAppAvailability(order.organization_id)
       .then(connected => { if (alive) setUnionEnabled(connected); })
-      .catch(error => { if (alive) setChannelStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
+      .catch(error => { if (alive) setChannelStatusError(systemErrorMessage(error, "Não foi possível consultar o canal WhatsApp da Union.")); });
     return () => { alive = false; };
   }, [open, order?.organization_id]);
 
@@ -248,10 +248,6 @@ export function OrderSignatureRequestDialog({
     }
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    if (selectedTemplate.require_external_signature && (channelStatusError || unionEnabled === null)) {
-      notifyAdmin(channelStatusError || "Aguarde a verificação do WhatsApp da Union.", "error");
-      return;
-    }
     // Reservar a aba no clique somente quando não há SAC; gerar PDF e link
     // leva tempo e abrir o WhatsApp após um await seria bloqueado.
     const whatsappTab = unionEnabled === false && selectedTemplate.require_external_signature
@@ -341,7 +337,7 @@ export function OrderSignatureRequestDialog({
             });
           } else if (whatsappTab && !whatsappTab.closed) {
             whatsappTab.location.replace(whatsappUrl);
-          } else whatsappWarning = "O documento foi criado. Utilize o QR Code para compartilhar o link.";
+          } else whatsappWarning = channelStatusError || "A assinatura foi criada. Compartilhe o link pelo QR Code.";
         } catch (whatsappError) {
           if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
           whatsappWarning = systemErrorMessage(
@@ -372,11 +368,7 @@ export function OrderSignatureRequestDialog({
     }
   };
 
-  const preparing = checkingRequests || (
-    selectedTemplate?.require_external_signature === true
-    && unionEnabled === null
-    && !channelStatusError
-  );
+  const preparing = checkingRequests;
 
   const formFooter = preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
@@ -384,7 +376,7 @@ export function OrderSignatureRequestDialog({
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
         loading={saving}
         loadingText="Enviando..."
-        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (unionEnabled === null || Boolean(channelStatusError)))}
+        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || saving}
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>;
   const formContent = <>
