@@ -683,7 +683,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       // Count requests are independent: never delay or blank the inbox page
       // just because a global count RPC is slow or times out.
       void listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,
-        activeChannelPhone,options.priorityMinutes).then(counts=>{
+        activeChannelPhone,options.priorityMinutes,user?.id).then(counts=>{
           if(sequence===conversationLoadSeq.current &&
             organizationRef.current===activeOrganizationId &&
             accountRef.current===activeChannelPhone)
@@ -758,7 +758,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }finally{
       if(sequence===conversationLoadSeq.current)setConversationPageLoading(false);
     }
-  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,reportError]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,reportError,user?.id]);
 
   const refreshMessages=useCallback(async(conversationId:string,silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
@@ -990,18 +990,28 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(embedded || !documentVisible || channelReady!==true ||
       !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
       (sharedActivity && !sharedActivity.isPageOpen))return;
+    let cancelled=false;
+    let countPending=false;
     const id=window.setInterval(()=>{
+      if(cancelled || document.hidden)return;
       if(filter==="unanswered"){
         conversationPageCacheRef.current.clear();
         void refresh(true);
       }else{
+        if(countPending)return;
+        countPending=true;
         void listUnionWhatsAppUnansweredCount(activeOrganizationId,activeChannelId,
           activeChannelPhone,queueSettings.unanswered_priority_minutes)
-          .then(unanswered=>setConversationCounts(current=>({...current,unanswered})))
-          .catch(()=>undefined);
+          .then(unanswered=>{
+            if(!cancelled && organizationRef.current===activeOrganizationId &&
+              accountRef.current===activeChannelPhone)
+              setConversationCounts(current=>({...current,unanswered}));
+          })
+          .catch(()=>undefined)
+          .finally(()=>{countPending=false;});
       }
     },60_000);
-    return()=>window.clearInterval(id);
+    return()=>{cancelled=true;window.clearInterval(id);};
   },[embedded,documentVisible,filter,queueSettings.unanswered_priority_minutes,
     activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,
     sharedActivity?.isPageOpen,refresh]);

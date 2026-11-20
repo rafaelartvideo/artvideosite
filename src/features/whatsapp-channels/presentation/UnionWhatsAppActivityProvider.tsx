@@ -98,7 +98,7 @@ export function UnionWhatsAppActivityProvider({
   const checkingRef=useRef(false);
   const lastChannelCheckRef=useRef(0);
   const channelSeqRef=useRef(0);
-  const accountKey=channelId&&channelPhone?organizationId+":"+channelId+":"+channelPhone:"";
+  const accountKey=channelId&&channelPhone?organizationId+":"+channelId+":"+channelPhone+":"+(user?.id||""):"";
   const currentAccountRef=useRef(accountKey);
   currentAccountRef.current=accountKey;
   const pageOpenRef=useRef(isPageOpen);
@@ -225,7 +225,7 @@ export function UnionWhatsAppActivityProvider({
     countsInFlightRef.current=request;
     lastCountsRef.current=now;
     try{
-      const result=await listUnionWhatsAppConversationCounts(organizationId,channelId,channelPhone);
+      const result=await listUnionWhatsAppConversationCounts(organizationId,channelId,channelPhone,15,user?.id);
       if(disposedRef.current||currentAccountRef.current!==scope||
         countsInFlightRef.current!==request)return;
       setCounts(result);
@@ -236,7 +236,7 @@ export function UnionWhatsAppActivityProvider({
     }finally{
       if(countsInFlightRef.current===request)countsInFlightRef.current=null;
     }
-  },[enabled,organizationId,channelId,channelPhone,accountKey]);
+  },[enabled,organizationId,channelId,channelPhone,accountKey,user?.id]);
 
   const refreshLists=useCallback(async(targets:Filter[],urgent=false)=>{
     if(!enabled||!organizationId||!channelId||!channelPhone||

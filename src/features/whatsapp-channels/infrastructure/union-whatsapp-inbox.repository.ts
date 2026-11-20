@@ -245,12 +245,12 @@ const whatsappCountsCache=new Map<string,{
   expiresAt:number;request:Promise<UnionWhatsAppConversationCounts>;
 }>();
 export function listUnionWhatsAppConversationCounts(
-  organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,
+  organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,viewerId?:string,
 ):Promise<UnionWhatsAppConversationCounts>{
   const minutes=Math.min(1440,Math.max(1,Math.floor(priorityMinutes||15)));
-  const key=JSON.stringify([organizationId,channelId,accountPhone,minutes]);
+  const key=JSON.stringify([organizationId,channelId,accountPhone,minutes,viewerId]);
   const now=Date.now();
-  const cached=whatsappCountsCache.get(key);
+  const cached=viewerId?whatsappCountsCache.get(key):undefined;
   if(cached && cached.expiresAt>now)return cached.request;
   const request=(async():Promise<UnionWhatsAppConversationCounts>=>{
     const [{data,error},unanswered]=await Promise.all([
@@ -267,6 +267,7 @@ export function listUnionWhatsAppConversationCounts(
       total:Number(row?.total_count||0),unread:Number(row?.unread_count||0),unanswered,
     };
   })();
+  if(!viewerId)return request;
   whatsappCountsCache.delete(key);
   whatsappCountsCache.set(key,{expiresAt:now+WHATSAPP_COUNTS_CACHE_TTL_MS,request});
   while(whatsappCountsCache.size>16)

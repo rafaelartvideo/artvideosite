@@ -830,7 +830,7 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
 // or production connection. The refs remain shared across account transitions.
 function countRefreshHarness(){
   const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
-  const body=provider.match(/const refreshCounts=useCallback\(async\(force=false\)=>\{([\s\S]*?)\n  \},\[enabled,organizationId,channelId,channelPhone,accountKey\]\);/)[1];
+  const body=provider.match(/const refreshCounts=useCallback\(async\(force=false\)=>\{([\s\S]*?)\n  \},\[enabled,organizationId,channelId,channelPhone,accountKey,user\?\.id\]\);/)[1];
   const refs={
     disposedRef:{current:false},currentAccountRef:{current:"A"},
     countsInFlightRef:{current:null},countsScopeRef:{current:""},
@@ -838,10 +838,10 @@ function countRefreshHarness(){
   };
   const pending=[],results=[];
   const listUnionWhatsAppConversationCounts=(...args)=>new Promise((resolve,reject)=>pending.push({args,resolve,reject}));
-  const create=new Function("env",`const {enabled,organizationId,channelId,channelPhone,accountKey,disposedRef,currentAccountRef,countsInFlightRef,countsScopeRef,lastCountsRef,countsRetryAfterRef,listUnionWhatsAppConversationCounts,setCounts}=env; return async(force=false)=>{${body}};`);
+  const create=new Function("env",`const {user,enabled,organizationId,channelId,channelPhone,accountKey,disposedRef,currentAccountRef,countsInFlightRef,countsScopeRef,lastCountsRef,countsRetryAfterRef,listUnionWhatsAppConversationCounts,setCounts}=env; return async(force=false)=>{${body}};`);
   const forAccount=accountKey=>{
     refs.currentAccountRef.current=accountKey;
-    return create({...refs,enabled:true,organizationId:accountKey,channelId:"channel",channelPhone:"phone",accountKey,listUnionWhatsAppConversationCounts,setCounts:value=>results.push(value)});
+    return create({...refs,user:{id:"viewer"},enabled:true,organizationId:accountKey,channelId:"channel",channelPhone:"phone",accountKey,listUnionWhatsAppConversationCounts,setCounts:value=>results.push(value)});
   };
   return {refs,pending,results,forAccount};
 }
@@ -1308,3 +1308,5 @@ test("Atendimento finalizado nao volta para Aguardando sem primeira mensagem",()
   assert.match(edge,/if\(action==="reopen"\) \{\s*return json\(\{success:false,code:"first_message_required"/);
   assert.match(edge,/if\(typeof body\.first_message!=="string" \|\| !body\.first_message\.trim\(\)\)/);
 });
+import './whatsapp-unanswered-refresh.test.mjs';
+import './whatsapp-counts-session.test.mjs';
