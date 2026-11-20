@@ -13,6 +13,11 @@ export const DEFAULT_ATTENDANCE_DISPLAY_PREFERENCES: Readonly<AttendanceDisplayP
   markReadWhenAssuming: true,
   focusComposerOnOpen: true,
 });
+/** Apenas Gestor e Gestor + Operador da vinculação WhatsApp (não cargos/permissões genéricas). */
+export type WhatsAppStaffRole = "manager" | "both" | "operator" | null | undefined;
+export const canManageAttendanceDisplayPreferences = (staffRole:WhatsAppStaffRole):boolean =>
+  staffRole==="manager" || staffRole==="both";
+
 const PREFIX = "union-whatsapp-attendance-display:v1";
 export const attendancePreferenceKey = (organizationId:string,userId:string) =>
   `${PREFIX}:${organizationId}:${userId}`;
