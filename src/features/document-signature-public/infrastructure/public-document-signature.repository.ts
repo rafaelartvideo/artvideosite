@@ -1,4 +1,4 @@
-import { projectId, publicAnonKey } from "../../../../utils/supabase/info";
+import { projectId, publicAnonKey } from "@/shared/config/supabase-backend";
 
 const FUNCTION_NAME = "document-signature-public";
 const PDF_FUNCTION_NAME = "document-signature-pdf";
