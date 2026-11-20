@@ -724,11 +724,11 @@ export function OrderDetailsPage(props: Props) {
       order={detail}
       outcome={terminalOutcome}
       templates={printTemplates.templates}
-      onRequestSignature={docType=>{
-        setTerminalOutcome(null);
-        setSignaturePreferredDocType(docType);
-        setSignatureRequestOpen(true);
-      }}
+      templatesLoading={printTemplates.loading}
+      usedItems={detailUsedItems}
+      partRequests={detailPartRequests}
+      history={details.detailHistory}
+      printedBy={profileName}
       onClose={()=>setTerminalOutcome(null)}
       onDone={result=>{
         setTerminalOutcome(null);
