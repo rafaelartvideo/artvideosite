@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
@@ -103,6 +103,8 @@ export function OrderSignatureRequestDialog({
   const [saving, setSaving] = useState(false);
   useEffect(()=>{onBusyChange?.(saving);},[saving,onBusyChange]);
   const [unionEnabled, setUnionEnabled] = useState<boolean | null>(null);
+  const unionAvailableRef=useRef<boolean|null>(null);
+  useEffect(()=>{unionAvailableRef.current=unionEnabled;},[unionEnabled]);
   const [channelStatusError, setChannelStatusError] = useState("");
   const [directRequests, setDirectRequests] = useState<DocumentSignatureRequestSummary[]>([]);
   const [directRequestsLoading, setDirectRequestsLoading] = useState(true);
@@ -198,7 +200,8 @@ export function OrderSignatureRequestDialog({
             operatorName: printedBy,
           });
           if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura.");
-          if (unionEnabled === true) {
+          if (unionAvailableRef.current === true) {
+            if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
             await sendOrderSignatureViaUnionWhatsApp({
               organizationId: order.organization_id, orderId: order.id,
               phone: activeRequest.external_signer_phone || "",
@@ -329,7 +332,8 @@ export function OrderSignatureRequestDialog({
             operatorName: printedBy,
           });
           if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura.");
-          if (unionEnabled === true) {
+          if (unionAvailableRef.current === true) {
+            if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
             await sendOrderSignatureViaUnionWhatsApp({
               organizationId: order.organization_id, orderId: order.id,
               phone: externalSigner.phone, signerName: externalSigner.name,
