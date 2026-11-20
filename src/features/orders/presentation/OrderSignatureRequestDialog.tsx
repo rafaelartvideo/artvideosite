@@ -12,7 +12,7 @@ import {
   getSignatureAdminLink,
   listOrderSignatureRequests,
 } from "@/features/documents/infrastructure/document-signatures.repository";
-import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
+import { getOrderWhatsAppAvailability, sendOrderSignatureViaUnionWhatsApp, signatureInviteText } from "../application/order-signature-whatsapp";
 import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
 import type { DocumentSignatureRequestSummary } from "@/features/documents/domain/document-signature";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -97,8 +97,8 @@ export function OrderSignatureRequestDialog({
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [saving, setSaving] = useState(false);
-  const [sacEnabled, setSacEnabled] = useState<boolean | null>(null);
-  const [sacStatusError, setSacStatusError] = useState("");
+  const [unionEnabled, setUnionEnabled] = useState<boolean | null>(null);
+  const [channelStatusError, setChannelStatusError] = useState("");
   const [directRequests, setDirectRequests] = useState<DocumentSignatureRequestSummary[]>([]);
   const [directRequestsLoading, setDirectRequestsLoading] = useState(true);
   const [directRequestsError, setDirectRequestsError] = useState("");
@@ -136,11 +136,11 @@ export function OrderSignatureRequestDialog({
   useEffect(() => {
     if (!open || !order?.organization_id) return;
     let alive = true;
-    setSacEnabled(null);
-    setSacStatusError("");
-    void getSacDigitalIntegrationStatus(order.organization_id)
-      .then(status => { if (alive) setSacEnabled(status.enabled === true); })
-      .catch(error => { if (alive) setSacStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
+    setUnionEnabled(null);
+    setChannelStatusError("");
+    void getOrderWhatsAppAvailability(order.organization_id)
+      .then(connected => { if (alive) setUnionEnabled(connected); })
+      .catch(error => { if (alive) setChannelStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
     return () => { alive = false; };
   }, [open, order?.organization_id]);
 
@@ -176,8 +176,8 @@ export function OrderSignatureRequestDialog({
     if (!activeRequest || saving) return;
     // Never send a personal signature link to a new/different recipient.
     const canSendInvite = existingMatchesSigner && Boolean(activeRequest.external_signer_phone)
-      && sacEnabled !== null && !sacStatusError;
-    const whatsappTab = canSendInvite && sacEnabled === false ? window.open("about:blank", "_blank") : null;
+      && unionEnabled !== null && !channelStatusError;
+    const whatsappTab = canSendInvite && unionEnabled === false ? window.open("about:blank", "_blank") : null;
     if (whatsappTab) whatsappTab.opener = null;
     setSaving(true);
     try {
@@ -185,20 +185,24 @@ export function OrderSignatureRequestDialog({
       let whatsappWarning: string | null = null;
       if (canSendInvite) {
         try {
-          if (sacEnabled === true) {
-            await sendSacDigitalSignatureInvite(order.organization_id, order.id, activeRequest.id, link);
-          } else {
-            const company = await getCompanyPrintContext(order.organization_id);
-            const whatsappUrl = buildSignatureWhatsAppUrl(activeRequest.external_signer_phone, link, {
-              companyName: company.name,
-              documentName: activeRequest.template_name_snapshot,
-              signerName: activeRequest.external_signer_name,
-              operatorName: printedBy,
+          const company = await getCompanyPrintContext(order.organization_id);
+          const whatsappUrl = buildSignatureWhatsAppUrl(activeRequest.external_signer_phone, link, {
+            companyName: company.name,
+            documentName: activeRequest.template_name_snapshot,
+            signerName: activeRequest.external_signer_name,
+            operatorName: printedBy,
+          });
+          if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura.");
+          if (unionEnabled === true) {
+            await sendOrderSignatureViaUnionWhatsApp({
+              organizationId: order.organization_id, orderId: order.id,
+              phone: activeRequest.external_signer_phone || "",
+              signerName: activeRequest.external_signer_name || "",
+              message: signatureInviteText(whatsappUrl),
             });
-            if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura para WhatsApp.");
-            if (whatsappTab && !whatsappTab.closed) whatsappTab.location.replace(whatsappUrl);
-            else whatsappWarning = "Permita novas abas ou envie o link exibido no QR Code.";
-          }
+          } else if (whatsappTab && !whatsappTab.closed) {
+            whatsappTab.location.replace(whatsappUrl);
+          } else whatsappWarning = "Permita novas abas ou copie o link pelo QR Code.";
         } catch (error) {
           if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
           whatsappWarning = systemErrorMessage(error, "Não foi possível reenviar o link pelo WhatsApp.");
@@ -239,13 +243,13 @@ export function OrderSignatureRequestDialog({
     }
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    if (selectedTemplate.require_external_signature && (sacStatusError || sacEnabled === null)) {
-      notifyAdmin(sacStatusError || "Aguarde a consulta à integração SAC Digital.", "error");
+    if (selectedTemplate.require_external_signature && (channelStatusError || unionEnabled === null)) {
+      notifyAdmin(channelStatusError || "Aguarde a verificação do WhatsApp da Union.", "error");
       return;
     }
     // Reservar a aba no clique somente quando não há SAC; gerar PDF e link
     // leva tempo e abrir o WhatsApp após um await seria bloqueado.
-    const whatsappTab = sacEnabled === false && selectedTemplate.require_external_signature
+    const whatsappTab = unionEnabled === false && selectedTemplate.require_external_signature
       ? window.open("about:blank", "_blank")
       : null;
     if (whatsappTab) whatsappTab.opener = null;
@@ -317,24 +321,22 @@ export function OrderSignatureRequestDialog({
       let whatsappWarning: string | null = null;
       if (result.link && result.request?.id && externalSigner?.phone) {
         try {
-          if (sacEnabled === true) {
-            await sendSacDigitalSignatureInvite(
-              order.organization_id,
-              order.id,
-              result.request.id,
-              result.link,
-            );
-          } else {
-            const whatsappUrl = buildSignatureWhatsAppUrl(externalSigner.phone, result.link, {
-              companyName: company.name,
-              documentName: selectedTemplate.name,
-              signerName: externalSigner.name,
-              operatorName: printedBy,
+          const whatsappUrl = buildSignatureWhatsAppUrl(externalSigner.phone, result.link, {
+            companyName: company.name,
+            documentName: selectedTemplate.name,
+            signerName: externalSigner.name,
+            operatorName: printedBy,
+          });
+          if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura.");
+          if (unionEnabled === true) {
+            await sendOrderSignatureViaUnionWhatsApp({
+              organizationId: order.organization_id, orderId: order.id,
+              phone: externalSigner.phone, signerName: externalSigner.name,
+              message: signatureInviteText(whatsappUrl),
             });
-            if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura para WhatsApp.");
-            if (whatsappTab && !whatsappTab.closed) whatsappTab.location.replace(whatsappUrl);
-            else whatsappWarning = "O documento foi criado. Permita novas abas ou utilize o botão WhatsApp na lista de assinaturas para abrir o convite.";
-          }
+          } else if (whatsappTab && !whatsappTab.closed) {
+            whatsappTab.location.replace(whatsappUrl);
+          } else whatsappWarning = "O documento foi criado. Utilize o QR Code para compartilhar o link.";
         } catch (whatsappError) {
           if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
           whatsappWarning = systemErrorMessage(
@@ -367,8 +369,8 @@ export function OrderSignatureRequestDialog({
 
   const preparing = checkingRequests || (
     selectedTemplate?.require_external_signature === true
-    && sacEnabled === null
-    && !sacStatusError
+    && unionEnabled === null
+    && !channelStatusError
   );
 
   return <AdminDialog
@@ -388,8 +390,8 @@ export function OrderSignatureRequestDialog({
       <BtnPrimary
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
         loading={saving}
-        loadingText={activeRequest ? "Preparando link existente..." : "Criando e enviando pelo WhatsApp..."}
-        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}
+        loadingText={activeRequest ? "Enviando..." : "Enviando..."}
+        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (unionEnabled === null || Boolean(channelStatusError)))}
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>}
   >
@@ -398,7 +400,7 @@ export function OrderSignatureRequestDialog({
         <LoadingState text="Preparando envio para assinatura..." />
       </div>
     ) : <div className="space-y-5">
-        {sacStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sacStatusError}</p>}
+        {channelStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{channelStatusError}</p>}
         {currentRequestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{currentRequestsError}</p>}
         {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
