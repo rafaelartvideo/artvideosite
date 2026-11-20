@@ -12,6 +12,12 @@ test("Preferências de atendimentos são locais, por operador e empresa, com def
   const mod=await import("data:text/javascript;base64,"+Buffer.from(built.code).toString("base64"));
   assert.deepEqual(mod.readAttendanceDisplayPreferences(null,null),
     {preserveUnreadOnView:false,markReadWhenAssuming:true,focusComposerOnOpen:true});
+  // Perfis WhatsApp independentes: Gestor (manager), Gestor Operador (both), Operador (operator).
+  assert.equal(mod.canManageAttendanceDisplayPreferences("manager"),true);
+  assert.equal(mod.canManageAttendanceDisplayPreferences("both"),true);
+  assert.equal(mod.canManageAttendanceDisplayPreferences("operator"),false);
+  assert.equal(mod.canManageAttendanceDisplayPreferences(null),false);
+  assert.equal(mod.canManageAttendanceDisplayPreferences(undefined),false);
   const storage=new Map();
   const previous=globalThis.window;
   globalThis.window={localStorage:{
@@ -46,4 +52,16 @@ test("Atendimentos possui menu local e não marca como lida ao apenas visualizar
   assert.match(page,/attendancePreferences\?\.focusComposerOnOpen/);
   assert.match(page,/saveAttendanceDisplayPreferences\(activeOrganizationId,user\.id,next\)/);
   assert.doesNotMatch(page,/role_permissions_save[\s\S]{0,150}preserveUnreadOnView/);
+  assert.match(page,/canManageAttendanceDisplayPreferences\(staffRole\)/);
+  assert.match(page,/\{canUseAttendancePreferences && attendancePreferences && <Popover>/);
+  assert.match(page,/if\(!canUseAttendancePreferences\|\|!activeOrganizationId/);
+  assert.match(page,/DEFAULT_ATTENDANCE_DISPLAY_PREFERENCES/);
+  assert.match(page,/sharedActivity\.staffRole/);
+  const provider=read("src/features/whatsapp-channels/presentation/UnionWhatsAppActivityProvider.tsx");
+  assert.ok((await transformWithEsbuild(provider,"UnionWhatsAppActivityProvider.tsx",{loader:"tsx"})).code.length>100);
+  assert.match(provider,/staffRole:response\.staff_role\|\|null/);
+  assert.match(provider,/staffRole,\s*subscribe,trackOpenConversation/);
+  const backend=read("supabase/functions/union-whatsapp-inbox/index.ts");
+  assert.match(backend,/const staffRole=myBinding\?\.is_active===true/);
+  assert.match(backend,/channel_connected:ready,staff_role:staffRole,capabilities/);
 });
