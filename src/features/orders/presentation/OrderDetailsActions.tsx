@@ -97,9 +97,16 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
           {canTerminalExit && <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <AdminButton variant="secondary" className="h-10 shrink-0 px-3 text-xs" aria-label="Outros encerramentos" title="Descarte ou devolução sem reparo">
+              {/* O Radix precisa da referência do elemento DOM para posicionar e abrir o menu.
+                  AdminButton é um componente funcional sem forwardRef no React 18. */}
+              <button
+                type="button"
+                className="inline-flex h-10 min-w-0 max-w-full shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-card px-3 text-xs font-bold text-card-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                aria-label="Encerrar sem reparo"
+                title="Descarte ou devolução sem reparo"
+              >
                 <PackageCheck size={16}/><span className="hidden md:inline">Encerrar sem reparo</span>
-              </AdminButton>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[230px]">
               <DropdownMenuItem onSelect={()=>{
