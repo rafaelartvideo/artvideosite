@@ -51,8 +51,10 @@ export function OrderSignatureRequestDialog({
   onRefreshRequests,
   onClose,
   onCreated,
+  embedded = false,
 }: {
   open: boolean;
+  embedded?: boolean;
   order: any;
   templates: PrintTemplate[];
   preferredDocumentType?: string | null;
@@ -373,19 +375,7 @@ export function OrderSignatureRequestDialog({
     && !channelStatusError
   );
 
-  return <AdminDialog
-    open
-    onClose={onClose}
-    title="Enviar para assinatura"
-    description={preparing ? undefined : "O documento será congelado em PDF e o link de assinatura será enviado ao WhatsApp do assinante."}
-    minimizedDescription={[
-      `OS ${order?.os_number || "—"}`,
-      signerType === "customer" ? customerName(customer) : contactName.trim(),
-      selectedTemplate?.name,
-    ].filter(Boolean).join(" · ")}
-    minimizable={!saving}
-    className="max-w-xl"
-    footer={preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+  const formFooter = preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
@@ -393,8 +383,8 @@ export function OrderSignatureRequestDialog({
         loadingText={activeRequest ? "Enviando..." : "Enviando..."}
         disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (unionEnabled === null || Boolean(channelStatusError)))}
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
-    </div>}
-  >
+    </div>;
+  const formContent = <>
     {preparing ? (
       <div className="flex min-h-[240px] items-center justify-center" role="status" aria-live="polite">
         <LoadingState text="Preparando envio para assinatura..." />
@@ -443,7 +433,26 @@ export function OrderSignatureRequestDialog({
         </>}
 
     </div>}
-
+  </>;
+  if (embedded) {
+    return <div className="space-y-4" data-signature-inline-step="true">
+      {formContent}
+      {formFooter && <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">{formFooter}</div>}
+    </div>;
+  }
+  return <AdminDialog
+    open
+    onClose={onClose}
+    title="Enviar para assinatura"
+    description="Escolha o assinante e envie o link pelo WhatsApp da empresa."
+    minimizable={!saving}
+    className="max-w-xl"
+    preparing={preparing}
+    preparingKey={order?.id}
+    preparingText="Preparando assinatura..."
+    footer={formFooter}
+  >
+    {formContent}
   </AdminDialog>;
 }
 
