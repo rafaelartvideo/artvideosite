@@ -23,6 +23,7 @@ type WhatsAppActivityContextValue={
   channelId:string|null;
   channelPhone:string|null;
   capabilities:Record<string,boolean>;
+  staffRole:"manager"|"operator"|"both"|null;
   subscribe:(listener:(event:WhatsAppActivityEvent)=>void)=>()=>void;
   trackOpenConversation:(id:string)=>()=>void;
 };
@@ -55,7 +56,7 @@ const emptyLists=():Record<Filter,MiniList>=>({
 const MINI_LIST_TTL=45_000;
 const MINI_LIST_EVENT_THROTTLE=6_000;
 type Incoming={messageId:string;preview:string;receivedAt:number};
-type Account={organizationId:string;channelId:string;phone:string;capabilities:Record<string,boolean>};
+type Account={organizationId:string;userId:string;channelId:string;phone:string;staffRole:"manager"|"operator"|"both"|null;capabilities:Record<string,boolean>};
 
 /**
  * Um único canal Realtime por sessão/empresa, fora das rotas do CRM.
@@ -75,10 +76,11 @@ export function UnionWhatsAppActivityProvider({
   const userId=user?.id||"";
   const [channelReady,setChannelReady]=useState<boolean|null>(null);
   const [account,setAccount]=useState<Account|null>(null);
-  const activeAccount=account?.organizationId===organizationId?account:null;
+  const activeAccount=account?.organizationId===organizationId && account.userId===userId?account:null;
   const channelId=activeAccount?.channelId||null;
   const channelPhone=activeAccount?.phone||null;
   const capabilities=activeAccount?.capabilities||null;
+  const staffRole=activeAccount?.staffRole||null;
   const [counts,setCounts]=useState<UnionWhatsAppConversationCounts>(zeroCounts);
   const [expanded,setExpanded]=useState(false);
   const [filter,setFilter]=useState<Filter>("in_att");
@@ -166,8 +168,8 @@ export function UnionWhatsAppActivityProvider({
       const ready=Boolean(response.channel_connected&&response.channel_id&&response.channel_phone);
       setChannelReady(ready);
       setAccount(ready?{
-        organizationId,channelId:response.channel_id!,phone:response.channel_phone!,
-        capabilities:response.capabilities||{},
+        organizationId,userId,channelId:response.channel_id!,phone:response.channel_phone!,
+        staffRole:response.staff_role||null,capabilities:response.capabilities||{},
       }:null);
     }catch{
       if(disposedRef.current||sequence!==channelSeqRef.current)return;
@@ -439,9 +441,9 @@ export function UnionWhatsAppActivityProvider({
   },[enabled,checkChannel]);
 
   const contextValue=useMemo<WhatsAppActivityContextValue>(()=>({
-    isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},
+    isPageOpen,channelReady,channelId,channelPhone,capabilities:capabilities||{},staffRole,
     subscribe,trackOpenConversation,
-  }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,subscribe,trackOpenConversation]);
+  }),[isPageOpen,channelReady,channelId,channelPhone,capabilities,staffRole,subscribe,trackOpenConversation]);
   // O objeto de contexto NÃO pode ser recriado em cada evento Realtime:
   // o modal reinicializava todo o fluxo e piscava em "Carregando atendimento".
   const modalContext=useMemo(()=>conversationId && activeOrganizationId
