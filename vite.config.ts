@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import path from "path";
 import { execFileSync } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
@@ -120,9 +120,18 @@ function appDomainMetadata(target: AppTarget) {
 }
 
 export default defineConfig(({ mode }) => {
+  const isStaging = mode === "crm-staging";
+  if (isStaging) {
+    const vars = loadEnv(mode, process.cwd(), "VITE_");
+    const ref = vars.VITE_UNION_STAGING_PROJECT_ID?.trim() || "";
+    const publishable = vars.VITE_UNION_STAGING_PUBLIC_ANON_KEY?.trim() || "";
+    if (!/^[a-z0-9]{20}$/.test(ref) || ref === "wmjmtcjpunmzvonlkjcu" || publishable.length < 20) {
+      throw new Error("Build de homologação bloqueado: configure Supabase STAGING isolado (sem projeto CRM real).");
+    }
+  }
   const target: AppTarget = mode === "site"
     ? "site"
-    : mode === "crm"
+    : mode === "crm" || isStaging
       ? "crm"
       : "combined";
 
