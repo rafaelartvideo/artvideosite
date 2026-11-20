@@ -84,6 +84,7 @@ export function OrderTerminalExitDialog({
   const [acknowledged,setAcknowledged]=useState(false);
   const [step,setStep]=useState<"form"|"signature"|"qr">("form");
   const [qrLink,setQrLink]=useState<string|null>(null);
+  const [signatureBusy,setSignatureBusy]=useState(false);
   const signatureRefreshInFlight=useRef(false);
 
   const template=templates.find(t=>t.is_active!==false&&t.document_type===cfg.docType);
@@ -218,28 +219,53 @@ export function OrderTerminalExitDialog({
   };
 
   return <AdminDialog open minimizable={false}
-    onClose={()=>{if(!submitting&&!uploading)onClose()}}
-    title={cfg.title}
-    description={`OS #${order.os_number||""} · ${cfg.subTitle}`}
-    className="max-w-3xl"
-    footer={<div className="flex flex-wrap justify-end gap-2">
+    onClose={()=>{if(submitting||uploading||signatureBusy)return;if(step==="form")onClose();else setStep("form");}}
+    title={step==="signature"?"Enviar para assinatura":step==="qr"?"Assinatura pronta":cfg.title}
+    description={`OS #${order.os_number||""}`}
+    className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
+    transitionKey={step}
+    preparing={(loading||templatesLoading)&&step==="form"}
+    preparingKey={orderId+":"+outcome}
+    preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
+    headerActions={step==="form" && <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label="Informações sobre o encerramento" title="Informações sobre o encerramento"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
+          <Info size={17}/>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="bottom" className="z-[170] w-[min(22rem,calc(100vw-2rem))] p-4 text-xs leading-relaxed">
+        <p className="mb-2 font-bold text-foreground">Encerramento sem cobrança</p>
+        <p>A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa.</p>
+        <p className="mt-2">Só as peças recuperadas e conferidas fisicamente voltarão ao estoque.</p>
+      </PopoverContent>
+    </Popover>}
+    footer={step==="form" ? <div className="flex flex-wrap justify-end gap-2">
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
       <AdminButton disabled={!canFinish} loading={submitting} onClick={()=>void confirm()}>
         <ShieldCheck size={16}/>{cfg.button}
       </AdminButton>
-    </div>}>
-    <div className="space-y-5">
-      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
-        <strong className="text-foreground">Encerramento sem cobrança do cliente.</strong>{" "}
-        A OS será fechada na situação correspondente. A operação ficará registrada no
-        Financeiro → Perdas, sem pagamento nem baixa de caixa. Somente peças recuperadas fisicamente
-        e confirmadas serão reintegradas ao estoque.
-      </div>
-      {loading?<p role="status" className="py-4 text-center text-xs text-muted-foreground">Conferindo documentos, assinaturas, evidências e estoque...</p>:<>
-        <section className="space-y-3">
-          <h3 className="text-sm font-black text-foreground">1. Motivo e destinação</h3>
-          <FTextarea label={outcome==="disposal_confirmed"?"Motivo do descarte":"Motivo da devolução sem reparo"} required
-            rows={3} value={reason} onChange={(e:any)=>setReason(e.target.value)}
+    </div> : null}>
+    {step==="signature" ? <OrderSignatureRequestDialog
+      embedded open order={order} templates={templates}
+      preferredDocumentType={cfg.docType}
+      existingRequests={requests}
+      usedItems={usedItems} partRequests={partRequests} history={history} printedBy={printedBy}
+      onBusyChange={setSignatureBusy}
+      onClose={()=>setStep(current=>current==="qr"?"qr":"form")}
+      onCreated={result=>{
+        const feedback=signatureRequestCreationFeedback(result);
+        notifyAdmin(feedback.message,feedback.type);
+        void refreshSignatures();
+        if(result.link){setQrLink(result.link);setStep("qr");}
+        else setStep("form");
+      }}
+    /> : step==="qr" ? <SignatureQrDialog embedded link={qrLink}
+      onClose={()=>{setQrLink(null);setStep("form");void refreshSignatures();}}/> : <div className="space-y-4">
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground">{outcome==="disposal_confirmed"?"Motivo e instituição":"Motivo da devolução"}</h3>
+          <FTextarea label={outcome==="disposal_confirmed"?"Motivo do descarte":"Motivo da devolução"} required
+            rows={2} value={reason} onChange={(e:any)=>setReason(e.target.value)}
             placeholder="Registre o motivo técnico e as condições verificadas..." disabled={submitting}/>
           {outcome==="disposal_confirmed"&&<FSelect label="Instituição destinatária" required value={partnerId}
             onChange={(e:any)=>setPartnerId(e.target.value)}
@@ -247,18 +273,9 @@ export function OrderTerminalExitDialog({
             options={[{value:"",label:"Selecione uma instituição parceira"},
               ...partners.map(item=>({value:item.id,label:item.name}))]}/>}
         </section>
-        <section className="space-y-3 border-t border-border pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-black text-foreground">2. Termo e assinaturas</h3>
-            <AdminButton variant="secondary" size="sm" onClick={()=>setRefresh(v=>v+1)} disabled={submitting}>
-              <RefreshCcw size={14}/> Atualizar
-            </AdminButton>
-          </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Use o documento “{template?.name||cfg.docType}” com assinatura do cliente e
-            do responsável pela assistência. É necessário concluir a assinatura online
-            e gerar o PDF final antes do encerramento.
-          </p>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground">Termo e assinaturas</h3>
+          <p className="text-xs text-muted-foreground">{template?.name||"Termo de encerramento"}</p>
           {signedRequests.length>0?<div className="space-y-2">
             <FSelect label="Termo assinado" value={signatureId} onChange={(e:any)=>setSignatureId(e.target.value)}
               options={signedRequests.map(r=>({value:r.id,label:`Assinado em ${new Date(r.signed_at||r.created_at).toLocaleString("pt-BR")} · ${r.external_signer_name||"Cliente"}`}))}/>
@@ -268,17 +285,14 @@ export function OrderTerminalExitDialog({
           </div>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
             O termo ainda não possui as duas assinaturas finalizadas.
           </p>}
-          <AdminButton variant="secondary" onClick={()=>onRequestSignature(cfg.docType)} disabled={!template||submitting}>
+          <AdminButton variant="secondary" onClick={()=>setStep("signature")} disabled={!template||submitting}>
             <FileSignature size={16}/> {signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}
           </AdminButton>
           {!template&&<p className="text-xs text-destructive">Modelo não carregado. Verifique os modelos no módulo Documentos.</p>}
         </section>
-        <section className="space-y-3 border-t border-border pt-4">
-          <h3 className="text-sm font-black text-foreground">3. Evidência de {outcome==="disposal_confirmed"?"descarte":"devolução"}</h3>
-          <p className="text-xs text-muted-foreground">
-            Registre uma foto legível da entrega/destinação e, se necessário, documento de recebimento.
-            O arquivo fica vinculado aos anexos da OS.
-          </p>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-bold text-foreground">Evidência de {outcome==="disposal_confirmed"?"descarte":"devolução"}</h3>
+          <p className="text-xs text-muted-foreground">Anexe uma foto ou PDF para registrar a {outcome==="disposal_confirmed"?"destinação":"entrega"}.</p>
           {evidenceOptions.length>0&&<FSelect label="Evidência anexada" value={evidenceId}
             onChange={(e:any)=>setEvidenceId(e.target.value)}
             options={evidenceOptions.map((a,i)=>({
@@ -298,16 +312,11 @@ export function OrderTerminalExitDialog({
             O tipo de evidência não está disponível nesta empresa.
           </p>}
         </section>
-        <section className="space-y-3 border-t border-border pt-4">
-          <h3 className="flex items-center gap-2 text-sm font-black text-foreground">
-            <PackageCheck size={17}/> 4. Conferência física das peças
+        {stock.length>0 && <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
+            <PackageCheck size={17}/> Conferência das peças
           </h3>
-          {stock.length===0
-            ?<p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-              Nenhuma saída de estoque vinculada à OS está pendente de conferência.
-              Não será gerada entrada de estoque.
-            </p>
-            :stock.map(item=>{
+          {stock.map(item=>{
               const choice=stockChoices[item.inventory_item_id]||INITIAL_CHOICE;
               return <div key={item.inventory_item_id} className="space-y-2 rounded-lg border border-border p-3">
                 <div className="flex flex-wrap justify-between gap-2">
@@ -339,14 +348,13 @@ export function OrderTerminalExitDialog({
             Peças instaladas, danificadas ou não recuperadas são registradas, mas não entram no estoque.
             Uma nova entrada será criada somente para a quantidade reutilizável confirmada.
           </p>
-        </section>
+        </section>}
         <label className="flex items-start gap-2 border-t border-border pt-4 text-xs font-semibold leading-5 text-foreground">
           <input type="checkbox" className="mt-1" checked={acknowledged} disabled={submitting}
             onChange={e=>setAcknowledged(e.target.checked)}/>
           Conferi equipamento, acessórios, termo assinado, evidência e destino das peças.
           Confirmo o encerramento definitivo da OS, com registro de auditoria.
         </label>
-      </>}
       {error&&<p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
         <AlertTriangle size={15} className="shrink-0"/>{error}
         <button type="button" className="ml-auto underline" onClick={()=>{setError("");setRefresh(x=>x+1)}}>Tentar novamente</button>
