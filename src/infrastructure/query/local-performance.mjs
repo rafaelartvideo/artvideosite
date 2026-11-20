@@ -32,6 +32,7 @@ export function createLocalPerformance({now=()=>performance.now(),maxSamples=250
   };
   const censored=()=>[...pending].map(s=>({kind:s.kind,name:s.name,offsetMs:Math.max(0,Math.min(now(),until)-collectionStart),context:{...s.context},durationMs:Math.max(0,Math.min(now(),until)-s.start),outcome:'interrupted'}));
   const api={active,record,begin,
+    status(){return {active:active(),samples:samples.length,pending:pending.size,dropped};},
     start(context={}){generation++;pending.clear();ctx=contextOnly(context);samples=[];dropped=0;collectionStart=now();until=collectionStart+maxDurationMs;enabled=true;startedAt=new Date().toISOString();},
     stop(){for(const row of censored()){if(samples.length<maxSamples)samples.push(row);else dropped++;}pending.clear();generation++;enabled=false;},context(value){ctx={...ctx,...contextOnly(value)};},
     export(){return {schema:1,startedAt,exportedAt:new Date().toISOString(),active:active(),dropped,pending:censored(),limits:{maxSamples,maxDurationMs},samples:samples.map(s=>({...s,context:{...s.context}}))};},

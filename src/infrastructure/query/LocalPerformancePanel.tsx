@@ -34,10 +34,11 @@ export function LocalPerformancePanel() {
       <button type="button" onClick={()=>api().download()}>Exportar arquivo local</button>
       <button type="button" onClick={()=>setOpen(false)}>Fechar medição</button>
     </div>
-    <p>Estado: {localPerformance.active()?'coletando':'parado'}. Registros descartados: {localPerformance.export().dropped}.</p>
+    <p>Estado: {localPerformance.active()?'coletando':'parado'}. Registros descartados: {localPerformance.status().dropped}.</p>
+    <p>Até 200 contextos exibidos. O arquivo exportado contém todos os registros retidos.</p>
     <p>p50: mínimo 30 sucessos; p95: 200; p99: 1.000 por contexto. São estimativas empíricas, sem garantia de precisão. Erros e observações interrompidas ficam separados.</p>
     <table><thead><tr><th>Medição</th><th>Contexto</th><th>Total</th><th>Erros</th><th>Interrompidas</th><th>p50 ms</th><th>p95 ms</th><th>p99 ms</th></tr></thead>
-      <tbody>{rows.map((row,index)=><tr key={index}><td>{({rpc_headers:'Até cabeçalhos',rpc_body:'Resposta completa',screen_paint:'Rota + 2 quadros',screen_ready:'Conteúdo principal'} as Record<string,string>)[row.kind]??row.kind} / {row.name}</td><td><details><summary>{row.context.user} / {row.context.organization} / {row.context.cache}</summary><pre>{JSON.stringify(row.context,null,2)}</pre></details></td>
+      <tbody>{rows.slice(0,200).map((row,index)=><tr key={index}><td>{({rpc_headers:'Até cabeçalhos',rpc_body:'Resposta completa',screen_paint:'Rota + 2 quadros',screen_ready:'Conteúdo principal'} as Record<string,string>)[row.kind]??row.kind} / {row.name}</td><td><details><summary>{row.context.user} / {row.context.organization} / {row.context.cache}</summary><pre>{JSON.stringify(row.context,null,2)}</pre></details></td>
         <td>{row.total}</td><td>{row.errors}</td><td>{row.censored}</td><td>{row.p50??'Amostra insuficiente'}</td><td>{row.p95??'Amostra insuficiente'}</td><td>{row.p99??'Amostra insuficiente'}</td></tr>)}</tbody>
     </table>
   </dialog>;

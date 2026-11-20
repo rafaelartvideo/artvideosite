@@ -120,11 +120,12 @@ test('local control is invisible by default and its start action only enables lo
     let index=0,started=0;const p=createLocalPerformance(),effects=[];
     const api={start(options){started++;p.start({cache:options.cache});},stop:()=>p.stop(),download(){}};
     const Component=new Function('React','useState','useRef','useEffect','localPerformance','window',code)(
-      React,initial=>[index++===0?open:initial,()=>{}],()=>({current:null}),effect=>effects.push(effect),p,{unionPerformance:api,addEventListener(){},removeEventListener(){}},
+      React,initial=>[index++===0?open:Array.isArray(initial)?Array.from({length:250},(_,i)=>({kind:'rpc_headers',name:'test'+i,context:{},total:1,errors:0,censored:0})):initial,()=>{}],()=>({current:null}),effect=>effects.push(effect),p,{unionPerformance:api,addEventListener(){},removeEventListener(){}},
     );
     const tree=Component();if(!open){assert.equal(tree,null);assert.equal(started,0);continue;}
     const nodes=[];const walk=node=>{if(!React.isValidElement(node))return;nodes.push(node);React.Children.forEach(node.props.children,walk);};walk(tree);
     const button=nodes.find(node=>node.type==='button'&&node.props.children==='Iniciar nova coleta local');
+    assert.equal(nodes.filter(node=>node.type==='tr').length,201,'large exports must not produce an unbounded diagnostic table');
     button.props.onClick();assert.equal(started,1);assert.equal(p.active(),true);assert.equal(p.export().samples.length,0);
   }
 });
