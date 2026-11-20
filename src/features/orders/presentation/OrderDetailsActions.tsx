@@ -108,7 +108,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
                 <PackageCheck size={16}/><span className="hidden md:inline">Encerrar sem reparo</span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[230px]">
+            <DropdownMenuContent align="end" side="top" sideOffset={8} className="z-[160] min-w-[230px]">
               <DropdownMenuItem onSelect={()=>{
                 // Radix precisa concluir o fechamento do menu antes de abrir outro diálogo.
                 window.requestAnimationFrame(()=>onTerminalExit("returned_unrepaired"));
