@@ -69,3 +69,40 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   assert.match(finance,/Consultar termo assinado/);
   assert.match(finance,/isTerminalLoss\(selected\)/);
 });
+
+
+test("devolução e descarte usam um só AdminDialog com assinatura, QR e atualização automática",async()=>{
+  const dialog=read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  const signer=read("src/features/orders/presentation/OrderSignatureRequestDialog.tsx");
+  const qr=read("src/features/orders/presentation/SignatureQrDialog.tsx");
+  const whatsapp=read("src/features/orders/application/order-signature-whatsapp.ts");
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const requests=read("src/features/orders/presentation/OrderSignatureRequestsSection.tsx");
+
+  for(const [path,source] of [
+    ["OrderTerminalExitDialog.tsx",dialog],["OrderSignatureRequestDialog.tsx",signer],
+    ["SignatureQrDialog.tsx",qr],["OrderDetailsPage.tsx",page],
+    ["OrderSignatureRequestsSection.tsx",requests],
+  ]) assert.ok((await transformWithEsbuild(source,path,{loader:"tsx"})).code.length>100,path);
+  assert.ok((await transformWithEsbuild(whatsapp,"order-signature-whatsapp.ts",{loader:"ts"})).code.length>100);
+  assert.match(dialog,/transitionKey=\{step\}/);
+  assert.match(dialog,/preparingText=\{outcome/);
+  assert.match(dialog,/Preparando devolução/);
+  assert.match(dialog,/<OrderSignatureRequestDialog[\s\S]*?embedded open/);
+  assert.match(dialog,/<SignatureQrDialog embedded/);
+  assert.match(dialog,/document_signature_requests/);
+  assert.match(dialog,/setInterval/);
+  assert.doesNotMatch(dialog,/RefreshCcw/);
+  assert.doesNotMatch(dialog,/1\. Motivo e destinação/);
+  assert.match(dialog,/stock\.length>0 && <section/);
+  assert.match(signer,/if \(embedded\)/);
+  assert.match(qr,/if \(embedded\)/);
+  assert.match(signer,/getOrderWhatsAppAvailability/);
+  assert.match(signer,/sendOrderSignatureViaUnionWhatsApp/);
+  assert.doesNotMatch(signer,/sendSacDigitalSignatureInvite/);
+  assert.match(requests,/sendOrderSignatureViaUnionWhatsApp/);
+  assert.match(whatsapp,/order_recipients/);
+  assert.match(whatsapp,/os_join/);
+  assert.match(whatsapp,/startUnionWhatsAppWithFirstMessage/);
+  assert.match(page,/templatesLoading=\{printTemplates\.loading\}/);
+});
