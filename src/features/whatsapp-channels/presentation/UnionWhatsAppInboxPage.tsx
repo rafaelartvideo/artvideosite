@@ -23,7 +23,8 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import {
   readAttendanceDisplayPreferences, saveAttendanceDisplayPreferences,
-  type AttendanceDisplayPreferences,
+  canManageAttendanceDisplayPreferences, DEFAULT_ATTENDANCE_DISPLAY_PREFERENCES,
+  type AttendanceDisplayPreferences, type WhatsAppStaffRole,
 } from "../domain/attendance-display-preferences";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -380,6 +381,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const canView = hasPermission("whatsapp.inbox.view");
   // Personalização por operador + empresa, no próprio navegador (não são permissões).
   const preferenceScope=[activeOrganizationId||"",user?.id||""].join(":");
+  const [standaloneStaffRole,setStandaloneStaffRole]=useState<{scope:string;role:WhatsAppStaffRole}>({scope:preferenceScope,role:null});
+  const staffRole:WhatsAppStaffRole=sharedActivity
+    ? sharedActivity.staffRole
+    : standaloneStaffRole.scope===preferenceScope ? standaloneStaffRole.role : null;
+  const canUseAttendancePreferences=canManageAttendanceDisplayPreferences(staffRole);
   const [storedAttendancePreferences,setStoredAttendancePreferences]=useState(()=>({
     scope:preferenceScope,values:readAttendanceDisplayPreferences(activeOrganizationId,user?.id),
   }));
@@ -389,10 +395,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       values:readAttendanceDisplayPreferences(activeOrganizationId,user?.id),
     });
   },[preferenceScope,activeOrganizationId,user?.id]);
+  // O perfil Operador sempre usa os padrões. Preferências antigas de um gestor
+  // rebaixado nunca substituem a marcação de leitura normal desse perfil.
   const attendancePreferences=storedAttendancePreferences.scope===preferenceScope
-    ? storedAttendancePreferences.values : null;
+    ? canUseAttendancePreferences
+      ? storedAttendancePreferences.values : DEFAULT_ATTENDANCE_DISPLAY_PREFERENCES
+    : null;
   const updateAttendancePreference=(key:keyof AttendanceDisplayPreferences,checked:boolean)=>{
-    if(!activeOrganizationId||!user?.id||!attendancePreferences)return;
+    if(!canUseAttendancePreferences||!activeOrganizationId||!user?.id||!attendancePreferences)return;
     const next={...attendancePreferences,[key]:checked};
     saveAttendanceDisplayPreferences(activeOrganizationId,user.id,next);
     setStoredAttendancePreferences({scope:preferenceScope,values:next});
@@ -1053,6 +1063,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (organizationRef.current === activeOrganizationId) {
         const ready=Boolean(response.channel_connected && response.channel_id);
         setCapabilities(response.capabilities || {});
+        setStandaloneStaffRole({scope:preferenceScope,role:response.staff_role||null});
         setChannelReady(ready);
         setActiveChannelId(ready?response.channel_id||null:null);
         setActiveChannelPhone(ready?response.channel_phone||null:null);
@@ -1062,11 +1073,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (organizationRef.current === activeOrganizationId) {
         setChannelReady(false);setActiveChannelId(null);setActiveChannelPhone(null);
         setCapabilities({});
+        setStandaloneStaffRole({scope:preferenceScope,role:null});
         reportError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
-  }, [activeOrganizationId, canView, reportError, sharedActivity?.channelReady,
-      sharedActivity?.channelId, sharedActivity?.channelPhone, sharedActivity?.capabilities]);
+  }, [activeOrganizationId, canView, reportError, preferenceScope, sharedActivity?.channelReady,
+      sharedActivity?.channelId, sharedActivity?.channelPhone, sharedActivity?.capabilities,
+      sharedActivity?.staffRole]);
   useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setCapabilities({});  void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
@@ -2442,7 +2455,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
-        {attendancePreferences && <Popover>
+        {canUseAttendancePreferences && attendancePreferences && <Popover>
           <PopoverTrigger asChild>
             <button type="button" aria-label="Preferências de visualização dos atendimentos"
               title="Preferências de visualização" data-attendance-preferences-trigger="true"
