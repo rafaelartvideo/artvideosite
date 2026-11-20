@@ -5,7 +5,8 @@
  * NEVER treats matching names as proof that SQL was executed.
  */
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 export function analyzeMigrations(files, remoteMigrations) {
   const names = files.filter(name => name.endsWith(".sql")).sort();
@@ -70,6 +71,6 @@ function main() {
     process.exitCode = 2;
   }
 }
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1].replace(/\\/g, "/")).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main();
 }
