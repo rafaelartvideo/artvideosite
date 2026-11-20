@@ -20,6 +20,11 @@ import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
+import {
+  readAttendanceDisplayPreferences, saveAttendanceDisplayPreferences,
+  type AttendanceDisplayPreferences,
+} from "../domain/attendance-display-preferences";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
@@ -373,6 +378,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const sharedActivity = useWhatsAppActivity();
   const location = useLocation();
   const canView = hasPermission("whatsapp.inbox.view");
+  // Personalização por operador + empresa, no próprio navegador (não são permissões).
+  const preferenceScope=[activeOrganizationId||"",user?.id||""].join(":");
+  const [storedAttendancePreferences,setStoredAttendancePreferences]=useState(()=>({
+    scope:preferenceScope,values:readAttendanceDisplayPreferences(activeOrganizationId,user?.id),
+  }));
+  useEffect(()=>{
+    setStoredAttendancePreferences({
+      scope:preferenceScope,
+      values:readAttendanceDisplayPreferences(activeOrganizationId,user?.id),
+    });
+  },[preferenceScope,activeOrganizationId,user?.id]);
+  const attendancePreferences=storedAttendancePreferences.scope===preferenceScope
+    ? storedAttendancePreferences.values : null;
+  const updateAttendancePreference=(key:keyof AttendanceDisplayPreferences,checked:boolean)=>{
+    if(!activeOrganizationId||!user?.id||!attendancePreferences)return;
+    const next={...attendancePreferences,[key]:checked};
+    saveAttendanceDisplayPreferences(activeOrganizationId,user.id,next);
+    setStoredAttendancePreferences({scope:preferenceScope,values:next});
+  };
   const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
   const canAction=(key:string)=>capabilities[key]===true;
   const canSend=canAction("send");
@@ -1653,16 +1677,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       lastFocusedConversationRef.current=null;
       return;
     }
-    if(!canReply || lastFocusedConversationRef.current===selectedId || !inputRef.current)return;
+    if(!canReply || !attendancePreferences?.focusComposerOnOpen || lastFocusedConversationRef.current===selectedId || !inputRef.current)return;
     lastFocusedConversationRef.current=selectedId;
     inputRef.current.focus({preventScroll:true});
-  },[selectedId,canReply]);
+  },[selectedId,canReply,attendancePreferences?.focusComposerOnOpen]);
   // Open conversations must clear unread markers only when the messages and
   // collaboration permissions are ready, including for invited participants.
   // Avoid duplicate network calls while realtime refreshes are in progress.
   const markingReadRef=useRef(new Set<string>());
   useEffect(() => {
-    if (!documentVisible || !activeOrganizationId || !selected || conversationOpening ||
+    if (!attendancePreferences || attendancePreferences.preserveUnreadOnView ||
+      !documentVisible || !activeOrganizationId || !selected || conversationOpening ||
       selected.unread_count<=0 || messagesResolvedId!==selected.id ||
       !(isMine || canManage || isActiveCollaborator ||
         (selected.status==="waiting" && !selected.assigned_to && canAction("view_queues")))) return;
@@ -1686,7 +1711,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       });
   }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,
       selected?.unread_count,documentVisible,conversationOpening,messagesResolvedId,
-      isMine,canManage,isActiveCollaborator,capabilities,reportError,refresh]);
+      isMine,canManage,isActiveCollaborator,capabilities,reportError,refresh,
+      attendancePreferences?.preserveUnreadOnView]);
 
   const operatorFirstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
     .replace(/[*_~`\r\n]/g,"");
@@ -1771,7 +1797,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, action);
       if (action === "assume") {
         // Only mark messages read after successfully claiming the conversation.
-        await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "mark_read").catch(() => null);
+        if(attendancePreferences?.markReadWhenAssuming)
+          await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "mark_read").catch(() => null);
       }
       // Finalizar encerra o protocolo sem mudar a aba atual do operador.
 // A conversa passa para Finalizados, mas a lista permanece no filtro escolhido.
@@ -1787,7 +1814,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       } else {
         void refresh(true);
       }
-      if (action==="assume") window.setTimeout(() => inputRef.current?.focus(), 100);
+      if (action==="assume" && attendancePreferences?.focusComposerOnOpen)
+        window.setTimeout(() => inputRef.current?.focus(), 100);
       const successMessages:Partial<Record<typeof action,string>> = {
         assume:"Atendimento assumido com sucesso.",
         finish:"Atendimento finalizado com sucesso.",
@@ -2414,6 +2442,57 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
+        {attendancePreferences && <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" aria-label="Preferências de visualização dos atendimentos"
+              title="Preferências de visualização" data-attendance-preferences-trigger="true"
+              className={`flex h-[42px] shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${attendancePreferences.preserveUnreadOnView?"border-primary/50 bg-primary/10 text-primary":"border-border bg-card text-foreground hover:bg-muted"}`}>
+              <Settings2 size={16}/><span className="hidden sm:inline">Visualização</span><ChevronDown size={15}/>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" side="bottom" sideOffset={8}
+            className="z-[90] w-[min(21rem,calc(100vw-1.5rem))] space-y-3 rounded-xl border border-border bg-card p-4 shadow-xl">
+            <div>
+              <p className="text-sm font-bold text-foreground">Preferências de visualização</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Somente para você neste navegador. Não altera os acessos dos operadores.
+              </p>
+            </div>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg p-1.5 hover:bg-muted/60">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary"
+                checked={attendancePreferences.preserveUnreadOnView}
+                onChange={event=>updateAttendancePreference("preserveUnreadOnView",event.target.checked)}/>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">Não marcar como lida ao visualizar</span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                  Permite acompanhar a conversa sem zerar as não lidas para o responsável.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg p-1.5 hover:bg-muted/60">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary"
+                checked={attendancePreferences.markReadWhenAssuming}
+                onChange={event=>updateAttendancePreference("markReadWhenAssuming",event.target.checked)}/>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">Marcar como lida ao assumir</span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                  Controla a marcação automática quando você assume um atendimento.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg p-1.5 hover:bg-muted/60">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary"
+                checked={attendancePreferences.focusComposerOnOpen}
+                onChange={event=>updateAttendancePreference("focusComposerOnOpen",event.target.checked)}/>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">Focar resposta automaticamente</span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                  Posiciona o cursor no campo de mensagem ao abrir uma conversa.
+                </span>
+              </span>
+            </label>
+          </PopoverContent>
+        </Popover>}
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
           <button type="button" data-whatsapp-attendance-settings-trigger="true" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
             onClick={onConfigure}
