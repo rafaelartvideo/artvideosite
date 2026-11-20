@@ -242,7 +242,7 @@ export async function listUnionWhatsAppUnansweredCount(
 // Failed requests are evicted immediately so the next refresh can recover.
 const WHATSAPP_COUNTS_CACHE_TTL_MS=20_000;
 const whatsappCountsCache=new Map<string,{
-  expiresAt:number;request:Promise<UnionWhatsAppConversationCounts>;
+  expiresAt:number;pending:boolean;request:Promise<UnionWhatsAppConversationCounts>;
 }>();
 export function listUnionWhatsAppConversationCounts(
   organizationId:string,channelId:string,accountPhone:string,priorityMinutes=15,viewerId?:string,
@@ -251,7 +251,7 @@ export function listUnionWhatsAppConversationCounts(
   const key=JSON.stringify([organizationId,channelId,accountPhone,minutes,viewerId]);
   const now=Date.now();
   const cached=viewerId?whatsappCountsCache.get(key):undefined;
-  if(cached && cached.expiresAt>now)return cached.request;
+  if(cached && (cached.pending || cached.expiresAt>now))return cached.request;
   const request=(async():Promise<UnionWhatsAppConversationCounts>=>{
     const [{data,error},unanswered]=await Promise.all([
       supabase.rpc("union_whatsapp_inbox_counts",{
@@ -269,10 +269,13 @@ export function listUnionWhatsAppConversationCounts(
   })();
   if(!viewerId)return request;
   whatsappCountsCache.delete(key);
-  whatsappCountsCache.set(key,{expiresAt:now+WHATSAPP_COUNTS_CACHE_TTL_MS,request});
+  whatsappCountsCache.set(key,{expiresAt:now+WHATSAPP_COUNTS_CACHE_TTL_MS,pending:true,request});
   while(whatsappCountsCache.size>16)
     whatsappCountsCache.delete(whatsappCountsCache.keys().next().value!);
-  void request.catch(()=>{
+  void request.then(()=>{
+    const current=whatsappCountsCache.get(key);
+    if(current?.request===request)current.pending=false;
+  },()=>{
     if(whatsappCountsCache.get(key)?.request===request)whatsappCountsCache.delete(key);
   });
   return request;

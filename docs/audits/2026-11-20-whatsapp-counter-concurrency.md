@@ -6,11 +6,14 @@ O intervalo de 60 segundos do contador Sem resposta iniciava outra consulta mesm
 
 O cache compartilhado de contadores incluía empresa, canal, número e prioridade, mas não o operador. A RPC depende da visibilidade do solicitante (RLS). Dois operadores distintos na mesma empresa/conexão recebiam a mesma promessa/resposta de cache em uma reprodução isolada; não se fez troca de usuários reais nem leitura de dados de outra pessoa para testar.
 
+Além disso, a expiração de 20 segundos era aplicada também à promessa ainda pendente: uma consulta lenta podia ser duplicada depois desse prazo. O teste com relógio simulado reproduziu a duplicação aos 21 segundos.
+
 ## Correções
 
 - Uma consulta pendente por intervalo Sem resposta. Resolução/erro libera a próxima consulta, sem guardar resultado nesse controle. Intervalo continua 60 segundos; timers e comportamento de mensagens não foram acelerados.
 - Aba oculta não inicia a consulta. Fechamento/troca de contexto invalida respostas atrasadas, com confirmação da empresa e conta antes de atualizar o contador. A consulta já iniciada mantém seu tratamento de timeout existente; não foram criados limites de tempo novos.
 - O cache de contadores inclui viewerId. Sem identidade informada não há reutilização. Os dois consumidores passam o usuário já autenticado: nenhuma chamada extra de autenticação. TTL de 20 segundos, limite de 16 entradas e limpeza de falhas anteriores foram preservados.
+- Requisições pendentes continuam compartilhadas após os 20 segundos. Quando terminam, a expiração original do resultado permanece: não foi prolongado o cache de dados. O teste também confirma que, após terminar uma consulta cujo TTL já passou, a próxima operação faz uma consulta nova.
 - O escopo do componente persistente inclui o usuário para que uma troca de operador na mesma empresa/número descarte respostas e listas do escopo anterior. Não foram alterados filtros de organização/canal, permissões, RLS, mensagens ou marcação de leitura.
 
 ## Evidência e limites
