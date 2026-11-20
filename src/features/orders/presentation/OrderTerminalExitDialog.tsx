@@ -300,7 +300,7 @@ export function OrderTerminalExitDialog({
               <CheckCircle2 size={15}/> Assinatura registrada
             </p>
           </div>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-            O termo ainda não possui as duas assinaturas finalizadas.
+            Aguardando assinatura do termo.
           </p>}
           <AdminButton variant="secondary" onClick={()=>setStep("signature")} disabled={!template||submitting}>
             <FileSignature size={16}/> {signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}
@@ -369,8 +369,7 @@ export function OrderTerminalExitDialog({
         <label className="flex items-start gap-2 border-t border-border pt-4 text-xs font-semibold leading-5 text-foreground">
           <input type="checkbox" className="mt-1" checked={acknowledged} disabled={submitting}
             onChange={e=>setAcknowledged(e.target.checked)}/>
-          Conferi equipamento, acessórios, termo assinado, evidência e destino das peças.
-          Confirmo o encerramento definitivo da OS, com registro de auditoria.
+          Confirmo que conferi o equipamento, o termo, a evidência e as peças antes de encerrar a OS.
         </label>
       {error&&<p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
         <AlertTriangle size={15} className="shrink-0"/>{error}
