@@ -88,6 +88,15 @@ export function OrderTerminalExitDialog({
   const signatureRefreshInFlight=useRef(false);
 
   const template=templates.find(t=>t.is_active!==false&&t.document_type===cfg.docType);
+  // Antecipa apenas o código do renderizador, após abrir a OS e sem consultas extras.
+  // Isso evita baixar o html2pdf só depois que o operador confirma o envio do termo.
+  useEffect(()=>{
+    if(loading||templatesLoading||!template)return;
+    const connection=(navigator as Navigator & {connection?:{saveData?:boolean}}).connection;
+    if(connection?.saveData)return;
+    const timer=window.setTimeout(()=>{void import("html2pdf.js").catch(()=>undefined);},800);
+    return()=>window.clearTimeout(timer);
+  },[loading,templatesLoading,template?.id]);
   const signedRequests=useMemo(()=>requests.filter(r=>
     r.print_template_id===template?.id&&r.status==="signed"&&Boolean(r.signed_at)
   ).sort((a,b)=>Date.parse(b.signed_at||"")-Date.parse(a.signed_at||"")),[requests,template?.id]);
@@ -188,7 +197,11 @@ export function OrderTerminalExitDialog({
         organizationId:org,serviceOrderId:orderId,
         attachmentTypeId,file:evidenceFile,optimizePhoto:true,
       });
-      setEvidenceFile(null);setRefresh(x=>x+1);setEvidenceId(mediaId);
+      setEvidenceFile(null);setEvidenceId(mediaId);
+      // Não recarregar estoque, parceiros e todas as assinaturas após um anexo.
+      const updatedDocuments=await listOrderSituationDocuments(orderId,org);
+      if(updatedDocuments.error)throw updatedDocuments.error;
+      setAttachments((updatedDocuments.data||[]) as any[]);
       notifyAdmin("Evidência anexada aos documentos da OS.","success");
     }catch(e){setError(systemErrorMessage(e,"Não foi possível anexar a evidência."))}
     finally{setUploading(false)}
