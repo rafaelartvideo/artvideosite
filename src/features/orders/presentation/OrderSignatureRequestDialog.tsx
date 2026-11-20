@@ -403,19 +403,19 @@ export function OrderSignatureRequestDialog({
             : "O link pertence ao assinante acima e não será enviado ao contato selecionado. Para gerar outro documento, cancele a solicitação anterior em Documentos → Assinaturas eletrônicas."}</p>
         </div>}
         {onlineTemplates.length === 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”.</div> : <>
-          <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelo</label>
+          {(!embedded || onlineTemplates.length > 1) && <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Modelo</label>
             <AdminSelect value={templateId} onValueChange={value => { setTemplateId(value); setFieldErrors({}); }} ariaLabel="Modelo de documento" options={onlineTemplates.map(template => ({ value: template.id, label: template.name }))} />
-          </div>
+          </div>}
 
-          {selectedTemplate && <div className="grid gap-2 rounded-xl border border-border bg-muted p-4 sm:grid-cols-2">
+          {!embedded && selectedTemplate && <div className="grid gap-2 rounded-xl border border-border bg-muted/40 p-4 sm:grid-cols-2">
             <Info label="Assinatura do cliente" value={selectedTemplate.require_external_signature ? "Obrigatória" : "Não exigida"} />
             <Info label="Validade do link" value={`${selectedTemplate.signature_link_ttl_hours || 72} horas`} />
             <Info label="OS" value={String(order.os_number || "—")} />
           </div>}
 
-          {selectedTemplate?.require_external_signature && <div className="space-y-4 rounded-xl border border-border p-4">
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Assinante externo</h3><p className="mt-1 text-xs text-[#5a6a82]">O CPF/CNPJ será confirmado antes de liberar o PDF para assinatura.</p></div>
+          {selectedTemplate?.require_external_signature && <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+            <div><h3 className="text-sm font-bold text-foreground">Assinante</h3><p className="mt-1 text-xs text-muted-foreground">Identidade validada antes da assinatura.</p></div>
             <AdminSelect value={signerType} onValueChange={value => { setSignerType(value as "customer" | "contact"); setFieldErrors({}); }} ariaLabel="Tipo de assinante" options={signerOptions} />
             {signerType === "customer" ? <div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -431,7 +431,7 @@ export function OrderSignatureRequestDialog({
               <Field label="E-mail" error={fieldErrors.contactEmail}><input className={INPUT} value={contactEmail} onChange={event => { setFieldErrors(current => ({ ...current, contactEmail: undefined })); setContactEmail(event.target.value); }} type="email" /></Field>
               <Field label="WhatsApp / telefone" error={fieldErrors.contactPhone}><input className={INPUT} value={contactPhone} onChange={event => { setFieldErrors(current => ({ ...current, contactPhone: undefined })); setContactPhone(event.target.value); }} inputMode="tel" /></Field>
             </div>}
-          </div>}
+          </section>}
 
         </>}
 
@@ -460,9 +460,9 @@ export function OrderSignatureRequestDialog({
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</span>{children}{error && <span className="mt-1 block text-[10px] font-semibold leading-relaxed text-red-600">{error}</span>}</label>;
+  return <label className="block"><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>{children}{error && <span className="mt-1 block text-[10px] font-semibold leading-relaxed text-red-600">{error}</span>}</label>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><div className="text-[10px] font-black uppercase tracking-wider text-[#7c899c]">{label}</div><div className="mt-1 break-words text-xs font-semibold text-[#0d1b2e]">{value}</div></div>;
+  return <div className="min-w-0"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-1 break-words text-xs font-semibold text-foreground">{value}</div></div>;
 }
