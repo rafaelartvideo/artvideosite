@@ -15,6 +15,9 @@ test("Encerramentos especiais exigem documentos, termo assinado, evidência e de
   assert.match(actions,/onTerminalExit\("disposal_confirmed"\)/);
   assert.match(actions,/onTerminalExit\("returned_unrepaired"\)/);
   assert.match(actions,/<DropdownMenu modal=\{false\}>/);
+  // Gatilho Radix precisa receber ref diretamente no button (React 18).
+  assert.match(actions,/<DropdownMenuTrigger asChild>[\s\S]*?<button[\s\S]*?aria-label="Encerrar sem reparo"/);
+  assert.doesNotMatch(actions,/<DropdownMenuTrigger asChild>\s*<AdminButton/);
   assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("returned_unrepaired"\)\)/);
   assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("disposal_confirmed"\)\)/);
   assert.match(actions,/const canTerminalExit = hasPermission\("orders.complete"\)/);
