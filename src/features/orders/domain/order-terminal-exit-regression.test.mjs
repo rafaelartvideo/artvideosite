@@ -104,5 +104,7 @@ test("devolução e descarte usam um só AdminDialog com assinatura, QR e atuali
   assert.match(whatsapp,/order_recipients/);
   assert.match(whatsapp,/os_join/);
   assert.match(whatsapp,/startUnionWhatsAppWithFirstMessage/);
+  const realtimeMigration=read("supabase/migrations/20261120151014_enable_document_signature_realtime_for_terminal_exit.sql");
+  assert.match(realtimeMigration,/ALTER PUBLICATION supabase_realtime ADD TABLE public\\.document_signature_requests/);
   assert.match(page,/templatesLoading=\{printTemplates\.loading\}/);
 });
