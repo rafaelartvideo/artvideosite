@@ -25,3 +25,13 @@ Dois disparos com uma resposta pendente passaram de duas consultas para uma. Res
 Validação local integrada: 1.032 testes, 1.030 aprovados, zero falhas, dois ignorados por limitações de ambiente. Builds site e CRM passaram. Revisão independente não encontrou bloqueios. Nova regressão integra a seleção existente do deploy, sem alteração nos gates.
 
 Inspecionados também paginação e carregamento sob demanda de conversas/mensagens, cache de páginas, inscrições Realtime compartilhadas, abertura de conta, contador de prioridade e configuração secundária. Não se declarou todo o WhatsApp otimizado nem se reescreveu SQL sem equivalência/plano. Latências p95/p99 continuam dependendo de coleta natural suficiente e condições comparáveis. Nesta etapa não houve consulta de logs, varredura de históricos, download de contatos/mídias, envio de mensagens, alteração de dados operacionais ou reinício de serviços. Não há migração ou Edge Function nova para publicar.
+
+## Publicação e validação autenticada
+
+Entregue na main edc9148c888117f65fa15d1e1acc5bfbb3d86404, incluindo 08d35e356 e preservando as correções paralelas de preferências do operador. [Execução 44768882607](https://github.com/rafaelartvideo/artvideosite/actions/runs/44768882607) concluída com sucesso: CI, builds, Publish via FTPS para CRM e site. O log do CRM confirmou fingerprint published-crm-edc9148c888117f65fa15d1e1acc5bfbb3d86404 e primeira tentativa bem-sucedida.
+
+Após recarregar, Atendimentos abriu com lista e contadores. O filtro Sem resposta carregou 45 conversas em uma única página; a aba Aguardando foi restaurada. Não foram selecionadas conversas individualmente nem enviadas mensagens na conferência. Cenários de usuário diferente, rede lenta e resposta após desmontagem foram verificados nos testes isolados; não se simularam esses eventos por carga ou troca de usuários reais em produção.
+
+A amostra local anterior foi exportada antes da recarga: 23 registros, zero descartes e nenhuma pendência no arquivo. Havia somente uma observação por contexto de cabeçalhos/corpo da RPC de contadores, portanto nenhum percentil adequado ou comparação causal foi publicado. A coleta foi reiniciada na aba do WhatsApp após a atualização, em condição Não controlada, para diagnóstico passivo. Os arquivos de navegação permanecem apenas no computador, sem envio automático ao Supabase/GitHub.
+
+Nenhuma migração, Edge Function, RLS ou publicação de VPS foi necessária. Não restaram mudanças de aplicação deste conjunto fora da main. Os stashes antigos de diálogos/PABX foram preservados separadamente e não fazem parte desta entrega.
