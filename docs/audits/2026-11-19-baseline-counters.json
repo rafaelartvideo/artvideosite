@@ -1,5 +1,16 @@
 {
   "source": "bounded PostgreSQL statistics snapshots, no log/table scans; counters since reset, compare deltas only",
+  "usage_followup": {
+    "captured_at": "2026-11-20T14:31:12Z",
+    "scope": "same organization, all projects, current billing cycle 2026-11-13 to 2026-12-13",
+    "log_query_gb": 149.664,
+    "log_ingestion_gb": 1.286,
+    "egress_gb": 2.309,
+    "cached_egress_gb": 0.116,
+    "edge_invocations": 81203,
+    "realtime_messages": 27899,
+    "note": "Dashboard values can lag up to one hour. Differences between readings are not exact daily rates or attributed to this audit."
+  },
   "rpc_end": [
   {
     "captured_at": "2026-11-19 14:17:53.637237+00",

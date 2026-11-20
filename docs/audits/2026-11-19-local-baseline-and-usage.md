@@ -1,5 +1,20 @@
 # Linha de base de desempenho e consumo — 19/11/2026
 
+## Atualização de fechamento — 20/11/2026
+
+Usage agregado consultado novamente às 11:31 America/Sao_Paulo (14:31 UTC), mesma organização, todos os projetos e ciclo 13/11–13/12. Sem abrir histórico de logs:
+
+| Item | Leitura 19/11 | Leitura 20/11 | Diferença observada |
+|---|---:|---:|---:|
+| Log Query | 145,975 GB | 149,664 GB / 100 GB | +3,689 GB |
+| Log Ingestion | 1,114 GB | 1,286 GB / 1 GB | +0,172 GB |
+| Egress sem cache | 2,000 GB | 2,309 GB / 5 GB | +0,309 GB |
+| Egress de cache | 0,110 GB | 0,116 GB | +0,006 GB |
+| Edge invocations | 71.805 | 81.203 | +9.398 |
+| Realtime messages | 22.026 | 27.899 | +5.873 |
+
+O painel mantém o aviso de carência por egress do ciclo anterior até 12/12. As diferenças são entre leituras sujeitas a atraso de atualização: não são taxas exatas de 24h, não identificam origem/usuário e não foram atribuídas à auditoria. Log Query e Ingestion continuam acima da franquia; o egress do ciclo atual está em 46%. As medições SQL/infraestrutura abaixo continuam identificadas como amostras de 19/11, sem serem apresentadas como instantâneas de 20/11.
+
 ## Resultados de consumo verificados
 
 Fontes: Supabase Dashboard > organização > Usage/Billing (todos os projetos) e Observability/Database do projeto wmjmtcjpunmzvonlkjcu. Leitura em 19/11, aproximadamente 11:10–11:17 America/Sao_Paulo. Uso pode levar até uma hora para atualizar. Não foram consultados históricos de logs. As amostras brutas e timestamps SQL estão em `2026-11-19-baseline-counters.json`.
@@ -74,6 +89,8 @@ No CRM, **Ctrl+Alt+M** abre o painel separado de medição. Ele não aparece na 
 
 Os aliases de usuário/empresa são locais à coleta e não permitem relacionar pessoas entre arquivos. O identificador da sessão impede reunir silenciosamente sessões diferentes. Rede inclui os indicadores disponíveis no navegador (effectiveType, RTT estimado, downlink estimado e online); são aproximações e podem estar indisponíveis. Build, usuário/empresa, sessão, tela, rede, cache declarado, visibilidade e tipo de visita compõem o estrato. RPCs capturam a tela atual no momento de envio. Comparações entre versões exigem pareamento explícito dos demais fatores; nunca agrupar todo mundo como uma distribuição única.
 
+Também é necessário manter filtros, paginação, período e ações equivalentes. O payload não é capturado e o coletor não certifica sozinho essa equivalência. Cada registro inclui offset monotônico em milissegundos relativo ao startedAt da coleta para localizar a janela temporal sem gravar conteúdo da operação.
+
 Métricas distintas:
 
 - `rpc_headers`: do início do fetch aos cabeçalhos, incluindo falhas de transporte. Não é tempo isolado de SQL.
@@ -90,3 +107,5 @@ Quantil nearest-rank de **durações bem-sucedidas**, com erros/censuras/outcome
 O relatório devolve null/“Amostra insuficiente” abaixo desses limites. Não se fabricou p95/p99 a partir de cinco navegações ou de média/máximo SQL. Coletas com descartes, rede/cache não controlados ou contexto anônimo devem ser rotuladas como exploratórias. Não reunir exportações de sessões/operadores distintos apenas para ultrapassar o mínimo. Ainda é necessário acumular uso natural adequado; a implantação do coletor não é uma amostra pronta nem comprovação de melhora dos timeouts.
 
 Nenhum banco, RLS, cron, plano, serviço VPS ou configuração de logs foi alterado para esta medição. O trabalho entrega a coleta verificável e uma primeira referência de consumo, preservando as limitações acima.
+
+Validação de integração em 20/11: 1.022 testes, 1.020 aprovados, zero falhas e dois ignorados por limitações locais já registradas (FFmpeg e ordenação ICU nativa no motor SQL local). Qualidade e builds site/CRM passaram. As atualizações recentes de sessão, diálogos e WhatsApp da main foram preservadas; a instrumentação de métricas não requer publicação de função, migração ou serviço VPS.

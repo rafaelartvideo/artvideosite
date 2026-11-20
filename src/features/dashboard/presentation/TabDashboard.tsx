@@ -3,7 +3,7 @@ import { AdminOverviewPageSkeleton } from "@/shared/ui/admin/AdminOverviewPageSk
 import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -16,6 +16,7 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  MessageSquare,
   BarChart3,
   Package,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -65,10 +67,13 @@ import {
 } from "./DashboardUi";
 import { DashboardOrderChartPanel, type DashboardOrderChartKey, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
 import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
+const DashboardAttendances = lazy(() => import("./DashboardAttendances").then(({DashboardAttendances}) => ({default:DashboardAttendances})));
 
 type TabDashboardProps = {
   onNavigate?: (tab: AdminTab) => void;
   onOpenOrder?: (orderId: string) => void;
+  onOpenWhatsApp?: (filter: string, conversationId?: string, operatorId?: string) => void;
+  onOpenAttendanceSettings?: () => void;
 };
 type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: DashboardMetricTone; hint?: string };
 type MetricSelection = { title: string; value: ReactNode; description: string; rows: AdminMetricDetailRow[]; tab: AdminTab | null };
@@ -84,6 +89,7 @@ const periodOptions = [
   { value: 90, label: "90 dias" },
   { value: 365, label: "12 meses" },
 ];
+const attendancePeriodOptions = [{ value: 1, label: "Hoje" }, ...periodOptions];
 
 function normalized(value?: string | null) {
   return (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -283,8 +289,8 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
   return onClick ? <button type="button" onClick={onClick} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 hover:bg-[#f8fafc]">{content}</button> : <div className="flex items-center gap-3 px-1 py-2.5">{content}</div>;
 }
 
-export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
-  const { activeOrganizationId, activeOrganization, user, hasPermission, loading: authLoading } = useAuth();
+export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAttendanceSettings }: TabDashboardProps) {
+  const { activeOrganizationId, activeOrganization, user, hasPermission, hasModule, loading: authLoading } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
@@ -309,6 +315,24 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   };
   const organizationRef = useRef(activeOrganizationId);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
+  const canRequestAttendanceDashboard = hasModule("whatsapp")
+    && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
+  // Uma única leitura indexada do vínculo próprio; gerentes usam o painel
+  // e operadores sem view_all não veem os indicadores de toda a equipe.
+  const attendanceManagerQuery = useQuery({
+    queryKey:["dashboard","attendance-manager",activeOrganizationId,user?.id],
+    queryFn:async()=>{
+      const {data,error}=await supabase.from("union_whatsapp_operator_bindings")
+        .select("staff_role,is_active")
+        .eq("organization_id",activeOrganizationId!)
+        .eq("user_id",user!.id).maybeSingle();
+      if(error)throw error;
+      return Boolean(data?.is_active && (data.staff_role==="manager" || data.staff_role==="both"));
+    },
+    enabled:Boolean(canRequestAttendanceDashboard && activeOrganizationId && user?.id),
+    staleTime:5*60_000,refetchOnWindowFocus:false,retry:false,
+  });
+  const canViewAttendanceDashboard=canRequestAttendanceDashboard && attendanceManagerQuery.data===true;
   const access = useMemo<DashboardAccess>(() => ({
     orders: hasPermission("orders.view"),
     registrations: hasPermission("customers.view") || hasPermission("employees.view"),
@@ -325,7 +349,8 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     { id: "agenda" as const, label: "Agenda", icon: CalendarDays, visible: access.agenda },
     { id: "quotes" as const, label: "Orçamentos", icon: FileText, visible: access.quotes },
     { id: "finance" as const, label: "Financeiro", icon: Banknote, visible: access.orders },
-  ].filter(item => item.visible), [access]);
+    { id: "attendances" as const, label: "Atendimentos", icon: MessageSquare, visible: canViewAttendanceDashboard },
+  ].filter(item => item.visible), [access, canViewAttendanceDashboard]);
 
   const dashboardAccess = useMemo<DashboardAccess>(() => ({
     orders: access.orders && (activeModule === "overview" || activeModule === "finance" || activeModule === "quotes"),
@@ -356,7 +381,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
     queryFn: () => loadDashboardOverview({ organizationId: activeOrganizationId!, periodDays, access: dashboardAccess }),
-    enabled: Boolean(activeOrganizationId && activeModule !== "orders"),
+    enabled: Boolean(activeOrganizationId && activeModule !== "orders" && activeModule !== "attendances"),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     retry: false, // Evita multiplicar RPCs quando o servidor retorna timeout 57014.
@@ -593,6 +618,18 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   };
 
   const moduleContent = () => {
+    if (activeModule === "attendances") {
+      return <Suspense fallback={<div aria-label="Preparando painel de atendimentos" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {Array.from({length:6},(_,i)=><div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}
+      </div>}>
+        <DashboardAttendances organizationId={activeOrganizationId!}
+          periodDays={periodDays}
+          visible={key=>widgetVisible(key)}
+          onRestore={()=>widgetSettings.restore("attendances")}
+          onOpenInbox={onOpenWhatsApp}
+          onConfigureHours={onOpenAttendanceSettings}/>
+      </Suspense>;
+    }
     if (activeModule === "orders") {
       const summary = ordersSummaryQuery.data || {
         total_orders:0,orders_in_period:0,active_orders:0,waiting_orders:0,
@@ -817,7 +854,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
   const dashboardInitialLoading = authLoading
     || (Boolean(activeOrganizationId && user?.id) && widgetSettings.settings.isPending)
     || (Boolean(activeOrganizationId) && (
-      activeModule === "orders"
+      activeModule === "attendances" ? false : activeModule === "orders"
         ? (orderSummaryNeeded && ordersSummaryQuery.isPending && !ordersSummaryQuery.data)
           || (orderChartsVisible && (!orderSummaryNeeded || ordersSummaryQuery.isSuccess)
             && orderChartsQuery.isPending && !orderChartsQuery.data)
@@ -845,13 +882,17 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
             onToggle={key=>widgetSettings.toggle(activeModule,key)}
             onRestore={()=>widgetSettings.restore(activeModule)} />
           <div className="w-28 sm:w-32">
-            <AdminSelect value={periodDays} options={periodOptions}
+            <AdminSelect value={periodDays} options={activeModule==="attendances"?attendancePeriodOptions:periodOptions}
               onValueChange={value=>{setMetricSelection(null);setPeriodDays(Number(value));}}
               ariaLabel="Período do dashboard" className="min-h-9 text-xs font-black"/>
           </div>
         </div>}/>
 
-      <DashboardModuleNav items={modules} value={activeModule} onChange={next => { setMetricSelection(null); setActiveModule(next); }} />
+      <DashboardModuleNav items={modules} value={activeModule} onChange={next => {
+        setMetricSelection(null);
+        if(next!=="attendances" && periodDays===1)setPeriodDays(7);
+        setActiveModule(next);
+      }} />
 
       {metricSelection && <AdminMetricDetailDialog
         open onClose={() => setMetricSelection(null)} title={metricSelection.title}
@@ -861,7 +902,7 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       />}
 
       <div className="min-w-0">
-        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error) ? (
+        {dashboardInitialLoading ? <AdminOverviewPageSkeleton variant="dashboard" contentOnly tabs={modules.length} /> : (activeModule === "attendances" ? null : activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error) ? (
           <AdminCard className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle className="text-red-500" size={28} />
             <div><p className="font-black text-[#0d1b2e]">Não foi possível carregar o Dashboard.</p><p className="mt-1 text-xs text-[#5a6a82]">{systemErrorMessage((activeModule === "orders" ? (orderSummaryNeeded ? ordersSummaryQuery.error : null) : dashboardQuery.error)!)}</p></div>

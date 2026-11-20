@@ -40,6 +40,16 @@ export const DASHBOARD_WIDGET_OPTIONS: Record<DashboardModule, DashboardWidgetOp
     { id: "quotes_status", label: "Orçamentos por status" },
     { id: "quotes_recent", label: "Solicitações recentes" },
   ],
+  attendances: [
+    { id: "metrics", label: "Indicadores de atendimentos" },
+    { id: "trend", label: "Evolução dos atendimentos" },
+    { id: "situation", label: "Distribuição por situação" },
+    { id: "attention", label: "Clientes que precisam de atenção" },
+    { id: "operators", label: "Desempenho dos operadores" },
+    { id: "operations", label: "Indicadores operacionais" },
+    { id: "hours", label: "Horários de movimento" },
+    { id: "departments", label: "Atendimentos por departamento" },
+  ],
   finance: [
     { id: "metrics", label: "Indicadores financeiros" },
     { id: "finance_trend", label: "Faturamento por período" },

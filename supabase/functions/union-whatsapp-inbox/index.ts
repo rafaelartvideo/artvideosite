@@ -162,7 +162,7 @@ async function signedBridge(
       return "reply_supported";
     }
     if (download) {
-      const maxBytes=download.type==="video" ? 20*1048576 : 5*1048576;
+      const maxBytes=download.type==="video" || download.type==="file" ? 20*1048576 : 5*1048576;
       if(typeof result.base64 !== "string" ||
         result.base64.length > Math.ceil(maxBytes/3)*4+8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.base64))
         throw Error("media_download_unavailable");
@@ -1619,7 +1619,7 @@ if(action==="contacts_groups_manage") {
         if(echo){
           const {error:updateError}=await admin.from("union_whatsapp_messages")
             .update({protocol_id:activeProtocol.id,body_text:outbound,
-              sender_name:senderName,origin:"union",delivery_status:"sent"})
+              sender_name:senderName,sender_user_id:actorId,origin:"union",delivery_status:"sent"})
             .eq("organization_id",org).eq("id",echo.id).eq("conversation_id",conversationId);
           if(updateError)throw updateError;
         }else{
@@ -1627,7 +1627,7 @@ if(action==="contacts_groups_manage") {
             .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,
               conversation_id:conversationId,provider_message_id:providerId,
               direction:"outgoing",message_type:"text",body_text:outbound,
-              sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+              sender_name:senderName,sender_user_id:actorId,sent_at:now,delivery_status:"sent",origin:"union",
             },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true});
           if(messageError)throw messageError;
         }
@@ -2344,11 +2344,13 @@ if(action==="contacts_groups_manage") {
         return json({success:false,error:"Sem acesso ao arquivo deste atendimento."},403);
       }
       const {data:mediaMessage,error:mediaError}=await admin.from("union_whatsapp_messages")
-        .select("media_path,media_name,media_mime,media_available")
+        .select("media_path,media_name,media_mime,media_available,message_type")
         .eq("id",messageId).eq("organization_id",org).eq("conversation_id",thread.id).maybeSingle();
       if(mediaError) throw mediaError;
       if(!mediaMessage) return json({success:false,error:"Mensagem não encontrada."},404);
       let mediaPath=mediaMessage.media_path as string|null;
+      let mediaFileName=String(mediaMessage.media_name||"");
+      let mediaMime=String(mediaMessage.media_mime||"");
       if(!mediaPath && mediaMessage.media_available) {
         const {data:ref,error:refError}=await admin.from("union_whatsapp_inbound_media_refs")
           .select("file_url,media_key,file_sha256,file_enc_sha256,file_length,mime_type,media_type,file_name")
@@ -2376,7 +2378,7 @@ if(action==="contacts_groups_manage") {
         } catch {
           return json({success:false,code:"media_unavailable",error:"Não foi possível recuperar esta mídia pelo WhatsApp. Tente novamente mais tarde."},502);
         }
-        const maxBytes=ref.media_type==="video" ? 20*1048576 : 5*1048576;
+        const maxBytes=ref.media_type==="video" || ref.media_type==="file" ? 20*1048576 : 5*1048576;
         // Reject before allocation if the provider response is oversized.
         if(base64.length>Math.ceil(maxBytes/3)*4+8)
           return json({success:false,error:"Arquivo maior que o limite permitido para este tipo de mídia."},413);
@@ -2395,8 +2397,10 @@ if(action==="contacts_groups_manage") {
         const {error:uploadError}=await admin.storage.from("union-whatsapp-media")
           .upload(mediaPath,bytes,{contentType:ref.mime_type,upsert:false});
         if(uploadError && !String(uploadError.message||"").includes("already exists")) throw uploadError;
+        mediaFileName=String(ref.file_name||mediaFileName);
+        mediaMime=String(ref.mime_type||mediaMime);
         const {error:saveError}=await admin.from("union_whatsapp_messages")
-          .update({media_path:mediaPath,media_name:ref.file_name,media_mime:ref.mime_type})
+          .update({media_path:mediaPath,media_name:mediaFileName||null,media_mime:mediaMime||null})
           .eq("id",messageId).eq("organization_id",org).eq("conversation_id",thread.id);
         if(saveError) throw saveError;
       }
@@ -2405,10 +2409,28 @@ if(action==="contacts_groups_manage") {
         !mediaPath.startsWith(org+"/stickers/")) {
         return json({success:false,error:"Arquivo inválido."},403);
       }
-      const {data:link,error:linkError}=await admin.storage.from("union-whatsapp-media")
-        .createSignedUrl(mediaPath,120);
+      const safeOriginalName=mediaFileName.replace(/[^\\p{L}\\p{N}._() -]/gu,"").trim().slice(0,160);
+      const mimeExt=mediaMime==="application/pdf"?"pdf":
+        mediaMime==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"?"docx":
+        mediaMime==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"?"xlsx":
+        mediaMime==="application/vnd.openxmlformats-officedocument.presentationml.presentation"?"pptx":
+        mediaMime==="text/plain"?"txt":"bin";
+      const originalName=safeOriginalName || (mediaMessage.message_type==="file"?"Documento."+mimeExt:"");
+      const storage=admin.storage.from("union-whatsapp-media");
+      const {data:link,error:linkError}=await storage.createSignedUrl(mediaPath,120);
       if(linkError || !link?.signedUrl) throw linkError||Error("signed_url_unavailable");
-      return json({success:true,url:link.signedUrl,filename:mediaMessage.media_name,mime:mediaMessage.media_mime});
+      // A cross-origin <a download> is ignored by browsers. Sign an actual
+      // download URL with Content-Disposition so the user gets the real title.
+      let downloadUrl:string|null=null;
+      if(mediaMessage.message_type==="file" && originalName){
+        const {data:downloadLink,error:downloadError}=await storage.createSignedUrl(
+          mediaPath,120,{download:originalName});
+        if(downloadError || !downloadLink?.signedUrl)
+          throw downloadError||Error("named_download_unavailable");
+        downloadUrl=downloadLink.signedUrl;
+      }
+      return json({success:true,url:link.signedUrl,download_url:downloadUrl,
+        filename:originalName||null,mime:mediaMime||null});
     }
     if(action==="members" || action==="transfer") {
       // Same-company, active operators only. Never trust a client-provided
@@ -2714,7 +2736,8 @@ if(action==="contacts_groups_manage") {
     let signedMedia:{url:string;mime:string;name:string;type:string}|undefined;
     if(isMedia && mediaPath) {
       const {data:shortLink,error:shortError}=await admin.storage.from("union-whatsapp-media")
-        .createSignedUrl(mediaPath,180);
+        .createSignedUrl(mediaPath,180,
+          kind==="file" ? {download:name} : undefined);
       if(shortError || !shortLink?.signedUrl) throw shortError||Error("signed_media_unavailable");
       signedMedia={url:shortLink.signedUrl,mime,name,type:kind};
     }
@@ -2741,7 +2764,7 @@ if(action==="contacts_groups_manage") {
       .upsert({
         organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
-        body_text:outboundText,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+        body_text:outboundText,sender_name:senderName,sender_user_id:actorId,sent_at:now,delivery_status:"sent",origin:"union",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
         ...(reply ? {reply_to_provider_message_id:reply.id,reply_to_text:reply.text,
           reply_to_message_type:reply.type,reply_to_direction:reply.direction} : {}),
@@ -2754,7 +2777,7 @@ if(action==="contacts_groups_manage") {
       // WuzAPI can echo the outgoing event before this signed send request
       // returns. It has the same provider ID; enrich the existing row instead
       // of showing two separate bubbles or dropping the private attachment.
-      const patch:Record<string,unknown>={origin:"union"};
+      const patch:Record<string,unknown>={origin:"union",sender_user_id:actorId};
       if(senderName) patch.sender_name=senderName;
       if(outboundText) patch.body_text=outboundText;
       if(reply){

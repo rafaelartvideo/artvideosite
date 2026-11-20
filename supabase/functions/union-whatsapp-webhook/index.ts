@@ -276,7 +276,7 @@ Deno.serve(async request => {
     // Videos commonly exceed the old 5 MiB limit. The private Storage bucket
     // allows 25 MiB; retain encrypted provider descriptors for videos up to
     // 20 MiB and download lazily when an operator opens them.
-    const maxMediaBytes=typeHint==="video" ? 20*1048576 : 5*1048576;
+    const maxMediaBytes=typeHint==="video" || typeHint==="file" ? 20*1048576 : 5*1048576;
     let validMedia=false;
     try {
       const addr=new URL(fileUrl);
@@ -289,6 +289,15 @@ Deno.serve(async request => {
     if(typeHint==="video" && !validMedia) {
       // Record only diagnostic flags; never log a JID, media key or CDN URL.
       console.warn("union-whatsapp-webhook video_descriptor_rejected", {
+        has_url:Boolean(providerUrl || validDirectPath),
+        has_key:Boolean(mediaKey),has_sha:Boolean(fileHash),has_mime:Boolean(mime),
+        size_known:fileLength>0,oversize:fileLength>maxMediaBytes,
+      });
+    }
+    if(typeHint==="file" && !validMedia) {
+      // Metadata only: no file names, phones, URLs or cryptographic keys in logs.
+      // Allows diagnosing missing WhatsApp descriptors without downloading media.
+      console.warn("union-whatsapp-webhook document_descriptor_rejected", {
         has_url:Boolean(providerUrl || validDirectPath),
         has_key:Boolean(mediaKey),has_sha:Boolean(fileHash),has_mime:Boolean(mime),
         size_known:fileLength>0,oversize:fileLength>maxMediaBytes,

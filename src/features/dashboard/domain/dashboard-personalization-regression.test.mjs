@@ -135,3 +135,53 @@ test("pizza temporal tem altura reduzida e legenda rolável sem invadir o rodap�
   assert.match(ui,/outerRadius=\{scrollLegend \? "75%" : "84%"\}/);
   assert.match(ui,/tabIndex=\{scrollLegend \? 0 : undefined\}/);
 });
+
+
+test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por empresa",async()=>{
+  const dashboard=read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const ui=read("src/features/dashboard/presentation/DashboardAttendances.tsx");
+  const repo=read("src/features/dashboard/infrastructure/dashboard-attendances.repository.ts");
+  const widgets=read("src/features/dashboard/domain/dashboard-widgets.ts");
+  const schema=read("supabase/migrations/20261119212000_dashboard_attendances_private_optimized.sql");
+  const latest=read("supabase/migrations/20261119214000_dashboard_attendances_unanswered_filter.sql");
+  const admin=read("src/app/Admin.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  await compile("src/features/dashboard/presentation/DashboardAttendances.tsx");
+  await compile("src/features/dashboard/infrastructure/dashboard-attendances.repository.ts","ts");
+  await compile("src/features/dashboard/presentation/TabDashboard.tsx");
+  assert.match(dashboard,/label: "Atendimentos"/);
+  assert.match(dashboard,/activeModule !== "orders" && activeModule !== "attendances"/);
+  assert.match(dashboard,/const DashboardAttendances = lazy\(\(\) => import\("\.\/DashboardAttendances"\)/);
+  assert.match(dashboard,/canRequestAttendanceDashboard = hasModule\("whatsapp"\)/);
+  assert.match(dashboard,/attendanceManagerQuery\.data===true/);
+  assert.match(dashboard,/union_whatsapp_operator_bindings/);
+  assert.match(dashboard,/onOpenInbox=\{onOpenWhatsApp\}/);
+  for(const section of ["metrics","trend","situation","attention","operators","operations","hours","departments"]){
+    assert.match(widgets,new RegExp('id: "'+section+'"'));
+  }
+  assert.match(repo,/load_dashboard_attendances_v1/);
+  assert.match(repo,/p_organization_id:organizationId/);
+  assert.match(repo,/abortSignal\(signal\)/);
+  assert.match(ui,/staleTime:90_000,refetchInterval:120_000/);
+  assert.match(ui,/refetchIntervalInBackground:false/);
+  assert.match(ui,/Sem resposta/);
+  assert.match(ui,/unanswered_after_minutes/);
+  assert.match(ui,/value=\{number\(m.closed_total\)\}/);
+  assert.match(ui,/value=\{number\(m.finished\)\}/);
+  assert.match(repo,/closed_total:number/);
+  assert.match(read("supabase/migrations/20261119221000_dashboard_attendances_finished_snapshot.sql"),/'closed_total',coalesce\(cs.closed_total,0\)/);
+  assert.match(dashboard,/activeModule==="attendances"\?attendancePeriodOptions:periodOptions/);
+  assert.match(ui,/aria-label="Painéis de atendimentos"/);
+  assert.match(ui,/role="tab"/);
+  assert.match(admin,/params.set\("dashboardFilter",filter\)/);
+  assert.match(inbox,/validFilters:Filter\[\]=\["waiting","in_att","unanswered","unread","forwarded","finished"\]/);
+  assert.match(schema,/private.load_dashboard_attendances_internal_v1/);
+  assert.match(schema,/STABLE SECURITY DEFINER/);
+  assert.match(schema,/private.has_tenant_module_permission/);
+  assert.match(schema,/REVOKE SELECT ON TABLE/);
+  assert.match(latest,/unanswered_priority_minutes/);
+  assert.match(read("supabase/migrations/20261119215000_dashboard_attendances_view_all_acl.sql"),/private.union_whatsapp_allowed\(p_organization_id,'view_all'\)/);
+  assert.match(latest,/make_interval\(mins=>v_unanswered_limit\)/);
+  assert.doesNotMatch(latest,/FROM public.union_whatsapp_messages/);
+  assert.doesNotMatch(latest,/FROM public.sac_digital_messages/);
+});

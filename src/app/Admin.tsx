@@ -573,7 +573,15 @@ export function AdminDashboard({
               canAccessTab={canAccessTab}
               isPlatformOperatorOrganization={isPlatformOperatorOrganization}
             />} />
-            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))} />} />
+            <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))}
+              onOpenAttendanceSettings={()=>navigate(adminPath("tools","union-whatsapp","configuracoes")+"?section=hours")}
+              onOpenWhatsApp={(filter,conversationId,operatorId)=>{
+                const params=new URLSearchParams();
+                params.set("dashboardFilter",filter);
+                if(conversationId)params.set("conversation",conversationId);
+                if(operatorId)params.set("dashboardOperator",operatorId);
+                navigate(adminPath("tools","union-whatsapp")+"?"+params.toString());
+              }} />} />
             <Route path="announcements" element={<PlatformAnnouncementsPage />} />
             <Route path="management/*" element={<ManagementPage spaceId={route.resourceId} folderId={route.subpage} onRouteChange={routeChange("management")} />} />
             <Route path="crm" element={crmHub} />

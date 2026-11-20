@@ -15,8 +15,21 @@ import {
   registerDetachedWhatsAppWindow, reuseDetachedWhatsAppWindow,
 } from "./DetachedWhatsAppWindowManager";
 
+// One cached code-only import, shared by OS idle preloading and the modal.
+// This does not request conversations, messages or any Supabase data.
+const loadInboxModule = () => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage");
+let inboxModulePromise: ReturnType<typeof loadInboxModule> | null = null;
+export function preloadEmbeddedWhatsAppConversation() {
+  if (!inboxModulePromise) {
+    inboxModulePromise = loadInboxModule().catch(error => {
+      inboxModulePromise = null;
+      throw error;
+    });
+  }
+  return inboxModulePromise;
+}
 const EmbeddedWhatsAppConversation = lazy(() =>
-  import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
+  preloadEmbeddedWhatsAppConversation()
     .then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })),
 );
 // Compartilha o formulario, as regras e o fluxo de persistencia do modulo OS.
@@ -96,6 +109,16 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
   const [chosenRecipient,setChosenRecipient] = useState<Recipient|null>(null);
   const [starting, setStarting] = useState(false);
   const [embeddedReady, setEmbeddedReady] = useState(false);
+  const [embeddedSlow, setEmbeddedSlow] = useState(false);
+  // Do not hide the entire inbox forever if its readiness callback never fires.
+  useEffect(() => {
+    if (!open || state.status !== "ready" || embeddedReady) {
+      setEmbeddedSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setEmbeddedSlow(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [open, state.status, state.status === "ready" ? state.conversationId : "", embeddedReady]);
   const [startError, setStartError] = useState("");
   const startGateRef = useRef(false);
   // Retain the idempotency key across a retry of the same first message.
@@ -146,6 +169,10 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       set({ status: "unauthorized", message: "Você não possui acesso aos atendimentos WhatsApp desta empresa." });
       return () => { cancelled = true; };
     }
+
+    // Download the chat UI while the authorized server lookup is in flight,
+    // rather than starting this large import only after the join completes.
+    void preloadEmbeddedWhatsAppConversation().catch(() => undefined);
 
     if (source.kind==="conversation") {
       set({status:"ready",conversationId:source.conversationId});
@@ -355,10 +382,11 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
         <span>{state.responsibleName ? `Atendimento com ${state.responsibleName}.` : "Atendimento com outro operador."} Você entrou como <strong>Participando</strong>, sem alterar o responsável.</span>
       </div>}
       <div className="relative min-h-0 flex-1">
-        {!embeddedReady && <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-center justify-center bg-card">
+        {!embeddedReady && !embeddedSlow && <div role="status" aria-live="polite" className="absolute inset-0 z-10 flex items-center justify-center bg-card">
           <LoadingState text="Carregando atendimento..." />
         </div>}
-        <div className={`h-full min-h-0 ${embeddedReady ? "" : "invisible"}`}>
+        {embeddedSlow && !embeddedReady && <div role="status" className="absolute inset-x-0 top-0 z-20 border-b border-amber-300 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">O atendimento está demorando para carregar. Exibindo o módulo para permitir identificar o problema.</div>}
+        <div className={`h-full min-h-0 ${embeddedReady || embeddedSlow ? "" : "invisible"}`}>
         <Suspense fallback={null}>
           <EmbeddedWhatsAppConversation
             key={state.conversationId}

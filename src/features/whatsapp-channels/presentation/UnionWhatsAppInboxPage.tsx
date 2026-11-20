@@ -1,6 +1,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -24,7 +25,7 @@ import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppUnansweredCount, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
   operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppProtocolMarker, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -184,6 +185,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   stickerSaved?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaDownloadUrl,setMediaDownloadUrl]=useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [mediaRequested,setMediaRequested]=useState(false);
@@ -215,6 +217,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
       if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
       setMediaUrl(data.url);
+      setMediaDownloadUrl(data.download_url||"");
       if(message.message_type==="sticker"){
         if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
         stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
@@ -233,7 +236,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
   // Fotos e figurinhas são consultadas quando estiverem próximas da área visível,
   // evitando um download simultâneo para cada imagem do histórico.
   useEffect(()=>{
-    setMediaUrl("");setMediaError("");setMediaRequested(false);
+    setMediaUrl("");setMediaDownloadUrl("");setMediaError("");setMediaRequested(false);
     if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
       (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
     const element=mediaTargetRef.current;
@@ -327,7 +330,8 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
       <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
-      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
+      <a href={mediaDownloadUrl||mediaUrl} target="_blank" rel="noopener noreferrer"
+        download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
     </div>}
     {!mediaUrl && (mediaLoading ?
       <div role="status" aria-label="Carregando arquivo" className="flex min-h-9 items-center justify-center">
@@ -340,7 +344,7 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
           className="text-xs font-semibold text-primary underline-offset-2 hover:underline">
           Abrir
         </button>}
-        {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
+        {!hasStoredMedia && <span className="text-[10px] opacity-70" title="Esta mensagem não contém os dados necessários para recuperar o anexo. Solicite o reenvio do arquivo.">(arquivo indisponível · solicite reenvio)</span>}
       </div>)}
     {content && <p className="text-sm leading-5"><WhatsAppFormattedText text={content}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
@@ -398,7 +402,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [conversationTotal,setConversationTotal]=useState<number|null>(null);
   const [conversationPageLoading,setConversationPageLoading]=useState(false);
   const [conversationCounts,setConversationCounts]=useState<UnionWhatsAppConversationCounts>({
-    waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,
+    waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,unanswered:0,
   });
   useEffect(()=>{
     const timer=window.setTimeout(()=>setDebouncedQuery(query.trim()),300);
@@ -413,6 +417,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>document.removeEventListener("visibilitychange",handle);
   },[]);
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
+  // Um snapshot compacto por empresa. Não abre outra conexão Realtime.
+  const businessClock=useQuery<{
+    configured:boolean;company_open:boolean|null;departments:Record<string,boolean|null>;
+  }>({
+    queryKey:["whatsapp","business-clock",activeOrganizationId],
+    queryFn:async()=>{
+      const {data,error}=await supabase.rpc("union_whatsapp_business_clock",{p_org:activeOrganizationId!});
+      if(error)throw error;
+      return data as {configured:boolean;company_open:boolean|null;departments:Record<string,boolean|null>};
+    },
+    enabled:Boolean(activeOrganizationId&&canView&&!embedded),
+    staleTime:120_000,refetchInterval:180_000,refetchIntervalInBackground:false,
+    refetchOnWindowFocus:false,retry:false,
+  });
   const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesResolvedId,setMessagesResolvedId]=useState<string|null>(null);
@@ -610,13 +628,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   organizationRef.current=activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
-  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean;prioritizeUnanswered?:boolean;priorityMinutes?:number}>({
+  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;operator:string;search:string;page:number;viewerId?:string;canViewAll?:boolean;priorityMinutes?:number}>({
     filter:"waiting",department:"all",operator:"all",search:"",page:0,
   });
   listQueryRef.current={filter,department:canManage?departmentFilter:"all",
     operator:canManage && supportsOperatorFilter(filter) ? operatorFilter : "all",
     search:debouncedQuery,page:conversationPage,viewerId:user?.id,canViewAll:canManage,
-    prioritizeUnanswered:queueSettings.auto_prioritize_unanswered,
     priorityMinutes:queueSettings.unanswered_priority_minutes};
   const conversationLoadSeq=useRef(0);
   const contactNameCacheRef=useRef(new Map<string,{name:string;expires:number}>());
@@ -639,10 +656,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const includeCount=!cachedTotal || Date.now()-cachedTotal.savedAt>45_000;
     if(!silent)setConversationPageLoading(true);
     try{
-      const [page,counts]=await Promise.all([
-        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,{...options,includeCount}),
-        listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone),
-      ]);
+      // Count requests are independent: never delay or blank the inbox page
+      // just because a global count RPC is slow or times out.
+      void listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,
+        activeChannelPhone,options.priorityMinutes).then(counts=>{
+          if(sequence===conversationLoadSeq.current &&
+            organizationRef.current===activeOrganizationId &&
+            accountRef.current===activeChannelPhone)
+            setConversationCounts(counts);
+        }).catch(()=>undefined);
+      const page=await listUnionWhatsAppConversations(activeOrganizationId,
+        activeChannelId,activeChannelPhone,{...options,includeCount});
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       const namesCache=contactNameCacheRef.current;
@@ -652,8 +676,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return saved && saved.expires>now
           ? {...item,contact_name:saved.name} : item;
       });
-      setConversations(options.filter==="in_att" && !options.prioritizeUnanswered
-        ? [...enriched].sort(latestMessageFirst) : enriched);
+      setConversations(options.filter==="in_att" ? [...enriched].sort(latestMessageFirst) : enriched);
       const total=page.total??cachedTotal?.total??(options.page*50+page.items.length);
       if(page.total!==null){
         const totals=conversationTotalCacheRef.current;
@@ -704,7 +727,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
-      setConversationCounts(counts);
       
     }catch(reason){
       if(sequence===conversationLoadSeq.current&&organizationRef.current===activeOrganizationId)
@@ -796,7 +818,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setConversationPage(0);
     setQuery("");
     setDebouncedQuery("");
-    setConversationCounts({waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0});
+    setConversationCounts({waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,unanswered:0});
     setMessages([]);
     setProtocolFilter(null);
     setProtocolsOpen(false);
@@ -855,17 +877,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
     let cancelled=false;
+    // O identificador da conta ja esta validado. Configuracoes secundarias
+    // nao podem bloquear a abertura de uma conversa no modal da OS.
+    if(embedded)setReadyAccount(identity);
     void Promise.allSettled([
       embedded ? Promise.resolve() : refresh(true),
-      operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
-        .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
-          setDepartments(result.departments||[]);})
-        .catch(reason=>{if(!cancelled)reportError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
+      // The transfer dialog loads departments on demand; no extra RPC at
+      // each embedded OS/CRM conversation opening.
+      embedded ? Promise.resolve() :
+        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
+          .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
+            setDepartments(result.departments||[]);})
+          .catch(reason=>{if(!cancelled)reportError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS);})
         .catch(()=>undefined),
-    ]).then(()=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
+    ]).then(()=>{if(!embedded && !cancelled && organizationRef.current===activeOrganizationId &&
       accountRef.current===activeChannelPhone)setReadyAccount(identity);});
     return()=>{cancelled=true;};
   },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh,embedded]);
@@ -929,32 +957,58 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void refresh(true);
   },[filter,departmentFilter,operatorFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh,
-      queueSettings.auto_prioritize_unanswered,queueSettings.unanswered_priority_minutes]);
+      queueSettings.unanswered_priority_minutes]);
 
-  // Revalida uma unica pagina por minuto apenas quando visivel, pois conversas
-  // antigas podem cruzar o limite sem receber outro evento do WhatsApp.
+  // Clock changes can make another chat overdue even with no new messages.
+  // Requery the 50-row page only inside the Sem resposta filter. Elsewhere
+  // refresh its cheap indexed COUNT, without reloading the inbox or its media.
   useEffect(()=>{
-    if(embedded || !documentVisible || filter!=="in_att" ||
-      !queueSettings.auto_prioritize_unanswered || channelReady!==true ||
+    if(embedded || !documentVisible || channelReady!==true ||
       !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
       (sharedActivity && !sharedActivity.isPageOpen))return;
     const id=window.setInterval(()=>{
-      conversationPageCacheRef.current.clear();
-      void refresh(true);
+      if(filter==="unanswered"){
+        conversationPageCacheRef.current.clear();
+        void refresh(true);
+      }else{
+        void listUnionWhatsAppUnansweredCount(activeOrganizationId,activeChannelId,
+          activeChannelPhone,queueSettings.unanswered_priority_minutes)
+          .then(unanswered=>setConversationCounts(current=>({...current,unanswered})))
+          .catch(()=>undefined);
+      }
     },60_000);
     return()=>window.clearInterval(id);
-  },[embedded,documentVisible,filter,queueSettings.auto_prioritize_unanswered,
+  },[embedded,documentVisible,filter,queueSettings.unanswered_priority_minutes,
     activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,
     sharedActivity?.isPageOpen,refresh]);
 
-  // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
+  // Navegação contextual do Dashboard > Atendimentos e do Painel do Técnico.
+  // Apenas filtros existentes; nunca recarregar o histórico completo de mensagens.
   useEffect(() => {
-    const conversationId=initialConversationId || (!embedded ? new URLSearchParams(location.search).get("conversation") : null);
-    if(!conversationId || !/^[0-9a-f-]{36}$/i.test(conversationId) ||
-      channelReady!==true || !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
+    if(channelReady!==true || !activeOrganizationId || !activeChannelId ||
+      !activeChannelPhone ||
       readyAccount!==activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone)return;
-    setFilter("in_att");
-    setSelectedId(conversationId);
+    // Na OS, no cadastro e no mini-atendimento a lista lateral fica oculta.
+    // Selecionar o ID validado no join, caso contrario nada abre a conversa.
+    if(embedded){
+      if(initialConversationId && /^[0-9a-f-]{36}$/i.test(initialConversationId))
+        setSelectedId(current=>current===initialConversationId?current:initialConversationId);
+      return;
+    }
+    const params=new URLSearchParams(location.search);
+    const dashboardFilter=params.get("dashboardFilter");
+    const validFilters:Filter[]=["waiting","in_att","unanswered","unread","forwarded","finished"];
+    if(dashboardFilter && validFilters.includes(dashboardFilter as Filter)){
+      setFilter(dashboardFilter as Filter);
+      setConversationPage(0);
+    }
+    const operatorId=params.get("dashboardOperator");
+    if(operatorId && /^[0-9a-f-]{36}$/i.test(operatorId))setOperatorFilter(operatorId);
+    const conversationId=initialConversationId||params.get("conversation");
+    if(conversationId && /^[0-9a-f-]{36}$/i.test(conversationId)){
+      if(!dashboardFilter)setFilter("in_att");
+      setSelectedId(conversationId);
+    }
   },[location.search,initialConversationId,embedded,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,readyAccount]);
 
   const checkChannel = useCallback(async () => {
@@ -1097,7 +1151,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 (item.awaiting_reply_since||sentAt),
               last_message:quotedSummary(String(row.body_text||""),String(row.message_type||"text"))};
           });
-          return moved ? (queueSettings.auto_prioritize_unanswered ? updated : updated.sort(latestMessageFirst)) : current;
+          return moved ? updated.sort(latestMessageFirst) : current;
         });
       }
       schedule(threadId,true);
@@ -1371,9 +1425,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // aguarda a resposta do Supabase. Assim "Em atendimento" não exibe
   // clientes com etiqueta/tempo da fila "Aguardando" por um frame.
   const visible=filter==="in_att"
-    ? (queueSettings.auto_prioritize_unanswered
-      ? scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item))
-      : scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item)).sort(latestMessageFirst))
+    ? scopedConversations.filter(item=>item.status==="in_att" && !hasForwarding(item)).sort(latestMessageFirst)
     : filter==="waiting"
       ? scopedConversations.filter(queueOnly)
       : scopedConversations;
@@ -1456,6 +1508,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return <span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
       <ArrowRightLeft size={12} className="shrink-0"/>
       <span className="truncate">{label}</span>
+    </span>;
+  };
+
+  const finalizedBadge=(item:UnionWhatsAppConversation)=>{
+    // A etiqueta de autoria só se aplica ao encerramento feito por terceiros.
+    if(item.status!=="finished" || !item.finished_by || !item.finished_by_name ||
+       item.finished_by===item.assigned_to)return null;
+    return <span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+      <CheckCircle2 size={12} className="shrink-0"/>
+      <span className="truncate">{"Finalizado por: "+item.finished_by_name}</span>
     </span>;
   };
 
@@ -1575,7 +1637,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(channelReady===false){onEmbeddedReady(true);return;}
     if(channelReady!==true || !initialConversationId || selectedId!==initialConversationId ||
        readyAccount!==accountIdentity)return;
-    if(conversationOpeningError || (selected?.id===initialConversationId && !conversationOpening))
+    // Uncover the conversation when its scoped metadata is available.
+    // Messages and participation still load with sending disabled until verified.
+    if(conversationOpeningError || selected?.id===initialConversationId)
       onEmbeddedReady(true);
   },[embedded,onEmbeddedReady,channelReady,initialConversationId,selectedId,readyAccount,
      accountIdentity,selected?.id,conversationOpening,conversationOpeningError]);
@@ -2416,18 +2480,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
-            <button type="button" aria-pressed={filter==="unread"}
-              aria-label={"Ver todas as conversas não lidas: "+counts.unread}
-              onClick={()=>{setConversationPage(0);setFilter("unread");}}
-              className={filter==="unread"
-                ? "mt-1 flex min-h-9 w-full items-center justify-between rounded-lg border border-primary bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary md:mt-2 md:py-2"
-                : "mt-1 flex min-h-9 w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted md:mt-2 md:py-2"}>
-              <span className="inline-flex items-center gap-2">
-                <MessageCircle size={15}/> Não lidas
-                <span className="hidden text-[11px] font-normal text-muted-foreground sm:inline">· todas as páginas</span>
-              </span>
-              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unread}</span>
-            </button>
+            <div className="mt-1 grid grid-cols-2 gap-1.5 md:mt-2" aria-label="Filtros rápidos das conversas">
+              <button type="button" aria-pressed={filter==="unread"}
+                aria-label={"Ver todas as conversas não lidas: "+counts.unread}
+                onClick={()=>{setConversationPage(0);setFilter("unread");}}
+                className={`flex min-h-9 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${filter==="unread" ? "border-primary bg-primary-soft text-primary" : "border-border bg-card text-foreground hover:bg-muted"}`}>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <MessageCircle size={14} className="shrink-0"/><span className="truncate">Não lidas</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unread}</span>
+              </button>
+              <button type="button" aria-pressed={filter==="unanswered"}
+                aria-label={"Ver atendimentos sem resposta: "+counts.unanswered}
+                title={`Sem resposta há pelo menos ${queueSettings.unanswered_priority_minutes} minutos · todas as páginas`}
+                onClick={()=>{setConversationPage(0);setFilter("unanswered");}}
+                className={`flex min-h-9 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${filter==="unanswered" ? "border-primary bg-primary-soft text-primary" : "border-border bg-card text-foreground hover:bg-muted"}`}>
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Clock3 size={14} className="shrink-0"/><span className="truncate">Sem resposta</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-amber-600 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">{counts.unanswered}</span>
+              </button>
+            </div>
             <div className={canManage && supportsOperatorFilter(filter) ? "mt-2 grid grid-cols-2 gap-2 md:mt-3" : "mt-2 md:mt-3"}>
               {canManage && <select aria-label="Filtrar departamento" value={departmentFilter}
                 onChange={event=>{setConversationPage(0);setDepartmentFilter(event.target.value);}}
@@ -2474,6 +2547,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             : visible.map(item => {
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
+               const isSlaPaused=businessClock.data?.configured===true &&
+                 (item.department_id
+                   ? businessClock.data.departments?.[item.department_id]===false
+                   : businessClock.data.company_open===false);
               return <button key={item.id} type="button" onClick={() => {setSelectedFallback(item);setSelectedId(item.id);}}
                 className={`box-border flex w-full min-w-0 items-start gap-2.5 border-b border-border px-2.5 py-2.5 text-left transition-colors last:border-b-0 md:gap-3 md:px-3 md:py-3 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} selected={selected}
@@ -2491,21 +2568,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     {item.unread_count > 0 && !selected && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
                   {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
-                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${isSlaPaused?"border-border bg-muted text-muted-foreground":waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
                   {item.status==="in_att" && item.awaiting_reply_since && queueSettings.show_wait_time &&
-                   waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes &&
-                      <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
-                        Sem resposta {waitingLabel(waitingMinutes(item.awaiting_reply_since,clockNow))}
-                        {queueSettings.auto_prioritize_unanswered &&
-                          waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes
-                          ? " · Prioridade" : ""}
-                      </span>}
-                    {item.viewer_participating && <span
+                    waitingMinutes(item.awaiting_reply_since,clockNow)>=queueSettings.unanswered_priority_minutes &&
+                    <span className={`mt-1.5 inline-flex max-w-full items-center rounded-md border px-2 py-1 text-[10px] font-bold leading-tight ${isSlaPaused?"border-border bg-muted text-muted-foreground":waitingClasses(waitingMinutes(item.awaiting_reply_since,clockNow),Math.max(1,Math.floor(queueSettings.unanswered_priority_minutes/2)),queueSettings.unanswered_priority_minutes)}`}>
+                      Sem resposta {waitingLabel(waitingMinutes(item.awaiting_reply_since,clockNow))}
+                    </span>}
+                  {isSlaPaused && (queueOnly(item)||(item.status==="in_att" && item.awaiting_reply_since)) &&
+                     <span className="mt-1.5 inline-flex w-fit rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                       Fora do horário · SLA pausado
+                     </span>}
+                   {item.viewer_participating && <span
                     className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
+                  {finalizedBadge(item)}
                 </span>
               </button>;
             })}
@@ -2532,7 +2611,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
         </aside>
         <section className={`${embedded ? "relative flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain lg:relative lg:inset-auto lg:h-auto lg:w-auto" : "hidden lg:relative lg:flex"} min-h-0 min-w-0 flex-col overflow-hidden bg-card`}>
-          {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+          {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId ? <>
               {conversationOpeningError
                 ? <p className="text-sm text-muted-foreground">Não foi possível preparar a conversa.</p>
@@ -2584,12 +2663,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      <span className="inline-flex shrink-0 items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                    {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
+                   {finalizedBadge(selected)}
                    </span>
 
                  </p>
 
               </div>
-              {(!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
+              {!conversationOpening && (!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:border-t-0 lg:py-0 whitespace-nowrap [&>button]:shrink-0">
                 {embedded && onChangeRecipient && <AdminButton variant="secondary" size="sm"
                   title="Escolher outro número desta OS" aria-label="Trocar número"
@@ -2679,9 +2759,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {messagesOlderLoading?"Carregando mensagens anteriores...":"Carregar mensagens anteriores"}
                 </button>
               </div>}
-              {messagesLoading && timeline.length === 0 ? <LoadingState text="Carregando mensagens..."/>
-              : timeline.length === 0 ?
-                <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
+              {conversationOpeningError && <div role="alert" className="mx-auto mb-3 flex max-w-md flex-col items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-xs text-destructive">
+                Não foi possível carregar todas as informações da conversa.
+                <AdminButton size="sm" variant="secondary" onClick={()=>{
+                  setMessagesErrorId(null);setParticipantsErrorId(null);setFallbackErrorId(null);
+                  setFallbackRetry(value=>value+1);
+                  if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
+                }}>Tentar novamente</AdminButton>
+              </div>}
+              {(messagesLoading || (messagesResolvedId!==selectedId && !conversationOpeningError)) && timeline.length===0
+                ? <LoadingState text="Carregando mensagens..."/>
+                : timeline.length===0 ?
+                  conversationOpeningError
+                    ? <p className="p-5 text-center text-xs text-muted-foreground">Histórico temporariamente indisponível.</p>
+                    : <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {chatTimeline.map((entry,index) => <Fragment key={entry.id}>
                   {(index===0 || chatDayKey(entry.sentAt)!==chatDayKey(chatTimeline[index-1].sentAt)) &&
@@ -2803,7 +2894,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
             </div>
             <footer className="relative z-30 shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-3 sm:pb-3">
-              {canReply ? <div className="mx-auto max-w-4xl">
+              {conversationOpening ? <div role="status" className="mx-auto max-w-4xl py-2 text-center text-xs text-muted-foreground">
+                {conversationOpeningError ? "Aguardando recuperação das informações da conversa." : "Preparando atendimento..."}
+              </div> : canReply ? <div className="mx-auto max-w-4xl">
                 {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
                 </div>}
@@ -3269,8 +3362,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </span>
               <span className="text-xs text-muted-foreground">
                 {protocol.message_count} mensagem(ns)
-                {duration!==null ? ` · Duração: ${duration} min` : ""}
-                {protocol.first_reply_at ? ` · Primeira resposta: ${Math.max(0,Math.round((Date.parse(protocol.first_reply_at)-Date.parse(protocol.opened_at))/60000))} min` : ""}
+                {duration!==null ? ` · Duração corrida: ${duration} min` : ""}
+                {protocol.first_reply_at ? " · Resposta registrada" : ""}
               </span>
               {canAction("view_history") && handoffs.filter(event=>event.protocol_id===protocol.id).slice(0,6)
                 .map(event=><span key={event.id} className="text-[11px] text-muted-foreground">

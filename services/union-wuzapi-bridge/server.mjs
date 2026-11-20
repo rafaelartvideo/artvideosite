@@ -357,7 +357,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const mime=String(mediaMime||"");
     const allowed=["image","video","audio","file","sticker"].includes(kind);
     const size=Number(fileLength);
-    const maxBytes=kind==="video" ? 20*1048576 : 5*1048576;
+    const maxBytes=kind==="video" || kind==="file" ? 20*1048576 : 5*1048576;
     if(!allowed || !Number.isSafeInteger(size) || size<=0 || size>maxBytes ||
       !mime || mime.length>160 || typeof mediaKey!=="string" ||
       typeof fileSHA256!=="string" || mediaKey.length>512 || fileSHA256.length>512 ||
