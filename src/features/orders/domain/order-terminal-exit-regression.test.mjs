@@ -53,8 +53,8 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   assert.match(setup,/require_external_signature,\s*require_employee_signature/);
   assert.match(setup,/service_order_terminal_closures/);
   assert.match(setup,/service_order_terminal_stock_lines/);
-  assert.match(rpc,/v_signature\.signed_at is not null/);
-  assert.match(rpc,/v_signature\.final_pdf_hash is not null/);
+  assert.match(rpc,/r\.signed_at is not null/);
+  assert.match(rpc,/r\.final_pdf_hash is not null/);
   assert.match(rpc,/evidência de descarte/);
   assert.match(rpc,/evidência de devolução/);
   assert.match(rpc,/quantity_restored/);
@@ -105,6 +105,6 @@ test("devolução e descarte usam um só AdminDialog com assinatura, QR e atuali
   assert.match(whatsapp,/os_join/);
   assert.match(whatsapp,/startUnionWhatsAppWithFirstMessage/);
   const realtimeMigration=read("supabase/migrations/20261120151014_enable_document_signature_realtime_for_terminal_exit.sql");
-  assert.match(realtimeMigration,/ALTER PUBLICATION supabase_realtime ADD TABLE public\\.document_signature_requests/);
+  assert.match(realtimeMigration,/ALTER PUBLICATION supabase_realtime ADD TABLE public\.document_signature_requests/);
   assert.match(page,/templatesLoading=\{printTemplates\.loading\}/);
 });
