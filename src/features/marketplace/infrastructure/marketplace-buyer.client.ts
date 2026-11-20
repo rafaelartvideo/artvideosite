@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabaseUrl } from "@/lib/supabase";
-import { publicAnonKey } from "../../../../utils/supabase/info";
+import { publicAnonKey } from "@/shared/config/supabase-backend";
 
 // O login do contratante não interfere na sessão dos funcionários do CRM.
 // A chave de sessão é exclusiva do Marketplace e nunca utiliza service_role.
