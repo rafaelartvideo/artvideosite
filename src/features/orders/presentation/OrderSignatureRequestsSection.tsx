@@ -111,6 +111,16 @@ export function OrderSignatureRequestsSection({
   const [auditLoading, setAuditLoading] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<{ source: string; title: string; fileName: string } | null>(null);
 
+  const [unionConnected,setUnionConnected]=useState<boolean|null>(null);
+  useEffect(()=>{
+    let active=true;
+    void getOrderWhatsAppAvailability(order.organization_id)
+      .then(connected=>{if(active)setUnionConnected(connected);})
+      .catch(()=>{if(active)setUnionConnected(null);});
+    return()=>{active=false;};
+  },[order.organization_id]);
+
+
   const canView = hasPermission("documents.signatures.view");
   const canSend = hasPermission("documents.signatures.send");
   const canResend = hasPermission("documents.signatures.resend");
@@ -158,15 +168,6 @@ export function OrderSignatureRequestsSection({
     catch (error) { setMessage({ text: systemErrorMessage(error), type: "error" }); }
     finally { setBusyId(null); }
   };
-
-  const [unionConnected,setUnionConnected]=useState<boolean|null>(null);
-  useEffect(()=>{
-    let active=true;
-    void getOrderWhatsAppAvailability(order.organization_id)
-      .then(connected=>{if(active)setUnionConnected(connected);})
-      .catch(()=>{if(active)setUnionConnected(null);});
-    return()=>{active=false;};
-  },[order.organization_id]);
 
   const getLink = async (request: DocumentSignatureRequestSummary) => getSignatureAdminLink(order.organization_id, request.id);
 
