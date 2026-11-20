@@ -85,7 +85,12 @@ export function systemErrorMessage(
   ) return "Você não possui permissão para realizar esta ação nesta empresa.";
 
   if (code === "23505" || normalized.includes("duplicate key value violates unique constraint")) {
-    return "Já existe um cadastro com estes dados.";
+    // O trigger de clientes já identifica o campo em conflito na própria empresa.
+    // Preservar apenas mensagens de negócio conhecidas, nunca detalhes SQL/constraints.
+    const safeDuplicateMessage = displayText.length <= 280
+      && /^(?:WhatsApp já cadastrado\b|CPF já cadastrado\b|CNPJ já cadastrado\b|Já existe cliente com este CPF\/CNPJ\b)/i.test(displayText)
+      && !/(?:duplicate key|unique constraint|constraint\b|\b(?:schema|relation|column|table)\b|public\.|private\.)/i.test(displayText);
+    return safeDuplicateMessage ? displayText : "Já existe um cadastro com estes dados.";
   }
 
   if (code === "23503" || normalized.includes("violates foreign key constraint")) {

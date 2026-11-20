@@ -26,6 +26,26 @@ test("preserves explicit business-state errors instead of reporting missing perm
     "Você não possui permissão para realizar esta ação nesta empresa.");
 });
 
+test("preserves safe, field-specific duplicate messages from the same company", () => {
+  const whatsapp = "WhatsApp já cadastrado para Cliente Existente. Abra o cadastro existente ou informe outro número.";
+  assert.equal(systemErrorMessage({ code: "23505", message: whatsapp }), whatsapp);
+  const cpf = "CPF já cadastrado nesta empresa para Cliente Existente. Abra o cadastro existente.";
+  assert.equal(systemErrorMessage({ code: "23505", message: cpf }), cpf);
+  const cnpj = "CNPJ já cadastrado nesta empresa. Abra o cadastro existente.";
+  assert.equal(systemErrorMessage({ code: "23505", message: cnpj }), cnpj);
+});
+
+test("hides technical uniqueness details instead of showing SQL constraints", () => {
+  assert.equal(
+    systemErrorMessage({ code: "23505", message: 'duplicate key value violates unique constraint "customers_organization_document_unique_idx"' }),
+    "Já existe um cadastro com estes dados.",
+  );
+  assert.equal(
+    systemErrorMessage({ code: "23505", message: "WhatsApp já cadastrado para Cliente X. constraint private.test" }),
+    "Já existe um cadastro com estes dados.",
+  );
+});
+
 test("strips internal error prefixes while preserving useful messages", () => {
   assert.equal(systemErrorMessage("invalid_auth: Falha ao autenticar."), "Falha ao autenticar.");
   assert.equal(systemErrorMessage("operator_profile_incompatible: A SAC não aceitou a conta."), "A SAC não aceitou a conta.");

@@ -32,6 +32,7 @@ import {
 } from "../infrastructure/orders-customer.repository";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
+import { findCustomerWhatsappConflict, duplicateWhatsappMessage, isDuplicateCustomerWhatsappError } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { QuickCustomerAddressesEditor, newQuickCustomerAddress } from "./QuickCustomerAddressesEditor";
 
 const hasAddressData = (address: Address) => Boolean(
@@ -52,10 +53,11 @@ function quickCustomerErrorMessage(error: unknown, fallback: string) {
 function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
   if (!error || typeof error !== "object") return null;
   const value = error as { code?: string };
-  const message = supabaseErrorMessage(error).toLocaleLowerCase("pt-BR");
-  if (value.code !== "23505" && !message.includes("duplicate") && !message.includes("duplicad")) return null;
-  if (message.includes("cnpj")) return "cnpj";
-  if (message.includes("document")) return "document";
+  const raw = error as { message?: unknown; details?: unknown };
+  const message = [raw.message, raw.details].map(value => String(value || "")).join(" ").toLocaleLowerCase("pt-BR");
+  if (value.code !== "23505" && !/duplicate|duplicad|já cadastrado/.test(message)) return null;
+  if (/customers_organization_cnpj_unique_idx|\bcnpj\b/.test(message)) return "cnpj";
+  if (/customers_organization_document_unique_idx|\bcpf\b|\bdocument\b/.test(message)) return "document";
   return null;
 }
 
@@ -125,6 +127,23 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
       }
     }
 
+    // A OS e os demais fluxos devem mostrar a causa real da duplicidade:
+    // o CPF é independente por empresa; um WhatsApp ocupado nesta empresa não é um CPF duplicado.
+    // Fluxos limitados a customer_requests.create dependem do trigger do banco,
+    // porque a RPC de pré-validação exige permissão de Cadastros.
+    if (hasPermission("customers.create") || hasPermission("customers.edit") || hasPermission("customers.update")) {
+      try {
+        const conflict = await findCustomerWhatsappConflict(activeOrganizationId, form.whatsapp, createdCustomer?.id || null);
+        if (conflict) {
+          setFieldError("whatsapp", duplicateWhatsappMessage(conflict));
+          return;
+        }
+      } catch (error) {
+        notifyAdmin("Não foi possível verificar o WhatsApp: " + quickCustomerErrorMessage(error, "Tente novamente."), "error");
+        return;
+      }
+    }
+
     setSaving(true);
     let savePhase: "customer" | "address" = "customer";
 
@@ -183,19 +202,23 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
       onClose();
     } catch (error) {
       console.error("[ADMIN] quick customer save error:", error);
-      const duplicateField = duplicateTaxIdField(error);
-      if (duplicateField) {
-        setFieldError(
-          duplicateField,
-          duplicateField === "document"
-            ? "CPF já cadastrado. Use o cadastro existente."
-            : "CNPJ já cadastrado. Use o cadastro existente.",
-        );
+      if (isDuplicateCustomerWhatsappError(error)) {
+        setFieldError("whatsapp", quickCustomerErrorMessage(error, "WhatsApp já cadastrado nesta empresa. Use outro número."));
       } else {
-        const fallback = savePhase === "address"
-          ? "Cliente cadastrado, mas não foi possível salvar um dos endereços."
-          : "Não foi possível cadastrar o cliente.";
-        notifyAdmin(quickCustomerErrorMessage(error, fallback), "error");
+        const duplicateField = duplicateTaxIdField(error);
+        if (duplicateField) {
+          setFieldError(
+            duplicateField,
+            duplicateField === "document"
+              ? "CPF já cadastrado. Use o cadastro existente."
+              : "CNPJ já cadastrado. Use o cadastro existente.",
+          );
+        } else {
+          const fallback = savePhase === "address"
+            ? "Cliente cadastrado, mas não foi possível salvar um dos endereços."
+            : "Não foi possível cadastrar o cliente.";
+          notifyAdmin(quickCustomerErrorMessage(error, fallback), "error");
+        }
       }
     } finally {
       setSaving(false);
