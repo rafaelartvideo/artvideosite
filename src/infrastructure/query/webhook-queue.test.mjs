@@ -63,3 +63,8 @@ test('configurador usa os campos reais da ponte e assinatura sobre o corpo exato
  assert.deepEqual(JSON.parse(sent.body),{connection_id:channel,organization_id:channel,action:'webhook_setup'});
  assert.equal(sent.headers['x-union-signature'],createHmac('sha256',secret).update(sent.headers['x-union-timestamp']+'.'+sent.headers['x-union-nonce']+'.'+sent.body).digest('hex'));
 });
+
+test('canal temporariamente desconectado não consome o evento como entregue',async()=>{
+ const forward=createForwarder({secret,fetch:async()=>new Response('{"ok":true,"ignored":"inactive_channel"}')});
+ await assert.rejects(forward(sealEnvelope(signed(),secret)),/downstream_channel_inactive/);
+});

@@ -71,5 +71,8 @@ export function createForwarder({secret,fetch=globalThis.fetch}){
   });
   if(!response.ok)throw Error('downstream_http_'+response.status);
   const body=await response.json();if(body.ok!==true)throw Error('downstream_rejected');
+  // A temporary channel outage must not acknowledge a persisted event as
+  // delivered. Old-account timestamps remain a permanent downstream discard.
+  if(body.ignored==='inactive_channel')throw Error('downstream_channel_inactive');
  };
 }

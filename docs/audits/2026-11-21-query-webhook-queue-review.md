@@ -45,3 +45,17 @@ Suíte local final incluindo lotes de documentos:1.054 testes,1.052 aprovados,do
 Pendentes: otimizar helpers RLS com regressões de autorização; distinguir as duas leituras de detalhes após criar OS; ampliar coleta passiva com contextos equivalentes. Não se removeu atualização em tempo real nem validação comercial para aparentar rapidez. Stashes e arquivos locais anteriores continuam preservados fora da entrega.
 
 Fontes técnicas: [BullMQ em produção](https://docs.bullmq.io/guide/going-to-production), [conexões BullMQ](https://docs.bullmq.io/guide/connections), [persistência Redis](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/), [conexões Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Proteção adicional de indisponibilidade
+
+O consumidor trata ok:true/ignored:inactive_channel como falha recuperável. A fila preserva e repete o evento em vez de confirmar entrega durante uma desconexão temporária. O descarte de mensagens anteriores a outro pareamento continua decidido pelo webhook para não misturar contas. Regressão falhou antes da guarda e passou depois; apenas o novo serviço de fila foi reiniciado com backup do módulo, sem tocar nos canais/motor.
+
+## Publicação e conferência final
+
+Fila, ponte e keyset em main 9a66cf626ad3b5af18ebccc9f04489c37cb80089, execução 44933483270 com ambos FTPS concluídos. Gravações em lote dos documentos em main f531e0ab2ff8127eb26dabedd68d3bdb538a6e27, execução https://github.com/rafaelartvideo/artvideosite/actions/runs/44934000580: testes, builds, site e CRM publicados com sucesso na primeira tentativa. Logs Sync complete e fingerprints publicados confirmados para ambos os destinos.
+
+No navegador autenticado de Rafael Gestor, empresa Teste, mensagem de auditoria apareceu uma única vez. Abas Mídias/Documentos/Links consultaram a conversa e exibiram vazios corretos sem erro ou download. Depois da publicação, foi criado pela interface o modelo **inativo** Auditoria Performance 2026-11-21 — Lotes, ID 9e6c8f64-59b5-4447-9b55-a2f6a905c753. Reabertura preservou nome do cliente, prioridade e equipamento; consulta pontual confirmou is_active=false, três seções e três campos na ordem customer.full_name/order.priority/equipment.general. Nenhum modelo anterior foi alterado. Evidências de tela permanecem locais.
+
+A guarda de canal inativo foi aplicada separadamente ao consumidor VPS com backup; nova sonda autenticada respondeu 202 em 110 ms e concluiu. Saúde final sem trabalho pendente ou falhado. A configuração dos três callbacks permaneceu na fila. Esta guarda só muda o serviço VPS, não exige republicação da interface ou Edge Function.
+
+Suíte final após a guarda: **1.055 testes, 1.053 aprovados, dois ignorados por ambiente e zero falhas**. Hash SHA256 do consumidor core.mjs na VPS e no arquivo local conferido: f2c02c1b98831969bcd91427ec7ce4212f31bde64d778b74982857f3cf59aa25. Sessão SSH de auditoria encerrada.
