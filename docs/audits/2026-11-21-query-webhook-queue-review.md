@@ -18,6 +18,12 @@ Um EXPLAIN ANALYZE limitado à empresa Teste e ao usuário autorizado, com state
 - Trabalho concluído perde seu conteúdo e conserva só marcador de entrega. Retries não repetem uma entrega cujo marcador já foi persistido. Falhas são mantidas, indicadas em health503, reativadas por replay autenticado ou pelo comando local de recuperação. Doze tentativas com espera limitada30s por ciclo. Até500 pendentes/falhados por partição. Instância única, disco local e tentativas atrasadas continuam sendo limites; não se promete entrega exatamente uma vez ou alta disponibilidade.
 - Ponte aceita ativação explícita UNION_WUZAPI_WEBHOOK_QUEUE=1; padrão do código continua direto para facilitar rollback. Três canais conectados foram configurados após o teste da empresa Teste. GET /webhook do provedor confirmou a URL da fila em todos. Não houve logout, QR, reinício do motor WhatsApp, dos bancos, Zappro, Redis antigo ou PABX; apenas a ponte foi reiniciada e nginx recarregado após nginx-t.
 
+## N+1 de gravação de documentos
+
+Foi identificado e corrigido também savePrintTemplate: para N seções selecionadas, eram N inserts de seção e N inserts de campos, em sequência. Agora IDs UUID das seções são gerados localmente e os filhos usam esses IDs, permitindo um insert de seções e um de campos. Três seções passam de seis gravações filhas para duas; a gravação do cabeçalho e a remoção das seções anteriores ao editar permanecem necessárias. Ordem por catálogo, posição dos campos, empresa, layout e normalização de assinaturas preservados. Erro no lote de seções impede gravar filhos. Sem nova permissão ou migração. Não foi transformado o salvamento inteiro em uma transação; a limitação anterior entre etapas continua explicitada.
+
+Dois testes executam o repositório real com a infraestrutura de rede simulada, verificando quantidade de chamadas, vínculos UUID, ordenação, organização e propagação de falha. Revisão independente verificou PK/FK/trigger de empresa e aprovou. Nenhum modelo real foi alterado pela validação automatizada.
+
 ## Validação real na VPS
 
 Redis8.10.1 por digest de imagem já presente na VPS. Antes de migrar callbacks, integração real verificou: AOF e fsync, trabalho preservado após reiniciar só o Redis novo, payload liberado após sucesso, falha e replay no BullMQ fixado, recusa sob OOM real e aceitação após restaurar limite. Fila sintética isolada removida ao final. Teste de restart/pressão agora exige flag explícita de standby e não deve rodar com canais já migrados.
@@ -34,7 +40,7 @@ Runbook e rollback em services/union-whatsapp-webhook-queue/README.md. Backup ng
 
 Sem alterações de schema, migrações ou Edge Functions nesta rodada; webhook Supabase existente preservado. Supabase Realtime continua atualizando o CRM; adicionar outro WebSocket na VPS duplicaria o caminho sem ganho comprovado. Pooler transacional não é utilizado porque as chamadas deste serviço são HTTP/PostgREST e não conexões diretas Postgres. Cache de contatos/mídias existente permanece limitado e escopado; não foi acrescentado um cache Redis sem requisito de compartilhamento/invalidação.
 
-Suíte local final:1.052 testes,1.050 aprovados,dois ignorados,zero falhas. Última verificação focada: oito testes aprovados; qualidade e ambos os builds passaram. Revisão independente identificou problemas de retenção/replay, corrigidos e verificados em Redis real. Publicação main/HostGator e conferência no navegador serão registradas após a conclusão.
+Suíte local final incluindo lotes de documentos:1.054 testes,1.052 aprovados,dois ignorados,zero falhas. Última verificação focada: oito testes aprovados; qualidade e ambos os builds passaram. Revisão independente identificou problemas de retenção/replay, corrigidos e verificados em Redis real. Publicação main/HostGator e conferência no navegador serão registradas após a conclusão.
 
 Pendentes: otimizar helpers RLS com regressões de autorização; distinguir as duas leituras de detalhes após criar OS; ampliar coleta passiva com contextos equivalentes. Não se removeu atualização em tempo real nem validação comercial para aparentar rapidez. Stashes e arquivos locais anteriores continuam preservados fora da entrega.
 

@@ -148,28 +148,25 @@ export async function savePrintTemplate(value: PrintTemplateEditorValue) {
   const selectedSections = PRINT_FIELD_REGISTRY.filter(section =>
     section.fields.some(field => value.selectedFields.has(field.key)),
   );
-  for (const [sectionIndex, section] of selectedSections.entries()) {
-    const { data: sectionRow, error: sectionError } = await (supabase as any)
-      .from("print_template_sections")
-      .insert({
-        organization_id: organizationId,
-        template_id: templateId,
-        section_key: section.key,
-        title: section.label,
-        sort_order: sectionIndex,
-        columns: value.layout.section_columns?.[section.key] ?? section.defaultColumns,
-        is_enabled: true,
-        settings: {},
-      })
-      .select("id")
-      .single();
-    if (sectionError) throw sectionError;
-
-    const fields = section.fields.filter(field => value.selectedFields.has(field.key));
-    if (!fields.length) continue;
-    const { error: fieldsError } = await (supabase as any).from("print_template_fields").insert(
-      fields.map((field, index) => ({
-        template_section_id: sectionRow.id,
+  const sectionRows = selectedSections.map((section, sectionIndex) => ({
+    id: crypto.randomUUID(),
+    organization_id: organizationId,
+    template_id: templateId,
+    section_key: section.key,
+    title: section.label,
+    sort_order: sectionIndex,
+    columns: value.layout.section_columns?.[section.key] ?? section.defaultColumns,
+    is_enabled: true,
+    settings: {},
+  }));
+  if (sectionRows.length) {
+    // IDs locais permitem gravar os filhos sem um retorno de rede por seção.
+    const { error: sectionsError } = await (supabase as any)
+      .from("print_template_sections").insert(sectionRows);
+    if (sectionsError) throw sectionsError;
+    const fieldRows = selectedSections.flatMap((section, sectionIndex) =>
+      section.fields.filter(field => value.selectedFields.has(field.key)).map((field, index) => ({
+        template_section_id: sectionRows[sectionIndex].id,
         field_key: field.key,
         label: field.label,
         sort_order: index,
@@ -177,7 +174,10 @@ export async function savePrintTemplate(value: PrintTemplateEditorValue) {
         settings: {},
       })),
     );
-    if (fieldsError) throw fieldsError;
+    if (fieldRows.length) {
+      const { error: fieldsError } = await (supabase as any).from("print_template_fields").insert(fieldRows);
+      if (fieldsError) throw fieldsError;
+    }
   }
 
   return templateId as string;
