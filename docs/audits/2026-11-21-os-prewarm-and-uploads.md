@@ -24,3 +24,11 @@ Suíte local: 1.040 testes, 1.038 aprovados, zero falhas, dois ignorados por lim
 Não se mediu percentual de redução em produção, nem se fabricou um p95 com poucas operações. A melhora comprovada é a possibilidade de dois arquivos independentes avançarem ao mesmo tempo, aguardando confirmação e limpeza corretas. A duração real depende de rede, compressão, tamanho dos arquivos e servidor. OS sem fotos pode não apresentar diferença no tempo de gravação.
 
 Não há migração, Edge Function ou serviço VPS a publicar. Não se carregam históricos, contatos, mídias ou catálogos antes do uso. Nenhuma regra comercial, fila de atendimento, validação de agenda, checklist ou controle de acesso foi removido. Rascunhos antigos em stash permanecem fora desta entrega.
+
+## Entrega e conferência em produção
+
+Código entregue em main: bf520280337f63af186041457e40fde60167b86a. A execução https://github.com/rafaelartvideo/artvideosite/actions/runs/44903807708 concluiu testes, builds e publicação FTPS do site e CRM com sucesso na primeira tentativa. Os registros confirmam sincronização concluída e fingerprints published-site/published-crm deste SHA.
+
+Após recarregar o CRM publicado, a Home apresentou seu conteúdo, a lista de OS carregou e o formulário Nova OS abriu com cliente, equipamento, fotos, informações e local do atendimento. O formulário foi fechado sem salvar, criar cliente ou enviar fotos. Nenhuma chamada real de criação foi usada como benchmark. O hint de pré-carregamento de TabOrders não foi observado nesta conferência em segundo plano; portanto, não se afirma aquecimento efetivo nesta sessão. Os testes verificam elegibilidade, ociosidade e cancelamento, e o comportamento continua de melhor esforço.
+
+Não houve implantação Supabase ou VPS nesta rodada, pois não são necessárias para estas alterações. Stashes anteriores e arquivos locais não rastreados foram preservados e continuam fora desta entrega.
