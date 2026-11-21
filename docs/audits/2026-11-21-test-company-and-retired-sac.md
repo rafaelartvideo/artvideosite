@@ -26,7 +26,7 @@ Foi criada pela interface a OS sintética 71, externa AUDIT-PERF-20261121, com c
 4. Orçamentos usam atalho externo funcional em lugar do diálogo de provedor desativado. SAC não aparece mais para ativação nas integrações nem nos grupos fixos/dinâmicos das empresas parceiras. Nenhuma configuração persistida foi modificada.
 5. Endpoints inertes, redirecionamento da rota antiga, histórico de migrações e dados do banco permanecem para compatibilidade; não há exclusão de dados de produção.
 
-Comparação local do chunk TabOrders na mesma configuração: 707.005 para 697.725 bytes minificados; gzip de 192.675 para 189.907 bytes. Redução de 9.280 bytes minificados / 2.768 gzip no arquivo, não no sistema inteiro. Outros chunks compartilhados mudam de distribuição; isso não prova redução proporcional de latência ou transferência total.
+Comparação local do chunk TabOrders na mesma configuração: 707.005 para 697.725 bytes minificados; gzip de 192.675 para 189.908 bytes. Redução de 9.280 bytes minificados / 2.767 gzip no arquivo, não no sistema inteiro. Outros chunks compartilhados mudam de distribuição; isso não prova redução proporcional de latência ou transferência total.
 
 ## Validação
 
@@ -37,3 +37,11 @@ Suíte final local: 1.044 testes, 1.042 aprovados, dois ignorados por ambiente, 
 ## Pontos ainda sem ganho comprovado
 
 Após criar a OS houve duas consultas get_service_order_workspace_v1 (460,6 e 276,1 ms) e uma de referências (516,3 ms). Não foi removida atualização de Realtime/cache sem comprovar sua origem: podem refletir invalidações legítimas, e suprimir eventos poderia deixar dados antigos. A medição não comprova que todos os timeouts foram resolvidos nem que todo código sem uso foi eliminado. Stashes e arquivos locais anteriores continuam preservados fora de main.
+
+## Publicação e verificação posterior
+
+Código em main: 9d62eaf84615ca8617361153c9ea6cff585ab652. Pipeline https://github.com/rafaelartvideo/artvideosite/actions/runs/44920650995: testes, builds e ambos os jobs FTPS concluídos com sucesso na primeira tentativa. Logs confirmam Sync complete e fingerprints published-site/published-crm deste SHA. Nenhuma implantação Supabase, alteração SQL ou serviço VPS necessária.
+
+Nova coleta local confirmou build 9d62eaf84615ca8617361153c9ea6cff585ab652. Ao abrir Cadastros sem filtros após recarregar, houve uma única resposta search_registration_page_v3 (246,1 ms), além da consulta distinta de responsáveis (221,4 ms). Antes eram duas buscas (239,1 e 241,9 ms). Ganho demonstrado: uma RPC de busca eliminada, 50% menos chamadas dessa função na abertura sem filtros; não há redução de 50% comprovada no tempo de tela. O total exibido permaneceu 64 cadastros. Filtro Rafael retornou os registros correspondentes e preservou o total global; filtros foram limpos. Arquivo bruto pós-publicação continua somente local.
+
+A OS 71 foi reaberta com as duas imagens e a identificação da auditoria. O botão agora se chama Abrir WhatsApp do cliente. Seu modal atual carregou o atendimento existente da empresa Teste e foi fechado sem digitar ou enviar mensagem, sem ligação e sem abrir anexos históricos. A imagem de evidência fica somente no computador local. Não se validou cobrança real, envio externo ou todos os fluxos comerciais por ações destrutivas.
