@@ -11,6 +11,7 @@ import {
   updateServiceOrderMediaSortOrder,
 } from "../infrastructure/orders.repository";
 import { cleanupFailedOrderCreationImages } from "../infrastructure/order-images.repository";
+import { prepareAtomicOrderUploads } from "./order-upload-concurrency.mjs";
 import { orderImageSortOrder, type OrderImageKind } from "../domain/order-image";
 
 type SubmissionImage = { key?: string; mediaId?: string; file?: File; kind?: OrderImageKind };
@@ -77,22 +78,17 @@ export async function persistServiceOrder({
   // e todo o estado relacional é persistido por uma única função PostgreSQL.
   // Se qualquer insert de filho falhar, a transação inteira é revertida.
   if (!editingOrder && !pendingOrderId && creationRequestId) {
-    const uploadedInThisAttempt: Array<{ key?: string; mediaId: string }> = [];
-
-    try {
-      for (const image of preparedImages) {
-        if (image.mediaId || !image.file) continue;
-        const mediaId = await uploadImage(image.file, image.kind);
-        image.mediaId = mediaId;
-        uploadedInThisAttempt.push({ key: image.key, mediaId });
-      }
-    } catch (error) {
+    const connection=typeof navigator==='undefined'?undefined:(navigator as any).connection;
+    const restricted=connection?.saveData || ['slow-2g','2g','3g'].includes(connection?.effectiveType);
+    const prepared=await prepareAtomicOrderUploads(preparedImages,uploadImage,restricted?1:2);
+    const uploadedInThisAttempt=prepared.uploaded;
+    if (prepared.failed) {
       await cleanupAtomicUploads({
         orderId: creationRequestId,
         organizationId,
         mediaIds: uploadedInThisAttempt.map(item => item.mediaId),
       });
-      return { success: false, stage: "images", error };
+      return { success: false, stage: "images", error:prepared.error };
     }
 
     const counters: Record<"equipment" | "label", number> = { equipment: 0, label: 0 };

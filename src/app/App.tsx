@@ -10,6 +10,7 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 const PublicShell = lazy(() => import("@/features/public-shell/presentation/PublicShell").then(({ PublicShell }) => ({ default: PublicShell })));
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { LocalPerformanceObserver } from "@/infrastructure/query/LocalPerformanceObserver";
+import { AdminCodeWarmup } from "@/features/admin-shell/application/AdminCodeWarmup";
 import { LocalPerformancePanel } from "@/infrastructure/query/LocalPerformancePanel";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
@@ -215,6 +216,7 @@ export default function App() {
     <AuthProvider key={scope} scope={scope}>
       <ScrollToTop />
       <LocalPerformanceObserver />
+      {scope === "crm" && pathname === "/admin" && <AdminCodeWarmup />}
       {scope === "crm" && <LocalPerformancePanel />}
       <AuthenticatedAdminRealtimeSync />
       {APP_TARGET === "site" ? (

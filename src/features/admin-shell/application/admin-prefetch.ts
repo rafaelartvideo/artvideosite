@@ -1,3 +1,4 @@
+import { canPrefetchCode } from './admin-code-warmup.mjs';
 /**
  * Apenas antecipa o download de código dos módulos mais usados.
  * Não chama Supabase e não inicia consultas de dados.
@@ -35,6 +36,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
 const pending = new Map<string, Promise<unknown>>();
 
 export function prefetchAdminModule(moduleKey: string) {
+  if(typeof window==='undefined'||!canPrefetchCode(window))return;
   const loader = loaders[moduleKey];
   if (!loader || pending.has(moduleKey)) return;
   // Em caso de falha de rede, permitir nova tentativa no próximo hover.
