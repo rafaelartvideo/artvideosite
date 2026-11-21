@@ -964,8 +964,10 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       hmac_key: webhookKey,
     });
     // Never reconnect/log out the paired device.
-    const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
-      + "?channel=" + encodeURIComponent(id);
+    const endpoint = process.env.UNION_WUZAPI_WEBHOOK_QUEUE === "1"
+      ? "https://wa.unionworld.com.br/union-wuzapi/v1/whatsapp-webhook"
+      : "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook";
+    const url = endpoint + "?channel=" + encodeURIComponent(id);
     await wuzapi("/webhook", session.token, "POST", {
       webhookurl: url, events: ["Message", "ReadReceipt", "Receipt"],
     });

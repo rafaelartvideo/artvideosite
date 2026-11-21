@@ -1,0 +1,1 @@
+{"name":"union-whatsapp-webhook-queue","private":true,"type":"module","version":"1.0.0","engines":{"node":">=20"},"dependencies":{"bullmq":"5.81.6"}}

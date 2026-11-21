@@ -4,14 +4,14 @@ import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisua
 import {
   listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox,
   type UnionWhatsAppConversation, type UnionWhatsAppMessage,
-  type UnionWhatsAppSharedTab,
+  type UnionWhatsAppSharedTab, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 
-type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;page:number};
-const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",page:0});
+type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;nextCursor:UnionWhatsAppMessageCursor|null};
+const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",nextCursor:null});
 const labels:{key:UnionWhatsAppSharedTab;label:string}[]=[
   {key:"media",label:"Mídias"},{key:"documents",label:"Documentos"},{key:"links",label:"Links"},
 ];
@@ -129,20 +129,20 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   const name=conversation.contact_name||"Contato WhatsApp";
   const section=sections[tab];
 
-  const fetchPage=useCallback(async(key:UnionWhatsAppSharedTab,page:number)=>{
+  const fetchPage=useCallback(async(key:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null)=>{
     if(requests.current.has(key))return;
     requests.current.add(key);
     setSections(current=>({...current,[key]:{...current[key],loading:true,error:""}}));
     try{
       const result=await listUnionWhatsAppSharedItems(organizationId,conversation.id,
-        conversation.channel_id,conversation.account_phone,key,page);
+        conversation.channel_id,conversation.account_phone,key,before);
       setSections(current=>{
         const stored=current[key];
-        const unique=new Map<string,UnionWhatsAppMessage>((page===0?[]:stored.items)
+        const unique=new Map<string,UnionWhatsAppMessage>((!before?[]:stored.items)
           .map((item):[string,UnionWhatsAppMessage]=>[item.id,item]));
         result.items.forEach(item=>unique.set(item.id,item));
         return {...current,[key]:{items:[...unique.values()],loaded:true,loading:false,
-          hasMore:result.hasMore,page,error:""}};
+          hasMore:result.hasMore,nextCursor:result.nextCursor,error:""}};
       });
     }catch(error){
       setSections(current=>({...current,[key]:{...current[key],loaded:true,loading:false,
@@ -150,7 +150,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     }finally{requests.current.delete(key);}
   },[organizationId,conversation.id,conversation.channel_id,conversation.account_phone]);
   useEffect(()=>{
-    if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,0);
+    if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,null);
   },[tab,sections,fetchPage]);
   const requestClose=useCallback((event:ReactMouseEvent<HTMLButtonElement>|KeyboardEvent)=>{
     // Close on the completed click, never between pointerdown and click.
@@ -238,7 +238,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
             </div> : section.error&&section.items.length===0 ?
               <div role="alert" className="py-5 text-center text-xs text-destructive">
                 {section.error}
-                <button type="button" onClick={()=>void fetchPage(tab,0)}
+                <button type="button" onClick={()=>void fetchPage(tab,null)}
                   className="ml-2 font-semibold text-primary underline">Tentar novamente</button>
               </div> : section.items.length===0 ?
               <p className="py-8 text-center text-xs text-muted-foreground">
@@ -271,7 +271,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
                 )))}
               </div>}
             {section.hasMore&&<button type="button" disabled={section.loading}
-              onClick={()=>void fetchPage(tab,section.page+1)}
+              onClick={()=>void fetchPage(tab,section.nextCursor)}
               className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary hover:bg-muted disabled:opacity-50">
               {section.loading?"Carregando...":"Mostrar mais"}
             </button>}

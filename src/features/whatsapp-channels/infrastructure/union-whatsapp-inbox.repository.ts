@@ -408,8 +408,8 @@ export type UnionWhatsAppSharedTab="media"|"documents"|"links";
 const SHARED_PAGE_SIZE=24;
 export async function listUnionWhatsAppSharedItems(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
-  category:UnionWhatsAppSharedTab,page=0,
-):Promise<{items:UnionWhatsAppMessage[];hasMore:boolean}>{
+  category:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null=null,
+):Promise<{items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null}>{
   let query=supabase.from("union_whatsapp_messages")
     .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
     .eq("organization_id",organizationId)
@@ -420,12 +420,14 @@ export async function listUnionWhatsAppSharedItems(
   else if(category==="documents")query=query.eq("message_type","file");
   else query=query.eq("message_type","text")
     .or("body_text.ilike.%http%,body_text.ilike.%www.%");
-  const offset=Math.max(0,Math.floor(page))*SHARED_PAGE_SIZE;
+  if(before)query=query.or(`sent_at.lt.${before.sent_at},and(sent_at.eq.${before.sent_at},id.lt.${before.id})`);
   const {data,error}=await query.order("sent_at",{ascending:false})
-    .order("id",{ascending:false}).range(offset,offset+SHARED_PAGE_SIZE);
+    .order("id",{ascending:false}).limit(SHARED_PAGE_SIZE+1);
   raise(error);
   const rows=(data||[]) as UnionWhatsAppMessage[];
-  return {items:rows.slice(0,SHARED_PAGE_SIZE),hasMore:rows.length>SHARED_PAGE_SIZE};
+  const items=rows.slice(0,SHARED_PAGE_SIZE),oldest=items[items.length-1];
+  return {items,hasMore:rows.length>SHARED_PAGE_SIZE,
+    nextCursor:oldest?{sent_at:oldest.sent_at,id:oldest.id}:null};
 }
 
 // Consulta sob RLS e escopo estrito: somente a conversa do contato selecionado.
