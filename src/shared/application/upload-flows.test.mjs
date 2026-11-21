@@ -23,7 +23,6 @@ globalThis.__uploadTestSupabase = {
 const { uploadTechnicianPhoto } = await import('../../features/technician-panel/infrastructure/technician-tasks.repository.ts');
 const { submitServiceBooking } = await import('../../features/public-services/infrastructure/service-booking.repository.ts');
 const { uploadManagementLogo } = await import('../../features/management/infrastructure/management.repository.ts');
-const { sendSacDigitalMediaMessage } = await import('../../features/sac-digital/infrastructure/sac-digital.repository.ts');
 const { uploadMobileOrderDocument } = await import('../../features/checklists/infrastructure/order-mobile-checklist.gateway.ts');
 const originalDocument = globalThis.document;
 const originalBitmap = globalThis.createImageBitmap;
@@ -75,14 +74,7 @@ test('management logo uses optimized bytes, MIME and extension', async () => {
   assert.match(upload.path, /\.webp$/);
   assert.equal(upload.options.contentType, 'image/webp');
 });
-test('SAC desativada bloqueia envio de foto sem chamar APIs ou Storage', async () => {
-  browser();
-  await assert.rejects(
-    sendSacDigitalMediaMessage('org', 'protocol', photo(), 'Legenda'),
-    /SAC Digital foi desativada/i,
-  );
-  assert.equal(calls.length, 0);
-});
+
 test('mobile photo documents are optimized while PDF originals remain untouched', async () => {
   browser();
   await uploadMobileOrderDocument('session', 'token', 'attachment', 'target', photo(2));
@@ -95,14 +87,7 @@ test('mobile photo documents are optimized while PDF originals remain untouched'
   assert.equal(calls[2].body.get('file'), pdf);
 });
 
-test('SAC desativada bloqueia também arquivo grande antes de qualquer processamento', async () => {
-  browser(2 * 1024 * 1024);
-  await assert.rejects(
-    sendSacDigitalMediaMessage('org', 'protocol', photo()),
-    /SAC Digital foi desativada/i,
-  );
-  assert.equal(calls.length, 0);
-});
+
 
 test('mobile situation photo over the final 10 MB cap is rejected before invocation', async () => {
   browser(11 * 1024 * 1024);

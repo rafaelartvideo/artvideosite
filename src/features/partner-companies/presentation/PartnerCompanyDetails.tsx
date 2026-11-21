@@ -7,7 +7,7 @@ import { getAddressMapUrl } from "@/lib/address";
 import { cn, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminCardContent, AdminCardHeader, InternalBackButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { PartnerCompanyUsersSection } from "./PartnerCompanyUsersSection";
-import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { CompanyWhatsAppAction } from "@/shared/ui/whatsapp/CompanyWhatsAppAction";
 import { PartnerCompanyPermissionsSection } from "./PartnerCompanyPermissionsSection";
 import { PartnerCompanySharedDataSection } from "./PartnerCompanySharedDataSection";
 import { PartnerCompanyOrderMonitoringSection } from "./PartnerCompanyOrderMonitoringSection";

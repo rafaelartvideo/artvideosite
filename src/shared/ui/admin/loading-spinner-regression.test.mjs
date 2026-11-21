@@ -11,7 +11,6 @@ const files = (directory) => readdirSync(directory, { withFileTypes: true }).fla
 const normalized = path => relative("src", path).split(sep).join("/");
 const feedbackPath = "shared/ui/admin/AdminFeedback.tsx";
 const inboxPath = "features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx";
-const sacPath = "features/sac-digital/presentation/SacDigitalToolPage.tsx";
 
 test("carregamentos globais e modais exibem spinner circular, não três pontos", () => {
   const source = read("src/" + feedbackPath);
@@ -26,7 +25,7 @@ test("carregamentos globais e modais exibem spinner circular, não três pontos"
   assert.doesNotMatch(inline, /indicator\s*===\s*["']dots["']/);
 });
 
-test("três pontos ficam exclusivos de Selecionar/Preparando conversa e do estado vazio do SAC", () => {
+test("três pontos ficam exclusivos de Selecionar/Preparando conversa", () => {
   const inventory = files("src");
   for (const path of inventory) {
     const code = read(path);
@@ -35,15 +34,13 @@ test("três pontos ficam exclusivos de Selecionar/Preparando conversa e do estad
       assert.ok([feedbackPath, inboxPath].includes(name), `Uso de LoadingDots fora de conversas: ${name}`);
     }
     if (code.includes("animate-bounce")) {
-      assert.ok([feedbackPath, sacPath].includes(name), `Pontos pulando fora de conversas: ${name}`);
+      assert.ok([feedbackPath].includes(name), `Pontos pulando fora de conversas: ${name}`);
     }
   }
   const inbox = read("src/" + inboxPath);
   assert.match(inbox, /Selecione uma conversa/);
   assert.match(inbox, /Preparando conversa\.\.\./);
   assert.equal((inbox.match(/<LoadingDots\s*\/>/g) || []).length, 2);
-  assert.match(read("src/" + sacPath), /function EmptySacConversationState/);
-  assert.match(read("src/" + sacPath), /animate-bounce/);
 });
 
 test("modal de orçamento, PDF e configuração do WhatsApp usam spinner", () => {

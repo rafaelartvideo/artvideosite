@@ -16,7 +16,8 @@ test("WhatsApp da OS disponível em todas as empresas com acesso autorizado", ()
   }
   assert.match(order, /const canUseWhatsAppModal = !monitorView && Boolean\(detail\?\.organization_id\) && hasPermission\("whatsapp.inbox.view"\)/);
   assert.match(order, /if \(!canUseWhatsAppModal \|\| !detail\)/);
-  assert.match(order, /onWhatsApp=\{!monitorView && \(canUseWhatsAppModal \|\| canSendSac\)/);
+  assert.match(order, /onWhatsApp=\{!monitorView && \(canUseWhatsAppModal \|\| canOpenExternalWhatsApp\)/);
+  assert.match(order, /const canOpenExternalWhatsApp = hasPermission\("sac_digital.messages.send"\)/);
   assert.match(modal, /organizationId !== activeOrganizationId \|\| !canViewInbox/);
   assert.match(modal, /operateUnionWhatsAppInbox\([\s\S]*?"os_join"/);
   assert.match(join, /if\(!canRead \|\| !permissions\.has\("orders.details.view"\)\)/);

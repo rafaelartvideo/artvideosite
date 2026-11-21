@@ -45,10 +45,7 @@ import { OrderReturnSwitcher } from "./OrderReturnsPanel";
 import { OrderReturnDiagnosisGate } from "./OrderReturnDiagnosisGate";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
-import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
 import { preloadEmbeddedWhatsAppConversation, useWhatsAppConversationModal } from "@/features/whatsapp-channels/presentation/WhatsAppConversationModal";
-import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
-import { adminPath } from "@/features/admin-shell/admin-routes";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
@@ -220,12 +217,9 @@ export function OrderDetailsPage(props: Props) {
             : null
     : null;
 
-  const [sacMessageOpen, setSacMessageOpen] = useState(false);
   const { openWhatsAppConversation, closeWhatsAppConversation, whatsAppModal } = useWhatsAppConversationModal();
-  const [checkingSac, setCheckingSac] = useState(false);
-  const [sacEnabled, setSacEnabled] = useState(false);
-  const canSendSac = hasPermission("sac_digital.messages.send");
-  const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
+  // Mantém compatibilidade com a permissão legada do atalho externo.
+  const canOpenExternalWhatsApp = hasPermission("sac_digital.messages.send");
   const canUseWhatsAppModal = !monitorView && Boolean(detail?.organization_id) && hasPermission("whatsapp.inbox.view");
   // Code-only warm-up after the OS settles. No RPC, media download or conversation
   // prefetch; skip constrained connections and keep the initial OS load fast.
@@ -377,71 +371,15 @@ export function OrderDetailsPage(props: Props) {
 
   useEffect(() => {
     setSolutionRecordsOpen(false);
-    setSacMessageOpen(false);
     closeWhatsAppConversation();
     setDetailSection(initialSection);
   }, [detail?.id, initialSection, closeWhatsAppConversation]);
 
-  useEffect(() => {
-    let alive = true;
-    setSacEnabled(false);
-    if (!detail?.organization_id || monitorView || !canSendSac) return;
-    void getSacDigitalIntegrationStatus(detail.organization_id)
-      .then(result => { if (alive) setSacEnabled(result.enabled === true); })
-      .catch(() => { if (alive) setSacEnabled(false); });
-    return () => { alive = false; };
-  }, [detail?.organization_id, monitorView, canSendSac]);
-
-  const openSacConversation = (externalProtocol?: string) => {
-    const customerId = String(detail?.customer_id || "");
-    if (!canViewSac || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) return;
-    // Sempre enviar a OS: ela valida o cliente e permite abrir o protocolo
-    // exato mesmo quando pertence a outro Operador.
-    const params = new URLSearchParams({ customer: customerId });
-    if (detail?.id) params.set("order", detail.id);
-    if (externalProtocol && /^[A-Za-z0-9_-]{3,80}$/.test(externalProtocol)) {
-      params.set("protocol", externalProtocol);
-    }
-    const url = `${adminPath("tools", "sac-digital")}?${params.toString()}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  const openCustomerWhatsApp = async () => {
-    if (!detail || checkingSac) return;
+  const openCustomerWhatsApp = () => {
+    if (!detail) return;
     const customer = detail.customer as any;
     const external = phoneContactLinks(customer?.whatsapp || customer?.phone);
-    if (!external.whatsapp) return;
-
-    // Ja verificamos o conector ao abrir a OS: evitar chamada repetida.
-    if (!monitorView && canSendSac && sacEnabled) {
-      setSacMessageOpen(true);
-      return;
-    }
-
-    if (monitorView || !canSendSac || !detail.organization_id) {
-      window.open(external.whatsapp, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    setCheckingSac(true);
-    try {
-      const integration = await getSacDigitalIntegrationStatus(detail.organization_id);
-      if (integration.enabled) {
-        setSacEnabled(true);
-        setSacMessageOpen(true);
-        return;
-      }
-    } catch (error) {
-      // Não enviar pelo canal externo quando a consulta falhar: uma empresa
-      // pode ter SAC ativo, e o erro não significa integração desativada.
-      notifyAdmin(systemErrorMessage(error, "Não foi possível verificar a integração SAC Digital."), "error");
-      return;
-    } finally {
-      setCheckingSac(false);
-    }
-
-    // A integração foi consultada com sucesso e está explicitamente desativada.
-    window.open(external.whatsapp, "_blank", "noopener,noreferrer");
+    if (external.whatsapp) window.open(external.whatsapp, "_blank", "noopener,noreferrer");
   };
 
   const openOrderWhatsApp = () => {
@@ -468,7 +406,7 @@ export function OrderDetailsPage(props: Props) {
         phone: String((detail.customer as any)?.whatsapp || (detail.customer as any)?.phone || ""),
         customerName: String((detail.customer as any)?.full_name || (detail.customer as any)?.trade_name || (detail.customer as any)?.legal_name || ""),
         documentOptions,
-        prepareDocument: canPrintDocuments ? buildSacTemplateDocument : undefined,
+        prepareDocument: canPrintDocuments ? buildWhatsAppTemplateDocument : undefined,
       },
     });
   };
@@ -546,7 +484,7 @@ export function OrderDetailsPage(props: Props) {
     };
   };
 
-  const buildSacTemplateDocument = async (templateId: string) => {
+  const buildWhatsAppTemplateDocument = async (templateId: string) => {
     if(templateId==="warranty-certificate") {
       if(!generatesWarranty) throw new Error("Este tipo de atendimento não emite certificado de garantia.");
       if(!detail?.completed_at || !canPrintDocuments) throw new Error("O certificado só pode ser enviado para OS concluída, com permissão para imprimir.");
@@ -708,16 +646,6 @@ export function OrderDetailsPage(props: Props) {
 
 
   return <>
-    {detail && (
-      <OrderSacDigitalDialog
-        open={sacMessageOpen}
-        order={detail}
-        onClose={() => setSacMessageOpen(false)}
-        onOpenChat={canViewSac && detail.customer_id ? openSacConversation : undefined}
-        documentTemplates={canPrintDocuments ? printTemplates.templates : []}
-        onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
-      />
-    )}
     {whatsAppModal}
     {detail && !monitorView && terminalOutcome && <OrderTerminalExitDialog
       key={detail.id+"-"+terminalOutcome}
@@ -853,7 +781,7 @@ export function OrderDetailsPage(props: Props) {
                 detail={detail}
                 hasPermission={hasPermission}
                 onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => {setSignaturePreferredDocType(null);setSignatureRequestOpen(true);} : undefined}
-                onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac) ? openOrderWhatsApp : undefined}
+                onWhatsApp={!monitorView && (canUseWhatsAppModal || canOpenExternalWhatsApp) ? openOrderWhatsApp : undefined}
               />
               <OrderEquipmentDetailsSection detail={detail} hasPermission={hasPermission}
                 orderImages={orderImages} onViewImage={setViewImage} />
@@ -904,7 +832,7 @@ export function OrderDetailsPage(props: Props) {
             orderImages={orderImages}
             onViewImage={setViewImage}
             onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => {setSignaturePreferredDocType(null);setSignatureRequestOpen(true);} : undefined}
-            onWhatsApp={!monitorView && (canUseWhatsAppModal || canSendSac)
+            onWhatsApp={!monitorView && (canUseWhatsAppModal || canOpenExternalWhatsApp)
               ? openOrderWhatsApp
               : undefined}
           />

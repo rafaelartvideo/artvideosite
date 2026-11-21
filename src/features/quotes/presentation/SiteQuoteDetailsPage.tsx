@@ -11,7 +11,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { getQuote,findServiceOrderByQuote,listSiteQuoteWorkflowEvents,type SiteQuoteWorkflowEvent } from "../infrastructure/quotes.repository";
 import { parseQuoteRequestMessage,quoteRequestAddress,quoteAddressLabel,quoteCustomerReport } from "../domain/quote-request-details.mjs";
-import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
+import { CompanyWhatsAppAction } from "@/shared/ui/whatsapp/CompanyWhatsAppAction";
 import { SiteQuoteMediaGallery } from "./SiteQuoteMediaGallery";
 
 const labels:Record<string,string>={
@@ -47,7 +47,6 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
   const [error,setError]=useState("");
   const [toast,setToast]=useState<{msg:string;type:"success"|"error"}|null>(null);
   const [dialog,setDialog]=useState<"convert"|"cancel"|null>(null);
-  const [sacOpen,setSacOpen]=useState(false);
 
   const load=useCallback(async()=>{
     if(!organizationId||!canView){setLoading(false);return;}
@@ -134,10 +133,9 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
         </div>
 
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-          <Section title="Cliente" actions={mayMessage?<AdminButton variant="success" size="sm"
-            onClick={()=>setSacOpen(true)} title="Abrir conversa no WhatsApp">
+          <Section title="Cliente" actions={mayMessage?<CompanyWhatsAppAction phone={contactDigits} title="Abrir conversa no WhatsApp" className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">
             <WhatsAppBrandIcon size={16}/> WhatsApp
-          </AdminButton>:undefined}>
+          </CompanyWhatsAppAction>:undefined}>
             <div className="grid gap-3 sm:grid-cols-2">
               <DetailField label="Nome" value={quote.customer?.full_name||quote.customer?.trade_name}/>
               <DetailField label="Tipo" value={quote.customer?.customer_type==="PJ"?"Pessoa jurídica":"Pessoa física"}/>
@@ -235,7 +233,5 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
         {dialog==="convert"?"O orçamento técnico, aprovação e renegociação serão realizados dentro da OS.":"Confirme somente se não for necessário dar continuidade à solicitação."}
       </p>
     </AdminDialog>
-    {sacOpen&&quote&&<QuoteSacDigitalDialog quote={quote} organizationId={organizationId}
-      onClose={()=>setSacOpen(false)}/>}
   </AdminPage>;
 }

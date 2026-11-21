@@ -10,7 +10,7 @@ import {
   type ServiceOrderWithRelations,
 } from "./OrderFormControls";
 import { OrderImageDownloadMenu, OrderImageThumb, type OrderImage } from "./OrderImages";
-import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { CompanyWhatsAppAction } from "@/shared/ui/whatsapp/CompanyWhatsAppAction";
 import { SiteQuoteMediaGallery } from "@/features/quotes/presentation/SiteQuoteMediaGallery";
 import { isMobileDeviceType, OrderDeviceUnlockReadOnly } from "./OrderDeviceUnlockField";
 
@@ -131,9 +131,9 @@ export function OrderCustomerDetailsSection({
                   type="button"
                   onClick={onWhatsApp}
                   data-phone-number={`+${whatsappContact.phone}`}
-                  aria-label="Enviar WhatsApp pelo SAC Digital"
+                  aria-label="Abrir WhatsApp do cliente"
                   className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-                  title="Enviar mensagem pela SAC Digital"
+                  title="Abrir conversa no WhatsApp"
                 >
                   <WhatsAppBrandIcon size={14} /><span className={actionLabelClass}>WhatsApp</span>
                 </button>

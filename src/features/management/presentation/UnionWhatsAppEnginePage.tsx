@@ -105,7 +105,6 @@ export function UnionWhatsAppEnginePage({onBack}:{onBack:()=>void}) {
           <p><strong className="text-foreground">Atualização remota:</strong> bloqueada até existir executor privilegiado com autorização, backup íntegro e rollback testados.</p>
           <p><strong className="text-foreground">Instâncias das parceiras:</strong> não recebem acesso a comandos de Docker ou da VPS.</p>
           <p><strong className="text-foreground">Arquivo Docker:</strong> {bridge?.image||"Não identificado"}.</p>
-          <p><strong className="text-foreground">SAC Digital:</strong> integração independente, não participa dessa atualização.</p>
         </div>
       </AdminCardContent>
     </AdminCard>

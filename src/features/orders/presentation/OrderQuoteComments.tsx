@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { Section } from "@/shared/ui/admin/AdminLayout";
-import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import {
   addOrderQuoteComment, getOrderQuoteCommentAttachmentUrl, listOrderQuoteComments,
   setOrderQuoteCommentLike, validateOrderQuoteCommentFiles,
@@ -339,7 +339,7 @@ export function OrderQuoteComments({
           <div ref={emojiOverlayRef} data-quote-emoji-portal
             className={`fixed z-[10000] ${emojiDark ? "dark" : ""}`}
             style={{ left: emojiPosition.left, top: emojiPosition.top, width: emojiPosition.width, height: emojiPosition.height }}>
-            <SacEmojiPicker embedded recentEmojis={recentEmojis} onSelect={emoji => {
+            <EmojiPicker embedded recentEmojis={recentEmojis} onSelect={emoji => {
               setDraft(value => value + emoji);
               setRecentEmojis(previous => [emoji, ...previous.filter(item => item !== emoji)].slice(0, 20));
               setEmojiOpen(false);

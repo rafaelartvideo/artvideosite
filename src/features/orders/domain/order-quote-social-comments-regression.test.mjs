@@ -22,7 +22,7 @@ test("comentários sociais compilam sem alterar envio e aprovação do orçament
 test("comentários incluem respostas, curtidas, emojis, anexos e envio seguro", () => {
   const ui = read("src/features/orders/presentation/OrderQuoteComments.tsx");
   const repo = read("src/features/orders/infrastructure/order-quote.repository.ts");
-  assert.match(ui, /SacEmojiPicker/);
+  assert.match(ui, /EmojiPicker/);
   assert.match(ui, /setReplyTo\(/);
   assert.match(ui, /setOrderQuoteCommentLike/);
   assert.match(ui, /<Heart size=\{15\}/);
@@ -72,16 +72,16 @@ test("serviço avulso pode editar título e descrição no modal sem alterar pre
 
 test("compositor de comentários fica ao final e segue a barra do WhatsApp", async () => {
   const component = read("src/features/orders/presentation/OrderQuoteComments.tsx");
-  const emojiPicker = read("src/features/sac-digital/presentation/SacEmojiPicker.tsx");
+  const emojiPicker = read("src/shared/ui/whatsapp/EmojiPicker.tsx");
   assert.ok((await transformWithEsbuild(component, "OrderQuoteComments.tsx", { loader: "tsx" })).code);
-  assert.ok((await transformWithEsbuild(emojiPicker, "SacEmojiPicker.tsx", { loader: "tsx" })).code);
+  assert.ok((await transformWithEsbuild(emojiPicker, "EmojiPicker.tsx", { loader: "tsx" })).code);
   assert.ok(component.indexOf("{canComment && <div className=") > component.indexOf("{roots.length > 0"));
   assert.match(component, /<form onSubmit=\{event =>/);
   assert.match(component, /<Paperclip size=\{21\}/);
   assert.match(component, /<Smile size=\{21\}/);
   assert.doesNotMatch(component, /<Mic size=\{21\}/);
   assert.match(component, /<Send size=\{22\}/);
-  assert.match(component, /<SacEmojiPicker embedded recentEmojis=/);
+  assert.match(component, /<EmojiPicker embedded recentEmojis=/);
   assert.match(component, /createPortal\(/);
   assert.match(component, /data-quote-emoji-portal/);
   assert.match(component, /fixed z-\[10000\]/);

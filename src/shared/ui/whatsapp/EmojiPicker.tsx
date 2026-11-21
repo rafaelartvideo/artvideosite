@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
-/** Emoji picker local ao SAC: nenhuma dependência externa ou chamada de API. */
+/** Seletor local compartilhado de emojis: nenhuma dependência externa ou chamada de API. */
 const CATEGORIES = [
   {
     id: "faces", title: "Rostos e emoções", icon: "😀",
@@ -96,7 +96,7 @@ const CATEGORIES = [
 const normalizeSearch = (value: string) => value.toLocaleLowerCase("pt-BR")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export function SacEmojiPicker({
+export function EmojiPicker({
   recentEmojis,
   onSelect,
   embedded = false,

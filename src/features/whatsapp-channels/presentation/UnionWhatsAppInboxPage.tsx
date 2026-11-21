@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as I
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
-import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -3063,7 +3063,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       className={`flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12 xl:w-12 ${detachedWindow ? "md:h-12 md:w-12" : ""} ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
                       <Smile size={22}/>
                     </button>
-                    {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
+                    {emojiOpen && <EmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
                   </div>
                   <div className={`order-1 flex h-10 shrink-0 xl:order-none xl:h-12 ${detachedWindow ? "md:order-none md:h-12" : ""}`}>
                     <button type="button" aria-label="Mais opções da conversa" title="Mais opções da conversa"

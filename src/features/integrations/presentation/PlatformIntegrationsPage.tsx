@@ -1,5 +1,5 @@
 import { lazy, useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, Headphones, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -11,7 +11,6 @@ const UnionWhatsAppEnginePage = lazy(() => import("@/features/management/present
 const INTEGRATIONS = [
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
   { key: "whatsapp", title: "WhatsApp · WuzAPI", category: "Comunicação", description: "Motor de mensagens da Union; cada empresa utiliza uma sessão isolada.", icon: MessageCircle, ready: true },
-  { key: "sac_digital", title: "SAC Digital", category: "Atendimento", description: "Integração do SAC Digital com canais, webhooks e atendimento.", icon: Headphones, ready: true },
   { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Ramais e filas de telefonia interna com isolamento por empresa.", icon: Phone, ready: true },
   { key: "queue", title: "Union Senhas", category: "Atendimento", description: "Integração da fila eletrônica aos atendimentos e ordens de serviço.", icon: Ticket, ready: true },
   { key: "ai", title: "Union IA", category: "Inteligência artificial", description: "Recursos de IA disponibilizados pela plataforma conforme o plano.", icon: WandSparkles, ready: true },
@@ -22,7 +21,7 @@ type PartnerRow = { id: string; name: string; status: string };
 type ModuleRow = { organization_id: string; module_key: string; is_enabled: boolean };
 const PAGE_SIZE = 15;
 
-type IntegrationTool = "sac-digital" | "union-whatsapp" | "union-pbx" | "union-senhas" | "union-ia";
+type IntegrationTool = "union-whatsapp" | "union-pbx" | "union-senhas" | "union-ia";
 
 export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () => void; onOpenTool: (tool: IntegrationTool) => void }) {
   const { hasPermission, user } = useAuth();
@@ -43,11 +42,9 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
   const [error, setError] = useState("");
 
   const provider = INTEGRATIONS.find(item => item.key === selected)!;
-  const relatedTool: IntegrationTool | null = selected === "sac_digital" ? "sac-digital"
-    : selected === "pbx" ? "union-pbx" : selected === "queue" ? "union-senhas"
+  const relatedTool: IntegrationTool | null = selected === "pbx" ? "union-pbx" : selected === "queue" ? "union-senhas"
     : selected === "ai" ? "union-ia" : selected === "whatsapp" ? "union-whatsapp" : null;
-  const canOpenRelatedTool = selected === "sac_digital" ? hasPermission("sac_digital.view")
-    : selected === "pbx" ? hasPermission("pbx.view") : selected === "queue" ? hasPermission("queue.manage")
+  const canOpenRelatedTool = selected === "pbx" ? hasPermission("pbx.view") : selected === "queue" ? hasPermission("queue.manage")
     : selected === "ai" ? hasPermission("ai.view") : selected === "whatsapp" ? hasPermission("whatsapp.inbox.view") : false;
   useEffect(() => {
     let cancelled = false;

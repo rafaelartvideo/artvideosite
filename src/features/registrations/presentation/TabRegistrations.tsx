@@ -1,3 +1,4 @@
+import { registrationPageHasGlobalTotal } from "../domain/registration-page-total.mjs";
 import { initialPageSize, ADMIN_PAGE_SIZE_STORAGE_KEY, DEFAULT_ADMIN_PAGE_SIZE_OPTIONS } from "@/shared/domain/pagination-preferences";
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -213,16 +214,20 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   });
   const items = registrationsQuery.data?.items ?? [];
   const totalItems = registrationsQuery.data?.total ?? 0;
+  const pageHasGlobalTotal = registrationPageHasGlobalTotal({
+    nameSearch: debouncedNameSearch, documentSearch: debouncedDocumentSearch,
+    role: roleFilter, status: statusFilter, creatorFilter, createdDate, employeeOnly: platformUsersOnly,
+  });
   const registrationsCountQuery = useQuery({
     queryKey: [...listBaseKey, "all-registrations-count"],
     queryFn: () => listRegistrationsPage({
       organizationId: activeOrganizationId!, page: 1, pageSize: 1,
       role: "all", status: "all", employeeOnly: false,
     }),
-    enabled: Boolean(activeOrganizationId && canView && !platformUsersOnly && !routeResourceId),
+    enabled: Boolean(activeOrganizationId && canView && !platformUsersOnly && !routeResourceId && !pageHasGlobalTotal),
     staleTime: 30_000,
   });
-  const registrationsTotal = registrationsCountQuery.data?.total ?? totalItems;
+  const registrationsTotal = pageHasGlobalTotal ? totalItems : registrationsCountQuery.data?.total ?? totalItems;
   // Não substituir uma página já exibida por spinner durante o refresh.
   // O placeholder paginado permanece na tela até a próxima página chegar.
   const loading = Boolean(activeOrganizationId && canView && !routeResourceId)

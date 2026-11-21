@@ -53,14 +53,8 @@ test('bootstrap do CRM não inicia presença da SAC aposentada depois do login',
   assert.doesNotMatch(app, /AuthenticatedSacAutoPresence|bringMySacOperatorOnline|features\/sac-digital/);
 });
 
-test('repository bloqueia a SAC legada antes de chamar rede ou comprimir mídia', async () => {
-  const repo = await read('src/features/sac-digital/infrastructure/sac-digital.repository.ts');
-  assert.match(repo, /const SAC_DIGITAL_DISABLED = true/);
-  const invoker = repo.slice(repo.indexOf('async function invokeSacDigitalApi'), repo.indexOf('export function testSacDigitalConnection'));
-  assert.ok(invoker.indexOf('if (SAC_DIGITAL_DISABLED)') >= 0);
-  assert.ok(invoker.indexOf('if (SAC_DIGITAL_DISABLED)') < invoker.indexOf('supabase.functions.invoke('));
-  const sendMedia = repo.slice(repo.indexOf('export async function sendSacDigitalMediaMessage'), repo.indexOf('export function sendSacDigitalOrderMessage'));
-  assert.ok(sendMedia.indexOf('if (SAC_DIGITAL_DISABLED)') >= 0);
-  assert.ok(sendMedia.indexOf('if (SAC_DIGITAL_DISABLED)') < sendMedia.indexOf('prepareImageForUpload('));
-  assert.match(repo, /enabled: false,[\s\S]*?connection_status: "not_configured"/);
+test('cliente legado foi removido; somente endpoints inertes continuam por compatibilidade', async () => {
+  const { readdir } = await import('node:fs/promises');
+  assert.deepEqual(await readdir(new URL('src/features/sac-digital/domain/',root)),['sac-disabled-regression.test.mjs']);
+  await assert.rejects(read('src/features/sac-digital/infrastructure/sac-digital.repository.ts'),{code:'ENOENT'});
 });

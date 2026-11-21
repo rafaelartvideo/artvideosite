@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronUp, LoaderCircle, MessageCircle, Mic, Paperclip, Send, Smile, Sticker } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { formatWhatsAppPhone, WhatsAppContactAvatar } from "./WhatsAppInboxVisuals";
@@ -135,7 +135,7 @@ export function WhatsAppDraftConversation({
               className="flex h-10 w-11 items-center justify-center border-r border-border text-foreground hover:bg-muted xl:h-12">
               <Smile size={22} />
             </button>
-            {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => {
+            {emojiOpen && <EmojiPicker recentEmojis={[]} onSelect={emoji => {
               setMessage(current => (current + emoji).slice(0, 3900));
               onEditMessage();
               setEmojiOpen(false);

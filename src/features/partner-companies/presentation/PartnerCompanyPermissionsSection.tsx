@@ -87,12 +87,6 @@ const PARTNER_MODULE_GROUPS = [
     moduleKeys: ["queue"],
   },
   {
-    key: "sac_digital",
-    label: "SAC Digital",
-    description: "Atendimento integrado por WhatsApp e outros canais usando a conta SAC Digital da própria empresa.",
-    moduleKeys: ["sac_digital"],
-  },
-  {
     key: "pbx",
     label: "PABX Union",
     description: "Telefonia, ramais e recursos do PABX Union.",
@@ -198,7 +192,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       .filter(group => group.moduleKeys.length > 0);
 
     const dynamicGroups = (modulesQuery.data?.systemModules || [])
-      .filter((module: any) => !configuredKeys.has(String(module.key))
+      .filter((module: any) => String(module.key) !== "sac_digital" && !configuredKeys.has(String(module.key))
         && (isArtvideoTarget || !isArtvideoOnlyModule(String(module.key))))
       .map((module: any) => ({
         key: String(module.key),
