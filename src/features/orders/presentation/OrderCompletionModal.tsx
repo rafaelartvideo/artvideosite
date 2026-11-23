@@ -488,10 +488,12 @@ export function OrderCompletionModal({
         {completion.generatesWarranty && <Section title="Certificado de garantia" className="self-start">
           <div className="space-y-3">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão.
+              {detail.return_root_id && detail.return_classification === "covered"
+                ? "Retorno coberto: será emitido um certificado próprio do R1/R2, mantendo o prazo de garantia do certificado original, sem reiniciar sua contagem."
+                : "Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão."}
             </p>
             <FSelect label="Prazo da garantia" value={completion.warrantyOptionId}
-              disabled={saving || completion.warrantyLoading}
+              disabled={saving || completion.warrantyLoading || Boolean(detail.return_root_id && detail.return_classification === "covered")}
               options={completion.warrantyOptions.length ? completion.warrantyOptions.map(option => ({
                 value: option.id, label: option.label + " · " + option.warranty_days + " dias" + (option.is_default ? " (padrão)" : ""),
               })) : [{ value: "", label: completion.warrantyLoading ? "Carregando..." : "Garantia padrão · 90 dias" }]}
