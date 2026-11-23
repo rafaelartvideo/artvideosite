@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Link2, Package, ShoppingBag, Wrench } from "lucide-react";
+import { FileText, Link2, Package, Pencil, Pin, ShoppingBag, Wrench } from "lucide-react";
+import { useNavigate } from "react-router";
+import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog, AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminIconButton, AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { CustomerEquipmentsSection } from "@/features/customers/presentation/CustomerEquipmentsSection";
 import { listCustomerEquipments } from "@/features/customers/infrastructure/customers.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
+import { getMediaPreview, type MediaPreviewSource } from "@/shared/infrastructure/media.repository";
 
 type RequestTab = "equipment" | "quotes" | "orders" | "store";
 type ShopOrder = { id:string; order_number:number; created_at:string; status:string; product_name:string; buyer:Record<string,string>|null };
@@ -32,11 +35,106 @@ function readableDate(date:string) {
   return new Date(date).toLocaleDateString("pt-BR");
 }
 
+
+type EquipmentPhotoLookup = {
+  photoUrls: Record<string,string>;
+  linkedOrderIds: Record<string,string>;
+};
+
+// Foto da etiqueta = mídia da OS com sort_order entre 500 e 999.
+// Consultas em lote por cliente/empresa, sem N consultas de mídia por card.
+async function loadEquipmentPhotoLookup(organizationId:string,customerId:string,equipmentIds:string[],queryClient:QueryClient):Promise<EquipmentPhotoLookup>{
+  const empty:EquipmentPhotoLookup={photoUrls:{},linkedOrderIds:{}};
+  if(!equipmentIds.length)return empty;
+  const {data:orders,error:ordersError}=await supabase.from("service_orders")
+    .select("id,customer_equipment_id")
+    .eq("organization_id",organizationId).eq("customer_id",customerId)
+    .in("customer_equipment_id",equipmentIds).order("created_at",{ascending:false}).limit(100);
+  if(ordersError)throw ordersError;
+  const byEquipment=new Map<string,string>();
+  const byOrder=new Map<string,string>();
+  for(const order of orders||[]){
+    if(!order.customer_equipment_id)continue;
+    byOrder.set(order.id,order.customer_equipment_id);
+    if(!byEquipment.has(order.customer_equipment_id))byEquipment.set(order.customer_equipment_id,order.id);
+  }
+  const linkedOrderIds=Object.fromEntries(byEquipment);
+  if(!byOrder.size)return {...empty,linkedOrderIds};
+  const {data:images,error:imagesError}=await supabase.from("service_order_media")
+    .select("service_order_id,sort_order,media:media(id,bucket_id,storage_path)")
+    .eq("organization_id",organizationId).in("service_order_id",Array.from(byOrder.keys()))
+    .gte("sort_order",500).lt("sort_order",1000).order("sort_order").limit(100);
+  if(imagesError)throw imagesError;
+  const candidates=new Map<string,MediaPreviewSource>();
+  for(const entry of images||[]){
+    const equipmentId=byOrder.get(entry.service_order_id);
+    const media=entry.media as unknown as MediaPreviewSource|null;
+    if(equipmentId && !candidates.has(equipmentId) && media?.id && media.storage_path && media.bucket_id){
+      candidates.set(equipmentId,media);
+    }
+  }
+  const previewResults=await Promise.allSettled(Array.from(candidates.entries()).map(async ([id,media])=>
+    [id,(await getMediaPreview(queryClient,media.id,media)).url] as const));
+  const photoUrls:Record<string,string>={};
+  for(const result of previewResults)if(result.status==="fulfilled")photoUrls[result.value[0]]=result.value[1];
+  return {photoUrls,linkedOrderIds};
+}
+
+type PinGroup = Record<RequestTab,string[]>;
+function readPinnedRequests(key:string):PinGroup{
+  const empty:PinGroup={equipment:[],quotes:[],orders:[],store:[]};
+  try{
+    const saved=JSON.parse(window.localStorage.getItem(key)||"{}") as Partial<PinGroup>;
+    for(const type of Object.keys(empty) as RequestTab[]){
+      if(Array.isArray(saved[type]))empty[type]=saved[type]!.filter((id):id is string=>typeof id==="string");
+    }
+  }catch{/* O navegador pode bloquear o armazenamento local. */}
+  return empty;
+}
+
+function RequestCard({kind,title,subtitle,status,pinned,onTogglePin,onOpen,openLabel,children}:{
+  kind:string;title:string;subtitle:string;status?:string|null;pinned:boolean;
+  onTogglePin:()=>void;onOpen?:()=>void;openLabel?:string;children?:React.ReactNode;
+}){
+  return <article aria-label={title} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40 focus-within:border-primary/50">
+    <header className="flex min-h-11 items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kind}</span>
+      <div className="flex items-center gap-1">
+        <AdminIconButton variant={pinned?"tertiary":"ghost"} ariaLabel={(pinned?"Desafixar ":"Fixar ")+title}
+          title={pinned?"Desafixar item":"Fixar no início da lista"} aria-pressed={pinned}
+          onClick={onTogglePin}><Pin size={15} fill={pinned?"currentColor":"none"}/></AdminIconButton>
+        {onOpen&&<AdminIconButton ariaLabel={(openLabel||"Abrir")+" "+title} title={openLabel||"Abrir"}
+          onClick={onOpen}><Pencil size={15}/></AdminIconButton>}
+      </div>
+    </header>
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 p-3.5 sm:p-4">
+      <div className="min-w-0">
+        <p className="break-words text-sm font-black text-foreground">{title}</p>
+        <p className="mt-1 break-words text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+      {status&&<div className="border-t border-border/70 pt-3"><span className="inline-flex max-w-full break-words rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-bold text-foreground">{status}</span></div>}
+      {children}
+    </div>
+  </article>;
+}
+
 export function RegistrationRequestsSection({entityId,customerId,organizationId,onOpenOrder}:{
   entityId:string;customerId:string|null;organizationId:string;
   onOpenOrder?:(id:string,customerId?:string)=>void;
 }) {
   const {hasPermission,activeOrganization}=useAuth();
+  const navigate=useNavigate();
+  const pinStorageKey="unionworld:registration-request-pins:v1:"+organizationId+":"+entityId;
+  const [pinned,setPinned]=useState<PinGroup>(()=>readPinnedRequests(pinStorageKey));
+  const isPinned=(type:RequestTab,id:string)=>pinned[type].includes(id);
+  const togglePin=(type:RequestTab,id:string)=>setPinned(current=>{
+    const next:PinGroup={...current,[type]:current[type].includes(id)
+      ? current[type].filter(value=>value!==id) : [...current[type],id]};
+    try{window.localStorage.setItem(pinStorageKey,JSON.stringify(next));}catch{/* Preferência apenas visual. */}
+    return next;
+  });
+  const sortPinned=<T extends {id:string}>(type:RequestTab,items:T[])=>[...items].sort((a,b)=>
+    Number(isPinned(type,b.id))-Number(isPinned(type,a.id)));
   const isArtvideo=activeOrganization?.is_artvideo_tenant===true && activeOrganization?.organization_id===organizationId;
   const queryClient=useQueryClient();
   const canViewOrders=hasPermission("orders.view")||hasPermission("orders.details.view");
@@ -56,6 +154,13 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     queryKey:[...key,"equipment"],
     queryFn:()=>listCustomerEquipments(organizationId,customerId!),
     enabled:Boolean(customerId),staleTime:60000,
+  });
+  const equipmentPhotoQuery=useQuery({
+    queryKey:[...key,"equipment-label-photos"],
+    queryFn:()=>loadEquipmentPhotoLookup(organizationId,customerId!,
+      (equipmentQuery.data||[]).map(equipment=>equipment.id),queryClient),
+    enabled:Boolean(customerId&&canOpenOrders&&equipmentQuery.data?.length),
+    staleTime:60000,retry:false,
   });
   const quotesQuery=useQuery({
     queryKey:[...key,"quotes"],
@@ -130,13 +235,13 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
 
   return <>
     <Section title="Solicitações">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+      <div className="flex flex-wrap items-center justify-center gap-2 border-b border-border pb-3">
         {tabs.map(item=>{
           const Icon=item.icon;
           return <button key={item.id} type="button" aria-pressed={selectedTab===item.id}
             onClick={()=>setTab(item.id)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${selectedTab===item.id?"border-primary bg-primary/10 text-primary":"border-border bg-card text-muted-foreground hover:bg-muted"}`}>
-            <Icon size={15}/>{item.label}<span className="rounded-md bg-muted px-1.5 py-0.5 tabular-nums">{item.count}</span>
+            className={"inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 "+(selectedTab===item.id?"border-primary bg-primary/10 text-primary":"border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-muted")}>
+            <Icon size={15}/>{item.label}<span className="rounded-md border border-border/60 bg-muted px-1.5 py-0.5 tabular-nums">{item.count}</span>
           </button>;
         })}
       </div>
@@ -144,27 +249,47 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
         {currentQuery.isLoading ? <LoadingState text="Carregando solicitações..." /> :
           currentQuery.error ? <div className="space-y-2 py-5 text-center"><p className="text-sm text-destructive">Não foi possível carregar esta seção: {systemErrorMessage(currentQuery.error)}</p><AdminButton size="sm" variant="secondary" onClick={()=>void currentQuery.refetch()}>Tentar novamente</AdminButton></div> :
           selectedTab==="equipment"
-            ? <CustomerEquipmentsSection embedded equipments={equipmentQuery.data||[]}/>
+            ? <CustomerEquipmentsSection embedded equipments={sortPinned("equipment",equipmentQuery.data||[])}
+                photoUrls={equipmentPhotoQuery.data?.photoUrls}
+                linkedOrderIds={equipmentPhotoQuery.data?.linkedOrderIds}
+                pinnedIds={new Set(pinned.equipment)}
+                onTogglePin={id=>togglePin("equipment",id)}
+                onOpenLinkedOrder={canOpenOrders&&onOpenOrder
+                  ? orderId=>onOpenOrder(orderId,entityId) : undefined}/>
           : selectedTab==="quotes" ? (quotesQuery.data?.length
-            ? <div className="space-y-2">{quotesQuery.data.map(q=><div key={q.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
-                <div className="min-w-0"><div className="text-sm font-bold text-foreground">{q.protocol||"Orçamento"}</div><p className="truncate text-xs text-muted-foreground">{q.service?.title||"Serviço"} · {readableDate(q.created_at)}</p></div>
-                <span className="text-xs font-semibold text-muted-foreground">{q.request_status?.name||"—"}</span>
-              </div>)}</div> : <AdminSectionEmpty>Nenhum orçamento vinculado a este cliente.</AdminSectionEmpty>)
+            ? <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+                {sortPinned("quotes",quotesQuery.data).map(q=><RequestCard key={q.id}
+                  kind="Orçamento" title={q.protocol||"Orçamento"}
+                  subtitle={(q.service?.title||"Serviço")+" · "+readableDate(q.created_at)}
+                  status={q.request_status?.name||"—"} pinned={isPinned("quotes",q.id)}
+                  onTogglePin={()=>togglePin("quotes",q.id)}
+                  onOpen={()=>navigate(adminPath("siteRequests","orcamentos",q.id))}
+                  openLabel="Abrir orçamento"/>)}
+              </div> : <AdminSectionEmpty>Nenhum orçamento vinculado a este cliente.</AdminSectionEmpty>)
           : selectedTab==="orders" ? (ordersQuery.data?.length
-            ? <div className="space-y-2">{ordersQuery.data.map(order=><button key={order.id} type="button" disabled={!canOpenOrders}
-                onClick={()=>onOpenOrder?.(order.id,entityId)}
-                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-left enabled:hover:bg-muted">
-                <div className="min-w-0"><div className="text-sm font-bold text-foreground">OS {order.os_number}</div><p className="truncate text-xs text-muted-foreground">{order.service?.title||"Ordem de serviço"} · {readableDate(order.created_at)}</p></div>
-                <span className="text-xs font-semibold text-muted-foreground">{order.order_status?.name||"—"}</span>
-              </button>)}</div> : <AdminSectionEmpty>Nenhuma ordem de serviço vinculada a este cliente.</AdminSectionEmpty>)
+            ? <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+                {sortPinned("orders",ordersQuery.data).map(order=><RequestCard key={order.id}
+                  kind="Ordem de serviço" title={"OS "+order.os_number}
+                  subtitle={(order.service?.title||"Ordem de serviço")+" · "+readableDate(order.created_at)}
+                  status={order.order_status?.name||"—"} pinned={isPinned("orders",order.id)}
+                  onTogglePin={()=>togglePin("orders",order.id)}
+                  onOpen={canOpenOrders&&onOpenOrder ? ()=>onOpenOrder(order.id,entityId) : undefined}
+                  openLabel="Abrir OS"/>)}
+              </div> : <AdminSectionEmpty>Nenhuma ordem de serviço vinculada a este cliente.</AdminSectionEmpty>)
           : <div className="space-y-3">
               {canLinkShop&&<div className="flex justify-end"><AdminButton size="sm" variant="secondary" onClick={()=>{setOrderNumber("");setCandidate(null);setLookupError("");setLinkOpen(true);}}><Link2 size={14}/> Vincular pedido</AdminButton></div>}
-              {shopQuery.data?.length ? <div className="space-y-2">{shopQuery.data.map(order=><div key={order.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
-                <div className="min-w-0"><p className="text-sm font-bold">PED-{order.order_number}</p><p className="truncate text-xs text-muted-foreground">{order.product_name||"Pedido da loja"} · {readableDate(order.created_at)}</p></div>
-                <div className="flex items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{order.status}</span>
-                <a href={adminPath("siteStoreOrders")} className="rounded-md px-2 py-1 text-xs font-semibold text-primary hover:underline">Ver pedidos</a>
-                {canLinkShop&&<button className="text-xs text-destructive hover:underline" type="button" onClick={()=>void unlink(order)}>Desvincular</button>}</div>
-              </div>)}</div> : <AdminSectionEmpty>Sem pedidos da loja vinculados. Os pedidos não são associados automaticamente por nome ou e-mail.</AdminSectionEmpty>}
+              {shopQuery.data?.length ? <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+                {sortPinned("store",shopQuery.data).map(order=><RequestCard key={order.id}
+                  kind="Pedido da loja" title={"PED-"+order.order_number}
+                  subtitle={(order.product_name||"Pedido da loja")+" · "+readableDate(order.created_at)}
+                  status={order.status} pinned={isPinned("store",order.id)}
+                  onTogglePin={()=>togglePin("store",order.id)}
+                  onOpen={()=>navigate(adminPath("siteStoreOrders"))}
+                  openLabel="Ver pedidos">
+                  {canLinkShop&&<button className="self-start text-xs font-semibold text-destructive hover:underline"
+                    type="button" onClick={()=>void unlink(order)}>Desvincular pedido</button>}
+                </RequestCard>)}
+              </div> : <AdminSectionEmpty>Sem pedidos da loja vinculados. Os pedidos não são associados automaticamente por nome ou e-mail.</AdminSectionEmpty>}
             </div>}
       </div>
     </Section>
