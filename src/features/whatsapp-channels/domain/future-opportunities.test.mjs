@@ -52,7 +52,7 @@ test("oportunidades respeitam as permissões de gestores, fila, responsáveis e 
   assert.match(scopedMigration,/private\.union_whatsapp_read_organizations\('view_assigned'\)/);
   assert.match(scopedMigration,/private\.union_whatsapp_read_organizations\('view_queues'\)/);
   assert.match(scopedMigration,/union_whatsapp_conversation_participants/);
-  assert.match(scopedMigration,/private\.union_whatsapp_allowed\(p_org, 'send'\)/);
+  assert.match(scopedMigration,/private\.union_whatsapp_allowed\(p_org,\s*'send'\)/);
   assert.match(scopedMigration,/union_wa_future_history_select/);
 });
 test("Nova OS vinculada atualiza oportunidade e dashboard, sem perder a OS se vínculo falhar",()=>{
