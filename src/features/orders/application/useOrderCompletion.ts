@@ -765,7 +765,16 @@ export function useOrderCompletion({
           );
           setIssuedCertificate(certificate);
         } catch (certificateFailure) {
-          setCertificateError(formatError(certificateFailure));
+          // RPC de emissão é idempotente (um certificado por OS): uma única
+          // tentativa extra recupera falhas transitórias sem emitir duplicatas.
+          try {
+            const recovered = await issueWarrantyCertificate(
+              String(detail.organization_id), String(detail.id), warrantyOptionId || null,
+            );
+            setIssuedCertificate(recovered);
+          } catch (retryFailure) {
+            setCertificateError(formatError(retryFailure || certificateFailure));
+          }
         } finally { setCertificateBusy(false); }
       }
       void reloadOrders().catch(error => {
