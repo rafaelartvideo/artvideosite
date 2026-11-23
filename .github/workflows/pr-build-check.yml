@@ -33,8 +33,10 @@ jobs:
       - name: Quality, finance, regressions and SAC tests
         run: npm run test:ci
 
+      # Production PBX state requires root-owned 0600 files. Run this isolated
+      # stdlib-only test suite as root so CI exercises the same ownership contract.
       - name: PBX provisioning agent tests
-        run: python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'
+        run: sudo python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'
 
       - name: Build CRM and public site
         run: npm run build
