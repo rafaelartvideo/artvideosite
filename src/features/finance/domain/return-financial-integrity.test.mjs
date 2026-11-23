@@ -16,7 +16,7 @@ test("Recebimentos informados na OS são persistidos como declaração, nunca ba
   assert.match(financeSql, /'payment_plan',v_payment_plan/);
   assert.match(financeSql, /'payment_preferences',v_payment_preferences/);
   assert.match(financeSql, /Uma OS sem cobrança não pode informar recebimento/);
-  assert.match(financeSql, /não representa/i);
+  assert.match(financeSql, /não cria liquidação/i);
   const hook = read("src/features/orders/application/useOrderCompletion.ts");
   assert.match(hook, /reported_receipts, payment_plan, payment_preferences/);
   assert.match(hook, /payments: \[\] as \[\]/);
