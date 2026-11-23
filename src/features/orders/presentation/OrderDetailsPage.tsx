@@ -39,6 +39,7 @@ import { OrderLifecycleTag } from "./OrderLifecycleTag";
 import { OrderSolutionRecordsPage } from "./OrderSolutionRecordsPage";
 import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
+import { OrderReturnFinancialSummary } from "./OrderReturnFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { OrderReturnSwitcher } from "./OrderReturnsPanel";
@@ -837,6 +838,7 @@ export function OrderDetailsPage(props: Props) {
               : undefined}
           />
           {!isDisposal && <OrderFinancialSummary detail={detail} formatCurrency={formatCurrency} />}
+          {!isDisposal && !monitorView && <OrderReturnFinancialSummary order={detail} hasPermission={hasPermission} />}
           {!isDisposal && <OrderSolutionSummary detail={detail} usedItems={detailUsedItems} solutionImages={detailSolutionImages} usedItemsTotal={detailUsedItemsTotal} solutionCount={solutionCount} activeAttempt={activeSolutionAttempt} canUndo={!monitorView && hasPermission("orders.solve") && !detail.completed_at} formatSolvedAt={formatSolvedAt} formatCurrency={formatCurrency} onViewImage={setViewImage} onOpenRecords={openSolutionRecords} onUndo={openUndoSolution} />}
         </>}
         </>}
