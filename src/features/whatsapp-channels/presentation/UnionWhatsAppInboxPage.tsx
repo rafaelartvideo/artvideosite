@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -14,6 +14,7 @@ import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
+import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
@@ -571,6 +572,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [groupConversationsOpen,setGroupConversationsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
+  const [opportunitiesOpen,setOpportunitiesOpen]=useState(false);
+  const [opportunityCreateOpen,setOpportunityCreateOpen]=useState(false);
+  useEffect(()=>setOpportunityCreateOpen(false),[selectedId,activeOrganizationId]);
   const closeContactDetails=useCallback(()=>setContactDetailsOpen(false),[]);
   useEffect(()=>setContactDetailsOpen(false),[selectedId]);
   const [newPhone, setNewPhone] = useState("");
@@ -2529,6 +2533,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
+        <AdminButton variant={opportunitiesOpen?"primary":"secondary"}
+          className="max-md:!px-2.5 max-md:!py-2" onClick={()=>{setOpportunitiesOpen(value=>!value);setOpportunityCreateOpen(false);}}>
+          <BookmarkPlus size={16}/> <span className="hidden sm:inline">{opportunitiesOpen?"Conversas":"Oportunidades futuras"}</span>
+          <span className="sm:hidden">{opportunitiesOpen?"Conversas":"Oportunidades"}</span>
+        </AdminButton>
         {canUseAttendancePreferences && attendancePreferences && <Popover>
           <PopoverTrigger asChild>
             <button type="button" aria-label="Preferências de visualização dos atendimentos"
@@ -2592,7 +2601,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <AdminButton variant="secondary" className="max-md:!px-3 max-md:!py-2" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>}
-    {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
+    {opportunitiesOpen && !embedded && activeOrganizationId
+      ? <FutureOpportunitiesWorkspace organizationId={activeOrganizationId} canEdit={canSend}
+          onClose={()=>setOpportunitiesOpen(false)} onOpenConversation={id=>{
+            setOpportunitiesOpen(false);setSelectedFallback(null);setSelectedId(id);
+          }}/>
+      : bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
      channelReady === false ? <div className={embedded
       ? "flex min-h-0 flex-1 items-center justify-center bg-card px-6 py-8 text-center"
       : "flex min-h-[440px] items-center justify-center bg-card px-6 py-12 text-center"}>
@@ -2854,6 +2868,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {embedded && onChangeRecipient && <AdminButton variant="secondary" size="sm"
                   title="Escolher outro número desta OS" aria-label="Trocar número"
                   onClick={onChangeRecipient} className="!h-8 !px-2.5">Trocar número</AdminButton>}
+                {(!embedded || embeddedFullControls) && canSend && !protocolFilter &&
+                  <AdminButton variant="secondary" size="sm" title="Registrar oportunidade futura"
+                    onClick={()=>setOpportunityCreateOpen(true)} className="!h-8 !gap-1.5 !px-2">
+                    <BookmarkPlus size={15}/><span className="hidden xl:inline">Oportunidade</span>
+                  </AdminButton>}
                 {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <AdminButton
                   variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
@@ -2899,6 +2918,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             {contactDetailsOpen && <UnionWhatsAppContactDetails key={`contact-details:${selected.id}`}
               conversation={selected} organizationId={activeOrganizationId||selected.organization_id}
               gender={linkedCustomers[selected.id]?.customer?.gender}
+              canRecordOpportunity={canSend}
               onClose={closeContactDetails}
               onEdit={canAction("manage_contacts")?()=>{
                 setContactDetailsOpen(false);setEditContactId(selected.id);
@@ -3257,6 +3277,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </section>
       </div>}
     </div>}
+    {opportunityCreateOpen && selected && activeOrganizationId &&
+      <FutureOpportunityEditor key={"new:"+selected.id}
+        identity={{organization_id:activeOrganizationId,channel_id:selected.channel_id,
+          account_phone:selected.account_phone,chat_jid:selected.chat_jid,
+          conversation_id:selected.id,contact_name:selected.contact_name,
+          contact_phone:selected.contact_phone}}
+        onClose={()=>setOpportunityCreateOpen(false)}/>}
     {contactsOpen && !editContactId && activeOrganizationId && <UnionWhatsAppContactsDialog
       key={activeChannelPhone}
       organizationId={activeOrganizationId} accountPhone={activeChannelPhone!} channelId={activeChannelId!}

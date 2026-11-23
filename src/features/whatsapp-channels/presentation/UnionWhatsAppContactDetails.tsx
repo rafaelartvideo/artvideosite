@@ -9,6 +9,7 @@ import {
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
+import { FutureOpportunityContactSection } from "./FutureOpportunities";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;nextCursor:UnionWhatsAppMessageCursor|null};
 const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",nextCursor:null});
@@ -108,13 +109,14 @@ function MediaTile({item,organization,conversation,onOpen}:{
   </button>;
 }
 
-export function UnionWhatsAppContactDetails({conversation,organizationId,gender,onClose,onEdit,inline=false}:{
+export function UnionWhatsAppContactDetails({conversation,organizationId,gender,onClose,onEdit,inline=false,canRecordOpportunity=true}:{
   conversation:UnionWhatsAppConversation;
   organizationId:string;
   gender?:string|null;
   onClose:()=>void;
   onEdit?:()=>void;
   inline?:boolean;
+  canRecordOpportunity?:boolean;
 }){
   const [tab,setTab]=useState<UnionWhatsAppSharedTab>("media");
   const [historyOpen,setHistoryOpen]=useState(false);
@@ -213,6 +215,12 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <p className="text-sm text-muted-foreground">{formatWhatsAppPhone(conversation.contact_phone)}</p>
           <p className="text-xs text-muted-foreground">WhatsApp · Histórico desta conversa</p>
         </div>}
+        <FutureOpportunityContactSection identity={{
+          organization_id:organizationId,channel_id:conversation.channel_id,
+          account_phone:conversation.account_phone,chat_jid:conversation.chat_jid,
+          conversation_id:conversation.id,contact_name:conversation.contact_name,
+          contact_phone:conversation.contact_phone,
+        }} canEdit={canRecordOpportunity}/>
         {historyOpen&&<div className="border-b border-border px-4 py-4">
           <h3 className="mb-3 text-sm font-bold">Histórico geral do contato</h3>
           <UnionWhatsAppContactHistory organizationId={organizationId} conversation={conversation}/>

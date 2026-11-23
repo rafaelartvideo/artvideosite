@@ -6,6 +6,7 @@ import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
+import { FutureOpportunityContactSection } from "./FutureOpportunities";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses, type CrmContactAddress } from "../domain/crm-contact-format";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -707,6 +708,7 @@ export function UnionWhatsAppContactsDialog({
               </div>:contactConversation?.chat_jid===selected.chat_jid?
                 <UnionWhatsAppContactDetails key={contactConversation.id} inline
                   conversation={contactConversation} organizationId={organizationId}
+                  canRecordOpportunity={hasPermission("whatsapp.inbox.send")}
                   onClose={()=>undefined}/>:
                 <div className="overflow-hidden rounded-xl border border-border text-xs">
                   <h3 className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-bold">Mídias, documentos e links</h3>
@@ -715,6 +717,12 @@ export function UnionWhatsAppContactsDialog({
                   </p>
                 </div>}
             </section>}
+            {!creating && selected && (!contactConversation || contactConversation.chat_jid!==selected.chat_jid) &&
+              <FutureOpportunityContactSection key={selected.id} identity={{
+                organization_id:organizationId,channel_id:channelId,account_phone:accountPhone,
+                chat_jid:selected.chat_jid,contact_name:labelFor(selected),contact_phone:selected.contact_phone,
+                conversation_id:null,
+              }} canEdit={hasPermission("whatsapp.inbox.send")}/>}
             {!creating && selected && !selected.contact_phone &&
               <p className="text-xs text-muted-foreground">Se este identificador privado ainda não tiver conversa, será preciso receber uma mensagem antes de iniciar pelo número.</p>}
           </div>}

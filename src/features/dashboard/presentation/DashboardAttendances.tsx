@@ -3,11 +3,12 @@ import {useQuery} from "@tanstack/react-query";
 import {Activity,AlertCircle,ArrowLeftRight,CheckCircle2,Clock3,MessageSquare,RefreshCw,Users} from "lucide-react";
 import {CartesianGrid,Legend,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 import {AdminButton,AdminCard} from "@/shared/ui/admin/AdminLayout";
+import {futureOpportunitiesSummary} from "@/features/whatsapp-channels/infrastructure/future-opportunities.repository";
 import {systemErrorMessage} from "@/shared/domain/error-message";
 import {loadDashboardAttendances,loadDashboardAttendanceFollowups,type AttendanceDashboardData,type AttendanceAlert}
   from "../infrastructure/dashboard-attendances.repository";
 
-type View="overview"|"operators"|"analytics";
+type View="overview"|"operators"|"analytics"|"opportunities";
 type InboxFilter="waiting"|"in_att"|"unanswered"|"unread"|"forwarded"|"finished";
 type Props={
   organizationId:string;periodDays:number;
@@ -130,6 +131,13 @@ function Queue({rows,limit,onOpenInbox}:{
 export function DashboardAttendances({organizationId,periodDays,visible,onRestore,onOpenInbox,onConfigureHours}:Props){
   const [view,setView]=useState<View>("overview");
   const [clockMode,setClockMode]=useState<"useful"|"elapsed">("useful");
+  // Contagens indexadas sob demanda, sem varrer mensagens ou adicionar consultas ao Dashboard geral.
+  const futureSummary=useQuery({
+    queryKey:["dashboard","future-opportunities",organizationId],
+    queryFn:()=>futureOpportunitiesSummary(organizationId),
+    enabled:Boolean(organizationId&&view==="opportunities"),
+    staleTime:300_000,refetchOnWindowFocus:false,retry:false,
+  });
   // Só é montado quando o usuário abre esta subseção. Nenhuma consulta no Dashboard geral.
   const followups=useQuery({
     queryKey:["dashboard","attendance-followups",organizationId,periodDays],
@@ -172,7 +180,7 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div role="tablist" aria-label="Painéis de atendimentos" className="inline-flex gap-1 rounded-lg border border-border bg-muted/30 p-1">
-        {([["overview","Visão geral"],["operators","Operadores"],["analytics","Análises"]] as const).map(([id,label])=>
+        {([["overview","Visão geral"],["operators","Operadores"],["analytics","Análises"],["opportunities","Oportunidades"]] as const).map(([id,label])=>
           <button key={id} type="button" role="tab" aria-selected={view===id} onClick={()=>setView(id)}
             className={"rounded-md px-3 py-2 text-xs font-bold "+(view===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted")}>
             {label}
@@ -250,6 +258,27 @@ export function DashboardAttendances({organizationId,periodDays,visible,onRestor
         </Panel>}
       </div>
     </>}
+    {view==="opportunities"&&<Panel title="Oportunidades futuras dos atendimentos"
+      subtitle="Interesses por situação; acesse Atendimentos → Oportunidades futuras para consultar e atualizar os contatos.">
+      {futureSummary.isLoading?<p className="py-8 text-sm text-muted-foreground">Calculando oportunidades...</p>
+        :futureSummary.isError?<p role="alert" className="py-6 text-xs text-destructive">
+          {systemErrorMessage(futureSummary.error,"Não foi possível consultar oportunidades.")}
+        </p>:<div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {([
+            ["waiting","Aguardando","text-amber-700 dark:text-amber-300"],
+            ["available","Serviço disponível","text-emerald-700 dark:text-emerald-300"],
+            ["contacted","Contato realizado","text-blue-700 dark:text-blue-300"],
+            ["converted","Convertidas em OS","text-primary"],
+            ["lost","Sem conversão","text-muted-foreground"],
+          ] as const).map(([key,label,tone])=><div key={key} className="rounded-xl border border-border p-4">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className={"mt-2 text-2xl font-black tabular-nums "+tone}>{futureSummary.data?.[key]||0}</p>
+          </div>)}
+        </div>}
+      <p className="mt-4 text-xs text-muted-foreground">
+        Serviços com nome idêntico ao catálogo podem ser sinalizados como disponíveis quando ativados. Nenhuma mensagem é enviada automaticamente.
+      </p>
+    </Panel>}
     {view==="operators"&&<>
       {visible("operators")&&<Panel title="Desempenho dos operadores" subtitle="Protocolos atribuídos no período; sem contagem artificial de mensagens">
         {data.operators.length===0?<p className="py-14 text-center text-xs text-muted-foreground">Nenhum operador no período.</p>
