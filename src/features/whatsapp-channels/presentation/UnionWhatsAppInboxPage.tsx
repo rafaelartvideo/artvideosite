@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -1366,6 +1366,46 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
   const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
+  // Somente Gestor e Gestor Operador veem quem assumiu a conversa.
+  // Consultamos no máximo um perfil por atendente distinto, nunca por mensagem
+  // nem por cada uma das 50 conversas da página.
+  const showAssignedOperator=canView && (staffRole==="manager" || staffRole==="both");
+  const assignedOperatorId=showAssignedOperator && selected?.status==="in_att" ? selected.assigned_to : null;
+  const assignedOperatorScope=assignedOperatorId && activeOrganizationId
+    ? activeOrganizationId+":"+assignedOperatorId : "";
+  const assignedOperatorNamesRef=useRef(new Map<string,string>());
+  const [assignedOperatorLookup,setAssignedOperatorLookup]=useState<{
+    scope:string;name:string|null;loading:boolean;
+  }>({scope:"",name:null,loading:false});
+  useEffect(()=>{
+    if(!assignedOperatorScope || !assignedOperatorId){
+      setAssignedOperatorLookup(current=>current.scope==="" ? current
+        :{scope:"",name:null,loading:false});
+      return;
+    }
+    const available=operatorChoices.find(person=>person.id===assignedOperatorId)?.name?.trim();
+    const cached=assignedOperatorNamesRef.current.get(assignedOperatorScope)||available;
+    if(cached){
+      assignedOperatorNamesRef.current.set(assignedOperatorScope,cached);
+      setAssignedOperatorLookup({scope:assignedOperatorScope,name:cached,loading:false});
+      return;
+    }
+    let cancelled=false;
+    setAssignedOperatorLookup({scope:assignedOperatorScope,name:null,loading:true});
+    void supabase.from("profiles").select("full_name,username")
+      .eq("id",assignedOperatorId).maybeSingle()
+      .then(({data,error})=>{
+        if(cancelled)return;
+        const name=error?"":String(data?.full_name||data?.username||"").trim();
+        if(name)assignedOperatorNamesRef.current.set(assignedOperatorScope,name);
+        setAssignedOperatorLookup({scope:assignedOperatorScope,name:name||null,loading:false});
+      });
+    return()=>{cancelled=true;};
+  },[assignedOperatorScope,assignedOperatorId,operatorChoices]);
+  const assignedOperatorName=assignedOperatorLookup.scope===assignedOperatorScope
+    ? assignedOperatorLookup.name : null;
+  const assignedOperatorLoading=assignedOperatorLookup.scope!==assignedOperatorScope ||
+    assignedOperatorLookup.loading;
   // Fetch only protocol timestamps, scoped to the current chat and company.
   // No labels are rendered for conversations with a single attendance.
   useEffect(()=>{
@@ -2769,6 +2809,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    </span>
 
                  </p>
+                {showAssignedOperator && selected.status==="in_att" && <p
+                  className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground"
+                  title={assignedOperatorId
+                    ? (assignedOperatorName ? "Responsável: "+assignedOperatorName : "Responsável pelo atendimento")
+                    : "Atendimento ainda sem responsável"}>
+                  <UserRound size={12} className="shrink-0" aria-hidden="true"/>
+                  <span className="truncate">{!assignedOperatorId
+                    ? "Sem atendente responsável"
+                    : assignedOperatorName
+                      ? "Atendimento com: "+assignedOperatorName
+                      : assignedOperatorLoading
+                        ? "Identificando responsável..."
+                        : "Responsável não identificado"}</span>
+                </p>}
 
               </div>
               {!conversationOpening && (!embedded || embeddedFullControls || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
