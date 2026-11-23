@@ -50,12 +50,14 @@ export function FinanceOrderEvidenceGallery({
 
   // Carrega apenas ao abrir o detalhe, nunca para cada linha da tabela financeira.
   const query = useQuery({
-    queryKey: ["finance", organizationId, entryId, "order-evidence", kind],
+    queryKey: ["finance", organizationId, entryId, "order-evidence"],
     enabled: Boolean(canView && organizationId && entryId),
     staleTime: 60_000,
     queryFn: async (): Promise<EvidenceWithUrl[]> => {
       const attachments = await listFinancialAttachments(organizationId, entryId);
-      const evidence = attachments.filter(attachment => matchesKind(attachment, kind));
+      const evidence = attachments.filter(attachment =>
+        matchesKind(attachment, "payment_proof") || matchesKind(attachment, "delivery_evidence"),
+      );
       return Promise.all(evidence.map(async document => {
         try {
           const url = await createFinancialAttachmentSignedUrl(
@@ -82,15 +84,16 @@ export function FinanceOrderEvidenceGallery({
   if (query.isError) return <p role="alert" className="text-xs text-destructive">
     Não foi possível carregar {label.toLowerCase()}.
   </p>;
-  if (!query.data?.length) return null;
+  const evidence = query.data?.filter(({ document }) => matchesKind(document, kind)) || [];
 
   return <section aria-label={label} className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
     <div className="flex items-center gap-2">
       <ImageIcon size={17} className="text-primary" />
       <h3 className="text-sm font-bold text-foreground">{label}</h3>
     </div>
+    {evidence.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum {label.toLowerCase()} anexado.</p> : null}
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {query.data.map(({ document, url }) => {
+      {evidence.map(({ document, url }) => {
         const isImage = document.mime_type?.startsWith("image/")
           || /\.(?:jpe?g|png|webp)$/i.test(document.file_name);
         const body = <>
