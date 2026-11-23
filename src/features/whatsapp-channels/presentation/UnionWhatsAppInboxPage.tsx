@@ -1366,11 +1366,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
   const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
-  // Somente Gestor e Gestor Operador veem quem assumiu a conversa.
+  // Somente Gestor e Gestor Operador veem o responsável, inclusive em conversas finalizadas.
   // Consultamos no máximo um perfil por atendente distinto, nunca por mensagem
   // nem por cada uma das 50 conversas da página.
   const showAssignedOperator=canView && (staffRole==="manager" || staffRole==="both");
-  const assignedOperatorId=showAssignedOperator && selected?.status==="in_att" ? selected.assigned_to : null;
+  const showOperatorForConversation=showAssignedOperator &&
+    (selected?.status==="in_att" || selected?.status==="finished");
+  const assignedOperatorId=showOperatorForConversation ? selected?.assigned_to : null;
   const assignedOperatorScope=assignedOperatorId && activeOrganizationId
     ? activeOrganizationId+":"+assignedOperatorId : "";
   const assignedOperatorNamesRef=useRef(new Map<string,string>());
@@ -2809,16 +2811,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    </span>
 
                  </p>
-                {showAssignedOperator && selected.status==="in_att" && <p
+                {showOperatorForConversation && <p
                   className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground"
                   title={assignedOperatorId
-                    ? (assignedOperatorName ? "Responsável: "+assignedOperatorName : "Responsável pelo atendimento")
-                    : "Atendimento ainda sem responsável"}>
+                    ? (assignedOperatorName ? (selected.status==="finished" ? "Atendido por: " : "Responsável: ")+assignedOperatorName : "Responsável pelo atendimento")
+                    : (selected.status==="finished" ? "Atendente não registrado" : "Atendimento ainda sem responsável")}>
                   <UserRound size={12} className="shrink-0" aria-hidden="true"/>
                   <span className="truncate">{!assignedOperatorId
-                    ? "Sem atendente responsável"
+                    ? (selected.status==="finished" ? "Atendente não registrado" : "Sem atendente responsável")
                     : assignedOperatorName
-                      ? "Atendimento com: "+assignedOperatorName
+                      ? (selected.status==="finished" ? "Atendido por: " : "Atendimento com: ")+assignedOperatorName
                       : assignedOperatorLoading
                         ? "Identificando responsável..."
                         : "Responsável não identificado"}</span>
