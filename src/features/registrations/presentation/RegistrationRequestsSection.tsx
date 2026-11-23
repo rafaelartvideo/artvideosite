@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Link2, Package, Pencil, Pin, ShoppingBag, Wrench } from "lucide-react";
+import { FileText, Link2, Package, Pin, ShoppingBag, Wrench } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -8,15 +8,24 @@ import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, AdminIconButton, AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { CustomerEquipmentsSection } from "@/features/customers/presentation/CustomerEquipmentsSection";
+import { CustomerEquipmentsSection, type EquipmentLinkedOrder } from "@/features/customers/presentation/CustomerEquipmentsSection";
 import { listCustomerEquipments } from "@/features/customers/infrastructure/customers.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { isAdminModuleEnabled } from "@/features/admin-shell/navigation-config";
 import { getMediaPreview, type MediaPreviewSource } from "@/shared/infrastructure/media.repository";
+import { getOrderStatusBadgeClass, getOrderStatusHex } from "@/features/orders/domain/order-status-palette";
+import type { OrderImage } from "@/features/orders/domain/order-image";
+
+const OrderImageLightbox = lazy(() => import("@/features/orders/presentation/OrderImages").then(mod => ({ default: mod.OrderImageLightbox })));
 
 type RequestTab = "equipment" | "quotes" | "orders" | "store";
 type ShopOrder = { id:string; order_number:number; created_at:string; status:string; product_name:string; buyer:Record<string,string>|null };
-type ServiceOrder = {id:string;os_number:string|number;created_at:string;customer_equipment_id:string|null;service:{title?:string}|null;order_status:{name?:string;color?:string}|null};
+type ServiceOrder = EquipmentLinkedOrder & {
+  customer_equipment_id: string | null;
+  equipment_type: { name?: string } | null;
+  general_service: { name?: string } | null;
+  service: { title?: string } | null;
+};
 type Quote = {id:string;protocol:string|null;created_at:string;service:{title?:string}|null;request_status:{name?:string}|null};
 
 async function linkedStoreOrders(organizationId:string,entityId:string):Promise<ShopOrder[]> {
@@ -39,35 +48,32 @@ function readableDate(date:string) {
 
 type EquipmentPhotoLookup = {
   photoUrls: Record<string,string>;
-  linkedOrderIds: Record<string,string>;
+  photos: Record<string,OrderImage>;
 };
 
 // Foto da etiqueta = mídia da OS com sort_order entre 500 e 999.
 // Consultas em lote por cliente/empresa, sem N consultas de mídia por card.
 async function loadEquipmentPhotoLookup(organizationId:string,equipmentIds:string[],orders:ServiceOrder[],queryClient:QueryClient):Promise<EquipmentPhotoLookup>{
-  const empty:EquipmentPhotoLookup={photoUrls:{},linkedOrderIds:{}};
+  const empty:EquipmentPhotoLookup={photoUrls:{},photos:{}};
   if(!equipmentIds.length || !orders.length)return empty;
   const validIds=new Set(equipmentIds);
-  const byEquipment=new Map<string,string>();
   const byOrder=new Map<string,string>();
   const orderRank=new Map<string,number>();
   for(const [index,order] of orders.entries()){
     if(!order.customer_equipment_id || !validIds.has(order.customer_equipment_id))continue;
     byOrder.set(order.id,order.customer_equipment_id);
     orderRank.set(order.id,index);
-    if(!byEquipment.has(order.customer_equipment_id))byEquipment.set(order.customer_equipment_id,order.id);
   }
-  const linkedOrderIds=Object.fromEntries(byEquipment);
-  if(!byOrder.size)return {...empty,linkedOrderIds};
+  if(!byOrder.size)return empty;
   const {data:images,error:imagesError}=await supabase.from("service_order_media")
-    .select("service_order_id,sort_order,media:media(id,bucket_id,storage_path)")
+    .select("service_order_id,sort_order,media:media(id,file_name,bucket_id,storage_path)")
     .eq("organization_id",organizationId).in("service_order_id",Array.from(byOrder.keys()))
     .gte("sort_order",500).lt("sort_order",1000).order("sort_order").limit(100);
   if(imagesError)throw imagesError;
-  const candidates=new Map<string,{media:MediaPreviewSource;rank:number;sort:number}>();
+  const candidates=new Map<string,{media:MediaPreviewSource & {file_name?:string|null};rank:number;sort:number}>();
   for(const entry of images||[]){
     const equipmentId=byOrder.get(entry.service_order_id);
-    const media=entry.media as unknown as MediaPreviewSource|null;
+    const media=entry.media as unknown as (MediaPreviewSource & {file_name?:string|null})|null;
     if(!equipmentId || !media?.id || !media.storage_path || !media.bucket_id)continue;
     const rank=orderRank.get(entry.service_order_id)??Number.MAX_SAFE_INTEGER;
     const sort=entry.sort_order ?? 0;
@@ -77,10 +83,19 @@ async function loadEquipmentPhotoLookup(organizationId:string,equipmentIds:strin
     }
   }
   const previewResults=await Promise.allSettled(Array.from(candidates.entries()).map(async ([id,{media}])=>
-    [id,(await getMediaPreview(queryClient,media.id,media)).url] as const));
+    [id,media,(await getMediaPreview(queryClient,media.id,media)).url] as const));
   const photoUrls:Record<string,string>={};
-  for(const result of previewResults)if(result.status==="fulfilled")photoUrls[result.value[0]]=result.value[1];
-  return {photoUrls,linkedOrderIds};
+  const photos:Record<string,OrderImage>={};
+  for(const result of previewResults)if(result.status==="fulfilled"){
+    const [id,media,url]=result.value;
+    photoUrls[id]=url;
+    photos[id]={
+      key:"registration-equipment-label:"+id+":"+media.id,
+      name:media.file_name||"Foto da etiqueta",
+      kind:"label", mediaId:media.id, media, url,
+    };
+  }
+  return {photoUrls,photos};
 }
 
 type PinGroup = Record<RequestTab,string[]>;
@@ -95,27 +110,39 @@ function readPinnedRequests(key:string):PinGroup{
   return empty;
 }
 
-function RequestCard({kind,title,subtitle,status,pinned,onTogglePin,onOpen,openLabel,children}:{
-  kind:string;title:string;subtitle:string;status?:string|null;pinned:boolean;
-  onTogglePin:()=>void;onOpen?:()=>void;openLabel?:string;children?:React.ReactNode;
+function RequestCard({kind,title,subtitle,titleDetail,status,statusTone,pinned,onTogglePin,onOpen,children}:{
+  kind:string;title:string;subtitle:string;titleDetail?:string;status?:string|null;statusTone?:"order";pinned:boolean;
+  onTogglePin:()=>void;onOpen?:()=>void;children?:React.ReactNode;
 }){
-  return <article aria-label={title} className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40 focus-within:border-primary/50">
+  return <article aria-label={title} role={onOpen?"button":undefined} tabIndex={onOpen?0:undefined}
+    onClick={onOpen}
+    onKeyDown={onOpen?event=>{
+      if(event.target!==event.currentTarget)return;
+      if(event.key==="Enter"||event.key===" "){event.preventDefault();onOpen();}
+    }:undefined}
+    className={"group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40 focus-within:border-primary/50 "+(onOpen?"cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50":"")}>
     <header className="flex min-h-11 items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2">
       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kind}</span>
-      <div className="flex items-center gap-1">
+      <div onClick={event=>event.stopPropagation()}>
         <AdminIconButton variant={pinned?"tertiary":"ghost"} ariaLabel={(pinned?"Desafixar ":"Fixar ")+title}
           title={pinned?"Desafixar item":"Fixar no início da lista"} aria-pressed={pinned}
           onClick={onTogglePin}><Pin size={15} fill={pinned?"currentColor":"none"}/></AdminIconButton>
-        {onOpen&&<AdminIconButton ariaLabel={(openLabel||"Abrir")+" "+title} title={openLabel||"Abrir"}
-          onClick={onOpen}><Pencil size={15}/></AdminIconButton>}
       </div>
     </header>
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 p-3.5 sm:p-4">
       <div className="min-w-0">
-        <p className="break-words text-sm font-black text-foreground">{title}</p>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <p className="break-words text-sm font-black text-foreground">{title}</p>
+          {titleDetail&&<span className="min-w-0 break-words text-xs font-semibold text-muted-foreground">{titleDetail}</span>}
+        </div>
         <p className="mt-1 break-words text-xs text-muted-foreground">{subtitle}</p>
       </div>
-      {status&&<div className="border-t border-border/70 pt-3"><span className="inline-flex max-w-full break-words rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-bold text-foreground">{status}</span></div>}
+      {status&&<div className="border-t border-border/70 pt-3">
+        <span className={"inline-flex max-w-full items-center gap-1.5 break-words rounded-md border px-2 py-1 text-[11px] font-bold "+(statusTone==="order"?getOrderStatusBadgeClass(status):"border-border bg-muted/50 text-foreground")}>
+          {statusTone==="order"&&<span className="h-2 w-2 shrink-0 rounded-full" style={{backgroundColor:getOrderStatusHex(status)}} aria-hidden="true"/>}
+          {status}
+        </span>
+      </div>}
       {children}
     </div>
   </article>;
@@ -154,6 +181,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
   const [candidate,setCandidate]=useState<ShopOrder|null>(null);
   const [busy,setBusy]=useState(false);
   const [lookupError,setLookupError]=useState("");
+  const [selectedPhoto,setSelectedPhoto]=useState<OrderImage|null>(null);
 
   const key=["registration-requests",organizationId,entityId,customerId];
   const equipmentQuery=useQuery({
@@ -176,7 +204,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     queryKey:[...key,"orders"],
     queryFn:async()=>{
       const {data,error}=await supabase.from("service_orders")
-        .select("id,os_number,created_at,customer_equipment_id,service:services(title),order_status:order_statuses(name,color)")
+        .select("id,os_number,created_at,customer_equipment_id,service:services(title),service_type:service_types(title),general_service:general_services(name),equipment_type:equipment_types(name),order_status:order_statuses(name,color)")
         .eq("organization_id",organizationId).eq("customer_id",customerId!)
         .order("created_at",{ascending:false}).limit(100);
       if(error)throw error;
@@ -187,9 +215,17 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     queryKey:[...key,"equipment-label-photos"],
     queryFn:()=>loadEquipmentPhotoLookup(organizationId,
       (equipmentQuery.data||[]).map(equipment=>equipment.id),ordersQuery.data||[],queryClient),
-    enabled:Boolean(customerId&&canOpenOrders&&equipmentQuery.data?.length&&ordersQuery.data),
+    enabled:Boolean(customerId&&canViewOrders&&equipmentQuery.data?.length&&ordersQuery.data),
     staleTime:60000,retry:false,
   });
+  const linkedOrders=useMemo(()=>{
+    const byEquipment:Record<string,EquipmentLinkedOrder[]>={};
+    for(const order of ordersQuery.data||[]){
+      if(!order.customer_equipment_id)continue;
+      (byEquipment[order.customer_equipment_id]??=[]).push(order);
+    }
+    return byEquipment;
+  },[ordersQuery.data]);
   const shopQuery=useQuery({
     queryKey:[...key,"shop"],
     queryFn:()=>linkedStoreOrders(organizationId,entityId),
@@ -257,9 +293,13 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
           selectedTab==="equipment"
             ? <CustomerEquipmentsSection embedded equipments={sortPinned("equipment",equipmentQuery.data||[])}
                 photoUrls={equipmentPhotoQuery.data?.photoUrls}
-                linkedOrderIds={equipmentPhotoQuery.data?.linkedOrderIds}
+                linkedOrders={canOpenOrders?linkedOrders:{}}
                 pinnedIds={new Set(pinned.equipment)}
                 onTogglePin={id=>togglePin("equipment",id)}
+                onViewLabelPhoto={id=>{
+                  const photo=equipmentPhotoQuery.data?.photos[id];
+                  if(photo)setSelectedPhoto(photo);
+                }}
                 onOpenLinkedOrder={canOpenOrders&&onOpenOrder
                   ? orderId=>onOpenOrder(orderId,entityId) : undefined}/>
           : selectedTab==="quotes" ? (quotesQuery.data?.length
@@ -270,17 +310,18 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
                   status={q.request_status?.name||"—"} pinned={isPinned("quotes",q.id)}
                   onTogglePin={()=>togglePin("quotes",q.id)}
                   onOpen={canOpenQuotes ? ()=>navigate(adminPath("siteRequests","orcamentos",q.id)) : undefined}
-                  openLabel="Abrir orçamento"/>)}
+                  />)}
               </div> : <AdminSectionEmpty>Nenhum orçamento vinculado a este cliente.</AdminSectionEmpty>)
           : selectedTab==="orders" ? (ordersQuery.data?.length
             ? <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
                 {sortPinned("orders",ordersQuery.data).map(order=><RequestCard key={order.id}
                   kind="Ordem de serviço" title={"OS "+order.os_number}
+                  titleDetail={[order.equipment_type?.name||"Equipamento não informado",order.service_type?.title||order.general_service?.name||"Atendimento não informado"].join(" · ")}
                   subtitle={(order.service?.title||"Ordem de serviço")+" · "+readableDate(order.created_at)}
-                  status={order.order_status?.name||"—"} pinned={isPinned("orders",order.id)}
+                  status={order.order_status?.name||"—"} statusTone="order" pinned={isPinned("orders",order.id)}
                   onTogglePin={()=>togglePin("orders",order.id)}
                   onOpen={canOpenOrders&&onOpenOrder ? ()=>onOpenOrder(order.id,entityId) : undefined}
-                  openLabel="Abrir OS"/>)}
+                  />)}
               </div> : <AdminSectionEmpty>Nenhuma ordem de serviço vinculada a este cliente.</AdminSectionEmpty>)
           : <div className="space-y-3">
               {canLinkShop&&<div className="flex justify-end"><AdminButton size="sm" variant="secondary" onClick={()=>{setOrderNumber("");setCandidate(null);setLookupError("");setLinkOpen(true);}}><Link2 size={14}/> Vincular pedido</AdminButton></div>}
@@ -291,15 +332,18 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
                   status={order.status} pinned={isPinned("store",order.id)}
                   onTogglePin={()=>togglePin("store",order.id)}
                   onOpen={canOpenShop ? ()=>navigate(adminPath("siteStoreOrders")) : undefined}
-                  openLabel="Ver pedidos">
+                  >
                   {canLinkShop&&<button className="self-start text-xs font-semibold text-destructive hover:underline"
-                    type="button" onClick={()=>void unlink(order)}>Desvincular pedido</button>}
+                    type="button" onClick={event=>{event.stopPropagation();void unlink(order);}}>Desvincular pedido</button>}
                 </RequestCard>)}
               </div> : <AdminSectionEmpty>Sem pedidos da loja vinculados. Os pedidos não são associados automaticamente por nome ou e-mail.</AdminSectionEmpty>}
             </div>}
       </div>
     </Section>
 
+    {selectedPhoto&&<Suspense fallback={null}>
+      <OrderImageLightbox key={selectedPhoto.key} image={selectedPhoto} onClose={()=>setSelectedPhoto(null)}/>
+    </Suspense>}
     <AdminDialog open={linkOpen} onClose={()=>{if(!busy)setLinkOpen(false);}} title="Vincular pedido da loja" description="Associe apenas pedidos cuja identidade do comprador foi conferida." footer={<div className="flex justify-end gap-2">
       <AdminButton variant="secondary" disabled={busy} onClick={()=>setLinkOpen(false)}>Cancelar</AdminButton>
       {candidate&&<AdminButton disabled={busy} loading={busy} onClick={()=>void confirmLink()}>Confirmar vínculo</AdminButton>}
