@@ -80,6 +80,13 @@ export async function saveFutureOpportunity(identity:FutureOpportunityIdentity,d
   return result.data as FutureOpportunity;
 }
 
+export async function markFutureOpportunityConverted(organizationId:string,id:string,orderId:string):Promise<void>{
+  const {data,error}=await table().update({status:"converted",service_order_id:orderId})
+    .eq("organization_id",organizationId).eq("id",id).select("id").single();
+  if(error)throw error;
+  if(!data)throw new Error("A oportunidade não foi encontrada nesta empresa.");
+}
+
 export async function listFutureOpportunityHistory(organizationId:string,id:string){
   const {data,error}=await supabase.from("union_whatsapp_future_opportunity_history")
     .select("id,action,before_value,after_value,actor_id,created_at")

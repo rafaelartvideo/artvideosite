@@ -15,6 +15,7 @@ import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsA
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
+import { markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
@@ -674,7 +675,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
   const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
-  const [newOrder,setNewOrder]=useState<{customerId:string|null;key:string;organizationId:string}|null>(null);
+  const [newOrder,setNewOrder]=useState<{customerId:string|null;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
   const [preparingNewOrder,setPreparingNewOrder]=useState(false);
   const newOrderGateRef=useRef(false);
   const newOrderLaunchRef=useRef(0);
@@ -1456,6 +1457,34 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(()=>{
     if(selectedInPage)setSelectedFallback(selectedInPage);
   },[selectedInPage]);
+  const openNewOrderFromFuture=async(item:FutureOpportunity)=>{
+    if(embedded||!activeOrganizationId||!hasPermission("orders.create")||!canSend||
+      newOrderGateRef.current||newOrder)return;
+    const org=activeOrganizationId;
+    const launch=newOrderLaunchRef.current;
+    newOrderGateRef.current=true;
+    setPreparingNewOrder(true);
+    try{
+      let customerId:string|null=null;
+      if(item.conversation_id&&hasPermission("customers.view")){
+        try{
+          const match=await operateUnionWhatsAppInbox(org,item.conversation_id,"customer_match");
+          if(!match.ambiguous&&match.customer?.id)customerId=match.customer.id;
+        }catch{customerId=null;}
+      }
+      if(newOrderLaunchRef.current!==launch||organizationRef.current!==org)return;
+      await import("@/features/orders/presentation/TabOrders");
+      if(newOrderLaunchRef.current!==launch||organizationRef.current!==org)return;
+      setNewOrder({customerId,key:crypto.randomUUID(),organizationId:org,opportunityId:item.id});
+    }catch(reason){
+      if(newOrderLaunchRef.current===launch)
+        reportError(systemErrorMessage(reason,"Não foi possível abrir a Nova OS."));
+    }finally{
+      if(newOrderLaunchRef.current===launch){
+        newOrderGateRef.current=false;setPreparingNewOrder(false);
+      }
+    }
+  };
   const openNewOrderFromConversation=async()=>{
     if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
       !hasPermission("orders.create") || newOrderGateRef.current || newOrder)return;
@@ -2603,6 +2632,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </header>}
     {opportunitiesOpen && !embedded && activeOrganizationId
       ? <FutureOpportunitiesWorkspace organizationId={activeOrganizationId} canEdit={canSend}
+          onNewOrder={hasPermission("orders.create")&&canSend?item=>void openNewOrderFromFuture(item):undefined}
           onClose={()=>setOpportunitiesOpen(false)} onOpenConversation={id=>{
             setOpportunitiesOpen(false);setSelectedFallback(null);setSelectedId(id);
           }}/>
@@ -3598,9 +3628,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         organizationIdOverride={newOrder.organizationId}
         detailOnly embeddedCreate
         onEmbeddedClose={()=>setNewOrder(null)}
-        onEmbeddedCreated={()=>{
+        onEmbeddedCreated={(orderId:string)=>{
+          const opportunityId=newOrder.opportunityId;
+          const org=newOrder.organizationId;
           setNewOrder(null);
-          notifyAdmin("OS criada com sucesso.","success");
+          if(opportunityId){
+            void markFutureOpportunityConverted(org,opportunityId,orderId)
+              .then(()=>notifyAdmin("OS criada e oportunidade convertida com sucesso.","success"))
+              .catch(reason=>notifyAdmin(
+                "OS criada, mas não foi possível vincular a oportunidade: "+
+                  systemErrorMessage(reason,"Tente vincular manualmente."),"error"));
+          }else notifyAdmin("OS criada com sucesso.","success");
         }}/>
     </Suspense>}
   </div>;

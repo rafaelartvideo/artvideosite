@@ -66,6 +66,9 @@ export function FutureOpportunityEditor({identity,initial,onClose,onSaved}:{
   const save=async()=>{
     if(saving)return;
     if(draft.service_interest.trim().length<2){setError("Informe o serviço procurado pelo cliente.");return;}
+    if(draft.status==="converted"&&!draft.service_order_id){
+      setError("Para marcar como convertida, vincule uma OS existente ou crie uma nova OS pela lista.");return;
+    }
     setSaving(true);setError("");
     try{
       await saveFutureOpportunity(identity,draft,initial?.id);
@@ -222,8 +225,9 @@ export function FutureOpportunityContactSection({identity,canEdit=true}:{
   </section>;
 }
 
-export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConversation,canEdit}:{
-  organizationId:string;onClose:()=>void;onOpenConversation:(id:string)=>void;canEdit:boolean;
+export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConversation,onNewOrder,canEdit}:{
+  organizationId:string;onClose:()=>void;onOpenConversation:(id:string)=>void;
+  onNewOrder?:(item:FutureOpportunity)=>void;canEdit:boolean;
 }){
   const [status,setStatus]=useState<FutureOpportunityStatus|"all">("all");
   const [search,setSearch]=useState("");
@@ -303,6 +307,10 @@ export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConve
               onClick={()=>onOpenConversation(item.conversation_id!)}>
               <ExternalLink size={14}/> Abrir conversa
             </AdminButton>}
+            {canEdit&&onNewOrder&&item.status!=="converted"&&
+              <AdminButton size="sm" variant="secondary" onClick={()=>onNewOrder(item)}>
+                <BookmarkPlus size={14}/> Nova OS
+              </AdminButton>}
             {canEdit&&<AdminButton size="sm" variant="secondary" onClick={()=>setEditing(item)}>Detalhes</AdminButton>}
           </div>
         </div>)}
