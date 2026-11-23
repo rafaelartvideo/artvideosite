@@ -23,7 +23,7 @@ const APP_TARGET = __APP_TARGET__;
 const PUBLIC_SITE_URL = __PUBLIC_SITE_URL__.replace(/\/+$/, "");
 
 const AdminLogin = lazy(() =>
-  import("@/app/Admin").then(({ AdminLogin }) => ({ default: AdminLogin })),
+  import("@/features/auth/presentation/AdminLogin").then(({ AdminLogin }) => ({ default: AdminLogin })),
 );
 const AdminDashboard = lazy(() =>
   import("@/app/Admin").then(({ AdminDashboard }) => ({ default: AdminDashboard })),
@@ -342,7 +342,7 @@ function AdminEntry() {
     void setActiveOrganization(requestedOrganizationId);
   }, [shouldSwitchOrganization, requestedOrganizationId, setActiveOrganization]);
 
-  if (loading || shouldSwitchOrganization) {
+  if ((loading && session) || shouldSwitchOrganization) {
     return (
       <AdminFallback
         progress={shouldSwitchOrganization ? Math.max(92, loadingProgress) : loadingProgress}
@@ -370,7 +370,7 @@ function AdminEntry() {
 
   if (!session) {
     return (
-      <Suspense fallback={<AdminFallback progress={100} status="Abrindo acesso" />}>
+      <Suspense fallback={<div className="min-h-dvh bg-[#041426]" aria-label="Abrindo acesso" />}>
         <AdminLogin onLoginSuccess={() => undefined} />
       </Suspense>
     );
