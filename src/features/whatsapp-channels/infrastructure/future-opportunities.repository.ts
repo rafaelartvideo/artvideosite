@@ -109,6 +109,14 @@ export async function locateServiceOrder(organizationId:string,number:string):Pr
   return data?{id:String(data.id),os_number:String(data.os_number)}:null;
 }
 
+export async function countAvailableFutureOpportunities(organizationId:string):Promise<number>{
+  const {count,error}=await table().select("id",{count:"exact",head:true})
+    .eq("organization_id",organizationId)
+    .eq("status","available").eq("consent_to_contact",true);
+  if(error)throw error;
+  return count||0;
+}
+
 export async function futureOpportunitiesSummary(organizationId:string):Promise<Record<FutureOpportunityStatus,number>>{
   const statuses=Object.keys(FUTURE_STATUSES) as FutureOpportunityStatus[];
   const values=await Promise.all(statuses.map(async status=>{

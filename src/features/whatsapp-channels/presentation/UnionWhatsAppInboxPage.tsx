@@ -15,7 +15,7 @@ import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsA
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
-import { futureOpportunityQueryKey,markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
+import { countAvailableFutureOpportunities,futureOpportunityQueryKey,markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
@@ -436,6 +436,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const canAction=(key:string)=>capabilities[key]===true;
   const canSend=canAction("send");
   const canManage=canAction("view_all");
+  // Contagem indexada apenas para gestores; preserva Realtime e nao consulta mensagens.
+  const availableFutureOpportunities=useQuery({
+    queryKey:[...futureOpportunityQueryKey(activeOrganizationId||""),"available-consented"],
+    queryFn:()=>countAvailableFutureOpportunities(activeOrganizationId!),
+    enabled:Boolean(!embedded&&canView&&canManage&&activeOrganizationId),
+    staleTime:180_000,refetchInterval:300_000,refetchIntervalInBackground:false,
+    refetchOnWindowFocus:false,retry:false,
+  });
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
   const [messagesHasMore,setMessagesHasMore]=useState(false);
@@ -2567,6 +2575,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           className="max-md:!px-2.5 max-md:!py-2" onClick={()=>{setOpportunitiesOpen(value=>!value);setOpportunityCreateOpen(false);}}>
           <BookmarkPlus size={16}/> <span className="hidden sm:inline">{opportunitiesOpen?"Conversas":"Oportunidades futuras"}</span>
           <span className="sm:hidden">{opportunitiesOpen?"Conversas":"Oportunidades"}</span>
+          {!opportunitiesOpen && Boolean(availableFutureOpportunities.data) &&
+            <span aria-label={availableFutureOpportunities.data+" oportunidades disponíveis e autorizadas"}
+              className="ml-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white tabular-nums">
+              {availableFutureOpportunities.data}
+            </span>}
         </AdminButton>
         {canUseAttendancePreferences && attendancePreferences && <Popover>
           <PopoverTrigger asChild>
