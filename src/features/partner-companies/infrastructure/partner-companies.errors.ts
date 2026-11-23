@@ -62,7 +62,7 @@ function databaseErrorMessage(
       combined.includes("regexp_replace(document")
     ) {
       return new PartnerCompanyError(
-        "Este CPF/CNPJ já está cadastrado em outra empresa.",
+        "O banco ainda possui uma restrição antiga que impede reutilizar CPF/CNPJ entre empresas. Verifique a migração do cadastro multiempresa.",
         "duplicate_document",
         { technicalCode, details: details || undefined },
       );

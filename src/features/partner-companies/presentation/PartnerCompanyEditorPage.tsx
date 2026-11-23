@@ -22,7 +22,6 @@ import { FCnpjInput, FCpfInput, FEmailInput, FInput, FIntegerInput, FPhoneInput,
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import {
   createPartnerCompany,
-  findPartnerCompanyByDocument,
   updatePartnerCompany,
   type PartnerCompanyInput,
   type PartnerCompanySettings,
@@ -274,16 +273,6 @@ export function PartnerCompanyEditorPage({
     setConsultingCpf(true);
     setErrors(current => ({ ...current, document: undefined }));
     try {
-      const existing = await findPartnerCompanyByDocument(form.document, company?.id || null);
-      if (existing.error) throw existing.error;
-      if (existing.data) {
-        setErrors(current => ({
-          ...current,
-          document: `CPF já cadastrado para ${existing.data.name || "outra empresa parceira"}. Abra o cadastro existente.`,
-        }));
-        return;
-      }
-
       const result = await lookupCpf(requestedCpf, activeOrganizationId, null, { checkExisting: false });
       setForm(current => {
         if (current.personType !== "PF" || normalizeDigits(current.document) !== requestedCpf) return current;
@@ -353,23 +342,6 @@ export function PartnerCompanyEditorPage({
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length) return;
     if (!canSave) return;
-
-    if (form.personType === "PF") {
-      try {
-        const existing = await findPartnerCompanyByDocument(form.document, company?.id || null);
-        if (existing.error) throw existing.error;
-        if (existing.data) {
-          setErrors(current => ({
-            ...current,
-            document: `CPF já cadastrado para ${existing.data.name || "outra empresa parceira"}. Abra o cadastro existente.`,
-          }));
-          return;
-        }
-      } catch (error) {
-        setToast({ msg: systemErrorMessage(error, "Não foi possível verificar o CPF."), type: "error" });
-        return;
-      }
-    }
 
     const existingSettings = editing && company?.settings && typeof company.settings === "object"
       ? company.settings
