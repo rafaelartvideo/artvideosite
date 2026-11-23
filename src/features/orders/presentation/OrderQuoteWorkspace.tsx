@@ -133,7 +133,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
 
   useEffect(()=>{
     setConfirmationAction(null);
-    setReturnOpen(false);
     setModalFeedback(null);
     approvalLookupId.current += 1;
     setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");
