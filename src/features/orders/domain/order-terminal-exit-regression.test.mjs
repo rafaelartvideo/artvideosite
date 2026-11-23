@@ -22,6 +22,8 @@ test("Encerramentos especiais exigem documentos, termo assinado, evidência e de
   assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("disposal_confirmed"\)\)/);
   assert.match(actions,/const canTerminalExit = hasPermission\("orders.complete"\)/);
   assert.match(page,/OrderTerminalExitDialog/);
+  assert.match(page,/is_solved:result\.outcome==="disposal_confirmed"/);
+  assert.match(page,/returned_unrepaired","disposal_confirmed/);
   assert.match(page,/onTerminalExit=\{outcome => \{setTerminalInitialReason\(""\);setTerminalOutcome\(outcome\);\}\}/);
   assert.doesNotMatch(page,/supabase\.rpc\("complete_disposal_service_order"/);
   assert.match(signature,/preferredDocumentType/);
@@ -47,6 +49,7 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   const rpc=read("supabase/migrations/20261117215500_service_order_terminal_exit_secure_rpc.sql");
   const guards=read("supabase/migrations/20261117215800_guard_special_terminal_situations.sql");
   const unified=read("supabase/migrations/20261123095700_unify_signed_unrepaired_returns.sql");
+  const noWarranty=read("supabase/migrations/20261123104000_unrepaired_returns_no_warranty.sql");
   const losses=read("supabase/migrations/20261117215900_financial_losses_signed_terminal_outcomes.sql");
   const finance=read("src/features/finance/presentation/FinanceLossesSection.tsx");
   assert.match(setup,/TERMO_DESCARTE/);
@@ -63,6 +66,8 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   assert.match(unified,/service_order_quote_proposals/);
   assert.match(unified,/approval_status is distinct from/);
   assert.match(unified,/close_rejected_quote_return_v1/);
+  assert.match(noWarranty,/is_solved=\(v_outcome=\x27disposal_confirmed\x27\)/);
+  assert.match(noWarranty,/v_os\.closure_outcome in \(\x27rejected_quote_return\x27,\x27returned_unrepaired\x27,\x27disposal_confirmed\x27\)/);
   assert.match(rpc,/record_inventory_movement/);
   assert.match(rpc,/revoke execute on function public\.complete_disposal_service_order/);
   assert.match(guards,/special_order_exit/);
