@@ -13,6 +13,7 @@ type ReturnCycle = {
   parts_cost: number;
   labor_cost: number;
   other_cost: number;
+  cost_notes: string;
   missing_cost_movements: number;
 };
 type ReturnFinancialSummaryData = {
@@ -89,7 +90,7 @@ export function OrderReturnFinancialSummary({ order, hasPermission }: {
   const beginEdit = () => {
     setLabor(String(current?.labor_cost ?? 0));
     setOther(String(current?.other_cost ?? 0));
-    setNotes("");
+    setNotes(current?.cost_notes || "");
     setSaveError("");
     setEditing(true);
   };
