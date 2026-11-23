@@ -23,7 +23,6 @@ import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
-import { OrderQuoteReturnDialog } from "./OrderQuoteReturnDialog";
 
 type QuoteAction = "submit" | "approve" | "reject" | "renegotiate" | "reopen";
 type ModalFeedback = { type: "success" | "error"; message: string };
@@ -90,15 +89,14 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange,canCompleteReturn=false,canAttachReturnEvidence=false,onReturnCompleted}:{
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange,canCompleteReturn=false,onRequestReturn}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
   onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
   footerHostId:string;
   actionsHostId?:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
   canCompleteReturn?: boolean;
-  canAttachReturnEvidence?: boolean;
-  onReturnCompleted?: () => void;
+  onRequestReturn?: (reason: string) => void;
 }) {
   const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
@@ -111,7 +109,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     return cached ? snapshot(cached) : emptyOrderQuoteDraft();
   });
   const [reason,setReason]=useState("");
-  const [returnOpen,setReturnOpen]=useState(false);
   const [loading,setLoading]=useState(() =>
     !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
   const [busy,setBusy]=useState(false);
@@ -381,7 +378,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         </BtnSecondary>}
         {canCompleteReturn && !order.is_solved && <BtnPrimary disabled={busy}
           className="min-w-0 flex-1 whitespace-nowrap text-xs md:flex-none md:text-sm"
-          onClick={()=>setReturnOpen(true)}><PackageCheck size={15} className="hidden shrink-0 sm:block" /> Finalizar devolução</BtnPrimary>}
+          onClick={()=>onRequestReturn?.(proposal.rejection_reason || "Devolução após reprovação do orçamento.")}><PackageCheck size={15} className="hidden shrink-0 sm:block" /> Finalizar devolução</BtnPrimary>}
       </>}
 
     </>,footerHost)}
@@ -558,9 +555,5 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         </AnimatePresence>
       </div>
     </AdminDialog>
-    {returnOpen && proposal?.status==="rejected" && <OrderQuoteReturnDialog
-      order={order} quote={proposal} open={returnOpen}
-      canAttach={canAttachReturnEvidence} onClose={()=>setReturnOpen(false)}
-      onReturned={()=>onReturnCompleted?.()} />}
   </>;
 }
