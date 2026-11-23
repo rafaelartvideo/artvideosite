@@ -28,7 +28,8 @@ import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 import { OrderTerminalExitDialog } from "./OrderTerminalExitDialog";
 import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
-import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
+import { isLegacyRejectedQuoteReturn, isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
+import { getSignedSignatureDocument, listOrderSignatureRequests } from "@/features/documents/infrastructure/document-signatures.repository";
 import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { SignatureQrDialog } from "./SignatureQrDialog";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -348,8 +349,41 @@ export function OrderDetailsPage(props: Props) {
   // Modelos de termo só entram nas opções comuns depois da saída confirmada.
   // O fluxo específico de encerramento continua recebendo TODOS os modelos
   // para poder preparar e assinar o termo antes de fechar a OS.
+  // Um termo de devolução formal só é imprimível pelo PDF final assinado.
+  // Nunca oferecer uma cópia genérica sem assinaturas como comprovante da entrega.
   const visiblePrintTemplates = printTemplates.templates.filter(template =>
-    template.is_active !== false && isOrderTerminalDocumentVisible(template.document_type, detail));
+    template.is_active !== false && template.document_type !== "TERMO_DEVOLUCAO_SEM_REPARO"
+      && isOrderTerminalDocumentVisible(template.document_type, detail));
+  const legacyReturn = isLegacyRejectedQuoteReturn(detail);
+  const hasReturnOutcome = Boolean(detail?.completed_at
+    && (detail.closure_outcome === "returned_unrepaired" || legacyReturn));
+  const signedReturnQuery = useQuery({
+    queryKey: ["orders","return-signed-terms",detail?.organization_id,detail?.id],
+    enabled: Boolean(visible && hasReturnOutcome && canPrintDocuments && detail?.organization_id && detail?.id),
+    queryFn: () => listOrderSignatureRequests(String(detail!.organization_id),String(detail!.id)),
+    staleTime: 15_000,
+    refetchOnWindowFocus: "always",
+  });
+  const returnTermTemplateIds = new Set(printTemplates.templates
+    .filter(template=>template.document_type==="TERMO_DEVOLUCAO_SEM_REPARO").map(template=>template.id));
+  const signedReturnTerm = (signedReturnQuery.data||[]).find(request=>
+    returnTermTemplateIds.has(request.print_template_id) && request.status==="signed" && Boolean(request.final_pdf_hash));
+  const printSignedReturnTerm = async () => {
+    if(!signedReturnTerm || !detail?.organization_id)return;
+    const popup=openPrintWindow();
+    if(!popup){notifyAdmin("Permita a abertura de uma nova aba para visualizar o termo assinado.","error");return;}
+    try{
+      const document=await getSignedSignatureDocument(String(detail.organization_id),signedReturnTerm.id);
+      popup.location.replace(document.download_url);
+    }catch(error){
+      popup.close();
+      notifyAdmin(systemErrorMessage(error,"Não foi possível abrir o termo assinado."),"error");
+    }
+  };
+  const regularizeLegacyReturn = () => {
+    setSignaturePreferredDocType("TERMO_DEVOLUCAO_SEM_REPARO");
+    setSignatureRequestOpen(true);
+  };
   // O status da garantia vem do certificado registrado, não de uma suposição
   // baseada no tipo de atendimento ou na possibilidade de imprimir.
   const warrantyCertificateKey = ["orders", "warranty-certificate", detail?.organization_id, detail?.id];
@@ -723,7 +757,17 @@ export function OrderDetailsPage(props: Props) {
               disabled={printingWarranty || warrantyCertificateQuery.isPending || warrantyCertificateQuery.isError || (!warrantyCertificateQuery.data && !hasPermission("orders.complete"))} className="flex min-w-0 cursor-pointer items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><FileText size={15}/></span>
               <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : warrantyCertificateQuery.isPending ? "Consultando certificado..." : warrantyCertificateQuery.isError ? "Falha ao consultar certificado" : warrantyCertificateQuery.data ? "Imprimir certificado de garantia" : "Emitir certificado de garantia"}</span><span className="block truncate text-[10px] text-[#5a6a82]">{warrantyCertificateQuery.data ? "Emitido · válido até " + new Date(warrantyCertificateQuery.data.expires_at + "T12:00:00").toLocaleDateString("pt-BR") : warrantyCertificateQuery.isPending ? "Consultando registro no banco..." : warrantyCertificateQuery.isError ? "Feche e reabra a OS para consultar novamente" : "Ainda não emitido · exige permissão para concluir OS"}</span></span>
-            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
+            </DropdownMenuItem>}{hasReturnOutcome && (signedReturnTerm
+                ? <DropdownMenuItem onSelect={event=>{event.preventDefault();void printSignedReturnTerm();}} className="flex cursor-pointer items-center gap-3">
+                    <FileText size={16} className="shrink-0 text-primary"/>
+                    <span className="min-w-0 flex-1"><span className="block truncate font-semibold">Termo de devolução assinado</span><span className="block truncate text-[10px] text-muted-foreground">PDF original com assinaturas e data de formalização</span></span>
+                  </DropdownMenuItem>
+                : legacyReturn && hasPermission("documents.signatures.send") && !monitorView
+                  ? <DropdownMenuItem onSelect={event=>{event.preventDefault();regularizeLegacyReturn();}} className="flex cursor-pointer items-center gap-3">
+                      <FileText size={16} className="shrink-0 text-primary"/>
+                      <span className="min-w-0 flex-1"><span className="block truncate font-semibold">Emitir termo complementar</span><span className="block truncate text-[10px] text-muted-foreground">Assinatura necessária antes da impressão</span></span>
+                    </DropdownMenuItem>
+                  : <DropdownMenuItem disabled>Termo assinado ainda não disponível</DropdownMenuItem>)}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && visiblePrintTemplates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
               const busy = Boolean(printingTemplateId || downloadingTemplateId);
