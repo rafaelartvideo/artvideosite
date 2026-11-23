@@ -225,7 +225,7 @@ Deno.serve(async request => {
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
     // WhatsApp locations are coordinates, not downloadable media. Preserve the
     // position plus optional human labels without adding a DB column or a fetch.
-    // The geo:v1 text contract is rendered only for message_type="location".
+    // The geo:lat,lng text contract is rendered only for message_type="location".
     const locationPayload=obj(get(message,"locationMessage","LocationMessage","liveLocationMessage","LiveLocationMessage"));
     const locationCoordinate=(value:unknown):number =>
       typeof value==="number" ? value :
@@ -234,8 +234,8 @@ Deno.serve(async request => {
     const longitude=locationCoordinate(get(locationPayload,"degreesLongitude","DegreesLongitude","longitude","Longitude"));
     const validLocation=Number.isFinite(latitude)&&Number.isFinite(longitude)&&
       Math.abs(latitude)<=90&&Math.abs(longitude)<=180;
-    const locationName=str(get(locationPayload,"name","Name"),140).replace(/[\\r\n]+/g," ").trim();
-    const locationAddress=str(get(locationPayload,"address","Address"),240).replace(/[\\r\n]+/g," ").trim();
+    const locationName=str(get(locationPayload,"name","Name"),140).replaceAll(String.fromCharCode(13)," ").replaceAll(String.fromCharCode(10)," ").trim();
+    const locationAddress=str(get(locationPayload,"address","Address"),240).replaceAll(String.fromCharCode(13)," ").replaceAll(String.fromCharCode(10)," ").trim();
     const locationBody=validLocation ? "geo:"+latitude+","+longitude+"\n"+locationName+"\n"+locationAddress : body;
     // Whatsmeow quote metadata is carried inside ExtendedTextMessage or the
     // corresponding media caption. Never use arbitrary quoted URLs or JIDs.
