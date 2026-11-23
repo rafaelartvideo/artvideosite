@@ -23,7 +23,7 @@ test("evidência da OS é referenciada no A receber sem copiar mídia nem mistur
   assert.doesNotMatch(migration, /\.upload\(/);
 });
 
-test("Contas a Receber mostra foto da entrega no resumo e nos documentos", async () => {
+test("Contas a Receber mostra comprovante e entrega lado a lado no resumo e nos documentos", async () => {
   const details = read("src/features/finance/presentation/FinanceEntryDetail.tsx");
   const documents = read("src/features/finance/presentation/FinanceDocumentsPanel.tsx");
   const gallery = read("src/features/finance/presentation/FinanceOrderEvidenceGallery.tsx");
@@ -35,7 +35,12 @@ test("Contas a Receber mostra foto da entrega no resumo e nos documentos", async
     ["FinanceOrderEvidenceGallery.tsx", gallery],
   ]) assert.ok((await transformWithEsbuild(source, filename, { loader: "tsx" })).code.length > 200);
   assert.match(details, /isReceivable && detail\.origin_type === "service_order"/);
+  assert.match(details, /kind="payment_proof"/);
   assert.match(details, /kind="delivery_evidence"/);
+  assert.match(details, /md:grid-cols-2/);
+  assert.match(gallery, /"order-evidence"\]/);
+  assert.doesNotMatch(gallery, /"order-evidence", kind/);
+  assert.match(gallery, /Nenhum \{label\.toLowerCase\(\)\} anexado/);
   assert.match(documents, /Evidência de entrega/);
   assert.match(documents, /typeLabel\(item\.attachment_type, item\.source_document_kind\)/);
   assert.match(repository, /source_document_kind/);
