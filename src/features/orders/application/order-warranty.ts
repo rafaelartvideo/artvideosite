@@ -44,6 +44,9 @@ const field=(key:string,value:unknown)=>'<div class="field"><span>'+esc(key)+'</
 export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Promise<string> {
   const [company,template,orderItems]=await Promise.all([getCompanyPrintContext(cert.organization_id),loadWarrantyCertificateTemplate(cert.organization_id),loadWarrantyCertificateOrderItems(cert.organization_id,cert.service_order_id)]);
   const d=cert.snapshot||{};
+  const isCoveredReturn=d.covered_return===true && Boolean(d.original_os_number);
+  const todayInBrazil=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const sealText=cert.expires_at<todayInBrazil?"PRAZO<br>ENCERRADO":"GARANTIA<br>ATIVA";
   const code="CG-"+cert.starts_at.slice(0,4)+"-"+String(cert.certificate_number).padStart(6,"0");
   const mark=(kind:string)=>{
     const paths:Record<string,string>={
@@ -87,7 +90,7 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
   const warranty='<table class="warranty-table"><thead><tr><th>Tipo de garantia</th><th>Prazo / Condição</th></tr></thead><tbody>'+
     '<tr><td>'+esc(cert.warranty_option_label||"Garantia do equipamento")+'</td><td>'+esc(cert.warranty_days)+' dias</td></tr>'+
     extraWarrantyRows+'</tbody></table>'+
-    '<div class="warranty-feature"><span>'+mark("shield")+' Garantia aplicada neste atendimento:</span><strong>'+esc(cert.warranty_days)+' dias</strong></div>';
+    '<div class="warranty-feature"><span>'+mark("shield")+(isCoveredReturn?' Prazo original preservado:':' Garantia aplicada neste atendimento:')+'</span><strong>'+esc(cert.warranty_days)+' dias</strong></div>';
   const bullets=(content:string,className:string)=>'<ul class="'+className+'">'+content.split(/\r?\n/).map(t=>t.trim()).filter(Boolean).map(t=>'<li>'+esc(t)+'</li>').join("")+'</ul>';
   const covered=bullets(template.coverage,"coverage");
   const excluded=bullets(template.exclusions,"exclusions");
@@ -96,8 +99,10 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
     '<div class="top-deco" aria-hidden="true"></div><div class="shield-watermark" aria-hidden="true">◆</div>',
     '<div class="masthead"><div class="mast-brand">'+logo+logoText+'</div></div>',
     '<div class="headline"><h1>'+esc(template.title)+'</h1></div>',
-    template.show_seal?'<div class="certificate-seal"><div class="ribbon-tails" aria-hidden="true"></div><div class="round-seal"><div class="stars">★ ★ ★</div>'+mark("shield")+'<strong>GARANTIA<br>ATIVA</strong><small>Certificado</small><div class="stars">★ ★ ★</div></div></div>':'',
+    template.show_seal?'<div class="certificate-seal"><div class="ribbon-tails" aria-hidden="true"></div><div class="round-seal"><div class="stars">★ ★ ★</div>'+mark("shield")+'<strong>'+sealText+'</strong><small>Certificado</small><div class="stars">★ ★ ★</div></div></div>':'',
     '<div class="metadata">'+metric("file","Nº do Certificado",code)+metric("clipboard","OS vinculada",String(d.os_number||"—"))+metric("calendar","Data de emissão",new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo"}).format(new Date(cert.issued_at)))+metric("calendar","Validade até",br(cert.expires_at))+'</div>',
+    ...(isCoveredReturn?[section("RETORNO EM GARANTIA","shield",
+      '<p>Atendimento vinculado à OS '+esc(d.original_os_number)+'. O certificado deste retorno mantém o prazo de cobertura da OS original, até '+esc(br(cert.expires_at))+'. A emissão deste documento não reinicia o prazo de garantia.</p>')]:[]),
     section("DADOS DO CLIENTE","user",customer),
     section("DADOS DO EQUIPAMENTO","screen",equipment),
     section(template.section_services,"tool",services),
