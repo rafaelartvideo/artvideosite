@@ -22,7 +22,7 @@ import {
 } from "@/features/documents/domain/document-signature";
 import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
-import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
+import { isLegacyRejectedQuoteReturn, isOrderTerminalSignatureEligible } from "../domain/order-terminal-document-visibility";
 import {
   cancelSignatureRequest,
   getSignatureAdminLink,
@@ -128,11 +128,11 @@ export function OrderSignatureRequestsSection({
   const canAudit = hasPermission("documents.signatures.audit");
   const onlineTemplates = useMemo(() => templates.filter(template =>
     template.is_active !== false && template.allow_online_signature === true
-      && isOrderTerminalDocumentVisible(template.document_type,order)
+      && isOrderTerminalSignatureEligible(template.document_type,order)
   ), [templates,order?.completed_at,order?.closure_outcome]);
   const visibleRequests = requests.filter(request => {
     const template=templates.find(item=>item.id===request.print_template_id);
-    return !template || isOrderTerminalDocumentVisible(template.document_type,order);
+    return !template || isOrderTerminalSignatureEligible(template.document_type,order);
   });
 
   const load = useCallback(async () => {
@@ -284,10 +284,14 @@ export function OrderSignatureRequestsSection({
 
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-sm font-black text-[#0d1b2e]">Assinaturas eletrônicas</h2><p className="mt-1 text-xs text-[#5a6a82]">Solicitações enviadas a partir dos modelos habilitados para assinatura online.</p></div>
+        <div><h2 className="text-sm font-bold text-foreground">Assinaturas eletrônicas</h2><p className="mt-1 text-xs text-muted-foreground">Termos assinados, solicitações e histórico de emissão.</p></div>
         <AdminIconButton ariaLabel="Atualizar assinaturas" title="Atualizar" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /></AdminIconButton>
       </div>
 
+      {isLegacyRejectedQuoteReturn(order) && <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-xs text-foreground">
+        <strong className="block font-semibold">Termo complementar de devolução</strong>
+        <p className="mt-1 text-muted-foreground">Esta OS foi encerrada em {formatDateTime(order.completed_at,"—")}. A assinatura feita agora registra uma formalização posterior; não altera a data de encerramento, a evidência original nem o Financeiro.</p>
+      </div>}
       {message && <div className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span className="min-w-0 break-words">{message.text}</span><button type="button" onClick={() => setMessage(null)}><X size={13} /></button></div>}
 
       {canSend && onlineTemplates.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”. Configure em Operação → Documentos.</div>}
