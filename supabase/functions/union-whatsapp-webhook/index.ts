@@ -218,11 +218,25 @@ Deno.serve(async request => {
       : message.videoMessage || message.VideoMessage ? "video"
       : message.audioMessage || message.AudioMessage ? "audio"
       : message.documentMessage || message.DocumentMessage ? "file"
-      : message.locationMessage || message.LocationMessage ? "location"
+      : message.locationMessage || message.LocationMessage || message.liveLocationMessage || message.LiveLocationMessage ? "location"
       : message.contactMessage || message.ContactMessage ? "contact" : "text";
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
     const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage", "stickerMessage", "StickerMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
+    // WhatsApp locations are coordinates, not downloadable media. Preserve the
+    // position plus optional human labels without adding a DB column or a fetch.
+    // The geo:v1 text contract is rendered only for message_type="location".
+    const locationPayload=obj(get(message,"locationMessage","LocationMessage","liveLocationMessage","LiveLocationMessage"));
+    const locationCoordinate=(value:unknown):number =>
+      typeof value==="number" ? value :
+      typeof value==="string" && value.trim()!=="" ? Number(value) : Number.NaN;
+    const latitude=locationCoordinate(get(locationPayload,"degreesLatitude","DegreesLatitude","latitude","Latitude"));
+    const longitude=locationCoordinate(get(locationPayload,"degreesLongitude","DegreesLongitude","longitude","Longitude"));
+    const validLocation=Number.isFinite(latitude)&&Number.isFinite(longitude)&&
+      Math.abs(latitude)<=90&&Math.abs(longitude)<=180;
+    const locationName=str(get(locationPayload,"name","Name"),140).replace(/[\\r\n]+/g," ").trim();
+    const locationAddress=str(get(locationPayload,"address","Address"),240).replace(/[\\r\n]+/g," ").trim();
+    const locationBody=validLocation ? "geo:"+latitude+","+longitude+"\n"+locationName+"\n"+locationAddress : body;
     // Whatsmeow quote metadata is carried inside ExtendedTextMessage or the
     // corresponding media caption. Never use arbitrary quoted URLs or JIDs.
     const context=obj(get(extended,"contextInfo","ContextInfo") ??
@@ -488,10 +502,10 @@ Deno.serve(async request => {
         .eq("conversation_id",thread.id).eq("provider_message_id",quoteId).maybeSingle();
       if(quotedError)throw quotedError;
       const resolvedType=String(original?.message_type||quotedType);
-      const fallbackLabel=({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha"} as Record<string,string>)[resolvedType] || "Mensagem";
+      const fallbackLabel=({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha",location:"Localização"} as Record<string,string>)[resolvedType] || "Mensagem";
       replyMetadata={
         reply_to_provider_message_id:quoteId,
-        reply_to_text:String(original?.body_text||quotedPreview||fallbackLabel).slice(0,400),
+        reply_to_text:resolvedType==="location" ? fallbackLabel : String(original?.body_text||quotedPreview||fallbackLabel).slice(0,400),
         reply_to_message_type:resolvedType,
         reply_to_direction:original?.direction||null,
       };
@@ -500,7 +514,7 @@ Deno.serve(async request => {
       .upsert({
         organization_id: org, channel_id: channelId, account_phone:accountPhone, conversation_id: thread.id,
         provider_message_id: providerMessageId, direction: isFromMe ? "outgoing" : "incoming",
-        message_type: typeHint, body_text: body, sender_name: name || null, sent_at: timestamp,
+        message_type: typeHint, body_text: typeHint==="location" ? locationBody : body, sender_name: name || null, sent_at: timestamp,
         delivery_status: isFromMe ? "sent" : null,
         origin:isFromMe?"whatsapp_device":"whatsapp_contact",
         media_name:mediaKind ? (originalName || null) : null,

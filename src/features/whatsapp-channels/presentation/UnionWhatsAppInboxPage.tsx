@@ -1,10 +1,11 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
+import { parseWhatsAppLocation } from "../domain/whatsapp-location";
 import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
 import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
@@ -41,6 +42,7 @@ const EmbeddedNewOrder = lazy(() => import("@/features/orders/presentation/TabOr
   .then(({TabOrders})=>({default:TabOrders})));
 
 const quotedSummary=(body:string|null|undefined, kind:string|null|undefined):string =>
+  kind==="location" ? (parseWhatsAppLocation(body)?.name || "Localização") :
   String(body||"").trim().slice(0,180) ||
   ({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento",sticker:"Figurinha",
     location:"Localização",contact:"Contato"} as Record<string,string>)[String(kind||"")] ||
@@ -274,6 +276,26 @@ function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stic
       ? message.body_text.slice(signature.length+2) : message.body_text;
   if (message.message_type === "text" || message.message_type === "unknown") {
     return <p className="text-sm leading-5"><WhatsAppFormattedText text={content || "Mensagem"}/></p>;
+  }
+  if (message.message_type === "location") {
+    const position=parseWhatsAppLocation(message.body_text);
+    return <div className="flex max-w-[320px] items-start gap-3 rounded-lg border border-border/70 bg-background/40 p-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <MapPin size={19}/>
+      </span>
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-semibold">{position?.name || "Localização compartilhada"}</p>
+        {position?.address && <p className="break-words text-xs text-muted-foreground">{position.address}</p>}
+        {position ?
+          <a href={position.mapsUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-block text-xs font-semibold text-primary underline-offset-2 hover:underline">
+            Abrir no Google Maps
+          </a> :
+          <p className="text-xs text-muted-foreground">
+            Coordenadas não disponíveis nesta mensagem. Solicite o reenvio da localização.
+          </p>}
+      </div>
+    </div>;
   }
   if(message.message_type==="sticker"){
     return <>
