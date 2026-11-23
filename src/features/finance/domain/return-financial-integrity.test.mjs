@@ -74,3 +74,10 @@ test("Comprovantes e evidências usam identificação semântica, com suporte a 
   assert.match(hook, /sem enviar o arquivo de novo/);
   assert.ok((await transformWithEsbuild(hook, "useOrderCompletion.ts", { loader: "ts" })).code.length > 200);
 });
+
+test("Dashboard não confunde cobertura de retorno com desconto comercial", () => {
+  const dashboard = read("supabase/migrations/20261123091900_dashboard_exclude_warranty_coverage_from_discounts.sql");
+  assert.match(dashboard, /'discount_amount', CASE WHEN service_order\.return_root_id IS NOT NULL/);
+  assert.match(dashboard, /service_order\.return_classification IN \('covered','courtesy'\)/);
+  assert.match(dashboard, /THEN 0 ELSE service_order\.discount_amount END/);
+});
