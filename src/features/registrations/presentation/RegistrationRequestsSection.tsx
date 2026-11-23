@@ -133,8 +133,9 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     try{window.localStorage.setItem(pinStorageKey,JSON.stringify(next));}catch{/* Preferência apenas visual. */}
     return next;
   });
-  const sortPinned=<T extends {id:string}>(type:RequestTab,items:T[])=>[...items].sort((a,b)=>
-    Number(isPinned(type,b.id))-Number(isPinned(type,a.id)));
+  function sortPinned<T extends {id:string}>(type:RequestTab,items:T[]):T[] {
+    return [...items].sort((a,b)=>Number(isPinned(type,b.id))-Number(isPinned(type,a.id)));
+  }
   const isArtvideo=activeOrganization?.is_artvideo_tenant===true && activeOrganization?.organization_id===organizationId;
   const queryClient=useQueryClient();
   const canViewOrders=hasPermission("orders.view")||hasPermission("orders.details.view");
