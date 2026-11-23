@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { FileText, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { FileText, RotateCcw, RotateCw, Scan, X, ZoomIn, ZoomOut } from "lucide-react";
+import { mediaViewerFitScale, mediaViewerPanBounds, normalizeMediaRotation } from "../domain/media-viewer-rotation";
 
 type WhatsAppMediaViewerProps = {
   url:string;
@@ -22,8 +23,12 @@ export function UnionWhatsAppMediaViewer({
 }:WhatsAppMediaViewerProps){
   const isImage=type==="image"||type==="sticker";
   const [zoom,setZoom]=useState(1);
+  const [rotation,setRotation]=useState(0);
+  const [fitScale,setFitScale]=useState(1);
   const [pan,setPan]=useState<Point>({x:0,y:0});
   const zoomRef=useRef(1);
+  const rotationRef=useRef(0);
+  const fitScaleRef=useRef(1);
   const viewportRef=useRef<HTMLDivElement|null>(null);
   const imageRef=useRef<HTMLImageElement|null>(null);
   const pointersRef=useRef(new Map<number,Point>());
@@ -33,9 +38,12 @@ export function UnionWhatsAppMediaViewer({
   const clampPan=(x:number,y:number,level:number):Point=>{
     const viewport=viewportRef.current;
     const image=imageRef.current;
-    if(!viewport||!image||level<=1)return {x:0,y:0};
-    const maxX=Math.max(0,(image.offsetWidth*level-viewport.clientWidth)/2);
-    const maxY=Math.max(0,(image.offsetHeight*level-viewport.clientHeight)/2);
+    if(!viewport||!image)return {x:0,y:0};
+    const {maxX,maxY}=mediaViewerPanBounds({
+      imageWidth:image.offsetWidth,imageHeight:image.offsetHeight,
+      viewportWidth:viewport.clientWidth,viewportHeight:viewport.clientHeight,
+      zoom:level,rotation:rotationRef.current,fitScale:fitScaleRef.current,
+    });
     return {x:Math.max(-maxX,Math.min(maxX,x)),y:Math.max(-maxY,Math.min(maxY,y))};
   };
   const changeZoom=(value:number)=>{
@@ -47,6 +55,16 @@ export function UnionWhatsAppMediaViewer({
   const resetZoom=()=>{
     zoomRef.current=1;
     setZoom(1);
+    setPan({x:0,y:0});
+    pointersRef.current.clear();
+    dragRef.current=null;
+    pinchRef.current=null;
+  };
+  const rotateImage=(delta:-90|90)=>{
+    const next=normalizeMediaRotation(rotationRef.current+delta);
+    rotationRef.current=next;
+    setRotation(next);
+    // Após girar, centraliza sem perder o nível de zoom escolhido.
     setPan({x:0,y:0});
     pointersRef.current.clear();
     dragRef.current=null;
@@ -67,11 +85,43 @@ export function UnionWhatsAppMediaViewer({
   useEffect(()=>{
     zoomRef.current=1;
     setZoom(1);
+    rotationRef.current=0;
+    setRotation(0);
+    fitScaleRef.current=1;
+    setFitScale(1);
     setPan({x:0,y:0});
     pointersRef.current.clear();
     dragRef.current=null;
     pinchRef.current=null;
   },[url,type]);
+  useLayoutEffect(()=>{
+    if(!isImage)return;
+    const viewport=viewportRef.current;
+    const image=imageRef.current;
+    if(!viewport||!image)return;
+    const syncDimensions=()=>{
+      const fit=mediaViewerFitScale(
+        image.offsetWidth,image.offsetHeight,
+        viewport.clientWidth,viewport.clientHeight,rotationRef.current,
+      );
+      fitScaleRef.current=fit;
+      setFitScale(current=>current===fit?current:fit);
+      setPan(current=>{
+        const next=clampPan(current.x,current.y,zoomRef.current);
+        return next.x===current.x&&next.y===current.y?current:next;
+      });
+    };
+    syncDimensions();
+    // A imagem e o modal podem mudar de tamanho após carregar ou redimensionar.
+    const observer=typeof ResizeObserver!=="undefined"?new ResizeObserver(syncDimensions):null;
+    observer?.observe(viewport);
+    observer?.observe(image);
+    window.addEventListener("resize",syncDimensions);
+    return()=>{
+      observer?.disconnect();
+      window.removeEventListener("resize",syncDimensions);
+    };
+  },[isImage,url,rotation]);
   useEffect(()=>{
     if(!isImage)return;
     const viewport=viewportRef.current;
@@ -144,7 +194,7 @@ export function UnionWhatsAppMediaViewer({
           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
           onDoubleClick={()=>zoom>1?resetZoom():changeZoom(2)}
-          style={{transform:"translate3d("+pan.x+"px,"+pan.y+"px,0) scale("+zoom+")",
+          style={{transform:"translate3d("+pan.x+"px,"+pan.y+"px,0) rotate("+rotation+"deg) scale("+(zoom*fitScale)+")",
             touchAction:"none",cursor:zoom>1?"grab":"zoom-in"}}
           className="max-h-full max-w-full select-none rounded-lg object-contain shadow-xl"/>
         :type==="video"
@@ -153,7 +203,7 @@ export function UnionWhatsAppMediaViewer({
             ?<audio controls src={url} className="w-full max-w-sm"/>
             :<FileText size={54} className="text-white"/>}
     </div>
-    {isImage&&<div role="group" aria-label="Controles de zoom"
+    {isImage&&<div role="group" aria-label="Controles da imagem"
       className="flex shrink-0 items-center gap-1 rounded-lg border border-white/20 bg-black/65 p-1 text-white">
       <button type="button" onClick={()=>changeZoom(zoomRef.current/1.25)} disabled={zoom<=MIN_ZOOM}
         aria-label="Reduzir zoom" title="Reduzir zoom"
@@ -169,7 +219,17 @@ export function UnionWhatsAppMediaViewer({
       <button type="button" onClick={resetZoom} disabled={zoom===MIN_ZOOM}
         aria-label="Restaurar zoom" title="Restaurar zoom"
         className="rounded-md border-l border-white/20 p-2 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35">
-        <RotateCcw size={16}/>
+        <Scan size={16}/>
+      </button>
+      <button type="button" onClick={()=>rotateImage(-90)}
+        aria-label="Girar imagem 90 graus à esquerda" title="Girar 90° à esquerda"
+        className="rounded-md border-l border-white/20 p-2 hover:bg-white/15">
+        <RotateCcw size={17}/>
+      </button>
+      <button type="button" onClick={()=>rotateImage(90)}
+        aria-label="Girar imagem 90 graus à direita" title="Girar 90° à direita"
+        className="rounded-md p-2 hover:bg-white/15">
+        <RotateCw size={17}/>
       </button>
     </div>}
     <div className="flex max-w-full shrink-0 flex-wrap items-center justify-center gap-3 rounded-lg bg-black/65 px-3 py-2">

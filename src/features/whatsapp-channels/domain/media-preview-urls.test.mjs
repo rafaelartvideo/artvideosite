@@ -183,3 +183,39 @@ test("Nomes dos documentos WhatsApp nao usam o UUID interno do Storage",async()=
   assert.match(viewer,/href=\{downloadUrl\|\|url\}/);
   assert.match(viewer,/download=\{name\}/);
 });
+
+test("visualizador do WhatsApp gira imagens nos dois sentidos, sem alterar mídia original",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const viewer=readFileSync(new URL("../presentation/UnionWhatsAppMediaViewer.tsx",import.meta.url),"utf8");
+  const {transformWithEsbuild}=await import("vite");
+  assert.ok((await transformWithEsbuild(viewer,"UnionWhatsAppMediaViewer.tsx",{loader:"tsx"})).code.length>100);
+  assert.match(viewer,/aria-label="Girar imagem 90 graus à esquerda"/);
+  assert.match(viewer,/aria-label="Girar imagem 90 graus à direita"/);
+  assert.match(viewer,/rotateImage\(-90\)/);
+  assert.match(viewer,/rotateImage\(90\)/);
+  assert.match(viewer,/rotate\("\+rotation\+"deg\)/);
+  assert.match(viewer,/rotationRef\.current=0;/);
+  assert.match(viewer,/setRotation\(0\);/);
+  assert.match(viewer,/useLayoutEffect/);
+  assert.match(viewer,/ResizeObserver\(syncDimensions\)/);
+  assert.match(viewer,/aria-label="Restaurar zoom"/);
+  assert.match(viewer,/touchAction:"none"/);
+  assert.match(viewer,/downloadUrl\|\|url/);
+});
+test("rotação respeita encaixe na tela e limites de arraste nas quatro orientações",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {transformWithEsbuild}=await import("vite");
+  const helper=readFileSync(new URL("./media-viewer-rotation.ts",import.meta.url),"utf8");
+  const built=await transformWithEsbuild(helper,"media-viewer-rotation.ts",{loader:"ts",format:"esm"});
+  const {normalizeMediaRotation,mediaViewerFitScale,mediaViewerPanBounds}=await import("data:text/javascript;base64,"+Buffer.from(built.code).toString("base64"));
+  assert.equal(normalizeMediaRotation(-90),270);
+  assert.equal(normalizeMediaRotation(450),90);
+  assert.equal(normalizeMediaRotation(720),0);
+  assert.equal(mediaViewerFitScale(600,300,600,400,0),1);
+  assert.equal(mediaViewerFitScale(600,300,600,400,90),2/3);
+  assert.equal(mediaViewerFitScale(600,300,600,400,270),2/3);
+  assert.equal(mediaViewerFitScale(600,300,600,400,180),1);
+  assert.equal(mediaViewerFitScale(0,0,600,400,90),1);
+  assert.deepEqual(mediaViewerPanBounds({imageWidth:600,imageHeight:300,viewportWidth:600,viewportHeight:400,rotation:90,zoom:1,fitScale:2/3}),{maxX:0,maxY:0});
+  assert.deepEqual(mediaViewerPanBounds({imageWidth:600,imageHeight:300,viewportWidth:600,viewportHeight:400,rotation:90,zoom:3,fitScale:2/3}),{maxX:0,maxY:400});
+});
