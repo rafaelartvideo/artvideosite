@@ -22,17 +22,23 @@ test("financeiro abre a aba Perdas e preserva paginação sem baixar todas as pr
 
 test("orçamento reprovado permite devolução documentada sem execução de reparo", async () => {
   const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
-  const dialog = read("src/features/orders/presentation/OrderQuoteReturnDialog.tsx");
+  const dialog = read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  const migration=read("supabase/migrations/20261123095700_unify_signed_unrepaired_returns.sql");
   const page = read("src/features/orders/presentation/OrderDetailsPage.tsx");
   assert.ok((await transformWithEsbuild(quote,"OrderQuoteWorkspace.tsx",{loader:"tsx"})).code);
-  assert.ok((await transformWithEsbuild(dialog,"OrderQuoteReturnDialog.tsx",{loader:"tsx"})).code);
+  assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code);
   assert.ok((await transformWithEsbuild(page,"OrderDetailsPage.tsx",{loader:"tsx"})).code);
   assert.match(quote, /Finalizar devolução/);
   assert.match(quote, /proposal\?\.status==="rejected" && !order\.completed_at/);
-  assert.match(dialog, /close_rejected_quote_return_v1/);
+  assert.match(quote, /onRequestReturn\?\.\(/);
+  assert.match(page, /setTerminalOutcome\("returned_unrepaired"\)/);
+  assert.match(dialog, /completeOrderTerminalExit/);
+  assert.match(dialog, /signedRequests/);
   assert.match(dialog, /attachOrderSituationDocument/);
-  assert.match(dialog, /isDeliveryEvidenceName/);
+  assert.match(migration, /revoke all on function public\.close_rejected_quote_return_v1/);
   assert.match(page, /DEVOLVIDA SEM REPARO/);
+  assert.match(page, /signedReturnTerm/);
+  assert.match(page, /regularizeLegacyReturn/);
   // A situação de avaliação não deve aparecer como ativa após fechar a devolução.
   assert.match(page, /!\(detail\.completed_at && detail\.closure_outcome === "rejected_quote_return"\)/);
   const table = read("src/features/orders/presentation/OrdersTable.tsx");

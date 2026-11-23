@@ -22,7 +22,7 @@ test("Encerramentos especiais exigem documentos, termo assinado, evidência e de
   assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("disposal_confirmed"\)\)/);
   assert.match(actions,/const canTerminalExit = hasPermission\("orders.complete"\)/);
   assert.match(page,/OrderTerminalExitDialog/);
-  assert.match(page,/onTerminalExit=\{setTerminalOutcome\}/);
+  assert.match(page,/onTerminalExit=\{outcome => \{setTerminalInitialReason\(""\);setTerminalOutcome\(outcome\);\}\}/);
   assert.doesNotMatch(page,/supabase\.rpc\("complete_disposal_service_order"/);
   assert.match(signature,/preferredDocumentType/);
   assert.match(dialog,/listOrderSignatureRequests/);
@@ -46,6 +46,7 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   const setup=read("supabase/migrations/20261117214500_order_exit_terms_situations_custody.sql");
   const rpc=read("supabase/migrations/20261117215500_service_order_terminal_exit_secure_rpc.sql");
   const guards=read("supabase/migrations/20261117215800_guard_special_terminal_situations.sql");
+  const unified=read("supabase/migrations/20261123095700_unify_signed_unrepaired_returns.sql");
   const losses=read("supabase/migrations/20261117215900_financial_losses_signed_terminal_outcomes.sql");
   const finance=read("src/features/finance/presentation/FinanceLossesSection.tsx");
   assert.match(setup,/TERMO_DESCARTE/);
@@ -59,6 +60,9 @@ test("Banco impede descarte sem assinatura dupla, evidência, decisão física e
   assert.match(rpc,/evidência de devolução/);
   assert.match(rpc,/quantity_restored/);
   assert.match(rpc,/return_qty/);
+  assert.match(unified,/service_order_quote_proposals/);
+  assert.match(unified,/approval_status is distinct from/);
+  assert.match(unified,/close_rejected_quote_return_v1/);
   assert.match(rpc,/record_inventory_movement/);
   assert.match(rpc,/revoke execute on function public\.complete_disposal_service_order/);
   assert.match(guards,/special_order_exit/);

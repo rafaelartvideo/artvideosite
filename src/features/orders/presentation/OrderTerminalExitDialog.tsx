@@ -49,10 +49,11 @@ const STOCK_OPTIONS=[
 ];
 
 export function OrderTerminalExitDialog({
-  order,outcome,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,
+  order,outcome,initialReason,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,
 }:{
   order:any;
   outcome:OrderTerminalOutcome;
+  initialReason?:string|null;
   templates:PrintTemplate[];
   templatesLoading?:boolean;
   usedItems:any[];
@@ -65,7 +66,7 @@ export function OrderTerminalExitDialog({
   const cfg=TERMINAL_CONFIG[outcome];
   const org=String(order.organization_id||"");
   const orderId=String(order.id||"");
-  const [reason,setReason]=useState("");
+  const [reason,setReason]=useState(initialReason||"");
   const [partnerId,setPartnerId]=useState(String(order.disposal_partner_id||""));
   const [partners,setPartners]=useState<OrderWarrantyPartner[]>([]);
   const [attachments,setAttachments]=useState<Array<{media_id:string;attachment_type?:{name:string}|null;media?:{file_name?:string}|null}>>([]);

@@ -78,6 +78,7 @@ test("termos só ficam visíveis quando a OS foi fechada com a saída correspond
   const {code}=await transformWithEsbuild(source,"order-terminal-document-visibility.ts",{loader:"ts"});
   const module=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
   const visible=module.isOrderTerminalDocumentVisible;
+  const canSign=module.isOrderTerminalSignatureEligible;
   const descarte="TERMO_DESCARTE";
   const devolucao="TERMO_DEVOLUCAO_SEM_REPARO";
   const open={closure_outcome:null,completed_at:null};
@@ -90,7 +91,11 @@ test("termos só ficam visíveis quando a OS foi fechada com a saída correspond
   assert.equal(visible(devolucao,finishedDisposal),false);
   assert.equal(visible(devolucao,finishedReturn),true);
   assert.equal(visible(descarte,finishedReturn),false);
-  assert.equal(visible(devolucao,{closure_outcome:"rejected_quote_return",completed_at:finishedReturn.completed_at}),false);
+  const legacy={closure_outcome:"rejected_quote_return",completed_at:finishedReturn.completed_at};
+  assert.equal(visible(devolucao,legacy),false);
+  assert.equal(canSign(devolucao,legacy),true);
+  assert.equal(canSign(descarte,legacy),false);
+  assert.equal(canSign(devolucao,open),false);
   assert.equal(visible("ORCAMENTO",open),true);
   const detail=read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const requests=read("src/features/orders/presentation/OrderSignatureRequestsSection.tsx");
@@ -98,6 +103,8 @@ test("termos só ficam visíveis quando a OS foi fechada com a saída correspond
   assert.match(detail,/visiblePrintTemplates\.filter\(template => quoteWorkflowEnabled/);
   assert.match(detail,/isOrderTerminalDocumentVisible\(template.document_type, detail\)/);
   assert.match(requests,/visibleRequests\.map\(request/);
+  assert.match(requests,/isOrderTerminalSignatureEligible/);
+  assert.match(detail,/signedReturnTerm/);
   assert.match(send,/preferredDocumentType === template.document_type && isTerminalDocumentType\(preferredDocumentType\)/);
   // O encerramento ainda tem acesso ao modelo para colher assinaturas antes da confirmação.
   assert.match(detail,/templates=\{printTemplates.templates\}/);

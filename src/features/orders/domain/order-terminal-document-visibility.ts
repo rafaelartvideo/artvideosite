@@ -6,6 +6,12 @@
  * Não tratar um orçamento rejeitado como devolução sem reparo confirmada:
  * somente os encerramentos assinados permitem publicar os termos.
  */
+export function isLegacyRejectedQuoteReturn(
+  order: { completed_at?: string | null; closure_outcome?: string | null } | null | undefined,
+): boolean {
+  return Boolean(order?.completed_at && order.closure_outcome === "rejected_quote_return");
+}
+
 export const TERMINAL_DOCUMENT_TYPES = [
   "TERMO_DESCARTE",
   "TERMO_DEVOLUCAO_SEM_REPARO",
@@ -23,4 +29,15 @@ export function isOrderTerminalDocumentVisible(
   if (!order?.completed_at) return false;
   if (documentType === "TERMO_DESCARTE") return order.closure_outcome === "disposal_confirmed";
   return order.closure_outcome === "returned_unrepaired";
+}
+
+/** Regularização histórica: autoriza somente a solicitação de assinaturas.
+ * A impressão do modelo genérico continua bloqueada até existir PDF assinado.
+ */
+export function isOrderTerminalSignatureEligible(
+  documentType: string | null | undefined,
+  order: { completed_at?: string | null; closure_outcome?: string | null } | null | undefined,
+): boolean {
+  return isOrderTerminalDocumentVisible(documentType, order)
+    || (documentType === "TERMO_DEVOLUCAO_SEM_REPARO" && isLegacyRejectedQuoteReturn(order));
 }
