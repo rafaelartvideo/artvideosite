@@ -15,7 +15,7 @@ import { getMediaPreview, type MediaPreviewSource } from "@/shared/infrastructur
 
 type RequestTab = "equipment" | "quotes" | "orders" | "store";
 type ShopOrder = { id:string; order_number:number; created_at:string; status:string; product_name:string; buyer:Record<string,string>|null };
-type ServiceOrder = {id:string;os_number:string|number;created_at:string;service:{title?:string}|null;order_status:{name?:string;color?:string}|null};
+type ServiceOrder = {id:string;os_number:string|number;created_at:string;customer_equipment_id:string|null;service:{title?:string}|null;order_status:{name?:string;color?:string}|null};
 type Quote = {id:string;protocol:string|null;created_at:string;service:{title?:string}|null;request_status:{name?:string}|null};
 
 async function linkedStoreOrders(organizationId:string,entityId:string):Promise<ShopOrder[]> {
@@ -43,19 +43,17 @@ type EquipmentPhotoLookup = {
 
 // Foto da etiqueta = mídia da OS com sort_order entre 500 e 999.
 // Consultas em lote por cliente/empresa, sem N consultas de mídia por card.
-async function loadEquipmentPhotoLookup(organizationId:string,customerId:string,equipmentIds:string[],queryClient:QueryClient):Promise<EquipmentPhotoLookup>{
+async function loadEquipmentPhotoLookup(organizationId:string,equipmentIds:string[],orders:ServiceOrder[],queryClient:QueryClient):Promise<EquipmentPhotoLookup>{
   const empty:EquipmentPhotoLookup={photoUrls:{},linkedOrderIds:{}};
-  if(!equipmentIds.length)return empty;
-  const {data:orders,error:ordersError}=await supabase.from("service_orders")
-    .select("id,customer_equipment_id")
-    .eq("organization_id",organizationId).eq("customer_id",customerId)
-    .in("customer_equipment_id",equipmentIds).order("created_at",{ascending:false}).limit(100);
-  if(ordersError)throw ordersError;
+  if(!equipmentIds.length || !orders.length)return empty;
+  const validIds=new Set(equipmentIds);
   const byEquipment=new Map<string,string>();
   const byOrder=new Map<string,string>();
-  for(const order of orders||[]){
-    if(!order.customer_equipment_id)continue;
+  const orderRank=new Map<string,number>();
+  for(const [index,order] of orders.entries()){
+    if(!order.customer_equipment_id || !validIds.has(order.customer_equipment_id))continue;
     byOrder.set(order.id,order.customer_equipment_id);
+    orderRank.set(order.id,index);
     if(!byEquipment.has(order.customer_equipment_id))byEquipment.set(order.customer_equipment_id,order.id);
   }
   const linkedOrderIds=Object.fromEntries(byEquipment);
@@ -65,15 +63,19 @@ async function loadEquipmentPhotoLookup(organizationId:string,customerId:string,
     .eq("organization_id",organizationId).in("service_order_id",Array.from(byOrder.keys()))
     .gte("sort_order",500).lt("sort_order",1000).order("sort_order").limit(100);
   if(imagesError)throw imagesError;
-  const candidates=new Map<string,MediaPreviewSource>();
+  const candidates=new Map<string,{media:MediaPreviewSource;rank:number;sort:number}>();
   for(const entry of images||[]){
     const equipmentId=byOrder.get(entry.service_order_id);
     const media=entry.media as unknown as MediaPreviewSource|null;
-    if(equipmentId && !candidates.has(equipmentId) && media?.id && media.storage_path && media.bucket_id){
-      candidates.set(equipmentId,media);
+    if(!equipmentId || !media?.id || !media.storage_path || !media.bucket_id)continue;
+    const rank=orderRank.get(entry.service_order_id)??Number.MAX_SAFE_INTEGER;
+    const sort=entry.sort_order ?? 0;
+    const previous=candidates.get(equipmentId);
+    if(!previous || rank<previous.rank || (rank===previous.rank && sort<previous.sort)){
+      candidates.set(equipmentId,{media,rank,sort});
     }
   }
-  const previewResults=await Promise.allSettled(Array.from(candidates.entries()).map(async ([id,media])=>
+  const previewResults=await Promise.allSettled(Array.from(candidates.entries()).map(async ([id,{media}])=>
     [id,(await getMediaPreview(queryClient,media.id,media)).url] as const));
   const photoUrls:Record<string,string>={};
   for(const result of previewResults)if(result.status==="fulfilled")photoUrls[result.value[0]]=result.value[1];
@@ -156,13 +158,6 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     queryFn:()=>listCustomerEquipments(organizationId,customerId!),
     enabled:Boolean(customerId),staleTime:60000,
   });
-  const equipmentPhotoQuery=useQuery({
-    queryKey:[...key,"equipment-label-photos"],
-    queryFn:()=>loadEquipmentPhotoLookup(organizationId,customerId!,
-      (equipmentQuery.data||[]).map(equipment=>equipment.id),queryClient),
-    enabled:Boolean(customerId&&canOpenOrders&&equipmentQuery.data?.length),
-    staleTime:60000,retry:false,
-  });
   const quotesQuery=useQuery({
     queryKey:[...key,"quotes"],
     queryFn:async()=>{
@@ -178,12 +173,19 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
     queryKey:[...key,"orders"],
     queryFn:async()=>{
       const {data,error}=await supabase.from("service_orders")
-        .select("id,os_number,created_at,service:services(title),order_status:order_statuses(name,color)")
+        .select("id,os_number,created_at,customer_equipment_id,service:services(title),order_status:order_statuses(name,color)")
         .eq("organization_id",organizationId).eq("customer_id",customerId!)
         .order("created_at",{ascending:false}).limit(100);
       if(error)throw error;
       return (data||[]) as unknown as ServiceOrder[];
     },enabled:Boolean(customerId&&canViewOrders),staleTime:60000,
+  });
+  const equipmentPhotoQuery=useQuery({
+    queryKey:[...key,"equipment-label-photos"],
+    queryFn:()=>loadEquipmentPhotoLookup(organizationId,
+      (equipmentQuery.data||[]).map(equipment=>equipment.id),ordersQuery.data||[],queryClient),
+    enabled:Boolean(customerId&&canOpenOrders&&equipmentQuery.data?.length&&ordersQuery.data),
+    staleTime:60000,retry:false,
   });
   const shopQuery=useQuery({
     queryKey:[...key,"shop"],
