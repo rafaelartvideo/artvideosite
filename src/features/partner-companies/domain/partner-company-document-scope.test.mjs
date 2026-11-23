@@ -7,7 +7,7 @@ const read=path=>readFileSync(path,"utf8");
 const editor=read("src/features/partner-companies/presentation/PartnerCompanyEditorPage.tsx");
 const repository=read("src/features/partner-companies/infrastructure/partner-companies.repository.ts");
 const errorHandler=read("src/features/partner-companies/infrastructure/partner-companies.errors.ts");
-const migration=read("supabase/migrations/20261123111500_partner_companies_reuse_document.sql");
+const migration=read("supabase/migrations/20261123141911_partner_companies_reuse_document.sql");
 
 test("Cadastro de empresas não recusa CPF existente em outra organização",async()=>{
   const transformed=await transformWithEsbuild(editor,"PartnerCompanyEditorPage.tsx",{loader:"tsx"});
