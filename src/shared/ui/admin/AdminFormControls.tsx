@@ -128,8 +128,8 @@ export function FPhoneInput({
 }
 
 /** Radio buttons usados somente na edicao; a consulta de CPF preenche o genero silenciosamente. */
-export function FGenderRadio({ value, onChange, disabled = false }: {
-  value: "M" | "F" | "I" | ""; onChange: (value: "M" | "F" | "I" | "") => void; disabled?: boolean;
+export function FGenderRadio({ value, onChange, disabled = false, inline = false }: {
+  value: "M" | "F" | "I" | ""; onChange: (value: "M" | "F" | "I" | "") => void; disabled?: boolean; inline?: boolean;
 }) {
   const options = [
     { value: "M", label: "Masculino" },
@@ -137,7 +137,7 @@ export function FGenderRadio({ value, onChange, disabled = false }: {
     { value: "I", label: "Outro / Indefinido" },
     { value: "", label: "Não informado" },
   ] as const;
-  return <div className="min-w-0">
+  return <div className={cn("min-w-0", !inline && "sm:col-span-2")}>
     <AdminFieldLabel label="Gênero"/>
     <RadioGroup value={value || "none"} onValueChange={next => onChange(next === "none" ? "" : next as "M" | "F" | "I")} disabled={disabled}
       className="grid min-h-[42px] grid-cols-2 gap-1.5 rounded-lg border border-border bg-input-background p-1.5 sm:grid-cols-2 xl:grid-cols-4">
