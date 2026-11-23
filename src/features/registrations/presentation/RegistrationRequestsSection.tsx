@@ -11,6 +11,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { CustomerEquipmentsSection } from "@/features/customers/presentation/CustomerEquipmentsSection";
 import { listCustomerEquipments } from "@/features/customers/infrastructure/customers.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
+import { isAdminModuleEnabled } from "@/features/admin-shell/navigation-config";
 import { getMediaPreview, type MediaPreviewSource } from "@/shared/infrastructure/media.repository";
 
 type RequestTab = "equipment" | "quotes" | "orders" | "store";
@@ -124,7 +125,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
   entityId:string;customerId:string|null;organizationId:string;
   onOpenOrder?:(id:string,customerId?:string)=>void;
 }) {
-  const {hasPermission,activeOrganization}=useAuth();
+  const {hasPermission,hasModule,activeOrganization}=useAuth();
   const navigate=useNavigate();
   const pinStorageKey="unionworld:registration-request-pins:v1:"+organizationId+":"+entityId;
   const [pinned,setPinned]=useState<PinGroup>(()=>readPinnedRequests(pinStorageKey));
@@ -143,7 +144,9 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
   const canViewOrders=hasPermission("orders.view")||hasPermission("orders.details.view");
   const canOpenOrders=hasPermission("orders.details.view");
   const canViewQuotes=isArtvideo&&hasPermission("quotes.view");
+  const canOpenQuotes=canViewQuotes&&hasPermission("site.view")&&isAdminModuleEnabled("quotes",hasModule);
   const canViewShop=isArtvideo&&hasPermission("site_settings.view")&&hasPermission("customers.view");
+  const canOpenShop=canViewShop&&hasPermission("site.view")&&isAdminModuleEnabled("siteStoreOrders",hasModule);
   const canLinkShop=canViewShop&&hasPermission("site_settings.update")&&hasPermission("customers.edit");
   const [tab,setTab]=useState<RequestTab>("equipment");
   const [linkOpen,setLinkOpen]=useState(false);
@@ -266,7 +269,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
                   subtitle={(q.service?.title||"Serviço")+" · "+readableDate(q.created_at)}
                   status={q.request_status?.name||"—"} pinned={isPinned("quotes",q.id)}
                   onTogglePin={()=>togglePin("quotes",q.id)}
-                  onOpen={()=>navigate(adminPath("siteRequests","orcamentos",q.id))}
+                  onOpen={canOpenQuotes ? ()=>navigate(adminPath("siteRequests","orcamentos",q.id)) : undefined}
                   openLabel="Abrir orçamento"/>)}
               </div> : <AdminSectionEmpty>Nenhum orçamento vinculado a este cliente.</AdminSectionEmpty>)
           : selectedTab==="orders" ? (ordersQuery.data?.length
@@ -287,7 +290,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
                   subtitle={(order.product_name||"Pedido da loja")+" · "+readableDate(order.created_at)}
                   status={order.status} pinned={isPinned("store",order.id)}
                   onTogglePin={()=>togglePin("store",order.id)}
-                  onOpen={()=>navigate(adminPath("siteStoreOrders"))}
+                  onOpen={canOpenShop ? ()=>navigate(adminPath("siteStoreOrders")) : undefined}
                   openLabel="Ver pedidos">
                   {canLinkShop&&<button className="self-start text-xs font-semibold text-destructive hover:underline"
                     type="button" onClick={()=>void unlink(order)}>Desvincular pedido</button>}
