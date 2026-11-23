@@ -69,6 +69,7 @@ export function renderServiceOrderLabel(
   const osLabel = `OS ${osNumber}`;
   const osFontSize = fontSizeForNumber(osLabel, [17, 14, 11, 9]);
   const externalFontSize = fontSizeForNumber(externalNumber, [13, 11, 9, 8]);
+  const externalOnlyFontSize = fontSizeForNumber(externalNumber, [17, 14, 11, 9]);
   const caption = externalNumber
     ? `<div class="external" style="font-size: ${externalFontSize}pt">${escapeHtml(externalNumber)}</div>`
     : "";
@@ -76,6 +77,30 @@ export function renderServiceOrderLabel(
       <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osLabel)}</strong>
       ${caption}
     </div>`;
+
+  // A seleção é por impressão; o modo padrão conserva os dois números.
+  const numberModeFieldset = externalNumber ? `<fieldset class="number-mode" aria-label="Números da etiqueta">
+      <legend>Números que serão impressos</legend>
+      <div class="number-mode-options">
+        <label><input type="radio" name="number-mode" value="both" checked>
+          <span>OS interna + externa</span></label>
+        <label><input type="radio" name="number-mode" value="external-only">
+          <span>Somente OS externa</span></label>
+      </div>
+    </fieldset>` : "";
+  const modeSelectionScript = externalNumber
+    ? `var sheet = document.getElementById("sheet");
+      var modes = document.querySelectorAll('input[name="number-mode"]');
+      function updateNumberMode() {
+        var chosen = document.querySelector('input[name="number-mode"]:checked');
+        sheet.classList.toggle("external-only", Boolean(chosen && chosen.value === "external-only"));
+      }
+      modes.forEach(function (radio) { radio.addEventListener("change", updateNumberMode); });
+      updateNumberMode();`
+    : "";
+  // Com OS externa, aguardar a escolha explícita; sem externa, manter o print automático.
+  const autoPrintScript = externalNumber ? "" :
+    'window.addEventListener("load", function () { window.focus(); window.print(); });';
 
   const labels = Array.from({ length: 3 }, (_, index) =>
     `<section class="label${index >= layout.quantity ? " empty" : ""}" data-index="${index + 1}">${label}</section>`,
@@ -111,6 +136,15 @@ export function renderServiceOrderLabel(
       box-shadow: 0 3px 18px rgba(0,0,0,.08);
     }
     h1 { font-size: 20px; margin: 0 0 6px; }
+    .number-mode { border: 0; padding: 0; margin: 0 0 12px; min-width: 0; }
+    .number-mode legend { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .number-mode-options { display: flex; flex-wrap: wrap; gap: 9px; }
+    .number-mode-options label {
+      display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+      padding: 10px 12px; border: 1px solid #cbd5e1;
+      border-radius: 9px; font-size: 13px; font-weight: 700;
+    }
+    .number-mode-options input { margin: 0; accent-color: #0131cd; }
     .hint { color: #475569; font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
     .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
     .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; }
@@ -157,6 +191,11 @@ export function renderServiceOrderLabel(
       max-width: 100%; font-weight: 700; line-height: 1.15;
       white-space: nowrap; overflow: hidden; text-align: center;
     }
+    .sheet.external-only .order-number { display: none; }
+    .sheet.external-only .external {
+      font-size: ${externalOnlyFontSize}pt !important;
+      font-weight: 900; line-height: 1.08;
+    }
     .label.empty .label-content { display: none; }
     @media print {
       html, body {
@@ -180,6 +219,7 @@ export function renderServiceOrderLabel(
 </head>
 <body>
   <div class="settings">
+    ${numberModeFieldset}
     <div class="actions" style="margin-top: 0">
       <button id="print" type="button">Imprimir</button>
     </div>
@@ -190,9 +230,8 @@ export function renderServiceOrderLabel(
     (function () {
       var printButton = document.getElementById("print");
       printButton.addEventListener("click", function () { window.focus(); window.print(); });
-      // Abre diretamente a prévia de impressão do Brave ao clicar em Etiqueta.
-      // O botão continua disponível caso o navegador não abra automaticamente.
-      window.addEventListener("load", function () { window.focus(); window.print(); });
+      ${modeSelectionScript}
+      ${autoPrintScript}
     }());
   <\/script>
 </body>
