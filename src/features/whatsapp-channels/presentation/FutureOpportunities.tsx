@@ -73,6 +73,7 @@ export function FutureOpportunityEditor({identity,initial,onClose,onSaved}:{
     try{
       await saveFutureOpportunity(identity,draft,initial?.id);
       await client.invalidateQueries({queryKey:futureOpportunityQueryKey(identity.organization_id)});
+      void client.invalidateQueries({queryKey:["dashboard","future-opportunities",identity.organization_id]});
       onSaved?.();onClose();
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível registrar a oportunidade."));}
     finally{setSaving(false);}

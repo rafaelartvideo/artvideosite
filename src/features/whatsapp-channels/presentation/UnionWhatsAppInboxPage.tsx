@@ -3637,6 +3637,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             void markFutureOpportunityConverted(org,opportunityId,orderId)
               .then(()=>{
                 void futureQueryClient.invalidateQueries({queryKey:futureOpportunityQueryKey(org)});
+                void futureQueryClient.invalidateQueries({queryKey:["dashboard","future-opportunities",org]});
                 notifyAdmin("OS criada e oportunidade convertida com sucesso.","success");
               })
               .catch(reason=>notifyAdmin(
