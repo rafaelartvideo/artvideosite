@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 import {transformWithEsbuild} from "vite";
 const read=(path)=>readFileSync(path,"utf8");
 const migration=read("supabase/migrations/20261123144742_union_whatsapp_future_opportunities.sql");
+const scopedMigration=read("supabase/migrations/20261123150148_union_whatsapp_future_opportunity_staff_scope.sql");
 const repo=read("src/features/whatsapp-channels/infrastructure/future-opportunities.repository.ts");
 const ui=read("src/features/whatsapp-channels/presentation/FutureOpportunities.tsx");
 const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
@@ -43,4 +44,22 @@ test("consentimento, conversão e análise não disparam campanhas automáticas"
   assert.match(dashboard,/view==="opportunities"/);
   assert.match(dashboard,/enabled:Boolean\(organizationId&&view==="opportunities"\)/);
   assert.doesNotMatch(ui,/sendWhatsApp|sendBulkMessage/);
+});
+
+test("oportunidades respeitam as permissões de gestores, fila, responsáveis e participantes",()=>{
+  assert.match(scopedMigration,/private\.union_whatsapp_read_accounts\(\)/);
+  assert.match(scopedMigration,/private\.union_whatsapp_read_organizations\('view_all'\)/);
+  assert.match(scopedMigration,/private\.union_whatsapp_read_organizations\('view_assigned'\)/);
+  assert.match(scopedMigration,/private\.union_whatsapp_read_organizations\('view_queues'\)/);
+  assert.match(scopedMigration,/union_whatsapp_conversation_participants/);
+  assert.match(scopedMigration,/private\.union_whatsapp_allowed\(p_org, 'send'\)/);
+  assert.match(scopedMigration,/union_wa_future_history_select/);
+});
+test("Nova OS vinculada atualiza oportunidade e dashboard, sem perder a OS se vínculo falhar",()=>{
+  assert.match(inbox,/onNewOrder=\{/);
+  assert.match(inbox,/onEmbeddedCreated=\{\(orderId:string\)=>/);
+  assert.match(inbox,/markFutureOpportunityConverted\(org,opportunityId,orderId\)/);
+  assert.match(inbox,/OS criada, mas não foi possível vincular/);
+  assert.match(ui,/Para marcar como convertida, vincule uma OS existente/);
+  assert.match(ui,/void client\.invalidateQueries\(\{queryKey:\["dashboard","future-opportunities",identity.organization_id\]\}\)/);
 });
