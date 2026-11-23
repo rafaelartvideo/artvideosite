@@ -151,7 +151,7 @@ export function RegistrationEditor({
           <FPhoneInput label="Telefone" required={creating && form.roles.includes("customer")} copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { onClearFieldError("phone"); setForm(current => ({ ...current, phone })); }} error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { onClearFieldError("phone"); onClearFieldError("whatsapp"); setForm(current => ({ ...current, phone: event.target.value })); }} />
             <VerifiedWhatsAppPhoneInput verificationMode={creating ? "create" : "edit"} label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { onClearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
           <FBrazilianDateInput label="Data de nascimento" required error={fieldErrors.birth_date} value={form.birth_date} onChange={(event: any) => { onClearFieldError("birth_date"); setForm(current => ({ ...current, birth_date: event.target.value })); }} />
-          {!creating && <FGenderRadio value={form.gender} onChange={gender => setForm(current => ({ ...current, gender }))} disabled={!canModify}/>}
+          {!creating && <FGenderRadio inline value={form.gender} onChange={gender => setForm(current => ({ ...current, gender }))} disabled={!canModify}/>}
           <FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} />
         </div> : <div className="grid gap-4 sm:grid-cols-2">
           <div>
