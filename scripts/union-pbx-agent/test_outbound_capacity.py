@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch, Mock
+from types import SimpleNamespace
 
 from outbound_capacity import Account, CapacityLedger, Group, Observation, RoutingError, may_failover
 
@@ -177,5 +179,23 @@ class CapacityTests(unittest.TestCase):
             self.assertFalse(may_failover(outcome, True, False))
             self.assertFalse(may_failover(outcome, False, True))
 
+
+    def test_observation_must_still_be_fresh_after_waiting_for_sqlite_lock(self):
+        observations=tuple(dataclasses.replace(o,checked_at=NOW-25) for o in self.obs)
+        with patch('outbound_capacity.time',SimpleNamespace(monotonic=Mock(side_effect=[10,20])),create=True):
+            with self.assertRaisesRegex(RoutingError,'observation_stale'):
+                self.reserve(observations=observations)
+        self.assertEqual(self.ledger.reservations(ORG),())
+
+    def test_reservation_observed_on_different_account_is_not_deduplicated(self):
+        self.b=dataclasses.replace(self.b,channels=2)
+        self.group=dataclasses.replace(self.group,accounts=(self.a,self.b),channels=3,organization_channels=3,trunk_channels=((TRUNK,3),))
+        self.reserve()
+        observations=(self.obs[0],dataclasses.replace(self.obs[1],active_calls=('call-1',)))
+        with self.assertRaisesRegex(RoutingError,'observation_divergent'):
+            self.reserve('call-2',observations=observations)
+        with self.assertRaisesRegex(RoutingError,'observation_divergent'):
+            self.reserve('call-1',observations=observations)
+        self.assertEqual(len(self.ledger.reservations(ORG)),1)
 
 if __name__ == '__main__': unittest.main()

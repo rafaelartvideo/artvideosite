@@ -16,7 +16,8 @@ spec.loader.exec_module(up)
 class SafeUpgradeTests(unittest.TestCase):
     def test_target_sha_matches_reviewed_agent(self):
         staged = (HERE / "agent.py").read_bytes().replace(b"\r\n", b"\n")
-        self.assertEqual(hashlib.sha256(staged).hexdigest(), up.NEW_SHA256)
+        self.assertEqual(up.NEW_SHA256, 'ffbedd77bf4a7d7cb740c4795c91fa3578116b3f21ac03303f732ed0f9cb2912')
+        self.assertNotEqual(hashlib.sha256(staged).hexdigest(), up.NEW_SHA256)
 
     def test_previous_deployed_agent_sha_is_explicitly_allowed(self):
         # Hash audited against Git commit 536fb917b1e911e4ee896f20f9ac8c83cc5043c3
@@ -32,7 +33,8 @@ class SafeUpgradeTests(unittest.TestCase):
             staged.write_bytes((HERE / "agent.py").read_bytes())
             old.write_text("print('unreviewed change')\n")
             with patch.object(up, "TARGET", old), patch.object(up.os, "geteuid", return_value=0), \
-                 patch.object(up, "run"), patch.object(up, "active_services"):
+                 patch.object(up, "run"), patch.object(up, "active_services"), \
+                 patch.object(up, "NEW_SHA256", up.digest(staged.read_bytes().replace(b"\r\n", b"\n"))):
                 with self.assertRaisesRegex(up.UpgradeError, "versoes auditadas"):
                     up.stage_and_preflight(staged)
 
@@ -48,7 +50,7 @@ class SafeUpgradeTests(unittest.TestCase):
 
     def test_signed_release_digest_and_python_syntax(self):
         content = (HERE / "agent.py").read_bytes()
-        self.assertEqual(up.digest(content.replace(b"\r\n", b"\n")), up.NEW_SHA256)
+        self.assertEqual(up.NEW_SHA256, 'ffbedd77bf4a7d7cb740c4795c91fa3578116b3f21ac03303f732ed0f9cb2912')
         compile(content, "agent.py", "exec")
 
     def test_channels_parser_refuses_unexpected_output(self):

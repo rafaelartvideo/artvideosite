@@ -1,3 +1,5 @@
+> Registro histórico da fundação v2. A entrega universal e as evidências atuais estão em [pbx-universal-telephony-delivery.md](pbx-universal-telephony-delivery.md).
+
 # PABX: motor de múltiplas contas — entrega parcial, sem ativação
 
 ## Escopo real
@@ -39,7 +41,7 @@ da mesma organização. Isso é evidência do último relatório do agente, **n�
 inspeção direta de canais, RTP ou arquivos do Asterisk**. Não comprova dois canais
 contratados, registro das contas 101/102 ou áudio bidirecional.
 
-Bloqueios encontrados:
+Bloqueios encontrados na sessão que preparou a entrega (histórico; ver retomada abaixo):
 
 - SSH: conexão recusada pelo ambiente com `Permission denied` antes de autenticar.
 - Git local: escrita em `.git/FETCH_HEAD` negada. O conector GitHub funciona.
@@ -110,6 +112,46 @@ Antes de ativá-lo, implementar e validar em conjunto:
 
 Esses componentes não estão entregues neste commit; não existe comando honesto
 de ativação completa para uma integração ainda ausente.
+
+
+## Retomada com acesso confirmado — 22/11/2026
+
+Nesta conversa antiga, o teste TCP somente de leitura para a VPS em 22022
+conectou em 99 ms; `CODEX_SANDBOX_NETWORK_DISABLED` não estava definida.
+Política informada pela sessão: `danger-full-access`, rede habilitada e
+aprovação `never`. SSH autenticou pelo PowerShell. Não houve alteração de
+firewall, credenciais ou permissões NTFS para obter acesso.
+
+A main foi sincronizada com b66d0b35e, preservando cópias locais não rastreadas
+antes do fast-forward. A publicação HostGator desse commit concluiu com sucesso
+no workflow 45080920003. Isso não ativa os novos módulos na VPS.
+
+Inspeção direta: Asterisk 22.11.0 e agentes Union/Artvideo ativos, zero chamadas;
+FVX registrada. O agente instalado mantém SHA256
+`ffbedd77bf4a7d7cb740c4795c91fa3578116b3f21ac03303f732ed0f9cb2912`.
+O Supabase confirmou os protocolos 2/3 prontos e o relatório FVX aplicado/registrado;
+nenhum tronco gerenciado cadastrado e índice de uma saída habilitada ainda presente.
+Os endpoints 101/102 encontrados na VPS têm contexto `from-internal`: são ramais
+locais, não evidência de contas ou capacidade contratada na FVX.
+O proprietário confirmou separadamente duas contas SIP distintas; limite de
+canais por conta e compartilhamento entre entrada/saída ainda precisam de confirmação.
+
+A suíte original de 343 testes Python passou no Linux em diretório isolado,
+sem instalar módulos nem reiniciar serviços. A revisão reproduziu e corrigiu,
+com regressões, três falhas na fundação inativa:
+
+- renovar a avaliação de frescor após adquirir o lock SQLite, incluindo o tempo
+  real de espera monotônica; não admitir nova reserva com observação expirada;
+- rejeitar conflito entre a conta de uma reserva e a conta observada para a
+  mesma perna, inclusive na repetição idempotente;
+- tratar host/usuário sem diferenciar maiúsculas e bloquear a mesma credencial
+  em portas diferentes, normalizando e validando também as claims recebidas.
+
+A proteção do compilador é conservadora; a futura migração de claims deve
+alinhar a identidade canônica do banco e tratar eventuais colisões existentes.
+Essas correções não substituem o adaptador AGI/observador, o protocolo completo,
+a gestão no CRM ou a integração de entrada listados neste documento.
+Nenhum deles pode ser anunciado como ativo nesta retomada.
 
 ## Procedimento exato para retomar a inspeção na VPS
 

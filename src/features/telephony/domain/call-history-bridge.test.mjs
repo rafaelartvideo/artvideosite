@@ -8,7 +8,7 @@ const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null, bootstrap=null } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null, bootstrap=null, universalAdmitted=true, universalSnapshot=null } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -40,6 +40,9 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
       // The old fixture intentionally simulates an environment in which the
       // new consolidated RPC has not been migrated yet. The bridge must
       // retain its independently signed fallback without throwing.
+      if(name==='pbx_admit_universal_telephony_poll')return {data:universalAdmitted};
+      if(name==='pbx_poll_universal_telephony')return {data:universalSnapshot};
+      if(name==='pbx_report_universal_telephony')return {data:true};
       if(name==='pbx_poll_bootstrap_v1')return bootstrap===null ? {error:{code:'PGRST202'}} : {data:bootstrap};
       if(name==='pbx_write_queue_telemetry_v1')return {error:{code:'PGRST202'}};
       if(name==='pbx_admit_call_modes_poll_v2')return {data:callModesAdmitted};
@@ -314,4 +317,26 @@ test('optimized signed PBX bootstrap avoids redundant tenant GET requests',async
   assert.ok(b.calls.some(call=>call.name==='pbx_poll_bootstrap_v1'
     &&call.args.p_agent_id===agentId&&call.args.p_protocol_version===2));
   assert.equal(b.filters.some(item=>['pbx_extensions','pbx_queues','pbx_browser_login_requests'].includes(item[0])),false);
+});
+
+
+test('universal delivery requires signed fresh capability and exact agent tenant',async()=>{
+ const now=Date.now()/1000;
+ const snapshot={schema_version:1,organization_id:organizationId,agent_id:agentId,revision:1,document:{schema_version:1,routing_enabled:false,providers:[],contracts:[],connections:[],trunks:[],capacity_pools:[],dids:[],groups:[],outbound_routes:[]},extensions:[],credentials:[],issued_at:now,expires_at:now+90,hash:null};
+ const old=await bridge({universalSnapshot:snapshot});assert.equal('universal_telephony' in await(await old.send({action:'poll',protocol_version:2})).json(),false);assert.equal(old.calls.some(c=>c.name==='pbx_poll_universal_telephony'),false);
+ const denied=await bridge({universalSnapshot:snapshot,universalAdmitted:false});assert.equal('universal_telephony' in await(await denied.send({action:'poll',protocol_version:2,features:['universal_telephony_v1']})).json(),false);
+ const valid=await bridge({universalSnapshot:snapshot});const body=await(await valid.send({action:'poll',protocol_version:2,features:['universal_telephony_v1']})).json();assert.deepEqual(body.universal_telephony,snapshot);
+ for(const change of [{organization_id:agentId},{agent_id:organizationId},{expires_at:now-1},{expires_at:now+1000},{schema_version:2}]){
+  const bad=await bridge({universalSnapshot:{...snapshot,...change}});assert.equal('universal_telephony' in await(await bad.send({action:'poll',protocol_version:2,features:['universal_telephony_v1']})).json(),false);
+ }
+});
+test('universal incremental sync forwards only revision and hash and redacts report extras',async()=>{
+ const now=Date.now()/1000,hash='a'.repeat(64);
+ const snapshot={schema_version:1,organization_id:organizationId,agent_id:agentId,revision:2,issued_at:now,expires_at:now+90,hash,unchanged:true};
+ const b=await bridge({universalSnapshot:snapshot});
+ const response=await(await b.send({action:'poll',protocol_version:2,features:['universal_telephony_v1'],universal_revision:2,universal_hash:hash,universal_report:{revision:2,status:'applied',hash,observed:{ready:false,active_legs:0,legacy_coverage:false,connections:[]},password:'not-forwarded'}})).json();
+ assert.deepEqual(response.universal_telephony,snapshot);
+ assert.deepEqual(b.calls.find(c=>c.name==='pbx_poll_universal_telephony').args,{p_agent_id:agentId,p_applied_revision:2,p_applied_hash:hash});
+ assert.equal('password' in b.calls.find(c=>c.name==='pbx_report_universal_telephony').args,false);
+ assert.equal(JSON.stringify(b.calls).includes('not-forwarded'),false);
 });

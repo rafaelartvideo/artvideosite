@@ -125,6 +125,87 @@ def call_mode_support():
         return None
 
 
+def universal_support():
+    try:
+        import universal_telephony_runtime
+        return universal_telephony_runtime
+    except ImportError:
+        if (STATE_DIR/'universal-telephony.json').exists():
+            raise AgentError('Reinstale o pacote universal antes de alterar a telefonia.') from None
+        return None
+
+
+def universal_report_state(report):
+    value=json.loads(json.dumps(report))
+    for row in value.get('observed',{}).get('connections',[]):
+        row.pop('checked_at',None)
+    return value
+
+
+def universal_capabilities(capabilities,config):
+    if capabilities['protocol_version'] not in (2,3):return None
+    try:
+        runtime=universal_support()
+        if runtime is None:return None
+        features=runtime.capability(runtime_api(),config['organization_id'])
+        capabilities['features'].extend(features)
+        if 'universal_telephony_v1' in features:
+            pending=runtime.report(runtime_api())
+            applied=runtime.applied_state(runtime_api())
+            if type(applied.get('revision')) is int and applied['revision']>0 and applied.get('hash') is not None:
+                capabilities['universal_revision']=applied['revision']
+                capabilities['universal_hash']=applied['hash']
+            if type(pending.get('revision')) is int and pending['revision']>0 and pending.get('status') in ('applied','failed'):
+                if _should_send_report('universal',universal_report_state(pending),60):capabilities['universal_report']=pending
+        return runtime
+    except Exception:return None
+
+
+def universal_apply_bundle(bundle,snapshot):
+    from universal_runtime_adapter import apply_bundle
+    return apply_bundle(runtime_api(),bundle,snapshot)
+
+
+def universal_verify_bundle(bundle,snapshot):
+    from universal_runtime_adapter import verify_bundle
+    return verify_bundle(runtime_api(),bundle,snapshot)
+
+
+def universal_observe(org,snapshot=None):
+    from universal_runtime_adapter import observe
+    return observe(runtime_api(),org,snapshot)
+
+
+def universal_context_bindings(snapshot):
+    from universal_runtime_adapter import context_bindings
+    return context_bindings(runtime_api(),snapshot)
+
+
+def universal_transports():
+    from universal_runtime_adapter import transports
+    return transports(runtime_api())
+
+
+def universal_legacy_coverage(org):
+    from universal_runtime_adapter import legacy_coverage
+    return legacy_coverage(runtime_api(),org)
+
+
+def universal_claimed_identities(org):
+    from universal_runtime_adapter import claimed_identities
+    return claimed_identities(runtime_api(),org)
+
+
+def universal_claimed_networks(org):
+    from universal_runtime_adapter import claimed_networks
+    return claimed_networks(runtime_api(),org)
+
+
+def universal_renew_lease(org,expiry):
+    from universal_runtime_adapter import renew_lease
+    return renew_lease(runtime_api(),org,expiry)
+
+
 @contextmanager
 def operation_lock():
     from process_lock import exclusive, LockBusy
@@ -393,6 +474,10 @@ def render_internal_routes(overrides=None, recording_override=None):
     if flow_runtime is not None:
         flow_file,flow_dispatch,flow_include=flow_runtime.attachment(runtime_api())
         if flow_file.is_file():lines.extend(['include => '+flow_dispatch+'\n',flow_include+'\n'])
+    universal=universal_support()
+    if universal is not None:
+        from universal_runtime_adapter import internal_attachment
+        lines.append(internal_attachment(runtime_api()))
     raw="".join(lines).encode("utf-8")
     modes=call_mode_support()
     if modes is not None:raw=modes.decorate(runtime_api(),raw)
@@ -1319,7 +1404,9 @@ def cycle(dry_run=False):
                     if pending is not None and _should_send_report('call_modes', pending):capabilities['call_modes_report']=pending
         except Exception:
             modes=None
+    universal=universal_capabilities(capabilities,config)
     payload = signed_request({"action":"poll", "telemetry": telemetry, **capabilities})
+    if "universal_report" in capabilities:_mark_report_sent("universal",universal_report_state(capabilities["universal_report"]))
     for kind, field in (('recording', 'recording_report'), ('call_modes', 'call_modes_report')):
         if field in capabilities:
             _mark_report_sent(kind, capabilities[field])
@@ -1466,6 +1553,13 @@ def cycle(dry_run=False):
             print('Permissoes dos ramais adiadas: '+type(exc).__name__,file=sys.stderr)
             modes.report(runtime_api(),{'revision':snapshot['revision'],'status':'failed'})
 
+    if not dry_run and universal is not None and 'universal_telephony' in payload and 'universal_telephony_v1' in capabilities.get('features',[]):
+        try:
+            with operation_lock():universal.apply_snapshot(runtime_api(),payload['universal_telephony'],config['organization_id'])
+        except Busy:pass
+        except Exception as exc:
+            print('Telefonia universal adiada: '+type(exc).__name__,file=sys.stderr)
+
     # Media work runs last so slow downloads cannot delay browser credentials.
     flow_jobs=payload.get('flow_jobs',[])
     if not isinstance(flow_jobs,list) or len(flow_jobs)>10:raise AgentError('Resposta de fluxos invalida.')
@@ -1535,6 +1629,7 @@ def main():
     actions.add_parser("internal-routes")
     actions.add_parser("queues-init")
     actions.add_parser("sip-trunks-init")
+    actions.add_parser("universal-telephony-init")
     actions.add_parser("recordings-init")
     mode_init=actions.add_parser('call-modes-init')
     mode_init.add_argument('--snapshot-file',required=True)
@@ -1559,6 +1654,13 @@ def main():
                 if args.action in ('init','internal-routes','queues-init'):
                     with operation_lock():
                         {'init':init,'internal-routes':install_internal_routes,'queues-init':install_queues}[args.action]()
+                elif args.action=='universal-telephony-init':
+                    from universal_runtime_adapter import prepare
+                    from universal_telephony_runtime import init as init_universal
+                    org=json.loads(AGENT_CONFIG.read_text())['organization_id']
+                    with operation_lock():
+                        prepare(runtime_api(),org)
+                        init_universal(runtime_api(),org)
                 elif args.action=='sip-trunks-init':
                     from sip_trunk_runtime import init as init_trunks
                     init_trunks(runtime_api(),PROFILE_ID)

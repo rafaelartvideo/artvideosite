@@ -352,6 +352,51 @@ Deno.serve(async request=>{
           }
         }catch{console.error('PBX existing trunk controls unavailable');}
       }
+      let universalTelephony:unknown=undefined;
+      if(((isPlatform&&body.protocol_version===2)||(!isPlatform&&body.protocol_version===3))&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('universal_telephony_v1')){
+        try{
+          const admitted=await admin.rpc('pbx_admit_universal_telephony_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
+          if(!admitted.error&&admitted.data===true){
+            const report=body.universal_report;
+            const hashValid=(hash:unknown)=>typeof hash==='string'&&/^[a-f0-9]{64}$/.test(hash);
+            const integer=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0&&Number(value)<=1000000;
+            if(report!==undefined){
+              if(!report||!Number.isSafeInteger(report.revision)||report.revision<1||!['applied','failed'].includes(report.status)||!(hashValid(report.hash)||(report.status==='failed'&&report.hash===null)))throw Error('Invalid universal report');
+              const obs=report.observed;
+              if(!obs||typeof obs.ready!=='boolean'||typeof obs.legacy_coverage!=='boolean'||!integer(obs.active_legs)||!Array.isArray(obs.connections)||obs.connections.length>100)throw Error('Invalid observation');
+              const seen=new Set<string>();
+              const connections=obs.connections.map(row=>{
+                if(!row||!uuid.test(String(row.connection_id))||seen.has(row.connection_id)||!['registered','registering','unregistered','authentication_failed','network_failed','disabled','divergent','unknown','available'].includes(row.state)||!integer(row.used)||!integer(row.inbound_used)||!integer(row.outbound_used)||row.used!==row.inbound_used+row.outbound_used||!(row.available===null||integer(row.available))||typeof row.checked_at!=='string'||!Number.isFinite(Date.parse(row.checked_at)))throw Error('Invalid observation');
+                seen.add(row.connection_id);
+                return {connection_id:row.connection_id,state:row.state,used:row.used,inbound_used:row.inbound_used,outbound_used:row.outbound_used,available:row.available,checked_at:row.checked_at};
+              });
+              const acknowledged=await admin.rpc('pbx_report_universal_telephony',{p_agent_id:agent.id,p_revision:report.revision,p_status:report.status,p_observed:{ready:obs.ready,active_legs:obs.active_legs,legacy_coverage:obs.legacy_coverage,connections},p_hash:report.hash});
+              if(acknowledged.error)throw Error('Report unavailable');
+            }
+            const revision=Number.isSafeInteger(body.universal_revision)&&body.universal_revision>0?body.universal_revision:null;
+            const hash=hashValid(body.universal_hash)?body.universal_hash:null;
+            const result=await admin.rpc('pbx_poll_universal_telephony',{p_agent_id:agent.id,p_applied_revision:revision,p_applied_hash:hash});
+            const snapshot=result.data,now=Date.now()/1000;
+            if(result.error||!snapshot||snapshot.schema_version!==1||snapshot.organization_id!==agent.organization_id||snapshot.agent_id!==agent.id||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<1||typeof snapshot.issued_at!=='number'||typeof snapshot.expires_at!=='number'||!Number.isFinite(snapshot.issued_at)||!Number.isFinite(snapshot.expires_at)||snapshot.issued_at<now-100||snapshot.issued_at>now+5||snapshot.expires_at<=now||snapshot.expires_at>now+100||snapshot.expires_at<=snapshot.issued_at||snapshot.expires_at-snapshot.issued_at>100)throw Error('Invalid universal envelope');
+            const envelope={schema_version:1,organization_id:agent.organization_id,agent_id:agent.id,revision:snapshot.revision,issued_at:snapshot.issued_at,expires_at:snapshot.expires_at,hash:snapshot.hash};
+            if(snapshot.unchanged===true){
+              if(!hashValid(snapshot.hash)||snapshot.revision!==revision||snapshot.hash!==hash)throw Error('Invalid incremental delivery');
+              universalTelephony={...envelope,unchanged:true};
+            }else{
+              if(snapshot.hash!==null&&!hashValid(snapshot.hash)||!snapshot.document||typeof snapshot.document!=='object'||Array.isArray(snapshot.document)||JSON.stringify(snapshot.document).length>1500000||!Array.isArray(snapshot.extensions)||snapshot.extensions.length>1000||!Array.isArray(snapshot.credentials)||snapshot.credentials.length>100)throw Error('Invalid universal catalog');
+              const extensions=snapshot.extensions.map(row=>{
+                if(!row||!uuid.test(String(row.id))||!Number.isInteger(row.number)||typeof row.endpoint_name!=='string'||!(/^uw-[a-f0-9]{32}$/.test(row.endpoint_name)||(isPlatform&&row.endpoint_name==='union-301'&&row.number===301))||typeof row.enabled!=='boolean'||!['both','make_only','receive_only'].includes(row.external_mode))throw Error('Invalid extension');
+                return {id:row.id,number:row.number,endpoint_name:row.endpoint_name,enabled:row.enabled,external_mode:row.external_mode};
+              });
+              const credentials=snapshot.credentials.map(row=>{
+                if(!row||!uuid.test(String(row.connection_id))||typeof row.password!=='string'||row.password.length<1||row.password.length>256||/[\r\n\0]/.test(row.password))throw Error('Invalid credentials');
+                return {connection_id:row.connection_id,password:row.password};
+              });
+              universalTelephony={...envelope,document:snapshot.document,extensions,credentials};
+            }
+          }
+        }catch{console.error('PBX universal configuration unavailable');}
+      }
       let callModes:unknown=undefined;
       if(((isPlatform&&body.protocol_version===2)||(!isPlatform&&body.protocol_version===3))&&Array.isArray(body.features)&&body.features.length<=10&&body.features.every(feature=>typeof feature==='string')&&body.features.includes('call_modes_v2')){
         try{
@@ -399,7 +444,7 @@ Deno.serve(async request=>{
       }
       return respond({jobs:data||[],login_requests:loginRequests||[],queue_jobs:queueJobs,
         history_endpoints: [...historyEndpoints],availability_jobs:availabilityJobs,flow_jobs:flowJobs,
-        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks}),...(legacyTrunks===undefined?{}:{legacy_trunks:legacyTrunks}),...(callModes===undefined?{}:{call_modes:callModes}),...(recordingPolicy===undefined?{}:{recording_policy:recordingPolicy})});
+        ...(sipTrunks===undefined?{}:{sip_trunks:sipTrunks}),...(legacyTrunks===undefined?{}:{legacy_trunks:legacyTrunks}),...(callModes===undefined?{}:{call_modes:callModes}),...(universalTelephony===undefined?{}:{universal_telephony:universalTelephony}),...(recordingPolicy===undefined?{}:{recording_policy:recordingPolicy})});
     }
     if(body.action==='report_sip_trunks'){
       if(!Array.isArray(body.results)||body.results.length<1||body.results.length>200)return respond({error:'Confirmação de troncos inválida'},400);

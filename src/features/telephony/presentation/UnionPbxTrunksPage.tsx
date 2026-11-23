@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { UnionPbxUniversalTelephony } from './UnionPbxUniversalTelephony';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { FInput } from '@/shared/ui/admin/AdminFormControls';
@@ -140,6 +141,7 @@ function TrunksWorkspace({ organizationId, platform, onBack }: { organizationId:
   }
   const update = (field: keyof SipTrunkDraft, value: string | number | boolean | string[]) => setDraft(current => current ? { ...current, [field]: value } : current);
   return <div className="min-w-0 space-y-5 text-foreground">
+    <UnionPbxUniversalTelephony key={organizationId} organizationId={organizationId} />
     <PageHeader title="Troncos SIP" subtitle="Configure a operadora e autorize os ramais de saída da empresa." />
     <div className="flex flex-wrap gap-2"><AdminButton onClick={onBack}>Voltar</AdminButton><AdminButton disabled={busy || loading} onClick={() => { setPassword(''); setDraft(null); setReload(value => value + 1); }}>Atualizar</AdminButton><AdminButton disabled={busy || loading || !!error} onClick={() => open()}>Novo tronco</AdminButton></div>
     <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground space-y-2">

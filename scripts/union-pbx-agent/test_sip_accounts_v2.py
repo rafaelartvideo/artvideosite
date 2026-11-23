@@ -78,4 +78,18 @@ class AccountCompilerTests(unittest.TestCase):
             with self.assertRaises(RoutingError): validate_groups(ORG,(group,changed),self.catalog)
 
 
+    def test_identity_claim_cannot_be_bypassed_with_port_or_username_case(self):
+        rows=copy.deepcopy(self.rows)
+        rows[1].update(username=rows[0]['username'].upper(),port=5061)
+        with self.assertRaisesRegex(RoutingError,'sip_identity_conflict'):
+            self.compile(rows)
+        with self.assertRaisesRegex(RoutingError,'sip_identity_conflict'):
+            self.compile(claims=frozenset({('SIP.EXAMPLE.COM',5061,'ACCOUNT_0')}))
+
+    def test_malformed_authoritative_claims_fail_closed_without_echoing_inputs(self):
+        for claim in ('private-fixture', ('host',5060), ('host',True,'user'), ('',5060,'user'), ('host',5060,'')):
+            with self.subTest(claim=claim), self.assertRaisesRegex(RoutingError,'invalid_configuration') as caught:
+                self.compile(claims=frozenset({claim}))
+            self.assertNotIn('private-fixture',str(caught.exception))
+
 if __name__ == '__main__': unittest.main()

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import math
 import re
 import sqlite3
+import time
 import uuid
 
 
@@ -163,6 +164,7 @@ class CapacityLedger:
             db.close()
 
     def reserve(self, group, extension_id, call_id, observations, now, *, catalog, excluded=()):
+        started = time.monotonic()
         limits = group.validate(); identity(extension_id); call_identity(call_id); timestamp(now)
         if not isinstance(excluded, tuple): deny()
         for value in excluded: identity(value)
@@ -183,24 +185,34 @@ class CapacityLedger:
             if not isinstance(observation, Observation) or observation.account_id in observed: deny()
             observed[observation.account_id] = observation
         if set(observed) != set(accounts): deny('observation_incomplete')
-        availability = {a.id: observed[a.id].available(group.organization_id, a.id, now) for a in catalog}
+        for account in catalog:
+            observed[account.id].available(group.organization_id, account.id, now)
         observed_calls = set()
+        observed_accounts = {}
         for observation in observations:
             if observed_calls.intersection(observation.active_calls): deny('observation_divergent')
             observed_calls.update(observation.active_calls)
+            observed_accounts.update((call, observation.account_id) for call in observation.active_calls)
         # Missing/stale observations can conceal busy calls on ANY member.
         # Do not spend the shared company/trunk limits with an incomplete view.
         if any(not 0 <= now-o.checked_at <= 30 for o in observations): deny('observation_stale')
         authorized = [a for a in group.accounts if a.enabled and extension_id in a.allowed_extensions and a.id not in excluded]
         if not authorized: deny('extension_not_authorized')
         with self._transaction() as db:
+            # The SQLite lock may wait ten seconds. Freshness at method entry
+            # cannot authorize an admission after that bounded observation expires.
+            admitted_at = now + max(0, time.monotonic() - started)
+            if any(not 0 <= admitted_at-o.checked_at <= 30 for o in observations): deny('observation_stale')
+            availability = {a.id: observed[a.id].available(group.organization_id, a.id, admitted_at) for a in catalog}
             existing = db.execute('SELECT * FROM reservations WHERE call_id=?', (call_id,)).fetchone()
             if existing:
+                if existing['call_id'] in observed_accounts and observed_accounts[existing['call_id']] != existing['account_id']: deny('observation_divergent')
                 if (existing['organization_id'] != group.organization_id or existing['group_id'] != group.id or
                         existing['extension_id'] != extension_id or existing['revision'] != group.revision or
                         existing['account_id'] not in {a.id for a in authorized}): deny('call_identity_conflict')
                 return self._reservation(existing)
             rows = db.execute('SELECT * FROM reservations WHERE organization_id=?', (group.organization_id,)).fetchall()
+            if any(row['call_id'] in observed_accounts and observed_accounts[row['call_id']] != row['account_id'] for row in rows): deny('observation_divergent')
             ordered = sorted(authorized, key=lambda a: (a.priority, a.id))
             if group.strategy == 'round_robin':
                 cursor = db.execute('SELECT account_id FROM cursors WHERE organization_id=? AND group_id=?',
@@ -225,7 +237,7 @@ class CapacityLedger:
                     if member.trunk_id == account.trunk_id: trunk_calls.update(observed[member.id].active_calls)
                 if len(trunk_calls) >= limits[account.trunk_id]: continue
                 db.execute('INSERT INTO reservations VALUES (?,?,?,?,?,?,?,?)',
-                           (call_id, group.organization_id, group.id, account.id, account.trunk_id, extension_id, group.revision, now))
+                           (call_id, group.organization_id, group.id, account.id, account.trunk_id, extension_id, group.revision, admitted_at))
                 db.execute('INSERT INTO cursors VALUES (?,?,?) ON CONFLICT(organization_id,group_id) DO UPDATE SET account_id=excluded.account_id',
                            (group.organization_id, group.id, account.id))
                 return Reservation(call_id, group.organization_id, group.id, account.id, account.trunk_id, group.revision)

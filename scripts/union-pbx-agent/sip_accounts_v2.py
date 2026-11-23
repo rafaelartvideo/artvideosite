@@ -37,6 +37,17 @@ def compile_accounts(organization_id, rows, extensions, transports, catalog, *, 
         raise RoutingError('invalid_configuration')
     if len(rows) > 100 or len(rows) != len(catalog): raise RoutingError('invalid_configuration')
     accounts = {}
+    # Match the platform's conservative account reservation: another port does
+    # not make the same provider credential a different account. Normalize
+    # trusted claims too, so case variants cannot evade the reservation.
+    reserved = set()
+    for claim in claimed_identities:
+        if not isinstance(claim, tuple) or len(claim) != 3:
+            raise RoutingError('invalid_configuration')
+        host, port, username = claim
+        if not isinstance(host, str) or not host or not isinstance(username, str) or not username or type(port) is not int or not 1 <= port <= 65535:
+            raise RoutingError('invalid_configuration')
+        reserved.add((host.lower(), username.lower()))
     for account in catalog:
         if not isinstance(account, Account): raise RoutingError('invalid_configuration')
         account.validate(organization_id)
@@ -58,8 +69,8 @@ def compile_accounts(organization_id, rows, extensions, transports, catalog, *, 
         except TrunkConfigError:
             raise RoutingError('invalid_configuration') from None
         if not row['enabled']: continue
-        claim = (row['host'].lower(), row['port'], row['username'].lower())
-        if claim in identities or claim in claimed_identities: raise RoutingError('sip_identity_conflict')
+        claim = (row['host'].lower(), row['username'].lower())
+        if claim in identities or claim in reserved: raise RoutingError('sip_identity_conflict')
         identities.add(claim)
         names = trunk_names(organization_id, row['id'])
         pieces.append(compiled.pjsip)
