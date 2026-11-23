@@ -137,13 +137,25 @@ export function FGenderRadio({ value, onChange, disabled = false }: {
     { value: "I", label: "Outro / Indefinido" },
     { value: "", label: "Não informado" },
   ] as const;
-  return <div className="min-w-0 sm:col-span-2">
+  return <div className="min-w-0">
     <AdminFieldLabel label="Gênero"/>
-    <RadioGroup value={value || "none"} onValueChange={next => onChange(next === "none" ? "" : next as "M" | "F" | "I")} disabled={disabled} className="flex flex-wrap gap-x-5 gap-y-3 rounded-lg border border-border bg-muted/30 px-3 py-3">
-      {options.map(option => <label key={option.value || "none"} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
-        <RadioGroupItem value={option.value || "none"}/>
-        {option.label}
-      </label>)}
+    <RadioGroup value={value || "none"} onValueChange={next => onChange(next === "none" ? "" : next as "M" | "F" | "I")} disabled={disabled}
+      className="grid min-h-[42px] grid-cols-2 gap-1.5 rounded-lg border border-border bg-input-background p-1.5 sm:grid-cols-2 xl:grid-cols-4">
+      {options.map(option => {
+        const checked = (value || "none") === (option.value || "none");
+        return <label key={option.value || "none"} className={cn(
+          "flex min-w-0 cursor-pointer items-center justify-start gap-1.5 rounded-md border px-2 py-2 text-[11px] font-semibold leading-tight transition-colors",
+          "focus-within:ring-2 focus-within:ring-primary/30",
+          checked
+            ? "border-primary/65 bg-primary/10 text-foreground"
+            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-muted",
+          disabled && "cursor-default opacity-60",
+        )}>
+          <RadioGroupItem value={option.value || "none"}
+            className="size-[17px] border-[1.5px] border-slate-400 bg-card text-primary shadow-none data-[state=checked]:border-primary data-[state=checked]:bg-primary/10 dark:border-slate-500 dark:data-[state=checked]:border-blue-400 [&_[data-slot=radio-group-indicator]_svg]:fill-primary dark:[&_[data-slot=radio-group-indicator]_svg]:fill-blue-400"/>
+          <span className="min-w-0 break-words">{option.label}</span>
+        </label>;
+      })}
     </RadioGroup>
   </div>;
 }
