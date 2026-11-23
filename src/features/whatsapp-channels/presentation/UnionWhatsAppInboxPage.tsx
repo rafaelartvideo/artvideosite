@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery,useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
@@ -15,7 +15,7 @@ import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsA
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
-import { markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
+import { futureOpportunityQueryKey,markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
@@ -400,6 +400,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   onPrepareOrderDocument?: (templateId:string) => Promise<File>;
 }) {
   const { activeOrganizationId, hasPermission, user, profile } = useAuth();
+  const futureQueryClient=useQueryClient();
   const sharedActivity = useWhatsAppActivity();
   const location = useLocation();
   const canView = hasPermission("whatsapp.inbox.view");
@@ -3634,7 +3635,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           setNewOrder(null);
           if(opportunityId){
             void markFutureOpportunityConverted(org,opportunityId,orderId)
-              .then(()=>notifyAdmin("OS criada e oportunidade convertida com sucesso.","success"))
+              .then(()=>{
+                void futureQueryClient.invalidateQueries({queryKey:futureOpportunityQueryKey(org)});
+                notifyAdmin("OS criada e oportunidade convertida com sucesso.","success");
+              })
               .catch(reason=>notifyAdmin(
                 "OS criada, mas não foi possível vincular a oportunidade: "+
                   systemErrorMessage(reason,"Tente vincular manualmente."),"error"));
