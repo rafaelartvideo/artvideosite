@@ -70,7 +70,7 @@ BEGIN
      AND v_previous.other_cost=round(p_other_cost,2)
      AND v_previous.notes=coalesce(p_notes,'')
   THEN RETURN to_jsonb(v_previous); END IF;
-  INSERT INTO public.service_order_return_costs AS record(
+  INSERT INTO public.service_order_return_costs AS c(
     organization_id,service_order_id,labor_cost,other_cost,notes,updated_by,updated_at
   ) VALUES (
     p_organization_id,p_service_order_id,round(p_labor_cost,2),round(p_other_cost,2),
@@ -141,6 +141,7 @@ BEGIN
            coalesce(m.parts_cost,0) parts_cost,
            coalesce(cost.labor_cost,0) labor_cost,
            coalesce(cost.other_cost,0) other_cost,
+           coalesce(cost.notes,'') cost_notes,
            coalesce(m.missing_cost_movements,0) missing_cost_movements
     FROM cycles c
     LEFT JOIN movement_totals m ON m.service_order_id=c.id
