@@ -190,8 +190,10 @@ function EntryDetailContent({
 
       {["service_order", "inventory_purchase"].includes(detail.origin_type)
         && <FinanceEntrySourceBlock detail={detail} showIcon={false} />}
-      {isReceivable && detail.origin_type === "service_order" &&
-        <FinanceOrderEvidenceGallery entryId={detail.id} kind="delivery_evidence" />}
+      {isReceivable && detail.origin_type === "service_order" && <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+        <FinanceOrderEvidenceGallery entryId={detail.id} kind="payment_proof" />
+        <FinanceOrderEvidenceGallery entryId={detail.id} kind="delivery_evidence" />
+      </div>}
 
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
