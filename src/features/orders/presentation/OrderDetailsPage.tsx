@@ -255,7 +255,7 @@ export function OrderDetailsPage(props: Props) {
   // independentemente de a OS original ter tipo de atendimento com orcamento.
   const returnDiagnosisActive = Boolean(detail?.return_root_id && detail.return_classification === "analysis");
   const generatesWarranty = Boolean(
-    detail?.closure_outcome !== "rejected_quote_return" &&
+    !["rejected_quote_return","returned_unrepaired","disposal_confirmed"].includes(String(detail?.closure_outcome||"")) &&
     (((detail?.service_type as any)?.quote_workflow_enabled === true
      && (detail?.service_type as any)?.generates_warranty === true)
     || workspace.serviceTypes.some((type: any) =>
@@ -697,7 +697,7 @@ export function OrderDetailsPage(props: Props) {
       onDone={result=>{
         setTerminalOutcome(null);
         details.setDetail((current:any)=>current?.id===detail.id
-          ? {...current,is_solved:true,completed_at:result.completed_at,
+          ? {...current,is_solved:result.outcome==="disposal_confirmed",completed_at:result.completed_at,
             closure_outcome:result.outcome,final_total:0,
             order_status:{...(current.order_status||{}),name:"Fechada"}}
           :current);
