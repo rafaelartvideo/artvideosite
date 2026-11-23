@@ -128,6 +128,7 @@ export function OrderDetailsPage(props: Props) {
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const [terminalOutcome,setTerminalOutcome] = useState<OrderTerminalOutcome|null>(null);
+  const [terminalInitialReason,setTerminalInitialReason] = useState("");
   const terminalOrderIdRef=useRef<string|null>(detail?.id||null);
   useEffect(()=>{
     const orderId=detail?.id||null;
@@ -651,6 +652,7 @@ export function OrderDetailsPage(props: Props) {
       key={detail.id+"-"+terminalOutcome}
       order={detail}
       outcome={terminalOutcome}
+      initialReason={terminalInitialReason}
       templates={printTemplates.templates}
       templatesLoading={printTemplates.loading}
       usedItems={detailUsedItems}
@@ -813,8 +815,7 @@ export function OrderDetailsPage(props: Props) {
           actionsHostId={"os-quote-actions-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
            canCompleteReturn={!monitorView && hasPermission("orders.complete")}
-           canAttachReturnEvidence={!monitorView && hasPermission("orders.section.images")}
-           onReturnCompleted={() => { void details.retryDetailLoad(); }}
+           onRequestReturn={reason => { setTerminalInitialReason(reason); setTerminalOutcome("returned_unrepaired"); }}
         /> : detailSection === "products-services" && !isDisposal ? <OrderProductsServicesSection
           order={detail}
           canEdit={!monitorView && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
@@ -871,7 +872,7 @@ export function OrderDetailsPage(props: Props) {
         onRequestParts={openPartRequestModal}
         onResolve={() => openSolveOrder(detail)}
         onComplete={isDisposal ? () => setTerminalOutcome("disposal_confirmed") : openCompletion}
-        onTerminalExit={setTerminalOutcome}
+        onTerminalExit={outcome => {setTerminalInitialReason("");setTerminalOutcome(outcome);}}
         onEdit={() => { void openEdit(detail); }}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
