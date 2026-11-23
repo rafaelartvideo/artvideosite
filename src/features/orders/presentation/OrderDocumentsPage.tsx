@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
-import { isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
+import { isLegacyRejectedQuoteReturn, isOrderTerminalSignatureEligible } from "../domain/order-terminal-document-visibility";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSectionEmpty,
   AdminCard,
@@ -323,7 +323,7 @@ export function OrderDocumentsPage({
   const [browserBottomInset, setBrowserBottomInset] = useState(0);
   const canViewSignatures = hasPermission("documents.signatures.view");
   const canSendSignature = !readOnly && hasPermission("documents.signatures.send");
-  const hasOnlineSignatureTemplate = signatureTemplates.some(template => template.is_active !== false && template.allow_online_signature === true && isOrderTerminalDocumentVisible(template.document_type,order));
+  const hasOnlineSignatureTemplate = signatureTemplates.some(template => template.is_active !== false && template.allow_online_signature === true && isOrderTerminalSignatureEligible(template.document_type,order));
 
   useEffect(() => {
     if (!open) { setBrowserBottomInset(0); return; }
@@ -444,7 +444,7 @@ export function OrderDocumentsPage({
             {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <div className="order-last ml-auto hidden md:block"><OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /></div>}
             <BtnSecondary onClick={onClose} className="w-auto shrink-0">Voltar</BtnSecondary>
             {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)} className="ml-auto md:ml-0">Novo</BtnPrimary>}
-            {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)} className="ml-auto md:ml-0">Enviar</BtnPrimary>}
+            {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)} className="ml-auto md:ml-0">{isLegacyRejectedQuoteReturn(order) ? "Termo complementar" : "Enviar"}</BtnPrimary>}
           </div>
         </AdminStickyToolbar>
       </AdminPage>
