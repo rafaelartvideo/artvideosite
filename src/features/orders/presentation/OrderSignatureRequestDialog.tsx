@@ -3,7 +3,7 @@ import { getOrderChecklist } from "@/features/checklists/infrastructure/checklis
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
-import { isOrderTerminalDocumentVisible, isTerminalDocumentType } from "../domain/order-terminal-document-visibility";
+import { isOrderTerminalSignatureEligible, isTerminalDocumentType } from "../domain/order-terminal-document-visibility";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import {
   attachFrozenPrintPdf,
@@ -89,7 +89,7 @@ export function OrderSignatureRequestDialog({
       // Assinatura exigida antes do fechamento: somente a ação específica
       // do modal de descarte/devolução pode preparar antecipadamente o termo.
       && ((preferredDocumentType === template.document_type && isTerminalDocumentType(preferredDocumentType))
-        || isOrderTerminalDocumentVisible(template.document_type,order))
+        || isOrderTerminalSignatureEligible(template.document_type,order))
       && !(template.require_employee_signature === true && template.employee_signature_source === "manual")
     ),
     [templates,preferredDocumentType,order?.completed_at,order?.closure_outcome],
