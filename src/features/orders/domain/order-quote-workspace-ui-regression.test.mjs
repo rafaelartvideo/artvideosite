@@ -70,3 +70,14 @@ test("editar campos da OS captura value antes dos atualizadores de estado, sem n
     assert.match(code, /const value\s*=\s*/, name + " deve capturar o valor antes da atualização");
   }
 });
+
+test("alternar a OS e abrir Orçamento não executa setter removido de retorno", async () => {
+  const quote = source("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  assert.ok((await transformWithEsbuild(quote, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
+  // O efeito de mudança da OS executa ao montar a aba Orçamento.
+  // Este setter legado já não existe e causava ReferenceError na interface.
+  assert.doesNotMatch(quote, /\bsetReturnOpen\s*\(/);
+  assert.match(quote, /setConfirmationAction\(null\);\s*setModalFeedback\(null\);/);
+  assert.match(quote, /const \[confirmationAction,setConfirmationAction\]=useState/);
+  assert.match(quote, /onRequestReturn\?\.\(/);
+});
