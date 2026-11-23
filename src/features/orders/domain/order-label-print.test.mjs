@@ -34,7 +34,7 @@ test("OS com número externo permite ambos os números ou somente a externa ante
   assert.doesNotMatch(html,/window\.addEventListener\("load", function \(\) \{ window\.focus\(\); window\.print\(\); \}\)/);
   assert.match(html,/printButton\.addEventListener\("click"/);
   assert.equal((html.match(/data-index="[123]"/g)||[]).length,3);
-  assert.match(html,/@page \{ size: 103mm 23mm; margin: 0; \}/);
+  assert.match(html,/@page \{ size: 104mm 23mm; margin: 0; \}/);
 });
 test("Sem OS externa mantém impressão automática e nenhuma escolha adicional",async()=>{
   const html=await render({os_number:"00126",external_os_number:"  "});
