@@ -10,7 +10,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { OrderImage } from "../domain/order-image";
 export type { OrderImage } from "../domain/order-image";
 
-type OrderImageDownloadFormat = "original" | "png" | "jpeg" | "pdf";
+export type OrderImageDownloadFormat = "original" | "png" | "jpeg" | "pdf";
+
+export const ORDER_IMAGE_DOWNLOAD_OPTIONS: ReadonlyArray<readonly [OrderImageDownloadFormat, string]> = [
+  ["original", "Baixar original"],
+  ["png", "Baixar em PNG"],
+  ["jpeg", "Baixar em JPEG"],
+  ["pdf", "Baixar em PDF"],
+];
 
 function safeFileBaseName(value: string, fallback: string) {
   const normalized = String(value || "")
@@ -248,7 +255,7 @@ async function buildImagesPdf(images: OrderImage[], fileName: string) {
   const pdfBlob = await createImagesPdfBlob(images);
   triggerImageDownload(pdfBlob, fileName);
 }
-async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
+export async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
   if (format === "pdf") {
     await buildImagesPdf([image], generatedFileName(image.name || `Imagem ${index + 1}`));
     return;
@@ -652,12 +659,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
             role="menu"
             className="absolute right-0 top-[calc(100%+0.35rem)] z-[230] w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl"
           >
-            {([
-              ["original", "Baixar original"],
-              ["png", "Baixar em PNG"],
-              ["jpeg", "Baixar em JPEG"],
-              ["pdf", "Baixar em PDF"],
-            ] as Array<[OrderImageDownloadFormat, string]>).map(([format, label]) => (
+            {ORDER_IMAGE_DOWNLOAD_OPTIONS.map(([format, label]) => (
               <button
                 key={format}
                 type="button"
