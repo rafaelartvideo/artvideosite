@@ -334,6 +334,8 @@ export function QuickEquipmentModal({
   equipmentModels,
   initialTypeId,
   initialBrandId,
+  initialBrandName,
+  initialModelName,
 }: {
   onClose: () => void;
   onSaved: (items: QuickEquipmentSavedItems) => void;
@@ -344,6 +346,8 @@ export function QuickEquipmentModal({
   equipmentModels: any[];
   initialTypeId?: string;
   initialBrandId?: string;
+  initialBrandName?: string;
+  initialModelName?: string;
 }) {
   const { hasPermission } = useAuth();
   const initialType = equipmentTypes.find(item => item.id === initialTypeId) || null;
@@ -354,8 +358,8 @@ export function QuickEquipmentModal({
   const [selectedBrandId, setSelectedBrandId] = useState(initialBrand?.id || "");
   const [selectedModelId, setSelectedModelId] = useState("");
   const [typeName, setTypeName] = useState(initialType?.name || "");
-  const [brandName, setBrandName] = useState(initialBrand?.name || "");
-  const [modelName, setModelName] = useState("");
+  const [brandName, setBrandName] = useState(initialBrand?.name || initialBrandName || "");
+  const [modelName, setModelName] = useState(initialModelName || "");
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
 
   const initialHasSerial = Boolean(initialTypeId && technicalFieldLinks.some((link) =>
