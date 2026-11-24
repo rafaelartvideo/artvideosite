@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/history-import/*.test.mjs supabase/functions/union-history-import/*.test.mjs
-      - run: bash -n tools/history-import/install-pilot.sh
+      - run: bash -n tools/history-import/install-pilot.sh && bash -n tools/history-import/update-pilot.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.5.6
@@ -39,4 +39,7 @@ jobs:
             tools/history-import/history-page.test.mjs
             tools/history-import/install-pilot.sh
             tools/history-import/install-pilot.ps1
+            tools/history-import/update-pilot.ps1
+            tools/history-import/update-pilot.sh
+            tools/history-import/iniciar-atualizacao.cmd
             tools/history-import/iniciar-instalacao.cmd
