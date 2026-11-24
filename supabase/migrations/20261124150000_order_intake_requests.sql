@@ -11,6 +11,8 @@ create table public.order_intake_requests (
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '48 hours',
   submitted_at timestamptz,
+  upload_attempt uuid,
+  upload_started_at timestamptz,
   converted_at timestamptz,
   converted_by uuid references public.profiles(id) on delete set null,
   order_id uuid references public.service_orders(id) on delete restrict,
@@ -18,6 +20,25 @@ create table public.order_intake_requests (
   images jsonb not null default '[]'::jsonb,
   constraint order_intake_image_limit check (jsonb_typeof(images)='array' and jsonb_array_length(images)<=5)
 );
+-- Serialize link creation and cap issuance for each conversation and operator.
+create or replace function private.guard_order_intake_issuance()
+returns trigger language plpgsql security definer set search_path='' as $guard$
+begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.organization_id::text||':'||new.created_by::text,0));
+  if (select count(*) from public.order_intake_requests r where r.organization_id=new.organization_id and r.created_by=new.created_by and r.created_at>now()-interval '1 hour')>=30 then
+    raise exception 'Limite temporário de links atingido.' using errcode='23514';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.organization_id::text||':'||new.conversation_id::text||':conversation',0));
+  if (select count(*) from public.order_intake_requests r where r.organization_id=new.organization_id and r.conversation_id=new.conversation_id and r.status in ('sent','filling','submitting') and r.expires_at>now())>=5 then
+    raise exception 'Limite de links pendentes atingido.' using errcode='23514';
+  end if;
+  return new;
+end;
+$guard$;
+revoke all on function private.guard_order_intake_issuance() from public,anon,authenticated;
+create trigger guard_order_intake_issuance before insert on public.order_intake_requests
+for each row execute function private.guard_order_intake_issuance();
+create index order_intake_creator_created_idx on public.order_intake_requests(organization_id,created_by,created_at desc);
 create index order_intake_org_created_idx on public.order_intake_requests(organization_id, created_at desc);
 create index order_intake_conversation_idx on public.order_intake_requests(organization_id, conversation_id, created_at desc);
 alter table public.order_intake_requests enable row level security;
