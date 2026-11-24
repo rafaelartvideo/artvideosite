@@ -18,7 +18,6 @@ export const DASHBOARD_WIDGET_OPTIONS: Record<DashboardModule, DashboardWidgetOp
     { id: "equipment_model", label: "Modelo do equipamento" },
     { id: "quote_approved", label: "Orçamento aprovado" },
     { id: "quote_rejected", label: "Orçamento reprovado" },
-    { id: "selection", label: "OS do grupo selecionado" },
   ],
   registrations: [
     { id: "metrics", label: "Indicadores de cadastros" },
