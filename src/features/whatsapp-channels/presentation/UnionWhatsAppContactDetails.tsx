@@ -102,6 +102,7 @@ function MediaTile({item,organization,conversation,onOpen}:{
       :<span className="flex h-full w-full items-center justify-center text-muted-foreground">
         {item.message_type==="video"?<Video size={25}/>:item.message_type==="audio"?<Music2 size={25}/>:<ImageIcon size={25}/>}
       </span>}
+    {item.read_only&&!item.historical_attachments?.some(asset=>asset.available)&&<span className="absolute inset-x-0 top-0 bg-card/95 px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground">Indisponível</span>}
     {item.message_type==="video"&&<Play size={18} className="absolute bottom-2 right-2 text-foreground"/>}
     <span className="absolute bottom-0 inset-x-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
       {(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}
@@ -274,7 +275,7 @@ function ContactDetailsContent({conversation,archiveContact,organizationId,gende
                   className="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/40">
                   <span className="rounded-lg bg-primary/10 p-2 text-primary"><FileText size={19}/></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold">{item.media_name||"Documento"}</span>
+                    <span className="block truncate text-xs font-semibold">{item.media_name||"Documento"}{item.read_only&&!item.historical_attachments?.some(asset=>asset.available)?" · Indisponível":""}</span>
                     <span className="text-[11px] text-muted-foreground">{(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}</span>
                   </span><ExternalLink size={15} className="text-muted-foreground"/>
                 </button>)}
