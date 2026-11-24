@@ -187,3 +187,58 @@ test("package-scoped offset indexes naive message, protocol and gallery timestam
   }finally{store.close()}
  }
 });
+
+
+test("bulk manifests retain the legacy pilot limit and detect duplicate numbers at scale",()=>{
+ for(const n of [100,500,2000,32471,40000]){
+  const rows=Array.from({length:n},(_,i)=>{
+   const key=(i+1).toString(16).padStart(32,"0");
+   return {...row,contact_key:key,phone_normalized:"5579"+String(800000000+i),file:"historicos/"+key+".json.gz"};
+  });
+  const manifest={...summary,stage:"union_history_bulk_packaging",contacts:n,messages:n,protocols:n,media_pending:n};
+  assert.equal(validateIndex(rows,manifest,pid).length,n);
+  if(n>100)assert.throws(()=>validateIndex(rows,{...manifest,stage:"union_history_pilot_packaging"},pid));
+  rows[1].phone_normalized=rows[0].phone_normalized;
+  assert.equal(validateIndex(rows,manifest,pid).filter(e=>e.requires_review).length,2);
+ }
+});
+
+test("server reconciliation keeps checkpoints, validates results and audits the private index",()=>{
+ const {store}=fixture(), contactId="44444444-4444-4444-8444-444444444444";
+ try{
+  store.grantPackage(pid,org,actor);
+  const id=store.prepare({packageId:pid,organizationId:org,accountPhone:account,actor});
+  const control={id,organizationId:org,actor};
+  store.bulkControl({...control,command:"start"});
+  assert.equal(store.status(id,org).bulk.state,"running");
+  assert.equal(store.bulkWork(),null);
+  store.bulkControl({...control,command:"pause"});
+  assert.equal(store.tick(),false);
+  assert.equal(store.status(id,org).bulk.state,"paused");
+  store.bulkControl({...control,command:"resume"});
+  store.tick();store.tick();
+  const work=store.bulkWork();
+  assert.equal(work.after,null);
+  assert.throws(()=>store.bulkContext(id,other));
+  const result={entries:[{contact_key:ck,state:"created",renamed:false}],next_after:null};
+  assert.throws(()=>store.bulkCommit(work,result)); // no persisted binding
+  store.bindContact({...control,accountPhone:account,contactKey:ck,contactId,contactPhone:phone});
+  store.bulkFail(work);
+  assert.equal(store.status(id,org).bulk.state,"failed");
+  assert.equal(store.status(id,org).bulk.processed,0);
+  store.bulkControl({...control,command:"resume"});
+  const again=store.bulkWork();
+  assert.equal(again.after,null);
+  store.bulkCommit(again,{...result,entries:[{contact_key:ck,state:"bound",renamed:false}]});
+  assert.equal(store.status(id,org).bulk.processed,1);
+  assert.equal(store.status(id,org).bulk.state,"completed");
+  assert.equal(store.bulkWork(),null);
+  assert.throws(()=>store.bulkCommit(again,result));
+  const audit=store.auditIntegrity(id,org);
+  assert.equal(audit.index_matches,true);
+  assert.equal(audit.indexed,1);
+  assert.equal(audit.bound,1);
+  assert.equal(audit.media_binary_verified,false);
+  assert.throws(()=>store.auditIntegrity(id,other));
+ }finally{store.close()}
+});
