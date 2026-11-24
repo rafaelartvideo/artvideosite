@@ -120,4 +120,14 @@ grant execute on function private.can_read_order_intake_media(uuid,uuid) to auth
 create policy media_order_intake_reviewer_select on public.media for select to authenticated
 using (bucket_id='service-images' and storage_path like 'orders/%/draft/pre-os-%'
   and private.can_read_order_intake_media(id,organization_id));
+-- Received requests are not orphans merely because they have no OS yet.
+-- Preserve the maintenance function's existing filters and grants.
+do $maintenance$
+declare v_definition text; v_anchor text := '    and not exists (select 1 from public.service_order_media x where x.media_id = m.id)';
+begin
+  select pg_get_functiondef('public.media_maintenance_orphan_candidates(integer,interval)'::regprocedure) into v_definition;
+  if position(v_anchor in v_definition)=0 then raise exception 'Unexpected media maintenance definition'; end if;
+  execute replace(v_definition,v_anchor,v_anchor||E'\n    and not exists (select 1 from public.order_intake_requests r where r.organization_id=m.organization_id and r.status=''received'' and r.images @> jsonb_build_array(jsonb_build_object(''mediaId'',m.id::text)))');
+end;
+$maintenance$;
 commit;
