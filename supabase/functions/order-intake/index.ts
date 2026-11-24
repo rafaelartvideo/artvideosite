@@ -202,12 +202,12 @@ Deno.serve(async(req)=>{
       check(await admin.from("order_intake_requests").insert({organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,bound_customer_id:boundCustomerId,token_hash:await hash(token)}));
       return json({token,requires_customer_details:!boundCustomerId});
     }
-    let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by").eq("organization_id",org);
+    let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name").eq("organization_id",org);
     if(!keys.has("orders.view_all"))scope=scope.eq("created_by",actor.id);
     if(action==="list"){
       if(body.conversation_id){if(!uuid(body.conversation_id))throw new InputError("Conversa inválida.");scope=scope.eq("conversation_id",body.conversation_id);}
       const page=Math.max(0,Math.min(10000,Math.trunc(Number(body.page)||0)));
-      return json({rows:check(await scope.select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name").order("created_at",{ascending:false}).range(page*25,page*25+24))});
+      return json({rows:check(await scope.order("created_at",{ascending:false}).range(page*25,page*25+24))});
     }
     if(!uuid(body.id))throw new InputError("Solicitação inválida.");
     const allowed=check(await scope.eq("id",body.id).maybeSingle());
