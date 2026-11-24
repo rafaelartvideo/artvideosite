@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { historyId, timestampMicros, compareHistory, mergeHistoryPage, mergeFetchedHistoryPages, projectHistorical } from "./history-page.mjs";
+import { mergeFetchedHistoryPages as edgeMerge } from "../../supabase/functions/union-history-import/history-merge.mjs";
 const row=(key,at,body_text="same")=>({id:historyId(key.repeat(40)),sent_at:at,body_text});
 const old=row("a","2024-01-01T10:00:00.000001Z"),first=row("b","2026-11-24T18:00:00.000001+00:00"),second=row("c","2026-11-24T18:00:00.000002+00:00"),third=row("d","2026-11-24T18:00:00.000002Z");
 test("microsecond precision and stable ID tie breaker",()=>{
@@ -37,4 +38,11 @@ test("truncated source pages cannot skip unseen archived rows",()=>{
  assert.equal(b.hasMore,false);
  assert.throws(()=>mergeFetchedHistoryPages({items:[],hasMore:true},{items:[],hasMore:false}));
  assert.throws(()=>mergeFetchedHistoryPages({items:[third],hasMore:false},{items:[third],hasMore:false}));
+});
+
+test("deployed merge helper matches archive contract at microsecond boundaries",()=>{
+ const live={items:[third,first,old],hasMore:false},archive={items:[second],hasMore:true};
+ assert.deepEqual(edgeMerge(live,archive,null,3),mergeFetchedHistoryPages(live,archive,null,3));
+ const page=edgeMerge(live,archive,null,3);
+ assert.deepEqual(edgeMerge({items:[first,old],hasMore:false},{items:[],hasMore:false},page.nextCursor,3).items.map(x=>x.id),[old.id,first.id]);
 });
