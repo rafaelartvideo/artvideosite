@@ -30,12 +30,16 @@ async function intakeServiceTypes(admin:any,org:string){
   return rows.map((r:any)=>({id:r.id,name:r.title}));
 }
 class IdentityError extends Error{constructor(message:string,public status:number){super(message);}}
-/** Use the existing Artvideo site validator, including its HMAC cache and quota.
- * Never return the provider's name or use Artvideo credentials for other tenants. */
+/** Reuse the site validator (same HMAC cache and rate limits) only for Artvideo
+ * and the explicitly authorized Union test tenant. Never expose provider data
+ * or enable this shared integration for arbitrary partner organizations. */
+const CPF_IDENTITY_TEST_ORG="5bcd7ec7-38f0-4dda-a84c-10429bd46b23";
 async function artvideoIdentityRequired(admin:any,org:string){
   const artvideo=check(await admin.rpc("artvideo_organization_id"));
-  if(String(artvideo)!==org)return false;
-  return check(await admin.rpc("artvideo_site_cpf_enforcement_v1"))===true;
+  if(String(artvideo)!==org&&org!==CPF_IDENTITY_TEST_ORG)return false;
+  if(check(await admin.rpc("artvideo_site_cpf_enforcement_v1"))!==true)
+    throw new IdentityError("A validação de CPF está indisponível. Tente novamente.",503);
+  return true;
 }
 async function validateArtvideoIdentity(url:string,key:string,cpf:string,name:string){
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
