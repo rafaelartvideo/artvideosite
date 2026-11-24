@@ -51,8 +51,9 @@ Deno.serve(async req=>{
         const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
         const has=(key:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===key);
         if(!has("whatsapp.history_import.view")||!has("whatsapp.history_import.manage")||unified)return json({success:false,error:"Acesso restrito."},403);
-        const {data:contact,error:contactError}=await admin.from("union_whatsapp_contacts").select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone").eq("id",b.conversation_id).eq("organization_id",org).eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
-        if(contactError||!contact||!phone(contact.contact_phone)||contact.chat_jid!==contact.contact_phone+"@s.whatsapp.net")return json({success:false,error:"Contato indisponível."},404);
+        const {data:visibleContact,error:contactError}=await admin.from("union_whatsapp_contacts").select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone").eq("id",b.conversation_id).eq("organization_id",org).eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
+        if(contactError||!visibleContact||!phone(visibleContact.contact_phone)||visibleContact.chat_jid!==visibleContact.contact_phone+"@s.whatsapp.net")return json({success:false,error:"Contato indisponível."},404);
+        const contact=visibleContact;
         const threadExists=async()=>{
           const {data,error}=await admin.from("union_whatsapp_conversations").select("id").eq("organization_id",org).eq("account_phone",contact.account_phone).or(`contact_phone.eq.${contact.contact_phone},chat_jid.eq.${contact.chat_jid}`).limit(1);
           if(error)throw Error("Identidade indisponível.");return Boolean(data?.length);
