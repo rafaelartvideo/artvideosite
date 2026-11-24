@@ -38,9 +38,12 @@ test("Contas a Receber mostra comprovante e entrega lado a lado no resumo e nos 
   assert.match(details, /kind="payment_proof"/);
   assert.match(details, /kind="delivery_evidence"/);
   assert.match(details, /md:grid-cols-2/);
-  assert.match(gallery, /"order-evidence"\]/);
-  assert.doesNotMatch(gallery, /"order-evidence", kind/);
-  assert.match(gallery, /Nenhum \{label\.toLowerCase\(\)\} anexado/);
+  assert.match(gallery, /queryKeys\.finance\.attachments\(organizationId\|\|"none",entryId\)/);
+  assert.doesNotMatch(gallery, /queryKeys\.finance\.attachments\([^\n]*,kind\)/);
+  assert.match(gallery, /if\(!evidence\.length\)return null/);
+  assert.match(gallery, /loading="lazy"/);
+  assert.match(gallery, /createFinancialAttachmentThumbnailUrl\(/);
+  assert.match(gallery, /UnionWhatsAppMediaViewer/);
   assert.match(documents, /Evidência de entrega/);
   assert.match(documents, /typeLabel\(item\.attachment_type, item\.source_document_kind\)/);
   assert.match(repository, /source_document_kind/);
