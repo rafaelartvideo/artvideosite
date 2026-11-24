@@ -79,6 +79,7 @@ if(process.argv[2]==="worker"){
         case "prepare":result={id:store.prepare(b)};break;
         case "control":result={state:store.control({...b,action:b.command})};break;
         case "status":result=store.status(b.id,b.organizationId);break;
+        case "audit_integrity":result=store.auditIntegrity(b.id,b.organizationId);break;
         case "events":result=store.events(b.id,b.organizationId);break;
         case "candidates":result=store.candidates(b.id,b.organizationId,b.after??null,b.limit??100);break;
         case "bulk_control":
