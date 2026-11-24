@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { AlertTriangle, Database, RefreshCw } from "lucide-react";
 
-type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>};
+type Totals={messages:number;protocols:number;media_available:number;media_pending:number};
+type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals};
 type Data={packages:Array<{package_id:string;created_at:string}>;accounts:Array<{id:string;display_name:string;phone:string}>;jobs:Job[]};
 type Audit={actor:string;action:string;created_at:string};
 const active=new Set(["queued","running","pausing","cancelling"]);
@@ -80,6 +81,7 @@ export function WhatsAppHistoryImports(){
        <div className="flex flex-wrap items-center justify-between gap-2"><strong>Importação · +{j.account_phone}</strong><span className="text-sm font-medium">{label[j.state]||j.state}</span></div>
        <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-primary" style={{width:percent+"%"}}/></div>
        <p className="text-sm">{verified} de {j.total} validados · {review} para revisão · {percent}%</p>
+       <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">{([["Mensagens",j.verified.messages,j.totals.messages],["Protocolos",j.verified.protocols,j.totals.protocols],["Mídias referenciadas",j.verified.media_available,j.totals.media_available],["Mídias indisponíveis",j.verified.media_pending,j.totals.media_pending]] as const).map(([name,value,total])=><div key={name} className="rounded-md border border-border p-2"><p className="text-muted-foreground">{name}</p><strong>{value} / {total}</strong></div>)}</div>
        <div className="flex flex-wrap gap-2">
          {(actions[j.state]||[]).filter(a=>permitted(a.permission)).map(a=><AdminButton key={a.key} variant="secondary" disabled={busy} onClick={()=>["start","cancel","rollback"].includes(a.key)?setConfirmation({id:j.id,command:a.key,label:a.label}):void act({action:"control",id:j.id,command:a.key})}>{a.label}</AdminButton>)}
          <AdminButton variant="secondary" disabled={busy} onClick={()=>void showLogs(j.id)}>Histórico de operações</AdminButton>
