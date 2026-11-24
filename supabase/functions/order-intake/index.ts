@@ -34,10 +34,29 @@ Deno.serve(async(req)=>{
     if(action==="open"||action==="models"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
-      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,status,expires_at").eq("token_hash",await hash(token)).maybeSingle());
+      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,status,expires_at,upload_attempt,upload_started_at").eq("token_hash",await hash(token)).maybeSingle());
       if(!row||Date.parse(row.expires_at)<Date.now()||row.status==="cancelled")return json({error:"Link inválido ou expirado. Peça outro à assistência."},404);
       if(["received","converted"].includes(row.status))return json({status:"received"});
-      if(row.status==="submitting")return json({error:"Envio em andamento. Tente novamente em instantes."},409);
+      // Recover only a lease older than the maximum Edge runtime. Use a CAS to
+      // prevent competing requests from cleaning a newly started upload.
+      if(row.status==="submitting"){
+        if(!row.upload_attempt||!row.upload_started_at||Date.now()-Date.parse(row.upload_started_at)<15*60_000)
+          return json({error:"Envio em andamento. Tente novamente em instantes."},409);
+        const recovery=crypto.randomUUID();
+        const recovered=check(await admin.from("order_intake_requests").update({upload_attempt:recovery,upload_started_at:new Date().toISOString()}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",row.upload_attempt).select("id").maybeSingle());
+        if(!recovered)return json({error:"Envio em recuperação. Tente novamente."},409);
+        // Files are deterministic for the old attempt; clean only these paths.
+        const paths=Array.from({length:5},(_,i)=>"orders/"+row.organization_id+"/draft/pre-os-"+row.id+"-"+row.upload_attempt+"-"+i+".webp");
+        try{
+          check(await admin.storage.from("service-images").remove(paths));
+          check(await admin.from("media").delete().eq("organization_id",row.organization_id).eq("bucket_id","service-images").in("storage_path",paths));
+          check(await admin.from("order_intake_requests").update({status:"filling",upload_attempt:null,upload_started_at:null}).eq("id",row.id).eq("upload_attempt",recovery).eq("status","submitting"));
+          row.status="filling";
+        }catch{
+          await admin.from("order_intake_requests").update({upload_attempt:row.upload_attempt,upload_started_at:row.upload_started_at}).eq("id",row.id).eq("upload_attempt",recovery);
+          return json({error:"Não foi possível recuperar o envio. Tente novamente."},503);
+        }
+      }
       const org=check(await admin.from("organizations").select("id,name,status").eq("id",row.organization_id).eq("status","active").maybeSingle());
       if(!org)return json({error:"Link indisponível."},404);
       if(action==="models"){
@@ -71,28 +90,32 @@ Deno.serve(async(req)=>{
       for(const f of files){if(!(f instanceof File)||f.size<12||f.size>1_500_000||f.type!=="image/webp")throw new InputError("Foto inválida ou muito grande. Tente tirar outra.");
         const b=new Uint8Array(await f.slice(0,12).arrayBuffer());if(String.fromCharCode(...b.slice(0,4))!=="RIFF"||String.fromCharCode(...b.slice(8,12))!=="WEBP")throw new InputError("Formato de foto inválido.");}
       if(!kinds.includes("label")||!kinds.includes("problem"))throw new InputError("Envie uma foto da etiqueta e uma foto do defeito.");
-      const claim=check(await admin.from("order_intake_requests").update({status:"submitting"}).eq("id",row.id).in("status",["sent","filling"]).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
+      const attempt=crypto.randomUUID();
+      const claim=check(await admin.from("order_intake_requests").update({status:"submitting",upload_attempt:attempt,upload_started_at:new Date().toISOString()}).eq("id",row.id).in("status",["sent","filling"]).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
       if(!claim)return json({error:"Solicitação já enviada ou em processamento."},409);
-      const stored:string[]=[], mediaIds:string[]=[], images:any[]=[];
+      const images:any[]=[];
       try{
         for(let i=0;i<files.length;i++){
           const f=files[i] as File, kind=kinds[i]==="label"?"label":"equipment";
           const filename=(kind==="label"?"Etiqueta":kinds[i]==="problem"?"Problema":"Equipamento")+"-"+(i+1)+".webp";
-          const path="orders/"+org.id+"/draft/pre-os-"+row.id+"-"+crypto.randomUUID()+".webp";
-          check(await admin.storage.from("service-images").upload(path,f,{contentType:"image/webp",upsert:false}));stored.push(path);
+          const path="orders/"+org.id+"/draft/pre-os-"+row.id+"-"+attempt+"-"+i+".webp";
+          check(await admin.storage.from("service-images").upload(path,f,{contentType:"image/webp",upsert:false}));
           const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
-          mediaIds.push(media.id);images.push({mediaId:media.id,path,kind,name:filename});
+          images.push({mediaId:media.id,path,kind,name:filename});
         }
-        const saved=check(await admin.from("order_intake_requests").update({status:"received",submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||null,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").select("id").maybeSingle());
+        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||null,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.
-        const state=await admin.from("order_intake_requests").select("status").eq("id",row.id).maybeSingle();
-        if(!state.error&&state.data?.status==="received")return json({status:"received"});
-        if(!state.error&&state.data?.status==="submitting"){
-          if(mediaIds.length)await admin.from("media").delete().in("id",mediaIds).eq("organization_id",org.id);
-          if(stored.length)await admin.storage.from("service-images").remove(stored);
-          await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","submitting");
+        const state=await admin.from("order_intake_requests").select("status,upload_attempt").eq("id",row.id).maybeSingle();
+        if(!state.error&&["received","converted"].includes(state.data?.status))return json({status:"received"});
+        if(!state.error&&state.data?.status==="submitting"&&state.data?.upload_attempt===attempt){
+          const paths=Array.from({length:5},(_,i)=>"orders/"+org.id+"/draft/pre-os-"+row.id+"-"+attempt+"-"+i+".webp");
+          const cleanup=await admin.storage.from("service-images").remove(paths);
+          if(!cleanup.error){
+            const records=await admin.from("media").delete().eq("organization_id",org.id).eq("bucket_id","service-images").in("storage_path",paths);
+            if(!records.error)await admin.from("order_intake_requests").update({status:"filling",upload_attempt:null,upload_started_at:null}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt);
+          }
         }
         throw e;
       }
