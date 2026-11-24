@@ -45,6 +45,32 @@ function readInvoiceXml(xml:string):ExpenseScan{
   const dup=Array.from(info.getElementsByTagNameNS("*","dup"));
   return {description:desc||"Compra de mercadorias",amount:Number.isFinite(sum)&&sum>0?sum:null,issue_date:/^\d{4}-\d{2}-\d{2}$/.test(issue)?issue:null,due_date:dup.length===1?value(dup[0],"dVenc")||null:null,supplier:value(emit,"xNome"),document:value(emit,"CNPJ")||value(emit,"CPF"),category:"",kind:"invoice",paid:null,payment:"",reference:info.getAttribute("Id")?.replace(/^NFe/,"")||value(ide,"nNF"),warning:dup.length>1?"A nota possui várias duplicatas. Confira o parcelamento.":""};
 }
+/** Validate an ordinary Brazilian bank boleto. Never infer a due date from the reset factor. */
+export function readBoletoCode(value:string):{barcode:string;amount:number|null}|null {
+  const digits=value.replace(/\D/g,"");
+  const mod10=(part:string)=>{let sum=0,weight=2;for(let i=part.length-1;i>=0;i--){const v=Number(part[i])*weight;sum+=v>9?v-9:v;weight=weight===2?1:2;}return (10-sum%10)%10;};
+  let code=digits;
+  if(digits.length===47){
+    if(mod10(digits.slice(0,9))!==Number(digits[9])||mod10(digits.slice(10,20))!==Number(digits[20])||mod10(digits.slice(21,31))!==Number(digits[31]))return null;
+    code=digits.slice(0,4)+digits[32]+digits.slice(33)+digits.slice(4,9)+digits.slice(10,20)+digits.slice(21,31);
+  }
+  if(code.length!==44||code[0]==="8"||code[3]!=="9")return null;
+  let sum=0,weight=2;
+  for(let i=43;i>=0;i--){if(i===4)continue;sum+=Number(code[i])*weight;weight=weight===9?2:weight+1;}
+  const raw=11-sum%11,check=raw===0||raw===10||raw===11?1:raw;
+  if(Number(code[4])!==check)return null;
+  const amount=Number(code.slice(9,19))/100;
+  return {barcode:code,amount:amount>0?amount:null};
+}
+async function detectBoletoImage(file:File){
+  if(!file.type.startsWith("image/"))return null;
+  const url=URL.createObjectURL(file);
+  try{
+    const {BrowserMultiFormatReader}=await import("@zxing/browser");
+    const result=await new BrowserMultiFormatReader().decodeFromImageUrl(url);
+    return readBoletoCode(result.getText());
+  }catch{return null;}finally{URL.revokeObjectURL(url);}
+}
 export async function scanExpenseDocument(org:string,file:File,categories:string[]):Promise<ExpenseScan>{
   if(file.size>25*1024*1024)throw new Error("Selecione um documento de até 25 MB.");
   if(/\.xml$/i.test(file.name)||file.type==="application/xml"||file.type==="text/xml"){
@@ -54,13 +80,23 @@ export async function scanExpenseDocument(org:string,file:File,categories:string
   const isPdf=file.type==="application/pdf"||/\.pdf$/i.test(file.name);
   const normalized=isPdf?(file.type==="application/pdf"?file:new File([file],file.name,{type:"application/pdf"})):await prepareImageForUpload(file,"document-image",2_000_000);
   if(normalized.size>2_000_000||!["image/jpeg","image/png","image/webp","application/pdf"].includes(normalized.type))throw new Error("Selecione uma foto JPG, PNG, WEBP ou PDF de até 2 MB.");
+  const barcode=await detectBoletoImage(normalized);
   const {data,error}=await supabase.functions.invoke("union-ai-expense",{body:{organization_id:org,document:await readDataUrl(normalized),categories}});
   if(error){
-    const detail=await (error as {context?:Response}).context?.clone().json().catch(()=>null);
+    const context=(error as {context?:unknown}).context;
+    const detail=context instanceof Response?await context.clone().json().catch(()=>null):null;
+    if(barcode)return {description:"Boleto bancário",amount:barcode.amount,issue_date:null,due_date:null,supplier:"",document:"",category:"",kind:"boleto",paid:false,payment:"boleto",reference:barcode.barcode,warning:"Código de barras identificado. Confira o beneficiário e vencimento manualmente."};
     throw new Error(detail?.error||"Não foi possível digitalizar o documento.");
   }
   if(!data||data.error)throw new Error(data?.error||"Leitura indisponível.");
-  return data as ExpenseScan;
+  const scan=data as ExpenseScan;
+  const validated=barcode||(scan.kind==="boleto"?readBoletoCode(scan.reference):null);
+  if(validated){
+    if(validated.amount!=null&&scan.amount!=null&&Math.abs(validated.amount-scan.amount)>0.005)scan.warning=[scan.warning,"Valor do código de barras diverge do texto. Confira o boleto."].filter(Boolean).join(" ");
+    else if(validated.amount!=null&&scan.amount==null)scan.amount=validated.amount;
+    scan.reference=validated.barcode;scan.kind="boleto";scan.payment="boleto";
+  }
+  return scan;
 }
 
 /** One bounded lookup after a scan, scoped to the company's RLS-protected payables. */
