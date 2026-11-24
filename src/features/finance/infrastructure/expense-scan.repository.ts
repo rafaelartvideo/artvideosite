@@ -7,6 +7,7 @@ export type ExpenseScan = {
   supplier:string; document:string; category:string; kind:string; paid:boolean|null;
   purpose_evidence?:string;
   payment:string; reference:string; warning:string;
+  payment_type?:string; installments?:number|null; card_brand?:string;
 };
 export type ExpenseSource = {file:File; attachmentType:FinancialAttachmentType; openSettlement:boolean};
 const normalize=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
@@ -15,6 +16,7 @@ export function expenseAttachmentType(kind:string):FinancialAttachmentType {
 }
 export function suggestedPaymentType(value:string){
   const name=normalize(value);
+  if(["cash","pix","debit_card","credit_card","boleto","transfer","other"].includes(name))return name;
   if(name.includes("pix"))return "pix";
   if(name.includes("boleto"))return "boleto";
   if(name.includes("dinheiro"))return "cash";
@@ -30,7 +32,12 @@ export function confirmedScanCategory(scan:ExpenseScan){
   return scan.category;
 }
 export function isCreditScan(scan:ExpenseScan|null){
-  return Boolean(scan&&suggestedPaymentType(scan.payment)==="credit_card");
+  return Boolean(scan&&expensePaymentType(scan)==="credit_card");
+}
+export function expensePaymentType(scan:ExpenseScan){return suggestedPaymentType(scan.payment_type||"")||suggestedPaymentType(scan.payment);}
+export function expenseDisplayDescription(scan:ExpenseScan){return (scan.kind==="payment_proof"?scan.supplier:scan.description||scan.supplier)?.trim()||"Despesa";}
+export function genericExpenseCategory<T extends {name:string;nature:string;is_active:boolean}>(categories:T[]):T|undefined{
+  return categories.find(c=>c.is_active&&c.nature==="expense"&&["despesas a classificar","despesas nao classificadas","outras despesas"].includes(normalize(c.name)));
 }
 export async function suggestExpenseCategory(org:string,purpose:string,categories:string[]):Promise<string>{
   const {data,error}=await supabase.functions.invoke("union-ai-expense",{body:{action:"classify",organization_id:org,purpose:purpose.trim().slice(0,300),categories}});
@@ -113,6 +120,7 @@ export async function scanExpenseDocument(org:string,file:File,categories:string
     scan.reference=validated.barcode;scan.kind="boleto";scan.payment="boleto";
   }
     scan.category=confirmedScanCategory(scan);
+  scan.description=expenseDisplayDescription(scan);
   return scan;
 }
 
