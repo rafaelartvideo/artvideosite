@@ -163,7 +163,7 @@ async function rotateOrderPhoto(file: File, rotation: number, kind: DeviceCaptur
     ctx.drawImage(image, -width / 2, -height / 2, width, height);
     const blob = await new Promise<Blob | null>(resolve => output.toBlob(resolve, "image/png"));
     if (!blob?.size) throw new Error("Não foi possível salvar a foto girada.");
-    return new File([blob], (file.name.replace(/\\.[^.]+$/, "") || "foto") + ".png", { type: "image/png" });
+    return new File([blob], (file.name.replace(/\.[^.]+$/, "") || "foto") + ".png", { type: "image/png" });
   } finally {
     image.onload = null;
     image.onerror = null;
@@ -201,10 +201,12 @@ export function MobileDeviceCapturePage() {
   const [photoRotation, setPhotoRotation] = useState(0);
   const [previewUrl, setPreviewUrl] = useState("");
   const confirmingPhotoRef = useRef(false);
+  const photoPreviewRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!pendingPhoto) { setPreviewUrl(""); return; }
     const url = URL.createObjectURL(pendingPhoto.file);
     setPreviewUrl(url);
+    photoPreviewRef.current?.scrollIntoView({ block: "nearest" });
     return () => URL.revokeObjectURL(url);
   }, [pendingPhoto]);
   useEffect(() => {
@@ -779,7 +781,7 @@ export function MobileDeviceCapturePage() {
             <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden"
               onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; previewOrderPhoto("equipment", file); }}/>
             {pendingPhoto && (
-              <div className="mt-4 space-y-3 rounded-xl border border-[#0057e7]/20 bg-[#f8fafc] p-3">
+              <div ref={photoPreviewRef} className="mt-4 space-y-3 rounded-xl border border-[#0057e7]/20 bg-[#f8fafc] p-3">
                 <h3 className="text-sm font-black text-[#0d1b2e]">Revisar foto {pendingPhoto.kind === "label" ? "da etiqueta" : "do equipamento"}</h3>
                 <div className="mx-auto aspect-square w-full max-w-[320px] overflow-hidden rounded-xl bg-[#0d1b2e]">
                   {previewUrl && <img src={previewUrl} alt="Prévia da foto" className="h-full w-full object-contain" style={{ transform: `rotate(${photoRotation}deg)` }} />}
@@ -788,6 +790,7 @@ export function MobileDeviceCapturePage() {
                   <button type="button" disabled={uploadingKind !== null} onClick={() => setPhotoRotation(value => (value + 270) % 360)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-2 text-xs font-black text-[#0d1b2e] disabled:opacity-45"><RotateCcw size={18}/> Girar à esquerda</button>
                   <button type="button" disabled={uploadingKind !== null} onClick={() => setPhotoRotation(value => (value + 90) % 360)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-2 text-xs font-black text-[#0d1b2e] disabled:opacity-45"><RotateCw size={18}/> Girar à direita</button>
                 </div>
+                {notice?.type === "error" && <p role="alert" className="text-xs font-bold text-red-700">{notice.text}</p>}
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" disabled={uploadingKind !== null} onClick={() => { setPendingPhoto(null); setPhotoRotation(0); setNotice(null); }} className="min-h-12 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 text-sm font-black text-[#0d1b2e] disabled:opacity-45">Descartar</button>
                   <button type="button" disabled={!previewUrl || uploadingKind !== null} onClick={() => void confirmOrderPhoto()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-3 text-sm font-black text-white disabled:opacity-45">{uploadingKind !== null ? <Loader2 size={17} className="animate-spin"/> : <CheckCircle2 size={17}/>} {uploadingKind !== null ? "Enviando..." : "Salvar foto"}</button>
