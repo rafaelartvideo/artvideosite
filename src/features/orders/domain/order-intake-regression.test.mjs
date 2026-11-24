@@ -112,7 +112,11 @@ test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF 
  assert.ok(inbox.includes('setIntakeContext({org:activeOrganizationId})'));
  assert.ok(staff.includes('QRCodeSVG value={link}'));
  assert.ok(staff.includes('<Section title="Cliente"'));
- assert.ok(staff.includes('<Section title="Fotos"'));
+ assert.ok(staff.includes('<Section title="Equipamento"'));
+ assert.ok(staff.includes("Fotos do equipamento"));
+ assert.ok(staff.includes('preparingText="Preparando conferência..."'));
+ assert.ok(staff.includes("PaginationBar page={page+1}"));
+ assert.ok(staff.includes('useDetachedOrderEditor("Pré-OS Digital")'));
  assert.ok(staff.includes("formatCpf(doc)"));
  assert.ok(staff.includes("formatZipCode(review.payload.address.zip_code"));
  assert.ok(!staff.includes("setConfirmed"));
