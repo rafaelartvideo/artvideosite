@@ -1,41 +1,35 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, ExternalLink, Link2, LoaderCircle, PanelTop, Plus, QrCode, Send, X, XCircle } from "lucide-react";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
+import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, ExternalLink, Link2, LoaderCircle, PanelTop, QrCode, Send, X, XCircle } from "lucide-react";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useDetachedOrderEditor } from "../presentation/useDetachedOrderEditor";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { lookupCpf, type CpfLookupResult } from "@/features/customers/infrastructure/cpf.gateway";
-import { findQuickCustomerByTaxId, getOrderCustomerById, updateOrderCustomer, createQuickCustomerAddress } from "@/features/orders/infrastructure/orders-customer.repository";
-import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
+import { findQuickCustomerByTaxId, getOrderCustomerById } from "@/features/orders/infrastructure/orders-customer.repository";
 import type { CustomerForm } from "@/features/customers/domain/customer-form";
-import { formatCpf, formatCnpj, formatDateOnly, formatDateTime, formatPhone } from "@/shared/domain/formatters";
-import { cancelIntake, createIntake, getIntakeLink, listIntakes, reviewIntake, type IntakePrefill, type OrderIntake, type IntakeRow } from "./order-intake.repository";
+import { formatDateTime, formatPhone } from "@/shared/domain/formatters";
+import { cancelIntake, createIntake, getIntakeLink, listIntakes, reviewIntake, type IntakePrefill, type IntakeRow } from "./order-intake.repository";
 import { QRCodeSVG } from "qrcode.react";
-import { OrderImageLightbox } from "../presentation/OrderImages";
-import type { OrderImage } from "../domain/order-image";
-import { formatZipCode } from "@/lib/address";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
-const statusLabels:Record<string,string>={sent:"Link gerado",filling:"Em preenchimento",submitting:"Recebendo fotos",received:"Aguardando conferência",converted:"Convertida em OS",cancelled:"Cancelada"};
+const statusLabels:Record<string,string>={sent:"Link gerado",filling:"Em preenchimento",submitting:"Recebendo fotos",received:"Aguardando abertura da OS",converted:"Convertida em OS",cancelled:"Cancelada"};
 const localPhone=(v:string)=>formatPhone(v.replace(/\D/g,"").replace(/^55(?=\d{10,11}$)/,""));
 const norm=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().replace(/\s+/g," ").toLowerCase();
-export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onShare,onConvert}:{organizationId:string;conversationId?:string;onClose:()=>void;onShare?:(message:string)=>void;onConvert:(customerId:string,prefill:IntakePrefill)=>void}){
+export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onShare,onConvert}:{organizationId:string;conversationId?:string;onClose:()=>void;onShare?:(message:string)=>void;onConvert:(customerId:string|null,prefill:IntakePrefill)=>void}){
   const {user,activeOrganizationId,hasPermission}=useAuth();
   const client=useQueryClient();
   const {detached,detach,reintegrate}=useDetachedOrderEditor("Pré-OS Digital");
   const [page,setPage]=useState(0),[link,setLink]=useState(""),[requiresDetails,setRequiresDetails]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
-  const [review,setReview]=useState<OrderIntake|null>(null),[existing,setExisting]=useState<any>(null),[cpf,setCpf]=useState<CpfLookupResult|null>(null),[cpfNotice,setCpfNotice]=useState(""),[quick,setQuick]=useState(false);
-  const [linkMode,setLinkMode]=useState<"list"|"generating"|"ready">("list"),[linkRow,setLinkRow]=useState<IntakeRow|null>(null),[cancelId,setCancelId]=useState<string|null>(null),[reviewId,setReviewId]=useState<string|null>(null),[viewImage,setViewImage]=useState<OrderImage|null>(null);
-  const [addAddress,setAddAddress]=useState(false),[updatePhone,setUpdatePhone]=useState(false);
+  const [linkMode,setLinkMode]=useState<"list"|"generating"|"ready">("list"),[linkRow,setLinkRow]=useState<IntakeRow|null>(null),[cancelId,setCancelId]=useState<string|null>(null),[reviewId,setReviewId]=useState<string|null>(null);
   const gate=useRef(false),scope=useRef(organizationId);scope.current=organizationId;
   const canManage=activeOrganizationId===organizationId&&hasPermission("orders.create")&&hasPermission("orders.view");
   const key=["order-intake",organizationId,user?.id,conversationId||"all",page];
   const list=useQuery({queryKey:key,queryFn:()=>listIntakes(organizationId,conversationId,page),enabled:canManage,staleTime:30_000,refetchOnWindowFocus:false,retry:false});
   const refresh=()=>void client.invalidateQueries({queryKey:["order-intake",organizationId]});
-  useEffect(()=>{setReview(null);setLink("");setLinkMode("list");setLinkRow(null);setViewImage(null);setError("");setQuick(false);setPage(0);},[organizationId,conversationId]);
+  useEffect(()=>{setLink("");setLinkMode("list");setLinkRow(null);setError("");setPage(0);},[organizationId,conversationId]);
   const run=async(fn:()=>Promise<void>)=>{if(!canManage||gate.current)return;gate.current=true;setBusy(true);setError("");try{await fn();}catch(e){setError(systemErrorMessage(e,"Não foi possível concluir."));}finally{gate.current=false;setBusy(false);}};
   const backToList=()=>{setLink("");setLinkRow(null);setLinkMode("list");setError("");};
   const reveal=(token:string,requires:boolean|undefined)=>{setRequiresDetails(requires!==false);setLink(new URL("/solicitacao",window.location.origin).href+"#t="+token);setLinkMode("ready");};
@@ -77,35 +71,15 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       }else notice="Seu perfil não permite consulta de CPF. Confira o cadastro antes de continuar.";
     }else if(item.bound_customer_id){notice="Cadastro já identificado. Dados pessoais não foram solicitados ao cliente." ;}
     if(scope.current!==organizationId)return;
-    setReview(item);setExisting(current);setCpf(official);setCpfNotice(notice);setAddAddress(false);setUpdatePhone(false);
+    const whatsapp=localPhone(item.phone),phone=item.payload.phone?localPhone(item.payload.phone):whatsapp;
+    const name=official?.name||item.payload.name||"";
+    const values:Partial<CustomerForm>=item.payload.document.length===14
+      ? {customerType:"PJ",cnpj:item.payload.document,full_name:name,trade_name:name,legal_name:name,phone,whatsapp}
+      : {customerType:"PF",document:item.payload.document,full_name:name,birth_date:official?.birthDate||"",gender:official?.gender||"",phone,whatsapp};
+    const customerNotice=official&&norm(official.name)!==norm(item.payload.name)?"Nome informado diverge do CPF: "+item.payload.name+" / "+official.name:notice;
+    const verifiedDemographics=official&&current&&(!current.birth_date||!current.gender)?{customerId:current.id,document:item.payload.document,birthDate:current.birth_date?null:official.birthDate,gender:current.gender?null:official.gender}:undefined;
+    onConvert(current?.id||null,{id:item.id,payload:item.payload,images:item.images,conversationId:item.conversation_id,customerDraft:{values,address:item.payload.address},customerNotice,verifiedDemographics});
   }finally{setReviewId(null);}});};
-  const convert=(customerId:string)=>{if(!review||!canManage)return;onConvert(customerId,{id:review.id,payload:review.payload,images:review.images,conversationId:review.conversation_id,verifiedDemographics:cpf&&existing&&(!existing.birth_date||!existing.gender)?{customerId,document:review.payload.document,birthDate:existing.birth_date?null:cpf.birthDate,gender:existing.gender?null:cpf.gender}:undefined});};
-  const addressKey=(a:any)=>[a?.zip_code?.replace(/\D/g,""),a?.street,a?.number,a?.complement,a?.neighborhood,a?.city,a?.state].map(v=>norm(String(v||""))).join("|");
-  const addressAlreadySaved=Boolean(review&&existing?.addresses?.some((a:any)=>addressKey(a)===addressKey(review.payload.address)));
-  const continueReview=()=>{
-    if(!review||!canManage)return;
-    if(existing?.id){
-      void run(async()=>{
-        if(hasPermission("customers.edit")){
-          if(!review.bound_customer_id&&updatePhone){const r=await updateOrderCustomer(organizationId,existing.id,{phone:(review.payload.phone||review.phone.replace(/^55(?=\d{10,11}$)/,"")).replace(/\D/g,"")});if(r.error)throw r.error;}
-          if(!review.bound_customer_id&&addAddress&&!addressAlreadySaved){
-            const r=await createQuickCustomerAddress(organizationId,{...review.payload.address,id:review.id,customer_id:existing.id,is_default:!existing.addresses?.length});
-            if(r.error)throw r.error;
-          }
-        }
-        if(scope.current===organizationId)convert(existing.id);
-      });return;
-    }
-    if(!hasPermission("customers.create")){setError("Seu perfil não pode cadastrar clientes. Solicite a conferência a um gestor.");return;}
-    if(detached)reintegrate();
-    setQuick(true);
-  };
-  const name=cpf?.name||review?.payload.name||"";
-  const whatsapp=review?localPhone(review.phone):"";
-  const phone=review?.payload.phone?localPhone(review.payload.phone):whatsapp;
-  const initialValues:Partial<CustomerForm>=review?.payload.document.length===14
-    ? {customerType:"PJ",cnpj:review.payload.document,full_name:name,trade_name:name,legal_name:name,phone,whatsapp}
-    : {customerType:"PF",document:review?.payload.document||"",full_name:name,birth_date:cpf?.birthDate||"",gender:cpf?.gender||"",phone,whatsapp};
   const rows=list.data?.rows||[];
   const total=list.data?.total??rows.length;
   useEffect(()=>{if(list.data?.total!=null){const last=Math.max(0,Math.ceil(list.data.total/25)-1);if(page>last)setPage(last);}},[list.data?.total,page]);
@@ -119,40 +93,12 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
     const timer=window.setTimeout(()=>{setNow(Date.now());void client.invalidateQueries({queryKey:["order-intake",organizationId]});},Math.max(1,expiry-Date.now()+20));
     return()=>window.clearTimeout(timer);
   },[list.data,now,client,organizationId]);
-  const genderLabel=(value?:string|null)=>(({M:"Masculino",F:"Feminino",I:"Não informado"} as Record<string,string>)[value||""]||"Não informado");
-  const field=(label:string,value:ReactNode)=><div className="min-w-0 space-y-1"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><div className="break-words text-sm font-medium text-foreground">{value||"—"}</div></div>;
-  const doc=review?.payload.document||"";
-  const photoGroups=[{title:"Etiqueta",test:(im:OrderImage)=>im.kind==="label"},{title:"Equipamento",test:(im:OrderImage)=>im.kind!=="label"&&!/^Problema/i.test(im.name||"")},{title:"Defeito",test:(im:OrderImage)=>/^Problema/i.test(im.name||"")}];
-  const title=reviewId?"Preparando conferência":review?"Conferir Pré-OS":linkMode==="generating"?"Preparando link":linkMode==="ready"?"Link da Pré-OS":"Pré-OS Digital";
-  const description=reviewId||review||linkMode!=="list"?undefined:"Solicitações de atendimento";
-  const close=()=>{if(!busy&&!quick)onClose();};
-  const footer=reviewId?undefined:review?<div className="flex w-full justify-between gap-2"><AdminButton variant="secondary" disabled={busy||quick} onClick={()=>{setReview(null);setError("");}}>Voltar</AdminButton><AdminButton variant="primary" disabled={busy||quick} loading={busy} onClick={continueReview} aria-label={existing?"Criar OS":"Cadastrar cliente e iniciar OS"}>Criar <Plus size={16}/></AdminButton></div>:<div className="flex w-full items-center justify-between gap-2">{linkMode==="ready"?<><span/><AdminButton variant="tertiary" onClick={backToList}><Check size={16}/> Confirmar</AdminButton></>:linkMode==="generating"?<span className="text-xs text-muted-foreground">Preparando solicitação...</span>:<><AdminButton variant="secondary" disabled={busy} onClick={onClose}>Fechar</AdminButton>{conversationId&&onShare&&<AdminButton variant="primary" disabled={busy||!canManage} onClick={generate}><Link2 size={16}/> Gerar link</AdminButton>}</>}</div>;
+  const title=reviewId?"Preparando Nova OS":linkMode==="generating"?"Preparando link":linkMode==="ready"?"Link da Pré-OS":"Pré-OS Digital";
+  const description=reviewId||linkMode!=="list"?undefined:"Solicitações de atendimento";
+  const close=()=>{if(!busy)onClose();};
+  const footer=reviewId?undefined:<div className="flex w-full items-center justify-between gap-2">{linkMode==="ready"?<><span/><AdminButton variant="tertiary" onClick={backToList}><Check size={16}/> Confirmar</AdminButton></>:linkMode==="generating"?<span className="text-xs text-muted-foreground">Preparando solicitação...</span>:<><AdminButton variant="secondary" disabled={busy} onClick={onClose}>Fechar</AdminButton>{conversationId&&onShare&&<AdminButton variant="primary" disabled={busy||!canManage} onClick={generate}><Link2 size={16}/> Gerar link</AdminButton>}</>}</div>;
   const content=<div className="space-y-4">
-      {!canManage?<p className="text-sm">Sem permissão para consultar Pré-OS.</p>:reviewId?<div role="status" aria-live="polite" className="flex min-h-[160px] flex-col items-center justify-center gap-4 text-center motion-safe:animate-in motion-safe:fade-in"><p className="text-sm font-semibold text-muted-foreground">Preparando conferência...</p><LoaderCircle size={24} className="animate-spin text-primary motion-reduce:animate-none"/></div>:review?<div className="space-y-4">
-        <Section title="Cliente" actions={existing?<span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Cadastrado</span>:undefined}>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-            {field("Nome",review.payload.name)}{field(doc.length===14?"CNPJ":"CPF",doc.length===14?formatCnpj(doc):formatCpf(doc))}
-            {field("WhatsApp",whatsapp)}{field("Telefone",phone)}
-            {field("Data de nascimento",formatDateOnly(existing?.birth_date||cpf?.birthDate,"Não informada"))}
-            {field("Gênero",genderLabel(existing?.gender||cpf?.gender))}
-          </div>
-          {cpf?<div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs"><span className={norm(cpf.name)===norm(review.payload.name)?"font-semibold text-emerald-600 dark:text-emerald-400":"font-semibold text-amber-600 dark:text-amber-400"}>{norm(cpf.name)===norm(review.payload.name)?"Nome confere com CPF":"Nome divergente no CPF"}</span>{norm(cpf.name)!==norm(review.payload.name)&&<span>{cpf.name}</span>}</div>:cpfNotice?<p className="mt-3 text-xs text-muted-foreground">{cpfNotice}</p>:null}
-          {!review.bound_customer_id&&hasPermission("customers.edit")&&existing&&phone.replace(/\D/g,"")!==String(existing.phone||"").replace(/\D/g,"")&&<label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={updatePhone} onChange={e=>setUpdatePhone(e.target.checked)}/>Atualizar telefone do cadastro</label>}
-        </Section>
-        <Section title="Endereço">
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
-            {field("CEP",formatZipCode(review.payload.address.zip_code||""))}{field("Rua",review.payload.address.street)}{field("Número",review.payload.address.number)}{field("Complemento",review.payload.address.complement)}{field("Bairro",review.payload.address.neighborhood)}{field("Cidade",review.payload.address.city)}{field("Estado",review.payload.address.state)}
-          </div>
-          {!review.bound_customer_id&&existing&&hasPermission("customers.edit")&&!addressAlreadySaved&&<label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={addAddress} onChange={e=>setAddAddress(e.target.checked)}/>Adicionar endereço ao cadastro</label>}
-        </Section>
-        <Section title="Equipamento">
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">{field("Tipo",review.payload.type_name)}{field("Marca",review.payload.brand_name)}{field("Modelo",review.payload.model)}{field("Número de série",review.payload.serial)}</div>
-          <div className="mt-5 border-t border-border pt-4"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-foreground">Fotos do equipamento</p>
-          <div className="grid gap-4 sm:grid-cols-3">{photoGroups.map(group=><div key={group.title} className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3"><p className="text-sm font-black text-foreground">{group.title==="Etiqueta"?"Foto da etiqueta":group.title==="Defeito"?"Fotos do defeito":"Fotos do equipamento"}</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-1">{review.images.filter(group.test).map(im=><button type="button" key={im.key} onClick={()=>{if(detached)reintegrate();setViewImage(im);}} aria-label={"Visualizar "+group.title} className="overflow-hidden rounded-lg border border-border bg-muted/20 focus-visible:ring-2 focus-visible:ring-primary"><img className="h-36 w-full object-contain" src={im.url} alt={group.title}/></button>)}</div>{!review.images.some(group.test)&&<p className="text-xs text-muted-foreground">Sem foto</p>}</div>)}</div>
-          </div>
-        </Section>
-        <Section title="Informações do atendimento">{field("Descrição do problema",<p className="whitespace-pre-wrap font-normal">{review.payload.problem}</p>)}</Section>
-      </div>:linkMode==="generating"?<div role="status" className="flex min-h-[280px] flex-col items-center justify-center gap-4 text-center motion-safe:animate-in motion-safe:fade-in"><div className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary"><LoaderCircle size={32} className="animate-spin"/></div><p className="text-lg font-semibold">{linkRow?"Recuperando link...":"Gerando link..."}</p><p className="text-sm text-muted-foreground">Preparando o acesso seguro do cliente.</p></div>:linkMode==="ready"?<div className="mx-auto flex max-w-lg flex-col items-center gap-4 py-5 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"><div className="flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600"><CheckCircle2 size={30}/></div><div><p className="text-lg font-bold">Link pronto!</p><p className="mt-1 text-xs text-muted-foreground">Válido por até 48 horas a partir da geração.</p><p className="mt-1 text-xs text-muted-foreground">{requiresDetails?"Identificação, endereço e equipamento.":"Cliente cadastrado: somente equipamento, fotos e problema."}</p></div><div className="rounded-xl border border-border bg-white p-3 shadow-sm"><QRCodeSVG value={link} size={208} level="M" marginSize={4}/></div><input readOnly aria-label="Link da Pré-OS" value={link} className="w-full min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs"/><div className="flex flex-wrap justify-center gap-2"><AdminButton variant="tertiary" size="sm" onClick={()=>copyValue(link,"Link")}><Copy size={14}/> Copiar link</AdminButton><AdminButton variant="tertiary" size="sm" onClick={()=>copyValue(message,"Mensagem")}><Copy size={14}/> Copiar mensagem</AdminButton>{onShare&&(!linkRow||linkRow.conversation_id===conversationId)&&<AdminButton variant="tertiary" size="sm" onClick={()=>onShare(message)}><Send size={14}/> Inserir no WhatsApp</AdminButton>}</div></div>:<>
+      {!canManage?<p className="text-sm">Sem permissão para consultar Pré-OS.</p>:reviewId?<div role="status" aria-live="polite" className="flex min-h-[160px] flex-col items-center justify-center gap-4 text-center motion-safe:animate-in motion-safe:fade-in"><p className="text-sm font-semibold text-muted-foreground">Preparando Nova OS...</p><LoaderCircle size={24} className="animate-spin text-primary motion-reduce:animate-none"/></div>:linkMode==="generating"?<div role="status" className="flex min-h-[280px] flex-col items-center justify-center gap-4 text-center motion-safe:animate-in motion-safe:fade-in"><div className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary"><LoaderCircle size={32} className="animate-spin"/></div><p className="text-lg font-semibold">{linkRow?"Recuperando link...":"Gerando link..."}</p><p className="text-sm text-muted-foreground">Preparando o acesso seguro do cliente.</p></div>:linkMode==="ready"?<div className="mx-auto flex max-w-lg flex-col items-center gap-4 py-5 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"><div className="flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600"><CheckCircle2 size={30}/></div><div><p className="text-lg font-bold">Link pronto!</p><p className="mt-1 text-xs text-muted-foreground">Válido por até 48 horas a partir da geração.</p><p className="mt-1 text-xs text-muted-foreground">{requiresDetails?"Identificação, endereço e equipamento.":"Cliente cadastrado: somente equipamento, fotos e problema."}</p></div><div className="rounded-xl border border-border bg-white p-3 shadow-sm"><QRCodeSVG value={link} size={208} level="M" marginSize={4}/></div><input readOnly aria-label="Link da Pré-OS" value={link} className="w-full min-w-0 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs"/><div className="flex flex-wrap justify-center gap-2"><AdminButton variant="tertiary" size="sm" onClick={()=>copyValue(link,"Link")}><Copy size={14}/> Copiar link</AdminButton><AdminButton variant="tertiary" size="sm" onClick={()=>copyValue(message,"Mensagem")}><Copy size={14}/> Copiar mensagem</AdminButton>{onShare&&(!linkRow||linkRow.conversation_id===conversationId)&&<AdminButton variant="tertiary" size="sm" onClick={()=>onShare(message)}><Send size={14}/> Inserir no WhatsApp</AdminButton>}</div></div>:<>
         <AdminCard square>
           <AdminCardHeader className="flex-wrap gap-2">
             <div className="min-w-0 flex-1"><h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-foreground">Solicitações <span className={"rounded-md border px-2 py-0.5 text-[11px] tabular-nums tracking-normal "+countStyle}>{total}</span></h3>{!conversationId&&<p className="mt-1 text-xs text-muted-foreground">Todos os atendimentos autorizados. Para gerar um link, abra a conversa do cliente.</p>}</div>
@@ -164,7 +110,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
           const expired=["sent","filling"].includes(row.status)&&Date.parse(row.expires_at)<=Math.max(now,Date.now());
           const cancelled=expired||row.status==="cancelled";
           const stage=({sent:0,filling:1,submitting:1,received:2,converted:3} as Record<string,number>)[row.status]??0;
-          return <AdminCard key={row.id} square><AdminCardHeader className="flex-wrap gap-3"><div className="min-w-0"><p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold"><ClipboardList size={15}/>{row.customer_name||"Contato sem nome"}{row.phone&&<span className="font-normal text-muted-foreground">{localPhone(row.phone)}</span>}</p><p className="mt-1 text-xs text-muted-foreground">{formatDateTime(row.created_at)}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><span className={"rounded-md border px-2 py-1 text-xs font-semibold "+(cancelled?"border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400":stage===3?"border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":stage>=1?"border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400":"border-primary/30 bg-primary/10 text-primary")}>{expired?"Link expirado":statusLabels[row.status]||row.status}</span>{row.status==="received"&&<AdminButton variant="tertiary" size="sm" disabled={busy} loading={reviewId===row.id} loadingText="Conferindo..." onClick={()=>reviewRow(row)}>Conferir <ArrowRight size={14}/></AdminButton>}{["sent","filling"].includes(row.status)&&!expired&&<>{hasPermission("whatsapp.inbox.send")&&<AdminButton variant="tertiary" size="sm" disabled={busy} onClick={()=>reopenLink(row)}><QrCode size={14}/> QR Code</AdminButton>}<AdminButton variant="quaternary" size="sm" disabled={busy} loading={cancelId===row.id} loadingText="Cancelando..." onClick={()=>cancelRow(row)}><XCircle size={14}/> Cancelar link</AdminButton></>}{row.status==="converted"&&row.order_id&&<a className="inline-flex items-center gap-1 text-xs font-semibold text-primary" href={"/admin/orders/"+row.order_id} target="_blank" rel="noopener noreferrer">Abrir OS <ExternalLink size={13}/></a>}</div></AdminCardHeader>
+          return <AdminCard key={row.id} square><AdminCardHeader className="flex-wrap gap-3"><div className="min-w-0"><p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold"><ClipboardList size={15}/>{row.customer_name||"Contato sem nome"}{row.phone&&<span className="font-normal text-muted-foreground">{localPhone(row.phone)}</span>}</p><p className="mt-1 text-xs text-muted-foreground">{formatDateTime(row.created_at)}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><span className={"rounded-md border px-2 py-1 text-xs font-semibold "+(cancelled?"border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400":stage===3?"border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400":stage>=1?"border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400":"border-primary/30 bg-primary/10 text-primary")}>{expired?"Link expirado":statusLabels[row.status]||row.status}</span>{row.status==="received"&&<AdminButton variant="tertiary" size="sm" disabled={busy} loading={reviewId===row.id} loadingText="Abrindo OS..." onClick={()=>reviewRow(row)}>Conferir <ArrowRight size={14}/></AdminButton>}{["sent","filling"].includes(row.status)&&!expired&&<>{hasPermission("whatsapp.inbox.send")&&<AdminButton variant="tertiary" size="sm" disabled={busy} onClick={()=>reopenLink(row)}><QrCode size={14}/> QR Code</AdminButton>}<AdminButton variant="quaternary" size="sm" disabled={busy} loading={cancelId===row.id} loadingText="Cancelando..." onClick={()=>cancelRow(row)}><XCircle size={14}/> Cancelar link</AdminButton></>}{row.status==="converted"&&row.order_id&&<a className="inline-flex items-center gap-1 text-xs font-semibold text-primary" href={"/admin/orders/"+row.order_id} target="_blank" rel="noopener noreferrer">Abrir OS <ExternalLink size={13}/></a>}</div></AdminCardHeader>
           <AdminCardContent className="!p-4 sm:!p-5">{cancelled?<div className="flex items-center gap-2 text-xs text-muted-foreground"><XCircle size={16}/> Solicitação encerrada</div>:<div className="grid grid-cols-4 gap-1" aria-label="Progresso da solicitação">{["Link gerado","Preenchimento","Recebida","OS criada"].map((label,n)=><div key={label} className="min-w-0 text-center"><div className={"mx-auto flex size-7 items-center justify-center rounded-full border transition-colors duration-300 "+(n<stage||stage===3?"border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400":n===stage?"border-primary bg-primary/10 text-primary":"border-border bg-muted/30 text-muted-foreground")}>{n<stage||stage===3?<Check size={15}/>:n===stage&&row.status==="submitting"?<LoaderCircle size={14} className="motion-safe:animate-spin"/>:<span className={n===stage&&stage<2?"motion-safe:animate-pulse text-xs font-bold":"text-xs"}>{n+1}</span>}</div><div className={"my-1 h-1 rounded-full transition-colors "+(n<stage||stage===3?"bg-emerald-500":n===stage?"bg-primary":"bg-muted")}/><p className="text-[10px] leading-tight text-muted-foreground">{label}</p></div>)}</div>}
           </AdminCardContent></AdminCard>;
 
@@ -176,8 +122,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
       </div>;
   return <>
-    {detached?createPortal(<section className="flex h-dvh min-h-0 flex-col bg-background text-foreground"><header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div><h1 className="text-base font-bold">{title}</h1>{description&&<p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div><div className="flex items-center gap-2"><AdminButton variant="secondary" size="sm" disabled={busy||quick} onClick={reintegrate}><PanelTop size={15}/> Reintegrar ao CRM</AdminButton><AdminButton variant="ghost" size="sm" aria-label="Fechar" disabled={busy||quick} onClick={close}><X size={16}/></AdminButton></div></header><div className="min-h-0 flex-1 overflow-y-auto p-5">{content}</div>{footer&&<div className="shrink-0 border-t border-border bg-muted/60 p-4">{footer}</div>}</section>,detached.host):<AdminDialog open onClose={close} title={title} description={description} className="max-w-4xl" draggable floating transitionKey={reviewId?"preparing-review":review?"review":linkMode} preparing={Boolean(reviewId)} preparingKey={reviewId||review?.id||"list"} preparingText="Preparando conferência..." headerActions={<AdminButton variant="secondary" size="sm" disabled={busy||quick} onClick={detach} className="hidden md:inline-flex"><ExternalLink size={15}/> Destacar janela</AdminButton>} footer={footer}>{content}</AdminDialog>}
-    {viewImage&&<OrderImageLightbox key={viewImage.key} image={viewImage} onClose={()=>setViewImage(null)}/>}
-    {quick&&review&&<QuickCustomerModal initialValues={initialValues} initialAddress={review.payload.address} initialWhatsappFromConversation description="Dados recebidos na Pré-OS. Confira antes de criar o cadastro." onClose={()=>setQuick(false)} onSaved={customer=>convert(customer.id)}/>}
+    {detached?createPortal(<section className="flex h-dvh min-h-0 flex-col bg-background text-foreground"><header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div><h1 className="text-base font-bold">{title}</h1>{description&&<p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div><div className="flex items-center gap-2"><AdminButton variant="secondary" size="sm" disabled={busy} onClick={reintegrate}><PanelTop size={15}/> Reintegrar ao CRM</AdminButton><AdminButton variant="ghost" size="sm" aria-label="Fechar" disabled={busy} onClick={close}><X size={16}/></AdminButton></div></header><div className="min-h-0 flex-1 overflow-y-auto p-5">{content}</div>{footer&&<div className="shrink-0 border-t border-border bg-muted/60 p-4">{footer}</div>}</section>,detached.host):<AdminDialog open onClose={close} title={title} description={description} className="max-w-4xl" draggable floating transitionKey={reviewId?"preparing-review":linkMode} preparing={Boolean(reviewId)} preparingKey={reviewId||"list"} preparingText="Preparando Nova OS..." headerActions={<AdminButton variant="secondary" size="sm" disabled={busy} onClick={detach} className="hidden md:inline-flex"><ExternalLink size={15}/> Destacar janela</AdminButton>} footer={footer}>{content}</AdminDialog>}
+
   </>;
 }
