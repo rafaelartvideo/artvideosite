@@ -10,6 +10,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
+import { FinanceEvidenceViewer, isFinancialEvidenceImage } from "./FinanceOrderEvidenceGallery";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 import {
   archiveFinancialAttachment,
@@ -46,6 +47,7 @@ export function FinanceDocumentsPanel({ entryId, orderId, orderNumber }: { entry
   const organizationKey = activeOrganizationId || "none";
   const canManage = hasPermission("finance.documents.manage");
   const canView = hasPermission("finance.documents.view");
+  const [viewing, setViewing] = useState<FinancialAttachment | null>(null);
   const [type, setType] = useState<FinancialAttachmentType>("other");
   const [file, setFile] = useState<File | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<FinancialAttachment | null>(null);
@@ -94,6 +96,7 @@ export function FinanceDocumentsPanel({ entryId, orderId, orderNumber }: { entry
   const errorText = error ? systemErrorMessage(error) : "";
 
   const view = async (attachment: FinancialAttachment) => {
+    if (isFinancialEvidenceImage(attachment)) { setViewing(attachment); return; }
     // O navegador precisa abrir a aba durante o clique, antes da assinatura do Storage.
     const popup = window.open("", "_blank");
     if (!popup) {
@@ -168,6 +171,7 @@ export function FinanceDocumentsPanel({ entryId, orderId, orderNumber }: { entry
         </table>
     </FinanceTableSurface>}
 
+    {viewing && viewing.organization_id === organizationId && <FinanceEvidenceViewer document={viewing} organizationId={organizationId} onClose={()=>setViewing(null)} />}
     {archiveTarget && <AdminDialog open onClose={() => { if (!archiveMutation.isPending) setArchiveTarget(null); }} title="Arquivar documento" description={archiveTarget.file_name} className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div>}><FTextarea label="Motivo" required error={archiveReasonError} value={archiveReason} onChange={(event: any) => { setArchiveReasonError(""); setArchiveReason(event.target.value); }} rows={3} /></AdminDialog>}
   </div>;
 }
