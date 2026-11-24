@@ -19,11 +19,17 @@ Deno.serve(async(req)=>{
   try{
     const url=Deno.env.get("SUPABASE_URL")!, key=Deno.env.get("SUPABASE_ANON_KEY")!;
     const admin=createClient(url,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false}});
+    // Bound even chunked requests, before decoding multipart or JSON.
+    const reader=req.body?.getReader();
+    const chunks:Uint8Array[]=[];let size=0;
+    if(reader)while(true){const {done,value}=await reader.read();if(done)break;if(value){size+=value.byteLength;if(size>9_000_000){await reader.cancel();return json({error:"Envio muito grande."},413);}chunks.push(value);}}
+    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    const bounded=new Response(bytes,{headers:{"Content-Type":req.headers.get("content-type")||"application/json"}});
     const multipart=req.headers.get("content-type")?.startsWith("multipart/form-data");
-    const form=multipart?await req.formData():null;
-    const body=form?{action:"submit",token:form.get("token"),payload:JSON.parse(String(form.get("payload")||"{}"))}:await req.json();
+    const form=multipart?await bounded.formData():null;
+    const body=form?{action:"submit",token:form.get("token"),payload:JSON.parse(String(form.get("payload")||"{}"))}:await bounded.json();
     const action=String(body.action||"");
-    if(action==="open"||action==="submit"){
+    if(action==="open"||action==="models"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
       const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,status,expires_at").eq("token_hash",await hash(token)).maybeSingle());
@@ -32,6 +38,12 @@ Deno.serve(async(req)=>{
       if(row.status==="submitting")return json({error:"Envio em andamento. Tente novamente em instantes."},409);
       const org=check(await admin.from("organizations").select("id,name,status").eq("id",row.organization_id).eq("status","active").maybeSingle());
       if(!org)return json({error:"Link indisponível."},404);
+      if(action==="models"){
+        if(!uuid(body.brand_id))throw new InputError("Marca inválida.");
+        const brand=check(await admin.from("equipment_brands").select("id").eq("organization_id",org.id).eq("id",body.brand_id).eq("is_active",true).maybeSingle());
+        if(!brand)throw new InputError("Marca indisponível.");
+        return json({models:check(await admin.from("equipment_models").select("id,name").eq("organization_id",org.id).eq("equipment_brand_id",brand.id).eq("is_active",true).order("name").limit(500))});
+      }
       if(action==="open"){
         if(row.status==="sent")check(await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","sent"));
         const types=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("is_active",true).order("name").limit(1000));
@@ -51,19 +63,20 @@ Deno.serve(async(req)=>{
       const files=form?form.getAll("photo"):[];
       if(files.length>5)throw new InputError("Envie até cinco fotos.");
       const kinds=form?form.getAll("kind"):[];
-      if(kinds.length!==files.length)throw new InputError("Fotos inválidas.");
+      if(kinds.length!==files.length||kinds.some(k=>!["label","equipment","problem"].includes(String(k))))throw new InputError("Fotos inválidas.");
       for(const f of files){if(!(f instanceof File)||f.size<12||f.size>1_500_000||f.type!=="image/webp")throw new InputError("Foto inválida ou muito grande. Tente tirar outra.");
         const b=new Uint8Array(await f.slice(0,12).arrayBuffer());if(String.fromCharCode(...b.slice(0,4))!=="RIFF"||String.fromCharCode(...b.slice(8,12))!=="WEBP")throw new InputError("Formato de foto inválido.");}
-      const claim=check(await admin.from("order_intake_requests").update({status:"submitting"}).eq("id",row.id).in("status",["sent","filling"]).select("id").maybeSingle());
+      const claim=check(await admin.from("order_intake_requests").update({status:"submitting"}).eq("id",row.id).in("status",["sent","filling"]).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
       if(!claim)return json({error:"Solicitação já enviada ou em processamento."},409);
       const stored:string[]=[], mediaIds:string[]=[], images:any[]=[];
       try{
         for(let i=0;i<files.length;i++){
           const f=files[i] as File, kind=kinds[i]==="label"?"label":"equipment";
+          const filename=(kind==="label"?"Etiqueta":kinds[i]==="problem"?"Problema":"Equipamento")+"-"+(i+1)+".webp";
           const path="orders/"+org.id+"/draft/pre-os-"+row.id+"-"+crypto.randomUUID()+".webp";
           check(await admin.storage.from("service-images").upload(path,f,{contentType:"image/webp",upsert:false}));stored.push(path);
-          const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:(kind==="label"?"Etiqueta":"Equipamento")+"-"+(i+1)+".webp",mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
-          mediaIds.push(media.id);images.push({mediaId:media.id,path,kind,name:(kind==="label"?"Etiqueta":"Equipamento")+"-"+(i+1)+".webp"});
+          const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
+          mediaIds.push(media.id);images.push({mediaId:media.id,path,kind,name:filename});
         }
         const saved=check(await admin.from("order_intake_requests").update({status:"received",submitted_at:new Date().toISOString(),payload:{name,document:cpf,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
