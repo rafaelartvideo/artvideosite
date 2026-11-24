@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { mergeFetchedHistoryPages,timestampMicros } from "./history-merge.mjs";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization,apikey,x-client-info,content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{...cors,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
 const uuid=(v:unknown)=>typeof v==="string"&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v);
@@ -38,31 +39,49 @@ Deno.serve(async req=>{
     if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
     // Historical reads use the exact live conversation RLS, NOT management permissions.
     // The request cannot select a contact, destination phone or archived package.
-    if(b.action==="history_page"){
+    if(b.action==="history_page"||b.action==="conversation_page"){
+      const unified=b.action==="conversation_page";
       const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null;
-      if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols"].includes(kind)||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind==="protocols"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
+      if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols"].includes(kind)||(unified&&kind!=="messages")||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind==="protocols"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
+      if(before!==null){try{timestampMicros(before.sent_at)}catch{return json({success:false,error:"Cursor inválido."},400)}}
       const {data:thread,error:threadError}=await scoped.from("union_whatsapp_conversations")
         .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone")
         .eq("id",b.conversation_id).eq("organization_id",org)
         .eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
       if(threadError||!thread)return json({success:false,error:"Conversa indisponível."},403);
       const empty={items:[],hasMore:false,nextCursor:null};
+      async function currentPage(){
+        let q=scoped.from("union_whatsapp_messages")
+          .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available,reply_to_provider_message_id,reply_to_text,reply_to_message_type,reply_to_direction")
+          .eq("organization_id",thread.organization_id).eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone).eq("conversation_id",thread.id);
+        if(protocolId)q=q.eq("protocol_id",protocolId);
+        if(before)q=q.or(`sent_at.lt.${before.sent_at},and(sent_at.eq.${before.sent_at},id.lt.${before.id})`);
+        const {data,error}=await q.order("sent_at",{ascending:false}).order("id",{ascending:false}).limit(limit+1);
+        if(error)throw Error("Mensagens indisponíveis.");
+        const rows=data||[];
+        return {items:rows.slice(0,limit),hasMore:rows.length>limit};
+      }
+      async function finishPage(archive:typeof empty|{items:Record<string,unknown>[];hasMore:boolean;nextCursor:unknown}){
+        if(!unified)return archive;
+        return mergeFetchedHistoryPages(await currentPage(),archive,before,limit);
+      }
       // LIDs, groups, ambiguous or changed identities must not be guessed.
-      if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return json({success:true,result:empty});
+      if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return json({success:true,result:await finishPage(empty)});
       // Contacts are private backend data. Only resolve AFTER scoped conversation authorization.
       const {data:matches,error:matchError}=await admin.from("union_whatsapp_contacts").select("id,channel_id,chat_jid,contact_phone")
         .eq("organization_id",thread.organization_id).eq("account_phone",thread.account_phone)
         .eq("contact_phone",thread.contact_phone).limit(2);
       if(matchError)throw Error("Identidade indisponível.");
-      if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return json({success:true,result:empty});
+      if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return json({success:true,result:await finishPage(empty)});
       const result=await bridge({action:"history_page",organizationId:thread.organization_id,accountPhone:thread.account_phone,contactId:matches[0].id,contactPhone:thread.contact_phone,conversationId:thread.id,kind,protocolId,before,limit});
+      const page=await finishPage(result);
       // Recheck visibility at delivery time (the conversation may have been reassigned).
       const {data:stillVisible,error:visibilityError}=await scoped.from("union_whatsapp_conversations")
         .select("id").eq("id",thread.id).eq("organization_id",thread.organization_id)
         .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
         .eq("chat_jid",thread.chat_jid).eq("contact_phone",thread.contact_phone).maybeSingle();
       if(visibilityError||!stillVisible)return json({success:false,error:"Conversa indisponível."},403);
-      return json({success:true,result});
+      return json({success:true,result:page});
     }
     const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
     const has=(permission:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===permission);
