@@ -34,12 +34,14 @@ const crmMainIds = new Set([
 
 export function PlatformCrmHub({
   onSelect,
+  showCustomers = true,
 }: {
+  showCustomers?: boolean;
   onSelect: (tab: AdminTab) => void;
 }) {
   const items: AdminHubItem[] = [
     ...mainItems
-      .filter((item) => crmMainIds.has(item.id))
+      .filter((item) => crmMainIds.has(item.id) && (item.id !== "customers" || showCustomers))
       .map((item) => ({
         ...item,
         description: mainDescriptions[item.id] || `Acesse o módulo ${item.label}.`,
