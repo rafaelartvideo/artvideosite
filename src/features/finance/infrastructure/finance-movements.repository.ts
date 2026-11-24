@@ -237,6 +237,14 @@ export async function listFinancialTransfers(organizationId: string): Promise<Fi
 
 export async function registerFinancialSettlement(organizationId: string, draft: FinancialSettlementDraft) {
   const org = requiredOrganizationId(organizationId);
+  if (draft.settle_all && draft.settlement_parts?.length) {
+    const { data, error } = await supabase.rpc("register_financial_multi_settlement" as any, {
+      p_organization_id: org, p_entry_id: draft.entry_id,
+      p_parts: draft.settlement_parts.map(part => ({ ...part, occurred_at: asIso(part.occurred_at) })),
+    });
+    if (error) throw error;
+    return data;
+  }
   const { data, error } = await supabase.rpc(draft.settle_all
     ? "register_financial_bulk_settlement"
     : "register_financial_settlement", {
