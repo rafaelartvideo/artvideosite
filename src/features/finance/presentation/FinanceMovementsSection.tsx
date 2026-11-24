@@ -3,6 +3,8 @@ import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getFinancialSettlementMovementDetails } from "../infrastructure/finance-movements.repository";
 import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -46,7 +48,7 @@ function localDateBoundary(value: string, nextDay = false) {
 }
 
 export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { createSignal?: number; onInitialReady?: () => void } = {}) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const foundation = useFinanceFoundation();
   const canTransfer = hasPermission("finance.transfers.create");
   const [accountFilter, setAccountFilter] = useState("all");
@@ -57,6 +59,14 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
   const [transferOpen, setTransferOpen] = useState(false);
   useEffect(() => { if (createSignal > 0) setTransferOpen(true); }, [createSignal]);
   const [selectedMovement, setSelectedMovement] = useState<FinancialMovement | null>(null);
+  const settlementId = selectedMovement?.source_type === "settlement" ? selectedMovement.source_id : null;
+  const settlementDetails = useQuery({
+    queryKey: ["finance", "movement-settlement", activeOrganizationId, settlementId],
+    queryFn: () => getFinancialSettlementMovementDetails(activeOrganizationId!, settlementId!),
+    enabled: Boolean(activeOrganizationId && settlementId && selectedMovement?.organization_id === activeOrganizationId),
+    staleTime: 60_000,
+  });
+
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
@@ -163,6 +173,15 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
         <div><dt className="text-xs text-muted-foreground">Tipo</dt><dd className="text-sm font-semibold text-foreground">{MOVEMENT_LABELS[selectedMovement.movement_type]}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Origem</dt><dd className="text-sm font-semibold text-foreground">{selectedMovement.origin_order_id ? <FinanceServiceOrderLink orderId={selectedMovement.origin_order_id} label={formatFinanceOriginLabel(selectedMovement.origin_label || "Ordem de Serviço")} /> : formatFinanceOriginLabel(selectedMovement.origin_label || "Movimentação financeira")}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Valor</dt><dd className={`text-sm font-semibold ${selectedMovement.direction === "credit" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{selectedMovement.direction === "credit" ? "+" : "-"}{formatCurrency(selectedMovement.amount)}</dd></div>
+        {settlementId && settlementDetails.isPending && <p className="sm:col-span-2 text-xs text-muted-foreground">Carregando informações da baixa...</p>}
+        {settlementId && settlementDetails.data && <>
+          <div><dt className="text-xs text-muted-foreground">Forma de pagamento</dt><dd className="text-sm font-semibold">{settlementDetails.data.payment_method_name_snapshot}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Taxa</dt><dd className="text-sm font-semibold">{formatCurrency(settlementDetails.data.fee_amount)}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Valor bruto</dt><dd className="text-sm font-semibold">{formatCurrency(settlementDetails.data.gross_amount)}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Valor líquido</dt><dd className="text-sm font-semibold">{formatCurrency(settlementDetails.data.net_amount)}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Parcelas vinculadas à baixa</dt><dd className="mt-1 space-y-1 text-sm">{settlementDetails.data.allocations.map((allocation, index) => <div key={index} className="flex items-center justify-between gap-2"><span>{allocation.installment ? `Parcela ${allocation.installment.installment_number}/${allocation.installment.total_installments}` : "Parcela não identificada"}</span><span className="font-semibold">{formatCurrency(allocation.principal_amount)}</span></div>)}</dd></div>
+        </>}
+        {settlementId && settlementDetails.isError && <p role="alert" className="sm:col-span-2 text-xs text-muted-foreground">Não foi possível consultar os detalhes da baixa.</p>}
         {selectedMovement.origin_order_id && <div>
           <dt className="text-xs text-muted-foreground">OS concluída por</dt>
           <dd className="text-sm font-semibold text-foreground">{selectedMovement.completed_by_name || "Não identificado"}</dd>
