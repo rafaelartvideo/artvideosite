@@ -253,3 +253,16 @@ test("Pré-OS separa PF/PJ e transfere os dados empresariais para Nova OS",()=>{
  assert.ok(staff.includes('trade_name:item.payload.trade_name||name'));
  assert.ok(staff.includes('legal_name:name'));
 });
+
+
+test("CPF e nome são obrigatórios na Artvideo e no ambiente Teste, sem liberar outras empresas",async()=>{
+ const api=read("supabase/functions/order-intake/index.ts");
+ const start=api.indexOf("const CPF_IDENTITY_TEST_ORG="),end=api.indexOf("async function validateArtvideoIdentity",start);
+ const policy=new Function("check","IdentityError",api.slice(start,end).replace("(admin:any,org:string)","(admin,org)")+";return artvideoIdentityRequired;")(r=>r.data,Error);
+ const db=enabled=>({rpc:async name=>({data:name==="artvideo_organization_id"?"artvideo-id":enabled})});
+ assert.equal(await policy(db(true),"artvideo-id"),true);
+ assert.equal(await policy(db(true),"5bcd7ec7-38f0-4dda-a84c-10429bd46b23"),true);
+ assert.equal(await policy(db(true),"other-tenant"),false);
+ await assert.rejects(()=>policy(db(false),"artvideo-id"));
+ await assert.rejects(()=>policy(db(false),"5bcd7ec7-38f0-4dda-a84c-10429bd46b23"));
+});
