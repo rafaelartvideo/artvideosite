@@ -82,7 +82,7 @@ Deno.serve(async req=>{
         const found=matches.filter(m=>m.contact_phone===e.phone);
         // Exact phone JID only: aliases and ambiguous records require individual review.
         const match=found.length===1&&found[0].chat_jid===e.phone+"@s.whatsapp.net"?found[0]:null;
-        return {contact_key:e.contact_key,phone:e.phone,state:e.state==="review"?"review":e.contact_id?(match?.id===e.contact_id?"bound":"review"):e.state!=="verified"?"review":found.length===0?"missing":match?"candidate":"review",
+        return {contact_key:e.contact_key,phone:e.phone,historical_name:typeof e.historical_name==="string"?e.historical_name.slice(0,200):"",state:e.state==="review"?"review":e.contact_id?(match?.id===e.contact_id?"bound":"review"):e.state!=="verified"?"review":found.length===0?"missing":match?"candidate":"review",
           match:match?{id:match.id,display_name:match.display_name}:null};
       });
       if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates}});
