@@ -610,10 +610,10 @@ test("Histórico geral permanece acessível pelo contato e mostra todos os proto
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   assert.match(history,/Histórico geral do contato/);
   assert.match(history,/listUnionWhatsAppMessages\(organizationId,conversation\.id,/);
-  assert.match(history,/conversation\.channel_id,conversation\.account_phone\)/);
+  assert.match(history,/conversation\.channel_id,conversation\.account_phone,null,state\.cursor\)/);
   assert.doesNotMatch(history,/protocolId:/);
   assert.match(history,/UnionWhatsAppProtocolHistory/);
-  assert.match(history,/Carregar interações anteriores/);
+  assert.match(history,/HistoryPager page=\{page\}/);
   assert.match(contact,/UnionWhatsAppContactHistory/);
   assert.match(directory,/UnionWhatsAppContactHistory/);
   assert.match(repository,/findUnionWhatsAppConversationByContact/);
@@ -1478,4 +1478,24 @@ test("SAC importado: publicar vínculos não cria atendimento ativo nem duplica 
   assert.match(inbox,/onClick=\{\(\)=>void viewProtocols\(\)\}/);
   assert.match(manager,/for\(const entry of entries\)/);
   assert.match(manager,/Disponibilizar conversas vinculadas/);
+});
+
+
+test("Históricos geral e de protocolos paginam cinco registros e consultam arquivos antes de abrir conversa",()=>{
+  const general=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactHistory.tsx");
+  const protocols=read("src/features/whatsapp-channels/presentation/UnionWhatsAppProtocolHistory.tsx");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  assert.match(general,/const GENERAL_PAGE_SIZE=5/);
+  assert.match(repo,/const PROTOCOL_PAGE_SIZE=5/);
+  assert.match(general,/\(conversation\|\|contactOnly\)&&<div role="tablist"/);
+  assert.match(repo,/action:"history_page",contact_only:true,kind:"protocols"/);
+  assert.match(general,/safe\.slice\(page\*GENERAL_PAGE_SIZE,needed\)/);
+  assert.match(general,/Date\.parse\(row\.at\)>cutoff/);
+  assert.match(protocols,/listContactOnlyHistoricalMessages\(scope\.organizationId,scope\.contactId!,scope\.channelId!,scope\.accountPhone!,before,item\.id\)/);
+  assert.match(protocols,/listUnionWhatsAppMessages\(scope\.organizationId,scope\.conversation\.id,scope\.conversation\.channel_id,scope\.conversation\.account_phone,item\.id,before\)/);
+  assert.match(protocols,/in_att:"bg-emerald/);
+  assert.match(protocols,/finished:"bg-blue/);
+  assert.match(protocols,/Somente consulta/);
+  assert.match(inbox,/protocols\.slice\(protocolsVisiblePage\*PROTOCOL_PAGE_SIZE/);
 });
