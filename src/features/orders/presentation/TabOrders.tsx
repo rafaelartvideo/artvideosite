@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { PortalContainerProvider } from "@/shared/ui/primitives/portal-container";
 import { useDetachedOrderEditor } from "./useDetachedOrderEditor";
@@ -66,6 +66,9 @@ type TabOrdersProps = {
   detailOnly?: boolean;
   /** Renderiza somente a Nova OS como janela sobre outro modal, sem segunda camada escura. */
   embeddedCreate?: boolean;
+  /** Owner above the keyed draft: keep the same browser window across conversations. */
+  embeddedDetachedEditor?: ReturnType<typeof useDetachedOrderEditor>;
+  embeddedSwitchGuardRef?: MutableRefObject<(() => boolean) | null>;
   onEmbeddedClose?: () => void;
   onEmbeddedCreated?: (orderId: string) => void;
   monitorView?: boolean;
@@ -125,6 +128,8 @@ export function TabOrders({
   accessMode = "default",
   detailOnly = false,
   embeddedCreate = false,
+  embeddedDetachedEditor,
+  embeddedSwitchGuardRef,
   onEmbeddedClose,
   onEmbeddedCreated,
   monitorView = false,
@@ -148,7 +153,10 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
-  const detachedEditor = useDetachedOrderEditor();
+  const localDetachedEditor = useDetachedOrderEditor();
+  const detachedEditor = embeddedDetachedEditor ?? localDetachedEditor;
+  const routedSaveInFlight = useRef(false);
+  const editorTouched = useRef(false);
   const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
   // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
   const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
@@ -715,6 +723,9 @@ export function TabOrders({
   };
 
   const saveRoutedOrder = async () => {
+    if (routedSaveInFlight.current) return;
+    routedSaveInFlight.current = true;
+    try {
     const wasCreating = !editingOS;
     const queueReservationId = wasCreating ? String(form.queue_reservation_id || "") : "";
     const savedOrderId = await saveOS();
@@ -800,6 +811,7 @@ export function TabOrders({
         type: "error",
       });
     }
+    } finally { routedSaveInFlight.current = false; }
   };
 
   const setViewMode = (mode: "list" | "kanban") => {
@@ -819,6 +831,26 @@ export function TabOrders({
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
   const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
+  useLayoutEffect(() => {
+    if (!embeddedSwitchGuardRef) return;
+    const guard = () => {
+      if (saving || routedSaveInFlight.current || formState.pendingCreatedOrderId) {
+        setToast({msg:"Conclua o salvamento da OS atual antes de trocar de atendimento.",type:"error"});
+        return false;
+      }
+      if (queueGateOpen || form.queue_reservation_id || formState.quickCustomer || formState.quickEquipment || customerSelection.editingCustomer) {
+        setToast({msg:"Conclua ou cancele a etapa aberta da Nova OS antes de trocar de atendimento.",type:"error"});
+        return false;
+      }
+      const hasDraft = editorTouched.current || imagesController.orderImages.length>0
+        || Boolean(form.customer_notes || form.internal_notes || form.serial_number || form.equipment_type_id
+          || form.external_os_number || form.model || form.accessories || form.equipment_condition || form.unlock_dirty
+          || Object.keys(form.custom_field_values).length || Object.keys(form.technicalValues).length);
+      return !hasDraft || window.confirm("Há dados não salvos na Nova OS atual. Descartar este preenchimento e abrir a OS do outro atendimento?");
+    };
+    embeddedSwitchGuardRef.current = guard;
+    return () => { if (embeddedSwitchGuardRef.current === guard) embeddedSwitchGuardRef.current = null; };
+  });
   const editingContentReady = formOpen && (!editingRouteActive || editingOS?.id === initialOrderId);
   const routedDetailLoading = Boolean(
     initialOrderId
@@ -943,6 +975,7 @@ export function TabOrders({
         detached={Boolean(detachedEditor.detached)}
         onDetach={embeddedCreate ? detachedEditor.detach : undefined}
         onReintegrate={detachedEditor.reintegrate}
+        onDraftInteraction={()=>{editorTouched.current=true;}}
       />}
 
       {!scopedReadOnly && <OrderWorkflowModals
