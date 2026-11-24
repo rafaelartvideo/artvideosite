@@ -40,10 +40,12 @@ test("extrato e contas a receber mostram carregamento de anexo e prévia de imag
   assert.ok((await transformWithEsbuild(gallery, "FinanceOrderEvidenceGallery.tsx", { loader: "tsx" })).code);
   assert.ok((await transformWithEsbuild(section, "OrderCompletionPaymentSection.tsx", { loader: "tsx" })).code);
   assert.match(gallery, /query\.isPending/);
-  assert.match(gallery, /Carregando \{label\.toLowerCase\(\)\}/);
-  assert.match(gallery, /aria-busy="true"/);
-  assert.match(gallery, /onLoad=\{\(\) => setLoaded\(true\)\}/);
-  assert.match(gallery, /onError=\{\(\) => setFailed\(true\)\}/);
+  assert.match(gallery, /aria-label="Carregando miniatura"/);
+  assert.match(gallery, /IntersectionObserver/);
+  assert.match(gallery, /enabled:visible/);
+  assert.match(gallery, /if\(!evidence\.length\)return null/);
+  assert.match(gallery, /onLoad=\{\(\)=>setLoaded\(true\)\}/);
+  assert.match(gallery, /onError=\{\(\)=>setFailed\(true\)\}/);
   assert.match(gallery, /animate-spin/);
   assert.match(section, /Carregando comprovante e evidência de entrega/);
   assert.match(section, /Carregando prévia de/);
