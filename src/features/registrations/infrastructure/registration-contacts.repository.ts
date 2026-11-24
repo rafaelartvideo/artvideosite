@@ -123,3 +123,16 @@ export async function setRegistrationContactActive(
     error: result.error ? normalizeError(result.error) : null,
   };
 }
+
+
+/** Resolve the unified CRM record by its actual customer foreign key, never by name or phone. */
+export async function getRegistrationContactOwner(organizationId: string, customerId: string) {
+  const result = await supabase.from("entities")
+    .select("id,name,phone,whatsapp")
+    .eq("organization_id", organizationId)
+    .eq("legacy_customer_id", customerId)
+    .maybeSingle();
+  if (result.error) throw normalizeError(result.error);
+  if (!result.data) throw new Error("Cadastro unificado não encontrado para este cliente.");
+  return result.data;
+}
