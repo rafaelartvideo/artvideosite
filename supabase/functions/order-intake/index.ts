@@ -207,7 +207,7 @@ Deno.serve(async(req)=>{
     if(action==="list"){
       if(body.conversation_id){if(!uuid(body.conversation_id))throw new InputError("Conversa inválida.");scope=scope.eq("conversation_id",body.conversation_id);}
       const page=Math.max(0,Math.min(10000,Math.trunc(Number(body.page)||0)));
-      return json({rows:check(await scope.order("created_at",{ascending:false}).range(page*25,page*25+24))});
+      return json({rows:check(await scope.select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name").order("created_at",{ascending:false}).range(page*25,page*25+24))});
     }
     if(!uuid(body.id))throw new InputError("Solicitação inválida.");
     const allowed=check(await scope.eq("id",body.id).maybeSingle());
