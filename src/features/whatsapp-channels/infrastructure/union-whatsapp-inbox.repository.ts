@@ -34,6 +34,9 @@ export type UnionWhatsAppProtocol = {
   id: string;
   conversation_id: string;
   protocol_number: number;
+  read_only?:boolean;
+  unknown_date?:boolean;
+  original_status?:string|null;
   status: UnionWhatsAppConversation["status"];
   assigned_to: string | null;
   department_id: string | null;
@@ -45,7 +48,7 @@ export type UnionWhatsAppProtocol = {
   opened_by: string | null;
   closed_by: string | null;
 };
-export const unionWhatsAppProtocolLabel = (number: number) => `ATD-${String(number).padStart(6,"0")}`;
+export const unionWhatsAppProtocolLabel = (number: number) => number>0?`ATD-${String(number).padStart(6,"0")}`:"Atendimento";
 export type UnionWhatsAppProtocolMarker = Pick<UnionWhatsAppProtocol,"id"|"protocol_number"|"opened_at"|"closed_at">;
 
 export type UnionWhatsAppHistoricalAttachment = {id:string;kind:string;mime:string;available:boolean};
@@ -73,6 +76,7 @@ export type UnionWhatsAppMessage = {
   historical_attachments?: UnionWhatsAppHistoricalAttachment[];
   historical_scope?: {channel_id:string;account_phone:string};
   historical_system?: boolean;
+  unknown_date?:boolean;
 };
 
 export type UnionWhatsAppSavedSticker = {
@@ -152,7 +156,7 @@ export type UnionWhatsAppMessagePage={
   items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null;historyUnavailable?:boolean;
 };
 export type UnionWhatsAppProtocolPage={
-  items:UnionWhatsAppProtocol[];hasMore:boolean;
+  items:UnionWhatsAppProtocol[];hasMore:boolean;nextCursor?:UnionWhatsAppMessageCursor|null;
 };
 const INBOX_PAGE_SIZE=50;
 const MESSAGE_PAGE_SIZE=60;
@@ -426,20 +430,7 @@ export async function listUnionWhatsAppMessages(
     }});
     if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Histórico temporariamente indisponível.");
     const result=data.result;
-    const items=result.items.map((row: any):UnionWhatsAppMessage=>{
-      if(row.read_only!==true)return row as UnionWhatsAppMessage;
-      const attachments=(Array.isArray(row.attachments)?row.attachments:[]).filter((a:any)=>typeof a?.id==="string"&&/^[a-f0-9]{64}$/.test(a.id)).map((a:any)=>({id:a.id,kind:String(a.kind||"unknown"),mime:String(a.mime||""),available:a.available===true}));
-      const text=String(row.body_text||"");
-      const links=Array.isArray(row.links)?row.links.filter((v:unknown)=>typeof v==="string"&&/^https?:\/\//i.test(v)).filter((v:string)=>!text.includes(v)):[];
-      const location=row.location;
-      const latitude=Number(location?.latitude??location?.lat),longitude=Number(location?.longitude??location?.lng??location?.lon);
-      const position=location&&Number.isFinite(latitude)&&Number.isFinite(longitude)&&Math.abs(latitude)<=90&&Math.abs(longitude)<=180?"geo:"+latitude+","+longitude:null;
-      return {id:row.id,organization_id:organizationId,conversation_id:conversationId,protocol_id:row.protocol_id||null,
-        provider_message_id:row.id,direction:row.direction==="outgoing"?"outgoing":"incoming",message_type:position?"location":"text",
-        body_text:[position,text,...links].filter(Boolean).join("\n"),sender_name:row.sender_name||null,sent_at:row.sent_at,
-        delivery_status:null,read_only:true,historical_system:row.direction==="system",historical_attachments:attachments,
-        historical_scope:{channel_id:channelId,account_phone:accountPhone}};
-    });
+    const items=result.items.map((row:any)=>mapHistoricalMessage(row,organizationId,conversationId,channelId,accountPhone));
     return {items,hasMore:result.hasMore===true,nextCursor:result.nextCursor||null};
   }catch{
     // Never advance a merged cursor with only one source available. A retry
@@ -449,6 +440,21 @@ export async function listUnionWhatsAppMessages(
     return {...live,hasMore:false,nextCursor:null,historyUnavailable:true};
   }
 }
+function mapHistoricalMessage(row:any,organizationId:string,conversationId:string,channelId:string,accountPhone:string):UnionWhatsAppMessage{
+      if(row.read_only!==true)return row as UnionWhatsAppMessage;
+      const attachments=(Array.isArray(row.attachments)?row.attachments:[]).filter((a:any)=>typeof a?.id==="string"&&/^[a-f0-9]{64}$/.test(a.id)).map((a:any)=>({id:a.id,kind:String(a.kind||"unknown"),mime:String(a.mime||""),available:a.available===true}));
+      const text=String(row.body_text||"");
+      const links=Array.isArray(row.links)?row.links.filter((v:unknown)=>typeof v==="string"&&/^https?:\/\//i.test(v)).filter((v:string)=>!text.includes(v)):[];
+      const location=row.location;
+      const latitude=Number(location?.latitude??location?.lat),longitude=Number(location?.longitude??location?.lng??location?.lon);
+      const position=location&&Number.isFinite(latitude)&&Number.isFinite(longitude)&&Math.abs(latitude)<=90&&Math.abs(longitude)<=180?"geo:"+latitude+","+longitude:null;
+      return {id:row.id,organization_id:organizationId,conversation_id:conversationId,protocol_id:row.protocol_id||null,
+        provider_message_id:row.id,direction:row.direction==="outgoing"?"outgoing":"incoming",message_type:position?"location":(["image","video","audio","file","sticker"].includes(row.message_type)?row.message_type:"text"),
+        body_text:[position,text,...links].filter(Boolean).join("\n"),sender_name:row.sender_name||null,sent_at:row.sent_at,
+        delivery_status:null,read_only:true,unknown_date:row.unknown_date===true,media_mime:attachments[0]?.mime,media_available:attachments[0]?.available,historical_system:row.direction==="system",historical_attachments:attachments,
+        historical_scope:{channel_id:channelId,account_phone:accountPhone}};
+}
+
 export async function getHistoricalWhatsAppMedia(message:UnionWhatsAppMessage,assetId:string,download=false){
   const scope=message.historical_scope;
   if(!message.read_only||!scope||!message.historical_attachments?.some(a=>a.id===assetId&&a.available))throw Error("Arquivo indisponível.");
@@ -470,6 +476,11 @@ export async function listUnionWhatsAppSharedItems(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   category:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null=null,
 ):Promise<{items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null}>{
+  if(isUnifiedHistoryPilotEnabled(organizationId)){
+    const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"conversation_page",kind:"shared",category,organization_id:organizationId,conversation_id:conversationId,channel_id:channelId,account_phone:accountPhone,before,limit:SHARED_PAGE_SIZE}});
+    if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os arquivos. Tente novamente.");
+    return {items:data.result.items.map((row:any)=>mapHistoricalMessage(row,organizationId,conversationId,channelId,accountPhone)).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+  }
   let query=supabase.from("union_whatsapp_messages")
     .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
     .eq("organization_id",organizationId)
@@ -527,8 +538,13 @@ export async function listUnionWhatsAppProtocolMarkers(
 
 export async function listUnionWhatsAppProtocols(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
-  page=0,
+  page=0,before?:UnionWhatsAppMessageCursor|null,
 ):Promise<UnionWhatsAppProtocolPage>{
+  if(isUnifiedHistoryPilotEnabled(organizationId)){
+    const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"conversation_page",kind:"protocols",organization_id:organizationId,conversation_id:conversationId,channel_id:channelId,account_phone:accountPhone,before:before||null,limit:PROTOCOL_PAGE_SIZE}});
+    if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os atendimentos anteriores.");
+    return {items:data.result.items.map((r:any):UnionWhatsAppProtocol=>r.read_only===true?{id:r.id,conversation_id:conversationId,protocol_number:0,read_only:true,unknown_date:!r.opened_at,original_status:r.original_status,status:r.closed_at?"finished":"abandoned",opened_at:r.opened_at||r.sent_at,closed_at:r.closed_at||null,assigned_at:null,assigned_to:null,department_id:null,first_reply_at:null,message_count:r.message_count,opened_by:null,closed_by:null}:r).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+  }
   const limit=PROTOCOL_PAGE_SIZE;
   const start=Math.max(0,Math.floor(page))*limit;
   const {data,error}=await supabase.from("union_whatsapp_protocols")
