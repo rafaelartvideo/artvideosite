@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2, Loader2, RotateCcw, RotateCw, X } from "lucide-react";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, validateCustomerAddress } from "@/lib/address";
 import { isValidCpf, isValidCnpj, isValidBrazilianPhone, formatPhoneInput } from "@/shared/domain/formatters";
-import { openIntake, listIntakeModels, submitIntake, type IntakeCatalog, type IntakePayload, type IntakePhoto } from "./order-intake.repository";
+import { openIntake, listIntakeModels, validateIntakeIdentity, submitIntake, type IntakeCatalog, type IntakePayload, type IntakePhoto } from "./order-intake.repository";
 
 const field="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 const button="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0131cd] px-5 py-3 text-sm font-bold text-white disabled:opacity-50";
@@ -32,6 +32,7 @@ export function PublicOrderIntakePage(){
   const [photos,setPhotos]=useState<PhotoPreview[]>([]),[pending,setPending]=useState<{file:File;kind:IntakePhoto["kind"];url:string}|null>(null),[rotation,setRotation]=useState(0);
   const [modelsByBrand,setModelsByBrand]=useState<Record<string,{id:string;name:string}[]>>({});
   const [busy,setBusy]=useState(false),[zipBusy,setZipBusy]=useState(false),[confirmed,setConfirmed]=useState(false),[done,setDone]=useState(false);
+  const identityProof=useRef<{key:string;ticket:string;until:number}|null>(null);
   const zipVersion=useRef(0),photoRef=useRef(photos),pendingRef=useRef(pending),gate=useRef(false);photoRef.current=photos;pendingRef.current=pending;
   useEffect(()=>()=>{photoRef.current.forEach(p=>URL.revokeObjectURL(p.url));if(pendingRef.current)URL.revokeObjectURL(pendingRef.current.url);},[]);
   useEffect(()=>{let current=true;if(!token){setError("Link inválido. Peça outro à assistência.");return;}openIntake(token).then(c=>{if(current){setCatalog(c);if(c.requires_customer_details===false)setStep(2);if(c.status==="received")setDone(true);}}).catch(e=>{if(current)setError(e.message);});return()=>{current=false;};},[token]);
@@ -66,9 +67,29 @@ export function PublicOrderIntakePage(){
     if(currentStep===3&&!hasPhoto("problem"))return "Adicione uma foto do defeito ou da parte afetada.";
     return "";
   };
-  const next=()=>{const e=validation();setError(e);if(!e){setStep(s=>Math.min(4,s+1));window.scrollTo(0,0);}};
-  const send=async()=>{if(!confirmed||gate.current)return;for(let i=firstStep;i<4;i++){const e=validation(i);if(e){setStep(i);setError(e);setConfirmed(false);return;}}gate.current=true;setBusy(true);setError("");try{const r=await submitIntake(token,payload,photos);if(r.status==="received")setDone(true);else throw new Error("Envio não confirmado.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar.");}finally{gate.current=false;setBusy(false);}};
-  const input=(label:string,value:string,onChange:(v:string)=>void,placeholder="",mode?:"numeric"|"tel")=><label className="block space-y-1.5 text-sm font-semibold text-slate-800">{label}<input className={field} value={value} placeholder={placeholder} inputMode={mode} aria-required={!label.includes("opcional")&&!label.includes("se souber")} onChange={e=>{setError("");onChange(e.target.value);}}/></label>;
+  const checkIdentity=async()=>{
+    if(!catalog?.requires_cpf_identity||firstStep!==0||payload.document.replace(/\D/g,"").length!==11)return "";
+    const document=payload.document.replace(/\D/g,""),name=payload.name.trim().replace(/\s+/g," ");
+    const key=document+":"+name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const cached=identityProof.current;
+    if(cached?.key===key&&cached.until>Date.now())return cached.ticket;
+    const result=await validateIntakeIdentity(token,document,name);
+    if(!result.required)return "";
+    if(!result.ticket)throw new Error("Não foi possível confirmar o CPF. Tente novamente.");
+    identityProof.current={key,ticket:result.ticket,until:Date.now()+10*60_000};
+    return result.ticket;
+  };
+  const next=async()=>{
+    const e=validation();setError(e);if(e||gate.current)return;
+    if(step===0&&catalog?.requires_cpf_identity&&payload.document.replace(/\D/g,"").length===11){
+      gate.current=true;setBusy(true);
+      try{await checkIdentity();}catch(error){setError(error instanceof Error?error.message:"Não foi possível validar o CPF.");return;}
+      finally{gate.current=false;setBusy(false);}
+    }
+    setStep(s=>Math.min(4,s+1));window.scrollTo(0,0);
+  };
+  const send=async()=>{if(!confirmed||gate.current)return;for(let i=firstStep;i<4;i++){const e=validation(i);if(e){setStep(i);setError(e);setConfirmed(false);return;}}gate.current=true;setBusy(true);setError("");try{let ticket="";try{ticket=await checkIdentity();}catch(e){setStep(0);setConfirmed(false);throw e;}const r=await submitIntake(token,{...payload,cpf_identity_ticket:ticket||undefined},photos);if(r.status==="received")setDone(true);else throw new Error("Envio não confirmado.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar.");}finally{gate.current=false;setBusy(false);}};
+  const input=(label:string,value:string,onChange:(v:string)=>void,placeholder="",mode?:"numeric"|"tel")=><label className="block space-y-1.5 text-sm font-semibold text-slate-800">{label}<input className={field} value={value} disabled={busy} placeholder={placeholder} inputMode={mode} aria-required={!label.includes("opcional")&&!label.includes("se souber")} onChange={e=>{setError("");onChange(e.target.value);}}/></label>;
   const photoLimit=(kind:IntakePhoto["kind"])=>photos.length+1+Number(kind!=="label"&&!hasPhoto("label"))+Number(kind!=="problem"&&!hasPhoto("problem"))>5;
   const photoButton=(kind:IntakePhoto["kind"],label:string)=><label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
     <span className="flex items-center gap-2 text-sm font-bold text-[#0131cd]"><Camera size={19}/>{label}</span><span className="mt-1 block text-xs leading-5 text-slate-600">{hints[kind]}</span>
@@ -90,7 +111,7 @@ export function PublicOrderIntakePage(){
           {photos.length>0&&step>=2&&<div className="grid grid-cols-3 gap-2">{photos.map((p,i)=><div key={p.url} className="relative"><img src={p.url} alt={p.kind==="label"?"Etiqueta":p.kind==="problem"?"Defeito":"Foto do aparelho"} className="aspect-square w-full rounded-lg object-cover"/><span className="block text-center text-xs text-slate-600">{p.kind==="label"?"Etiqueta":p.kind==="problem"?"Defeito":"Equipamento"}</span><button type="button" aria-label="Remover foto" disabled={busy} className="absolute right-1 top-1 rounded-full bg-white p-1" onClick={()=>{URL.revokeObjectURL(p.url);setPhotos(a=>a.filter((_,j)=>i!==j));}}><X size={15}/></button></div>)}</div>}
           {pending&&<div className="space-y-3 rounded-xl border p-3"><p className="text-sm font-bold">Confira a foto antes de salvar</p><div className="flex aspect-square items-center justify-center overflow-hidden bg-slate-900"><img src={pending.url} alt="Prévia" style={{transform:"rotate("+rotation+"deg)"}} className="max-h-full max-w-full object-contain"/></div><div className="flex gap-2"><button className="flex-1 rounded-lg border p-2" onClick={()=>setRotation(r=>r-90)} disabled={busy}><RotateCcw className="mx-auto" size={18}/></button><button className="flex-1 rounded-lg border p-2" onClick={()=>setRotation(r=>r+90)} disabled={busy}><RotateCw className="mx-auto" size={18}/></button></div><div className="flex gap-2"><button className="flex-1 rounded-lg border p-2 text-sm" disabled={busy} onClick={closePhoto}>Descartar</button><button className={button+" flex-1"} disabled={busy} onClick={()=>void savePhoto()}>Salvar foto</button></div></div>}
           {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||Boolean(pending)} onClick={next}>Continuar <ArrowRight size={16}/></button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
+          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?"Validando CPF...":"Continuar"} <ArrowRight size={16}/></button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
         </section></>}
       <footer className="text-center text-xs text-slate-500">Tecnologia Union World</footer>
     </div>
