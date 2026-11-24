@@ -219,3 +219,31 @@ test("rotação respeita encaixe na tela e limites de arraste nas quatro orienta
   assert.deepEqual(mediaViewerPanBounds({imageWidth:600,imageHeight:300,viewportWidth:600,viewportHeight:400,rotation:90,zoom:1,fitScale:2/3}),{maxX:0,maxY:0});
   assert.deepEqual(mediaViewerPanBounds({imageWidth:600,imageHeight:300,viewportWidth:600,viewportHeight:400,rotation:90,zoom:3,fitScale:2/3}),{maxX:0,maxY:400});
 });
+
+
+test("visualizador destaca fotos e baixa WebP sem consultar mídia novamente quando já decodificada",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {transformWithEsbuild}=await import("vite");
+  const viewer=readFileSync(new URL("../presentation/UnionWhatsAppMediaViewer.tsx",import.meta.url),"utf8");
+  const popup=readFileSync(new URL("../presentation/useDetachedMediaWindow.ts",import.meta.url),"utf8");
+  const download=readFileSync(new URL("../application/download-media-webp.ts",import.meta.url),"utf8");
+  assert.match(viewer,/onClick=\{detached\?reintegrate:detach\}/);
+  assert.match(viewer,/Destacar janela/);
+  assert.match(viewer,/aria-label="Baixar imagem em WebP"/);
+  assert.match(viewer,/createPortal\(viewer,detached.host\)/);
+  assert.match(viewer,/ownerDocument.addEventListener\("keydown",onEscape,true\)/);
+  assert.match(viewer,/\},\[isImage,detached\]\)/);
+  assert.match(popup,/window.open\("","_blank","popup=yes/);
+  assert.match(popup,/popup.opener=null/);
+  assert.match(popup,/if\(unavailable\)/);
+  assert.doesNotMatch(popup,/supabase|fetch\(/);
+  assert.match(download,/encodeWebp\(image,image.naturalWidth,image.naturalHeight,doc\)/);
+  assert.match(download,/canvas.toBlob\(resolve,"image\/webp",0.94\)/);
+  assert.match(download,/blob.type!=="image\/webp"/);
+  assert.match(download,/if\(!blob\)\{/);
+  assert.match(download,/anchor.download=base\+"\.webp"/);
+  assert.match(download,/URL.revokeObjectURL/);
+  for(const [name,code] of [["UnionWhatsAppMediaViewer.tsx",viewer],["useDetachedMediaWindow.ts",popup],["download-media-webp.ts",download]]){
+    assert.ok((await transformWithEsbuild(code,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code);
+  }
+});
