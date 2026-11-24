@@ -1361,7 +1361,10 @@ test("Novo contato abre imediatamente e consulta somente o cadastro necessario",
   const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
   const dialog=read("src/features/whatsapp-channels/presentation/CrmAdditionalContactDialog.tsx");
   const verification=read("src/features/whatsapp-channels/presentation/WhatsAppNumberVerification.tsx");
-  const open=inbox.slice(inbox.indexOf("const openNewContactFromConversation=()=>{"),inbox.indexOf("const openNewOrderFromConversation=async()=>{"));
+  // Bound the assertion to this handler, irrespective of the next handler's name or async modifier.
+  const match=inbox.match(/^  const openNewContactFromConversation=\(\)=>\{\r?\n([\s\S]*?)^  \};[ \t]*\r?$/m);
+  assert.ok(match,"O handler de Novo contato deve existir e terminar antes das outras funções.");
+  const open=match[1];
   assert.ok(open.length>0);
   assert.doesNotMatch(open,/\bawait\b|operateUnionWhatsAppInbox/);
   assert.ok(open.indexOf("setNewContact({owner:null")>=0);
