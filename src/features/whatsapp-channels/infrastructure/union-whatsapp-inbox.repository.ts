@@ -49,7 +49,7 @@ export type UnionWhatsAppProtocol = {
   closed_by: string | null;
 };
 export const unionWhatsAppProtocolLabel = (number: number) => number>0?`ATD-${String(number).padStart(6,"0")}`:"Atendimento";
-export type UnionWhatsAppProtocolMarker = Pick<UnionWhatsAppProtocol,"id"|"protocol_number"|"opened_at"|"closed_at">;
+export type UnionWhatsAppProtocolMarker = Pick<UnionWhatsAppProtocol,"id"|"protocol_number"|"closed_at"> & {opened_at:string|null};
 
 export type UnionWhatsAppHistoricalAttachment = {id:string;kind:string;mime:string;available:boolean};
 export type UnionWhatsAppMessage = {
@@ -451,13 +451,27 @@ function mapHistoricalMessage(row:any,organizationId:string,conversationId:strin
       const text=String(row.body_text||"");
       const links=Array.isArray(row.links)?row.links.filter((v:unknown)=>typeof v==="string"&&/^https?:\/\//i.test(v)).filter((v:string)=>!text.includes(v)):[];
       const location=row.location;
-      const latitude=Number(location?.latitude??location?.lat),longitude=Number(location?.longitude??location?.lng??location?.lon);
-      const position=location&&Number.isFinite(latitude)&&Number.isFinite(longitude)&&Math.abs(latitude)<=90&&Math.abs(longitude)<=180?"geo:"+latitude+","+longitude:null;
+      // The legacy exporter can carry empty/default coordinate fields on text.
+      // Number(null), Number("") and Number(false) all produce zero; reject
+      // these and the legacy (0,0) sentinel unless explicitly typed as location.
+      const coordinate=(v:unknown)=>typeof v==="number"?v:typeof v==="string"&&v.trim()!==""&&/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(v.trim())?Number(v):NaN;
+      const latitude=coordinate(location?.latitude??location?.lat),longitude=coordinate(location?.longitude??location?.lng??location?.lon);
+      const position=location&&Number.isFinite(latitude)&&Number.isFinite(longitude)&&Math.abs(latitude)<=90&&Math.abs(longitude)<=180&&(latitude!==0||longitude!==0||row.message_type==="location")?"geo:"+latitude+","+longitude:null;
+      const asset=attachments[0],mime=asset?.mime.toLowerCase()||"";
+      const mediaType:UnionWhatsAppMessage["message_type"]|null=asset?(mime.startsWith("image/")?(asset.kind==="sticker"?"sticker":"image"):mime.startsWith("video/")?"video":mime.startsWith("audio/")?"audio":(["image","video","audio","sticker"].includes(asset.kind)?asset.kind as UnionWhatsAppMessage["message_type"]:"file")):null;
+      const messageType:UnionWhatsAppMessage["message_type"]=mediaType||(position?"location":(["image","video","audio","file","sticker"].includes(row.message_type)?row.message_type:"text"));
       return {id:row.id,organization_id:organizationId,conversation_id:conversationId,protocol_id:row.protocol_id||null,
-        provider_message_id:row.id,direction:row.direction==="outgoing"?"outgoing":"incoming",message_type:position?"location":(["image","video","audio","file","sticker"].includes(row.message_type)?row.message_type:"text"),
-        body_text:[position,text,...links].filter(Boolean).join("\n"),sender_name:row.sender_name||null,sent_at:row.sent_at,
+        provider_message_id:row.id,direction:row.direction==="outgoing"?"outgoing":"incoming",message_type:messageType,
+        body_text:[messageType==="location"?position:null,text,...links].filter(Boolean).join("\n"),sender_name:row.sender_name||null,sent_at:row.sent_at,
         delivery_status:null,read_only:true,unknown_date:row.unknown_date===true,media_mime:attachments[0]?.mime,media_available:attachments[0]?.available,historical_system:row.direction==="system",historical_attachments:attachments,
         historical_scope:{channel_id:channelId,account_phone:accountPhone}};
+}
+
+// A manager may expose a confirmed historical-only contact as a finished thread.
+export async function openBoundHistoricalConversation(organizationId:string,contactId:string,channelId:string,accountPhone:string):Promise<string|null>{
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"open_archive",contact_only:true,organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone}});
+  if(error||data?.success!==true)throw Error("Não foi possível abrir o histórico vinculado.");
+  return typeof data.result?.conversation_id==="string"?data.result.conversation_id:null;
 }
 
 export async function listContactOnlyHistoricalMessages(organizationId:string,contactId:string,channelId:string,accountPhone:string,before?:UnionWhatsAppMessageCursor|null):Promise<UnionWhatsAppMessagePage>{
@@ -531,6 +545,21 @@ export async function listUnionWhatsAppProtocolMarkers(
 ):Promise<UnionWhatsAppProtocolMarker[]>{
   const pageSize=100;
   const markers:UnionWhatsAppProtocolMarker[]=[];
+  if(isUnifiedHistoryPilotEnabled(organizationId)){
+    // Same archive/live cursor as the protocol dialog; never synthesize the
+    // epoch as an opening date for an archived protocol with an unknown date.
+    let before:UnionWhatsAppMessageCursor|null=null;
+    for(let offset=0;offset<2000;offset+=pageSize){
+      const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"conversation_page",kind:"protocols",organization_id:organizationId,conversation_id:conversationId,channel_id:channelId,account_phone:accountPhone,before,limit:pageSize}});
+      if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os marcadores.");
+      markers.push(...data.result.items.map((r:any)=>({id:r.id,protocol_number:r.read_only===true?0:r.protocol_number,opened_at:r.opened_at||null,closed_at:r.closed_at||null})));
+      if(!data.result.hasMore)break;
+      const next=data.result.nextCursor;
+      if(!next||next.id===before?.id)throw Error("Cursor de protocolos inválido.");
+      before=next;
+    }
+    return markers;
+  }
   for(let offset=0;offset<2000;offset+=pageSize){
     const {data,error}=await supabase.from("union_whatsapp_protocols")
       .select("id,protocol_number,opened_at,closed_at")

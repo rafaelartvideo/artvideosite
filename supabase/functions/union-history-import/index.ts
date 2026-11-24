@@ -39,8 +39,9 @@ Deno.serve(async req=>{
     if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
     // Historical reads use the exact live conversation RLS, NOT management permissions.
     // The request cannot select a contact, destination phone or archived package.
-    if(b.action==="history_page"||b.action==="conversation_page"||b.action==="media_ticket"){
-      const unified=b.action==="conversation_page",mediaTicket=b.action==="media_ticket";
+    if(b.action==="history_page"||b.action==="conversation_page"||b.action==="media_ticket"||b.action==="open_archive"){
+      const unified=b.action==="conversation_page",mediaTicket=b.action==="media_ticket",openArchive=b.action==="open_archive";
+      if(openArchive&&b.contact_only!==true)return json({success:false,error:"Contato obrigatório."},400);
       if(mediaTicket&&(typeof b.asset_id!=="string"||!/^[a-f0-9]{64}$/.test(b.asset_id)))return json({success:false,error:"Anexo inválido."},400);
       const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null,category=b.category??null;
       if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols","shared"].includes(kind)||(kind==="shared"&&!["media","documents","links"].includes(category))||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind!=="messages"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
@@ -51,17 +52,69 @@ Deno.serve(async req=>{
         const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
         const has=(key:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===key);
         if(!has("whatsapp.history_import.view")||!has("whatsapp.history_import.manage")||unified)return json({success:false,error:"Acesso restrito."},403);
-        const {data:visibleContact,error:contactError}=await admin.from("union_whatsapp_contacts").select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone").eq("id",b.conversation_id).eq("organization_id",org).eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
+        const {data:visibleContact,error:contactError}=await admin.from("union_whatsapp_contacts").select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone,display_name").eq("id",b.conversation_id).eq("organization_id",org).eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
         if(contactError||!visibleContact||!phone(visibleContact.contact_phone)||visibleContact.chat_jid!==visibleContact.contact_phone+"@s.whatsapp.net")return json({success:false,error:"Contato indisponível."},404);
         const contact=visibleContact;
         const threadExists=async()=>{
           const {data,error}=await admin.from("union_whatsapp_conversations").select("id").eq("organization_id",org).eq("account_phone",contact.account_phone).or(`contact_phone.eq.${contact.contact_phone},chat_jid.eq.${contact.chat_jid}`).limit(1);
           if(error)throw Error("Identidade indisponível.");return Boolean(data?.length);
         };
-        if(await threadExists())return json({success:false,error:"Consulte o histórico pela conversa."},403);
+        if(!openArchive&&await threadExists())return json({success:false,error:"Consulte o histórico pela conversa."},403);
         const {data:matches,error:matchError}=await admin.from("union_whatsapp_contacts").select("id").eq("organization_id",org).eq("account_phone",contact.account_phone).eq("contact_phone",contact.contact_phone).limit(2);
         if(matchError||matches?.length!==1||matches[0].id!==contact.id)return json({success:false,error:"Identidade exige revisão."},409);
         const scope={organizationId:org,accountPhone:contact.account_phone,contactId:contact.id,contactPhone:contact.contact_phone,conversationId:contact.id};
+        if(openArchive){
+          // Publish only a confirmed, unambiguous archive binding. Never start an
+          // attendance, insert operational messages, verify a number or overwrite a thread.
+          const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+            .select("id").eq("organization_id",org).eq("id",contact.channel_id)
+            .eq("phone",contact.account_phone).eq("provider","wuzapi").eq("state","connected").maybeSingle();
+          if(channelError||!channel)return json({success:false,error:"Conta de destino não confirmada."},409);
+          const exactThread=async()=>{
+            const {data,error}=await admin.from("union_whatsapp_conversations").select("id,channel_id,chat_jid,contact_phone")
+              .eq("organization_id",org).eq("account_phone",contact.account_phone)
+              .or(`contact_phone.eq.${contact.contact_phone},chat_jid.eq.${contact.chat_jid}`).limit(2);
+            if(error||!data)throw Error("Identidade indisponível.");
+            if(data.length>1||data.some(row=>row.channel_id!==contact.channel_id||row.chat_jid!==contact.chat_jid||row.contact_phone!==contact.contact_phone))throw Error("Identidade exige revisão.");
+            return data[0]?.id||null;
+          };
+          const visible=async(id:string)=>{
+            const {data,error}=await scoped.from("union_whatsapp_conversations").select("id")
+              .eq("organization_id",org).eq("channel_id",contact.channel_id)
+              .eq("account_phone",contact.account_phone).eq("id",id).maybeSingle();
+            if(error||!data)return json({success:false,error:"Conversa indisponível."},403);
+            return json({success:true,result:{conversation_id:id}});
+          };
+          const existing=await exactThread();
+          if(existing)return await visible(existing);
+          const {data:aliases,error:aliasError}=await admin.from("union_whatsapp_verified_jid_aliases")
+            .select("phone_jid").eq("organization_id",org).eq("account_phone",contact.account_phone).eq("phone_jid",contact.chat_jid).limit(1);
+          if(aliasError||aliases?.length)return json({success:false,error:"Identidade exige revisão."},409);
+          const page=await bridge({action:"history_page",...scope,kind:"messages",limit:1});
+          if(!Array.isArray(page?.items))throw Error("Índice indisponível.");
+          const newest=page.items[0];
+          const protocols=newest?null:await bridge({action:"history_page",...scope,kind:"protocols",limit:1});
+          if(!newest&&!protocols?.items?.length)return json({success:true,result:{conversation_id:null}});
+          // Recheck scope before publishing. The unique account/JID key handles
+          // concurrent clicks; ignoreDuplicates deliberately never changes a live conversation.
+          const {data:still,error:stillError}=await admin.from("union_whatsapp_contacts").select("id")
+            .eq("organization_id",org).eq("channel_id",contact.channel_id).eq("account_phone",contact.account_phone)
+            .eq("contact_phone",contact.contact_phone).eq("chat_jid",contact.chat_jid).eq("id",contact.id).maybeSingle();
+          if(stillError||!still)return json({success:false,error:"Identidade alterada."},409);
+          const concurrent=await exactThread();
+          if(concurrent)return await visible(concurrent);
+          const at=newest?.sent_at||protocols?.items?.[0]?.closed_at||protocols?.items?.[0]?.opened_at||null;
+          if(at!==null)timestampMicros(at);
+          const {error:insertError}=await admin.from("union_whatsapp_conversations").upsert({
+            organization_id:org,channel_id:contact.channel_id,account_phone:contact.account_phone,
+            chat_jid:contact.chat_jid,contact_phone:contact.contact_phone,contact_name:contact.display_name||contact.contact_phone,
+            status:"finished",history_archive_only:true,unread_count:0,last_message_at:at,last_message:null,
+          },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true});
+          if(insertError)throw Error("Conversa não confirmada.");
+          const created=await exactThread();
+          if(!created)throw Error("Conversa não confirmada.");
+          return await visible(created);
+        }
         const result=mediaTicket?await bridge({action:"media_ticket",...scope,assetId:b.asset_id,download:b.download===true}):await bridge({action:"history_page",...scope,kind,category,protocolId,before,limit});
         if(await threadExists())return json({success:false,error:"Consulte o histórico pela conversa."},403);
         if(mediaTicket){
