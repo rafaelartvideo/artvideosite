@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ImagePlus, Loader2, RotateCcw, RotateCw, ScanLine, X } from "lucide-react";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, validateCustomerAddress } from "@/lib/address";
-import { isValidCpf, isValidCnpj, isValidBrazilianPhone, formatPhoneInput } from "@/shared/domain/formatters";
+import { isValidCpf, isValidCnpj, isValidBrazilianPhone, formatPhoneInput, formatCpf, formatCnpj } from "@/shared/domain/formatters";
 import { openIntake, listIntakeModels, validateIntakeIdentity, submitIntake, type IntakeCatalog, type IntakePayload, type IntakePhoto } from "./order-intake.repository";
 
 import { IntakeCatalogField } from "./IntakeCatalogField";
@@ -11,6 +11,7 @@ const field="w-full rounded-xl border bg-white px-3 py-3 text-base text-slate-90
 const fieldStyle=(invalid:boolean)=>field+(invalid?" border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100":" border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100");
 const photoNames={label:"Foto da etiqueta",problem:"Foto do defeito",equipment:"Foto do equipamento"};
 const button="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0131cd] px-5 py-3 text-sm font-bold text-white disabled:opacity-50";
+const formatIntakeDocument=(value:string)=>value.replace(/\D/g,"").length>11?formatCnpj(value):formatCpf(value);
 const initial: IntakePayload={name:"",document:"",phone:"",address:{...emptyAddress},type_id:"",brand_id:null,brand_text:"",model:"",model_id:null,serial:"",problem:"",service_type_id:"",technical_values:{}};
 type PhotoPreview = IntakePhoto & {url:string};
 const hints={label:"Procure a etiqueta atrás, embaixo ou na lateral do aparelho. Mostre modelo e número de série, sem reflexos.",equipment:"Fotografe o aparelho inteiro, de frente e com boa iluminação.",problem:"Mostre o defeito. Se não for visível (por exemplo, não liga), fotografe a tela ou a parte afetada. Não desmonte o equipamento."};
@@ -57,7 +58,7 @@ export function PublicOrderIntakePage(){
     return()=>{active=false;};
   },[payload.brand_id,token,modelsByBrand,modelsRetry]);
   const clearField=(key:string)=>setFieldErrors(old=>{const next={...old};delete next[key];return next;});
-  const update=(key:keyof IntakePayload,value:string|null)=>{clearField(key);setPayload(p=>({...p,[key]:value}));setConfirmed(false);};
+  const update=(key:keyof IntakePayload,value:string|null)=>{if((key==="name"||key==="document")&&payload[key]!==value){identityProof.current=null;clearField("name");clearField("document");}clearField(key);setPayload(p=>({...p,[key]:value}));setConfirmed(false);};
   const address=(key:string,value:string)=>{clearField(key);setPayload(p=>({...p,address:{...p.address,[key]:value}}));setConfirmed(false);};
   const lookupZip=async(value:string)=>{
     const zip=formatZipCode(value),v=++zipVersion.current;address("zip_code",zip);setZipBusy(false);
@@ -83,7 +84,7 @@ export function PublicOrderIntakePage(){
   const validation=(currentStep=step)=>{
     const errors:Record<string,string>={};
     if(currentStep===0){
-      if(payload.name.trim().length<3)errors.name="Informe seu nome completo ou razão social.";
+      if(payload.name.trim().length<3||(payload.document.length===11&&(payload.name.trim().length<5||payload.name.trim().split(/\s+/).length<2)))errors.name="Informe seu nome completo ou razão social.";
       if(!(isValidCpf(payload.document)||isValidCnpj(payload.document)))errors.document="Informe um CPF ou CNPJ válido.";
       if(payload.phone&&!isValidBrazilianPhone(payload.phone))errors.phone="Informe um telefone válido com DDD ou deixe em branco.";
     }
@@ -104,8 +105,8 @@ export function PublicOrderIntakePage(){
     return errors;
   };
   const showErrors=(errors:Record<string,string>)=>{setFieldErrors(errors);requestAnimationFrame(()=>document.querySelector('[aria-invalid="true"]')?.scrollIntoView({behavior:"smooth",block:"center"}));};
-  const checkIdentity=async()=>{
-    if(!catalog?.requires_cpf_identity||firstStep!==0||payload.document.replace(/\D/g,"").length!==11)return "";
+  const checkIdentity=async(forceCheck=false)=>{
+    if((!forceCheck&&!catalog?.requires_cpf_identity)||firstStep!==0||payload.document.replace(/\D/g,"").length!==11)return "";
     const document=payload.document.replace(/\D/g,""),name=payload.name.trim().replace(/\s+/g," ");
     const key=document+":"+name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
     const cached=identityProof.current;
@@ -118,9 +119,9 @@ export function PublicOrderIntakePage(){
   };
   const next=async()=>{
     const e=validation();setError("");if(Object.keys(e).length){showErrors(e);return;}if(gate.current)return;setFieldErrors({});
-    if(step===0&&catalog?.requires_cpf_identity&&payload.document.replace(/\D/g,"").length===11){
+    if(step===0&&payload.document.replace(/\D/g,"").length===11){
       gate.current=true;setBusy(true);
-      try{await checkIdentity();}catch(error){showErrors({document:error instanceof Error?error.message:"Não foi possível validar o CPF."});return;}
+      try{await checkIdentity(true);}catch(error){showErrors({document:error instanceof Error?error.message:"Não foi possível validar o CPF."});return;}
       finally{gate.current=false;setBusy(false);}
     }
     setStep(s=>Math.min(4,s+1));window.scrollTo(0,0);
@@ -150,7 +151,7 @@ export function PublicOrderIntakePage(){
         <nav aria-label="Etapas da solicitação" className="flex items-start gap-1 rounded-xl border border-slate-200 bg-white px-2 py-4">{["Identificação","Endereço","Equipamento","Problema","Revisão"].slice(firstStep).map((s,i)=>{const n=i+firstStep;return <div key={s} className="min-w-0 flex-1 text-center" aria-current={n===step?"step":undefined}><button type="button" disabled={n>=step||busy} onClick={()=>{setError("");setFieldErrors({});setStep(n);setConfirmed(false);}} className={"mx-auto flex size-8 items-center justify-center rounded-full border text-xs font-semibold "+(n<step?"border-emerald-600 bg-emerald-50 text-emerald-700":n===step?"border-[#0131cd] bg-[#0131cd] text-white":"border-slate-200 bg-slate-50 text-slate-500")}>{n<step?<Check size={16}/>:i+1}</button><div className={"mx-1 my-2 h-1 rounded-full "+(n<step?"bg-emerald-500":n===step?"bg-[#0131cd]":"bg-slate-200")}/><p className={"text-[10px] leading-tight "+(n===step?"font-bold text-[#0131cd]":"text-slate-600")}>{s}</p></div>;})}</nav>
         <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold text-slate-500">Etapa {step-firstStep+1} de {5-firstStep}</p>
-          {firstStep===0&&step===0&&<><h2 className="text-lg font-bold">Quem precisa de atendimento?</h2>{input("name","Nome completo ou razão social *",payload.name,v=>update("name",v),"Como está no documento")}{input("document","CPF ou CNPJ *",payload.document,v=>update("document",v.replace(/\D/g,"").slice(0,14)),"Somente números","numeric")}<div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/> Seu WhatsApp já está preenchido automaticamente.</div>{input("phone","Telefone (opcional)",payload.phone||"",v=>update("phone",formatPhoneInput(v,payload.phone||"")),"(00) 00000-0000","tel")}<p className="text-xs text-slate-600">Informe outro telefone apenas se houver. Se deixar em branco, usaremos o mesmo número do WhatsApp.</p></>}
+          {firstStep===0&&step===0&&<><h2 className="text-lg font-bold">Quem precisa de atendimento?</h2>{input("name","Nome completo ou razão social *",payload.name,v=>update("name",v),"Como está no documento")}{input("document","CPF ou CNPJ *",formatIntakeDocument(payload.document),v=>update("document",v.replace(/\D/g,"").slice(0,14)),"000.000.000-00","numeric")}<div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/> Seu WhatsApp já está preenchido automaticamente.</div>{input("phone","Telefone (opcional)",payload.phone||"",v=>update("phone",formatPhoneInput(v,payload.phone||"")),"(00) 00000-0000","tel")}<p className="text-xs text-slate-600">Informe outro telefone apenas se houver. Se deixar em branco, usaremos o mesmo número do WhatsApp.</p></>}
           {firstStep===0&&step===1&&<><h2 className="text-lg font-bold">Seu endereço</h2>{input("zip_code","CEP *",payload.address.zip_code,v=>void lookupZip(v),"00000-000","numeric")}{zipBusy&&<p className="text-xs text-blue-700">Buscando endereço...</p>}{input("street","Rua *",payload.address.street,v=>address("street",v))}<div className="grid grid-cols-2 gap-3">{input("number","Número *",payload.address.number,v=>address("number",v),"Ex.: 1190")}{input("complement","Complemento (opcional)",payload.address.complement,v=>address("complement",v))}</div>{input("neighborhood","Bairro *",payload.address.neighborhood,v=>address("neighborhood",v))}<div className="grid grid-cols-[1fr_85px] gap-3">{input("city","Cidade *",payload.address.city,v=>address("city",v))}{input("state","UF *",payload.address.state,v=>address("state",v.toUpperCase().slice(0,2)))}</div></>}
           {step===2&&<><h2 className="text-lg font-bold">Qual é o aparelho?</h2>
             <IntakeCatalogField label="Tipo de atendimento" options={catalog.service_types||[]} selectedId={payload.service_type_id||""} error={fieldErrors.service_type_id} disabled={busy} onSelect={id=>update("service_type_id",id)}/>
@@ -170,7 +171,7 @@ export function PublicOrderIntakePage(){
             <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm leading-5"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1 size-4 accent-[#0131cd]"/><span>Confirmo os dados e autorizo seu uso para identificar meu cadastro e prestar o atendimento solicitado.<span className="ml-1 text-red-600">*</span></span></label>
           </>}
           {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?"Validando CPF...":"Continuar"} <ArrowRight size={16}/></button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
+          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?<><Loader2 size={16} className="animate-spin"/> Validando CPF e nome...</>:<>Continuar <ArrowRight size={16}/></>}</button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
         </section></>}
       <footer className="text-center text-xs text-slate-500">Tecnologia Union World</footer>
     </div>
