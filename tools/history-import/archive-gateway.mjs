@@ -1,7 +1,7 @@
 // Independent worker and management gateway. Run under a dedicated OS user.
 // Bind to loopback only; place HTTPS reverse proxy in front of /history-import.
 import { createServer } from "node:http";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import { openArchiveStore,makeReader } from "./archive-store.mjs";
 import { createMediaService,makeAssetReader } from "./archive-media.mjs";
 const env=process.env;
@@ -10,8 +10,39 @@ const store=openArchiveStore(env.UNION_HISTORY_DB||"/var/lib/union-history/index
 if(process.argv[2]==="worker"){
   // A single systemd instance is required; never start multiple workers.
   let stop=false;process.on("SIGTERM",()=>{stop=true});process.on("SIGINT",()=>{stop=true});
+  const bulkEnabled=env.UNION_HISTORY_BULK_ENABLED==="1";
+  const secret=env.UNION_HISTORY_GATEWAY_SECRET||"";
+  const jwt=env.UNION_HISTORY_PUBLIC_JWT||"";
+  const endpoint=bulkEnabled?new URL(env.UNION_HISTORY_EDGE_URL||""):null;
+  if(bulkEnabled&&(!endpoint||endpoint.protocol!=="https:"||endpoint.username||endpoint.password||endpoint.search||endpoint.hash||endpoint.pathname!=="/functions/v1/union-history-import"||secret.length<32||!/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(jwt)))throw Error("Configuração privada do processamento automático inválida.");
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  async function reconcile(work){
+    const raw=JSON.stringify({action:"worker_reconcile",organization_id:work.organizationId,id:work.id,after:work.after});
+    const ts=String(Date.now()),nonce=randomUUID();
+    const signature=createHmac("sha256",secret).update("worker-reconcile-v1."+ts+"."+nonce+"."+raw).digest("hex");
+    const res=await fetch(endpoint,{method:"POST",redirect:"error",signal:AbortSignal.timeout(100000),
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+jwt,"apikey":jwt,"X-Union-Worker-Timestamp":ts,"X-Union-Worker-Nonce":nonce,"X-Union-Worker-Signature":signature},body:raw});
+    if(!res.ok)throw Error("Conciliação não confirmada.");
+    const data=await res.json();
+    if(data.success!==true)throw Error("Conciliação não confirmada.");
+    store.bulkCommit(work,data.result);
+  }
   while(!stop){
-    try{const worked=store.tick();await new Promise(r=>setTimeout(r,worked?1500:5000))}
+    try{
+      const work=bulkEnabled?store.bulkWork():null;
+      if(work){
+        let committed=false;
+        for(let attempt=0;attempt<3&&!stop;attempt++){
+          try{await reconcile(work);committed=true;break;}
+          catch{await sleep(2000*2**attempt);}
+        }
+        if(!committed&&!stop)store.bulkFail(work);
+        await sleep(1500);
+      }else{
+        const worked=store.tick();
+        await sleep(worked?1500:5000);
+      }
+    }
     catch{console.error("Falha no ciclo de importação; índice preservado.");await new Promise(r=>setTimeout(r,15000))}
   }
   store.close();
@@ -43,13 +74,19 @@ if(process.argv[2]==="worker"){
       nonces.set(nonce,time+60000);
       const b=JSON.parse(raw);let result;
       switch(b.action){
-        case "list":result=store.list(b.organizationId);break;
+        case "list":result={...store.list(b.organizationId),bulk_enabled:env.UNION_HISTORY_BULK_ENABLED==="1"};break;
         case "grant":store.grantPackage(b.packageId,b.organizationId,b.actor);result={granted:true};break;
         case "prepare":result={id:store.prepare(b)};break;
         case "control":result={state:store.control({...b,action:b.command})};break;
         case "status":result=store.status(b.id,b.organizationId);break;
         case "events":result=store.events(b.id,b.organizationId);break;
-        case "candidates":result=store.candidates(b.id,b.organizationId);break;
+        case "candidates":result=store.candidates(b.id,b.organizationId,b.after??null,b.limit??100);break;
+        case "bulk_control":
+          if(env.UNION_HISTORY_BULK_ENABLED!=="1")throw Error("Worker automático não configurado.");
+          result=store.bulkControl(b);break;
+        case "bulk_context":
+          if(env.UNION_HISTORY_BULK_ENABLED!=="1")throw Error("Worker automático não configurado.");
+          result=store.bulkContext(b.id,b.organizationId);break;
         case "bind_contact":result=store.bindContact(b);break;
         case "history_page":result=store.pageBound(b);break;
         case "media_ticket":result=media.issue({organizationId:b.organizationId,accountPhone:b.accountPhone,contactId:b.contactId,contactPhone:b.contactPhone},b.assetId,b.download===true);break;
