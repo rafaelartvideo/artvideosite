@@ -9,11 +9,12 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 import { VerifiedWhatsAppPhoneInput } from "./WhatsAppNumberVerification";
 
-type Owner = { id: string; name: string; phone?: string | null; whatsapp?: string | null };
+type Owner = { id: string; name: string };
 
 /** Verifies and saves CRM contact plus WhatsApp address-book identity atomically. */
-export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onSaved }: {
-  organizationId: string; owner: Owner; onClose: () => void; onSaved: () => void;
+export function CrmAdditionalContactDialog({ organizationId, owner, ownerLoading, ownerError, previewName, onRetryOwner, onClose, onSaved }: {
+  organizationId: string; owner: Owner | null; ownerLoading: boolean; ownerError: string; previewName?: string;
+  onRetryOwner: () => void; onClose: () => void; onSaved: () => void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const queryClient = useQueryClient();
@@ -23,9 +24,9 @@ export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const gate = useRef(false);
-  const canSave = activeOrganizationId === organizationId && hasPermission("registrations.contacts.manage");
+  const canSave = Boolean(owner) && !ownerLoading && !ownerError && activeOrganizationId === organizationId && hasPermission("registrations.contacts.manage");
   const save = async () => {
-    if (!canSave || gate.current) return;
+    if (!owner || !canSave || gate.current) return;
     if (name.trim().length < 2 || !isValidBrazilianMobile(whatsapp)) {
       setError("Informe o nome e um número de WhatsApp válido com DDD."); return;
     }
@@ -44,15 +45,17 @@ export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onS
       gate.current = false; setSaving(false);
     }
   };
-  return <AdminDialog open title="Novo contato" description={"Adicionar número ao cadastro de " + owner.name}
+  return <AdminDialog open title="Novo contato" description={owner ? "Adicionar número ao cadastro de " + owner.name : "Adicionar número ao cadastro do cliente"}
     onClose={() => { if (!saving) onClose(); }} className="max-w-md"
     footer={<div className="flex justify-end gap-2">
       <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Cancelar</AdminButton>
       <AdminButton disabled={!canSave || saving} loading={saving} onClick={() => void save()}>Salvar contato</AdminButton>
     </div>}>
     <div className="space-y-3">
+      {ownerLoading && <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{previewName ? "Confirmando cadastro de " + previewName + "..." : "Identificando o cadastro do cliente..."}</p>}
+      {ownerError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive"><span>{ownerError}</span><button type="button" onClick={onRetryOwner} className="font-semibold text-primary underline underline-offset-2">Tentar novamente</button></div>}
       <FInput label="Nome do contato" required maxLength={160} value={name} disabled={saving} onChange={event => { setName(event.target.value); setError(""); }} />
-      <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile required value={whatsapp} verificationMode="create" disabled={saving}
+      <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile required value={whatsapp} verificationMode="create" verificationEnabled={Boolean(owner) && !ownerLoading && !ownerError} disabled={saving}
         onChange={event => { setWhatsapp(event.target.value); setError(""); }} />
       <FInput label="Identificação (opcional)" placeholder="Ex.: esposa, responsável, financeiro" maxLength={160} value={jobTitle} disabled={saving} onChange={event => setJobTitle(event.target.value)} />
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
