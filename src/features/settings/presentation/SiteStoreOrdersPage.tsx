@@ -510,16 +510,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           { value: "delivery", label: "Entrega" },
           { value: "support", label: "Pós-venda" },
         ]}
-        onChange={value => {
-          setMobileSearchCriterion(value);
-          setCustomerSearch("");
-          setOrderSearch("");
-          setProductSearch("");
-          setPaymentFilter("all");
-          setDeliveryFilter("all");
-          setSupportFilter("all");
-          setPage(1);
-        }}
+        onChange={setMobileSearchCriterion}
       >
         {mobileSearchCriterion === "payment"
           ? <AdminSelect className="h-[42px] w-full min-w-0" ariaLabel="Filtrar pagamento" value={paymentFilter}
