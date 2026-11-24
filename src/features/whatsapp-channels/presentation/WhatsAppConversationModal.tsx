@@ -124,7 +124,6 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
   // Retain the idempotency key across a retry of the same first message.
   const firstSendIdRef = useRef<{ key: string; id: string } | null>(null);
   const [newOrder, setNewOrder] = useState<{ customerId: string | null; customerLookup?: Promise<string | null>; key: string } | null>(null);
-  const [preparingNewOrder, setPreparingNewOrder] = useState(false);
   const newOrderGateRef = useRef(false);
 
   const chooseOrderRecipient=useCallback(async(recipient:Recipient)=>{
@@ -343,8 +342,8 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
     </AdminButton>}
     {canCreateOrder && organizationId===activeOrganizationId && canViewInbox &&
       <AdminButton variant="secondary" size="sm"
-        disabled={preparingNewOrder||Boolean(newOrder)}
-        loading={preparingNewOrder} onClick={()=>void openNewOrder()}>
+        disabled={Boolean(newOrder)}
+        onClick={()=>void openNewOrder()}>
         <Plus size={15}/> Nova OS
       </AdminButton>}
   </>;
