@@ -37,7 +37,9 @@ export function openArchiveStore(filename,read){
     "CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, package_id TEXT NOT NULL UNIQUE REFERENCES grants(package_id), organization_id TEXT NOT NULL, account_phone TEXT NOT NULL, actor TEXT NOT NULL, state TEXT NOT NULL, total INTEGER NOT NULL, updated_at TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS entries(job_id TEXT NOT NULL REFERENCES jobs(id), contact_key TEXT NOT NULL, phone TEXT NOT NULL, metadata TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', PRIMARY KEY(job_id,contact_key))",
     "CREATE INDEX IF NOT EXISTS archive_lookup ON entries(phone,state,job_id)",
-    "CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), actor TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL)"
+    "CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), actor TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS bindings(organization_id TEXT NOT NULL, account_phone TEXT NOT NULL, contact_id TEXT NOT NULL, phone TEXT NOT NULL, job_id TEXT NOT NULL, contact_key TEXT NOT NULL, actor TEXT NOT NULL, confirmed_at TEXT NOT NULL, PRIMARY KEY(job_id,contact_key), FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
+    "CREATE INDEX IF NOT EXISTS history_bindings_lookup ON bindings(organization_id,account_phone,contact_id,phone)"
   ].join(";")+";");
   const tx=fn=>{db.exec("BEGIN IMMEDIATE");try{const result=fn();db.exec("COMMIT");return result}catch(e){db.exec("ROLLBACK");throw e}};
   const audit=(id,actor,action)=>db.prepare("INSERT INTO events(job_id,actor,action,created_at) VALUES (?,?,?,?)").run(id,actor,action,now());
@@ -90,7 +92,7 @@ export function openArchiveStore(filename,read){
       const m=JSON.parse(e.metadata);
       for(const k of Object.keys(totals)){totals[k]+=m[k];if(e.state==="verified")verified[k]+=m[k];}
     }
-    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts,totals,verified};
+    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts,totals,verified,bound:Number(db.prepare("SELECT count(*) AS n FROM bindings WHERE job_id=?").get(id).n)};
   }
   function list(organizationId){
     validateDestination(organizationId,"550000000000");
@@ -130,6 +132,39 @@ export function openArchiveStore(filename,read){
     });
     return true;
   }
+  // Only the server-side reconciliation flow can authorize a binding.
+  // No names or messages are loaded by the management preview.
+  function candidates(id,org){
+    const j=job(id,org);
+    if(j.state!=="completed")throw Error("Valide primeiro o lote.");
+    return {account_phone:j.account_phone,entries:db.prepare(
+      "SELECT e.contact_key,e.phone,e.state,b.contact_id FROM entries e LEFT JOIN bindings b ON b.job_id=e.job_id AND b.contact_key=e.contact_key WHERE e.job_id=? ORDER BY e.contact_key LIMIT 100"
+    ).all(id)};
+  }
+  function bindContact({id,organizationId,actor,contactKey,contactId,contactPhone,accountPhone}){
+    validateDestination(organizationId,accountPhone);
+    if(!actor||!/^[a-f0-9]{32}$/.test(contactKey||"")||!/^[a-f0-9-]{36}$/i.test(contactId||""))throw Error("Vínculo inválido.");
+    return tx(()=>{
+      const j=job(id,organizationId);
+      if(j.state!=="completed"||j.account_phone!==accountPhone)throw Error("Importação indisponível.");
+      const entry=db.prepare("SELECT phone,state FROM entries WHERE job_id=? AND contact_key=?").get(id,contactKey);
+      if(!entry||entry.state!=="verified"||entry.phone!==contactPhone)throw Error("Identidade divergente.");
+      const old=db.prepare("SELECT contact_id,phone FROM bindings WHERE job_id=? AND contact_key=?").get(id,contactKey);
+      if(old){if(old.contact_id===contactId&&old.phone===contactPhone)return {bound:true};throw Error("Vínculo já confirmado; revisão necessária.")}
+      const conflict=db.prepare("SELECT 1 FROM bindings b JOIN jobs j ON j.id=b.job_id WHERE b.organization_id=? AND b.account_phone=? AND (b.contact_id=? OR b.phone=?) AND j.state='completed'").get(organizationId,accountPhone,contactId,contactPhone);
+      if(conflict)throw Error("Outro histórico já está vinculado; revisão necessária.");
+      db.prepare("INSERT INTO bindings VALUES (?,?,?,?,?,?,?,?)").run(organizationId,accountPhone,contactId,contactPhone,id,contactKey,actor,now());
+      audit(id,actor,"contact_binding_confirmed");
+      return {bound:true};
+    });
+  }
+  function lookupBound({organizationId,accountPhone,contactPhone,contactId}){
+    validateDestination(organizationId,accountPhone);
+    if(!/^[1-9][0-9]{9,14}$/.test(contactPhone||"")||!/^[a-f0-9-]{36}$/i.test(contactId||""))throw Error("Identidade inválida.");
+    const matches=db.prepare("SELECT j.package_id,e.metadata FROM bindings b JOIN jobs j ON j.id=b.job_id JOIN entries e ON e.job_id=b.job_id AND e.contact_key=b.contact_key WHERE b.organization_id=? AND j.organization_id=? AND b.account_phone=? AND j.account_phone=? AND b.contact_id=? AND b.phone=? AND e.phone=? AND e.state='verified' AND j.state='completed' LIMIT 2").all(organizationId,organizationId,accountPhone,accountPhone,contactId,contactPhone,contactPhone);
+    if(matches.length!==1)return null;
+    return readPayload(matches[0].package_id,JSON.parse(matches[0].metadata));
+  }
   function lookup({organizationId,accountPhone,contactPhone}){
     validateDestination(organizationId,accountPhone);
     if(typeof contactPhone!=="string"||!/^[1-9][0-9]{9,14}$/.test(contactPhone))throw Error("Contato inválido.");
@@ -138,5 +173,5 @@ export function openArchiveStore(filename,read){
     if(matches.length>1)throw Error("Contato exige revisão.");
     return matches.length===1?readPayload(matches[0].package_id,JSON.parse(matches[0].metadata)):null;
   }
-  return {grantPackage,prepare,control,status,list,events,tick,lookup,close:()=>db.close()};
+  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,close:()=>db.close()};
 }
