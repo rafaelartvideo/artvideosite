@@ -72,3 +72,32 @@ test("bad hash leaves job failed; resume validates same pending contact",()=>{
    assert.equal(store.status(id,org).verified.messages,1);
  }finally{store.close()}
 });
+
+test("explicit binding is required and cannot cross company, number, or contact",()=>{
+ const {store}=fixture(), contactId="44444444-4444-4444-8444-444444444444", another="55555555-5555-4555-8555-555555555555";
+ const query={organizationId:org,accountPhone:account,contactPhone:phone,contactId};
+ try{
+   store.grantPackage(pid,org,actor);
+   const id=store.prepare({packageId:pid,organizationId:org,accountPhone:account,actor});
+   const binding={id,organizationId:org,actor,accountPhone:account,contactKey:ck,contactId,contactPhone:phone};
+   assert.throws(()=>store.bindContact(binding));
+   store.control({id,organizationId:org,actor,action:"start"});
+   store.tick();store.tick();
+   assert.equal(store.lookupBound(query),null);
+   assert.equal(store.candidates(id,org).entries.length,1);
+   assert.throws(()=>store.candidates(id,other));
+   assert.throws(()=>store.bindContact({...binding,organizationId:other}));
+   assert.throws(()=>store.bindContact({...binding,contactPhone:"5579777777777"}));
+   assert.throws(()=>store.bindContact({...binding,accountPhone:"5579777777777"}));
+   assert.equal(store.bindContact(binding).bound,true);
+   assert.equal(store.bindContact(binding).bound,true);
+   assert.equal(store.status(id,org).bound,1);
+   assert.throws(()=>store.bindContact({...binding,contactId:another}));
+   assert.deepEqual(store.lookupBound(query),payload);
+   assert.equal(store.lookupBound({...query,contactId:another}),null);
+   assert.equal(store.lookupBound({...query,organizationId:other}),null);
+   assert.equal(store.lookupBound({...query,accountPhone:"5579777777777"}),null);
+   store.control({id,organizationId:org,actor,action:"rollback"});
+   assert.equal(store.lookupBound(query),null);
+ }finally{store.close()}
+});
