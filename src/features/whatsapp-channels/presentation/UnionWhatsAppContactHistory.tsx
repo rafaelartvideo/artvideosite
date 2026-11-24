@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { FileText, History, Image, Link as LinkIcon, LoaderCircle, MessageCircle, Mic, Pencil, Video } from "lucide-react";
 import {
@@ -7,7 +7,7 @@ import {
   type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { HistoryPager, UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
 import { HistoricalMessageBody } from "./HistoricalMessageBody";
 
 const formatWhen=(iso:string)=>{
@@ -107,145 +107,118 @@ type TimelineEntry={
   change?:UnionWhatsAppContactChange;
 };
 
-// Histórico único do contato, independente do número de protocolos.
-// A auditoria é solicitada sob demanda, nunca junto à carga da caixa de entrada.
-export function UnionWhatsAppContactHistory({conversation,organizationId,contactJid,accountPhone,contactId,channelId}:{ 
+// Histórico único do contato. As fontes são paginadas separadamente e
+// a página visível só avança quando ambas garantem a ordem cronológica.
+const GENERAL_PAGE_SIZE=5;
+type Props={
   conversation?:UnionWhatsAppConversation|null;
   organizationId:string;
   contactJid?:string;
   accountPhone?:string;
   contactId?:string;
   channelId?:string;
-}){
+};
+type SourceCache={
+  items:UnionWhatsAppMessage[];changes:UnionWhatsAppContactChange[];
+  cursor:UnionWhatsAppMessageCursor|null;changesPage:number;
+  messageMore:boolean;changeMore:boolean;messageLoaded:boolean;changeLoaded:boolean;
+};
+const emptySources=():SourceCache=>({items:[],changes:[],cursor:null,changesPage:0,messageMore:false,changeMore:false,messageLoaded:false,changeLoaded:false});
+export function UnionWhatsAppContactHistory(props:Props){
+  const key=[props.organizationId,props.conversation?.id||props.contactId||props.contactJid,props.conversation?.channel_id||props.channelId,props.accountPhone||props.conversation?.account_phone].join(":");
+  return <ContactHistory key={key} {...props}/>;
+}
+function ContactHistory({conversation,organizationId,contactJid,accountPhone,contactId,channelId}:Props){
   const jid=contactJid||conversation?.chat_jid||"";
   const account=accountPhone||conversation?.account_phone||"";
   const {hasPermission}=useAuth();
   const contactOnly=Boolean(!conversation&&contactId&&channelId&&account&&isUnifiedHistoryPilotEnabled(organizationId)&&hasPermission("whatsapp.history_import.manage")&&hasPermission("whatsapp.history_import.view"));
   const [tab,setTab]=useState<"general"|"protocols">("general");
-  const [items,setItems]=useState<UnionWhatsAppMessage[]>([]);
-  const [cursor,setCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
+  const [page,setPage]=useState(0);
+  const [visibleRows,setVisibleRows]=useState<TimelineEntry[]>([]);
   const [hasMore,setHasMore]=useState(false);
-  const [loading,setLoading]=useState(Boolean(conversation));
-  const [olderLoading,setOlderLoading]=useState(false);
+  const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
-  const [changes,setChanges]=useState<UnionWhatsAppContactChange[]>([]);
-  const [changesLoading,setChangesLoading]=useState(true);
-  const [changesError,setChangesError]=useState("");
-  const [changesPage,setChangesPage]=useState(0);
-  const [hasMoreChanges,setHasMoreChanges]=useState(false);
-  const [olderChangesLoading,setOlderChangesLoading]=useState(false);
   const [revision,setRevision]=useState(0);
-
+  const cache=useRef<SourceCache>(emptySources());
   useEffect(()=>{
+    if(tab!=="general")return;
     let cancelled=false;
-    setItems([]);setCursor(null);setHasMore(false);setError("");
-    setLoading(Boolean(conversation||contactOnly));
-    if(!conversation&&!contactOnly)return;
-    void (conversation?listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone):listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account))
-      .then(result=>{
-        if(cancelled)return;
-        setItems(result.items.slice().reverse());
-        setCursor(result.nextCursor);
-        setHasMore(result.hasMore);
-        if(result.historyUnavailable)setError("Não foi possível consultar todas as mensagens anteriores.");
-      })
-      .catch(reason=>{
-        if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível consultar as mensagens anteriores."));
-      })
+    setLoading(true);setError("");
+    const load=async()=>{
+      const state={...cache.current};
+      const readMessages=async()=>{
+        if(!conversation&&!contactOnly){state.messageLoaded=true;state.messageMore=false;return;}
+        const result=conversation
+          ?await listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone,null,state.cursor)
+          :await listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account,state.cursor);
+        if(result.historyUnavailable)throw Error("Não foi possível consultar todas as mensagens anteriores.");
+        if(result.hasMore&&(!result.nextCursor||result.nextCursor.id===state.cursor?.id))throw Error("Cursor de mensagens indisponível.");
+        state.items=Array.from(new Map([...state.items,...result.items].map(item=>[item.id,item])).values());
+        state.cursor=result.nextCursor;state.messageMore=result.hasMore;state.messageLoaded=true;
+      };
+      const readChanges=async()=>{
+        if(!jid||!account){state.changeLoaded=true;state.changeMore=false;return;}
+        const next=state.changeLoaded?state.changesPage+1:0;
+        const result=await operateUnionWhatsAppInbox(organizationId,conversation?.id||crypto.randomUUID(),"contacts_history",{chat_jid:jid,account_phone:account,page:next});
+        if(result.has_more&&!result.history?.length)throw Error("Página de alterações indisponível.");
+        state.changes=Array.from(new Map([...state.changes,...(result.history||[])].map(change=>[change.id,change])).values());
+        state.changesPage=next;state.changeMore=Boolean(result.has_more);state.changeLoaded=true;
+      };
+      await Promise.all([!state.messageLoaded?readMessages():undefined,!state.changeLoaded?readChanges():undefined]);
+      const needed=(page+1)*GENERAL_PAGE_SIZE;
+      while(!cancelled){
+        const {items,changes}=state;
+        const timeline:TimelineEntry[]=[
+          ...items.map(item=>({key:"message:"+item.id,at:item.sent_at,message:item})),
+          ...changes.map(change=>({key:"change:"+change.id,at:change.created_at,change})),
+        ];
+        timeline.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||b.key.localeCompare(a.key));
+        const m=state.messageMore?Date.parse(state.cursor!.sent_at):-Infinity;
+        const c=state.changeMore?changes.reduce((old,row)=>Math.min(old,Date.parse(row.created_at)),Infinity):-Infinity;
+        const cutoff=Math.max(m,c);
+        if(Number.isNaN(cutoff))throw Error("Data de paginação inválida.");
+        // Equal timestamps at an unfinished boundary are deferred until all
+        // ties are loaded, so a later request cannot shift a displayed page.
+        const safe=timeline.filter(row=>Date.parse(row.at)>cutoff);
+        const remaining=state.messageMore||state.changeMore;
+        if(safe.length>=needed||!remaining){
+          if(cancelled)return;
+          cache.current=state;
+          setVisibleRows(safe.slice(page*GENERAL_PAGE_SIZE,needed));
+          setHasMore(safe.length>needed||remaining);
+          return;
+        }
+        await Promise.all([state.messageMore&&m===cutoff?readMessages():undefined,state.changeMore&&c===cutoff?readChanges():undefined]);
+      }
+    };
+    void load().catch(reason=>{if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível consultar o histórico geral."));})
       .finally(()=>{if(!cancelled)setLoading(false);});
     return()=>{cancelled=true;};
-  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,contactOnly,contactId,channelId,account,revision]);
-
-  useEffect(()=>{
-    let cancelled=false;
-    setChanges([]);setChangesError("");setChangesLoading(Boolean(jid&&account));
-    setChangesPage(0);setHasMoreChanges(false);
-    if(!jid||!account)return;
-    void operateUnionWhatsAppInbox(organizationId,conversation?.id||crypto.randomUUID(),
-      "contacts_history",{chat_jid:jid,account_phone:account,page:0})
-      .then(result=>{
-        if(cancelled)return;
-        setChanges(result.history||[]);
-        setHasMoreChanges(Boolean(result.has_more));
-      })
-      .catch(reason=>{
-        if(!cancelled)setChangesError(systemErrorMessage(reason,"Não foi possível consultar as alterações cadastrais."));
-      })
-      .finally(()=>{if(!cancelled)setChangesLoading(false);});
-    return()=>{cancelled=true;};
-  },[organizationId,conversation?.id,conversation?.contact_name,jid,account,revision]);
-
-  const loadOlder=async()=>{
-    if((!conversation&&!contactOnly)||!cursor||loading||olderLoading||!hasMore)return;
-    setOlderLoading(true);
-    try{
-      const result=conversation?await listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone,null,cursor):await listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account,cursor);
-      setItems(current=>{
-        const unique=new Map(current.map(item=>[item.id,item]));
-        for(const item of result.items)unique.set(item.id,item);
-        return [...unique.values()].sort((a,b)=>
-          Date.parse(b.sent_at)-Date.parse(a.sent_at)||b.id.localeCompare(a.id));
-      });
-      setCursor(result.nextCursor);setHasMore(result.hasMore);setError("");
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível carregar interações anteriores."));}
-    finally{setOlderLoading(false);}
-  };
-  const loadOlderChanges=async()=>{
-    if(!jid||!account||changesLoading||olderChangesLoading||!hasMoreChanges)return;
-    setOlderChangesLoading(true);
-    try{
-      const nextPage=changesPage+1;
-      const result=await operateUnionWhatsAppInbox(organizationId,conversation?.id||crypto.randomUUID(),
-        "contacts_history",{chat_jid:jid,account_phone:account,page:nextPage});
-      setChanges(current=>{
-        const unique=new Map(current.map(item=>[item.id,item]));
-        for(const change of result.history||[])unique.set(change.id,change);
-        return [...unique.values()];
-      });
-      setChangesPage(nextPage);setHasMoreChanges(Boolean(result.has_more));setChangesError("");
-    }catch(reason){setChangesError(systemErrorMessage(reason,"Não foi possível carregar alterações anteriores."));}
-    finally{setOlderChangesLoading(false);}
-  };
-  const timeline:TimelineEntry[]=[
-    ...items.map(item=>({key:"message:"+item.id,at:item.sent_at,message:item})),
-    ...changes.map(change=>({key:"change:"+change.id,at:change.created_at,change})),
-  ];
-  timeline.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)||b.key.localeCompare(a.key));
-
+  },[tab,page,revision,organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,contactOnly,contactId,channelId,account,jid]);
   return <div aria-label="Histórico geral do contato" className="space-y-3">
-    {conversation&&<div role="tablist" aria-label="Tipo de histórico" className="flex gap-1 rounded-lg bg-muted/60 p-1">
-      <button type="button" role="tab" aria-selected={tab==="general"}
-        onClick={()=>setTab("general")}
-        className={"flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold "+
-          (tab==="general"?"bg-card text-primary shadow-sm":"text-muted-foreground hover:text-foreground")}>
+    {(conversation||contactOnly)&&<div role="tablist" aria-label="Tipo de histórico" className="flex gap-1 rounded-lg bg-muted/60 p-1">
+      <button type="button" role="tab" aria-selected={tab==="general"} onClick={()=>setTab("general")}
+        className={"flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold "+(tab==="general"?"bg-card text-primary shadow-sm":"text-muted-foreground hover:text-foreground")}>
         <History size={15}/> Geral
       </button>
-      <button type="button" role="tab" aria-selected={tab==="protocols"}
-        onClick={()=>setTab("protocols")}
-        className={"flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold "+
-          (tab==="protocols"?"bg-card text-primary shadow-sm":"text-muted-foreground hover:text-foreground")}>
+      <button type="button" role="tab" aria-selected={tab==="protocols"} onClick={()=>setTab("protocols")}
+        className={"flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-semibold "+(tab==="protocols"?"bg-card text-primary shadow-sm":"text-muted-foreground hover:text-foreground")}>
         <FileText size={15}/> Protocolos
       </button>
     </div>}
-    {tab==="protocols"&&conversation?<UnionWhatsAppProtocolHistory
-      organizationId={organizationId} conversation={conversation}/>:
-      <div className="space-y-2">
-        <p className="text-xs leading-5 text-muted-foreground">
-          Mensagens, arquivos e alterações do cadastro, em ordem cronológica,
-          incluindo atendimentos encerrados. Alterações anteriores à ativação da auditoria
-          podem não estar disponíveis.
-        </p>
-        {(loading||changesLoading)&&<div role="status"
-          className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
-          <LoaderCircle size={16} className="animate-spin"/> Consultando histórico geral...
-        </div>}
-        {!loading&&!changesLoading&&timeline.length===0&&!error&&!changesError&&
-          <p className="py-5 text-center text-xs text-muted-foreground">
-            Nenhuma interação ou alteração registrada para este contato.
-          </p>}
-        {timeline.map(entry=>entry.change?<ChangeCard key={entry.key} change={entry.change}/>:
+    {tab==="protocols"&&(conversation||contactOnly)?<UnionWhatsAppProtocolHistory
+      organizationId={organizationId} conversation={conversation} contactId={contactId} channelId={channelId} accountPhone={account}/>:
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="divide-y divide-border">
+        {loading?<div role="status" className="flex items-center justify-center gap-2 py-5 text-xs text-muted-foreground"><LoaderCircle size={16} className="animate-spin"/> Consultando histórico geral...</div>:
+          error?<p role="alert" className="p-3 text-center text-xs text-destructive">{error} <button type="button" onClick={()=>setRevision(v=>v+1)} className="font-semibold underline">Tentar novamente</button></p>:
+          !visibleRows.length?<p className="py-5 text-center text-xs text-muted-foreground">Nenhuma interação ou alteração registrada para este contato.</p>:null}
+        {!loading&&!error&&
+          <div className="divide-y divide-border">
+        {visibleRows.map(entry=>entry.change?<ChangeCard key={entry.key} change={entry.change}/>:
           entry.message?<div key={entry.key}
-            className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5">
+            className="flex items-start gap-3 px-3 py-2.5">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
               <IconForMessage item={entry.message}/>
             </span>
@@ -261,21 +234,10 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
               {entry.message.read_only?<HistoricalMessageBody message={entry.message}/>:<p className="mt-1 break-words text-xs text-foreground/85">{description(entry.message)}</p>}
             </div>
           </div>:null)}
-        {(error||changesError)&&<p role="alert" className="py-2 text-center text-xs text-destructive">
-          {[error,changesError].filter(Boolean).join(" ")}
-          <button type="button" onClick={()=>setRevision(value=>value+1)}
-            className="ml-1 font-semibold underline">Tentar novamente</button>
-        </p>}
-        {hasMore&&<button type="button" disabled={loading||olderLoading}
-          onClick={()=>void loadOlder()}
-          className="w-full rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary hover:bg-muted disabled:opacity-40">
-          {olderLoading?"Carregando...":"Carregar interações anteriores"}
-        </button>}
-        {hasMoreChanges&&<button type="button" disabled={changesLoading||olderChangesLoading}
-          onClick={()=>void loadOlderChanges()}
-          className="w-full rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary hover:bg-muted disabled:opacity-40">
-          {olderChangesLoading?"Carregando...":"Carregar alterações anteriores"}
-        </button>}
+          </div>}
+        </div>
+        <HistoryPager page={page} pageSize={GENERAL_PAGE_SIZE} count={loading||error?0:visibleRows.length} hasMore={hasMore} busy={loading||Boolean(error)}
+          onPrevious={()=>setPage(v=>Math.max(0,v-1))} onNext={()=>setPage(v=>v+1)}/>
       </div>}
   </div>;
 }
