@@ -826,11 +826,6 @@ export function TabOrders({
   const getSlaForOrder = (serviceTypeId?: string, situationId?: string, relatedSituation?: any) =>
     slaForOrder(serviceTypeId, situationId, relatedSituation, serviceTypeSituations, situations);
 
-  if (subView === "situations" && !scopedReadOnly) return <OSSituationsView onBack={() => setSubView("list")} />;
-
-  const formatCurrency = formatOrderCurrency;
-  const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
-  const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
   useLayoutEffect(() => {
     if (!embeddedSwitchGuardRef) return;
     const guard = () => {
@@ -851,6 +846,11 @@ export function TabOrders({
     embeddedSwitchGuardRef.current = guard;
     return () => { if (embeddedSwitchGuardRef.current === guard) embeddedSwitchGuardRef.current = null; };
   });
+  if (subView === "situations" && !scopedReadOnly) return <OSSituationsView onBack={() => setSubView("list")} />;
+
+  const formatCurrency = formatOrderCurrency;
+  const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
+  const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
   const editingContentReady = formOpen && (!editingRouteActive || editingOS?.id === initialOrderId);
   const routedDetailLoading = Boolean(
     initialOrderId
