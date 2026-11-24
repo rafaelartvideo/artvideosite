@@ -234,16 +234,31 @@ Deno.serve(async(req)=>{
       return json({rows:rows.map(({bound_customer_id,...row}:any)=>({...row,customer_name:row.customer_name||registered.get(bound_customer_id)||names.get(row.conversation_id)||null})),total:result.count||0,active:active.count||0,completed:completed.count||0});
     }
     if(!uuid(body.id))throw new InputError("Solicitação inválida.");
+    if(action==="cancel"){
+      let update=admin.from("order_intake_requests").update({status:"cancelled"}).eq("id",body.id).eq("organization_id",org).in("status",["sent","filling"]);
+      if(!keys.has("orders.view_all"))update=update.eq("created_by",actor.id);
+      const cancelled=check(await update.select("id").maybeSingle());
+      if(!cancelled)throw new InputError("Link indisponível ou já encerrado.");
+      return json({id:cancelled.id,status:"cancelled"});
+    }
     const allowed=check(await scope.eq("id",body.id).maybeSingle());
     if(!allowed)return json({error:"Solicitação não encontrada."},404);
     if(action==="link"){
       if(!keys.has("whatsapp.inbox.send"))return json({error:"Sem permissão para compartilhar links."},403);
       const conversation=check(await client.from("union_whatsapp_conversations").select("id").eq("organization_id",org).eq("id",allowed.conversation_id).maybeSingle());
       if(!conversation)return json({error:"Sem acesso a este atendimento."},403);
-      const row=check(await admin.from("order_intake_requests").select("id,token_hash,status,expires_at,bound_customer_id").eq("organization_id",org).eq("id",allowed.id).maybeSingle());
+      const row=check(await admin.from("order_intake_requests").select("id,token_hash,status,expires_at,created_at,bound_customer_id").eq("organization_id",org).eq("id",allowed.id).maybeSingle());
       if(!row||!["sent","filling"].includes(row.status)||Date.parse(row.expires_at)<=Date.now())throw new InputError("Este link não está mais disponível.");
       const token=await recoverableToken(org,row.id),digest=await hash(token);
       if(digest!==row.token_hash){
+        // Legacy links may be recoverable from an already shared message. Limit
+        // to this authorized conversation and accept only an exact hash match.
+        const messages=check(await client.from("union_whatsapp_messages").select("body_text").eq("organization_id",org).eq("conversation_id",allowed.conversation_id).gte("created_at",row.created_at).like("body_text","%/solicitacao#t=%").order("created_at",{ascending:false}).limit(50));
+        for(const message of messages||[]){
+          for(const match of String(message.body_text||"").matchAll(/\/solicitacao#t=([a-f0-9]{64})(?![a-f0-9])/g)){
+            if(await hash(match[1])===row.token_hash)return json({id:row.id,token:match[1],requires_customer_details:!row.bound_customer_id});
+          }
+        }
         if(row.status!=="sent")throw new InputError("O link antigo está em preenchimento. Utilize a mensagem original do WhatsApp.");
         if(body.replace_legacy!==true)return json({legacy:true});
         // Explicit replacement only for an unused legacy invitation; never silently invalidate.
@@ -251,11 +266,6 @@ Deno.serve(async(req)=>{
         if(!changed)throw new InputError("A situação do link mudou. Abra a solicitação novamente.");
       }
       return json({id:row.id,token,requires_customer_details:!row.bound_customer_id});
-    }
-    if(action==="cancel"){
-      const cancelled=check(await admin.from("order_intake_requests").update({status:"cancelled"}).eq("id",allowed.id).eq("organization_id",org).in("status",["sent","filling"]).select("id").maybeSingle());
-      if(!cancelled)throw new InputError("Só é possível cancelar links não enviados pelo cliente.");
-      return json({id:allowed.id,status:"cancelled"});
     }
     if(action==="review"){
       if(allowed.status!=="received")throw new InputError("A solicitação ainda não está disponível para revisão.");
