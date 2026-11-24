@@ -6,6 +6,8 @@ const clean=(v:unknown,max=160)=>typeof v==="string"?v.trim().slice(0,max):"";
 const digits=(v:unknown)=>clean(v).replace(/\D/g,"");
 const hash=async(token:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token))),b=>b.toString(16).padStart(2,"0")).join("");
 const tokenValue=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
+const ddCodes=new Set("11 12 13 14 15 16 17 18 19 21 22 24 27 28 31 32 33 34 35 37 38 41 42 43 44 45 46 47 48 49 51 53 54 55 61 62 63 64 65 66 67 68 69 71 73 74 75 77 79 81 82 83 84 85 86 87 88 89 91 92 93 94 95 96 97 98 99".split(" "));
+const validPhone=(v:string)=>ddCodes.has(v.slice(0,2))&& !/^(\d)\1+$/.test(v) && /^(?:\d{2}[2-5]\d{7}|\d{2}9\d{8})$/.test(v);
 const phoneOf=(v:unknown)=>{const p=digits(v);return /^[1-9]\d{9,10}$/.test(p)?"55"+p:p;};
 function validCpf(c:string){if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))return false;return [9,10].every(n=>{let sum=0;for(let i=0;i<n;i++)sum+=Number(c[i])*(n+1-i);return (sum*10%11)%10===Number(c[n]);});}
 function validCnpj(c:string){if(!/^\d{14}$/.test(c)||/^(\d)\1{13}$/.test(c))return false;return [12,13].every(n=>{let s=0,w=2;for(let i=n-1;i>=0;i--){s+=Number(c[i])*w;w=w===9?2:w+1;}return (s%11<2?0:11-s%11)===Number(c[n]);});}
@@ -51,6 +53,8 @@ Deno.serve(async(req)=>{
         return json({status:"filling",company:org.name,types,brands});
       }
       const p=body.payload||{}, a=p.address||{}, cpf=digits(p.document), name=clean(p.name), problem=clean(p.problem,2500);
+      const phone=digits(p.phone);
+      if(p.phone!=null&&p.phone!==""&&!validPhone(phone))throw new InputError("Informe um telefone válido com DDD ou deixe em branco.");
       if(name.length<3||(!validCpf(cpf)&&!validCnpj(cpf))||problem.length<5)throw new InputError("Confira nome, CPF/CNPJ e descrição do problema.");
       const address={zip_code:digits(a.zip_code),street:clean(a.street),number:clean(a.number,20),complement:clean(a.complement),neighborhood:clean(a.neighborhood),city:clean(a.city),state:clean(a.state,2).toUpperCase()};
       if(address.zip_code.length!==8||!address.street||!address.number||!address.neighborhood||!address.city||! /^[A-Z]{2}$/.test(address.state))throw new InputError("Complete o endereço.");
@@ -66,6 +70,7 @@ Deno.serve(async(req)=>{
       if(kinds.length!==files.length||kinds.some(k=>!["label","equipment","problem"].includes(String(k))))throw new InputError("Fotos inválidas.");
       for(const f of files){if(!(f instanceof File)||f.size<12||f.size>1_500_000||f.type!=="image/webp")throw new InputError("Foto inválida ou muito grande. Tente tirar outra.");
         const b=new Uint8Array(await f.slice(0,12).arrayBuffer());if(String.fromCharCode(...b.slice(0,4))!=="RIFF"||String.fromCharCode(...b.slice(8,12))!=="WEBP")throw new InputError("Formato de foto inválido.");}
+      if(!kinds.includes("label")||!kinds.includes("problem"))throw new InputError("Envie uma foto da etiqueta e uma foto do defeito.");
       const claim=check(await admin.from("order_intake_requests").update({status:"submitting"}).eq("id",row.id).in("status",["sent","filling"]).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
       if(!claim)return json({error:"Solicitação já enviada ou em processamento."},409);
       const stored:string[]=[], mediaIds:string[]=[], images:any[]=[];
@@ -78,7 +83,7 @@ Deno.serve(async(req)=>{
           const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
           mediaIds.push(media.id);images.push({mediaId:media.id,path,kind,name:filename});
         }
-        const saved=check(await admin.from("order_intake_requests").update({status:"received",submitted_at:new Date().toISOString(),payload:{name,document:cpf,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").select("id").maybeSingle());
+        const saved=check(await admin.from("order_intake_requests").update({status:"received",submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||null,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.
