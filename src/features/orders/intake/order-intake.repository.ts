@@ -3,9 +3,9 @@ import type { Address } from "@/lib/address";
 import type { OrderImage } from "../domain/order-image";
 
 export type IntakePayload = { name:string; document:string; phone?:string; address:Address; type_id:string; brand_id:string|null; brand_text?:string; type_name?:string; brand_name?:string; model:string; serial:string; problem:string };
-export type OrderIntake = {id:string; phone:string; payload:IntakePayload; images:OrderImage[]; conversation_id:string};
+export type OrderIntake = {id:string; phone:string; payload:IntakePayload; images:OrderImage[]; conversation_id:string; bound_customer_id?:string|null};
 export type IntakeRow = {id:string; status:string; created_at:string; expires_at:string; submitted_at:string|null; order_id:string|null; conversation_id:string};
-export type IntakeCatalog = { status:string; company?:string; types?:{id:string;name:string}[]; brands?:{id:string;name:string;equipment_type_id:string}[] };
+export type IntakeCatalog = { status:string; requires_customer_details?:boolean; company?:string; types?:{id:string;name:string}[]; brands?:{id:string;name:string;equipment_type_id:string}[] };
 export type IntakePhoto = {file:File;kind:"label"|"equipment"|"problem"};
 export type IntakePrefill = {id:string; payload:IntakePayload; images:OrderImage[]};
 
@@ -24,7 +24,7 @@ export async function intakeCall<T>(body:Record<string,unknown>|FormData):Promis
 }
 export const openIntake=(token:string)=>intakeCall<IntakeCatalog>({action:"open",token});
 export const listIntakeModels=(token:string,brandId:string)=>intakeCall<{models:{id:string;name:string}[]}>({action:"models",token,brand_id:brandId});
-export const createIntake=(org:string,conversationId:string)=>intakeCall<{token:string}>({action:"create",organization_id:org,conversation_id:conversationId});
+export const createIntake=(org:string,conversationId:string)=>intakeCall<{token:string;requires_customer_details?:boolean}>({action:"create",organization_id:org,conversation_id:conversationId});
 export const listIntakes=(org:string,conversationId?:string,page=0)=>intakeCall<{rows:IntakeRow[]}>({action:"list",organization_id:org,conversation_id:conversationId,page});
 export const reviewIntake=(org:string,id:string)=>intakeCall<{intake:OrderIntake}>({action:"review",organization_id:org,id});
 export const cancelIntake=(org:string,id:string)=>intakeCall({action:"cancel",organization_id:org,id});
