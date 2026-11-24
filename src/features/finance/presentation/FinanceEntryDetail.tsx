@@ -15,7 +15,7 @@ import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
 import { financialDueUrgency } from "../domain/finance-due-urgency.mjs";
-import { getOrderReportedReceipts } from "../domain/finance-reported-receipts";
+import { getOrderReportedReceipts, getInstallmentPaymentPreference } from "../domain/finance-reported-receipts";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -198,12 +198,12 @@ function EntryDetailContent({
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto"><TopTableScrollbar />
-          <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
+          <table className="min-w-[760px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-left">Forma de pagamento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
             <tbody>{detail.installments.map(item => <Fragment key={item.id}>
               <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}
                 {reportedReceipts.some(receipt => receipt.installment_number === item.installment_number) && <span className="mt-1 block text-[11px] font-semibold text-blue-700 dark:text-blue-300">
                   {Number(item.settled_amount) + 0.005 >= Number(item.original_amount) ? "Informado na OS · baixa confirmada" : "Informado como recebido na OS · aguardando baixa"}
-                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-xs">{(() => { const paid = detail.settlements.filter(s => s.settlement_status !== "reversed" && s.financial_installment_id === item.id).map(s => s.payment_method_name_snapshot); const pref = getInstallmentPaymentPreference(detail.source_details, item.installment_number); const planned = paymentMethods.find(m => m.id === pref.payment_method_id)?.name; return <><span className="font-semibold">{[...new Set(paid)].join(", ") || planned || "A definir"}</span>{paid.length > 0 && planned && Number(item.original_amount) > Number(item.settled_amount) && <span className="block text-muted-foreground">Previsto: {planned}</span>}{!paid.length && planned && <span className="block text-muted-foreground">Previsto</span>}</>; })()}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
                 {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                   type="button" disabled={forecastBusy} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
@@ -211,7 +211,7 @@ function EntryDetailContent({
                 ><Pencil size={13} /> Ajustar</button>}</td>}
               </tr>
               {forecastEdit?.id === item.id && canAdjustForecast && <tr className="bg-muted/25">
-                <td colSpan={6} className="px-4 py-3">
+                <td colSpan={7} className="px-4 py-3">
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="min-w-[160px] flex-1 sm:max-w-[280px]">
                       <FCurrencyInput label="Novo valor previsto" value={forecastEdit.amount} disabled={forecastBusy}
