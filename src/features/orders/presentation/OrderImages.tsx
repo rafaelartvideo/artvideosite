@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
-import { Camera, Download, MoreVertical, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Camera, Download, ExternalLink, MoreVertical, PanelTop, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
-import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -459,12 +460,110 @@ export function OrderImagesField({
   return embedded ? content : <Section title="Imagens da OS">{content}</Section>;
 }
 
+type DetachedOrderImageWindow = { popup: Window; host: HTMLDivElement };
+
+function syncImageWindowTheme(target: Document) {
+  target.documentElement.className = document.documentElement.className;
+  target.documentElement.style.cssText = document.documentElement.style.cssText;
+  target.documentElement.lang = document.documentElement.lang || "pt-BR";
+  target.body.className = document.body.className;
+}
+
+function openOrderImageWindow(): DetachedOrderImageWindow | null {
+  const popup = window.open("", "_blank", "popup=yes,width=1120,height=850,resizable=yes,scrollbars=yes");
+  if (!popup) return null;
+  try {
+    const target = popup.document;
+    popup.opener = null;
+    // Mount the existing React viewer, not a new authenticated app or a public media URL.
+    target.title = "Imagem da OS • Union World";
+    for (const source of document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')) {
+      const link = target.createElement("link");
+      link.rel = "stylesheet";
+      link.href = source.href;
+      if (source.crossOrigin !== null) link.crossOrigin = source.crossOrigin;
+      if (source.integrity) link.integrity = source.integrity;
+      if (source.media) link.media = source.media;
+      target.head.appendChild(link);
+    }
+    for (const source of document.querySelectorAll<HTMLStyleElement>("style")) {
+      const style = target.createElement("style");
+      if (source.nonce) style.nonce = source.nonce;
+      style.textContent = source.textContent;
+      target.head.appendChild(style);
+    }
+    syncImageWindowTheme(target);
+    target.body.style.margin = "0";
+    const host = target.createElement("div");
+    host.id = "union-detached-order-image";
+    target.body.replaceChildren(host);
+    return { popup, host };
+  } catch (error) {
+    popup.close();
+    console.error("[ORDER_IMAGES] detached window failed", error);
+    return null;
+  }
+}
+
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
   const { url: mediaUrl } = useMediaUrl(image.url ? null : image.mediaId, image.media);
   const url = image.url || mediaUrl;
   const [busyFormat, setBusyFormat] = useState<OrderImageDownloadFormat | null>(null);
   const [downloadError, setDownloadError] = useState("");
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [detached, setDetached] = useState<DetachedOrderImageWindow | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!detached) return;
+    const { popup, host } = detached;
+    const target = host.ownerDocument;
+    const observer = new MutationObserver(() => {
+      if (!popup.closed) syncImageWindowTheme(target);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "lang"] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    // Detect the browser's own close button without making network requests.
+    const timer = window.setInterval(() => {
+      if (popup.closed) {
+        setDetached(null);
+        onCloseRef.current();
+      }
+    }, 500);
+    return () => {
+      observer.disconnect();
+      window.clearInterval(timer);
+      if (!popup.closed) popup.close();
+    };
+  }, [detached]);
+
+  useEffect(() => {
+    if (detached && !detached.popup.closed) {
+      detached.host.ownerDocument.title = `${image.name || "Imagem da OS"} • Union World`;
+      detached.popup.focus();
+    }
+    setDownloadMenuOpen(false);
+    setDownloadError("");
+  }, [image.key, detached]);
+
+  const detachImage = () => {
+    if (!url || detached) return;
+    const next = openOrderImageWindow();
+    if (!next) {
+      notifyAdmin("O navegador bloqueou a janela. Permita pop-ups da Union World e tente novamente.", "error");
+      return;
+    }
+    setDownloadMenuOpen(false);
+    setDetached(next);
+    next.popup.focus();
+  };
+
+  const reintegrateImage = () => {
+    setDownloadMenuOpen(false);
+    setDetached(null);
+    window.focus();
+  };
 
   const download = async (format: OrderImageDownloadFormat) => {
     if (busyFormat) return;
@@ -480,14 +579,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     }
   };
 
-  return url ? <AdminDialog
-    open
-    onClose={onClose}
-    title={image.name || "Visualizar imagem"}
-    description="Imagem vinculada à ordem de serviço."
-    minimizedDescription={image.name || "Imagem da OS"}
-    className="max-w-6xl"
-    headerActions={
+  const downloadActions = (
       <div
         className="relative"
         onBlur={event => {
@@ -537,7 +629,45 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
           </div>
         )}
       </div>
-    }
+  );
+
+  if (detached) return createPortal(
+    <section data-order-image-detached="true" className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-4 py-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-semibold">{image.name || "Visualizar imagem"}</h1>
+          <p className="text-xs text-muted-foreground">Janela destacada</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <AdminButton variant="secondary" size="sm" onClick={reintegrateImage} title="Reintegrar a imagem ao modal da OS">
+            <PanelTop size={15}/> Reintegrar ao CRM
+          </AdminButton>
+          {downloadActions}
+          <button type="button" aria-label="Fechar janela destacada" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"><X size={17}/></button>
+        </div>
+      </header>
+      {downloadError && <div className="m-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
+      <main className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[#0d1b2e] p-2">
+        {url ? <img src={url} alt={image.name} className="max-h-full max-w-full object-contain" /> : <LoadingSpinner size="sm" />}
+      </main>
+    </section>, detached.host,
+  );
+
+  return url ? <AdminDialog
+    open
+    onClose={onClose}
+    title={image.name || "Visualizar imagem"}
+    description="Imagem vinculada à ordem de serviço."
+    minimizedDescription={image.name || "Imagem da OS"}
+    className="max-w-6xl"
+    headerActions={<>
+      {(image.kind === "equipment" || image.kind === "label") && <AdminButton
+        variant="secondary" size="sm" aria-label="Destacar janela" title="Abrir a foto em uma janela independente"
+        className="hidden md:inline-flex" onClick={detachImage}>
+        <ExternalLink size={15}/> <span>Destacar janela</span>
+      </AdminButton>}
+      {downloadActions}
+    </>}
   >
     {downloadError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
     <div className="flex min-h-[45vh] items-center justify-center overflow-hidden rounded-xl bg-[#0d1b2e] p-2">
