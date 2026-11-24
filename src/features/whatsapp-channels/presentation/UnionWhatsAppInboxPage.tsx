@@ -3684,7 +3684,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(contactLaunch.current===newContact.launch)closeNewContact();
         notifyAdmin("Contato adicionado ao cadastro e disponível nas OS.","success");
       }}/>}
-    {intakeContext && intakeContext.org===activeOrganizationId && (!intakeContext.conversationId||intakeContext.conversationId===selectedId) && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
+    {intakeContext && intakeContext.org===activeOrganizationId && (!intakeContext.conversationId||intakeContext.conversationId===selectedId) && <Suspense fallback={null}><OrderIntakeWorkspace key={intakeContext.org+":"+(intakeContext.conversationId||"all")} organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
       onClose={()=>setIntakeContext(null)}
       onShare={intakeContext.conversationId?message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);setIntakeContext(null);}:undefined}
       onConvert={(customerId,prefill)=>{if(newOrder){notifyAdmin("Feche ou conclua a Nova OS aberta antes de converter outra solicitação.","error");return;}setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:prefill.conversationId||intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
