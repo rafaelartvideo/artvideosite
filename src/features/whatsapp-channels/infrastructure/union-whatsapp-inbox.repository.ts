@@ -74,7 +74,7 @@ export type UnionWhatsAppMessage = {
   media_available?: boolean;
   read_only?: boolean;
   historical_attachments?: UnionWhatsAppHistoricalAttachment[];
-  historical_scope?: {channel_id:string;account_phone:string};
+  historical_scope?: {channel_id:string;account_phone:string;contact_only?:boolean};
   historical_system?: boolean;
   unknown_date?:boolean;
 };
@@ -455,12 +455,17 @@ function mapHistoricalMessage(row:any,organizationId:string,conversationId:strin
         historical_scope:{channel_id:channelId,account_phone:accountPhone}};
 }
 
+export async function listContactOnlyHistoricalMessages(organizationId:string,contactId:string,channelId:string,accountPhone:string,before?:UnionWhatsAppMessageCursor|null):Promise<UnionWhatsAppMessagePage>{
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"history_page",contact_only:true,organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone,before:before||null,limit:MESSAGE_PAGE_SIZE}});
+  if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar as mensagens anteriores.");
+  return {items:data.result.items.map((row:any)=>({...mapHistoricalMessage(row,organizationId,contactId,channelId,accountPhone),historical_scope:{channel_id:channelId,account_phone:accountPhone,contact_only:true}})).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+}
 export async function getHistoricalWhatsAppMedia(message:UnionWhatsAppMessage,assetId:string,download=false){
   const scope=message.historical_scope;
   if(!message.read_only||!scope||!message.historical_attachments?.some(a=>a.id===assetId&&a.available))throw Error("Arquivo indisponível.");
   const {data,error}=await supabase.functions.invoke("union-history-import",{body:{
     action:"media_ticket",organization_id:message.organization_id,conversation_id:message.conversation_id,
-    channel_id:scope.channel_id,account_phone:scope.account_phone,asset_id:assetId,download,
+    channel_id:scope.channel_id,account_phone:scope.account_phone,contact_only:scope.contact_only===true,asset_id:assetId,download,
   }});
   if(error||data?.success!==true||typeof data.result?.url!=="string")throw Error("Não foi possível abrir o arquivo.");
   const url=new URL(data.result.url);
