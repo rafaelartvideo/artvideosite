@@ -226,9 +226,9 @@ export function FutureOpportunityContactSection({identity,canEdit=true}:{
   </section>;
 }
 
-export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConversation,onNewOrder,canEdit}:{
+export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConversation,onNewOrder,canEdit,modal=false}:{
   organizationId:string;onClose:()=>void;onOpenConversation:(id:string)=>void;
-  onNewOrder?:(item:FutureOpportunity)=>void;canEdit:boolean;
+  onNewOrder?:(item:FutureOpportunity)=>void;canEdit:boolean;modal?:boolean;
 }){
   const [status,setStatus]=useState<FutureOpportunityStatus|"all">("all");
   const [search,setSearch]=useState("");
@@ -250,9 +250,9 @@ export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConve
     staleTime:90_000,refetchOnWindowFocus:false,retry:false,
   });
   const count=summary.data;
-  return <div className="min-h-[480px] space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5"
+  const content=<div className={modal?"space-y-4":"min-h-[480px] space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5"}
     aria-label="Oportunidades futuras dos atendimentos">
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    {!modal&&<div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="text-lg font-bold">Oportunidades futuras</h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -260,7 +260,7 @@ export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConve
         </p>
       </div>
       <AdminButton variant="secondary" onClick={onClose}><ArrowLeft size={16}/> Voltar às conversas</AdminButton>
-    </div>
+    </div>}
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {([
         ["waiting","Aguardando",Clock3],
@@ -325,6 +325,6 @@ export function FutureOpportunitiesWorkspace({organizationId,onClose,onOpenConve
           onClick={()=>setPage(value=>value+1)}>Próxima <ChevronRight size={14}/></AdminButton>
       </div>
     </div>
-    {editing&&<FutureOpportunityEditor key={editing.id} identity={editing} initial={editing} onClose={()=>setEditing(null)}/>}
   </div>;
+  return <>{modal?<AdminDialog open onClose={onClose} title="Oportunidades futuras" description="Interesses salvos nos contatos" className="max-w-5xl" draggable floating footer={<div className="flex w-full justify-end"><AdminButton variant="secondary" onClick={onClose}>Fechar</AdminButton></div>}>{content}</AdminDialog>:content}{editing&&<FutureOpportunityEditor key={editing.id} identity={editing} initial={editing} onClose={()=>setEditing(null)}/>}</>;
 }
