@@ -73,7 +73,14 @@ export type DashboardOrdersSummary = {
   statuses: DashboardOrderDistributionItem[];
 };
 
+export type DashboardOrderSelectionKind = "situation" | "status" | "opened" | "service_type" | "equipment_type" | "equipment_model" | "quote_approved" | "quote_rejected" | "metric_opened" | "metric_active" | "metric_waiting" | "metric_completed";
+
+export type DashboardOrderSelectionPage = { total: number; rows: DashboardOrderGroupItem[] };
+
 export type DashboardOrderGroupItem = {
+  row_key?: string;
+  event_at?: string | null;
+  quote_version?: number | null;
   id: string;
   os_number: string | null;
   created_at: string;
