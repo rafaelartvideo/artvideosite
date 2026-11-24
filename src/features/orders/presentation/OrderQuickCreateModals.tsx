@@ -145,7 +145,7 @@ function findExactCatalogOption(options: CatalogOption[], value: string) {
   return options.find(option => normalizeCatalogValue(option.name) === normalized) || null;
 }
 
-function CatalogCombobox({
+export function CatalogCombobox({
   label,
   value,
   selectedId,
@@ -159,6 +159,7 @@ function CatalogCombobox({
   createLabel = "Novo cadastro",
   emptyText = "Nenhum cadastro encontrado.",
   helperText,
+  selectionOnly = false,
 }: {
   label: string;
   value: string;
@@ -173,16 +174,20 @@ function CatalogCombobox({
   createLabel?: string;
   emptyText?: string;
   helperText?: string;
+  /** Search existing records without changing the saved selection until confirmed. */
+  selectionOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState<string | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
-  const query = normalizeCatalogValue(value);
+  const inputValue = selectionOnly ? searchDraft ?? value : value;
+  const query = normalizeCatalogValue(selectionOnly ? searchDraft ?? "" : value);
   const selectedOption = options.find(option => option.id === selectedId) || null;
-  const exactOption = findExactCatalogOption(options, value);
-  const duplicateOption = exactOption && exactOption.id !== selectedId ? exactOption : null;
+  const exactOption = findExactCatalogOption(options, inputValue);
+  const duplicateOption = !selectionOnly && exactOption && exactOption.id !== selectedId ? exactOption : null;
 
   React.useEffect(() => {
-    if (disabled) setOpen(false);
+    if (disabled) { setOpen(false); setSearchDraft(null); }
   }, [disabled]);
 
   const filteredOptions = useMemo(() => {
@@ -191,37 +196,45 @@ function CatalogCombobox({
     return sorted.filter(option => normalizeCatalogValue(option.name).includes(query) || normalizeCatalogValue(option.meta).includes(query));
   }, [options, query]);
 
+  const closeOptions = () => { setOpen(false); setSearchDraft(null); };
   const selectOption = (option: CatalogOption) => {
     onSelect(option);
     onChange(option.name);
-    setOpen(false);
+    closeOptions();
   };
 
   return <div className="min-w-0">
     <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
       {label}{required && <span className="text-red-600 dark:text-red-400">*</span>}
     </label>
-    <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) setOpen(nextOpen); }}>
+    <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) { if (nextOpen) setOpen(true); else closeOptions(); } }}>
       <PopoverAnchor asChild>
         <div ref={anchorRef} className="relative">
           <input
-            value={value}
+            value={inputValue}
+            aria-label={label}
+            aria-expanded={open && !disabled}
+            aria-required={required}
             disabled={disabled}
             autoComplete="off"
             placeholder={placeholder}
             onFocus={() => setOpen(true)}
             onPointerDown={() => setOpen(true)}
             onKeyDown={(event) => {
-              if (event.key === "Escape") setOpen(false);
-              if (event.key === "Enter" && exactOption) {
+              if (event.key === "Escape") { if (open) event.stopPropagation(); closeOptions(); }
+              if (event.key === "Enter" && (exactOption || (selectionOnly && open))) {
                 event.preventDefault();
-                selectOption(exactOption);
+                const match = exactOption || (filteredOptions.length === 1 ? filteredOptions[0] : null);
+                if (match) selectOption(match);
               }
             }}
             onChange={(event) => {
               const nextValue = event.target.value;
-              onChange(nextValue);
-              if (selectedId && normalizeCatalogValue(selectedOption?.name) !== normalizeCatalogValue(nextValue)) onSelect(null);
+              if (selectionOnly) setSearchDraft(nextValue);
+              else {
+                onChange(nextValue);
+                if (selectedId && normalizeCatalogValue(selectedOption?.name) !== normalizeCatalogValue(nextValue)) onSelect(null);
+              }
               setOpen(true);
             }}
             className={cn(
@@ -229,7 +242,7 @@ function CatalogCombobox({
               "h-[42px] pr-9",
               disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:focus:ring-0",
               duplicateOption && "border-amber-400 focus:border-amber-500 focus:ring-amber-400/30",
-              selectedId && "border-emerald-300 bg-emerald-50/30",
+              selectedId && !selectionOnly && "border-emerald-300 bg-emerald-50/30",
             )}
           />
           <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6a82] transition-transform", open && "rotate-180")} />
@@ -250,13 +263,16 @@ function CatalogCombobox({
       >
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
           <Search size={13} className="shrink-0" />
-          <span>{query ? "Resultados encontrados" : "Cadastros recentes"}</span>
+          <span>{query ? "Resultados encontrados" : selectionOnly ? "Selecionar cadastro" : "Cadastros recentes"}</span>
         </div>
         <div
           className="max-h-40 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable]"
           onWheelCapture={(event) => event.stopPropagation()}
           onTouchMoveCapture={(event) => event.stopPropagation()}
         >
+          {selectionOnly && selectedId && <button type="button" onMouseDown={event => event.preventDefault()}
+            onClick={() => { onSelect(null); onChange(""); closeOptions(); }}
+            className="mb-1 block w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted">Limpar seleção</button>}
           {filteredOptions.length > 0 ? filteredOptions.map(option => {
             const selected = selectedId === option.id;
             return <button
@@ -277,7 +293,7 @@ function CatalogCombobox({
             </button>;
           }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
         </div>
-        {allowCreate && cleanCatalogValue(value) && !exactOption && (
+        {!selectionOnly && allowCreate && cleanCatalogValue(value) && !exactOption && (
           <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-[#5a6a82]">
             <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
           </div>
@@ -300,7 +316,7 @@ function CatalogCombobox({
           Usar cadastro
         </button>
       </div>
-    ) : selectedId && selectedOption ? (
+    ) : !selectionOnly && selectedId && selectedOption ? (
       <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-700"><Check size={11} /> Cadastro existente selecionado.</p>
     ) : helperText ? (
       <p className="mt-1 text-[10px] leading-relaxed text-[#5a6a82]">{helperText}</p>
