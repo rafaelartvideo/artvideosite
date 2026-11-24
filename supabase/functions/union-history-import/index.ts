@@ -39,16 +39,18 @@ Deno.serve(async req=>{
     if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
     // Historical reads use the exact live conversation RLS, NOT management permissions.
     // The request cannot select a contact, destination phone or archived package.
-    if(b.action==="history_page"||b.action==="conversation_page"){
-      const unified=b.action==="conversation_page";
+    if(b.action==="history_page"||b.action==="conversation_page"||b.action==="media_ticket"){
+      const unified=b.action==="conversation_page",mediaTicket=b.action==="media_ticket";
+      if(mediaTicket&&(typeof b.asset_id!=="string"||!/^[a-f0-9]{64}$/.test(b.asset_id)))return json({success:false,error:"Anexo inválido."},400);
       const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null;
       if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols"].includes(kind)||(unified&&kind!=="messages")||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind==="protocols"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
       if(before!==null){try{timestampMicros(before.sent_at)}catch{return json({success:false,error:"Cursor inválido."},400)}}
-      const {data:thread,error:threadError}=await scoped.from("union_whatsapp_conversations")
+      const {data:visibleThread,error:threadError}=await scoped.from("union_whatsapp_conversations")
         .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone")
         .eq("id",b.conversation_id).eq("organization_id",org)
         .eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
-      if(threadError||!thread)return json({success:false,error:"Conversa indisponível."},403);
+      if(threadError||!visibleThread)return json({success:false,error:"Conversa indisponível."},403);
+      const thread=visibleThread;
       const empty={items:[],hasMore:false,nextCursor:null};
       async function currentPage(){
         let q=scoped.from("union_whatsapp_messages")
@@ -66,21 +68,28 @@ Deno.serve(async req=>{
         return mergeFetchedHistoryPages(await currentPage(),archive,before,limit);
       }
       // LIDs, groups, ambiguous or changed identities must not be guessed.
-      if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return json({success:true,result:await finishPage(empty)});
+      if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return mediaTicket?json({success:false,error:"Anexo indisponível."},404):json({success:true,result:await finishPage(empty)});
       // Contacts are private backend data. Only resolve AFTER scoped conversation authorization.
       const {data:matches,error:matchError}=await admin.from("union_whatsapp_contacts").select("id,channel_id,chat_jid,contact_phone")
         .eq("organization_id",thread.organization_id).eq("account_phone",thread.account_phone)
         .eq("contact_phone",thread.contact_phone).limit(2);
       if(matchError)throw Error("Identidade indisponível.");
-      if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return json({success:true,result:await finishPage(empty)});
-      const result=await bridge({action:"history_page",organizationId:thread.organization_id,accountPhone:thread.account_phone,contactId:matches[0].id,contactPhone:thread.contact_phone,conversationId:thread.id,kind,protocolId,before,limit});
-      const page=await finishPage(result);
+      if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return mediaTicket?json({success:false,error:"Anexo indisponível."},404):json({success:true,result:await finishPage(empty)});
+      const scope={organizationId:thread.organization_id,accountPhone:thread.account_phone,contactId:matches[0].id,contactPhone:thread.contact_phone,conversationId:thread.id};
+      const result=mediaTicket?await bridge({action:"media_ticket",...scope,assetId:b.asset_id,download:b.download===true}):await bridge({action:"history_page",...scope,kind,protocolId,before,limit});
+      const page=mediaTicket?null:await finishPage(result);
       // Recheck visibility at delivery time (the conversation may have been reassigned).
       const {data:stillVisible,error:visibilityError}=await scoped.from("union_whatsapp_conversations")
         .select("id").eq("id",thread.id).eq("organization_id",thread.organization_id)
         .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
         .eq("chat_jid",thread.chat_jid).eq("contact_phone",thread.contact_phone).maybeSingle();
       if(visibilityError||!stillVisible)return json({success:false,error:"Conversa indisponível."},403);
+      if(mediaTicket){
+        if(typeof result?.token!=="string"||!/^[a-f0-9]{64}$/.test(result.token)||!Number.isFinite(Date.parse(result.expires_at)))throw Error("Anexo indisponível.");
+        const mediaUrl=new URL(Deno.env.get("UNION_HISTORY_GATEWAY_URL")||"");
+        mediaUrl.search="";mediaUrl.searchParams.set("media",result.token);
+        return json({success:true,result:{url:mediaUrl.toString(),expires_at:result.expires_at}});
+      }
       return json({success:true,result:page});
     }
     const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
