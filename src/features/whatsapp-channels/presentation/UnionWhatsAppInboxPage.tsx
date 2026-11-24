@@ -13,7 +13,7 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { useDetachedOrderEditor } from "@/features/orders/presentation/useDetachedOrderEditor";
-import type { IntakePrefill } from "@/features/orders/intake/order-intake.repository";
+import { countActiveIntakes, type IntakePrefill } from "@/features/orders/intake/order-intake.repository";
 const OrderIntakeWorkspace = lazy(() => import("@/features/orders/intake/OrderIntakeWorkspace").then(m=>({default:m.OrderIntakeWorkspace})));
 import { CrmAdditionalContactDialog } from "./CrmAdditionalContactDialog";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
@@ -696,6 +696,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
   const [intakeContext,setIntakeContext]=useState<{org:string;conversationId?:string}|null>(null);
+  // Reuse intake Realtime invalidation; a small foreground-only refresh also handles expired links.
+  const activeIntakeCount=useQuery({
+    queryKey:["order-intake",activeOrganizationId,user?.id,"active-count"],
+    queryFn:()=>countActiveIntakes(activeOrganizationId!),
+    enabled:Boolean(!embedded&&canView&&activeOrganizationId&&user?.id&&hasPermission("orders.create")&&hasPermission("orders.view")),
+    staleTime:60_000,refetchInterval:120_000,refetchIntervalInBackground:false,refetchOnWindowFocus:true,retry:false,
+  });
   useEffect(()=>{if(intakeContext)void loadEmbeddedNewOrder().catch(()=>undefined);},[intakeContext]);
   useEffect(()=>{setIntakeContext(current=>current && (current.org!==activeOrganizationId || (current.conversationId && current.conversationId!==selectedId))?null:current);},[selectedId,activeOrganizationId]);
   const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string;intake?:IntakePrefill}|null>(null);
@@ -2602,7 +2609,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
-        {!embedded&&activeOrganizationId&&hasPermission("orders.create")&&hasPermission("orders.view")&&<AdminButton variant="tertiary" onClick={()=>setIntakeContext({org:activeOrganizationId})} className="shrink-0"><ClipboardList size={16}/> Pré-OS</AdminButton>}
+        {!embedded&&activeOrganizationId&&hasPermission("orders.create")&&hasPermission("orders.view")&&<AdminButton variant="tertiary" onClick={()=>setIntakeContext({org:activeOrganizationId})} className="shrink-0"><ClipboardList size={16}/> Pré-OS{Boolean(activeIntakeCount.data?.active)&&<span aria-label={activeIntakeCount.data?.active+" solicitações em andamento"} className="rounded-full border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-amber-700 dark:text-amber-300">{activeIntakeCount.data?.active}</span>}</AdminButton>}
         <Popover open={attendanceMenuOpen} onOpenChange={open=>{setAttendanceMenuOpen(open);if(!open)setAttendanceViewExpanded(false);}}>
           <PopoverTrigger asChild>
             <button type="button" aria-label="Mais opções de atendimentos" title="Mais opções"
@@ -2673,8 +2680,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <Settings size={20} strokeWidth={2}/>
           </button>}
-        {canAction("collaborate") && canSend && <AdminButton variant="secondary" className="max-md:!px-2.5 max-md:!py-2" onClick={()=>setRequestOpen(true)}>
-          <Users size={15} className="shrink-0"/><span className="md:hidden">Participar</span><span className="hidden md:inline">Solicitar participação</span>
+        {canAction("collaborate") && canSend && <AdminButton variant="secondary" aria-label="Solicitar participação" title="Solicitar participação" className="!h-[42px] !w-[42px] !shrink-0 !p-0" onClick={()=>setRequestOpen(true)}>
+          <Users size={20} className="shrink-0" aria-hidden="true"/>
         </AdminButton>}
         <AdminButton variant="secondary" className="max-md:!px-3 max-md:!py-2" onClick={onBack}>Voltar</AdminButton>
       </div>
