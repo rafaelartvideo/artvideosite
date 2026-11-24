@@ -193,8 +193,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
+    if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","crm_contact_save","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","crm_contact_save","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -266,7 +266,7 @@ Deno.serve(async request => {
       department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
       contacts_groups:"manage_groups",contacts_groups_avatar:"manage_groups",contacts_groups_manage:"manage_groups",contacts_crm_match:"view_contacts",contacts_history:"view_contacts",
-      contacts_save:"manage_contacts",contacts_import:"import_contacts",
+      crm_contact_save:"create_contacts",contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
       contacts_apply_names:"import_contacts",check_number:"start",number_verification_status:"start",start:"start",
       assume:"assume",send_text:"send",send_media:"send",sticker_send:"send",sticker_list:"send",sticker_saved_ids:"send",sticker_prepare:"send",sticker_commit:"send",sticker_save:"send",sticker_favorite:"send",sticker_remove:"send",prepare_media:"send",
@@ -489,6 +489,34 @@ Deno.serve(async request => {
         return {error:label+" Nenhuma conversa foi criada.",status:503,code:category};
       }
     };
+    if(action==="crm_contact_save"){
+      if(!canRead || !permissions.has("customers.view") || !permissions.has("registrations.contacts.manage") ||
+        !allowed("create_contacts"))
+        return json({success:false,error:"Sem permissão para criar contatos no cadastro e na agenda."},403);
+      const entityId=String(body.entity_id||"");
+      const name=String(body.display_name||"").trim();
+      const jobTitle=String(body.job_title||"").trim();
+      const rawPhone=String(body.phone||"").replace(/\D/g,"");
+      const national=rawPhone.startsWith("55")&&rawPhone.length>11?rawPhone.slice(2):rawPhone;
+      if(!uuid(entityId)||name.length<2||name.length>160||jobTitle.length>160||!/^\d{10,11}$/.test(national))
+        return json({success:false,error:"Informe cadastro, nome e número válidos."},400);
+      const {data:owner,error:ownerError}=await admin.from("entities")
+        .select("id").eq("organization_id",org).eq("id",entityId).eq("is_active",true)
+        .not("legacy_customer_id","is",null).maybeSingle();
+      if(ownerError)throw ownerError;
+      if(!owner)return json({success:false,error:"Cadastro não encontrado nesta empresa."},404);
+      // Existing verification helper reuses the scoped provider cache from the input.
+      const verified=await verifyWhatsAppNumber("55"+national);
+      if("error" in verified)return json({success:false,error:verified.error},verified.status);
+      const {data:contactId,error:saveError}=await admin.rpc("union_whatsapp_create_registration_contact",{
+        p_organization:org,p_entity:entityId,p_actor:actorId,p_channel:verified.channel.id,
+        p_account_phone:verified.channel.phone,p_jid:verified.jid,p_phone:"55"+national,
+        p_provider_phone:verified.phone,p_name:name,p_job_title:jobTitle,
+      });
+      if(saveError?.code==="23505")return json({success:false,error:"Este número já está cadastrado. Edite ou reative o contato existente."},409);
+      if(saveError)throw saveError;
+      return json({success:true,entity_contact_id:contactId});
+    }
     if(action==="check_number"){
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
       if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
