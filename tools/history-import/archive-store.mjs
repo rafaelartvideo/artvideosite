@@ -120,14 +120,18 @@ export function openArchiveStore(filename,read){
       state(j.id,"running");return {j,e};
     });
     if(!claim)return false;if(claim.settled)return true;
-    const {j,e}=claim;let valid=false;
-    try{readPayload(j.package_id,JSON.parse(e.metadata));valid=true}catch{/* Never log private payload or paths. */}
+    const {j,e}=claim;let verifiedMetadata=null;
+    try{
+      const metadata=JSON.parse(e.metadata), payload=readPayload(j.package_id,metadata);
+      const name=typeof payload.contact.display_name==="string"?payload.contact.display_name.slice(0,200):"";
+      verifiedMetadata=JSON.stringify({...metadata,historical_name:name});
+    }catch{/* Never log private payload or paths. */}
     tx(()=>{
       const current=job(j.id,j.organization_id);
       if(current.state==="pausing"||current.state==="cancelling"){state(j.id,current.state==="pausing"?"paused":"cancelled");return}
       if(current.state!=="running")return;
-      if(!valid){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
-      db.prepare("UPDATE entries SET state='verified' WHERE job_id=? AND contact_key=? AND state='pending'").run(j.id,e.contact_key);
+      if(!verifiedMetadata){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
+      db.prepare("UPDATE entries SET state='verified',metadata=? WHERE job_id=? AND contact_key=? AND state='pending'").run(verifiedMetadata,j.id,e.contact_key);
       state(j.id,"queued");
     });
     return true;
@@ -138,7 +142,7 @@ export function openArchiveStore(filename,read){
     const j=job(id,org);
     if(j.state!=="completed")throw Error("Valide primeiro o lote.");
     return {account_phone:j.account_phone,entries:db.prepare(
-      "SELECT e.contact_key,e.phone,e.state,b.contact_id FROM entries e LEFT JOIN bindings b ON b.job_id=e.job_id AND b.contact_key=e.contact_key WHERE e.job_id=? ORDER BY e.contact_key LIMIT 100"
+      "SELECT e.contact_key,e.phone,e.state,b.contact_id,json_extract(e.metadata,'$.historical_name') AS historical_name FROM entries e LEFT JOIN bindings b ON b.job_id=e.job_id AND b.contact_key=e.contact_key WHERE e.job_id=? ORDER BY e.contact_key LIMIT 100"
     ).all(id)};
   }
   function bindContact({id,organizationId,actor,contactKey,contactId,contactPhone,accountPhone}){
