@@ -466,7 +466,12 @@ function syncImageWindowTheme(target: Document) {
   target.documentElement.className = document.documentElement.className;
   target.documentElement.style.cssText = document.documentElement.style.cssText;
   target.documentElement.lang = document.documentElement.lang || "pt-BR";
+  const shell = document.querySelector<HTMLElement>("[data-admin-shell]");
+  const theme = shell?.dataset.theme || (document.documentElement.classList.contains("dark") ? "dark" : "light");
   target.body.className = document.body.className;
+  target.body.classList.add("admin-crm");
+  target.body.classList.toggle("dark", theme === "dark");
+  target.body.dataset.theme = theme;
 }
 
 function openOrderImageWindow(): DetachedOrderImageWindow | null {
@@ -524,9 +529,18 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "lang"] });
     observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    const shell = document.querySelector("[data-admin-shell]");
+    if (shell) observer.observe(shell, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    const closePopup = () => { if (!popup.closed) popup.close(); };
+    window.addEventListener("pagehide", closePopup);
     // Detect the browser's own close button without making network requests.
     const timer = window.setInterval(() => {
-      if (popup.closed) {
+      let unavailable = popup.closed;
+      if (!unavailable) {
+        try { unavailable = popup.document !== target; } catch { unavailable = true; }
+      }
+      if (unavailable) {
+        window.clearInterval(timer);
         setDetached(null);
         onCloseRef.current();
       }
@@ -534,7 +548,8 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     return () => {
       observer.disconnect();
       window.clearInterval(timer);
-      if (!popup.closed) popup.close();
+      window.removeEventListener("pagehide", closePopup);
+      closePopup();
     };
   }, [detached]);
 
@@ -545,7 +560,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     }
     setDownloadMenuOpen(false);
     setDownloadError("");
-  }, [image.key, detached]);
+  }, [image.key, image.name, detached]);
 
   const detachImage = () => {
     if (!url || detached) return;
