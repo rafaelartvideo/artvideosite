@@ -2,12 +2,26 @@ import unittest
 import os
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 from universal_capacity_agi import choose, pools_for, AdmissionError,run,resolve_inbound,trusted_ledger
 from universal_capacity import Ledger
 from universal_telephony import names
 from test_universal_telephony import document,ORG,uid
+
+@contextmanager
+def root_owned_ledger_metadata(path):
+    """Model installed ledger ownership; preserve actual inode, type and mode."""
+    original_fstat=os.fstat
+    inode=path.stat()
+    def fixture_fstat(fd):
+        info=original_fstat(fd)
+        if (info.st_dev,info.st_ino)==(inode.st_dev,inode.st_ino):
+            values=list(info);values[4]=0
+            return os.stat_result(values)
+        return info
+    with patch('universal_capacity_agi.os.fstat',side_effect=fixture_fstat):yield
 
 class AdmissionTests(unittest.TestCase):
     def fixture(self,endpoint,header=''):
@@ -36,11 +50,11 @@ class AdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'ledger.sqlite';ledger=Ledger(path);path.chmod(0o660)
             value,agi=self.fixture('uw-test');ledger.admit(ORG,1,'boot',time.time()+90,value['snapshot']['document']['capacity_pools'],complete=True)
-            with patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value):
+            with root_owned_ledger_metadata(path),patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value):
                 run(['outbound',ORG,'5511999999999'],{'agi_uniqueid':'out','agi_channel':'PJSIP/uw-test-00000001'},agi)
             self.assertIn('SET VARIABLE CALLERID(num) +5511999999999',agi.commands)
             endpoint=names(ORG,uid(3))['endpoint'];value,agi=self.fixture(endpoint,'<sip:+5511999999999@sip.example.com>')
-            with patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value):
+            with root_owned_ledger_metadata(path),patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value):
                 run(['inbound',ORG,uid(3),endpoint],{'agi_uniqueid':'in','agi_channel':'PJSIP/'+endpoint+'-00000002'},agi)
             self.assertIn('SET VARIABLE __UWCM_EXTERNAL "1"',agi.commands)
             self.assertEqual(len(ledger.legs(ORG)),2)
@@ -48,16 +62,20 @@ class AdmissionTests(unittest.TestCase):
     def test_forged_peer_is_denied_before_any_header_or_reservation(self):
         endpoint=names(ORG,uid(3))['endpoint'];value,agi=self.fixture(endpoint,'<sip:+5511999999999@sip.example.com>')
         original=agi.request
+        peer_checks=[]
         def request(command):
-            if 'CHANNEL(pjsip,remote_addr)' in command:return 1,'198.51.100.1:5060'
+            if 'CHANNEL(pjsip,remote_addr)' in command:
+                peer_checks.append(command)
+                return 1,'198.51.100.1:5060'
             return original(command)
         agi.request=request
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'ledger.sqlite';ledger=Ledger(path);path.chmod(0o660)
             ledger.admit(ORG,1,'boot',time.time()+90,value['snapshot']['document']['capacity_pools'],complete=True)
-            with patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value),self.assertRaises(AdmissionError):
+            with root_owned_ledger_metadata(path),patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.trusted_manifest',return_value=value),self.assertRaises(AdmissionError):
                 run(['inbound',ORG,uid(3),endpoint],{'agi_uniqueid':'forged','agi_channel':'PJSIP/'+endpoint+'-00000001'},agi)
             self.assertEqual(ledger.legs(ORG),())
+            self.assertEqual(len(peer_checks),1)
             self.assertFalse(any('PJSIP_HEADER' in command for command in agi.commands))
     def test_scopes_include_company_provider_contract_connection_group_trunk(self):
         d=document()
@@ -93,4 +111,15 @@ class LedgerProtectionTests(unittest.TestCase):
             with patch('universal_capacity_agi.LEDGER',path),self.assertRaises(AdmissionError):trusted_ledger()
             self.assertFalse(path.exists())
             Ledger(path);path.chmod(0o666)
-            with patch('universal_capacity_agi.LEDGER',path),self.assertRaises(AdmissionError):trusted_ledger()
+            with root_owned_ledger_metadata(path),patch('universal_capacity_agi.LEDGER',path),self.assertRaises(AdmissionError):trusted_ledger()
+
+    @unittest.skipUnless(os.name=='posix','Linux file ownership')
+    def test_nonroot_owned_valid_mode_ledger_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'ledger.sqlite';Ledger(path);path.chmod(0o660)
+            original_fstat=os.fstat
+            def foreign_fstat(fd):
+                values=list(original_fstat(fd));values[4]=12345
+                return os.stat_result(values)
+            with patch('universal_capacity_agi.LEDGER',path),patch('universal_capacity_agi.os.fstat',side_effect=foreign_fstat),self.assertRaises(AdmissionError):
+                trusted_ledger()

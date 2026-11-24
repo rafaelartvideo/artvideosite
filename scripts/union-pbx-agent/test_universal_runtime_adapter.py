@@ -12,6 +12,7 @@ from universal_telephony import Bundle, context
 
 ORG = '11111111-1111-4111-8111-111111111111'
 OTHER = '22222222-2222-4222-8222-222222222222'
+REAL_TRUSTED_GLOBAL = adapter.trusted_global
 
 
 class AdapterTests(unittest.TestCase):
@@ -41,6 +42,7 @@ class AdapterTests(unittest.TestCase):
         patch.object(adapter, 'CONFIG_ROOT', root/'config').start()
         patch.object(adapter, 'own').start()
         patch.object(adapter.transaction_runtime, 'trusted').start()
+        patch.object(adapter, 'trusted_global').start()
         patch.object(adapter.transaction_runtime.os, 'chown', create=True).start()
 
     def test_native_transaction_rolls_back_disk_and_sip_memory(self):
@@ -76,10 +78,10 @@ class AdapterTests(unittest.TestCase):
         path=self.agent.PJSIP_FILE
         self.agent.grp.getgrnam=lambda name:SimpleNamespace(gr_gid=121)
         with patch.object(Path,'stat',return_value=info),patch.object(pwd,'getpwnam',return_value=SimpleNamespace(pw_uid=115)):
-            adapter.trusted_global(self.agent,path)
+            REAL_TRUSTED_GLOBAL(self.agent,path)
             for attr,bad in (('st_uid',999),('st_gid',999),('st_mode',stat.S_IFREG|0o640),('st_nlink',2)):
                 before=getattr(info,attr);setattr(info,attr,bad)
-                with self.assertRaises(adapter.runtime.RuntimeErrorSafe):adapter.trusted_global(self.agent,path)
+                with self.assertRaises(adapter.runtime.RuntimeErrorSafe):REAL_TRUSTED_GLOBAL(self.agent,path)
                 setattr(info,attr,before)
 
     def test_prepare_only_adds_empty_owned_includes_preserving_legacy(self):

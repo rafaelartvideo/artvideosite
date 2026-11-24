@@ -16,6 +16,8 @@ A migração `20261122235933_universal_telephony_registry.sql` é aditiva e pres
 
 A Union e a Artvideo foram preparadas com documentos vazios, roteamento universal desativado. A linha FVX legada permanece registrada e operando pela configuração existente. Seus limites ainda desconhecidos impedem migrá-la automaticamente para os limites agregados: ela não é considerada capacidade ilimitada nem fica fora da contabilização silenciosamente. As contas 101/102 não foram cadastradas com credenciais presumidas nem ativadas.
 
+Falhas de aplicação são reportadas separadamente da última revisão aplicada, sem registrar credenciais ou mensagens SIP brutas. Uma tentativa adiada por chamada ativa não altera o estado para falha.
+
 O instalador fixa os hashes das fontes, valida o predecessor e os auxiliares preservados, exige ausência de chamadas, cria backup de bytes/proprietários/permissões, instala o observador local e reinicia somente os agentes. O Asterisk não é reiniciado. A preparação acrescenta includes próprios vazios com transação e reversão; o proprietário original do `pjsip.conf` é preservado.
 
 Backup da instalação: `/root/union-pbx-universal-backups/28458218-6bb8-48fd-b22f-870722d0aa32`.
@@ -24,12 +26,12 @@ O manifesto registra os caminhos e metadados anteriores. Não apagar o ledger co
 ## Evidências
 
 - Suíte completa do CRM (`npm run test:ci`) e builds do site/CRM: aprovados na base remota atualizada.
-- Suíte Python no Linux: aprovada, incluindo concorrência, rodízio, reinício, limites independentes, múltiplas contas e proteção da reconciliação.
+- Suíte Python no Linux: 437 testes aprovados, incluindo concorrência, rodízio, reinício, limites independentes, múltiplas contas e proteção da reconciliação.
 - PostgreSQL descartável: migrações anteriores + nova migração e regressões de isolamento, Vault, revisão, ativação, claims, desativação e concessões aprovadas.
 - Banco hospedado: migração aplicada; `anon` não pode salvar configuração e o navegador não pode consultar o endpoint que entrega segredos aos agentes.
 - Função `union-pbx-agent` publicada separadamente, mantendo a validação Ed25519 e os protocolos 2/3 existentes.
 - Asterisk 22.11.0: seis chamadas sintéticas locais com AGI real. Conta prioritária recebeu um INVITE; com sua capacidade ocupada, somente a segunda recebeu um INVITE; limite agregado, concessão vencida, origem sem permissão e admissão bloqueada geraram zero INVITEs ao destino.
-- Journal nativo final `c6579a77143f4518aec7919bf8bdfacd`: `passed=true`, `cleaned=true`, `fvx_preserved=true`, zero chamadas externas e zero chamadas humanas.
+- Journal nativo final `cf21b5b939a14b06b8ba5eb91e7d2c59`: `passed=true`, `cleaned=true`, `fvx_preserved=true`, zero chamadas externas e zero chamadas humanas.
 
 O ensaio local prova roteamento/admissão/encerramento, não voz, autenticação ou capacidade contratada de uma operadora real. Os testes humanos anteriores da FVX não foram repetidos nem usados como evidência da arquitetura nova. A validação comercial de cada conexão depende dos dados e limites configurados para seu contrato, sem modificar o código.
 

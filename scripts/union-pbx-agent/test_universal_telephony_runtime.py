@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import time
 import tempfile
 import unittest
@@ -13,11 +14,36 @@ class RuntimeTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();root=Path(self.tmp.name)
         self.agent=SimpleNamespace(STATE_DIR=root,PROFILE_ID=ORG)
+        original_stat=Path.stat
+        state_path=root/'universal-telephony.json'
+        def fixture_stat(path,*args,**kwargs):
+            info=original_stat(path,*args,**kwargs)
+            if path==state_path:
+                values=list(info);values[4]=0
+                return os.stat_result(values)
+            return info
+        self.fixture_stat=fixture_stat
+        self.stat_patch=patch.object(Path,'stat',fixture_stat)
+        self.stat_patch.start();self.addCleanup(self.stat_patch.stop)
     def tearDown(self):self.tmp.cleanup()
     def test_empty_preparation_never_touches_engine(self):
         init(self.agent,ORG)
         self.assertEqual(capability(self.agent,ORG),['universal_telephony_v1'])
         self.assertEqual(report(self.agent)['status'],'prepared')
+    @unittest.skipUnless(os.name=='posix','Linux ownership enforcement')
+    def test_untrusted_state_owner_and_group_readable_state_remain_rejected(self):
+        init(self.agent,ORG)
+        state_path=self.agent.STATE_DIR/'universal-telephony.json'
+        def foreign_owner(path,*args,**kwargs):
+            info=self.fixture_stat(path,*args,**kwargs)
+            if path==state_path:
+                values=list(info);values[4]=12345
+                return os.stat_result(values)
+            return info
+        with patch.object(Path,'stat',foreign_owner),self.assertRaises(RuntimeErrorSafe):
+            load(self.agent)
+        state_path.chmod(0o640)
+        with self.assertRaises(RuntimeErrorSafe):load(self.agent)
     def test_foreign_profile_and_expired_snapshot_rejected(self):
         init(self.agent,ORG)
         snap=dict(schema_version=1,organization_id=ORG,agent_id=ORG,revision=1,document=document(),extensions=[],credentials=[],issued_at=1,expires_at=2)
