@@ -67,6 +67,30 @@ Deno.serve(async req=>{
       return json({success:true,result:await bridge({action:"prepare",organizationId:org,packageId:b.package_id,accountPhone:channel.phone,actor})});
     }
     if(!uuid(b.id))return json({success:false,error:"Importação inválida."},400);
+    if(b.action==="candidates"||b.action==="bind_contact"){
+      // Only authorized managers may see the reconciliation preview or approve a binding.
+      if(!has(prefix+"manage"))return json({success:false,error:"Sem permissão de conciliar contatos."},403);
+      const preview=await bridge({action:"candidates",id:b.id,organizationId:org});
+      if(!phone(preview.account_phone)||!Array.isArray(preview.entries)||preview.entries.length>100)throw Error("Índice inválido.");
+      const numbers=[...new Set(preview.entries.filter((e:Record<string,unknown>)=>e.state==="verified"&&phone(e.phone)).map((e:Record<string,unknown>)=>String(e.phone)))];
+      const {data:matches,error:matchError}=numbers.length?await admin.from("union_whatsapp_contacts")
+        .select("id,contact_phone,chat_jid,display_name")
+        .eq("organization_id",org).eq("account_phone",preview.account_phone)
+        .in("contact_phone",numbers).limit(1001):{data:[],error:null};
+      if(matchError||!matches||matches.length>=1001)throw Error("Conciliação indisponível.");
+      const candidates=preview.entries.map((e:Record<string,unknown>)=>{
+        const found=matches.filter(m=>m.contact_phone===e.phone);
+        // Exact phone JID only: aliases and ambiguous records require individual review.
+        const match=found.length===1&&found[0].chat_jid===e.phone+"@s.whatsapp.net"?found[0]:null;
+        return {contact_key:e.contact_key,phone:e.phone,state:e.state==="review"?"review":e.contact_id?(match?.id===e.contact_id?"bound":"review"):e.state!=="verified"?"review":found.length===0?"missing":match?"candidate":"review",
+          match:match?{id:match.id,display_name:match.display_name}:null};
+      });
+      if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates}});
+      if(!uuid(b.contact_id)||typeof b.contact_key!=="string"||!(/^[a-f0-9]{32}$/).test(b.contact_key)||b.confirmed!==true)return json({success:false,error:"Confirme o vínculo individual."},400);
+      const entry=candidates.find((e:Record<string,unknown>)=>e.contact_key===b.contact_key);
+      if(!entry||!["candidate","bound"].includes(entry.state)||entry.match?.id!==b.contact_id)return json({success:false,error:"Identidade não confirmada ou alterada."},409);
+      return json({success:true,result:await bridge({action:"bind_contact",id:b.id,organizationId:org,actor,contactKey:b.contact_key,contactId:b.contact_id,contactPhone:entry.phone,accountPhone:preview.account_phone})});
+    }
     if(["status","events"].includes(b.action))return json({success:true,result:await bridge({action:b.action,id:b.id,organizationId:org})});
     if(b.action==="control"){
       const required=b.command==="start"?"start":b.command==="rollback"?"rollback":["pause","resume","cancel"].includes(b.command)?"manage":null;
