@@ -32,8 +32,8 @@ test("conversão usa CPF autenticado, editor existente e IDs de mídias sem novo
  const persist=read("src/features/orders/application/order-submission.ts");
  assert.ok(staff.includes("lookupCpf(item.payload.document,organizationId,null,{checkExisting:false})"));
  assert.ok(staff.includes("findQuickCustomerByTaxId"));
- assert.ok(staff.includes("birth_date:cpf?.birthDate"));
- assert.ok(staff.includes("gender:cpf?.gender"));
+ assert.ok(staff.includes("birth_date:official?.birthDate"));
+ assert.ok(staff.includes("gender:official?.gender"));
  assert.ok(tab.includes("creationRequestId:intake.id"));
  assert.ok(tab.includes("replaceOrderImages(intake.images"));
  assert.ok(persist.includes("&& !requireAtomic"));
@@ -56,7 +56,7 @@ test("telefone opcional e fotos obrigatórias são validados no formulário e no
  assert.ok(page.includes("validation(i)"));
  assert.ok(api.includes('!kinds.includes("label")||!kinds.includes("problem")'));
  assert.ok(api.includes("!validPhone(phone)"));
- assert.ok(staff.includes("localPhone(review.payload.phone):whatsapp"));
+ assert.ok(staff.includes("localPhone(item.payload.phone):whatsapp"));
  assert.ok(staff.includes("phone,whatsapp"));
  // Execute the exact pure validator defined in the Edge Function.
  const start=api.indexOf("const ddCodes=");
@@ -101,7 +101,7 @@ test("Pré-OS da Artvideo reaproveita o validador, cache e ticket de CPF do site
  assert.ok(page.includes('cpf_identity_ticket:ticket||undefined'));
 });
 
-test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF após criação",async()=>{
+test("Pré-OS permanece em Atendimentos, com editor de OS, QR local, realtime e CPF após criação",async()=>{
  const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
  const tab=read("src/features/orders/presentation/TabOrders.tsx");
  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
@@ -111,18 +111,16 @@ test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF 
  assert.ok(!tab.includes("OrderIntakeWorkspace"));
  assert.ok(inbox.includes('setIntakeContext({org:activeOrganizationId})'));
  assert.ok(staff.includes('QRCodeSVG value={link}'));
- assert.ok(staff.includes('<Section title="Cliente"'));
- assert.ok(staff.includes('<Section title="Equipamento"'));
- assert.ok(staff.includes("Fotos do equipamento"));
- assert.ok(staff.includes('preparingText="Preparando conferência..."'));
+ assert.ok(!staff.includes('<Section title="Cliente"'));
+ assert.ok(!staff.includes('<Section title="Equipamento"'));
+ assert.ok(staff.includes('preparingText="Preparando Nova OS..."'));
  assert.ok(staff.includes("PaginationBar page={page+1}"));
  assert.ok(staff.includes('useDetachedOrderEditor("Pré-OS Digital")'));
- assert.ok(staff.includes("formatCpf(doc)"));
- assert.ok(staff.includes("formatZipCode(review.payload.address.zip_code"));
+ assert.ok(staff.includes("customerDraft:{values,address:item.payload.address}"));
  assert.ok(!staff.includes("setConfirmed"));
  assert.ok(!staff.includes("completeExisting"));
  assert.ok(!staff.includes("list.refetch()"));
- assert.ok(staff.includes("verifiedDemographics:cpf&&existing"));
+ assert.ok(staff.includes("verifiedDemographics=official&&current"));
  assert.ok(!tab.includes("Endereço informado na Pré-OS:"));
  assert.ok(tab.indexOf("if (!savedOrderId) return;")<tab.indexOf("await completeIntakeCustomerDemographics("));
  assert.ok(repo.includes('.is("birth_date",null)'));
@@ -168,7 +166,7 @@ test("wizard público tem erros locais, fotos por categoria, revisão e uma prep
  const api=read("supabase/functions/order-intake/index.ts");
  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
  assert.ok(page.includes("aria-invalid={Boolean(fieldErrors[key])}"));
- assert.ok(page.includes('inlineError("type_id")'));
+ assert.ok(page.includes('error={fieldErrors.type_id}'));
  assert.ok(page.includes('inlineError("problem")'));
  assert.ok(page.includes('errors.problemPhoto'));
  assert.ok(page.includes('capture="environment"'));
@@ -198,4 +196,44 @@ test("confirmação pública usa apenas o WhatsApp empresarial da conversa vincu
  assert.ok(api.includes('.select("account_phone").eq("organization_id",row.organization_id).eq("id",row.conversation_id)'));
  assert.ok(api.includes('return json({status:"received",confirmation_phone})'));
  assert.equal((api.match(/return receivedResponse\(\);/g)||[]).length,3);
+});
+
+test("Pré-OS completa carrega campos técnicos e tipos de atendimento e abre o editor sem alterar cadastros",async()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const tab=read("src/features/orders/presentation/TabOrders.tsx");
+ const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+ const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
+ const modals=read("src/features/orders/presentation/OrderWorkflowModals.tsx");
+ const combo=read("src/features/orders/intake/IntakeCatalogField.tsx");
+ const quick=read("src/features/orders/presentation/OrderQuickCreateModals.tsx");
+ for(const [name,source] of [["combo",combo],["editor",editor],["equipment",equipment],["modals",modals],["quick",quick],["tab",tab]])assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
+ assert.ok(page.includes("catalog.service_types"));
+ assert.ok(page.includes("catalog?.technical_fields"));
+ assert.ok(page.includes("modelsByBrand"));
+ assert.ok(page.includes("errors.serial"));
+ assert.ok(page.includes("errors.service_type_id"));
+ assert.ok(page.includes("errors.model"));
+ assert.ok(page.includes("errors[f.id]"));
+ assert.ok(page.includes("readSerialCodes(file)"));
+ assert.ok(equipment.includes("readSerialCodes(file)"));
+ assert.ok(combo.includes("Outro / não encontrado"));
+ assert.ok(api.includes('from("equipment_type_technical_fields")'));
+ assert.ok(api.includes('from("service_types")'));
+ assert.ok(api.includes("intakeTechnicalFields(admin,org.id,typeId)"));
+ assert.ok(api.includes('model_id:modelId'));
+ assert.ok(api.includes('technical_values:technicalValues'));
+ assert.ok(api.includes('!["label","problem"].includes(String(k))'));
+ assert.ok(staff.includes("onConvert(current?.id||null"));
+ assert.ok(staff.includes(">Abrir OS <ArrowRight"));
+ assert.ok(!staff.includes("QuickCustomerModal"));
+ assert.ok(!staff.includes("continueReview"));
+ assert.ok(!staff.includes("updateOrderCustomer"));
+ assert.ok(tab.includes("technicalValues:typeValid?"));
+ assert.ok(tab.includes("p.service_type_id"));
+ assert.ok(editor.includes("intakeMode={Boolean(initialIntake)}"));
+ assert.ok(equipment.includes('intakeMode?"Fotos do defeito"'));
+ assert.ok(modals.includes("initialIntake?.customerDraft?.values"));
+ assert.ok(modals.includes("initialModelName="));
 });

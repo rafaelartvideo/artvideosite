@@ -19,6 +19,16 @@ function validCpf(c:string){if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))retur
 function validCnpj(c:string){if(!/^\d{14}$/.test(c)||/^(\d)\1{13}$/.test(c))return false;return [12,13].every(n=>{let s=0,w=2;for(let i=n-1;i>=0;i--){s+=Number(c[i])*w;w=w===9?2:w+1;}return (s%11<2?0:11-s%11)===Number(c[n]);});}
 function check(r:any){if(r.error)throw new Error("Não foi possível concluir a operação.");return r.data;}
 class InputError extends Error{}
+async function intakeTechnicalFields(admin:any,org:string,typeId?:string){
+  let query=admin.from("equipment_type_technical_fields").select("equipment_type_id,technical_field_id,sort_order,technical_field:technical_fields!inner(id,field_key,label,field_type,is_active,organization_id)").eq("organization_id",org).eq("technical_field.organization_id",org).eq("technical_field.is_active",true);
+  if(typeId)query=query.eq("equipment_type_id",typeId);
+  const rows=check(await query.order("sort_order").limit(1000))||[];
+  return rows.map((r:any)=>({id:r.technical_field.id,equipment_type_id:r.equipment_type_id,field_key:r.technical_field.field_key,label:r.technical_field.label,field_type:r.technical_field.field_type,sort_order:r.sort_order}));
+}
+async function intakeServiceTypes(admin:any,org:string){
+  const rows=check(await admin.from("service_types").select("id,title").eq("organization_id",org).eq("is_active",true).not("is_disposal","is",true).order("sort_order").limit(500))||[];
+  return rows.map((r:any)=>({id:r.id,name:r.title}));
+}
 class IdentityError extends Error{constructor(message:string,public status:number){super(message);}}
 /** Use the existing Artvideo site validator, including its HMAC cache and quota.
  * Never return the provider's name or use Artvideo credentials for other tenants. */
@@ -119,6 +129,7 @@ Deno.serve(async(req)=>{
         if(row.status==="sent")check(await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","sent"));
         const types=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("is_active",true).order("name").limit(1000));
         const brands=check(await admin.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id",org.id).eq("is_active",true).order("name").limit(2000));
+        const [technical_fields,service_types]=await Promise.all([intakeTechnicalFields(admin,org.id),intakeServiceTypes(admin,org.id)]);
         // Only the configured company logo, never arbitrary tenant media.
         let companyLogo:string|null=null;
         try{
@@ -133,7 +144,7 @@ Deno.serve(async(req)=>{
           }
           if(!companyLogo&&typeof org.logo_url==="string"&&/^https:\/\//i.test(org.logo_url))companyLogo=org.logo_url;
         }catch{/* branding unavailable must not prevent an authorized request */}
-        return json({status:"filling",company:org.name,company_logo_url:companyLogo,types,brands,requires_customer_details:!row.bound_customer_id,requires_cpf_identity:!row.bound_customer_id&&await artvideoIdentityRequired(admin,org.id)});
+        return json({status:"filling",company:org.name,company_logo_url:companyLogo,types,brands,technical_fields,service_types,requires_customer_details:!row.bound_customer_id,requires_cpf_identity:!row.bound_customer_id&&await artvideoIdentityRequired(admin,org.id)});
       }
       const p=body.payload||{}, problem=clean(p.problem,2500);
       let a=p.address||{}, cpf=digits(p.document), name=clean(p.name), phone=digits(p.phone);
@@ -159,10 +170,31 @@ Deno.serve(async(req)=>{
       if(!type)throw new InputError("Equipamento indisponível.");
       let brand=null;
       if(brandId){if(!uuid(brandId))throw new InputError("Marca inválida.");brand=check(await admin.from("equipment_brands").select("id,name").eq("organization_id",org.id).eq("equipment_type_id",typeId).eq("id",brandId).eq("is_active",true).maybeSingle());if(!brand)throw new InputError("Marca indisponível para este equipamento.");}
+      if(!brand&&!clean(p.brand_text))throw new InputError("Informe a marca do equipamento.");
+      const serial=clean(p.serial), modelText=clean(p.model);
+      if(!serial||!modelText)throw new InputError("Informe o modelo e o número de série.");
+      let modelId:string|null=null,modelName=modelText;
+      if(p.model_id){
+        if(!brand||!uuid(p.model_id))throw new InputError("Modelo inválido.");
+        const model=check(await admin.from("equipment_models").select("id,name").eq("organization_id",org.id).eq("equipment_brand_id",brand.id).eq("id",p.model_id).eq("is_active",true).maybeSingle());
+        if(!model)throw new InputError("Modelo indisponível para esta marca.");
+        modelId=model.id;modelName=model.name;
+      }
+      if(!uuid(p.service_type_id))throw new InputError("Selecione o tipo de atendimento.");
+      const serviceType=check(await admin.from("service_types").select("id,title").eq("organization_id",org.id).eq("is_active",true).not("is_disposal","is",true).eq("id",p.service_type_id).maybeSingle());
+      if(!serviceType)throw new InputError("Tipo de atendimento indisponível.");
+      const fields=await intakeTechnicalFields(admin,org.id,typeId);
+      const technicalValues:Record<string,string>={};
+      for(const f of fields){
+        const value=f.field_key==="numero_serie"?serial:clean(p.technical_values?.[f.id],500);
+        if(!value)throw new InputError("Informe "+f.label+".");
+        if(f.field_type==="number"&&!/^-?\d+(?:[.,]\d+)?$/.test(value))throw new InputError("Informe um número válido para "+f.label+".");
+        technicalValues[f.id]=f.field_type==="number"?value.replace(",","."):value;
+      }
       const files=form?form.getAll("photo"):[];
       if(files.length>5)throw new InputError("Envie até cinco fotos.");
       const kinds=form?form.getAll("kind"):[];
-      if(kinds.length!==files.length||kinds.some(k=>!["label","equipment","problem"].includes(String(k))))throw new InputError("Fotos inválidas.");
+      if(kinds.length!==files.length||kinds.some(k=>!["label","problem"].includes(String(k))))throw new InputError("Fotos inválidas.");
       for(const f of files){if(!(f instanceof File)||f.size<12||f.size>1_500_000||f.type!=="image/webp")throw new InputError("Foto inválida ou muito grande. Tente tirar outra.");
         const b=new Uint8Array(await f.slice(0,12).arrayBuffer());if(String.fromCharCode(...b.slice(0,4))!=="RIFF"||String.fromCharCode(...b.slice(8,12))!=="WEBP")throw new InputError("Formato de foto inválido.");}
       if(!kinds.includes("label")||!kinds.includes("problem"))throw new InputError("Envie uma foto da etiqueta e uma foto do defeito.");
@@ -185,7 +217,7 @@ Deno.serve(async(req)=>{
           const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
           images.push({mediaId:media.id,path,kind,name:filename});
         }
-        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||row.phone.replace(/^55(?=\d{10,11}$)/,""),address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
+        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||row.phone.replace(/^55(?=\d{10,11}$)/,""),address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:modelName,model_id:modelId,serial,service_type_id:serviceType.id,service_type_name:serviceType.title,technical_values:technicalValues},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.

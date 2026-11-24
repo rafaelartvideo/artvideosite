@@ -2,12 +2,13 @@ import { supabase } from "@/lib/supabase";
 import type { Address } from "@/lib/address";
 import type { OrderImage } from "../domain/order-image";
 
-export type IntakePayload = { name:string; document:string; phone?:string; cpf_identity_ticket?:string; address:Address; type_id:string; brand_id:string|null; brand_text?:string; type_name?:string; brand_name?:string; model:string; serial:string; problem:string };
+export type IntakeTechnicalField = {id:string;equipment_type_id:string;field_key:string;label:string;field_type:"text"|"number";sort_order:number};
+export type IntakePayload = { name:string; document:string; phone?:string; cpf_identity_ticket?:string; address:Address; type_id:string; brand_id:string|null; brand_text?:string; type_name?:string; brand_name?:string; model:string; serial:string; problem:string; service_type_id?:string;service_type_name?:string;model_id?:string|null;technical_values?:Record<string,string> };
 export type OrderIntake = {id:string; phone:string; payload:IntakePayload; images:OrderImage[]; conversation_id:string; bound_customer_id?:string|null};
 export type IntakeRow = {id:string; status:string; created_at:string; expires_at:string; submitted_at:string|null; order_id:string|null; conversation_id:string; phone?:string; customer_name?:string|null};
-export type IntakeCatalog = { status:string; confirmation_phone?:string|null; requires_customer_details?:boolean; requires_cpf_identity?:boolean; company?:string; company_logo_url?:string|null; types?:{id:string;name:string}[]; brands?:{id:string;name:string;equipment_type_id:string}[] };
+export type IntakeCatalog = { status:string; confirmation_phone?:string|null; requires_customer_details?:boolean; requires_cpf_identity?:boolean; company?:string; company_logo_url?:string|null; types?:{id:string;name:string}[]; brands?:{id:string;name:string;equipment_type_id:string}[]; service_types?:{id:string;name:string}[]; technical_fields?:IntakeTechnicalField[] };
 export type IntakePhoto = {file:File;kind:"label"|"equipment"|"problem"};
-export type IntakePrefill = {id:string; payload:IntakePayload; images:OrderImage[]; conversationId?:string; verifiedDemographics?:{customerId:string;document:string;birthDate?:string|null;gender?:string|null}};
+export type IntakePrefill = {id:string; payload:IntakePayload; images:OrderImage[]; conversationId?:string; customerDraft?:{values:Partial<import("@/features/customers/domain/customer-form").CustomerForm>;address:Address};customerNotice?:string; verifiedDemographics?:{customerId:string;document:string;birthDate?:string|null;gender?:string|null}};
 
 export async function intakeCall<T>(body:Record<string,unknown>|FormData):Promise<T> {
   const {data,error}=await supabase.functions.invoke("order-intake",{body});
