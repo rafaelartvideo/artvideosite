@@ -43,12 +43,14 @@ function labelForName(source: string | null | undefined, verifiedName: boolean):
  * never calls WuzAPI. The status is not proof of number ownership.
  */
 export function VerifiedWhatsAppPhoneInput({
-  value, verificationMode = "create", verificationEnabled = true, ...inputProps
+  value, verificationMode = "create", verificationEnabled = true, onVerifiedName, ...inputProps
 }: {
   value: unknown;
   onChange: (event: { target: { value: string } }) => void;
   verificationMode?: "create" | "edit";
   verificationEnabled?: boolean;
+  /** Optional suggestion for new contact forms; uses the existing verification result, including cache hits. */
+  onVerifiedName?: (name: string) => void;
   [key: string]: any;
 }) {
   const phone = String(value ?? "");
@@ -145,6 +147,10 @@ export function VerifiedWhatsAppPhoneInput({
   };
 
   const result = canVerify && key && state?.key === key ? state.result : null;
+  const suggestedName = result?.kind === "registered" ? result.name : "";
+  useEffect(() => {
+    if (verificationMode === "create" && verificationEnabled) onVerifiedName?.(suggestedName);
+  }, [verificationMode, verificationEnabled, key, suggestedName, onVerifiedName]);
   const showProfile = result?.kind === "registered" && Boolean(result.name || result.avatar);
   const verifiedTitle = result?.kind === "registered" && result.savedVerification && result.verifiedAt
     ? "Confirmado no WhatsApp em " + new Date(result.verifiedAt).toLocaleString("pt-BR") + ". A situação pode mudar com o tempo."
