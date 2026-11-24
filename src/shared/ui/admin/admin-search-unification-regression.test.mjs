@@ -113,11 +113,14 @@ test("compact CRM search is independent of viewport and serial scanner stays acc
 });
 
 
-test("shared search starts compact and expands existing filters without changing data", async () => {
+test("shared search starts expanded and collapses existing filters without changing data", async () => {
   const panel=read("src/shared/ui/admin/AdminSearchPanel.tsx");
   const orders=read("src/features/orders/presentation/OrdersFilters.tsx");
-  assert.match(panel,/const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.match(panel,/const \[expanded, setExpanded\] = useState\(true\)/);
   assert.match(panel,/aria-expanded=\{isExpanded\} aria-controls=\{panelId\}/);
+  const header=panel.slice(panel.indexOf("return <AdminCard"),panel.indexOf("<div id={panelId}"));
+  assert.ok(header.indexOf("{title}</span>") < header.indexOf("aria-label={toggleLabel}"));
+  assert.ok(header.indexOf("aria-label={toggleLabel}") < header.indexOf("{headerActions &&"));
   assert.match(panel,/cloneElement\(compact, \{ mobileOnly: false \}\)/);
   assert.match(panel,/expanded \? showExpandedSearch\(child\) : null/);
   assert.match(panel,/setExpanded\(value => !value\)/);
