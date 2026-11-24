@@ -58,6 +58,7 @@ function sanitizeRecipient(value:unknown):OrderContext["source"]["preferredRecip
     kind:candidate.kind,phone:candidate.phone,
     field:candidate.field==="whatsapp"||candidate.field==="phone"?candidate.field:undefined,
     conversation_id:typeof candidate.conversation_id==="string"?candidate.conversation_id:undefined,
+    entity_contact_id:typeof candidate.entity_contact_id==="string"?candidate.entity_contact_id:undefined,
   };
 }
 
