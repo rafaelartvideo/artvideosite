@@ -64,3 +64,22 @@ test("telefone opcional e fotos obrigatórias são validados no formulário e no
  for(const number of ["7932220000","79912345678","11987654321"])assert.equal(validPhone(number),true);
  for(const number of ["","00912345678","7991234567","7912345678","11111111111"])assert.equal(validPhone(number),false);
 });
+
+test("cliente identificado preenche somente equipamento, defeito e revisão",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const sql=read("supabase/migrations/20261124143926_order_intake_bound_customer.sql");
+ assert.ok(page.includes("requires_customer_details===false?2:0"));
+ assert.ok(page.includes("firstStep===0&&step===0"));
+ assert.ok(page.includes("firstStep===0&&step===1"));
+ assert.ok(page.includes("for(let i=firstStep;i<4;i++)"));
+ assert.ok(page.includes("Math.max(firstStep,s-1)"));
+ assert.ok(api.includes('requires_customer_details:!row.bound_customer_id'));
+ assert.ok(api.includes('matches.length===1'));
+ assert.ok(api.includes('matches[0].customer_id!==customer.id'));
+ assert.ok(api.includes('bound_customer_id:boundCustomerId'));
+ assert.ok(!api.includes('body.bound_customer_id'));
+ assert.ok(staff.includes("item.bound_customer_id?{data:{id:item.bound_customer_id}"));
+ assert.ok(sql.includes("c.id=r.bound_customer_id"));
+});
