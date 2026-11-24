@@ -42,3 +42,25 @@ test("conversão usa CPF autenticado, editor existente e IDs de mídias sem novo
  assert.ok(sql.includes("alter publication supabase_realtime add table public.order_intake_events"));
  assert.ok(sql.includes("and (created_by=auth.uid()"));
 });
+
+
+test("telefone opcional e fotos obrigatórias são validados no formulário e no servidor",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ assert.ok(page.includes("Seu WhatsApp já está preenchido automaticamente."));
+ assert.ok(page.includes('Telefone (opcional)'));
+ assert.ok(page.includes('!hasPhoto("label")'));
+ assert.ok(page.includes('!hasPhoto("problem")'));
+ assert.ok(page.includes("validation(i)"));
+ assert.ok(api.includes('!kinds.includes("label")||!kinds.includes("problem")'));
+ assert.ok(api.includes("!validPhone(phone)"));
+ assert.ok(staff.includes("formatPhone(review.payload.phone):whatsapp"));
+ assert.ok(staff.includes("phone,whatsapp"));
+ // Execute the exact pure validator defined in the Edge Function.
+ const start=api.indexOf("const ddCodes=");
+ const end=api.indexOf("const phoneOf=",start);
+ const validPhone=new Function(api.slice(start,end).replace("(v:string)","(v)")+"return validPhone;")();
+ for(const number of ["7932220000","79912345678","11987654321"])assert.equal(validPhone(number),true);
+ for(const number of ["","00912345678","7991234567","7912345678","11111111111"])assert.equal(validPhone(number),false);
+});
