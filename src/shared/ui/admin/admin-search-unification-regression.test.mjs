@@ -91,7 +91,7 @@ test("search actions use one clear-all icon and the requested Material glyphs", 
 });
 
 
-test("touch tablets get compact CRM searches and serial scanner without hiding the desktop layout elsewhere", async () => {
+test("compact CRM search is independent of viewport and serial scanner stays accessible", async () => {
   const switcher=read("src/shared/ui/admin/AdminMobileSearchSwitch.tsx");
   const css=read("src/styles/index.css");
   const filters=read("src/features/orders/presentation/OrdersFilters.tsx");
@@ -100,8 +100,8 @@ test("touch tablets get compact CRM searches and serial scanner without hiding t
   assert.match(switcher,/admin-mobile-search-switch/);
   assert.match(css,/@media \(max-width: 1023px\), \(pointer: coarse\)/);
   assert.match(css,/admin-mobile-search-switch \+ div\[class\*="hidden"\]/);
-  assert.match(filters,/compactOrderSearchMedia/);
-  assert.match(filters,/\(pointer: coarse\)/);
+  assert.doesNotMatch(filters,/compactOrderSearchMedia/);
+  assert.match(filters,/hidden min-w-0 md:block/);
   assert.match(filters,/mobileOnly=\{false\}/);
   assert.match(equipment,/aria-label="Escanear número de série"/);
   assert.doesNotMatch(equipment,/!p-0 md:hidden/);
@@ -109,5 +109,27 @@ test("touch tablets get compact CRM searches and serial scanner without hiding t
   assert.match(inbox,/xl:flex-nowrap/);
   for(const [name,code] of [["OrdersFilters",filters],["OrderEquipmentSection",equipment],["UnionWhatsAppInboxPage",inbox]]){
     assert.ok((await transformWithEsbuild(code,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
+
+
+test("shared search starts compact and expands existing filters without changing data", async () => {
+  const panel=read("src/shared/ui/admin/AdminSearchPanel.tsx");
+  const orders=read("src/features/orders/presentation/OrdersFilters.tsx");
+  assert.match(panel,/const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.match(panel,/aria-expanded=\{isExpanded\} aria-controls=\{panelId\}/);
+  assert.match(panel,/cloneElement\(compact, \{ mobileOnly: false \}\)/);
+  assert.match(panel,/expanded \? showExpandedSearch\(child\) : null/);
+  assert.match(panel,/setExpanded\(value => !value\)/);
+  assert.match(panel,/selectedField.content/);
+  assert.doesNotMatch(orders,/compactSearch \?/);
+  for(const path of [
+    "src/features/sales/presentation/SalesOrdersPage.tsx",
+    "src/features/sales/presentation/SalesProposalsPage.tsx",
+    "src/features/finance/presentation/FinanceMovementsSection.tsx",
+  ]){
+    const source=read(path);
+    assert.match(source,/<AdminSearchPanel title="[^"]+" fields=\{\[/);
+    assert.ok((await transformWithEsbuild(source,path,{loader:"tsx"})).code,path);
   }
 });
