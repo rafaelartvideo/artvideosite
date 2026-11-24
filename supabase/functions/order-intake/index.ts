@@ -229,13 +229,18 @@ Deno.serve(async(req)=>{
       return q;
     };
     let scope=scoped("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name,bound_customer_id");
+    const activeIntakes=(query:ReturnType<typeof scoped>)=>query.or("status.in.(received,submitting),and(status.in.(sent,filling),expires_at.gt."+new Date().toISOString()+")");
+    if(action==="active_count"){
+      const active=await activeIntakes(scoped("id",{count:"exact",head:true}));check(active);
+      return json({active:active.count||0});
+    }
     if(action==="list"){
       if(body.conversation_id&&!uuid(body.conversation_id))throw new InputError("Conversa inválida.");
       const filter=(q:any)=>body.conversation_id?q.eq("conversation_id",body.conversation_id):q;
       const page=Math.max(0,Math.min(10000,Math.trunc(Number(body.page)||0)));
       const [result,active,completed]=await Promise.all([
         filter(scoped("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,phone,customer_name:payload->>name,bound_customer_id",{count:"exact"})).order("created_at",{ascending:false}).range(page*25,page*25+24),
-        filter(scoped("id",{count:"exact",head:true})).or("status.in.(received,submitting),and(status.in.(sent,filling),expires_at.gt."+new Date().toISOString()+")"),
+        activeIntakes(filter(scoped("id",{count:"exact",head:true}))),
         filter(scoped("id",{count:"exact",head:true})).eq("status","converted")
       ]);
       const rows=check(result)||[];check(active);check(completed);
