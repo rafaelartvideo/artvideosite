@@ -1,10 +1,11 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server, Copy } from "lucide-react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server, Copy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { UnionWhatsAppEnginePage } from "./UnionWhatsAppEnginePage";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { ManagementTrashDialog } from "./ManagementTrashDialog";
+import { AdminInlineSearch } from "@/shared/ui/admin/AdminInlineSearch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -424,9 +425,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       </div>
       <div className="p-4 sm:p-5">
         {selectedSpace&&<div className="relative mb-5 max-w-lg">
-          <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar em todas as pastas..."
-            className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"/>
+          <AdminInlineSearch value={search} onChange={setSearch} placeholder="Buscar em todas as pastas..." ariaLabel="Buscar registros da Central de Gestão"/>
         </div>}
         {selectedSpace&&search.trim().length>=3&&<div className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
