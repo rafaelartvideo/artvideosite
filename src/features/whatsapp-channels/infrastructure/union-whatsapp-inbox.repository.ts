@@ -415,7 +415,7 @@ async function listLiveUnionWhatsAppMessages(
 // The setting is a routing switch, not an authorization mechanism. RLS and the
 // exact bound identity are always checked by the Edge Function.
 export function isUnifiedHistoryPilotEnabled(organizationId:string):boolean{
-  return String(import.meta.env.VITE_UNION_HISTORY_PILOT_ORGANIZATIONS||"").split(",").map(v=>v.trim()).includes(organizationId);
+  return String(import.meta.env?.VITE_UNION_HISTORY_PILOT_ORGANIZATIONS||"").split(",").map(v=>v.trim()).includes(organizationId);
 }
 export async function listUnionWhatsAppMessages(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
