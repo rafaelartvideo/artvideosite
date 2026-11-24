@@ -46,6 +46,7 @@ export function openArchiveStore(filename,read){
     "CREATE INDEX IF NOT EXISTS history_messages_protocol ON history_messages(job_id,contact_key,protocol_id,sent_micros DESC,id DESC)",
     "CREATE TABLE IF NOT EXISTS history_protocols(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,id TEXT NOT NULL,opened_micros INTEGER NOT NULL,body TEXT NOT NULL,PRIMARY KEY(job_id,contact_key,id),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
     "CREATE INDEX IF NOT EXISTS history_protocols_page ON history_protocols(job_id,contact_key,opened_micros DESC,id DESC)",
+    "CREATE TABLE IF NOT EXISTS history_assets(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,id TEXT NOT NULL,kind TEXT NOT NULL,available INTEGER NOT NULL,metadata TEXT NOT NULL,PRIMARY KEY(job_id,contact_key,id),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
     "CREATE TABLE IF NOT EXISTS history_index_ready(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,PRIMARY KEY(job_id,contact_key),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))"
   ].join(";")+";");
   const tx=fn=>{db.exec("BEGIN IMMEDIATE");try{const result=fn();db.exec("COMMIT");return result}catch(e){db.exec("ROLLBACK");throw e}};
@@ -127,11 +128,13 @@ export function openArchiveStore(filename,read){
       state(j.id,"running");return {j,e};
     });
     if(!claim)return false;if(claim.settled)return true;
-    const {j,e}=claim;let verifiedMetadata=null,projected=null,protocols=null;
+    const {j,e}=claim;let verifiedMetadata=null,projected=null,protocols=null,assets=null;
     try{
       const metadata=JSON.parse(e.metadata), payload=readPayload(j.package_id,metadata);
       const name=typeof payload.contact.display_name==="string"?payload.contact.display_name.slice(0,200):"";
       projected=projectHistorical(payload,{organizationId:j.organization_id,conversationId:null});
+      // Preserve private manifests for both linked and independently recovered attachments.
+      assets=payload.media.map(m=>({id:m.url_sha256,kind:typeof m.type==="string"?m.type:"unknown",available:m.available===true,mime:typeof m.mime==="string"?m.mime:"",size_bytes:m.available?m.size_bytes:null,sha256:m.available?m.sha256:null,rclone_relative_key:m.available?m.rclone_relative_key:null,original_at:typeof m.original_at==="string"&&Number.isFinite(Date.parse(m.original_at))?m.original_at:null,linked_to_message:m.linked_to_message===true}));
       const ids=new Set(),counts=new Map();
       for(const m of projected)counts.set(m.protocol_id,(counts.get(m.protocol_id)||0)+1);
       protocols=payload.protocols.map(p=>{
@@ -149,11 +152,13 @@ export function openArchiveStore(filename,read){
       const current=job(j.id,j.organization_id);
       if(current.state==="pausing"||current.state==="cancelling"){state(j.id,current.state==="pausing"?"paused":"cancelled");return}
       if(current.state!=="running")return;
-      if(!verifiedMetadata||!projected||!protocols){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
+      if(!verifiedMetadata||!projected||!protocols||!assets){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
       const insert=db.prepare("INSERT INTO history_messages VALUES (?,?,?,?,?,?)");
       const insertProtocol=db.prepare("INSERT INTO history_protocols VALUES (?,?,?,?,?)");
       for(const m of projected)insert.run(j.id,e.contact_key,m.id,timestampMicros(m.sent_at),m.protocol_id,JSON.stringify(m));
       for(const p of protocols)insertProtocol.run(j.id,e.contact_key,p.id,p.opened_at?timestampMicros(p.opened_at):0n,JSON.stringify(p));
+      const insertAsset=db.prepare("INSERT INTO history_assets VALUES (?,?,?,?,?,?)");
+      for(const a of assets)insertAsset.run(j.id,e.contact_key,a.id,a.kind,a.available?1:0,JSON.stringify(a));
       db.prepare("INSERT INTO history_index_ready VALUES (?,?)").run(j.id,e.contact_key);
       db.prepare("UPDATE entries SET state='verified',metadata=? WHERE job_id=? AND contact_key=? AND state='pending'").run(verifiedMetadata,j.id,e.contact_key);
       state(j.id,"queued");
@@ -193,6 +198,22 @@ export function openArchiveStore(filename,read){
     if(matches.length!==1)return null;
     return readPayload(matches[0].package_id,JSON.parse(matches[0].metadata));
   }
+  function boundIndex({organizationId,accountPhone,contactPhone,contactId}){
+    const destination=validateDestination(organizationId,accountPhone);
+    if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(contactId||"")||!/^[1-9][0-9]{9,14}$/.test(contactPhone||""))throw Error("Identidade inválida.");
+    const matches=db.prepare("SELECT b.job_id,b.contact_key,r.contact_key AS ready FROM bindings b JOIN jobs j ON j.id=b.job_id JOIN entries e ON e.job_id=b.job_id AND e.contact_key=b.contact_key LEFT JOIN history_index_ready r ON r.job_id=b.job_id AND r.contact_key=b.contact_key WHERE b.organization_id=? AND j.organization_id=? AND b.account_phone=? AND j.account_phone=? AND b.contact_id=? AND b.phone=? AND e.phone=? AND e.state='verified' AND j.state='completed' LIMIT 2").all(destination.organizationId,destination.organizationId,accountPhone,accountPhone,contactId,contactPhone,contactPhone);
+    if(matches.length===0)return null;
+    if(matches.length!==1||!matches[0].ready)throw Error("Índice indisponível; revisão necessária.");
+    return matches[0];
+  }
+  // Internal manifest resolution only. Never return this object to HTTP clients.
+  function assetBound(scope,assetId){
+    if(typeof assetId!=="string"||!/^[a-f0-9]{64}$/.test(assetId))throw Error("Anexo inválido.");
+    const bound=boundIndex(scope);
+    if(!bound)return null;
+    const row=db.prepare("SELECT metadata FROM history_assets WHERE job_id=? AND contact_key=? AND id=? AND available=1").get(bound.job_id,bound.contact_key,assetId);
+    return row?JSON.parse(row.metadata):null;
+  }
   // Scope is supplied ONLY by a server that has authorized the exact conversation.
   // Read pages from local indexed rows: no R2 reads or full-contact decompression.
   function pageBound({organizationId,accountPhone,contactPhone,contactId,conversationId,before=null,protocolId=null,limit=60,kind="messages"}){
@@ -200,10 +221,9 @@ export function openArchiveStore(filename,read){
     const uuid=v=>typeof v==="string"&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
     if(!uuid(contactId)||!uuid(conversationId)||!/^[1-9][0-9]{9,14}$/.test(contactPhone||"")||!Number.isSafeInteger(limit)||limit<1||limit>100||!["messages","protocols"].includes(kind)||protocolId!==null&&!uuid(protocolId)||before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"))throw Error("Página inválida.");
     const cutoff=before===null?null:timestampMicros(before.sent_at);
-    const matches=db.prepare("SELECT b.job_id,b.contact_key,r.contact_key AS ready FROM bindings b JOIN jobs j ON j.id=b.job_id JOIN entries e ON e.job_id=b.job_id AND e.contact_key=b.contact_key LEFT JOIN history_index_ready r ON r.job_id=b.job_id AND r.contact_key=b.contact_key WHERE b.organization_id=? AND j.organization_id=? AND b.account_phone=? AND j.account_phone=? AND b.contact_id=? AND b.phone=? AND e.phone=? AND e.state='verified' AND j.state='completed' LIMIT 2").all(destination.organizationId,destination.organizationId,accountPhone,accountPhone,contactId,contactPhone,contactPhone);
-    if(matches.length===0)return {items:[],hasMore:false,nextCursor:null};
-    if(matches.length!==1||!matches[0].ready)throw Error("Índice indisponível; revisão necessária.");
-    const {job_id,contact_key}=matches[0], time=kind==="messages"?"sent_micros":"opened_micros", table=kind==="messages"?"history_messages":"history_protocols";
+    const bound=boundIndex({organizationId:destination.organizationId,accountPhone,contactPhone,contactId});
+    if(!bound)return {items:[],hasMore:false,nextCursor:null};
+    const {job_id,contact_key}=bound, time=kind==="messages"?"sent_micros":"opened_micros", table=kind==="messages"?"history_messages":"history_protocols";
     if(kind==="protocols"&&protocolId!==null)throw Error("Filtro inválido.");
     let sql="SELECT body FROM "+table+" WHERE job_id=? AND contact_key=?";
     const params=[job_id,contact_key];
@@ -230,5 +250,5 @@ export function openArchiveStore(filename,read){
     if(matches.length>1)throw Error("Contato exige revisão.");
     return matches.length===1?readPayload(matches[0].package_id,JSON.parse(matches[0].metadata)):null;
   }
-  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,close:()=>db.close()};
+  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,assetBound,close:()=>db.close()};
 }
