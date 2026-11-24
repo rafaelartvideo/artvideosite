@@ -43,7 +43,7 @@ export async function sendOrderSignatureViaUnionWhatsApp(input: {
       service_order_id: orderId,
       ...(recipient.kind === "linked"
         ? { linked_conversation_id: recipient.conversation_id }
-        : { registered_phone_field: recipient.field || "whatsapp" }),
+        : { registered_phone_field: recipient.field || "whatsapp", entity_contact_id: recipient.entity_contact_id }),
     },
   );
   const clientMessageId = crypto.randomUUID();
