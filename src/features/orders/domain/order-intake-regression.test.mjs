@@ -162,3 +162,27 @@ test("token recuperável não muda entre chamadas e é isolado por empresa e sol
  assert.ok(api.includes("await hash(match[1])===row.token_hash"));
  assert.ok(api.includes('client.from("union_whatsapp_messages")'));
 });
+
+test("wizard público tem erros locais, fotos por categoria, revisão e uma preparação para Nova OS",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+ assert.ok(page.includes("aria-invalid={Boolean(fieldErrors[key])}"));
+ assert.ok(page.includes('inlineError("type_id")'));
+ assert.ok(page.includes('inlineError("problem")'));
+ assert.ok(page.includes('errors.problemPhoto'));
+ assert.ok(page.includes('capture="environment"'));
+ assert.ok(page.includes("cameraInput.current?.click()"));
+ assert.ok(page.includes("fileInput.current?.click()"));
+ assert.ok(page.includes("pending.replaceUrl?p.map"));
+ assert.ok(page.includes('role="dialog" aria-modal="true"'));
+ assert.ok(!page.includes('photoButton("equipment"'));
+ assert.ok(page.includes('reviewField("Marca"'));
+ assert.ok(page.includes('reviewField("Descrição do problema"'));
+ assert.ok(page.lastIndexOf('photoButton("problem"')<page.indexOf("Confirmo os dados"));
+ assert.ok(page.includes("company_logo_url"));
+ assert.ok(api.includes("company_logo_url:companyLogo"));
+ assert.ok(api.includes('.eq("organization_id",org.id).eq("id",logoId)'));
+ assert.ok(inbox.includes("fallback={newOrder.intake?null:"));
+ assert.ok(inbox.includes("if(intakeContext)void loadEmbeddedNewOrder()"));
+});
