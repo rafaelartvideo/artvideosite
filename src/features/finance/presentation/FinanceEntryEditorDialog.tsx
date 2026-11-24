@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, FileText, ScanLine, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { buildMonthlyInstallments } from "../domain/finance-entry.mjs";
 import type {
@@ -14,7 +14,8 @@ import type {
   FinancialInstallmentDraft,
   FinancialPaymentMethod,
 } from "../domain/finance.types";
-import type { FinancialCounterparty } from "../infrastructure/finance-entries.repository";
+import { searchFinancialCounterparties, type FinancialCounterparty } from "../infrastructure/finance-entries.repository";
+import { scanExpenseDocument, expenseAttachmentType, suggestedPaymentType, type ExpenseScan, type ExpenseSource } from "../infrastructure/expense-scan.repository";
 import { AdminFieldLabel, FCurrencyInput, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -56,11 +57,11 @@ export function FinanceEntryEditorDialog({
   paymentMethods: FinancialPaymentMethod[];
   saving: boolean;
   onClose: () => void;
-  onSave: (draft: FinancialEntryDraft) => Promise<void>;
+  onSave: (draft: FinancialEntryDraft, source?: ExpenseSource) => Promise<void>;
   /** Renderiza o editor dentro do extrato, sem abrir outro modal sobre ele. */
   embedded?: boolean;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
   const recurring = useFinanceRecurring(false);
   const [accountType, setAccountType] = useState<"single" | "recurring">("single");
   const [frequency, setFrequency] = useState<FinancialRecurringFrequency>("monthly");
@@ -91,11 +92,14 @@ export function FinanceEntryEditorDialog({
   const [firstDueDate, setFirstDueDate] = useState(today());
   const [categoryId, setCategoryId] = useState("");
   const [paymentPlan, setPaymentPlan] = useState<Array<{payment_method_id:string;amount:string}>>([]);
+  const [scanBusy,setScanBusy]=useState(false),[scanMenu,setScanMenu]=useState(false),[scanError,setScanError]=useState(""),[scanResult,setScanResult]=useState<ExpenseScan|null>(null),[scanFile,setScanFile]=useState<File|null>(null),[paidExpense,setPaidExpense]=useState(false);
+  const scanCamera=useRef<HTMLInputElement>(null),scanPicker=useRef<HTMLInputElement>(null),scanSeq=useRef(0),scanGate=useRef(false);
+  useEffect(()=>{scanSeq.current++;setScanBusy(false);scanGate.current=false;setScanResult(null);setScanFile(null);setScanError("");setScanMenu(false);setPaidExpense(false);return()=>{scanSeq.current++;};},[open,activeOrganizationId,initial]);
   const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string; paymentPlan?: string }>({});
 
   const numericAmount = Number(amount || 0);
   const isRecurring = entryType === "payable" && !initial && accountType === "recurring";
-  const busy = saving || recurring.saveMutation.isPending || recurring.generateMutation.isPending;
+  const busy = saving || scanBusy || recurring.saveMutation.isPending || recurring.generateMutation.isPending;
   const title = entryType === "receivable" ? "Conta a receber" : "Conta a pagar";
   const counterpartLabel = entryType === "receivable" ? "Cliente / pagador" : "Fornecedor / favorecido";
   const selectedCounterpart = useMemo(
@@ -180,7 +184,35 @@ export function FinanceEntryEditorDialog({
     if (match) setSelectedCounterpartSnapshot(match);
   };
 
+  const runScan=async(file:File)=>{
+    if(!activeOrganizationId||scanGate.current||busy||initial||entryType!=="payable")return;
+    const org=activeOrganizationId,seq=++scanSeq.current;
+    scanGate.current=true;setScanBusy(true);setScanMenu(false);setScanError("");
+    try{
+      const active=categories.filter(c=>c.is_active&&c.nature==="expense");
+      const result=await scanExpenseDocument(org,file,active.map(c=>c.name));
+      if(seq!==scanSeq.current)return;
+      const digits=result.document.replace(/\D/g,"");
+      let match:FinancialCounterparty|undefined;
+      if(digits.length===11||digits.length===14){try{const found=await searchFinancialCounterparties(org,"payable",digits);const exact=found.filter(c=>c.document?.replace(/\D/g,"")===digits);if(exact.length===1)match=exact[0];}catch{/* fornecedor é opcional */}}
+      if(seq!==scanSeq.current)return;
+      setScanResult(result);setScanFile(file);setFieldErrors({});setPaidExpense(result.paid===true&&hasPermission("finance.settlements.create"));
+      if(result.description)setDescription(result.description);
+      if(result.amount!=null)setAmount(String(result.amount));
+      else setAmount("");
+      if(result.issue_date){setIssueDate(result.issue_date);setCompetenceDate(result.issue_date);}
+      if(result.due_date||result.issue_date)setFirstDueDate(result.due_date||result.issue_date!);
+      const category=active.find(c=>c.name===result.category);if(category)setCategoryId(category.id);
+      setCounterpartId(match?.id||"");setSelectedCounterpartSnapshot(match||null);setCounterpartName(match?.name||result.supplier);setCounterpartDocument(match?.document||digits);onCounterpartySearchChange(match?.name||result.supplier);
+      const methodType=suggestedPaymentType(result.payment);const methods=paymentMethods.filter(m=>m.is_active&&m.method_type===methodType);
+      setPaymentPlan(methods.length===1&&result.amount!=null?[{payment_method_id:methods[0].id,amount:String(result.amount)}]:[]);
+      setNotes(current=>[current.trim(),result.reference?"Referência do documento: "+result.reference:""].filter(Boolean).join("\n"));
+      setInstallmentCount(1);
+    }catch(error){if(seq===scanSeq.current)setScanError(systemErrorMessage(error,"Não foi possível ler o documento."));}
+    finally{if(seq===scanSeq.current){scanGate.current=false;setScanBusy(false);}}
+  };
   const save = async () => {
+    if(busy)return;
     const sameAmount = Boolean(initial && Math.round(Number(initial.original_amount) * 100) === Math.round(numericAmount * 100));
     const preserveInstallments = Boolean(sameAmount && initial && installmentCount === initial.installments.length && firstDueDate === initial.installments[0]?.due_date);
     const installments: FinancialInstallmentDraft[] = preserveInstallments
@@ -248,7 +280,7 @@ export function FinanceEntryEditorDialog({
         counterpart_name: (counterpartId ? counterpartName : counterpartySearch).trim() || null, counterpart_document: counterpartDocument.trim() || null,
         notes: notes.trim() || null, installments, allocations,
         payment_plan: paymentPlan.map(item => ({payment_method_id:item.payment_method_id,amount:Number(item.amount)})),
-      });
+      }, !initial&&entryType==="payable"&&scanFile&&scanResult?{file:scanFile,attachmentType:expenseAttachmentType(scanResult.kind),openSettlement:paidExpense&&hasPermission("finance.settlements.create")}:undefined);
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, `Não foi possível salvar a ${title.toLocaleLowerCase("pt-BR")}.`), "error");
     }
@@ -270,8 +302,16 @@ export function FinanceEntryEditorDialog({
   ];
 
   const editorFields = <div className="space-y-5">
+      {entryType==="payable"&&!initial&&accountType==="single"&&<div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="flex items-center gap-2 text-sm font-bold"><ScanLine size={18} className="text-primary"/> Digitalização inteligente</p><p className="mt-1 text-xs text-muted-foreground">Fotografe um recibo, boleto ou nota fiscal. Preenchemos os dados para você conferir.</p></div><AdminButton variant="primary" loading={scanBusy} loadingText="Identificando..." disabled={busy} onClick={()=>setScanMenu(v=>!v)}><Camera size={16}/> {scanResult?"Trocar documento":"Digitalizar"}</AdminButton></div>
+        <input ref={scanCamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value="";if(f)void runScan(f);}}/>
+        <input ref={scanPicker} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.xml" className="hidden" onChange={e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value="";if(f)void runScan(f);}}/>
+        {scanMenu&&<div className="flex flex-wrap gap-2"><AdminButton variant="secondary" onClick={()=>scanCamera.current?.click()}><Camera size={16}/> Abrir câmera</AdminButton><AdminButton variant="secondary" onClick={()=>scanPicker.current?.click()}><FileText size={16}/> Selecionar foto, PDF ou XML</AdminButton></div>}
+        {scanError&&<p role="alert" className="text-xs text-destructive">{scanError} O preenchimento manual continua disponível.</p>}
+        {scanResult&&<div className="space-y-2 rounded-md border border-border bg-card p-3"><p className="flex items-center gap-2 text-sm font-semibold"><FileText size={16} className="text-primary"/><span className="min-w-0 truncate">{scanFile?.name}</span></p><p className="text-xs text-muted-foreground">{scanResult.amount==null?"Valor não identificado. Informe o valor.":"Confira os dados preenchidos abaixo."} {scanResult.warning}</p>{!hasPermission("finance.documents.manage")&&<p className="text-xs text-amber-600">Seu perfil pode digitalizar, mas não anexar documentos.</p>}{hasPermission("finance.settlements.create")&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" checked={paidExpense} onChange={e=>setPaidExpense(e.target.checked)}/> Já paguei — abrir baixa após salvar</label>}<button type="button" className="text-xs font-semibold text-muted-foreground underline" onClick={()=>{setScanFile(null);setScanResult(null);setPaidExpense(false);}}>Desvincular documento</button></div>}
+      </div>}
       <div className="grid gap-4 sm:grid-cols-2">
-        {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value={accountType} options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => setAccountType(event.target.value)} /></div>}
+        {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value={accountType} options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => {setAccountType(event.target.value);if(event.target.value==="recurring"){setScanFile(null);setScanResult(null);setPaidExpense(false);}}} /></div>}
         <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
         <FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} />
         <FSelect label="Categoria" required value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
@@ -353,7 +393,7 @@ export function FinanceEntryEditorDialog({
     <AdminButton variant="secondary" onClick={onClose} disabled={busy}>
       {embedded ? <><ArrowLeft size={16} /> Voltar</> : "Cancelar"}
     </AdminButton>
-    <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">Salvar</AdminButton>
+    <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">{paidExpense&&scanResult&&accountType==="single"?"Salvar e dar baixa":"Salvar"}</AdminButton>
   </div>;
   return <>
     {embedded ? <section aria-label="Editar lançamento" className="min-w-0 space-y-5">
