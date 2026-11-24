@@ -9,6 +9,7 @@ import {
   useOptionalAdminDialogManager,
 } from "@/shared/ui/admin/AdminDialogManager";
 import { cn } from "./utils";
+import { usePortalContainer } from "./portal-container";
 import { dialogSizingClass, resolveDialogModalMode } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
 
 type DialogRuntimeValue = {
@@ -88,7 +89,8 @@ function DialogTrigger({
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  const container = usePortalContainer();
+  return <DialogPrimitive.Portal data-slot="dialog-portal" container={container} {...props} />;
 }
 
 function DialogClose({
