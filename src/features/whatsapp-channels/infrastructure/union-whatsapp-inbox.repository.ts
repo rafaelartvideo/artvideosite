@@ -415,11 +415,11 @@ async function listLiveUnionWhatsAppMessages(
 // The setting is a routing switch, not an authorization mechanism. RLS and the
 // exact bound identity are always checked by the Edge Function.
 export function isUnifiedHistoryPilotEnabled(organizationId:string):boolean{
-  // The installed pilot is authorized only for Artvideo. An explicit build
+  // The initial pilot is routed only for the Teste organization. An explicit build
   // override (including an empty value) can disable or change the routing.
   const env=import.meta.env;
   if(!env)return false;
-  const allowed=env.VITE_UNION_HISTORY_PILOT_ORGANIZATIONS??"00000000-0000-4000-8000-000000000001";
+  const allowed=env.VITE_UNION_HISTORY_PILOT_ORGANIZATIONS??"5bcd7ec7-38f0-4dda-a84c-10429bd46b23";
   return String(allowed).split(",").map(v=>v.trim()).filter(Boolean).includes(organizationId);
 }
 export async function listUnionWhatsAppMessages(
