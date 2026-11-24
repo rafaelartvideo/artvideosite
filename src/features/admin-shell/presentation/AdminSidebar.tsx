@@ -40,6 +40,7 @@ export function AdminSidebar({
     if ((tab === "site" || tab === "quotes" || parentAdminTab(tab) === "site") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
     // Ver no modal do Painel do Técnico não libera a rota completa da Agenda.
+    if (tab === "customers") return hasPermission("customers.view") && hasPermission("customers.menu.view") && isAdminModuleEnabled(tab, hasModule);
     if (tab === "agenda") return hasPermission("agenda.view") && hasPermission("agenda.menu.view")
       && isAdminModuleEnabled(tab, hasModule);
     if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
