@@ -1,6 +1,6 @@
 import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server, Copy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { UnionWhatsAppEnginePage } from "./UnionWhatsAppEnginePage";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
@@ -34,6 +34,20 @@ function formatFileSize(size:number|null) {
   if(size<1024) return `${size} B`;
   return size<1048576 ? `${(size/1024).toFixed(1)} KB` : `${(size/1048576).toFixed(1)} MB`;
 }
+function formatDetailDate(value:unknown) {
+  if(typeof value!=="string")return "";
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match?`${match[3]}/${match[2]}/${match[1]}`:value;
+}
+function RecordDetail({label,value,action}:{label:string;value?:string|null;action?:ReactNode}) {
+  return <div className="min-w-0 space-y-1">
+    <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+    <div className="flex min-w-0 items-center gap-2">
+      <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-foreground">{value||"—"}</p>
+      {action}
+    </div>
+  </div>;
+}
 export function ManagementPage({spaceId,folderId,onRouteChange}:{
   spaceId?:string|null;folderId?:string|null;
   onRouteChange:(spaceId:string|null,folderId?:string|null)=>void;
@@ -65,9 +79,13 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [metadata,setMetadata]=useState<Record<string,string>>({});
   const [newSecret,setNewSecret]=useState("");
   const [showSecret,setShowSecret]=useState(false);
-  const [vaultRecord,setVaultRecord]=useState<ManagementRecord|null>(null);
-  const [vaultValue,setVaultValue]=useState<string|null>(null);
-  const [vaultLoading,setVaultLoading]=useState(false);
+  const [detailSelection,setDetailSelection]=useState<{record:ManagementRecord;organizationId:string|undefined;spaceId:string|null|undefined;folderId:string|null|undefined}|null>(null);
+  const detailRecord=detailSelection&&detailSelection.organizationId===activeOrganization?.id&&detailSelection.spaceId===spaceId&&detailSelection.folderId===folderId?detailSelection.record:null;
+  const [detailSecret,setDetailSecret]=useState<string|null>(null);
+  const [detailSecretLoading,setDetailSecretLoading]=useState(false);
+  const [detailSecretError,setDetailSecretError]=useState(false);
+  const [detailSecretVisible,setDetailSecretVisible]=useState(true);
+  const [detailSecretRetry,setDetailSecretRetry]=useState(0);
   const [versionsRecord,setVersionsRecord]=useState<ManagementRecord|null>(null);
   const [versions,setVersions]=useState<ManagementFileVersion[]>([]);
   const [versionsLoading,setVersionsLoading]=useState(false);
@@ -252,6 +270,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     setDialog("folder");
   };
   const openRecord=(record?:ManagementRecord)=>{
+    if(!canManage)return;
     resetForm();if(record){
       if(record.kind==="file")return;
       setEditingRecord(record);setName(record.title);setDescription(record.description);setKind(record.kind);
@@ -273,8 +292,11 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       } else if(dialog==="folder"&&spaceId){
         if(editingFolder)await renameManagementFolder(editingFolder.id,name.trim());
         else await createManagementFolder(spaceId,visibleFolderId,name.trim());
-      } else if(dialog==="record"&&spaceId&&visibleFolderId){
-        const recordId=await saveManagementRecord({id:editingRecord?.id,space_id:spaceId,folder_id:visibleFolderId,
+      } else if(dialog==="record"){
+        const targetSpaceId=editingRecord?.space_id||spaceId;
+        const targetFolderId=editingRecord?.folder_id||visibleFolderId;
+        if(!targetSpaceId||!targetFolderId)throw new Error("Selecione uma pasta para salvar o registro.");
+        const recordId=await saveManagementRecord({id:editingRecord?.id,space_id:targetSpaceId,folder_id:targetFolderId,
           title:name.trim(),kind,description:description.trim(),url:url.trim()||null,
           metadata:kind==="account"?{username:accountUser.trim()}:
             kind==="website"||kind==="campaign"?metadata:{}});
@@ -316,19 +338,35 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   };
   const navigateFolder=(id:string|null)=>{setSearch("");onRouteChange(spaceId||null,id);};
   const setDetail=(key:string,value:string)=>setMetadata(current=>({...current,[key]:value}));
-  const openVault=(record:ManagementRecord)=>{setVaultRecord(record);setVaultValue(null);};
-  const closeVault=()=>{setVaultValue(null);setVaultRecord(null);};
+  const closeDetails=()=>{
+    setDetailSelection(null);setDetailSecret(null);setDetailSecretLoading(false);
+    setDetailSecretError(false);setDetailSecretVisible(true);
+  };
+  const openDetails=(record:ManagementRecord)=>{
+    if(record.kind==="file"){void openFile(record);return;}
+    setDetailSecret(null);setDetailSecretError(false);setDetailSecretVisible(true);
+    setDetailSecretLoading(record.kind==="account"&&canManage);
+    setDetailSelection({record,organizationId:activeOrganization?.id,spaceId,folderId});
+  };
   useEffect(()=>{
-    if(!vaultValue)return;
-    const timer=window.setTimeout(()=>setVaultValue(null),30_000);
-    return()=>window.clearTimeout(timer);
-  },[vaultValue]);
-  const revealVault=async()=>{
-    if(!vaultRecord||vaultLoading)return;
-    setVaultLoading(true);
-    try{setVaultValue(await revealManagementCredential(vaultRecord.id)||"Nenhuma senha cadastrada.");}
-    catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível acessar o cofre."),"error");}
-    finally{setVaultLoading(false);}
+    if(!detailRecord||detailRecord.kind!=="account"||!canManage){
+      setDetailSecret(null);setDetailSecretLoading(false);setDetailSecretError(false);
+      return;
+    }
+    let current=true;
+    setDetailSecret(null);setDetailSecretError(false);setDetailSecretLoading(true);
+    revealManagementCredential(detailRecord.id)
+      .then(secret=>{if(current)setDetailSecret(secret);})
+      .catch(()=>{if(current)setDetailSecretError(true);})
+      .finally(()=>{if(current)setDetailSecretLoading(false);});
+    return()=>{current=false;};
+  },[detailRecord,canManage,detailSecretRetry]);
+  useEffect(()=>{
+    if(!detailRecord)setDetailSelection(null);
+  },[detailRecord]);
+  const copyDetail=async(value:string)=>{
+    try{await navigator.clipboard.writeText(value);notifyAdmin("Copiado.");}
+    catch{notifyAdmin("Não foi possível copiar. Selecione o texto manualmente.","error");}
   };
   const openVersions=async(record:ManagementRecord)=>{
     setVersionsRecord(record);setVersions([]);setVersionsLoading(true);
@@ -393,7 +431,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         {selectedSpace&&search.trim().length>=3&&<div className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
           {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
-            onClick={()=>{setSearch("");onRouteChange(result.space_id,result.folder_id);}}>
+            onClick={()=>openDetails(result)}>
             <FileText size={15} className="text-primary"/><span className="min-w-0 flex-1 truncate font-semibold">{result.title}</span>
             <span className="text-muted-foreground">{spaces.find(sp=>sp.id===result.space_id)?.name||"Espaço"}</span>
           </button>)}
@@ -457,30 +495,29 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
               const Icon=record.kind==="website"?Globe:record.kind==="account"?KeyRound:record.kind==="campaign"?Megaphone:record.kind==="link"?Link2:record.kind==="file"?File:FileText;
               return <div key={record.id} className="flex min-w-0 items-center gap-3 border border-border bg-card p-3" draggable={canManage&&!moving}
                 onDragStart={event=>startDrag(event,{type:"record",id:record.id,name:record.title,currentParent:record.folder_id})} onDragEnd={endDrag}>
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={()=>openDetails(record)}>
                   <Icon size={24} className="shrink-0 text-muted-foreground"/>
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-foreground">{record.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">{record.kind==="file"?formatFileSize(record.size_bytes):record.description||record.url||"Registro"} · {formatDate(record.created_at)}</span>
                   </span>
                 </button>
                 {record.url&&/^https?:\/\//i.test(record.url)&&<a className="rounded p-2 text-xs font-semibold text-primary hover:underline" href={record.url} target="_blank" rel="noopener noreferrer">Abrir</a>}
-                {(canManage||record.kind==="file")&&<DropdownMenu>
+                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button type="button" className="shrink-0 p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       aria-label={`Opções do registro ${record.title}`}><MoreVertical size={17}/></button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" sideOffset={5} collisionPadding={10} className="z-[200] min-w-40 rounded-none border-border bg-popover shadow-xl">
-                    <DropdownMenuItem className="rounded-none" onSelect={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
-                      {record.kind==="file"?<Eye size={15}/>:<Pencil size={15}/>}
-                      {record.kind==="file"?"Abrir arquivo":"Editar registro"}
+                    <DropdownMenuItem className="rounded-none" onSelect={()=>openDetails(record)}>
+                      <Eye size={15}/>{record.kind==="file"?"Abrir arquivo":"Ver detalhes"}
                     </DropdownMenuItem>
+                    {canManage&&record.kind!=="file"&&<DropdownMenuItem className="rounded-none" onSelect={()=>openRecord(record)}><Pencil size={15}/>Editar registro</DropdownMenuItem>}
                     {record.kind==="file"&&<DropdownMenuItem className="rounded-none" onSelect={()=>void openVersions(record)}><Layers size={15}/>Versões</DropdownMenuItem>}
                     {canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openMove({type:"record",id:record.id,name:record.title,currentParent:record.folder_id})}><FolderInput size={15}/>Mover</DropdownMenuItem>}
-                    {record.kind==="account"&&canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openVault(record)}><KeyRound size={15}/>Cofre de acesso</DropdownMenuItem>}
                     {canManage&&<DropdownMenuSeparator/>}
                     {canManage&&<DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteRecord(record)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>}
                   </DropdownMenuContent>
-                </DropdownMenu>}
+                </DropdownMenu>
               </div>;
             })}
           </div>
@@ -535,14 +572,13 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
             <FInput label="Endereço / URL (opcional)" disabled={!canManage} value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://"/>}
           {kind==="account"&&<>
             <FInput label="Usuário ou e-mail da conta" disabled={!canManage} value={accountUser} onChange={e=>setAccountUser(e.target.value)}/>
-            <label className="block space-y-1 text-xs font-semibold text-foreground">Senha protegida (opcional)
+            <label className="block space-y-1 text-xs font-semibold text-foreground">Senha (opcional)
               <div className="flex gap-2"><input autoComplete="new-password" type={showSecret?"text":"password"} value={newSecret}
-                onChange={e=>setNewSecret(e.target.value)} maxLength={4096} placeholder={editingRecord?"Preencha somente para substituir":"Cadastrar no cofre"}
+                onChange={e=>setNewSecret(e.target.value)} maxLength={4096} placeholder={editingRecord?"Preencha somente para substituir":"Digite a senha"}
                 className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm"/>
                 <button type="button" aria-label={showSecret?"Ocultar senha":"Mostrar senha"} onClick={()=>setShowSecret(x=>!x)}
                   className="rounded-lg border border-border px-3">{showSecret?<EyeOff size={16}/>:<Eye size={16}/>}</button></div>
             </label>
-            <p className="text-xs text-muted-foreground">A senha é cifrada pelo Supabase Vault no servidor; nunca aparece em anotações, versões ou histórico. Apenas usuários com permissão de gestão podem revelá-la.</p>
           </>}
           {kind==="website"&&<div className="grid gap-3 sm:grid-cols-2">
             <FInput label="Registrador do domínio" value={metadata.registrar||""} onChange={e=>setDetail("registrar",e.target.value)}/>
@@ -572,14 +608,54 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         </>}
       </div>
     </AdminDialog>
-    <AdminDialog open={vaultRecord!==null} title={vaultRecord?"Cofre · "+vaultRecord.title:"Cofre"} onClose={closeVault}
-      footer={<AdminButton variant="secondary" onClick={closeVault}>Fechar</AdminButton>}>
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Revelação restrita a gestores da Union e registrada no histórico. O conteúdo é ocultado automaticamente após 30 segundos.</p>
-        {vaultValue!==null?<div role="status" className="break-all rounded-lg border border-border bg-muted p-3 font-mono text-sm text-foreground">{vaultValue}</div>
-          :<div className="py-3 text-center text-sm text-muted-foreground">Senha oculta</div>}
-        <AdminButton loading={vaultLoading} disabled={!canManage} onClick={()=>void revealVault()}><Eye size={15}/>Visualizar senha</AdminButton>
-      </div>
+    <AdminDialog open={detailRecord!==null} title={detailRecord?.title||"Detalhes do registro"} onClose={closeDetails} minimizable={false}
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" onClick={closeDetails}>Fechar</AdminButton>
+        {canManage&&detailRecord&&<AdminButton onClick={()=>{closeDetails();openRecord(detailRecord);}}><Pencil size={15}/>Editar</AdminButton>}
+      </div>}>
+      {detailRecord&&<div className="space-y-4" data-testid="management-record-details">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <RecordDetail label="Tipo de registro" value={TYPES.find(type=>type.value===detailRecord.kind)?.label||"Registro"}/>
+          <RecordDetail label="Criado em" value={formatDate(detailRecord.created_at)}/>
+          <RecordDetail label="Atualizado em" value={formatDate(detailRecord.updated_at)}/>
+          <RecordDetail label="Pasta" value={folders.find(folder=>folder.id===detailRecord.folder_id)?.name||"—"}/>
+        </div>
+        {detailRecord.kind!=="note"&&<RecordDetail label="Endereço / URL" value={detailRecord.url}
+          action={detailRecord.url&&/^https?:\/\//i.test(detailRecord.url)?<a className="shrink-0 text-xs font-semibold text-primary hover:underline" href={detailRecord.url} target="_blank" rel="noopener noreferrer">Abrir</a>:undefined}/>}
+        {detailRecord.kind==="account"&&<>
+          <RecordDetail label="Usuário ou e-mail" value={String(detailRecord.metadata?.username||"")}
+            action={detailRecord.metadata?.username?<button type="button" className="shrink-0 rounded p-2 text-muted-foreground hover:bg-muted" aria-label="Copiar usuário" onClick={()=>void copyDetail(String(detailRecord.metadata.username))}><Copy size={16}/></button>:undefined}/>
+          {canManage?<div className="space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">Senha</p>
+            {detailSecretLoading?<p className="text-sm text-muted-foreground">Carregando senha...</p>
+              :detailSecretError?<div className="flex flex-wrap items-center gap-2"><p className="text-sm text-muted-foreground">Não foi possível carregar a senha.</p><AdminButton size="sm" variant="secondary" onClick={()=>{setDetailSecretLoading(true);setDetailSecretRetry(n=>n+1);}}>Tentar novamente</AdminButton></div>
+              :detailSecret===null?<p className="text-sm text-muted-foreground">Nenhuma senha cadastrada.</p>
+              :<div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                <span className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-sm text-foreground">{detailSecretVisible?detailSecret:"••••••••"}</span>
+                <button type="button" className="shrink-0 rounded p-2 text-muted-foreground hover:bg-muted" aria-label={detailSecretVisible?"Ocultar senha":"Mostrar senha"} onClick={()=>setDetailSecretVisible(v=>!v)}>{detailSecretVisible?<EyeOff size={16}/>:<Eye size={16}/>}</button>
+                <button type="button" className="shrink-0 rounded p-2 text-muted-foreground hover:bg-muted" aria-label="Copiar senha" onClick={()=>void copyDetail(detailSecret)}><Copy size={16}/></button>
+              </div>}
+          </div>:<RecordDetail label="Senha" value="Acesso restrito"/>}
+        </>}
+        {detailRecord.kind==="website"&&<div className="grid gap-3 sm:grid-cols-2">
+          <RecordDetail label="Registrador do domínio" value={String(detailRecord.metadata?.registrar||"")}/>
+          <RecordDetail label="Hospedagem / provedor" value={String(detailRecord.metadata?.hosting||"")}/>
+          <RecordDetail label="Renovação do domínio" value={formatDetailDate(detailRecord.metadata?.renewal_date)}/>
+          <RecordDetail label="Vencimento SSL" value={formatDetailDate(detailRecord.metadata?.ssl_expires_at)}/>
+          <RecordDetail label="Valor da renovação (R$)" value={String(detailRecord.metadata?.renewal_amount||"")}/>
+          <RecordDetail label="DNS / observações técnicas" value={String(detailRecord.metadata?.dns||"")}/>
+        </div>}
+        {detailRecord.kind==="campaign"&&<div className="grid gap-3 sm:grid-cols-2">
+          <RecordDetail label="Plataforma" value={String(detailRecord.metadata?.platform||"")}/>
+          <RecordDetail label="Objetivo" value={String(detailRecord.metadata?.objective||"")}/>
+          <RecordDetail label="Início" value={formatDetailDate(detailRecord.metadata?.campaign_start)}/>
+          <RecordDetail label="Fim" value={formatDetailDate(detailRecord.metadata?.campaign_end)}/>
+          <RecordDetail label="Orçamento (R$)" value={String(detailRecord.metadata?.budget||"")}/>
+          <RecordDetail label="Situação" value={String(detailRecord.metadata?.campaign_status||"Planejada")}/>
+          <div className="sm:col-span-2"><RecordDetail label="Resultados / indicadores" value={String(detailRecord.metadata?.result||"")}/></div>
+        </div>}
+        <RecordDetail label="Descrição / observações" value={detailRecord.description}/>
+      </div>}
     </AdminDialog>
     <AdminDialog open={versionsRecord!==null} title={versionsRecord?"Versões · "+versionsRecord.title:"Versões"} onClose={()=>setVersionsRecord(null)}
       footer={<AdminButton variant="secondary" onClick={()=>setVersionsRecord(null)}>Fechar</AdminButton>}>
