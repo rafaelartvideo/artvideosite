@@ -34,7 +34,7 @@ Deno.serve(async(req)=>{
     if(action==="open"||action==="models"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
-      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,status,expires_at,upload_attempt,upload_started_at").eq("token_hash",await hash(token)).maybeSingle());
+      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at").eq("token_hash",await hash(token)).maybeSingle());
       if(!row||Date.parse(row.expires_at)<Date.now()||row.status==="cancelled")return json({error:"Link inválido ou expirado. Peça outro à assistência."},404);
       if(["received","converted"].includes(row.status))return json({status:"received"});
       // Recover only a lease older than the maximum Edge runtime. Use a CAS to
@@ -103,7 +103,7 @@ Deno.serve(async(req)=>{
           const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
           images.push({mediaId:media.id,path,kind,name:filename});
         }
-        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||null,address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
+        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||row.phone.replace(/^55(?=\d{10,11}$)/,""),address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:clean(p.model),serial:clean(p.serial)},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.
