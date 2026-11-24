@@ -51,6 +51,13 @@ export function WhatsAppAttendanceSettings({
   // Opening connections from channel configuration must return to that step,
   // while opening connections directly from the gear returns to the menu.
   const [sectionTrail,setSectionTrail]=useState<AttendanceSettingsSection[]>([]);
+  const [historyRetry,setHistoryRetry]=useState(0);
+  const historyKey=String(activeOrganizationId||"")+":"+historyRetry;
+  const [historyPreparation,setHistoryPreparation]=useState<{key:string;error:string|null}|null>(null);
+  const onHistoryPreparation=useCallback((error:string|null)=>setHistoryPreparation(previous=>previous?.key===historyKey&&previous.error===error?previous:{key:historyKey,error}),[historyKey]);
+  const historyReady=historyPreparation?.key===historyKey;
+  const preparingHistory=section==="history-imports"&&canViewImports&&!historyReady;
+  const historyError=section==="history-imports"&&canViewImports&&historyReady?historyPreparation.error:null;
   const [createRequest,setCreateRequest]=useState(0);
   const [canCreateConnection,setCanCreateConnection]=useState(false);
   const [canCreateDepartment,setCanCreateDepartment]=useState(false);
@@ -73,6 +80,7 @@ export function WhatsAppAttendanceSettings({
     setSectionTrail(current=>section?[...current,section]:[]);
     setCanCreateConnection(false);
     setCanCreateDepartment(false);
+    if(next==="history-imports")setHistoryRetry(value=>value+1);
     setSection(next);
   };
   const backToPrevious=()=>{
@@ -94,6 +102,7 @@ export function WhatsAppAttendanceSettings({
   };
   useEffect(()=>{
     if(open){
+      setHistoryRetry(value=>value+1);
       setSection(isSection(initialSection||null)?initialSection as AttendanceSettingsSection:null);
       setSectionTrail([]);
       inlineBackRef.current=null;
@@ -180,10 +189,16 @@ export function WhatsAppAttendanceSettings({
 
     <AdminDialog open={Boolean(section)} onClose={()=>{if(!inlinePane?.blocked)onClose();}}
       closable={!inlinePane?.blocked}
-      title={inlinePane?.title||active?.title||"Configurações"}
+      title={section==="history-imports"?<span className="flex items-center gap-2.5"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Database size={21}/></span>Importações de histórico</span>:inlinePane?.title||active?.title||"Configurações"}
+      minimizedTitle={section==="history-imports"?"Importações de histórico":undefined}
+      preparing={preparingHistory}
+      preparingKey={section==="history-imports"?section+":"+historyKey:section}
+      preparingText="Preparando importação..."
+      preparingError={historyError}
+      onRetryPreparing={()=>setHistoryRetry(value=>value+1)}
       description={inlinePane?.description??active?.description}
       transitionKey={section ? section+":"+(inlinePane?.key||"list") : null}
-      className={inlinePane?.compact ? "w-full max-w-xl" : "w-full max-w-5xl"}
+      className={inlinePane?.compact ? "w-full max-w-xl" : section==="history-imports"?"w-full max-w-6xl":"w-full max-w-5xl"}
       bodyClassName="min-h-0 max-h-[76dvh] overflow-y-auto"
       footer={<div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -221,7 +236,7 @@ export function WhatsAppAttendanceSettings({
                 footerTarget={footerTarget} embedded onInlinePaneChange={onInlinePaneChange}/>
             : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget} footerInParent/>
             : section==="hours" ? <WhatsAppBusinessCalendarSettings footerTarget={footerTarget} footerInParent/>
-            : section==="history-imports" ? <WhatsAppHistoryImports key={activeOrganizationId}/>
+            : section==="history-imports" ? <WhatsAppHistoryImports key={historyKey} onPreparationChange={onHistoryPreparation}/>
             : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded
                 footerTarget={footerTarget} onInlinePaneChange={onInlinePaneChange}/>}
       </div>}
