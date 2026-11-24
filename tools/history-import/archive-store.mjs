@@ -8,7 +8,7 @@ import { gunzipSync } from "node:zlib";
 import { chmodSync, lstatSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { projectHistorical,timestampMicros,historyId,normalizeArchiveTimestamp } from "./history-page.mjs";
-import { validatePackageId, validateDestination, validateIndex, validatePayload, nextJobState } from "./archive-contract.mjs";
+import { validatePackageId, validateDestination, validateIndex, validatePayload, nextJobState, packageContactLimit, BULK_INDEX_MAX_BYTES } from "./archive-contract.mjs";
 const sha=b=>createHash("sha256").update(b).digest("hex");
 const now=()=>new Date().toISOString();
 const packageRoot=id=>"sac-crypt:union-world-historico/piloto/"+validatePackageId(id)+"/";
@@ -48,6 +48,8 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     "CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, package_id TEXT NOT NULL UNIQUE REFERENCES grants(package_id), organization_id TEXT NOT NULL, account_phone TEXT NOT NULL, actor TEXT NOT NULL, state TEXT NOT NULL, total INTEGER NOT NULL, updated_at TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS entries(job_id TEXT NOT NULL REFERENCES jobs(id), contact_key TEXT NOT NULL, phone TEXT NOT NULL, metadata TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', PRIMARY KEY(job_id,contact_key))",
     "CREATE INDEX IF NOT EXISTS archive_lookup ON entries(phone,state,job_id)",
+    "CREATE INDEX IF NOT EXISTS archive_pending ON entries(job_id,state,contact_key)",
+    "CREATE TABLE IF NOT EXISTS bulk_runs(job_id TEXT PRIMARY KEY REFERENCES jobs(id),actor TEXT NOT NULL,state TEXT NOT NULL,after_key TEXT,processed INTEGER NOT NULL DEFAULT 0,created INTEGER NOT NULL DEFAULT 0,linked INTEGER NOT NULL DEFAULT 0,bound INTEGER NOT NULL DEFAULT 0,review INTEGER NOT NULL DEFAULT 0,renamed INTEGER NOT NULL DEFAULT 0,started_at TEXT NOT NULL,updated_at TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), actor TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS bindings(organization_id TEXT NOT NULL, account_phone TEXT NOT NULL, contact_id TEXT NOT NULL, phone TEXT NOT NULL, job_id TEXT NOT NULL, contact_key TEXT NOT NULL, actor TEXT NOT NULL, confirmed_at TEXT NOT NULL, PRIMARY KEY(job_id,contact_key), FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
     "CREATE INDEX IF NOT EXISTS history_bindings_lookup ON bindings(organization_id,account_phone,contact_id,phone)",
@@ -76,7 +78,7 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     if(old&&old.organization_id!==org)throw Error("Pacote já vinculado a outra empresa.");
     if(!old){
       const summary=JSON.parse(read(packageId,"resumo-seguro.json",65536).toString("utf8"));
-      if(summary.package_id!==packageId||summary.stage!=="union_history_pilot_packaging"||summary.version!==1||!Number.isInteger(summary.contacts)||summary.contacts<1||summary.contacts>100)throw Error("Pacote privado não reconhecido.");
+      if(summary.package_id!==packageId||!packageContactLimit(summary)||!Number.isInteger(summary.contacts)||summary.contacts<1||summary.contacts>packageContactLimit(summary))throw Error("Pacote privado não reconhecido.");
     }
     db.prepare("INSERT INTO grants VALUES (?,?,?,?) ON CONFLICT(package_id) DO NOTHING").run(packageId,org,actor,now());
     if(db.prepare("SELECT organization_id FROM grants WHERE package_id=?").get(packageId)?.organization_id!==org)throw Error("Pacote já vinculado a outra empresa.");
@@ -88,7 +90,7 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     const existing=db.prepare("SELECT id,account_phone FROM jobs WHERE package_id=?").get(packageId);
     if(existing){if(existing.account_phone!==accountPhone)throw Error("Pacote já associado a outra conta.");return existing.id}
     const summary=JSON.parse(read(packageId,"resumo-seguro.json",65536).toString("utf8"));
-    const rows=read(packageId,"indice-privado.jsonl",2*1024*1024).toString("utf8").split(/\r?\n/).filter(Boolean).map(JSON.parse);
+    const rows=read(packageId,"indice-privado.jsonl",summary.stage==="union_history_bulk_packaging"?BULK_INDEX_MAX_BYTES:2*1024*1024).toString("utf8").split(/\r?\n/).filter(Boolean).map(JSON.parse);
     const index=validateIndex(rows,summary,packageId);
     return tx(()=>{
       const race=db.prepare("SELECT id,account_phone FROM jobs WHERE package_id=?").get(packageId);
@@ -108,11 +110,12 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     const j=job(id,org);
     const counts=db.prepare("SELECT state,COUNT(*) AS count FROM entries WHERE job_id=? GROUP BY state").all(id);
     const totals={messages:0,protocols:0,media_available:0,media_pending:0},verified={...totals};
-    for(const e of db.prepare("SELECT metadata,state FROM entries WHERE job_id=?").all(id)){
-      const m=JSON.parse(e.metadata);
-      for(const k of Object.keys(totals)){totals[k]+=m[k];if(e.state==="verified")verified[k]+=m[k];}
+    // Aggregate in SQLite; never materialize the full private index on every poll.
+    const cols=Object.keys(totals).map(k=>"coalesce(sum(json_extract(metadata,'$."+k+"')),0) AS "+k).join(",");
+    for(const row of db.prepare("SELECT state,"+cols+" FROM entries WHERE job_id=? GROUP BY state").all(id)){
+      for(const k of Object.keys(totals)){totals[k]+=Number(row[k]);if(row.state==="verified")verified[k]+=Number(row[k]);}
     }
-    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts,totals,verified,bound:Number(db.prepare("SELECT count(*) AS n FROM bindings WHERE job_id=?").get(id).n)};
+    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts,totals,verified,bound:Number(db.prepare("SELECT count(*) AS n FROM bindings WHERE job_id=?").get(id).n),bulk:db.prepare("SELECT state,processed,created,linked,bound,review,renamed,started_at,updated_at FROM bulk_runs WHERE job_id=?").get(id)||null};
   }
   function list(organizationId){
     validateDestination(organizationId,"550000000000");
@@ -205,12 +208,87 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
   }
   // Only the server-side reconciliation flow can authorize a binding.
   // No names or messages are loaded by the management preview.
-  function candidates(id,org){
+  function candidates(id,org,after=null,limit=100){
     const j=job(id,org);
     if(j.state!=="completed")throw Error("Valide primeiro o lote.");
-    return {account_phone:j.account_phone,entries:db.prepare(
-      "SELECT e.contact_key,e.phone,e.state,b.contact_id,json_extract(e.metadata,'$.historical_name') AS historical_name FROM entries e LEFT JOIN bindings b ON b.job_id=e.job_id AND b.contact_key=e.contact_key WHERE e.job_id=? ORDER BY e.contact_key LIMIT 100"
-    ).all(id)};
+    if(after!==null&&!/^[a-f0-9]{32}$/.test(after))throw Error("Cursor inválido.");
+    if(!Number.isInteger(limit)||limit<1||limit>100)throw Error("Limite inválido.");
+    const rows=db.prepare(
+      "SELECT e.contact_key,e.phone,e.state,b.contact_id,json_extract(e.metadata,'$.historical_name') AS historical_name FROM entries e LEFT JOIN bindings b ON b.job_id=e.job_id AND b.contact_key=e.contact_key WHERE e.job_id=? AND e.contact_key>? ORDER BY e.contact_key LIMIT ?"
+    ).all(id,after||"",limit+1);
+    const entries=rows.slice(0,limit);
+    for(const row of entries){
+      const variants=[row.phone];
+      if(/^55[1-9][0-9]9[6-9][0-9]{7}$/.test(row.phone))variants.push(row.phone.slice(0,4)+row.phone.slice(5));
+      if(/^55[1-9][0-9][6-9][0-9]{7}$/.test(row.phone))variants.push(row.phone.slice(0,4)+"9"+row.phone.slice(4));
+      row.identity_conflict=variants.some(phone=>Boolean(db.prepare(
+        "SELECT 1 FROM entries e JOIN jobs j ON j.id=e.job_id WHERE j.organization_id=? AND j.account_phone=? AND e.phone=? AND NOT(e.job_id=? AND e.contact_key=?) AND j.state NOT IN ('cancelled','rolled_back') LIMIT 1"
+      ).get(org,j.account_phone,phone,id,row.contact_key)));
+    }
+    return {account_phone:j.account_phone,entries,next_after:rows.length>limit?entries.at(-1).contact_key:null};
+  }
+  function bulkControl({id,organizationId,actor,command}){
+    if(!actor)throw Error("Responsável obrigatório.");
+    return tx(()=>{
+      const j=job(id,organizationId),old=db.prepare("SELECT * FROM bulk_runs WHERE job_id=?").get(id);
+      if(command==="start"){
+        if(old||!["prepared","queued","running","completed","paused","failed"].includes(j.state))throw Error("Importação indisponível.");
+        if(["prepared","paused","failed"].includes(j.state))state(id,"queued");
+        db.prepare("INSERT INTO bulk_runs(job_id,actor,state,started_at,updated_at) VALUES (?,?,'running',?,?)").run(id,actor,now(),now());
+      }else{
+        if(!old)throw Error("Importação automática inexistente.");
+        if(command==="pause"&&old.state==="running"){
+          if(j.state==="queued")state(id,"paused");
+          if(j.state==="running")state(id,"pausing");
+          db.prepare("UPDATE bulk_runs SET state='paused',updated_at=? WHERE job_id=?").run(now(),id);
+        }else if(command==="resume"&&["paused","failed"].includes(old.state)&&j.state!=="pausing"){
+          if(["paused","failed","prepared"].includes(j.state))state(id,"queued");
+          db.prepare("UPDATE bulk_runs SET state='running',actor=?,updated_at=? WHERE job_id=?").run(actor,now(),id);
+        }else if(command==="cancel"&&["running","paused","failed"].includes(old.state)){
+          if(["queued","paused","failed","prepared"].includes(j.state))state(id,"cancelled");
+          if(["running","pausing"].includes(j.state))state(id,"cancelling");
+          db.prepare("UPDATE bulk_runs SET state='cancelled',updated_at=? WHERE job_id=?").run(now(),id);
+        }else throw Error("Transição automática inválida.");
+      }
+      audit(id,actor,"bulk_"+command);
+      return {state:db.prepare("SELECT state FROM bulk_runs WHERE job_id=?").get(id).state};
+    });
+  }
+  function bulkContext(id,organizationId){
+    const j=job(id,organizationId),run=db.prepare("SELECT * FROM bulk_runs WHERE job_id=?").get(id);
+    if(j.state!=="completed"||run?.state!=="running")throw Error("Conciliação indisponível.");
+    return {id,organizationId,accountPhone:j.account_phone,actor:run.actor,after:run.after_key};
+  }
+  function bulkWork(){
+    const row=db.prepare("SELECT j.id,j.organization_id FROM bulk_runs b JOIN jobs j ON j.id=b.job_id WHERE b.state='running' AND j.state='completed' ORDER BY b.updated_at,j.id LIMIT 1").get();
+    return row?bulkContext(row.id,row.organization_id):null;
+  }
+  function bulkCommit(work,result){
+    return tx(()=>{
+      const current=bulkContext(work.id,work.organizationId);
+      if(current.after!==work.after||current.actor!==work.actor)throw Error("Checkpoint alterado.");
+      const expected=candidates(work.id,work.organizationId,work.after,5);
+      if(!Array.isArray(result?.entries)||result.entries.length!==expected.entries.length||result.next_after!==expected.next_after)throw Error("Resultado de lote inválido.");
+      const counts={created:0,linked:0,bound:0,review:0,renamed:0};
+      for(let i=0;i<expected.entries.length;i++){
+        const entry=result.entries[i];
+        if(entry.contact_key!==expected.entries[i].contact_key||!["created","linked","bound","review"].includes(entry.state))throw Error("Resultado de contato inválido.");
+        if(entry.state!=="review"&&!expected.entries[i].contact_id)throw Error("Vínculo não confirmado no índice.");
+        counts[entry.state]++;if(entry.renamed===true)counts.renamed++;
+      }
+      db.prepare("UPDATE bulk_runs SET after_key=?,processed=processed+?,created=created+?,linked=linked+?,bound=bound+?,review=review+?,renamed=renamed+?,state=?,updated_at=? WHERE job_id=?")
+        .run(expected.next_after||expected.entries.at(-1)?.contact_key||work.after,result.entries.length,counts.created,counts.linked,counts.bound,counts.review,counts.renamed,expected.next_after?"running":"completed",now(),work.id);
+      if(!expected.next_after)audit(work.id,work.actor,"bulk_completed");
+    });
+  }
+  function bulkFail(work){
+    tx(()=>{
+      const row=db.prepare("SELECT state,after_key,actor FROM bulk_runs WHERE job_id=?").get(work.id);
+      if(row?.state==="running"&&row.after_key===work.after&&row.actor===work.actor){
+        db.prepare("UPDATE bulk_runs SET state='failed',updated_at=? WHERE job_id=?").run(now(),work.id);
+        audit(work.id,"worker","bulk_failed");
+      }
+    });
   }
   function bindContact({id,organizationId,actor,contactKey,contactId,contactPhone,accountPhone}){
     validateDestination(organizationId,accountPhone);
@@ -289,5 +367,5 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     if(matches.length>1)throw Error("Contato exige revisão.");
     return matches.length===1?readPayload(matches[0].package_id,JSON.parse(matches[0].metadata)):null;
   }
-  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,assetBound,close:()=>db.close()};
+  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,assetBound,bulkControl,bulkContext,bulkWork,bulkCommit,bulkFail,close:()=>db.close()};
 }
