@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouse
 import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
-  listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox,
+  listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox, getHistoricalWhatsAppMedia,
   type UnionWhatsAppConversation, type UnionWhatsAppMessage,
   type UnionWhatsAppSharedTab, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -88,13 +88,13 @@ function MediaTile({item,organization,conversation,onOpen}:{
     return()=>observer.disconnect();
   },[item.id,item.message_type]);
   useEffect(()=>{
-    if(!visible)return;
+    if(!visible||item.read_only)return;
     let cancelled=false;
     void signedMedia(organization,conversation,item.id).then(value=>{if(!cancelled)setUrl(value?.url||null);});
     return()=>{cancelled=true;};
   },[visible,item.id,organization,conversation]);
   return <button ref={node} type="button" onClick={onOpen}
-    aria-label={"Abrir "+(item.media_name||"mídia")+" de "+sharedDate(item.sent_at)}
+    aria-label={"Abrir "+(item.media_name||"mídia")+" de "+(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}
     className="relative aspect-square min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
     {url&&(item.message_type==="image"||item.message_type==="sticker")
       ?<img src={url} loading="lazy" alt="" className="h-full w-full object-cover"
@@ -104,7 +104,7 @@ function MediaTile({item,organization,conversation,onOpen}:{
       </span>}
     {item.message_type==="video"&&<Play size={18} className="absolute bottom-2 right-2 text-foreground"/>}
     <span className="absolute bottom-0 inset-x-0 truncate bg-black/55 px-1.5 py-1 text-[10px] text-white">
-      {sharedDate(item.sent_at)}
+      {(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}
     </span>
   </button>;
 }
@@ -179,11 +179,12 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     if(previewLoading)return;
     setPreviewError("");setPreviewLoading(true);
     try{
-      const links=await signedMedia(organizationId,conversation.id,item.id);
+      const asset=item.historical_attachments?.[0];
+      const links=item.read_only?(asset?.available?{url:(await getHistoricalWhatsAppMedia(item,asset.id)).url,downloadUrl:null}:null):await signedMedia(organizationId,conversation.id,item.id);
       if(!links){setPreviewError("Este arquivo não está mais disponível.");return;}
       setPreview({url:links.url,downloadUrl:links.downloadUrl,type:item.message_type,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
-    }finally{setPreviewLoading(false);}
+    }catch{setPreviewError("Não foi possível abrir este arquivo. Tente novamente.");}finally{setPreviewLoading(false);}
   };
   return <div data-contact-details-root="true" className={inline?"relative w-full":"absolute inset-0 z-[40] flex justify-end"} role="presentation">
     {!inline&&<button type="button" aria-label="Fechar detalhes ao clicar fora"
@@ -263,7 +264,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
                   <span className="rounded-lg bg-primary/10 p-2 text-primary"><FileText size={19}/></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-semibold">{item.media_name||"Documento"}</span>
-                    <span className="text-[11px] text-muted-foreground">{sharedDate(item.sent_at)}</span>
+                    <span className="text-[11px] text-muted-foreground">{(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}</span>
                   </span><ExternalLink size={15} className="text-muted-foreground"/>
                 </button>)}
               </div> : <div className="divide-y divide-border">
@@ -273,7 +274,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
                     <span className="rounded-lg bg-primary/10 p-2 text-primary"><LinkIcon size={18}/></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-semibold text-primary">{url}</span>
-                      <span className="text-[11px] text-muted-foreground">{sharedDate(item.sent_at)}</span>
+                      <span className="text-[11px] text-muted-foreground">{(item.unknown_date?"Data não registrada":sharedDate(item.sent_at))}</span>
                     </span><ExternalLink size={15} className="shrink-0 text-muted-foreground"/>
                   </a>
                 )))}
