@@ -136,3 +136,30 @@ test("shared search starts expanded and collapses existing filters without chang
     assert.ok((await transformWithEsbuild(source,path,{loader:"tsx"})).code,path);
   }
 });
+
+
+test("Nova OS pesquisa tipo, marca e modelo no mesmo combobox do cadastro rapido", async () => {
+  const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
+  const quick=read("src/features/orders/presentation/OrderQuickCreateModals.tsx");
+  assert.match(equipment,/import \{ CatalogCombobox \} from "\.\/OrderQuickCreateModals"/);
+  assert.equal((equipment.match(/<CatalogCombobox/g)||[]).length,3);
+  assert.equal((equipment.match(/\bselectionOnly\b/g)||[]).length,3);
+  assert.equal((equipment.match(/allowCreate=\{false\}/g)||[]).length,3);
+  assert.match(equipment,/equipmentBrands.filter\(brand => brand.equipment_type_id === form.equipment_type_id\)/);
+  assert.match(equipment,/equipmentModels.filter\(model => model.equipment_brand_id === form.equipment_brand_id\)/);
+  assert.match(equipment,/upF\("equipment_type_id", id\);\s*upF\("equipment_brand_id", ""\);\s*upF\("equipment_model_id", ""\);/);
+  assert.match(equipment,/upF\("equipment_brand_id", id\);\s*upF\("equipment_model_id", ""\);/);
+  assert.match(equipment,/disabled=\{!form.equipment_type_id\}/);
+  assert.match(equipment,/disabled=\{!form.equipment_brand_id\}/);
+  assert.match(quick,/export function CatalogCombobox/);
+  assert.match(quick,/if \(selectionOnly\) setSearchDraft\(nextValue\)/);
+  assert.match(quick,/const closeOptions = \(\) => \{ setOpen\(false\); setSearchDraft\(null\); \}/);
+  assert.match(quick,/normalizeCatalogValue\(option.name\).includes\(query\)/);
+  assert.match(quick,/!selectionOnly && allowCreate/);
+  assert.match(quick,/Limpar seleção/);
+  const localSearch=quick.slice(quick.indexOf("export function CatalogCombobox"),quick.indexOf("export function",quick.indexOf("export function CatalogCombobox")+1));
+  assert.doesNotMatch(localSearch,/supabase\.|await |fetch\(/);
+  for(const [name,source] of [["OrderEquipmentSection",equipment],["OrderQuickCreateModals",quick]]) {
+    assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
