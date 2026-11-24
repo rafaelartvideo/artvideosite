@@ -2057,7 +2057,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     // A RLS impede abrir conversas às quais o operador não tem acesso.
     const org=activeOrganizationId,channel=activeChannelId,account=activeChannelPhone;
     let existing=await findUnionWhatsAppConversationByContact(org,channel,account,contact.chat_jid);
-    if(!existing&&canManage&&isUnifiedHistoryPilotEnabled(org)&&hasPermission("whatsapp.history_import.view")&&hasPermission("whatsapp.history_import.manage")){
+    if(!existing&&canManage&&contact.contact_phone&&contact.chat_jid===contact.contact_phone+"@s.whatsapp.net"&&isUnifiedHistoryPilotEnabled(org)&&hasPermission("whatsapp.history_import.view")&&hasPermission("whatsapp.history_import.manage")){
       // An archive lookup never verifies the WhatsApp number or opens an active attendance.
       const id=await openBoundHistoricalConversation(org,contact.id,channel,account);
       if(id){
@@ -2969,6 +2969,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     onClick={()=>setOpportunityCreateOpen(true)} className="!h-8 !gap-1.5 !px-2">
                     <BookmarkPlus size={15}/><span className="hidden xl:inline">Oportunidade</span>
                   </AdminButton>}
+                {(!embedded || embeddedFullControls) && canAction("view_history") && <AdminButton variant="secondary" size="sm" title="Histórico de atendimentos" onClick={()=>void viewProtocols()} className="!h-8 !gap-1.5 !px-2"><History size={15}/><span className="hidden xl:inline">Protocolos</span></AdminButton>}
                 {(!embedded || embeddedFullControls) && canAction("manage_contacts") && <AdminButton
                   variant="tertiary" size="sm" title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setContactsOpen(false);setEditContactId(selected.id);}}
@@ -3103,6 +3104,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <div className={(highlightQuotedId===entry.message.provider_message_id ? "ring-2 ring-primary ring-offset-2 " : "") + (entry.message.message_type==="sticker"
                       ? "w-fit max-w-[140px] bg-transparent p-0 shadow-none"
                       : `max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`)}>
+                      {entry.message.historical_system&&<div className="mb-1 text-[10px] font-bold text-muted-foreground">Sistema · SAC Digital</div>}
                       {entry.message.direction==="outgoing" && entry.message.sender_name &&
                         <div className="mb-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                           {entry.message.sender_name} <span className="font-normal opacity-70">· Operador</span>
