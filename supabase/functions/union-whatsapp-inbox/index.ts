@@ -562,6 +562,12 @@ Deno.serve(async request => {
         }
       }
 
+      // Only aliases confirmed by the SAME JID are eligible for name lookup.
+      const confirmedAliases=[...new Set(verified.alternatives
+        .filter(item=>item.jid===verified.jid)
+        .flatMap(item=>[item.query,item.phone])
+        .filter((phone):phone is string=>typeof phone==="string" && /^55[1-9][0-9][0-9]{8,9}$/.test(phone))
+        .map(phone=>phone+"@s.whatsapp.net"))].slice(0,4);
       // Persist photos privately; do not query profile names when Union already
       // has a name for the verified contact.
       const [avatar,profile]=await Promise.allSettled([
@@ -569,7 +575,7 @@ Deno.serve(async request => {
           signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
             crypto.randomUUID(),undefined,undefined,false,true)),
         contactName ? Promise.resolve("") :
-          signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+          signedBridge({id:verified.channel.id,organization_id:org},JSON.stringify(confirmedAliases),verified.jid,
             crypto.randomUUID(),undefined,undefined,true),
       ]);
       const fromBridge=profile.status==="fulfilled" ? profile.value : "";
