@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
+import { brazilianWhatsAppNumber, VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import {
@@ -59,11 +59,12 @@ function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
   return null;
 }
 
-export function QuickCustomerModal({ onClose, onSaved, initialValues, initialAddress, description, allowCustomerRequests = false }: {
+export function QuickCustomerModal({ onClose, onSaved, initialValues, initialAddress, initialWhatsappFromConversation = false, description, allowCustomerRequests = false }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
   initialValues?: Partial<CustomerForm>;
   initialAddress?: Partial<Address>;
+  initialWhatsappFromConversation?: boolean;
   description?: string;
   allowCustomerRequests?: boolean;
 }) {
@@ -344,7 +345,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, initialAdd
 
               <FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(e: any) => { clearFieldError("email"); setForm({ ...form, email: e.target.value }); }} />
               <FPhoneInput label="Telefone" required copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { clearFieldError("phone"); setForm(current => ({...current, phone})); }} error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
-                <VerifiedWhatsAppPhoneInput label="WhatsApp" required mobile copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
+                <VerifiedWhatsAppPhoneInput label="WhatsApp" required mobile verificationEnabled={!initialWhatsappFromConversation || brazilianWhatsAppNumber(form.whatsapp)!==brazilianWhatsAppNumber(initialValues?.whatsapp||"")} copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
             </div>
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} required errorsVisible={addressValidationAttempted} />
