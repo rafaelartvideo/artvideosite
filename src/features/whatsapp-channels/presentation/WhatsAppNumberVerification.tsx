@@ -70,7 +70,9 @@ export function VerifiedWhatsAppPhoneInput({
         organizationId, crypto.randomUUID(), "check_number", { phone: number },
       );
       if (!response.phone) throw new Error("O WhatsApp não retornou confirmação.");
-      const name = String(response.contact_name || response.verified_name || "").trim().slice(0, 120);
+      const name = [response.contact_name, response.verified_name]
+        .map(value => String(value || "").trim().slice(0, 120))
+        .find(value => value && value !== "Contato WhatsApp" && !/^[+()\d\s-]+$/.test(value)) || "";
       next = {
         kind: "registered",
         name,
@@ -205,6 +207,7 @@ export function VerifiedWhatsAppPhoneInput({
   return (
     <div className="min-w-0">
       <FPhoneInput {...inputProps} value={value} statusAccessory={inlineStatus} />
+      {verificationMode === "create" && onVerifiedName && result?.kind === "registered" && !result.name && <p role="status" className="mt-1 text-[11px] text-muted-foreground">Número confirmado. O nome não foi disponibilizado pelo WhatsApp; informe-o manualmente.</p>}
       {showProfile && result?.kind === "registered" && (
         <div className="mt-2 flex min-w-0 items-center gap-2.5 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs"
           aria-label="Informações disponíveis do contato WhatsApp">
