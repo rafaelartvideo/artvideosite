@@ -1334,7 +1334,7 @@ test("OS and CRM share active additional registration contacts with scoped ident
   assert.match(modal, /entity_contact_id:recipient.entity_contact_id/);
   assert.match(repo, /entity_contact_id\?:string/);
   assert.match(menu, /Nova OS[\s\S]*?onNewContact[\s\S]*?Novo contato/);
-  assert.match(inbox, /getRegistrationContactOwner\(org,match.customer.id\)/);
+  assert.match(inbox, /operateUnionWhatsAppInbox\(org,threadId,"customer_match",\{contact_owner_only:true\}\)/);
   assert.match(inbox, /onNewContact=\{hasPermission\("registrations.contacts.manage"\) && canAction\("create_contacts"\)/);
   assert.match(form, /<VerifiedWhatsAppPhoneInput/);
   assert.match(form, /"crm_contact_save"/);
@@ -1350,5 +1350,33 @@ test("OS and CRM share active additional registration contacts with scoped ident
   assert.match(lookup, /limit 2;/);
   for (const [name, code] of [["CrmAdditionalContactDialog", form], ["UnionWhatsAppCrmMenu", menu], ["UnionWhatsAppInboxPage", inbox], ["WhatsAppConversationModal", modal]]) {
     assert.ok((await transformWithEsbuild(code,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
+
+
+test("Novo contato abre imediatamente e consulta somente o cadastro necessario", async () => {
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const dialog=read("src/features/whatsapp-channels/presentation/CrmAdditionalContactDialog.tsx");
+  const verification=read("src/features/whatsapp-channels/presentation/WhatsAppNumberVerification.tsx");
+  const open=inbox.slice(inbox.indexOf("const openNewContactFromConversation=()=>{"),inbox.indexOf("const openNewOrderFromConversation=async()=>{"));
+  assert.ok(open.length>0);
+  assert.doesNotMatch(open,/\bawait\b|operateUnionWhatsAppInbox/);
+  assert.ok(open.indexOf("setNewContact({owner:null")>=0);
+  assert.ok(open.indexOf("setNewContact({owner:null")<open.indexOf("void resolveNewContactOwner"));
+  assert.match(open,/contactOpenRef.current/);
+  assert.match(inbox,/staleTime:30_000,gcTime:120_000,retry:false/);
+  assert.match(inbox,/queryKey:contactOwnerKey\(org,threadId\)/);
+  assert.match(inbox,/contactLaunch.current!==launch \|\| organizationRef.current!==org \|\| selectedIdRef.current!==threadId/);
+  assert.match(inbox,/key=\{newContact.launch\}/);
+  assert.match(dialog,/Boolean\(owner\) && !ownerLoading && !ownerError/);
+  assert.match(dialog,/verificationEnabled=\{Boolean\(owner\) && !ownerLoading && !ownerError\}/);
+  assert.match(verification,/const canVerify = verificationEnabled &&/);
+  const ownerBranch=edge.slice(edge.indexOf("if(contactOwnerOnly){"),edge.indexOf("// These details are requested only after expanding"));
+  assert.match(ownerBranch,/\.select\("id,name"\)/);
+  assert.match(ownerBranch,/return json\(\{success:true,contact_owner:owner\|\|null,ambiguous:false\}\)/);
+  assert.doesNotMatch(ownerBranch,/customer_equipments|customer_addresses|service_orders/);
+  assert.match(edge,/if\(\(!contactOwnerOnly \|\| matches.length===0\) && permissions.has\("orders.details.view"\)\)/);
+  for(const [name,source] of [["UnionWhatsAppInboxPage",inbox],["CrmAdditionalContactDialog",dialog],["WhatsAppNumberVerification",verification]]) {
+    assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
   }
 });
