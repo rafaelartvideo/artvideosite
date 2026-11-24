@@ -12,16 +12,16 @@ function syncTheme(target:Document){
   target.body.dataset.theme=theme;
   target.body.classList.toggle("dark",theme==="dark");
 }
-export function useDetachedOrderEditor(){
+export function useDetachedOrderEditor(windowTitle="Nova OS"){
   const [detached,setDetached]=useState<DetachedEditor|null>(null);
   const detach=()=>{
     if(detached){detached.popup.focus();return;}
     const popup=window.open("","_blank","popup=yes,width=980,height=850,resizable=yes,scrollbars=yes");
-    if(!popup){notifyAdmin("Permita pop-ups da Union World para destacar a Nova OS.","error");return;}
+    if(!popup){notifyAdmin("Permita pop-ups da Union World para destacar a janela.","error");return;}
     try{
       const target=popup.document;
       popup.opener=null;
-      target.title="Nova OS • Union World";
+      target.title=windowTitle+" • Union World";
       for(const source of document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')){
         const link=source.cloneNode(true) as HTMLLinkElement;
         link.href=source.href;
