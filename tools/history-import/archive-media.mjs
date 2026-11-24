@@ -53,6 +53,7 @@ export function createMediaService({resolveAsset,readAsset,clock=Date.now,ttlMs=
  };
  const timer=setInterval(()=>void cleanup(),15000);timer.unref();
  function issue(scope,assetId,download=false){
+   void cleanup();
    const asset=resolveAsset(scope,assetId);
    if(!asset||!Number.isSafeInteger(asset.size_bytes)||asset.size_bytes<0||asset.size_bytes>MAX_BYTES)throw Error("Anexo indisponível.");
    if(tickets.size>=maxTickets)throw Error("Limite temporário de mídia.");
@@ -70,10 +71,18 @@ export function createMediaService({resolveAsset,readAsset,clock=Date.now,ttlMs=
    if(!asset||asset.sha256!==t.sha||asset.size_bytes!==t.size)return fail(res,404);
    const range=mediaRange(req.headers.range,t.size);
    if(!range){res.writeHead(416,{"Content-Range":"bytes */"+t.size,"Cache-Control":"no-store","Content-Length":"0"});return res.end()}
+   if(t.active>=4)return fail(res,429);
    t.active++;
    try{
      if(!t.dir&&!t.loading){
-       if(downloads>=maxDownloads||[...tickets.values()].filter(v=>v.dir||v.loading).length>=maxCached)return fail(res,503);
+       if(downloads>=maxDownloads)return fail(res,503);
+       if([...tickets.values()].filter(v=>v.dir||v.loading).length>=maxCached){
+         const idle=[...tickets.values()].find(v=>v!==t&&v.dir&&!v.loading&&!v.active);
+         if(!idle)return fail(res,503);
+         const dir=idle.dir;idle.dir=null;
+         // Reserve the new slot before an asynchronous deletion; never evict an active stream.
+         void rm(dir,{recursive:true,force:true}).catch(()=>{});
+       }
        downloads++;
        t.loading=(async()=>{
          const dir=await mkdtemp(join(tmpdir(),"union-history-"));
