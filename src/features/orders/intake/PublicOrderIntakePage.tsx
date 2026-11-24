@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, ImagePlus, Loader2, RotateCcw, RotateCw, ScanLine, X } from "lucide-react";
 import { emptyAddress, fetchAddressByZipCode, formatZipCode, validateCustomerAddress } from "@/lib/address";
-import { isValidCpf, isValidCnpj, isValidBrazilianPhone, formatPhoneInput, formatCpf, formatCnpj } from "@/shared/domain/formatters";
+import { isValidCpf, isValidCnpj, isValidBrazilianPhone, formatPhoneInput, formatCpf, formatCnpj, formatFoundationDate, isPastOrTodayBrazilianDate } from "@/shared/domain/formatters";
 import { openIntake, listIntakeModels, validateIntakeIdentity, submitIntake, type IntakeCatalog, type IntakePayload, type IntakePhoto } from "./order-intake.repository";
 
+import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
 import { IntakeCatalogField } from "./IntakeCatalogField";
 import { readSerialCodes } from "../domain/read-serial-code";
 
@@ -11,8 +12,8 @@ const field="w-full rounded-xl border bg-white px-3 py-3 text-base text-slate-90
 const fieldStyle=(invalid:boolean)=>field+(invalid?" border-red-500 focus:border-red-600 focus:ring-2 focus:ring-red-100":" border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100");
 const photoNames={label:"Foto da etiqueta",problem:"Foto do defeito",equipment:"Foto do equipamento"};
 const button="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0131cd] px-5 py-3 text-sm font-bold text-white disabled:opacity-50";
-const formatIntakeDocument=(value:string)=>value.replace(/\D/g,"").length>11?formatCnpj(value):formatCpf(value);
-const initial: IntakePayload={name:"",document:"",phone:"",address:{...emptyAddress},type_id:"",brand_id:null,brand_text:"",model:"",model_id:null,serial:"",problem:"",service_type_id:"",technical_values:{}};
+const formatIntakeDocument=(value:string,type:"PF"|"PJ")=>type==="PJ"?formatCnpj(value):formatCpf(value);
+const initial: IntakePayload={customer_type:"PF",name:"",document:"",trade_name:"",state_registration:"",foundation_date:"",phone:"",address:{...emptyAddress},type_id:"",brand_id:null,brand_text:"",model:"",model_id:null,serial:"",problem:"",service_type_id:"",technical_values:{}};
 type PhotoPreview = IntakePhoto & {url:string};
 const hints={label:"Procure a etiqueta atrás, embaixo ou na lateral do aparelho. Mostre modelo e número de série, sem reflexos.",equipment:"Fotografe o aparelho inteiro, de frente e com boa iluminação.",problem:"Mostre o defeito. Se não for visível (por exemplo, não liga), fotografe a tela ou a parte afetada. Não desmonte o equipamento."};
 async function encodePhoto(file:File,degrees:number,kind:IntakePhoto["kind"]):Promise<File>{
@@ -46,6 +47,8 @@ export function PublicOrderIntakePage(){
   const [busy,setBusy]=useState(false),[zipBusy,setZipBusy]=useState(false),[confirmed,setConfirmed]=useState(false),[done,setDone]=useState(false);
   const [confirmationPhone,setConfirmationPhone]=useState<string|null>(null);
   const confirmationUrl=confirmationPhone&&/^55[1-9]\d{9,10}$/.test(confirmationPhone)?`https://wa.me/${confirmationPhone}?text=${encodeURIComponent("Olá! Acabei de preencher e enviar minha solicitação de atendimento pelo link. Aguardo a conferência da equipe. Obrigado!")}`:null;
+  const [cnpjBusy,setCnpjBusy]=useState(false),[cnpjMessage,setCnpjMessage]=useState(""),[cnpjRetry,setCnpjRetry]=useState(0);
+  const isPj=payload.customer_type==="PJ";
   const identityProof=useRef<{key:string;ticket:string;until:number}|null>(null);
   const zipVersion=useRef(0),photoRef=useRef(photos),pendingRef=useRef(pending),gate=useRef(false);photoRef.current=photos;pendingRef.current=pending;
   useEffect(()=>()=>{photoRef.current.forEach(p=>URL.revokeObjectURL(p.url));if(pendingRef.current)URL.revokeObjectURL(pendingRef.current.url);},[]);
@@ -57,6 +60,32 @@ export function PublicOrderIntakePage(){
     listIntakeModels(token,brand).then(r=>{if(active)setModelsByBrand(old=>({...old,[brand]:r.models||[]}));}).catch(()=>{if(active)setModelsError("Não foi possível carregar os modelos. Tente novamente.");});
     return()=>{active=false;};
   },[payload.brand_id,token,modelsByBrand,modelsRetry]);
+  useEffect(()=>{
+    if(!isPj||!isValidCnpj(payload.document)){setCnpjBusy(false);setCnpjMessage("");return;}
+    let active=true;
+    const document=payload.document;
+    setCnpjBusy(true);setCnpjMessage("");
+    fetchCnpjData(document).then(data=>{
+      if(!active)return;
+      const legal=String(data?.razao_social||"").trim(),trade=String(data?.nome_fantasia||"").trim();
+      if(!legal)throw new Error("Razão social indisponível.");
+      setPayload(p=>p.customer_type==="PJ"&&p.document===document?{...p,name:legal,trade_name:trade||legal,state_registration:String(data?.inscricao_estadual||""),foundation_date:typeof data?.data_inicio_atividade==="string"?formatFoundationDate(data.data_inicio_atividade.split("-").reverse().join("/")):""}:p);
+      setFieldErrors(old=>{const next={...old};delete next.name;delete next.trade_name;return next;});
+      setCnpjMessage("Dados da empresa preenchidos automaticamente. Confira antes de continuar.");
+    }).catch(()=>{if(active)setCnpjMessage("Não foi possível consultar o CNPJ. Você pode tentar novamente ou preencher os dados manualmente.");}).finally(()=>{if(active)setCnpjBusy(false);});
+    return()=>{active=false;};
+  },[isPj,payload.document,cnpjRetry]);
+  const changeCustomerType=(type:"PF"|"PJ")=>{
+    if(type===payload.customer_type)return;
+    identityProof.current=null;setFieldErrors({});setError("");setConfirmed(false);setCnpjMessage("");
+    setPayload(p=>({...p,customer_type:type,document:"",name:"",trade_name:"",state_registration:"",foundation_date:""}));
+  };
+  const changeDocument=(value:string)=>{
+    const document=value.replace(/\D/g,"").slice(0,isPj?14:11);
+    if(document===payload.document)return;
+    identityProof.current=null;setFieldErrors({});setConfirmed(false);setCnpjMessage("");
+    setPayload(p=>({...p,document,...(isPj?{name:"",trade_name:"",state_registration:"",foundation_date:""}:{})}));
+  };
   const clearField=(key:string)=>setFieldErrors(old=>{const next={...old};delete next[key];return next;});
   const update=(key:keyof IntakePayload,value:string|null)=>{if((key==="name"||key==="document")&&payload[key]!==value){identityProof.current=null;clearField("name");clearField("document");}clearField(key);setPayload(p=>({...p,[key]:value}));setConfirmed(false);};
   const address=(key:string,value:string)=>{clearField(key);setPayload(p=>({...p,address:{...p.address,[key]:value}}));setConfirmed(false);};
@@ -84,8 +113,15 @@ export function PublicOrderIntakePage(){
   const validation=(currentStep=step)=>{
     const errors:Record<string,string>={};
     if(currentStep===0){
-      if(payload.name.trim().length<3||(payload.document.length===11&&(payload.name.trim().length<5||payload.name.trim().split(/\s+/).length<2)))errors.name="Informe seu nome completo ou razão social.";
-      if(!(isValidCpf(payload.document)||isValidCnpj(payload.document)))errors.document="Informe um CPF ou CNPJ válido.";
+      if(isPj){
+        if(!isValidCnpj(payload.document))errors.document="Informe um CNPJ válido.";
+        if(payload.name.trim().length<2)errors.name="Informe a razão social.";
+        if(!payload.trade_name?.trim())errors.trade_name="Informe o nome fantasia.";
+        if(payload.foundation_date&&!isPastOrTodayBrazilianDate(payload.foundation_date))errors.foundation_date="Informe uma data de fundação válida.";
+      }else{
+        if(payload.name.trim().length<5||payload.name.trim().split(/\s+/).length<2)errors.name="Informe seu nome completo.";
+        if(!isValidCpf(payload.document))errors.document="Informe um CPF válido.";
+      }
       if(payload.phone&&!isValidBrazilianPhone(payload.phone))errors.phone="Informe um telefone válido com DDD ou deixe em branco.";
     }
     if(currentStep===1)Object.assign(errors,validateCustomerAddress(payload.address));
@@ -118,7 +154,7 @@ export function PublicOrderIntakePage(){
     return result.ticket;
   };
   const next=async()=>{
-    const e=validation();setError("");if(Object.keys(e).length){showErrors(e);return;}if(gate.current)return;setFieldErrors({});
+    const e=validation();setError("");if(Object.keys(e).length){showErrors(e);return;}if(gate.current||cnpjBusy)return;setFieldErrors({});
     if(step===0&&payload.document.replace(/\D/g,"").length===11){
       gate.current=true;setBusy(true);
       try{await checkIdentity(true);}catch(error){showErrors({document:error instanceof Error?error.message:"Não foi possível validar o CPF."});return;}
@@ -151,7 +187,10 @@ export function PublicOrderIntakePage(){
         <nav aria-label="Etapas da solicitação" className="flex items-start gap-1 rounded-xl border border-slate-200 bg-white px-2 py-4">{["Identificação","Endereço","Equipamento","Problema","Revisão"].slice(firstStep).map((s,i)=>{const n=i+firstStep;return <div key={s} className="min-w-0 flex-1 text-center" aria-current={n===step?"step":undefined}><button type="button" disabled={n>=step||busy} onClick={()=>{setError("");setFieldErrors({});setStep(n);setConfirmed(false);}} className={"mx-auto flex size-8 items-center justify-center rounded-full border text-xs font-semibold "+(n<step?"border-emerald-600 bg-emerald-50 text-emerald-700":n===step?"border-[#0131cd] bg-[#0131cd] text-white":"border-slate-200 bg-slate-50 text-slate-500")}>{n<step?<Check size={16}/>:i+1}</button><div className={"mx-1 my-2 h-1 rounded-full "+(n<step?"bg-emerald-500":n===step?"bg-[#0131cd]":"bg-slate-200")}/><p className={"text-[10px] leading-tight "+(n===step?"font-bold text-[#0131cd]":"text-slate-600")}>{s}</p></div>;})}</nav>
         <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold text-slate-500">Etapa {step-firstStep+1} de {5-firstStep}</p>
-          {firstStep===0&&step===0&&<><h2 className="text-lg font-bold">Quem precisa de atendimento?</h2>{input("name","Nome completo ou razão social *",payload.name,v=>update("name",v),"Como está no documento")}{input("document","CPF ou CNPJ *",formatIntakeDocument(payload.document),v=>update("document",v.replace(/\D/g,"").slice(0,14)),"000.000.000-00","numeric")}<div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/> Seu WhatsApp já está preenchido automaticamente.</div>{input("phone","Telefone (opcional)",payload.phone||"",v=>update("phone",formatPhoneInput(v,payload.phone||"")),"(00) 00000-0000","tel")}<p className="text-xs text-slate-600">Informe outro telefone apenas se houver. Se deixar em branco, usaremos o mesmo número do WhatsApp.</p></>}
+          {firstStep===0&&step===0&&<><h2 className="text-lg font-bold">Quem precisa de atendimento?</h2><div className="space-y-2"><p className="text-sm font-semibold text-slate-800">Tipo de pessoa <span className="text-red-600">*</span></p><div role="group" aria-label="Tipo de pessoa" className="grid grid-cols-2 gap-2">{(["PF","PJ"] as const).map(type=><button key={type} type="button" aria-pressed={payload.customer_type===type} disabled={busy} onClick={()=>changeCustomerType(type)} className={"min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold "+(payload.customer_type===type?"border-[#0131cd] bg-blue-50 text-[#0131cd]":"border-slate-300 text-slate-600")}>{type==="PF"?"Pessoa física":"Pessoa jurídica"}</button>)}</div></div>
+            {isPj?<>{input("document","CNPJ *",formatIntakeDocument(payload.document,"PJ"),changeDocument,"00.000.000/0000-00","numeric")}
+              {cnpjBusy?<p role="status" className="flex items-center gap-2 text-xs text-blue-700"><Loader2 size={16} className="animate-spin"/> Consultando CNPJ...</p>:cnpjMessage&&<div role="status" className="space-y-1 text-xs text-slate-600"><p>{cnpjMessage}</p>{cnpjMessage.startsWith("Não")&&<button type="button" className="font-semibold text-[#0131cd] underline" onClick={()=>setCnpjRetry(n=>n+1)}>Tentar novamente</button>}</div>}
+              <fieldset disabled={cnpjBusy||busy} className="space-y-4">{input("name","Razão social *",payload.name,v=>update("name",v))}{input("trade_name","Nome fantasia *",payload.trade_name||"",v=>update("trade_name",v))}{input("state_registration","Inscrição estadual (opcional)",payload.state_registration||"",v=>update("state_registration",v),"ISENTO, se aplicável")}{input("foundation_date","Data de fundação (opcional)",payload.foundation_date||"",v=>update("foundation_date",formatFoundationDate(v)),"DD/MM/AAAA","numeric")}</fieldset></>:<>{input("name","Nome completo *",payload.name,v=>update("name",v),"Como está no documento")}{input("document","CPF *",formatIntakeDocument(payload.document,"PF"),changeDocument,"000.000.000-00","numeric")}</>}<div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={18} className="shrink-0"/> Seu WhatsApp já está preenchido automaticamente.</div>{input("phone","Telefone (opcional)",payload.phone||"",v=>update("phone",formatPhoneInput(v,payload.phone||"")),"(00) 00000-0000","tel")}<p className="text-xs text-slate-600">Informe outro telefone apenas se houver. Se deixar em branco, usaremos o mesmo número do WhatsApp.</p></>}
           {firstStep===0&&step===1&&<><h2 className="text-lg font-bold">Seu endereço</h2>{input("zip_code","CEP *",payload.address.zip_code,v=>void lookupZip(v),"00000-000","numeric")}{zipBusy&&<p className="text-xs text-blue-700">Buscando endereço...</p>}{input("street","Rua *",payload.address.street,v=>address("street",v))}<div className="grid grid-cols-2 gap-3">{input("number","Número *",payload.address.number,v=>address("number",v),"Ex.: 1190")}{input("complement","Complemento (opcional)",payload.address.complement,v=>address("complement",v))}</div>{input("neighborhood","Bairro *",payload.address.neighborhood,v=>address("neighborhood",v))}<div className="grid grid-cols-[1fr_85px] gap-3">{input("city","Cidade *",payload.address.city,v=>address("city",v))}{input("state","UF *",payload.address.state,v=>address("state",v.toUpperCase().slice(0,2)))}</div></>}
           {step===2&&<><h2 className="text-lg font-bold">Qual é o aparelho?</h2>
             <IntakeCatalogField label="Tipo de atendimento" options={catalog.service_types||[]} selectedId={payload.service_type_id||""} error={fieldErrors.service_type_id} disabled={busy} onSelect={id=>update("service_type_id",id)}/>
@@ -164,14 +203,14 @@ export function PublicOrderIntakePage(){
             {photoButton("label","Foto da etiqueta *")}</>}
           {step===3&&<><h2 className="text-lg font-bold">O que aconteceu?</h2><label className="block space-y-1.5 text-sm font-semibold">{requiredLabel("Descreva o problema *")}<textarea aria-required="true" aria-invalid={Boolean(fieldErrors.problem)} aria-describedby={fieldErrors.problem?"error-problem":undefined} rows={5} maxLength={2500} className={fieldStyle(Boolean(fieldErrors.problem))} value={payload.problem} onChange={e=>update("problem",e.target.value)} placeholder="Ex.: Liga, mas não aparece imagem."/>{inlineError("problem")}</label>{photoButton("problem","Foto do defeito *")}</>}
           {step===4&&<><h2 className="text-lg font-bold">Confira antes de enviar</h2>
-            {firstStep===0&&<section className="space-y-3 rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-bold">Identificação e endereço</h3><div className="grid grid-cols-2 gap-3">{reviewField("Nome",payload.name)}{reviewField("CPF ou CNPJ",payload.document.replace(/.(?=.{4})/g,"•"))}{reviewField("WhatsApp","Identificado automaticamente")}{reviewField("Telefone",payload.phone||"Mesmo número do WhatsApp")}</div>{reviewField("Endereço",[payload.address.street,payload.address.number,payload.address.complement,payload.address.neighborhood,payload.address.city,payload.address.state,payload.address.zip_code].filter(Boolean).join(", "))}</section>}
+            {firstStep===0&&<section className="space-y-3 rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-bold">Identificação e endereço</h3><div className="grid grid-cols-2 gap-3">{reviewField("Tipo de pessoa",isPj?"Pessoa jurídica":"Pessoa física")}{reviewField(isPj?"Razão social":"Nome",payload.name)}{reviewField(isPj?"CNPJ":"CPF",payload.document.replace(/.(?=.{4})/g,"•"))}{isPj&&<>{reviewField("Nome fantasia",payload.trade_name)}{payload.state_registration&&reviewField("Inscrição estadual",payload.state_registration)}{payload.foundation_date&&reviewField("Fundação",payload.foundation_date)}</>}{reviewField("WhatsApp","Identificado automaticamente")}{reviewField("Telefone",payload.phone||"Mesmo número do WhatsApp")}</div>{reviewField("Endereço",[payload.address.street,payload.address.number,payload.address.complement,payload.address.neighborhood,payload.address.city,payload.address.state,payload.address.zip_code].filter(Boolean).join(", "))}</section>}
             <section className="space-y-3 rounded-xl border border-slate-200 p-4"><h3 className="text-sm font-bold">Equipamento</h3><div className="grid grid-cols-2 gap-3">{reviewField("Tipo de atendimento",catalog.service_types?.find(t=>t.id===payload.service_type_id)?.name)}{reviewField("Tipo de equipamento",catalog.types?.find(t=>t.id===payload.type_id)?.name)}{reviewField("Marca",catalog.brands?.find(b=>b.id===payload.brand_id)?.name||payload.brand_text)}{reviewField("Modelo",payload.model)}{reviewField("Número de série",payload.serial)}{technicalFields.map(f=><div key={f.id}>{reviewField(f.label,payload.technical_values?.[f.id])}</div>)}</div></section>
             <section className="rounded-xl border border-slate-200 p-4">{reviewField("Descrição do problema",payload.problem)}</section>
             {photoButton("label","Foto da etiqueta *")}{photoButton("problem","Foto do defeito *")}
             <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm leading-5"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1 size-4 accent-[#0131cd]"/><span>Confirmo os dados e autorizo seu uso para identificar meu cadastro e prestar o atendimento solicitado.<span className="ml-1 text-red-600">*</span></span></label>
           </>}
           {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?<><Loader2 size={16} className="animate-spin"/> Validando CPF e nome...</>:<>Continuar <ArrowRight size={16}/></>}</button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
+          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||cnpjBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?<><Loader2 size={16} className="animate-spin"/> Validando CPF e nome...</>:<>Continuar <ArrowRight size={16}/></>}</button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
         </section></>}
       <footer className="text-center text-xs text-slate-500">Tecnologia Union World</footer>
     </div>
