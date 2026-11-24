@@ -11,9 +11,17 @@ export function validateDestination(organizationId,accountPhone) {
   return {organizationId:organizationId.toLowerCase(),accountPhone};
 }
 
+export const PILOT_MAX_CONTACTS=100;
+export const BULK_MAX_CONTACTS=40000;
+export const BULK_INDEX_MAX_BYTES=24*1024*1024;
+export function packageContactLimit(summary){
+  if(summary?.version!==1)return 0;
+  return summary.stage==="union_history_pilot_packaging"?PILOT_MAX_CONTACTS:
+    summary.stage==="union_history_bulk_packaging"?BULK_MAX_CONTACTS:0;
+}
 export function validateIndex(rows,summary,packageId) {
   validatePackageId(packageId);
-  if(!summary||summary.version!==1||summary.stage!=="union_history_pilot_packaging"||summary.package_id!==packageId||!Array.isArray(rows)||rows.length===0||rows.length>100||summary.contacts!==rows.length)throw Error("Pacote de histórico inválido.");
+  if(!summary||!packageContactLimit(summary)||summary.package_id!==packageId||!Array.isArray(rows)||rows.length===0||rows.length>packageContactLimit(summary)||summary.contacts!==rows.length)throw Error("Pacote de histórico inválido.");
   const seen=new Set(),totals={messages:0,protocols:0,media_recovered:0,media_pending:0},phones=new Map();
   const safe=rows.map(r=>{
     if(!r||!(/^[a-f0-9]{32}$/).test(r.contact_key)||seen.has(r.contact_key)||r.file!=="historicos/"+r.contact_key+".json.gz"||!(/^[a-f0-9]{64}$/).test(r.sha256)||!(/^[1-9][0-9]{9,14}$/).test(r.phone_normalized))throw Error("Índice inválido.");
