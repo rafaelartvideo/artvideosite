@@ -105,7 +105,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
       <AdminMobileSearchSwitch
         value={mobileCriterion}
         options={[{value:"customer",label:"Cliente"},{value:"document",label:"CPF / CNPJ"},{value:"protocol",label:"Protocolo"},{value:"status",label:"Situação"}]}
-        onChange={value=>{setMobileCriterion(value);setCustomer("");setDocument("");setProtocol("");setStatus("");setPage(1);}}
+        onChange={setMobileCriterion}
       >
         {mobileCriterion==="status" ? <AdminSelect className="h-[42px] w-full min-w-0" value={status} onValueChange={value=>{setStatus(value);setPage(1);}}
           options={[{value:"",label:"Todas as situações"},...(statusesQuery.data||[]).map(item=>({value:item.id,label:item.name}))]} ariaLabel="Filtrar orçamentos por situação"/> : <div className="relative min-w-0">
