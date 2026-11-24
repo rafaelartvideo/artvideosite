@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, Download, ExternalLink, MoreVertical, PanelTop, Upload, X } from "lucide-react";
+import { Camera, Download, ExternalLink, MoreVertical, PanelTop, RotateCcw, RotateCw, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -517,6 +517,13 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
   const [downloadError, setDownloadError] = useState("");
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [detached, setDetached] = useState<DetachedOrderImageWindow | null>(null);
+  const [orientation, setOrientation] = useState({ key: image.key, degrees: 0 });
+  const rotation = orientation.key === image.key ? orientation.degrees : 0;
+  const sideways = rotation === 90 || rotation === 270;
+  const rotatePhoto = (delta: number) => setOrientation(current => ({
+    key: image.key,
+    degrees: ((current.key === image.key ? current.degrees : 0) + delta + 360) % 360,
+  }));
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -594,6 +601,31 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     }
   };
 
+  const rotationActions = url ? <>
+    <button type="button" aria-label="Girar foto à esquerda" title="Girar foto à esquerda"
+      onClick={() => rotatePhoto(-90)}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+      <RotateCcw size={16}/>
+    </button>
+    <button type="button" aria-label="Girar foto à direita" title="Girar foto à direita"
+      onClick={() => rotatePhoto(90)}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-primary">
+      <RotateCw size={16}/>
+    </button>
+  </> : null;
+
+  // Swap the available axes before rotating a quarter turn, so wide and tall
+  // photos remain fully visible in both the modal and the detached window.
+  const rotatedPhoto = url ? <img
+    src={url} alt={image.name}
+    className="absolute left-1/2 top-1/2 max-h-none max-w-none object-contain"
+    style={{
+      width: sideways ? "100cqh" : "100cqw",
+      height: sideways ? "100cqw" : "100cqh",
+      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+    }}
+  /> : <LoadingSpinner size="sm" />;
+
   const downloadActions = (
       <div
         className="relative"
@@ -657,13 +689,16 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
           <AdminButton variant="secondary" size="sm" onClick={reintegrateImage} title="Reintegrar a imagem ao modal da OS">
             <PanelTop size={15}/> Reintegrar ao CRM
           </AdminButton>
+          {rotationActions}
           {downloadActions}
           <button type="button" aria-label="Fechar janela destacada" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"><X size={17}/></button>
         </div>
       </header>
       {downloadError && <div className="m-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
-      <main className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[#0d1b2e] p-2">
-        {url ? <img src={url} alt={image.name} className="max-h-full max-w-full object-contain" /> : <LoadingSpinner size="sm" />}
+      <main className="flex min-h-0 flex-1 bg-[#0d1b2e] p-2">
+        <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden" style={{ containerType: "size" }}>
+          {rotatedPhoto}
+        </div>
       </main>
     </section>, detached.host,
   );
@@ -681,12 +716,15 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
         className="hidden md:inline-flex" onClick={detachImage}>
         <ExternalLink size={15}/> <span>Destacar janela</span>
       </AdminButton>}
+      {rotationActions}
       {downloadActions}
     </>}
   >
     {downloadError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
-    <div className="flex min-h-[45vh] items-center justify-center overflow-hidden rounded-xl bg-[#0d1b2e] p-2">
-      <img src={url} alt={image.name} className="max-h-[72vh] max-w-full object-contain" />
+    <div className="rounded-xl bg-[#0d1b2e] p-2">
+      <div className="relative h-[min(72dvh,760px)] w-full overflow-hidden" style={{ containerType: "size" }}>
+        {rotatedPhoto}
+      </div>
     </div>
   </AdminDialog> : null;
 }
