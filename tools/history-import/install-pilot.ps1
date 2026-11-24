@@ -3,7 +3,7 @@ $ProgressPreference = 'SilentlyContinue'
 $stage = 'preparar arquivos'
 $temp = $null
 try {
-    $files = @('archive-contract.mjs','archive-store.mjs','archive-gateway.mjs','preflight.mjs','archive-store.test.mjs','history-page.mjs','history-page.test.mjs','install-pilot.sh')
+    $files = @('archive-contract.mjs','archive-store.mjs','archive-gateway.mjs','archive-media.mjs','archive-media.test.mjs','preflight.mjs','archive-store.test.mjs','history-page.mjs','history-page.test.mjs','install-pilot.sh')
     foreach ($file in $files) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $file) -PathType Leaf)) { throw 'Arquivo do pacote ausente' }
     }
