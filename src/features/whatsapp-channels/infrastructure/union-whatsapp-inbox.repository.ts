@@ -160,7 +160,7 @@ export type UnionWhatsAppProtocolPage={
 };
 const INBOX_PAGE_SIZE=50;
 const MESSAGE_PAGE_SIZE=60;
-const PROTOCOL_PAGE_SIZE=25;
+export const PROTOCOL_PAGE_SIZE=5;
 const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,awaiting_reply_since,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
 
 type FinishAttribution = {assignedTo:string|null;closedBy:string|null;actorName:string|null;cachedAt:number};
@@ -474,8 +474,8 @@ export async function openBoundHistoricalConversation(organizationId:string,cont
   return typeof data.result?.conversation_id==="string"?data.result.conversation_id:null;
 }
 
-export async function listContactOnlyHistoricalMessages(organizationId:string,contactId:string,channelId:string,accountPhone:string,before?:UnionWhatsAppMessageCursor|null):Promise<UnionWhatsAppMessagePage>{
-  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"history_page",contact_only:true,organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone,before:before||null,limit:MESSAGE_PAGE_SIZE}});
+export async function listContactOnlyHistoricalMessages(organizationId:string,contactId:string,channelId:string,accountPhone:string,before?:UnionWhatsAppMessageCursor|null,protocolId?:string|null):Promise<UnionWhatsAppMessagePage>{
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"history_page",contact_only:true,organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone,before:before||null,protocol_id:protocolId||null,limit:MESSAGE_PAGE_SIZE}});
   if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar as mensagens anteriores.");
   return {items:data.result.items.map((row:any)=>({...mapHistoricalMessage(row,organizationId,contactId,channelId,accountPhone),historical_scope:{channel_id:channelId,account_phone:accountPhone,contact_only:true}})).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
 }
@@ -575,6 +575,21 @@ export async function listUnionWhatsAppProtocolMarkers(
   return markers;
 }
 
+function mapHistoricalProtocol(r:any,conversationId:string):UnionWhatsAppProtocol{
+  return {id:r.id,conversation_id:conversationId,protocol_number:0,read_only:true,unknown_date:!r.opened_at,
+    original_status:r.original_status,status:r.closed_at?"finished":"abandoned",
+    opened_at:r.opened_at||r.sent_at||"1970-01-01T00:00:00.000Z",closed_at:r.closed_at||null,
+    assigned_at:null,assigned_to:null,department_id:null,first_reply_at:null,message_count:r.message_count,
+    opened_by:null,closed_by:null};
+}
+export async function listContactOnlyHistoricalProtocols(
+  organizationId:string,contactId:string,channelId:string,accountPhone:string,before?:UnionWhatsAppMessageCursor|null,
+):Promise<UnionWhatsAppProtocolPage>{
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"history_page",contact_only:true,kind:"protocols",organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone,before:before||null,limit:PROTOCOL_PAGE_SIZE}});
+  if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os atendimentos anteriores.");
+  return {items:data.result.items.map((r:any)=>mapHistoricalProtocol(r,contactId)),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+}
+
 export async function listUnionWhatsAppProtocols(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   page=0,before?:UnionWhatsAppMessageCursor|null,
@@ -582,7 +597,7 @@ export async function listUnionWhatsAppProtocols(
   if(isUnifiedHistoryPilotEnabled(organizationId)){
     const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"conversation_page",kind:"protocols",organization_id:organizationId,conversation_id:conversationId,channel_id:channelId,account_phone:accountPhone,before:before||null,limit:PROTOCOL_PAGE_SIZE}});
     if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os atendimentos anteriores.");
-    return {items:data.result.items.map((r:any):UnionWhatsAppProtocol=>r.read_only===true?{id:r.id,conversation_id:conversationId,protocol_number:0,read_only:true,unknown_date:!r.opened_at,original_status:r.original_status,status:r.closed_at?"finished":"abandoned",opened_at:r.opened_at||r.sent_at,closed_at:r.closed_at||null,assigned_at:null,assigned_to:null,department_id:null,first_reply_at:null,message_count:r.message_count,opened_by:null,closed_by:null}:r).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+    return {items:data.result.items.map((r:any):UnionWhatsAppProtocol=>r.read_only===true?mapHistoricalProtocol(r,conversationId):r).reverse(),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
   }
   const limit=PROTOCOL_PAGE_SIZE;
   const start=Math.max(0,Math.floor(page))*limit;
