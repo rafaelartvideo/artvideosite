@@ -37,12 +37,12 @@ export function AdminMobileSearchSwitch<T extends string>({
           <button
             type="button"
             aria-label={`Buscar por: ${selected?.label || ""}`}
-            className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"
+            className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-left text-xs font-bold text-foreground shadow-sm transition-colors hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             <span className="min-w-0 truncate">
-              <span className="font-medium text-[#5a6a82]">Buscar por:</span> {selected?.label}
+              <span className="font-medium text-muted-foreground">Buscar por:</span> {selected?.label}
             </span>
-            <ChevronDown size={15} className="shrink-0 text-[#5a6a82]" />
+            <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-[240px]">
@@ -51,12 +51,12 @@ export function AdminMobileSearchSwitch<T extends string>({
             onSelect={() => onChange(option.value)}
             className={cn(
               "cursor-pointer",
-              value === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
+              value === option.value && "bg-primary/10 font-bold text-primary focus:bg-primary/10 focus:text-primary",
             )}
           >
             <Search size={14} className="text-muted-foreground" />
             <span>{option.label}</span>
-            {value === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}
+            {value === option.value && <Check size={14} className="ml-auto text-primary" />}
           </DropdownMenuItem>)}
         </DropdownMenuContent>
       </DropdownMenu>
