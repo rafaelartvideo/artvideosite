@@ -12,8 +12,9 @@ const file=gzipSync(JSON.stringify(payload));
 const row={contact_key:ck,phone_normalized:phone,file:"historicos/"+ck+".json.gz",sha256:createHash("sha256").update(file).digest("hex"),bytes:file.length,messages:1,protocols:1,media:1,media_available:0,media_pending:1};
 const summary={version:1,stage:"union_history_pilot_packaging",package_id:pid,contacts:1,messages:1,protocols:1,media_recovered:0,media_pending:1};
 function fixture(){
- let corrupt=false;
+ let corrupt=false, reads=0;
  const read=(packageId,name)=>{
+   reads++;
    assert.equal(packageId,pid);
    if(name==="resumo-seguro.json")return Buffer.from(JSON.stringify(summary));
    if(name==="indice-privado.jsonl")return Buffer.from(JSON.stringify(row)+"\n");
@@ -21,7 +22,7 @@ function fixture(){
    throw Error("unexpected");
  };
  const store=openArchiveStore(":memory:",read);
- return {store,corrupt:()=>{corrupt=true},repair:()=>{corrupt=false}};
+ return {store,reads:()=>reads,corrupt:()=>{corrupt=true},repair:()=>{corrupt=false}};
 }
 test("reject unsafe paths, directions, inconsistent media and transitions",()=>{
  assert.throws(()=>validateIndex([{...row,file:"../../secret"}],summary,pid));
@@ -99,5 +100,38 @@ test("explicit binding is required and cannot cross company, number, or contact"
    assert.equal(store.lookupBound({...query,accountPhone:"5579777777777"}),null);
    store.control({id,organizationId:org,actor,action:"rollback"});
    assert.equal(store.lookupBound(query),null);
+ }finally{store.close()}
+});
+
+test("indexed history is paginated, explicitly bound, private, and never rereads R2",()=>{
+ const {store,reads}=fixture(), contactId="44444444-4444-4444-8444-444444444444", conversationId="55555555-5555-4555-8555-555555555555";
+ const query={organizationId:org,accountPhone:account,contactPhone:phone,contactId,conversationId,limit:1};
+ try{
+   store.grantPackage(pid,org,actor);
+   const id=store.prepare({packageId:pid,organizationId:org,accountPhone:account,actor});
+   store.control({id,organizationId:org,actor,action:"start"});
+   store.tick();store.tick();
+   assert.equal(store.pageBound(query).items.length,0);
+   store.bindContact({id,organizationId:org,actor,accountPhone:account,contactKey:ck,contactId,contactPhone:phone});
+   const count=reads(), result=store.pageBound(query);
+   assert.equal(result.items.length,1);
+   assert.equal(result.items[0].body_text,"fixture");
+   assert.equal(result.items[0].conversation_id,conversationId);
+   assert.equal(result.items[0].delivery_status,null);
+   assert.equal(result.items[0].attachments.length,1);
+   assert.equal(result.items[0].attachments[0].available,false);
+   assert.equal(result.hasMore,false);
+   assert.equal(store.pageBound({...query,before:result.nextCursor}).items.length,0);
+   const protocols=store.pageBound({...query,kind:"protocols"});
+   assert.equal(protocols.items.length,1);
+   assert.equal(protocols.items[0].message_count,1);
+   assert.equal(store.pageBound({...query,protocolId:protocols.items[0].id}).items.length,1);
+   assert.equal(store.pageBound({...query,organizationId:other}).items.length,0);
+   assert.equal(store.pageBound({...query,contactId:conversationId}).items.length,0);
+   assert.equal(store.pageBound({...query,accountPhone:"5579777777777"}).items.length,0);
+   assert.throws(()=>store.pageBound({...query,limit:101}));
+   assert.equal(reads(),count);
+   store.control({id,organizationId:org,actor,action:"rollback"});
+   assert.equal(store.pageBound(query).items.length,0);
  }finally{store.close()}
 });
