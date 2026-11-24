@@ -1,29 +1,43 @@
-// Keep the same compact breakpoint as the CRM's search CSS, including touch tablets.
+// Match the compact search CSS, including touch tablets.
 export const COMPACT_SEARCH_MEDIA = "(max-width: 1023px), (pointer: coarse)";
+export const SEARCH_PANEL_PREFERENCE_KEY = "union:search-panel:v2:expanded";
 
 type PreferenceStorage = Pick<Storage, "getItem" | "setItem">;
-const memory = new Map<string, boolean>();
-
-export function searchPanelPreferenceKey(pathname: string, title: string, compact: boolean) {
-  return "union:search-panel:v1:" + JSON.stringify([pathname, title, compact ? "compact" : "desktop"]);
-}
+let memory: boolean | undefined;
+const listeners = new Set<() => void>();
 
 function browserStorage(): PreferenceStorage | undefined {
   try { return typeof window !== "undefined" ? window.localStorage : undefined; }
   catch { return undefined; }
 }
 
-export function readSearchPanelExpanded(key: string, compact: boolean, storage = browserStorage()) {
-  if (memory.has(key)) return memory.get(key)!;
+export function readSearchPanelExpanded(compact: boolean, storage = browserStorage()) {
+  if (memory !== undefined) return memory;
   try {
-    const value = storage?.getItem(key);
+    const value = storage?.getItem(SEARCH_PANEL_PREFERENCE_KEY);
     if (value === "true" || value === "false") return value === "true";
   } catch { /* Browser storage can be unavailable. */ }
   return !compact;
 }
 
-export function writeSearchPanelExpanded(key: string, expanded: boolean, storage = browserStorage()) {
-  memory.set(key, expanded);
-  try { storage?.setItem(key, String(expanded)); }
-  catch { /* Preserve the preference in memory for the current CRM session. */ }
+export function writeSearchPanelExpanded(expanded: boolean, storage = browserStorage()) {
+  memory = expanded;
+  try { storage?.setItem(SEARCH_PANEL_PREFERENCE_KEY, String(expanded)); }
+  catch { /* Keep the choice for the current session. */ }
+  listeners.forEach(listener => listener());
+}
+
+// All mounted search panels use the same store, regardless of route or title.
+export function subscribeSearchPanelExpanded(listener: () => void) {
+  listeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== SEARCH_PANEL_PREFERENCE_KEY && event.key !== null) return;
+    memory = undefined;
+    listener();
+  };
+  if (typeof window !== "undefined") window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    if (typeof window !== "undefined") window.removeEventListener("storage", onStorage);
+  };
 }
