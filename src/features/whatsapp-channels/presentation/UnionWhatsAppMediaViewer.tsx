@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FileText, RotateCcw, RotateCw, Scan, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, ExternalLink, FileText, LoaderCircle, PanelTop, RotateCcw, RotateCw, Scan, X, ZoomIn, ZoomOut } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useDetachedMediaWindow } from "./useDetachedMediaWindow";
+import { downloadMediaWebp } from "../application/download-media-webp";
 import { mediaViewerFitScale, mediaViewerPanBounds, normalizeMediaRotation } from "../domain/media-viewer-rotation";
 
 type WhatsAppMediaViewerProps = {
@@ -22,6 +25,12 @@ export function UnionWhatsAppMediaViewer({
   url,downloadUrl,type,name,onClose,placement="viewport",
 }:WhatsAppMediaViewerProps){
   const isImage=type==="image"||type==="sticker";
+  const isPhoto=type==="image";
+  const {detached,detach,reintegrate,error:windowError}=useDetachedMediaWindow(name);
+  const [downloadBusy,setDownloadBusy]=useState(false);
+  const [downloadError,setDownloadError]=useState("");
+  const [corsFailedUrl,setCorsFailedUrl]=useState<string|null>(null);
+  const downloadGate=useRef(false);
   const [zoom,setZoom]=useState(1);
   const [rotation,setRotation]=useState(0);
   const [fitScale,setFitScale]=useState(1);
@@ -79,9 +88,10 @@ export function UnionWhatsAppMediaViewer({
     const onEscape=(event:KeyboardEvent)=>{
       if(event.key==="Escape"){event.stopPropagation();onClose();}
     };
-    document.addEventListener("keydown",onEscape,true);
-    return()=>document.removeEventListener("keydown",onEscape,true);
-  },[onClose]);
+    const ownerDocument=detached?.host.ownerDocument||document;
+    ownerDocument.addEventListener("keydown",onEscape,true);
+    return()=>ownerDocument.removeEventListener("keydown",onEscape,true);
+  },[onClose,detached]);
   useEffect(()=>{
     zoomRef.current=1;
     setZoom(1);
@@ -116,12 +126,13 @@ export function UnionWhatsAppMediaViewer({
     const observer=typeof ResizeObserver!=="undefined"?new ResizeObserver(syncDimensions):null;
     observer?.observe(viewport);
     observer?.observe(image);
-    window.addEventListener("resize",syncDimensions);
+    const ownerWindow=viewport.ownerDocument.defaultView||window;
+    ownerWindow.addEventListener("resize",syncDimensions);
     return()=>{
       observer?.disconnect();
-      window.removeEventListener("resize",syncDimensions);
+      ownerWindow.removeEventListener("resize",syncDimensions);
     };
-  },[isImage,url,rotation]);
+  },[isImage,url,rotation,detached]);
   useEffect(()=>{
     if(!isImage)return;
     const viewport=viewportRef.current;
@@ -133,7 +144,7 @@ export function UnionWhatsAppMediaViewer({
     // Non-passive para o scroll ampliar a imagem sem rolar a tela que está atrás.
     viewport.addEventListener("wheel",onWheel,{passive:false});
     return()=>viewport.removeEventListener("wheel",onWheel);
-  },[isImage]);
+  },[isImage,detached]);
 
   const onPointerDown=(event:React.PointerEvent<HTMLImageElement>)=>{
     if(event.pointerType==="mouse"&&event.button!==0)return;
@@ -178,18 +189,33 @@ export function UnionWhatsAppMediaViewer({
     }
   };
 
-  return <div role="dialog" aria-modal="true" aria-label="Visualizar arquivo"
-    onClick={event=>{if(event.target===event.currentTarget)onClose();}}
-    className={`${placement==="drawer"?"pointer-events-auto absolute inset-0 z-50":"fixed inset-0 z-[200]"} flex flex-col items-center gap-3 bg-black/55 p-4`}>
+  const downloadPhoto=async()=>{
+    if(downloadGate.current)return;
+    downloadGate.current=true;
+    setDownloadBusy(true);
+    setDownloadError("");
+    try{
+      await downloadMediaWebp(imageRef.current,url,name,detached?.host.ownerDocument||document);
+    }catch{
+      setDownloadError("Não foi possível baixar a imagem em WebP. Reabra a foto e tente novamente.");
+    }finally{
+      downloadGate.current=false;
+      setDownloadBusy(false);
+    }
+  };
+  const viewer=<div role="dialog" aria-modal={!detached} aria-label="Visualizar arquivo"
+    onClick={event=>{if(!detached&&event.target===event.currentTarget)onClose();}}
+    className={`${detached?"relative h-dvh w-full bg-background":placement==="drawer"?"pointer-events-auto absolute inset-0 z-50 bg-black/55":"fixed inset-0 z-[200] bg-black/55"} flex flex-col items-center gap-3 p-4`}>
     <button type="button" onClick={onClose} aria-label="Fechar visualização"
       className="absolute right-4 top-4 z-10 rounded-full border border-white/30 bg-black/65 p-2 text-white hover:bg-black/80">
       <X size={23}/>
     </button>
     <div ref={viewportRef} className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
-      onClick={event=>{if(event.target===event.currentTarget)onClose();}}
+      onClick={event=>{if(!detached&&event.target===event.currentTarget)onClose();}}
       aria-label={isImage?"Visualização da imagem — use a roda do mouse, dois dedos ou os botões para ampliar":undefined}>
       {isImage
-        ?<img ref={imageRef} src={url} alt={name} draggable={false}
+        ?<img ref={imageRef} crossOrigin={isPhoto&&corsFailedUrl!==url?"anonymous":undefined} src={url} alt={name} draggable={false}
+          onError={()=>{if(isPhoto&&corsFailedUrl!==url)setCorsFailedUrl(url);}}
           onDragStart={event=>event.preventDefault()}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
@@ -234,14 +260,28 @@ export function UnionWhatsAppMediaViewer({
     </div>}
     <div className="flex max-w-full shrink-0 flex-wrap items-center justify-center gap-3 rounded-lg bg-black/65 px-3 py-2">
       <span className="min-w-0 max-w-[60vw] truncate text-sm font-semibold text-white">{name}</span>
-      <a href={url} target="_blank" rel="noopener noreferrer"
+      {isPhoto ? <>
+        <button type="button" onClick={detached?reintegrate:detach} title={detached?"Reintegrar ao CRM":"Abrir arquivo em janela destacada"}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+          {detached?<PanelTop size={14}/>:<ExternalLink size={14}/>}
+          {detached?"Reintegrar ao CRM":"Destacar janela"}
+        </button>
+        <button type="button" onClick={()=>void downloadPhoto()} disabled={downloadBusy}
+          aria-label="Baixar imagem em WebP" title="Baixar imagem em WebP"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50">
+          {downloadBusy?<LoaderCircle size={14} className="animate-spin"/>:<Download size={14}/>}
+          {downloadBusy?"Baixando...":"Baixar"}
+        </button>
+      </> : <a href={url} target="_blank" rel="noopener noreferrer"
         className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
         Abrir arquivo
-      </a>
+      </a>}
       {type==="file" && <a href={downloadUrl||url} target="_blank" rel="noopener noreferrer"
         download={name} className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
         Baixar
       </a>}
     </div>
+    {(windowError||downloadError)&&<p role="alert" className="max-w-full rounded-md bg-black/80 px-3 py-2 text-xs text-white">{windowError||downloadError}</p>}
   </div>;
+  return detached?createPortal(viewer,detached.host):viewer;
 }
