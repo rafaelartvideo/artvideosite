@@ -241,7 +241,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
     </>}>
       <AdminMobileSearchSwitch value={mobileCriterion}
         options={[{value:"region",label:"Região / CEP"},{value:"status",label:"Situação"}]}
-        onChange={value=>{setMobileCriterion(value);setSearch("");setStatusFilter("all");setPage(1);}}>
+        onChange={setMobileCriterion}>
         {mobileCriterion==="status"
           ? <AdminSelect ariaLabel="Filtrar situação" value={statusFilter} className="h-[42px] w-full min-w-0"
               onValueChange={value=>{setStatusFilter(value as StatusFilter);setPage(1);}} options={STATUS_OPTIONS}/>
