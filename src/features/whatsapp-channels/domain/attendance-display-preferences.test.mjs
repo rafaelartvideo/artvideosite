@@ -53,7 +53,17 @@ test("Atendimentos possui menu local e não marca como lida ao apenas visualizar
   assert.match(page,/saveAttendanceDisplayPreferences\(activeOrganizationId,user\.id,next\)/);
   assert.doesNotMatch(page,/role_permissions_save[\s\S]{0,150}preserveUnreadOnView/);
   assert.match(page,/canManageAttendanceDisplayPreferences\(staffRole\)/);
-  assert.match(page,/\{canUseAttendancePreferences && attendancePreferences && <Popover>/);
+  // The shared overflow menu is available to all roles, but its visualization
+  // submenu and all three preference controls must remain restricted to managers.
+  assert.match(page,/<Popover open=\{attendanceMenuOpen\}/);
+  assert.match(page,/<MoreVertical size=\{20\}\/>/);
+  const guardedPreferences=page.match(/\{canUseAttendancePreferences && attendancePreferences && <>([\s\S]*?)<\/>\}/)?.[1];
+  assert.ok(guardedPreferences,"Visualização deve permanecer condicionada ao perfil e às preferências");
+  assert.match(guardedPreferences,/aria-expanded=\{attendanceViewExpanded\}/);
+  assert.match(guardedPreferences,/\{attendanceViewExpanded&&<div/);
+  for(const preference of ["preserveUnreadOnView","markReadWhenAssuming","focusComposerOnOpen"]){
+    assert.ok(guardedPreferences.includes("checked={attendancePreferences."+preference+"}"));
+  }
   assert.match(page,/if\(!canUseAttendancePreferences\|\|!activeOrganizationId/);
   assert.match(page,/DEFAULT_ATTENDANCE_DISPLAY_PREFERENCES/);
   assert.match(page,/sharedActivity\.staffRole/);
