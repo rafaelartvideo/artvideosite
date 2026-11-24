@@ -44,9 +44,9 @@ export function AdminSearchPanel({ title, children, fields, headerActions, allow
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} className="shrink-0 text-white/90" /></span>
         <span className="min-w-0 truncate text-xs font-bold uppercase tracking-[0.08em]">{title}</span>
         <button type="button" aria-label={toggleLabel} title={toggleLabel} aria-expanded={isExpanded} aria-controls={panelId}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex h-7 w-5 shrink-0 items-center justify-center self-center border-0 bg-transparent p-0 leading-none text-white shadow-none hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           onClick={() => hasCompact ? setExpanded(value => !value) : setSingleCollapsed(value => !value)}>
-          <ChevronDown size={19} aria-hidden="true" className={cn("transition-transform", isExpanded && "rotate-180")} />
+          <ChevronDown size={16} aria-hidden="true" className={cn("block shrink-0 transition-transform", isExpanded && "rotate-180")} />
         </button>
       </div>
       {headerActions && <div className="ml-auto flex shrink-0 items-center justify-end gap-2">{headerActions}</div>}
