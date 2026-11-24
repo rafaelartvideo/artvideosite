@@ -21,7 +21,8 @@ export async function downloadMediaWebp(image:HTMLImageElement|null,url:string,n
       // Reuse decoded pixels: no new request for a CORS-readable, already loaded image.
       blob=await encodeWebp(image,image.naturalWidth,image.naturalHeight,doc);
     }catch(error){
-      if(!(error instanceof DOMException) || error.name!=="SecurityError")throw error;
+      // Canvas exceptions may come from the detached window realm.
+      if(!error || typeof error!=="object" || !("name" in error) || error.name!=="SecurityError")throw error;
     }
   }
   if(!blob){
