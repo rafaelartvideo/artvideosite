@@ -164,7 +164,33 @@ export function SalesOrdersPage({ onNewSale, onInitialReady }: { onNewSale: () =
     </div>
 
     {canView && !badPeriod && ordersQuery.isPending ? <AdminWorkspaceSkeleton searchFields={5} columns={8} rows={pageSize} /> : <>
-    <AdminSearchPanel title="Buscar pedidos"
+    <AdminSearchPanel title="Buscar pedidos" fields={[
+        { value: "query", label: "Pedido, cliente, produto ou SKU", content: <AdminSearchTextField label="Pedido, cliente, produto ou SKU"
+          value={search} onChange={value=>setFilter(setSearch,value)}
+          placeholder="Buscar pedidos..."/> },
+        { value: "status", label: "Situação comercial", content: <FilterSelect label="Situação comercial" value={status||"all"}
+          onChange={value=>setFilter(setStatus,value as SalesOrderFilters["status"])}
+          options={[
+            {value:"all",label:"Todas"},
+            {value:"confirmed",label:"Confirmados"},
+            {value:"cancelled",label:"Cancelados"},
+          ]}/> },
+        { value: "payment", label: "Pagamento", content: <FilterSelect label="Pagamento" value={payment||"all"}
+          onChange={value=>setFilter(setPayment,value as SalesOrderFilters["payment"])}
+          options={[
+            {value:"all",label:"Todos"},
+            {value:"pending",label:"Pendente"},
+            {value:"partial",label:"Parcial"},
+            {value:"paid",label:"Recebido"},
+            {value:"cancelled",label:"Cancelado"},
+          ]}/> },
+        { value: "from", label: "Data inicial", content: <FInput label="Data inicial" type="date" value={from}
+            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setFrom,event.target.value)}
+            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/> },
+        { value: "to", label: "Data final", content: <FInput label="Data final" type="date" value={to}
+            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setTo,event.target.value)}
+            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/> }
+      ]}
       headerActions={<>
         {(search||status!=="all"||payment!=="all"||from||to||sort!=="newest")
           && <AdminSearchClearButton onClick={clearFilters}/>}
@@ -176,35 +202,6 @@ export function SalesOrdersPage({ onNewSale, onInitialReady }: { onNewSale: () =
             {value:"lowest",label:"Menor valor"},
           ]}/>
       </>}>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <AdminSearchTextField label="Pedido, cliente, produto ou SKU"
-          value={search} onChange={value=>setFilter(setSearch,value)}
-          placeholder="Buscar pedidos..."/>
-        <FilterSelect label="Situação comercial" value={status||"all"}
-          onChange={value=>setFilter(setStatus,value as SalesOrderFilters["status"])}
-          options={[
-            {value:"all",label:"Todas"},
-            {value:"confirmed",label:"Confirmados"},
-            {value:"cancelled",label:"Cancelados"},
-          ]}/>
-        <FilterSelect label="Pagamento" value={payment||"all"}
-          onChange={value=>setFilter(setPayment,value as SalesOrderFilters["payment"])}
-          options={[
-            {value:"all",label:"Todos"},
-            {value:"pending",label:"Pendente"},
-            {value:"partial",label:"Parcial"},
-            {value:"paid",label:"Recebido"},
-            {value:"cancelled",label:"Cancelado"},
-          ]}/>
-        <div className="grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 xl:col-span-2">
-          <FInput label="Data inicial" type="date" value={from}
-            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setFrom,event.target.value)}
-            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
-          <FInput label="Data final" type="date" value={to}
-            onChange={(event:ChangeEvent<HTMLInputElement>)=>setFilter(setTo,event.target.value)}
-            className="h-[42px] md:h-9 md:py-1.5 md:text-xs"/>
-        </div>
-      </div>
       {badPeriod && <p role="alert" className="mt-3 text-xs text-destructive">
         A data inicial não pode ser posterior à data final.
       </p>}
