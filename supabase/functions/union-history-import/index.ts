@@ -45,6 +45,32 @@ Deno.serve(async req=>{
       const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null,category=b.category??null;
       if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols","shared"].includes(kind)||(kind==="shared"&&!["media","documents","links"].includes(category))||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind!=="messages"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
       if(before!==null){try{timestampMicros(before.sent_at)}catch{return json({success:false,error:"Cursor inválido."},400)}}
+      // Contacts with no operational conversation are readable only by the
+      // import managers. Never use this route to bypass an existing thread's RLS.
+      if(b.contact_only===true){
+        const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
+        const has=(key:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===key);
+        if(!has("whatsapp.history_import.view")||!has("whatsapp.history_import.manage")||unified)return json({success:false,error:"Acesso restrito."},403);
+        const {data:contact,error:contactError}=await admin.from("union_whatsapp_contacts").select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone").eq("id",b.conversation_id).eq("organization_id",org).eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
+        if(contactError||!contact||!phone(contact.contact_phone)||contact.chat_jid!==contact.contact_phone+"@s.whatsapp.net")return json({success:false,error:"Contato indisponível."},404);
+        const threadExists=async()=>{
+          const {data,error}=await admin.from("union_whatsapp_conversations").select("id").eq("organization_id",org).eq("account_phone",contact.account_phone).or(`contact_phone.eq.${contact.contact_phone},chat_jid.eq.${contact.chat_jid}`).limit(1);
+          if(error)throw Error("Identidade indisponível.");return Boolean(data?.length);
+        };
+        if(await threadExists())return json({success:false,error:"Consulte o histórico pela conversa."},403);
+        const {data:matches,error:matchError}=await admin.from("union_whatsapp_contacts").select("id").eq("organization_id",org).eq("account_phone",contact.account_phone).eq("contact_phone",contact.contact_phone).limit(2);
+        if(matchError||matches?.length!==1||matches[0].id!==contact.id)return json({success:false,error:"Identidade exige revisão."},409);
+        const scope={organizationId:org,accountPhone:contact.account_phone,contactId:contact.id,contactPhone:contact.contact_phone,conversationId:contact.id};
+        const result=mediaTicket?await bridge({action:"media_ticket",...scope,assetId:b.asset_id,download:b.download===true}):await bridge({action:"history_page",...scope,kind,category,protocolId,before,limit});
+        if(await threadExists())return json({success:false,error:"Consulte o histórico pela conversa."},403);
+        if(mediaTicket){
+          if(typeof result?.token!=="string"||!/^[a-f0-9]{64}$/.test(result.token)||!Number.isFinite(Date.parse(result.expires_at)))throw Error("Anexo indisponível.");
+          const mediaUrl=new URL(Deno.env.get("UNION_HISTORY_GATEWAY_URL")||"");
+          mediaUrl.search="";mediaUrl.searchParams.set("media",result.token);
+          return json({success:true,result:{url:mediaUrl.toString(),expires_at:result.expires_at}});
+        }
+        return json({success:true,result});
+      }
       const {data:visibleThread,error:threadError}=await scoped.from("union_whatsapp_conversations")
         .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone")
         .eq("id",b.conversation_id).eq("organization_id",org)
