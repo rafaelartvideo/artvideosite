@@ -12,6 +12,7 @@ import { renderWhatsAppQuickReply } from "../domain/quick-reply-variables.mjs";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
+import { useDetachedOrderEditor } from "@/features/orders/presentation/useDetachedOrderEditor";
 import { CrmAdditionalContactDialog } from "./CrmAdditionalContactDialog";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
@@ -689,9 +690,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactLaunch=useRef(0);
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
-  const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
+  const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string}|null>(null);
+  const detachedNewOrder=useDetachedOrderEditor();
+  const embeddedSwitchGuardRef=useRef<(()=>boolean)|null>(null);
   const newOrderGateRef=useRef(false);
   useEffect(()=>setNewOrder(null),[activeOrganizationId]);
+  useEffect(()=>{if(!newOrder&&detachedNewOrder.detached)detachedNewOrder.reintegrate();},[newOrder,detachedNewOrder.detached]);
   useEffect(()=>{setCrmDetailsOpen(false);newOrderGateRef.current=false;},[selectedId,activeOrganizationId]);
   const messageIdentity = useRef(0);
 
@@ -1520,8 +1524,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const openNewOrderFromConversation=()=>{
     if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
-      !hasPermission("orders.create") || newOrderGateRef.current || newOrder)return;
+      !hasPermission("orders.create") || newOrderGateRef.current)return;
     const org=activeOrganizationId, threadId=selected.id;
+    if(newOrder){
+      const detached=detachedNewOrder.detached;
+      if(!detached||detached.popup.closed)return;
+      if(newOrder.conversationId===threadId){detached.popup.focus();return;}
+      if(!embeddedSwitchGuardRef.current?.()){detached.popup.focus();return;}
+    }
     newOrderGateRef.current=true;
     const cached=linkedCustomers[threadId];
     const canViewCustomer=hasPermission("customers.view");
@@ -1536,7 +1546,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return !result.ambiguous ? result.matched_customer_id || result.customer?.id || null : null;
       },
     }).catch(()=>null) : undefined;
-    setNewOrder({customerId,customerLookup,key:crypto.randomUUID(),organizationId:org});
+    setNewOrder({customerId,customerLookup,key:crypto.randomUUID(),organizationId:org,conversationId:threadId});
+    detachedNewOrder.detached?.popup.focus();
     newOrderGateRef.current=false;
   };
   useEffect(()=>{
@@ -2991,7 +3002,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               onOpenCustomer={onOpenCustomer}
               onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
               newOrderLoading={false}
-              newOrderDisabled={Boolean(newOrder)}
+              newOrderDisabled={Boolean(newOrder&&!detachedNewOrder.detached)}
               onNewContact={hasPermission("registrations.contacts.manage") && canAction("create_contacts") ? ()=>void openNewContactFromConversation():undefined}
               newContactLoading={false}
             />}
@@ -3673,6 +3684,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         initialCustomerLookup={newOrder.customerLookup}
         organizationIdOverride={newOrder.organizationId}
         detailOnly embeddedCreate
+        embeddedDetachedEditor={detachedNewOrder}
+        embeddedSwitchGuardRef={embeddedSwitchGuardRef}
         onEmbeddedClose={()=>setNewOrder(null)}
         onEmbeddedCreated={(orderId:string)=>{
           const opportunityId=newOrder.opportunityId;
