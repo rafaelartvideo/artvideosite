@@ -70,10 +70,10 @@ export function WhatsAppHistoryImports(){
    finally{if(epoch===generation.current)setBusy(false)}
  }
  async function confirmBinding(id:string,entry:Candidate){
-   if(!entry.match||entry.state!=="candidate"||pendingBinding!==entry.contact_key)return;
+   if(!["candidate","missing"].includes(entry.state)||pendingBinding!==entry.contact_key||entry.state==="candidate"&&!entry.match)return;
    const epoch=generation.current;setBusy(true);setError("");
    try{
-     await call({action:"bind_contact",id,contact_key:entry.contact_key,contact_id:entry.match.id,confirmed:true});
+     await call({action:entry.state==="missing"?"create_contact":"bind_contact",id,contact_key:entry.contact_key,contact_id:entry.match?.id,confirmed:true});
      if(epoch===generation.current){await showCandidates(id);await refresh()}
    }catch{if(epoch===generation.current)setError("Vínculo não confirmado. Confira se os dados do contato mudaram.")}
    finally{if(epoch===generation.current)setBusy(false)}
@@ -81,7 +81,7 @@ export function WhatsAppHistoryImports(){
  if(!permitted("view"))return <p className="p-4 text-sm text-muted-foreground">Sem permissão para visualizar importações.</p>;
  return <div className="space-y-4 p-3">
    <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Database size={18}/><strong>Gerenciador de históricos</strong></div><AdminButton variant="secondary" disabled={busy} onClick={()=>void refresh()}><RefreshCw size={15}/> Atualizar</AdminButton></div>
-   <p className="rounded-lg border border-border p-3 text-xs text-muted-foreground">Fase piloto: prepara e valida o índice privado. Ainda não publica mensagens na interface de atendimento. Os arquivos originais permanecem preservados.</p>
+   <p className="rounded-lg border border-border p-3 text-xs text-muted-foreground">Valide o lote e confirme a identidade dos contatos para disponibilizar os históricos. Os arquivos originais permanecem preservados.</p>
    {error&&<div role="alert" className="flex gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive"><AlertTriangle size={16}/>{error}</div>}
    {!data&&!error&&<p className="text-sm text-muted-foreground">Consultando importações...</p>}
    {data&&<><div className="rounded-lg border border-border p-4 space-y-3">
@@ -115,6 +115,7 @@ export function WhatsAppHistoryImports(){
            <div className="flex items-center justify-between gap-2"><strong className="text-sm">+{e.phone}</strong><span className="text-xs">{e.state==="bound"?"Vinculado":e.state==="candidate"?"Confirmar correspondência":e.state==="missing"?"Sem cadastro":"Revisão necessária"}</span></div>
            <p className="text-xs break-words">Nome recuperado: {e.historical_name||"Não informado"}</p>
            <p className="text-xs break-words">Cadastro atual: {e.match?.display_name||"Não identificado"}</p>
+           {e.state==="missing"&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Criar este contato na agenda e vincular seu histórico? Nenhum atendimento será iniciado.</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}>Criar e vincular</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir novo cadastro</AdminButton>)}
            {e.state==="candidate"&&e.match&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Confirma que este histórico pertence ao contato atual?</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}>Confirmar vínculo</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir vínculo</AdminButton>)}
          </div>)}</div>
        </div>}
