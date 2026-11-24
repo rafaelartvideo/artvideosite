@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { historyId, timestampMicros, compareHistory, mergeHistoryPage, projectHistorical } from "./history-page.mjs";
+import { historyId, timestampMicros, compareHistory, mergeHistoryPage, mergeFetchedHistoryPages, projectHistorical } from "./history-page.mjs";
 const row=(key,at,body_text="same")=>({id:historyId(key.repeat(40)),sent_at:at,body_text});
 const old=row("a","2024-01-01T10:00:00.000001Z"),first=row("b","2026-11-24T18:00:00.000001+00:00"),second=row("c","2026-11-24T18:00:00.000002+00:00"),third=row("d","2026-11-24T18:00:00.000002Z");
 test("microsecond precision and stable ID tie breaker",()=>{
@@ -25,4 +25,16 @@ test("all message attachments survive; no remote key, technical source name or i
  assert.equal(result[0].read_only,true);assert.equal(result[0].delivery_status,null);assert.equal(result[0].body_text,"exemplo");
  assert.equal(JSON.stringify(result).includes("rclone_relative_key"),false);
  assert.throws(()=>projectHistorical({...p,messages:[p.messages[0],p.messages[0]]},{organizationId:"org",conversationId:"conv"}));
+});
+
+test("truncated source pages cannot skip unseen archived rows",()=>{
+ const a=mergeFetchedHistoryPages({items:[third,first,old],hasMore:false},{items:[second],hasMore:true},null,3);
+ assert.deepEqual(a.items.map(x=>x.id),[second.id,third.id]);
+ assert.equal(a.hasMore,true);
+ assert.equal(a.nextCursor.id,second.id);
+ const b=mergeFetchedHistoryPages({items:[first,old],hasMore:false},{items:[],hasMore:false},a.nextCursor,3);
+ assert.deepEqual(b.items.map(x=>x.id),[old.id,first.id]);
+ assert.equal(b.hasMore,false);
+ assert.throws(()=>mergeFetchedHistoryPages({items:[],hasMore:true},{items:[],hasMore:false}));
+ assert.throws(()=>mergeFetchedHistoryPages({items:[third],hasMore:false},{items:[third],hasMore:false}));
 });
