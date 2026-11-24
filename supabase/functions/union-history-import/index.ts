@@ -5,6 +5,22 @@ const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{statu
 const uuid=(v:unknown)=>typeof v==="string"&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v);
 const packageKey=(v:unknown)=>typeof v==="string"&&/^[a-f0-9]{20}$/.test(v);
 const phone=(v:unknown)=>typeof v==="string"&&/^[1-9][0-9]{9,14}$/.test(v);
+// Names are evidence, not identities. Keep real names and business names,
+ // never invent a name from a telephone number or a generic placeholder.
+function usableArchiveName(value:unknown):string{
+  if(typeof value!=="string")return "";
+  const clean=value.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,160);
+  const key=clean.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  if(!/\p{L}/u.test(clean)||/^(?:contato|cliente|usuario|whatsapp|contact|unknown|sem nome|nao identificado|numero desconhecido|desconhecido|null|undefined)(?: (?:whatsapp|sem nome|desconhecido|nao identificado|[0-9]+))*$/.test(key))return "";
+  return clean;
+}
+const archiveNameKey=(value:unknown)=>usableArchiveName(value).normalize("NFD").replace(/\p{M}/gu,"").toLowerCase().replace(/\s+/g," ").trim();
+function archivePhoneVariants(value:string):string[]{
+  const result=[value];
+  if(/^55[1-9][0-9]9[6-9][0-9]{7}$/.test(value))result.push(value.slice(0,4)+value.slice(5));
+  if(/^55[1-9][0-9][6-9][0-9]{7}$/.test(value))result.push(value.slice(0,4)+"9"+value.slice(4));
+  return result;
+}
 const key=(legacy:string,modern:string)=>{
   const value=Deno.env.get(legacy);if(value)return value;
   try{const keys=JSON.parse(Deno.env.get(modern)||"{}");return String(keys.default||Object.values(keys)[0]||"")}catch{return ""}
@@ -217,7 +233,7 @@ Deno.serve(async req=>{
       return json({success:true,result:await bridge({action:"prepare",organizationId:org,packageId:b.package_id,accountPhone:channel.phone,actor})});
     }
     if(!uuid(b.id))return json({success:false,error:"Importação inválida."},400);
-    if(b.action==="candidates"||b.action==="bind_contact"||b.action==="create_contact"){
+    if(b.action==="candidates"||b.action==="bind_contact"||b.action==="create_contact"||b.action==="auto_reconcile"){
       // Only authorized managers may see the reconciliation preview or approve a binding.
       if(!has(prefix+"manage"))return json({success:false,error:"Sem permissão de conciliar contatos."},403);
       const preview=await bridge({action:"candidates",id:b.id,organizationId:org});
@@ -236,6 +252,89 @@ Deno.serve(async req=>{
           match:match?{id:match.id,display_name:match.display_name}:null};
       });
       if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates}});
+      if(b.action==="auto_reconcile"){
+        // At most five contacts per authenticated request. The job's private
+        // binding journal is the authoritative checkpoint; retries are safe.
+        if(b.after!=null&&(typeof b.after!=="string"||!/^[a-f0-9]{32}$/.test(b.after)))return json({success:false,error:"Cursor inválido."},400);
+        const {data:channels,error:channelError}=await admin.from("whatsapp_channel_connections").select("id")
+          .eq("organization_id",org).eq("provider","wuzapi").eq("phone",preview.account_phone).eq("state","connected").limit(2);
+        if(channelError||channels?.length!==1)return json({success:false,error:"Conta de destino não confirmada."},409);
+        const channel=channels[0].id,account=preview.account_phone;
+        const remaining=candidates.filter(e=>!b.after||String(e.contact_key)>b.after);
+        const batch=remaining.slice(0,5),results=[];
+        for(const entry of batch){
+          const result={contact_key:entry.contact_key,state:"review",renamed:false};
+          try{
+            if(!phone(entry.phone)||!["missing","candidate","bound"].includes(entry.state)){results.push(result);continue;}
+            const jid=entry.phone+"@s.whatsapp.net";
+            const variants=archivePhoneVariants(entry.phone);
+            // The legacy ninth digit is a collision warning, not an identity merge.
+            const alternateInPackage=preview.entries.some((e:Record<string,unknown>)=>e.contact_key!==entry.contact_key&&variants.includes(String(e.phone)));
+            const {data:rows,error:rowsError}=await admin.from("union_whatsapp_contacts")
+              .select("id,channel_id,chat_jid,contact_phone,display_name,imported_name,device_name,profile_name,updated_at")
+              .eq("organization_id",org).eq("account_phone",account)
+              .or(`contact_phone.in.(${variants.join(",")}),chat_jid.in.(${variants.map(v=>v+"@s.whatsapp.net").join(",")})`).limit(3);
+            const {data:aliases,error:aliasError}=await admin.from("union_whatsapp_verified_jid_aliases").select("phone_jid")
+              .eq("organization_id",org).eq("account_phone",account).in("phone_jid",variants.map(v=>v+"@s.whatsapp.net")).limit(1);
+            if(rowsError||aliasError||!rows)throw Error("Identidade indisponível.");
+            if(alternateInPackage||aliases?.length||rows.length>1||rows.some(row=>row.channel_id!==channel||row.chat_jid!==jid||row.contact_phone!==entry.phone)){
+              results.push(result);continue;
+            }
+            let current=rows[0]||null;
+            const historical=usableArchiveName(entry.historical_name);
+            const alreadyBound=entry.state==="bound"&&current?.id===entry.match?.id;
+            if(entry.state==="bound"&&!alreadyBound){results.push(result);continue;}
+            if(current&&!alreadyBound){
+              // A matching phone alone is not sufficient for historical identity
+              // (numbers can be recycled). Require an actual matching saved name.
+              const savedName=archiveNameKey(current.display_name);
+              const recovered=archiveNameKey(historical);
+              const known=[current.imported_name,current.device_name,current.profile_name].map(archiveNameKey).filter(Boolean);
+              if(!recovered||(savedName?savedName!==recovered:!known.length||known.some(n=>n!==recovered))){
+                results.push(result);continue;
+              }
+            }
+            if(!current){
+              if(entry.state!=="missing"){results.push(result);continue;}
+              const {data:threads,error:threadError}=await admin.from("union_whatsapp_conversations").select("id")
+                .eq("organization_id",org).eq("account_phone",account)
+                .or(`contact_phone.in.(${variants.join(",")}),chat_jid.in.(${variants.map(v=>v+"@s.whatsapp.net").join(",")})`).limit(1);
+              if(threadError)throw Error("Conversa indisponível.");
+              if(threads?.length){results.push(result);continue;}
+              const {data:created,error:createdError}=await admin.from("union_whatsapp_contacts").insert({
+                organization_id:org,channel_id:channel,account_phone:account,chat_jid:jid,contact_phone:entry.phone,
+                display_name:historical||entry.phone,imported_name:historical||null,wuzapi_verified_saved:false
+              }).select("id,channel_id,chat_jid,contact_phone,display_name,imported_name,device_name,profile_name,updated_at").single();
+              if(createdError||!created)throw Error("Cadastro não confirmado.");
+              current=created;result.state="created";
+            }
+            const binding=await bridge({action:"bind_contact",id:b.id,organizationId:org,actor,contactKey:entry.contact_key,contactId:current.id,contactPhone:entry.phone,accountPhone:account});
+            if(binding?.bound!==true)throw Error("Vínculo não confirmado.");
+            if(result.state!=="created")result.state=alreadyBound?"bound":"linked";
+            // Improve placeholders only after a confirmed binding. A concurrent
+            // manual edit wins; no meaningful saved name is ever overwritten.
+            if(!usableArchiveName(current.display_name)){
+              const alternatives=[current.device_name,current.profile_name,current.imported_name,historical].map(usableArchiveName).filter(Boolean);
+              const distinct=new Set(alternatives.map(archiveNameKey));
+              if(distinct.size===1){
+                const name=alternatives[0];
+                let update=admin.from("union_whatsapp_contacts").update({display_name:name,updated_at:new Date().toISOString()})
+                  .eq("id",current.id).eq("organization_id",org).eq("channel_id",channel).eq("account_phone",account).eq("chat_jid",jid);
+                update=current.display_name===null?update.is("display_name",null):update.eq("display_name",current.display_name);
+                if(current.updated_at)update=update.eq("updated_at",current.updated_at);
+                const {data:changed,error:renameError}=await update.select("id");
+                if(!renameError&&changed?.length===1){
+                  result.renamed=true;
+                  if(current.display_name!==null)await admin.from("union_whatsapp_conversations").update({contact_name:name})
+                    .eq("organization_id",org).eq("channel_id",channel).eq("account_phone",account).eq("chat_jid",jid).eq("contact_name",current.display_name);
+                }
+              }
+            }
+          }catch{result.state="review";}
+          results.push(result);
+        }
+        return json({success:true,result:{entries:results,next_after:remaining.length>batch.length?batch.at(-1)?.contact_key:null}});
+      }
       if(b.action==="create_contact"){
         if(b.confirmed!==true||typeof b.contact_key!=="string"||!/^[a-f0-9]{32}$/.test(b.contact_key))return json({success:false,error:"Confirme a criação do contato."},400);
         const entry=candidates.find((e:Record<string,unknown>)=>e.contact_key===b.contact_key);
@@ -249,7 +348,7 @@ Deno.serve(async req=>{
         if(exactError||aliasError||exact?.length||aliases?.length)return json({success:false,error:"Identidade exige revisão."},409);
         // Only the address book is changed: no new operational thread, protocol,
         // unread counter, network verification or notification is generated.
-        const name=String(entry.historical_name||entry.phone).trim().slice(0,160)||entry.phone;
+        const name=usableArchiveName(entry.historical_name)||entry.phone;
         const {data:created,error:createdError}=await admin.from("union_whatsapp_contacts").insert({organization_id:org,channel_id:channels[0].id,account_phone:preview.account_phone,chat_jid:jid,contact_phone:entry.phone,display_name:name,wuzapi_verified_saved:false}).select("id").single();
         if(createdError||!created)return json({success:false,error:"Cadastro não confirmado; atualize as correspondências."},409);
         // If the second step fails, preserve the newly created contact and expose
