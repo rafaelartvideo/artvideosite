@@ -166,7 +166,7 @@ test("statement search filters by dates before pagination and exposes settlement
   assert.match(migration, /movement\.occurred_at < p_end_at/);
 });
 
-test("receivables can settle all installments as a single financial movement", () => {
+test("receivables can settle all installments with one atomic request", () => {
   const dialog = source("FinanceSettlementDialog.tsx");
   const repository = readFileSync(new URL("../infrastructure/finance-movements.repository.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../../../../supabase/migrations/20261106151000_finance_bulk_settlement_and_amount_adjustment.sql", import.meta.url), "utf8");
@@ -175,6 +175,10 @@ test("receivables can settle all installments as a single financial movement", (
   assert.match(dialog, /label=\{detail.entry_type === "payable" \? "Valor a pagar" : "Valor a receber"\} required/);
   assert.doesNotMatch(dialog, /label="Valor principal"/);
   assert.match(repository, /register_financial_bulk_settlement/);
+  assert.match(repository, /register_financial_multi_settlement/);
+  assert.match(dialog, /settlement_parts: settlementParts/);
+  assert.match(dialog, /getInstallmentPaymentPreference/);
+  assert.match(dialog, /submitGate.current/);
   assert.match(migration, /create table if not exists public\.financial_settlement_allocations/);
   assert.match(migration, /perform private\.finance_post_settlement_movements\(v_settlement_id/);
   assert.match(migration, /financial_settlement_allocations a/);
