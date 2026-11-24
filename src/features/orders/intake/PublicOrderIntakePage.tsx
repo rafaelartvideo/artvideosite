@@ -149,7 +149,7 @@ export function PublicOrderIntakePage(){
     if(cached?.key===key&&cached.until>Date.now())return cached.ticket;
     const result=await validateIntakeIdentity(token,document,name);
     if(!result.required)return "";
-    if(!result.ticket)throw new Error("Não foi possível confirmar o CPF. Tente novamente.");
+    if(!result.ticket)throw new Error("Não foi possível validar os dados. Tente novamente.");
     identityProof.current={key,ticket:result.ticket,until:Date.now()+10*60_000};
     return result.ticket;
   };
@@ -157,12 +157,12 @@ export function PublicOrderIntakePage(){
     const e=validation();setError("");if(Object.keys(e).length){showErrors(e);return;}if(gate.current||cnpjBusy)return;setFieldErrors({});
     if(step===0&&payload.document.replace(/\D/g,"").length===11){
       gate.current=true;setBusy(true);
-      try{await checkIdentity(true);}catch(error){showErrors({document:error instanceof Error?error.message:"Não foi possível validar o CPF."});return;}
+      try{await checkIdentity(true);}catch(error){showErrors({document:error instanceof Error?error.message:"Não foi possível validar os dados."});return;}
       finally{gate.current=false;setBusy(false);}
     }
     setStep(s=>Math.min(4,s+1));window.scrollTo(0,0);
   };
-  const send=async()=>{if(!confirmed||gate.current)return;for(let i=firstStep;i<4;i++){const e=validation(i);if(Object.keys(e).length){setStep(i);showErrors(e);setConfirmed(false);return;}}gate.current=true;setBusy(true);setError("");try{let ticket="";try{ticket=await checkIdentity();}catch(e){setStep(0);setConfirmed(false);showErrors({document:e instanceof Error?e.message:"Não foi possível validar o CPF."});return;}const r=await submitIntake(token,{...payload,cpf_identity_ticket:ticket||undefined},photos);if(r.status==="received"){setConfirmationPhone(r.confirmation_phone||null);setDone(true);window.scrollTo(0,0);}else throw new Error("Envio não confirmado.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar.");}finally{gate.current=false;setBusy(false);}};
+  const send=async()=>{if(!confirmed||gate.current)return;for(let i=firstStep;i<4;i++){const e=validation(i);if(Object.keys(e).length){setStep(i);showErrors(e);setConfirmed(false);return;}}gate.current=true;setBusy(true);setError("");try{let ticket="";try{ticket=await checkIdentity();}catch(e){setStep(0);setConfirmed(false);showErrors({document:e instanceof Error?e.message:"Não foi possível validar os dados."});return;}const r=await submitIntake(token,{...payload,cpf_identity_ticket:ticket||undefined},photos);if(r.status==="received"){setConfirmationPhone(r.confirmation_phone||null);setDone(true);window.scrollTo(0,0);}else throw new Error("Envio não confirmado.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar.");}finally{gate.current=false;setBusy(false);}};
   const requiredLabel=(label:string)=><>{label.replace(/\s*\*$/,"")}{label.endsWith("*")&&<span className="ml-1 text-red-600" aria-hidden="true">*</span>}</>;
   const inlineError=(key:string)=>fieldErrors[key]?<p id={"error-"+key} role="alert" className="text-xs font-medium text-red-600">{fieldErrors[key]}</p>:null;
   const input=(key:string,label:string,value:string,onChange:(v:string)=>void,placeholder="",mode?:"numeric"|"tel")=><label className="block space-y-1.5 text-sm font-semibold text-slate-800">{requiredLabel(label)}<input className={fieldStyle(Boolean(fieldErrors[key]))} aria-invalid={Boolean(fieldErrors[key])} aria-describedby={fieldErrors[key]?"error-"+key:undefined} value={value} disabled={busy} placeholder={placeholder} inputMode={mode} aria-required={label.endsWith("*")} onChange={e=>{setError("");onChange(e.target.value);}}/>{inlineError(key)}</label>;
@@ -210,7 +210,7 @@ export function PublicOrderIntakePage(){
             <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm leading-5"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1 size-4 accent-[#0131cd]"/><span>Confirmo os dados e autorizo seu uso para identificar meu cadastro e prestar o atendimento solicitado.<span className="ml-1 text-red-600">*</span></span></label>
           </>}
           {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||cnpjBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?<><Loader2 size={16} className="animate-spin"/> Validando CPF e nome...</>:<>Continuar <ArrowRight size={16}/></>}</button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
+          <div className="flex gap-2">{step>firstStep&&<button className="inline-flex items-center gap-1 rounded-xl border px-4" disabled={busy||Boolean(pending)} onClick={()=>{setError("");setFieldErrors({});setStep(s=>Math.max(firstStep,s-1));}}><ArrowLeft size={16}/> Voltar</button>}{step<4?<button className={button+" flex-1"} disabled={busy||zipBusy||cnpjBusy||Boolean(pending)} onClick={()=>void next()}>{busy&&step===0?<><Loader2 size={16} className="animate-spin"/> Validando...</>:<>Continuar <ArrowRight size={16}/></>}</button>:<button className={button+" flex-1"} disabled={!confirmed||busy||Boolean(pending)} onClick={()=>void send()}>{busy?"Enviando...":"Enviar solicitação"}</button>}</div>
         </section></>}
       <footer className="text-center text-xs text-slate-500">Tecnologia Union World</footer>
     </div>
