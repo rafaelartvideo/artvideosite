@@ -16,7 +16,8 @@ test("Pré-OS pública é independente da sessão do CRM, sem pedir WhatsApp ou 
  assert.ok(!page.includes("lookupCpf("));
  assert.ok(!page.includes("lookup-cpf"));
  assert.ok(api.includes('.eq("token_hash",await hash(token))'));
- assert.ok(api.includes("crypto.getRandomValues(new Uint8Array(32))"));
+ assert.ok(api.includes('crypto.subtle.sign("HMAC",key'));
+ assert.ok(api.includes("crypto.randomUUID()"));
  assert.ok(api.includes("Date.parse(row.expires_at)<Date.now()"));
  assert.ok(api.includes('status:"submitting"'));
  assert.ok(api.includes("size>9_000_000"));
@@ -123,4 +124,37 @@ test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF 
  assert.ok(repo.includes('.is("birth_date",null)'));
  assert.ok(realtime.includes('status==="SUBSCRIBED"'));
  assert.ok(realtime.includes('queryKey:["order-intake",org]'));
+});
+
+test("geração e recuperação de QR usam o mesmo modal e cancelamento atualiza a lista",()=>{
+ const page=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ assert.ok(page.includes('setLinkMode("generating")'));
+ assert.ok(page.includes('QRCodeSVG value={link}'));
+ assert.ok(page.includes('loadingText="Cancelando..."'));
+ assert.ok(page.includes('client.setQueryData<Awaited<ReturnType<typeof listIntakes>>>'));
+ assert.ok(page.includes('onClick={backToList}'));
+ assert.ok(!page.includes('Solicitação individual'));
+ assert.ok(!page.includes('Novo link'));
+ assert.ok(api.includes("recoverableToken(org,row.id)"));
+ assert.ok(api.includes("digest!==row.token_hash"));
+ assert.ok(api.includes("body.replace_legacy!==true"));
+ assert.ok(api.includes('.eq("token_hash",row.token_hash)'));
+ assert.ok(api.includes('keys.has("whatsapp.inbox.send")'));
+ assert.ok(api.includes('registered.get(bound_customer_id)||names.get(row.conversation_id)'));
+});
+
+test("token recuperável não muda entre chamadas e é isolado por empresa e solicitação",async()=>{
+ const {webcrypto}=await import("node:crypto");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const start=api.indexOf("async function recoverableToken("),end=api.indexOf("\n}",start)+2;
+ const source=api.slice(start,end).replace("(org:string,id:string)","(org,id)").replace('get("SUPABASE_SERVICE_ROLE_KEY")!','get("SUPABASE_SERVICE_ROLE_KEY")');
+ const fn=new Function("Deno","crypto",source+";return recoverableToken;")({env:{get:()=>"test-key-only"}},webcrypto);
+ const a=await fn("org-a","id-a");
+ assert.match(a,/^[a-f0-9]{64}$/);
+ assert.equal(a,await fn("org-a","id-a"));
+ assert.notEqual(a,await fn("org-b","id-a"));
+ assert.notEqual(a,await fn("org-a","id-b"));
+ assert.ok(api.includes("await hash(match[1])===row.token_hash"));
+ assert.ok(api.includes('client.from("union_whatsapp_messages")'));
 });
