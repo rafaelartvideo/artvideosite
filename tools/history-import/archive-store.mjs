@@ -132,7 +132,8 @@ export function openArchiveStore(filename,read){
       const metadata=JSON.parse(e.metadata), payload=readPayload(j.package_id,metadata);
       const name=typeof payload.contact.display_name==="string"?payload.contact.display_name.slice(0,200):"";
       projected=projectHistorical(payload,{organizationId:j.organization_id,conversationId:null});
-      const ids=new Set();
+      const ids=new Set(),counts=new Map();
+      for(const m of projected)counts.set(m.protocol_id,(counts.get(m.protocol_id)||0)+1);
       protocols=payload.protocols.map(p=>{
         const id=historyId(p.protocol_key);
         if(ids.has(id))throw Error("Colisão de protocolo.");
@@ -140,7 +141,7 @@ export function openArchiveStore(filename,read){
         // Original metadata only; never manufacture dates or operational protocol numbers.
         const opened=typeof p.original_opened_at==="string"&&Number.isFinite(Date.parse(p.original_opened_at))?p.original_opened_at:null;
         const closed=typeof p.original_closed_at==="string"&&Number.isFinite(Date.parse(p.original_closed_at))?p.original_closed_at:null;
-        return {id,opened_at:opened,closed_at:closed,original_status:typeof p.original_status==="string"?p.original_status:null,message_count:projected.filter(m=>m.protocol_id===id).length};
+        return {id,opened_at:opened,closed_at:closed,original_status:typeof p.original_status==="string"?p.original_status:null,message_count:counts.get(id)||0};
       });
       verifiedMetadata=JSON.stringify({...metadata,historical_name:name});
     }catch{/* Never log private payload or paths. */}
@@ -210,8 +211,16 @@ export function openArchiveStore(filename,read){
     if(cutoff!==null){sql+=" AND ("+time+"<? OR ("+time+"=? AND id<?))";params.push(cutoff,cutoff,before.id)}
     sql+=" ORDER BY "+time+" DESC,id DESC LIMIT ?";
     const rows=db.prepare(sql).all(...params,limit+1).map(r=>({...JSON.parse(r.body),conversation_id:conversationId}));
-    const items=rows.slice(0,limit),last=items.at(-1);
-    return {items,hasMore:rows.length>limit,nextCursor:last?{sent_at:kind==="messages"?last.sent_at:last.opened_at||"1970-01-01T00:00:00.000Z",id:last.id}:null};
+    // Limit transferred metadata even for contacts with unusually large messages.
+    const items=[];let bytes=0;
+    for(const r of rows.slice(0,limit)){
+      const size=Buffer.byteLength(JSON.stringify(r));
+      if(size>1024*1024)throw Error("Mensagem excede o limite seguro.");
+      if(bytes+size>1024*1024)break;
+      items.push(r);bytes+=size;
+    }
+    const last=items.at(-1);
+    return {items,hasMore:rows.length>items.length,nextCursor:last?{sent_at:kind==="messages"?last.sent_at:last.opened_at||"1970-01-01T00:00:00.000Z",id:last.id}:null};
   }
   function lookup({organizationId,accountPhone,contactPhone}){
     validateDestination(organizationId,accountPhone);
