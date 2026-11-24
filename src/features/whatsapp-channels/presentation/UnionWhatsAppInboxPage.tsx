@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery,useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound, ClipboardList } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -692,8 +692,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactLaunch=useRef(0);
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
-  const [intakeContext,setIntakeContext]=useState<{org:string;conversationId:string}|null>(null);
-  useEffect(()=>{setIntakeContext(null);},[selectedId,activeOrganizationId]);
+  const [intakeContext,setIntakeContext]=useState<{org:string;conversationId?:string}|null>(null);
+  useEffect(()=>{setIntakeContext(current=>current && (current.org!==activeOrganizationId || (current.conversationId && current.conversationId!==selectedId))?null:current);},[selectedId,activeOrganizationId]);
   const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string;intake?:IntakePrefill}|null>(null);
   const detachedNewOrder=useDetachedOrderEditor();
   const embeddedSwitchGuardRef=useRef<(()=>boolean)|null>(null);
@@ -2598,6 +2598,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
+        {!embedded&&activeOrganizationId&&hasPermission("orders.create")&&hasPermission("orders.view")&&<AdminButton variant="tertiary" onClick={()=>setIntakeContext({org:activeOrganizationId})} className="shrink-0"><ClipboardList size={16}/> Pré-OS</AdminButton>}
         <AdminButton variant={opportunitiesOpen?"primary":"secondary"}
           className="max-md:!px-2.5 max-md:!py-2" onClick={()=>{setOpportunitiesOpen(value=>!value);setOpportunityCreateOpen(false);}}>
           <BookmarkPlus size={16}/> <span className="hidden sm:inline">{opportunitiesOpen?"Conversas":"Oportunidades futuras"}</span>
@@ -3683,10 +3684,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(contactLaunch.current===newContact.launch)closeNewContact();
         notifyAdmin("Contato adicionado ao cadastro e disponível nas OS.","success");
       }}/>}
-    {intakeContext && intakeContext.org===activeOrganizationId && intakeContext.conversationId===selectedId && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
+    {intakeContext && intakeContext.org===activeOrganizationId && (!intakeContext.conversationId||intakeContext.conversationId===selectedId) && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
       onClose={()=>setIntakeContext(null)}
-      onShare={message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);setIntakeContext(null);}}
-      onConvert={(customerId,prefill)=>{if(newOrder)return;setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
+      onShare={intakeContext.conversationId?message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);setIntakeContext(null);}:undefined}
+      onConvert={(customerId,prefill)=>{if(newOrder){notifyAdmin("Feche ou conclua a Nova OS aberta antes de converter outra solicitação.","error");return;}setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:prefill.conversationId||intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
     {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
       <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
         initialCustomerId={newOrder.customerId}
