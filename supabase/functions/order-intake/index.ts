@@ -65,9 +65,20 @@ Deno.serve(async(req)=>{
     if(action==="open"||action==="models"||action==="identity"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
-      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at,bound_customer_id").eq("token_hash",await hash(token)).maybeSingle());
+      const row=check(await admin.from("order_intake_requests").select("id,organization_id,conversation_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at,bound_customer_id").eq("token_hash",await hash(token)).maybeSingle());
       if(!row||Date.parse(row.expires_at)<Date.now()||row.status==="cancelled")return json({error:"Link inválido ou expirado. Peça outro à assistência."},404);
-      if(["received","converted"].includes(row.status))return json({status:"received"});
+      // Return only the business WhatsApp belonging to the original conversation.
+      // Never expose the customer's number or bearer token in the confirmation link.
+      const receivedResponse=async()=>{
+        let confirmation_phone:string|null=null;
+        try{
+          const conversation=await admin.from("union_whatsapp_conversations").select("account_phone").eq("organization_id",row.organization_id).eq("id",row.conversation_id).maybeSingle();
+          const phone=phoneOf(conversation.data?.account_phone);
+          if(/^55[1-9]\d{9,10}$/.test(phone))confirmation_phone=phone;
+        }catch{/* A successful submission remains successful even if the channel is unavailable. */}
+        return json({status:"received",confirmation_phone});
+      };
+      if(["received","converted"].includes(row.status))return receivedResponse();
       // Recover only a lease older than the maximum Edge runtime. Use a CAS to
       // prevent competing requests from cleaning a newly started upload.
       if(row.status==="submitting"){
@@ -179,7 +190,7 @@ Deno.serve(async(req)=>{
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.
         const state=await admin.from("order_intake_requests").select("status,upload_attempt").eq("id",row.id).maybeSingle();
-        if(!state.error&&["received","converted"].includes(state.data?.status))return json({status:"received"});
+        if(!state.error&&["received","converted"].includes(state.data?.status))return receivedResponse();
         if(!state.error&&state.data?.status==="submitting"&&state.data?.upload_attempt===attempt){
           const paths=Array.from({length:5},(_,i)=>"orders/"+org.id+"/draft/pre-os-"+row.id+"-"+attempt+"-"+i+".webp");
           const cleanup=await admin.storage.from("service-images").remove(paths);
@@ -190,7 +201,7 @@ Deno.serve(async(req)=>{
         }
         throw e;
       }
-      return json({status:"received"});
+      return receivedResponse();
     }
     // Internal actions: the public token never grants staff access.
     const client=createClient(url,key,{global:{headers:{Authorization:req.headers.get("Authorization")||""}},auth:{persistSession:false}});
