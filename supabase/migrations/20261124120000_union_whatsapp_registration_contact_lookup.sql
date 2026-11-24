@@ -62,18 +62,7 @@ as $$
   contact_candidates as (
     -- For additional contacts only exact numbers or aliases confirmed by the
     -- provider are used. Never infer a ninth digit for another person.
-    select phone, 0 as preference from target where phone ~ '^[1-9][0-9][0-9]{8,9}
-  select m.id, coalesce(nullif(btrim(m.full_name),''),'Cliente')
-  from matches m
-  where m.preference = (select min(preference) from matches)
-  order by m.id
-  limit 2;
-$$;
-revoke all on function public.union_whatsapp_find_customer_by_phone(uuid,text) from public,anon,authenticated;
-grant execute on function public.union_whatsapp_find_customer_by_phone(uuid,text) to service_role;
-comment on function public.union_whatsapp_find_customer_by_phone(uuid,text) is
-  'Private tenant-scoped CRM lookup of customer and active additional contacts. Exact matches precede aliases; ambiguity returns two matches.';
-
+    select phone, 0 as preference from target where phone ~ '^[1-9][0-9][0-9]{8,9}$'
     union
     select substring(v.phone_e164 from 3), 1
     from target t join public.union_whatsapp_crm_number_verifications v
