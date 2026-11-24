@@ -45,3 +45,28 @@ test("Código de boleto validado não aceita dígito incorreto nem inventa valor
   assert.equal(readBoletoCode(invalid),null);
   assert.equal(readBoletoCode("12345"),null);
 });
+
+test("Comprovante de maquineta não classifica estoque nem dispara baixa do crédito",async()=>{
+  const repository=read(base+"infrastructure/expense-scan.repository.ts");
+  const editor=read(base+"presentation/FinanceEntryEditorDialog.tsx");
+  const edge=read("supabase/functions/union-ai-expense/index.ts");
+  const helper=repository.slice(repository.indexOf("const normalize="),repository.indexOf("export async function suggestExpenseCategory"));
+  const compiled=await transformWithEsbuild(helper,"expense-category.ts",{loader:"ts",format:"esm"});
+  const {confirmedScanCategory,isCreditScan}=await import("data:text/javascript;base64,"+Buffer.from(compiled.code).toString("base64"));
+  const stone={kind:"payment_proof",description:"Compra no cartão de crédito",supplier:"Ponto dos Eletrodomésticos",amount:70,payment:"Crédito à vista",paid:true,category:"Compras de estoque",purpose_evidence:"Crédito à vista"};
+  assert.equal(confirmedScanCategory(stone),"");
+  assert.equal(isCreditScan(stone),true);
+  assert.equal(confirmedScanCategory({...stone,kind:"invoice",purpose_evidence:"Multímetro"}),"");
+  assert.equal(confirmedScanCategory({...stone,kind:"invoice",purpose_evidence:"Peças para repor estoque"}),"Compras de estoque");
+  assert.equal(confirmedScanCategory({...stone,kind:"receipt",category:"Alimentação",purpose_evidence:"Bolo de chocolate"}),"Alimentação");
+  assert.equal(confirmedScanCategory({...stone,kind:"receipt",purpose_evidence:undefined}),"");
+  assert.equal(isCreditScan({...stone,payment:"Pix"}),false);
+  assert.match(editor,/!defaultCategoryId \|\| scanResult \|\| scanGate\.current/);
+  assert.match(editor,/setCategoryId\(category\?\.id\|\|""\)/);
+  assert.match(editor,/Usar sugestão do histórico/);
+  assert.match(editor,/suggestExpenseCategory\(activeOrganizationId,purpose/);
+  assert.match(editor,/openSettlement:paidExpense&&!creditExpense/);
+  assert.match(editor,/if\(credit\)setFirstDueDate\(result\.kind==="payment_proof"\?"":result\.due_date\|\|""\)/);
+  assert.match(edge,/kind==="payment_proof"\|\|kind==="other"\?"":clean\(v\.purpose_evidence/);
+  assert.match(edge,/if\(classify\)return reply\(\{category:verifiedCategory/);
+});
