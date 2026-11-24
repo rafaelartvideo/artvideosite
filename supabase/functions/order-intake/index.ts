@@ -148,20 +148,27 @@ Deno.serve(async(req)=>{
       }
       const p=body.payload||{}, problem=clean(p.problem,2500);
       let a=p.address||{}, cpf=digits(p.document), name=clean(p.name), phone=digits(p.phone);
+      let customerType=p.customer_type??(cpf.length===14?"PJ":"PF"),tradeName=clean(p.trade_name,120),stateRegistration=clean(p.state_registration,40),foundationDate=clean(p.foundation_date,10);
       const bound=Boolean(row.bound_customer_id);
       if(bound){
-        const customer=check(await admin.from("customers").select("id,full_name,legal_name,document,cnpj,phone,addresses:customer_addresses(zip_code,street,number,complement,neighborhood,city,state,is_default)").eq("organization_id",org.id).eq("id",row.bound_customer_id).maybeSingle());
+        const customer=check(await admin.from("customers").select("id,customer_type,full_name,legal_name,trade_name,state_registration,foundation_date,document,cnpj,phone,addresses:customer_addresses(zip_code,street,number,complement,neighborhood,city,state,is_default)").eq("organization_id",org.id).eq("id",row.bound_customer_id).maybeSingle());
         if(!customer)throw new InputError("Cadastro não disponível. Solicite um novo link à assistência.");
         const matches=check(await admin.rpc("union_whatsapp_find_customer_by_phone",{p_organization:org.id,p_phone:row.phone}));
         if(matches.length!==1||matches[0].customer_id!==customer.id)throw new InputError("Vínculo do cadastro alterado. Solicite um novo link à assistência.");
-        name=customer.full_name||customer.legal_name||"Cliente";
-        cpf=digits(customer.document)||digits(customer.cnpj);
+        customerType=customer.customer_type==="PJ"?"PJ":"PF";
+        name=(customerType==="PJ"?customer.legal_name||customer.full_name:customer.full_name)||"Cliente";
+        cpf=digits(customerType==="PJ"?customer.cnpj:customer.document);
+        tradeName=customer.trade_name||customer.full_name||"";stateRegistration=customer.state_registration||"";foundationDate=customer.foundation_date?String(customer.foundation_date).split("-").reverse().join("/"):"";
         phone=digits(customer.phone)||row.phone.replace(/^55(?=\d{10,11}$)/,"");
         const addresses=customer.addresses||[];
         a=addresses.find((address:any)=>address.is_default)||addresses[0]||{};
       }
       if(!bound&&p.phone!=null&&p.phone!==""&&!validPhone(phone))throw new InputError("Informe um telefone válido com DDD ou deixe em branco.");
-      if((!bound&&(name.length<3||(!validCpf(cpf)&&!validCnpj(cpf))))||problem.length<5)throw new InputError("Confira nome, CPF/CNPJ e descrição do problema.");
+      if(!bound&&(!["PF","PJ"].includes(customerType)||(customerType==="PF"?!validCpf(cpf):!validCnpj(cpf))))throw new InputError("Confira o tipo de pessoa e o documento informado.");
+      if((!bound&&(name.length<2||(customerType==="PF"&&name.length<3)))||problem.length<5)throw new InputError("Confira nome, CPF/CNPJ e descrição do problema.");
+      if(!bound&&customerType==="PJ"&&p.customer_type==="PJ"&&!tradeName)throw new InputError("Informe o nome fantasia.");
+      if(customerType==="PJ"&&foundationDate&&!/^\d{2}\/\d{2}\/\d{4}$/.test(foundationDate))throw new InputError("Informe uma data de fundação válida.");
+      if(customerType==="PJ"&&!tradeName)tradeName=name;
       const address={zip_code:digits(a.zip_code),street:clean(a.street),number:clean(a.number,20),complement:clean(a.complement),neighborhood:clean(a.neighborhood),city:clean(a.city),state:clean(a.state,2).toUpperCase()};
       if(!bound&&(address.zip_code.length!==8||!address.street||!address.number||!address.neighborhood||!address.city||! /^[A-Z]{2}$/.test(address.state)))throw new InputError("Complete o endereço.");
       const typeId=p.type_id, brandId=p.brand_id;
@@ -217,7 +224,7 @@ Deno.serve(async(req)=>{
           const media=check(await admin.from("media").insert({organization_id:org.id,bucket_id:"service-images",storage_path:path,file_name:filename,mime_type:"image/webp",file_size:f.size,uploaded_by:row.created_by}).select("id").single());
           images.push({mediaId:media.id,path,kind,name:filename});
         }
-        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,phone:phone||row.phone.replace(/^55(?=\d{10,11}$)/,""),address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:modelName,model_id:modelId,serial,service_type_id:serviceType.id,service_type_name:serviceType.title,technical_values:technicalValues},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
+        const saved=check(await admin.from("order_intake_requests").update({status:"received",upload_attempt:null,upload_started_at:null,submitted_at:new Date().toISOString(),payload:{name,document:cpf,customer_type:customerType,...(customerType==="PJ"?{trade_name:tradeName,state_registration:stateRegistration,foundation_date:foundationDate}:{}),phone:phone||row.phone.replace(/^55(?=\d{10,11}$)/,""),address,problem,type_id:type.id,type_name:type.name,brand_id:brand?.id||null,brand_name:brand?.name||clean(p.brand_text),model:modelName,model_id:modelId,serial,service_type_id:serviceType.id,service_type_name:serviceType.title,technical_values:technicalValues},images}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",attempt).select("id").maybeSingle());
         if(!saved)throw new Error("Envio não confirmado.");
       }catch(e){
         // A confirmed submission must never be cleaned after an ambiguous network response.
