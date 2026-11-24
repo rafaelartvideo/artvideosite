@@ -21,7 +21,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.5.6
-      - run: deno check --no-lock supabase/functions/union-history-import/index.ts
+      - run: deno check --no-lock --node-modules-dir=auto supabase/functions/union-history-import/index.ts
       - uses: actions/upload-artifact@v4
         with:
           name: union-history-pilot
