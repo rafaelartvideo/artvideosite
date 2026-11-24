@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Camera, CheckCircle2, Download, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Download, Hash, ImagePlus, Loader2, RotateCcw, RotateCw, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
 import { pairMobileOrderEditCode } from "@/features/orders/infrastructure/order-mobile-edit.gateway";
 import { pairMobileOrderChecklistCode } from "@/features/checklists/infrastructure/order-mobile-checklist.gateway";
@@ -133,6 +133,46 @@ async function decodeSerialFromPhoto(file: File) {
   throw new Error("Não foi possível identificar um código nessa foto.");
 }
 
+// Gira os pixels de verdade antes do upload. PNG intermediário evita uma
+// segunda compressão com perdas; o gateway mantém os presets de foto/etiqueta.
+async function rotateOrderPhoto(file: File, rotation: number, kind: DeviceCapturePhotoKind): Promise<File> {
+  if (rotation === 0) return file;
+  if (file.size > 25 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 25 MB.");
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  let canvas: HTMLCanvasElement | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Não foi possível abrir a foto."));
+      image.src = url;
+    });
+    const maxDimension = kind === "label" ? 2200 : 1600;
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const sideways = rotation === 90 || rotation === 270;
+    const output = document.createElement("canvas");
+    canvas = output;
+    output.width = sideways ? height : width;
+    output.height = sideways ? width : height;
+    const ctx = output.getContext("2d");
+    if (!ctx) throw new Error("Não foi possível girar a foto neste navegador.");
+    ctx.translate(output.width / 2, output.height / 2);
+    ctx.rotate(rotation * Math.PI / 180);
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    const blob = await new Promise<Blob | null>(resolve => output.toBlob(resolve, "image/png"));
+    if (!blob?.size) throw new Error("Não foi possível salvar a foto girada.");
+    return new File([blob], (file.name.replace(/\\.[^.]+$/, "") || "foto") + ".png", { type: "image/png" });
+  } finally {
+    image.onload = null;
+    image.onerror = null;
+    image.src = "";
+    URL.revokeObjectURL(url);
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+  }
+}
+
 export function MobileDeviceCapturePage() {
   const { sessionId: routeSessionId = "" } = useParams();
   const location = useLocation();
@@ -157,6 +197,22 @@ export function MobileDeviceCapturePage() {
   const [pairingCode, setPairingCode] = useState("");
   const [pairingCodeBusy, setPairingCodeBusy] = useState(false);
   const [uploadingKind, setUploadingKind] = useState<DeviceCapturePhotoKind | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<{ file: File; kind: DeviceCapturePhotoKind } | null>(null);
+  const [photoRotation, setPhotoRotation] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const confirmingPhotoRef = useRef(false);
+  useEffect(() => {
+    if (!pendingPhoto) { setPreviewUrl(""); return; }
+    const url = URL.createObjectURL(pendingPhoto.file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingPhoto]);
+  useEffect(() => {
+    if (connectionState !== "connected") {
+      setPendingPhoto(null);
+      setPhotoRotation(0);
+    }
+  }, [connectionState, pairing?.sessionId]);
   const [pairScannerOpen, setPairScannerOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [canInstall, setCanInstall] = useState(false);
@@ -466,11 +522,11 @@ export function MobileDeviceCapturePage() {
     }
   };
 
-  const uploadPhoto = async (kind: DeviceCapturePhotoKind, file?: File) => {
-    if (!file || connectionState !== "connected" || !pairing) return;
+  const uploadPhoto = async (kind: DeviceCapturePhotoKind, file?: File): Promise<boolean> => {
+    if (!file || connectionState !== "connected" || !pairing) return false;
     if (captureContext === "product" && kind !== "label") {
       setNotice({ text: "Pelo celular, envie somente a foto da capa do produto.", type: "error" });
-      return;
+      return false;
     }
     setUploadingKind(kind);
     setNotice(null);
@@ -482,9 +538,37 @@ export function MobileDeviceCapturePage() {
         text: captureContext === "product" ? (kind === "label" ? "Foto da capa enviada para o cadastro." : "Foto da galeria enviada para o cadastro.") : kind === "label" ? "Foto da etiqueta enviada para o computador." : "Foto do equipamento enviada para o computador.",
         type: "success",
       });
+      return true;
     } catch (error) {
       setNotice({ text: error instanceof Error ? error.message : "Não foi possível enviar a foto.", type: "error" });
+      return false;
     } finally {
+      setUploadingKind(null);
+    }
+  };
+
+  const previewOrderPhoto = (kind: DeviceCapturePhotoKind, file?: File) => {
+    if (!file || captureContext !== "order" || connectionState !== "connected" || !pairing || photoCount >= 5 || uploadingKind || pendingPhoto) return;
+    setNotice(null);
+    setPhotoRotation(0);
+    setPendingPhoto({ file, kind });
+  };
+
+  const confirmOrderPhoto = async () => {
+    if (!pendingPhoto || confirmingPhotoRef.current || uploadingKind || !pairing || connectionState !== "connected") return;
+    confirmingPhotoRef.current = true;
+    setUploadingKind(pendingPhoto.kind);
+    setNotice(null);
+    try {
+      const file = await rotateOrderPhoto(pendingPhoto.file, photoRotation, pendingPhoto.kind);
+      if (await uploadPhoto(pendingPhoto.kind, file)) {
+        setPendingPhoto(null);
+        setPhotoRotation(0);
+      }
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Não foi possível girar a foto.", type: "error" });
+    } finally {
+      confirmingPhotoRef.current = false;
       setUploadingKind(null);
     }
   };
@@ -678,28 +762,44 @@ export function MobileDeviceCapturePage() {
               onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }}/>
           </> : <>
             <div className="mt-4 grid gap-3">
-              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => labelInputRef.current?.click()}
+              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null || pendingPhoto !== null} onClick={() => labelInputRef.current?.click()}
                 className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] px-4 text-left disabled:opacity-45">
                 <span><span className="block text-sm font-black text-[#0057e7]">Foto da etiqueta</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Identificação, modelo e dados técnicos</span></span>
                 {uploadingKind === "label" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20}/> : <Camera className="shrink-0 text-[#0057e7]" size={20}/>}
               </button>
-              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null} onClick={() => equipmentInputRef.current?.click()}
+              <button type="button" disabled={photoCount >= 5 || uploadingKind !== null || pendingPhoto !== null} onClick={() => equipmentInputRef.current?.click()}
                 className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[#0d1b2e]/10 bg-white px-4 text-left disabled:opacity-45">
-                <span><span className="block text-sm font-black text-[#0d1b2e]">Outras fotos</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>
+                <span><span className="block text-sm font-black text-[#0d1b2e]">Foto do equipamento</span><span className="mt-0.5 block text-xs text-[#5a6a82]">Estado geral, avarias e outros detalhes</span></span>
                 {uploadingKind === "equipment" ? <Loader2 className="shrink-0 animate-spin text-[#0057e7]" size={20}/> : <ImagePlus className="shrink-0 text-[#5a6a82]" size={20}/>}
               </button>
             </div>
             {photoCount >= 5 && <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={16}/> Limite de 5 fotos atingido.</div>}
             <input ref={labelInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("label", file); }}/>
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; previewOrderPhoto("label", file); }}/>
             <input ref={equipmentInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto("equipment", file); }}/>
+              onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; previewOrderPhoto("equipment", file); }}/>
+            {pendingPhoto && (
+              <div className="mt-4 space-y-3 rounded-xl border border-[#0057e7]/20 bg-[#f8fafc] p-3">
+                <h3 className="text-sm font-black text-[#0d1b2e]">Revisar foto {pendingPhoto.kind === "label" ? "da etiqueta" : "do equipamento"}</h3>
+                <div className="mx-auto aspect-square w-full max-w-[320px] overflow-hidden rounded-xl bg-[#0d1b2e]">
+                  {previewUrl && <img src={previewUrl} alt="Prévia da foto" className="h-full w-full object-contain" style={{ transform: `rotate(${photoRotation}deg)` }} />}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={uploadingKind !== null} onClick={() => setPhotoRotation(value => (value + 270) % 360)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-2 text-xs font-black text-[#0d1b2e] disabled:opacity-45"><RotateCcw size={18}/> Girar à esquerda</button>
+                  <button type="button" disabled={uploadingKind !== null} onClick={() => setPhotoRotation(value => (value + 90) % 360)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-2 text-xs font-black text-[#0d1b2e] disabled:opacity-45"><RotateCw size={18}/> Girar à direita</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={uploadingKind !== null} onClick={() => { setPendingPhoto(null); setPhotoRotation(0); setNotice(null); }} className="min-h-12 rounded-xl border border-[#0d1b2e]/15 bg-white px-3 text-sm font-black text-[#0d1b2e] disabled:opacity-45">Descartar</button>
+                  <button type="button" disabled={!previewUrl || uploadingKind !== null} onClick={() => void confirmOrderPhoto()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-3 text-sm font-black text-white disabled:opacity-45">{uploadingKind !== null ? <Loader2 size={17} className="animate-spin"/> : <CheckCircle2 size={17}/>} {uploadingKind !== null ? "Enviando..." : "Salvar foto"}</button>
+                </div>
+              </div>
+            )}
           </>}
         </section>
 
         {captureContext === "order" && <MobileEntryChecklist sessionId={pairing.sessionId} token={pairing.token} />}
 
-        <button type="button" onClick={disconnectDevice} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> {captureContext === "product" ? "Desconectar e conectar outro produto" : "Desconectar e conectar outra OS"}</button>
+        <button type="button" onClick={disconnectDevice} disabled={uploadingKind !== null} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]"><Unplug size={17} /> {captureContext === "product" ? "Desconectar e conectar outro produto" : "Desconectar e conectar outra OS"}</button>
         <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#5a6a82]"><WifiOff size={12} /> A conexão também encerra automaticamente quando o QR/código expirar ou o PC fechar a sessão.</div>
       </main>
     </div>
