@@ -13,6 +13,31 @@ function validCpf(c:string){if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))retur
 function validCnpj(c:string){if(!/^\d{14}$/.test(c)||/^(\d)\1{13}$/.test(c))return false;return [12,13].every(n=>{let s=0,w=2;for(let i=n-1;i>=0;i--){s+=Number(c[i])*w;w=w===9?2:w+1;}return (s%11<2?0:11-s%11)===Number(c[n]);});}
 function check(r:any){if(r.error)throw new Error("Não foi possível concluir a operação.");return r.data;}
 class InputError extends Error{}
+class IdentityError extends Error{constructor(message:string,public status:number){super(message);}}
+/** Use the existing Artvideo site validator, including its HMAC cache and quota.
+ * Never return the provider's name or use Artvideo credentials for other tenants. */
+async function artvideoIdentityRequired(admin:any,org:string){
+  const artvideo=check(await admin.rpc("artvideo_organization_id"));
+  if(String(artvideo)!==org)return false;
+  return check(await admin.rpc("artvideo_site_cpf_enforcement_v1"))===true;
+}
+async function validateArtvideoIdentity(url:string,key:string,cpf:string,name:string){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
+  try{
+    const response=await fetch(url+"/functions/v1/artvideo-customer-access",{
+      method:"POST",headers:{"Content-Type":"application/json",apikey:key,Authorization:"Bearer "+key},
+      body:JSON.stringify({action:"registration_identity",cpf,name}),signal:controller.signal,
+    });
+    const data=await response.json().catch(()=>null);
+    if(response.ok&&data?.success===true&&data.required===true&&uuid(data.ticket))return data.ticket as string;
+    if(response.status===422||response.status===400)throw new IdentityError("O nome completo informado não corresponde ao CPF consultado. Confira o nome e o CPF.",422);
+    if(response.status===429)throw new IdentityError("Limite temporário de consultas de CPF atingido. Tente novamente mais tarde.",429);
+    throw new IdentityError("Não foi possível validar o CPF agora. Tente novamente.",503);
+  }catch(error){
+    if(error instanceof IdentityError)throw error;
+    throw new IdentityError("Não foi possível validar o CPF agora. Tente novamente.",503);
+  }finally{clearTimeout(timeout);}
+}
 Deno.serve(async(req)=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
   if(req.method!=="POST")return json({error:"Método inválido."},405);
@@ -31,7 +56,7 @@ Deno.serve(async(req)=>{
     const form=multipart?await bounded.formData():null;
     const body=form?{action:"submit",token:form.get("token"),payload:JSON.parse(String(form.get("payload")||"{}"))}:await bounded.json();
     const action=String(body.action||"");
-    if(action==="open"||action==="models"||action==="submit"){
+    if(action==="open"||action==="models"||action==="identity"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
       const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at,bound_customer_id").eq("token_hash",await hash(token)).maybeSingle());
@@ -59,6 +84,14 @@ Deno.serve(async(req)=>{
       }
       const org=check(await admin.from("organizations").select("id,name,status").eq("id",row.organization_id).eq("status","active").maybeSingle());
       if(!org)return json({error:"Link indisponível."},404);
+      if(action==="identity"){
+        if(row.bound_customer_id)return json({required:false});
+        const cpf=digits(body.document), name=clean(body.name,120).replace(/\s+/g," ");
+        if(!validCpf(cpf)||name.length<5||name.split(" ").length<2)throw new InputError("Informe um CPF válido e o nome completo.");
+        if(!await artvideoIdentityRequired(admin,org.id))return json({required:false});
+        const ticket=await validateArtvideoIdentity(url,key,cpf,name);
+        return json({required:true,ticket});
+      }
       if(action==="models"){
         if(!uuid(body.brand_id))throw new InputError("Marca inválida.");
         const brand=check(await admin.from("equipment_brands").select("id").eq("organization_id",org.id).eq("id",body.brand_id).eq("is_active",true).maybeSingle());
@@ -69,7 +102,7 @@ Deno.serve(async(req)=>{
         if(row.status==="sent")check(await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","sent"));
         const types=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("is_active",true).order("name").limit(1000));
         const brands=check(await admin.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id",org.id).eq("is_active",true).order("name").limit(2000));
-        return json({status:"filling",company:org.name,types,brands,requires_customer_details:!row.bound_customer_id});
+        return json({status:"filling",company:org.name,types,brands,requires_customer_details:!row.bound_customer_id,requires_cpf_identity:!row.bound_customer_id&&await artvideoIdentityRequired(admin,org.id)});
       }
       const p=body.payload||{}, problem=clean(p.problem,2500);
       let a=p.address||{}, cpf=digits(p.document), name=clean(p.name), phone=digits(p.phone);
@@ -102,6 +135,12 @@ Deno.serve(async(req)=>{
       for(const f of files){if(!(f instanceof File)||f.size<12||f.size>1_500_000||f.type!=="image/webp")throw new InputError("Foto inválida ou muito grande. Tente tirar outra.");
         const b=new Uint8Array(await f.slice(0,12).arrayBuffer());if(String.fromCharCode(...b.slice(0,4))!=="RIFF"||String.fromCharCode(...b.slice(8,12))!=="WEBP")throw new InputError("Formato de foto inválido.");}
       if(!kinds.includes("label")||!kinds.includes("problem"))throw new InputError("Envie uma foto da etiqueta e uma foto do defeito.");
+      if(!bound&&cpf.length===11&&await artvideoIdentityRequired(admin,org.id)){
+        const ticket=p.cpf_identity_ticket;
+        const verified=uuid(ticket)&&check(await admin.rpc("artvideo_site_cpf_check_v1",{p_token:ticket,p_cpf:cpf,p_name:name}))===true;
+        // A stale or missing proof never bypasses the authoritative validation.
+        if(!verified)await validateArtvideoIdentity(url,key,cpf,name);
+      }
       const attempt=crypto.randomUUID();
       const claim=check(await admin.from("order_intake_requests").update({status:"submitting",upload_attempt:attempt,upload_started_at:new Date().toISOString()}).eq("id",row.id).in("status",["sent","filling"]).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
       if(!claim)return json({error:"Solicitação já enviada ou em processamento."},409);
@@ -188,5 +227,5 @@ Deno.serve(async(req)=>{
       return json({intake:{...intake,images}});
     }
     return json({error:"Ação inválida."},400);
-  }catch(e){return json({error:e instanceof InputError?e.message:"Não foi possível concluir. Tente novamente."},e instanceof InputError?400:500);}
+  }catch(e){return json({error:e instanceof InputError||e instanceof IdentityError?e.message:"Não foi possível concluir. Tente novamente."},e instanceof IdentityError?e.status:e instanceof InputError?400:500);}
 });
