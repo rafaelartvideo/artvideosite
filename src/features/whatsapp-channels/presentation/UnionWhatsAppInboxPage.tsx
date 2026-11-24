@@ -1502,7 +1502,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const openNewContactFromConversation=async()=>{
     if(!selectedId || !activeOrganizationId || preparingContact || newContact ||
-      !hasPermission("registrations.contacts.manage") || !hasPermission("customers.view"))return;
+      !hasPermission("registrations.contacts.manage") || !hasPermission("customers.view") || !canAction("create_contacts"))return;
     const org=activeOrganizationId, threadId=selectedId, launch=++contactLaunch.current;
     setPreparingContact(true);
     try{
@@ -3005,7 +3005,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
               newOrderLoading={preparingNewOrder}
               newOrderDisabled={Boolean(newOrder)}
-              onNewContact={hasPermission("registrations.contacts.manage") ? ()=>void openNewContactFromConversation():undefined}
+              onNewContact={hasPermission("registrations.contacts.manage") && canAction("create_contacts") ? ()=>void openNewContactFromConversation():undefined}
               newContactLoading={preparingContact || Boolean(newContact)}
             />}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
