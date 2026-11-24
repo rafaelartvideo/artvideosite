@@ -44,8 +44,8 @@ import {
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 // Reutiliza exatamente a mesma Nova OS flutuante do WhatsApp aberto pela OS.
-const EmbeddedNewOrder = lazy(() => import("@/features/orders/presentation/TabOrders")
-  .then(({TabOrders})=>({default:TabOrders})));
+const loadEmbeddedNewOrder = () => import("@/features/orders/presentation/TabOrders").then(({TabOrders})=>({default:TabOrders}));
+const EmbeddedNewOrder = lazy(loadEmbeddedNewOrder);
 
 const quotedSummary=(body:string|null|undefined, kind:string|null|undefined):string =>
   kind==="location" ? (parseWhatsAppLocation(body)?.name || "Localização") :
@@ -696,6 +696,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
   const [intakeContext,setIntakeContext]=useState<{org:string;conversationId?:string}|null>(null);
+  useEffect(()=>{if(intakeContext)void loadEmbeddedNewOrder().catch(()=>undefined);},[intakeContext]);
   useEffect(()=>{setIntakeContext(current=>current && (current.org!==activeOrganizationId || (current.conversationId && current.conversationId!==selectedId))?null:current);},[selectedId,activeOrganizationId]);
   const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string;intake?:IntakePrefill}|null>(null);
   const detachedNewOrder=useDetachedOrderEditor();
@@ -3694,7 +3695,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       onClose={()=>setIntakeContext(null)}
       onShare={intakeContext.conversationId?message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);notifyAdmin("Mensagem inserida no WhatsApp.","success");}:undefined}
       onConvert={(customerId,prefill)=>{if(newOrder){notifyAdmin("Feche ou conclua a Nova OS aberta antes de converter outra solicitação.","error");return;}setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:prefill.conversationId||intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
-    {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
+    {newOrder && <Suspense fallback={newOrder.intake?null:<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
       <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
         initialCustomerId={newOrder.customerId}
         initialCustomerLookup={newOrder.customerLookup}
