@@ -38,6 +38,35 @@ async function bridge(input:Record<string,unknown>){
   if(data.success!==true)throw Error("Operação não confirmada.");
   return data.result;
 }
+// The VPS holds only the existing gateway secret and a public legacy JWT.
+ // A signed, cursor-scoped worker request cannot act as a general user session.
+async function verifyWorker(req:Request,raw:string){
+  const secret=Deno.env.get("UNION_HISTORY_GATEWAY_SECRET")||"";
+  const ts=req.headers.get("x-union-worker-timestamp")||"",nonce=req.headers.get("x-union-worker-nonce")||"",sig=req.headers.get("x-union-worker-signature")||"";
+  if(secret.length<32||!/^\d{13}$/.test(ts)||Math.abs(Date.now()-Number(ts))>30000||!uuid(nonce)||!/^[a-f0-9]{64}$/.test(sig))return false;
+  const encoder=new TextEncoder();
+  const hmac=await crypto.subtle.importKey("raw",encoder.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["verify"]);
+  const signature=Uint8Array.from(sig.match(/../g)!.map(v=>parseInt(v,16)));
+  return crypto.subtle.verify("HMAC",hmac,signature,encoder.encode("worker-reconcile-v1."+ts+"."+nonce+"."+raw));
+}
+async function currentWorkerPermissions(admin:any,org:string,actor:string){
+  // Conservative unattended authorization: active direct membership only,
+  // rechecked every batch; explicit denies override role grants.
+  const [membership,profile,organization,keys]=await Promise.all([
+    admin.from("organization_members").select("role_id").eq("organization_id",org).eq("user_id",actor).eq("status","active").maybeSingle(),
+    admin.from("profiles").select("id").eq("id",actor).eq("is_active",true).maybeSingle(),
+    admin.from("organizations").select("id").eq("id",org).eq("status","active").maybeSingle(),
+    admin.from("permissions").select("id,key").in("key",["whatsapp.history_import.view","whatsapp.history_import.start","whatsapp.history_import.manage"]),
+  ]);
+  if([membership,profile,organization,keys].some(v=>v.error)||!membership.data||!profile.data||!organization.data||keys.data?.length!==3)return [];
+  const ids=keys.data.map((p:any)=>p.id);
+  const [grants,overrides]=await Promise.all([
+    membership.data.role_id?admin.from("role_permissions").select("permission_id").eq("role_id",membership.data.role_id).in("permission_id",ids):Promise.resolve({data:[],error:null}),
+    admin.from("user_permission_overrides").select("permission_id,is_allowed").eq("organization_id",org).eq("user_id",actor).in("permission_id",ids),
+  ]);
+  if(grants.error||overrides.error)return [];
+  return keys.data.filter((p:any)=>!overrides.data?.some((o:any)=>o.permission_id===p.id&&!o.is_allowed)&&(grants.data?.some((g:any)=>g.permission_id===p.id)||overrides.data?.some((o:any)=>o.permission_id===p.id&&o.is_allowed))).map((p:any)=>({permission_key:p.key}));
+}
 Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
   if(req.method!=="POST")return json({success:false,error:"Método inválido."},405);
@@ -51,8 +80,19 @@ Deno.serve(async req=>{
     const url=Deno.env.get("SUPABASE_URL")||"";
     const scoped=createClient(url,key("SUPABASE_ANON_KEY","SUPABASE_PUBLISHABLE_KEYS"),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
     const admin=createClient(url,key("SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEYS"),{auth:{persistSession:false,autoRefreshToken:false}});
-    const {data:auth,error:authError}=await scoped.auth.getUser();
-    if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
+    const worker=b.action==="worker_reconcile";
+    let workerContext:any=null,actorId:string;
+    if(worker){
+      if(!uuid(b.id)||(b.after!==null&&(typeof b.after!=="string"||!/^[a-f0-9]{32}$/.test(b.after)))||!await verifyWorker(req,raw))return json({success:false,error:"Worker não autorizado."},401);
+      workerContext=await bridge({action:"bulk_context",id:b.id,organizationId:org});
+      if(workerContext?.id!==b.id||workerContext?.organizationId!==org||workerContext?.after!==b.after||!uuid(workerContext?.actor))return json({success:false,error:"Checkpoint alterado."},409);
+      actorId=workerContext.actor;
+      b.action="auto_reconcile";
+    }else{
+      const {data:auth,error:authError}=await scoped.auth.getUser();
+      if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
+      actorId=auth.user.id;
+    }
     // Historical reads use the exact live conversation RLS, NOT management permissions.
     // The request cannot select a contact, destination phone or archived package.
     if(b.action==="history_page"||b.action==="conversation_page"||b.action==="media_ticket"||b.action==="open_archive"){
@@ -202,9 +242,10 @@ Deno.serve(async req=>{
       }
       return json({success:true,result:page});
     }
-    const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
+    const {data:permissions,error:permissionError}=worker?{data:await currentWorkerPermissions(admin,org,actorId),error:null}:await scoped.rpc("my_organization_permissions",{p_organization_id:org});
     const has=(permission:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===permission);
-    const actor=auth.user.id;
+    const actor=actorId;
+    if(worker&&!has("whatsapp.history_import.start"))return json({success:false,error:"Autorização do responsável revogada."},403);
     if(b.action==="grant"||b.action==="platform_companies"||b.action==="platform_list"){
       const {data:platform,error}=await admin.rpc("platform_operator_organization_id");
       if(error||platform!==org||!has("platform.management.manage"))return json({success:false,error:"Acesso reservado à administração Union."},403);
@@ -233,10 +274,24 @@ Deno.serve(async req=>{
       return json({success:true,result:await bridge({action:"prepare",organizationId:org,packageId:b.package_id,accountPhone:channel.phone,actor})});
     }
     if(!uuid(b.id))return json({success:false,error:"Importação inválida."},400);
+    if(b.action==="bulk_control"){
+      if(!has(prefix+"manage")||(["start","resume"].includes(b.command)&&!has(prefix+"start"))||!["start","pause","resume","cancel"].includes(b.command))return json({success:false,error:"Operação não autorizada."},403);
+      const j=await bridge({action:"status",id:b.id,organizationId:org});
+      if(["start","resume"].includes(b.command)){
+        const allowed=await currentWorkerPermissions(admin,org,actor);
+        if(allowed.length!==3)return json({success:false,error:"Processamento automático exige vínculo ativo com a empresa."},403);
+        const {data:channel,error}=await admin.from("whatsapp_channel_connections").select("id").eq("organization_id",org).eq("provider","wuzapi").eq("state","connected").eq("phone",j.account_phone).limit(2);
+        if(error||channel?.length!==1)return json({success:false,error:"Reconecte o número original."},409);
+      }
+      return json({success:true,result:await bridge({action:"bulk_control",id:b.id,organizationId:org,actor,command:b.command})});
+    }
     if(b.action==="candidates"||b.action==="bind_contact"||b.action==="create_contact"||b.action==="auto_reconcile"){
       // Only authorized managers may see the reconciliation preview or approve a binding.
       if(!has(prefix+"manage"))return json({success:false,error:"Sem permissão de conciliar contatos."},403);
-      const preview=await bridge({action:"candidates",id:b.id,organizationId:org});
+      const after=worker?b.after:b.page_after??null;
+      if(after!==null&&(typeof after!=="string"||!/^[a-f0-9]{32}$/.test(after)))return json({success:false,error:"Cursor inválido."},400);
+      const preview=await bridge({action:"candidates",id:b.id,organizationId:org,...(worker||after!==null?{after,limit:worker?5:100}:{})});
+      if(worker&&preview.account_phone!==workerContext.accountPhone)throw Error("Conta alterada.");
       if(!phone(preview.account_phone)||!Array.isArray(preview.entries)||preview.entries.length>100)throw Error("Índice inválido.");
       const numbers=[...new Set(preview.entries.filter((e:Record<string,unknown>)=>e.state==="verified"&&phone(e.phone)).map((e:Record<string,unknown>)=>String(e.phone)))];
       const {data:matches,error:matchError}=numbers.length?await admin.from("union_whatsapp_contacts")
@@ -248,10 +303,10 @@ Deno.serve(async req=>{
         const found=matches.filter(m=>m.contact_phone===e.phone);
         // Exact phone JID only: aliases and ambiguous records require individual review.
         const match=found.length===1&&found[0].chat_jid===e.phone+"@s.whatsapp.net"?found[0]:null;
-        return {contact_key:e.contact_key,phone:e.phone,historical_name:typeof e.historical_name==="string"?e.historical_name.slice(0,200):"",state:e.state==="review"?"review":e.contact_id?(match?.id===e.contact_id?"bound":"review"):e.state!=="verified"?"review":found.length===0?"missing":match?"candidate":"review",
+        return {contact_key:e.contact_key,phone:e.phone,historical_name:typeof e.historical_name==="string"?e.historical_name.slice(0,200):"",identity_conflict:e.identity_conflict===true,state:e.state==="review"?"review":e.contact_id?(match?.id===e.contact_id?"bound":"review"):e.state!=="verified"?"review":found.length===0?"missing":match?"candidate":"review",
           match:match?{id:match.id,display_name:match.display_name}:null};
       });
-      if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates}});
+      if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates,next_after:preview.next_after||null}});
       if(b.action==="auto_reconcile"){
         // At most five contacts per authenticated request. The job's private
         // binding journal is the authoritative checkpoint; retries are safe.
@@ -260,12 +315,12 @@ Deno.serve(async req=>{
           .eq("organization_id",org).eq("provider","wuzapi").eq("phone",preview.account_phone).eq("state","connected").limit(2);
         if(channelError||channels?.length!==1)return json({success:false,error:"Conta de destino não confirmada."},409);
         const channel=channels[0].id,account=preview.account_phone;
-        const remaining=candidates.filter(e=>!b.after||String(e.contact_key)>b.after);
+        const remaining=worker?candidates:candidates.filter(e=>!b.after||String(e.contact_key)>b.after);
         const batch=remaining.slice(0,5),results=[];
         for(const entry of batch){
           const result={contact_key:entry.contact_key,state:"review",renamed:false};
           try{
-            if(!phone(entry.phone)||!["missing","candidate","bound"].includes(entry.state)){results.push(result);continue;}
+            if(!phone(entry.phone)||!["missing","candidate","bound"].includes(entry.state)||(entry.identity_conflict&&entry.state!=="bound")){results.push(result);continue;}
             const jid=entry.phone+"@s.whatsapp.net";
             const variants=archivePhoneVariants(entry.phone);
             // The legacy ninth digit is a collision warning, not an identity merge.
@@ -330,10 +385,10 @@ Deno.serve(async req=>{
                 }
               }
             }
-          }catch{result.state="review";}
+          }catch{if(worker)throw Error("Lote não confirmado; checkpoint preservado.");result.state="review";}
           results.push(result);
         }
-        return json({success:true,result:{entries:results,next_after:remaining.length>batch.length?batch.at(-1)?.contact_key:null}});
+        return json({success:true,result:{entries:results,next_after:worker?(preview.next_after||null):remaining.length>batch.length?batch.at(-1)?.contact_key:null}});
       }
       if(b.action==="create_contact"){
         if(b.confirmed!==true||typeof b.contact_key!=="string"||!/^[a-f0-9]{32}$/.test(b.contact_key))return json({success:false,error:"Confirme a criação do contato."},400);
