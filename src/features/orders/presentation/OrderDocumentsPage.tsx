@@ -2,6 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import {
   Camera,
+  ChevronDown,
   CheckCircle,
   Download,
   File,
@@ -30,7 +31,8 @@ import { downloadRemoteFile } from "@/shared/application/download-file";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { OrderImageThumb, type OrderImage } from "./OrderImages";
+import { OrderImageThumb, downloadOrderImage, ORDER_IMAGE_DOWNLOAD_OPTIONS, type OrderImage, type OrderImageDownloadFormat } from "./OrderImages";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
 import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 import { OrderSignatureRequestsSection } from "./OrderSignatureRequestsSection";
@@ -84,10 +86,16 @@ function AttachmentCard({
     else window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const downloadAttachment = async () => {
+  const downloadAttachment = async (format: OrderImageDownloadFormat = "original") => {
     if (!url || downloading) return;
     setDownloading(true);
-    try { await downloadRemoteFile(url, name); }
+    try {
+      if (isImage && format !== "original") {
+        await downloadOrderImage({ key: document.id, mediaId: document.media_id, url, name }, format, 0);
+      } else {
+        await downloadRemoteFile(url, name);
+      }
+    }
     catch (downloadError) { notifyAdmin(systemErrorMessage(downloadError, "Não foi possível baixar o arquivo."), "error"); }
     finally { setDownloading(false); }
   };
@@ -136,7 +144,23 @@ function AttachmentCard({
           <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wide text-[#0057e7]">{classification}</p>
         </div>
         <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-[#0d1b2e]/7 pt-2">
-          {url ? <button type="button" onClick={() => void downloadAttachment()} disabled={downloading} aria-label={`Baixar ${name}`} title="Baixar" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7] disabled:opacity-50">{downloading ? <LoadingSpinner size="sm" /> : <Download size={12} className="shrink-0" />}<span className="hidden sm:inline">Baixar</span></button> : <span />}
+          {url ? isImage ? (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button type="button" disabled={downloading} aria-label={`Baixar ${name}`} title="Escolher formato de download" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7] disabled:opacity-50">
+                  {downloading ? <LoadingSpinner size="sm" /> : <Download size={12} className="shrink-0" />}
+                  <span className="hidden sm:inline">Baixar</span><ChevronDown size={12} className="shrink-0" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="admin-crm z-[230] min-w-52">
+                {ORDER_IMAGE_DOWNLOAD_OPTIONS.map(([format, label]) => (
+                  <DropdownMenuItem key={format} disabled={downloading} onSelect={() => void downloadAttachment(format)} className="cursor-pointer gap-2">
+                    <Download size={14} className="shrink-0" />{label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : <button type="button" onClick={() => void downloadAttachment()} disabled={downloading} aria-label={`Baixar ${name}`} title="Baixar" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-[#0057e7] disabled:opacity-50">{downloading ? <LoadingSpinner size="sm" /> : <Download size={12} className="shrink-0" />}<span className="hidden sm:inline">Baixar</span></button> : <span />}
           {canRemove && <button type="button" disabled={removing} onClick={() => onRemove(document)} aria-label={`Remover ${name}`} title="Remover" className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-red-600 disabled:opacity-50"><X size={12} className="shrink-0" /><span className="hidden sm:inline">Remover</span></button>}
         </div>
       </div>
