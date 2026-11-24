@@ -1328,9 +1328,13 @@ test("OS and CRM share active additional registration contacts with scoped ident
   assert.match(repo, /entity_contact_id\?:string/);
   assert.match(menu, /Nova OS[\s\S]*?onNewContact[\s\S]*?Novo contato/);
   assert.match(inbox, /getRegistrationContactOwner\(org,match.customer.id\)/);
-  assert.match(inbox, /onNewContact=\{hasPermission\("registrations.contacts.manage"\)/);
+  assert.match(inbox, /onNewContact=\{hasPermission\("registrations.contacts.manage"\) && canAction\("create_contacts"\)/);
   assert.match(form, /<VerifiedWhatsAppPhoneInput/);
-  assert.match(form, /createRegistrationContact\(organizationId, owner.id/);
+  assert.match(form, /"crm_contact_save"/);
+  assert.match(edge, /admin.rpc\("union_whatsapp_create_registration_contact"/);
+  assert.match(lookup, /insert into public.entity_contacts/);
+  assert.match(lookup, /insert into public.union_whatsapp_contacts/);
+  assert.match(lookup, /on conflict\(channel_id,account_phone,chat_jid\) do nothing/);
   assert.match(form, /queryKeys.registrations.contacts\(organizationId, owner.id\)/);
   assert.match(registrations, /<VerifiedWhatsAppPhoneInput verificationMode=\{editing \? "edit" : "create"\}/);
   assert.match(lookup, /additional_matches as/);
