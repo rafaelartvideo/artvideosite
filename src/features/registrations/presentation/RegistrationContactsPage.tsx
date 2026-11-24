@@ -10,6 +10,7 @@ import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import type { Registration } from "../infrastructure/registrations.repository";
+import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
 import { WhatsAppContactAction } from "@/features/whatsapp-channels/presentation/WhatsAppContactAction";
 import {
   createRegistrationContact,
@@ -235,7 +236,7 @@ export function RegistrationContactsPage({
         <div className="sm:col-span-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /></div>
         <div className="sm:col-span-2"><FInput label="Cargo / identificação" value={form.job_title} onChange={(event: any) => setForm(current => ({ ...current, job_title: event.target.value }))} placeholder="Ex.: Financeiro, responsável técnico" /></div>
         <FPhoneInput label="Telefone" copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { setFieldErrors(current => ({...current, phone: undefined})); setForm(current => ({...current, phone})); }} error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { setFieldErrors(current => ({ ...current, phone: undefined })); setForm(current => ({ ...current, phone: event.target.value })); }} />
-        <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { setFieldErrors(current => ({...current, whatsapp: undefined})); setForm(current => ({...current, whatsapp: phone})); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined, phone: undefined })); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
+        <VerifiedWhatsAppPhoneInput verificationMode={editing ? "edit" : "create"} label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { setFieldErrors(current => ({...current, whatsapp: undefined})); setForm(current => ({...current, whatsapp: phone})); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined, phone: undefined })); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
         <div className="sm:col-span-2"><FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(event: any) => { setFieldErrors(current => ({ ...current, email: undefined, phone: undefined })); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
       </div>
     </AdminDialog>
