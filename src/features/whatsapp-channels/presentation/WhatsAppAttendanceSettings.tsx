@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { WhatsAppHistoryImports } from "./WhatsAppHistoryImports";
+import { Database } from "lucide-react";
 import { WhatsAppChannelsPage } from "./WhatsAppChannelsPage";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
@@ -16,7 +18,7 @@ import type { WhatsAppSettingsInlinePane, WhatsAppSettingsInlinePaneChange } fro
 // The gear opens this menu over the existing Atendimentos conversation.
 // Every option is a modal, never a redirect to Canais de Atendimento.
 export type AttendanceSettingsSection =
-  "configuration"|"connections"|"departments"|"queues"|"operators"|"permissions"|"quick-replies"|"hours";
+  "configuration"|"connections"|"departments"|"queues"|"operators"|"permissions"|"quick-replies"|"hours"|"history-imports";
 
 const sections = [
   {id:"configuration",title:"Configuração do canal",description:"Ativação, conexão e recebimento em etapas.",icon:Settings2},
@@ -27,6 +29,7 @@ const sections = [
   {id:"operators",title:"Operadores",description:"Vínculos e funções de cada funcionário.",icon:UsersRound},
   {id:"permissions",title:"Perfis e permissões",description:"Ações autorizadas em cada perfil de atendimento.",icon:ShieldCheck},
   {id:"quick-replies",title:"Mensagens rápidas",description:"Respostas com variáveis e saudações automáticas.",icon:MessageSquareText},
+  {id:"history-imports",title:"Importações de histórico",description:"Pacotes privados, contas e progresso.",icon:Database},
 ] as const;
 
 const isSection=(value:string|null):value is AttendanceSettingsSection=>
@@ -39,6 +42,7 @@ export function WhatsAppAttendanceSettings({
 }) {
   const {activeOrganizationId,hasPermission}=useAuth();
   const canManage=hasPermission("settings.channels.manage");
+  const canViewImports=hasPermission("whatsapp.history_import.view");
   const canView=hasPermission("settings.channels.view") || canManage ||
     hasPermission("settings.channels.delete");
   const [section,setSection]=useState<AttendanceSettingsSection|null>(
@@ -151,8 +155,8 @@ export function WhatsAppAttendanceSettings({
     <p className="p-4 text-sm text-muted-foreground">Seu perfil não possui permissão para configurar os atendimentos desta empresa.</p>
   </AdminDialog>;
 
-  const available=sections.filter(item=>canManage ||
-    item.id==="configuration"||item.id==="connections"||item.id==="quick-replies");
+  const available=sections.filter(item=>item.id==="history-imports"?canViewImports:(canManage ||
+    item.id==="configuration"||item.id==="connections"||item.id==="quick-replies"));
   const active=sections.find(item=>item.id===section);
 
   return <>
@@ -217,6 +221,7 @@ export function WhatsAppAttendanceSettings({
                 footerTarget={footerTarget} embedded onInlinePaneChange={onInlinePaneChange}/>
             : section==="permissions" ? <WhatsAppRolePermissions footerTarget={footerTarget} footerInParent/>
             : section==="hours" ? <WhatsAppBusinessCalendarSettings footerTarget={footerTarget} footerInParent/>
+            : section==="history-imports" ? <WhatsAppHistoryImports key={activeOrganizationId}/>
             : <WhatsAppQuickRepliesSettings createRequest={createRequest} embedded
                 footerTarget={footerTarget} onInlinePaneChange={onInlinePaneChange}/>}
       </div>}
