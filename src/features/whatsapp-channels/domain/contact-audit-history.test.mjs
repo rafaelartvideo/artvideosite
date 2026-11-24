@@ -46,7 +46,7 @@ test("general history merges changes with messages and works for contacts withou
   assert.match(timeline,/Alterado por: /);
   assert.match(timeline,/Anterior: /);
   assert.match(timeline,/Novo: /);
-  assert.match(timeline,/if\(!conversation\)return;/);
+  assert.match(timeline,/if\(!conversation&&!contactOnly\)/);
   assert.match(contacts,/contactJid=\{selected\.chat_jid\}/);
   assert.match(contacts,/conversation=\{contactConversation\?\.chat_jid===selected\.chat_jid\?contactConversation:null\}/);
 });
