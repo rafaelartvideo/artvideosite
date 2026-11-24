@@ -88,7 +88,7 @@ Deno.serve(async(req)=>{
           return json({error:"Não foi possível recuperar o envio. Tente novamente."},503);
         }
       }
-      const org=check(await admin.from("organizations").select("id,name,status").eq("id",row.organization_id).eq("status","active").maybeSingle());
+      const org=check(await admin.from("organizations").select("id,name,status,logo_url").eq("id",row.organization_id).eq("status","active").maybeSingle());
       if(!org)return json({error:"Link indisponível."},404);
       if(action==="identity"){
         if(row.bound_customer_id)return json({required:false});
@@ -108,7 +108,21 @@ Deno.serve(async(req)=>{
         if(row.status==="sent")check(await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","sent"));
         const types=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("is_active",true).order("name").limit(1000));
         const brands=check(await admin.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id",org.id).eq("is_active",true).order("name").limit(2000));
-        return json({status:"filling",company:org.name,types,brands,requires_customer_details:!row.bound_customer_id,requires_cpf_identity:!row.bound_customer_id&&await artvideoIdentityRequired(admin,org.id)});
+        // Only the configured company logo, never arbitrary tenant media.
+        let companyLogo:string|null=null;
+        try{
+          const settings=await admin.from("organization_company_settings").select("logo_media_id,menu_logo_media_id").eq("organization_id",org.id).maybeSingle();
+          const logoId=settings.data?.logo_media_id||settings.data?.menu_logo_media_id;
+          if(logoId&&uuid(logoId)){
+            const media=await admin.from("media").select("bucket_id,storage_path,mime_type").eq("organization_id",org.id).eq("id",logoId).maybeSingle();
+            if(media.data?.mime_type?.startsWith("image/")&&media.data.bucket_id&&media.data.storage_path){
+              const signed=await admin.storage.from(media.data.bucket_id).createSignedUrl(media.data.storage_path,3600);
+              companyLogo=signed.data?.signedUrl||null;
+            }
+          }
+          if(!companyLogo&&typeof org.logo_url==="string"&&/^https:\/\//i.test(org.logo_url))companyLogo=org.logo_url;
+        }catch{/* branding unavailable must not prevent an authorized request */}
+        return json({status:"filling",company:org.name,company_logo_url:companyLogo,types,brands,requires_customer_details:!row.bound_customer_id,requires_cpf_identity:!row.bound_customer_id&&await artvideoIdentityRequired(admin,org.id)});
       }
       const p=body.payload||{}, problem=clean(p.problem,2500);
       let a=p.address||{}, cpf=digits(p.document), name=clean(p.name), phone=digits(p.phone);
