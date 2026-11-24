@@ -43,16 +43,17 @@ function labelForName(source: string | null | undefined, verifiedName: boolean):
  * never calls WuzAPI. The status is not proof of number ownership.
  */
 export function VerifiedWhatsAppPhoneInput({
-  value, verificationMode = "create", ...inputProps
+  value, verificationMode = "create", verificationEnabled = true, ...inputProps
 }: {
   value: unknown;
   onChange: (event: { target: { value: string } }) => void;
   verificationMode?: "create" | "edit";
+  verificationEnabled?: boolean;
   [key: string]: any;
 }) {
   const phone = String(value ?? "");
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canVerify = hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.send");
+  const canVerify = verificationEnabled && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.send");
   const normalized = brazilianWhatsAppNumber(phone);
   const key = activeOrganizationId && normalized ? activeOrganizationId + ":" + normalized : "";
   const [state, setState] = useState<LookupState | null>(null);
