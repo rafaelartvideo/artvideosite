@@ -38,7 +38,7 @@ async function artvideoIdentityRequired(admin:any,org:string){
   const artvideo=check(await admin.rpc("artvideo_organization_id"));
   if(String(artvideo)!==org&&org!==CPF_IDENTITY_TEST_ORG)return false;
   if(check(await admin.rpc("artvideo_site_cpf_enforcement_v1"))!==true)
-    throw new IdentityError("A validação de CPF está indisponível. Tente novamente.",503);
+    throw new IdentityError("Não foi possível validar os dados agora. Tente novamente.",503);
   return true;
 }
 async function validateArtvideoIdentity(url:string,key:string,cpf:string,name:string){
@@ -50,12 +50,12 @@ async function validateArtvideoIdentity(url:string,key:string,cpf:string,name:st
     });
     const data=await response.json().catch(()=>null);
     if(response.ok&&data?.success===true&&data.required===true&&uuid(data.ticket))return data.ticket as string;
-    if(response.status===422||response.status===400)throw new IdentityError("O nome completo informado não corresponde ao CPF consultado. Confira o nome e o CPF.",422);
-    if(response.status===429)throw new IdentityError("Limite temporário de consultas de CPF atingido. Tente novamente mais tarde.",429);
-    throw new IdentityError("Não foi possível validar o CPF agora. Tente novamente.",503);
+    if(response.status===422||response.status===400)throw new IdentityError("O nome completo informado não corresponde ao CPF. Confira o nome e o CPF.",422);
+    if(response.status===429)throw new IdentityError("Limite temporário de tentativas atingido. Tente novamente mais tarde.",429);
+    throw new IdentityError("Não foi possível validar os dados agora. Tente novamente.",503);
   }catch(error){
     if(error instanceof IdentityError)throw error;
-    throw new IdentityError("Não foi possível validar o CPF agora. Tente novamente.",503);
+    throw new IdentityError("Não foi possível validar os dados agora. Tente novamente.",503);
   }finally{clearTimeout(timeout);}
 }
 Deno.serve(async(req)=>{
