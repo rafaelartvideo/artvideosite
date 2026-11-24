@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, useId, useMemo, useState, useSyncExternalStore, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useId, useState, useSyncExternalStore, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -7,7 +7,7 @@ import {
 import { AdminCard } from "./AdminLayout";
 import { AdminFieldLabel, INPUT } from "./AdminFormControls";
 import { AdminMobileSearchSwitch } from "./AdminMobileSearchSwitch";
-import { COMPACT_SEARCH_MEDIA, searchPanelPreferenceKey, readSearchPanelExpanded, writeSearchPanelExpanded } from "./search-panel-preference";
+import { COMPACT_SEARCH_MEDIA, subscribeSearchPanelExpanded, readSearchPanelExpanded, writeSearchPanelExpanded } from "./search-panel-preference";
 
 function subscribeCompactSearch(callback: () => void) {
   const media = window.matchMedia(COMPACT_SEARCH_MEDIA);
@@ -37,16 +37,12 @@ export type AdminSearchField = { value: string; label: string; content: ReactNod
 export function AdminSearchPanel({ title, children, fields, headerActions, allowOverflow = false }: { title: string; children?: ReactNode; fields?: AdminSearchField[]; headerActions?: ReactNode; allowOverflow?: boolean }) {
   const panelId = useId();
   const compactViewport = useSyncExternalStore(subscribeCompactSearch, getCompactSearch, getServerCompactSearch);
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
-  const preferenceKey = searchPanelPreferenceKey(pathname, title, compactViewport);
-  const storedExpanded = useMemo(() => readSearchPanelExpanded(preferenceKey, compactViewport), [preferenceKey, compactViewport]);
-  const [preference, setPreference] = useState<{ key: string; expanded: boolean } | null>(null);
-  const expanded = preference?.key === preferenceKey ? preference.expanded : storedExpanded;
-  const toggleExpanded = () => {
-    const next = !expanded;
-    writeSearchPanelExpanded(preferenceKey, next);
-    setPreference({ key: preferenceKey, expanded: next });
-  };
+  const expanded = useSyncExternalStore(
+    subscribeSearchPanelExpanded,
+    () => readSearchPanelExpanded(compactViewport),
+    () => true,
+  );
+  const toggleExpanded = () => writeSearchPanelExpanded(!expanded);
   const content = Children.toArray(children);
   const compactIndex = content.findIndex(child => isValidElement(child) && child.type === AdminMobileSearchSwitch);
   const compact = compactIndex >= 0 ? content[compactIndex] : null;
