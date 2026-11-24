@@ -9,14 +9,15 @@ export function timestampMicros(value){
   return BigInt(milliseconds)*1000n+BigInt((match[2]||"").padEnd(6,"0"));
 }
 // Archive source dates can use a SQL space separator, extra fractional digits,
-// or compact explicit UTC offsets. Never infer an absent timezone from the VPS.
+// or compact UTC offsets. Naive values require an explicitly configured package offset.
 // The original exact string stays in the immutable archive; the index uses UTC
 // with microsecond precision (the same resolution as Postgres).
-export function normalizeArchiveTimestamp(value){
+export function normalizeArchiveTimestamp(value,sourceOffset=null){
   if(typeof value!=="string")throw Error("Data inválida.");
-  const m=/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?(?:[.,](\d{1,12}))?\s*(Z|UTC|GMT|[+-]\d{2}(?::?\d{2})?)$/i.exec(value.trim());
+  const m=/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?(?:[.,](\d{1,12}))?\s*(Z|UTC|GMT|[+-]\d{2}(?::?\d{2})?)?$/i.exec(value.trim());
   if(!m)throw Error("Formato de data histórica sem fuso explícito ou incompatível.");
-  const zone=m[5].toUpperCase();
+  if(!m[5]&&(typeof sourceOffset!=="string"||!/^[-+](?:0\d|1[0-4]):[0-5]\d$/.test(sourceOffset)))throw Error("Data histórica sem fuso configurado.");
+  const zone=(m[5]||sourceOffset).toUpperCase();
   const offset=["Z","UTC","GMT"].includes(zone)?"Z":zone.length===3?zone+":00":zone.length===5?zone.slice(0,3)+":"+zone.slice(3):zone;
   const wall=m[1]+"T"+m[2]+":"+(m[3]||"00");
   const calendar=Date.parse(wall+"Z");
@@ -72,7 +73,7 @@ export function projectHistorical(payload,scope){
       return {id:item.url_sha256,kind:typeof ref.kind==="string"?ref.kind:"unknown",
         mime:typeof item.mime==="string"?item.mime:"",available:item.available===true};
     });
-    const sentAt=normalizeArchiveTimestamp(m.at);
+    const sentAt=normalizeArchiveTimestamp(m.at,scope.sourceOffset);
     timestampMicros(sentAt);
     return {id,history_key:m.import_key,protocol_id:historyId(m.protocol_key),
       organization_id:scope.organizationId,conversation_id:scope.conversationId,
