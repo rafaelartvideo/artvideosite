@@ -6,8 +6,9 @@ import { AlertCircle, AlertTriangle, CheckCircle2, Database, EyeOff, History, Im
 import { formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 
 type Totals={messages:number;protocols:number;media_available:number;media_pending:number};
-type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals;bound:number};
-type Data={packages:Array<{package_id:string;created_at:string}>;accounts:Array<{id:string;display_name:string;phone:string}>;jobs:Job[]};
+type BulkRun={state:string;processed:number;created:number;linked:number;bound:number;review:number;renamed:number;started_at:string;updated_at:string};
+type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals;bound:number;bulk?:BulkRun|null};
+type Data={bulk_enabled?:boolean;packages:Array<{package_id:string;created_at:string}>;accounts:Array<{id:string;display_name:string;phone:string}>;jobs:Job[]};
 type Audit={actor:string;action:string;created_at:string};
 type Candidate={contact_key:string;phone:string;historical_name:string;state:"candidate"|"bound"|"missing"|"review";match:{id:string;display_name:string|null}|null};
 const active=new Set(["queued","running","pausing","cancelling"]);
@@ -51,11 +52,11 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  const [data,setData]=useState<Data|null>(null);
  const [account,setAccount]=useState(""),[packageId,setPackageId]=useState("");
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
- const [reconciliation,setReconciliation]=useState<{id:string;entries:Candidate[]}|null>(null);
+ const [reconciliation,setReconciliation]=useState<{id:string;entries:Candidate[];page:number;cursors:(string|null)[];next:string|null}|null>(null);
  const [pendingBinding,setPendingBinding]=useState<string|null>(null);
  const [publication,setPublication]=useState<{id:string;done:number;total:number;failed:number}|null>(null);
  const [logs,setLogs]=useState<{id:string;events:Audit[]}|null>(null);
- const [confirmation,setConfirmation]=useState<{id:string;command:string;label:string}|null>(null);
+ const [confirmation,setConfirmation]=useState<{id:string;command:string;label:string;bulk?:boolean}|null>(null);
  const requestInFlight=useRef<{epoch:number;sequence:number}|null>(null), generation=useRef(0), sequence=useRef(0);
  const [pendingAction,setPendingAction]=useState<{id?:string;key:string}|null>(null);
  const mutationLock=useRef(false);
@@ -80,7 +81,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  },[call]);
  useEffect(()=>{generation.current++;automaticAttempted.current.clear();setAutomatic({});setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
  useEffect(()=>{if(data||error)onPreparationChange?.(data?null:error)},[data,error,onPreparationChange]);
- const running=Boolean(data?.jobs.some(j=>active.has(j.state)));
+ const running=Boolean(data?.jobs.some(j=>active.has(j.state)||j.bulk?.state==="running"));
  useEffect(()=>{
    const visible=()=>{if(document.visibilityState==="visible"&&!mutationLock.current)void refresh()};
    document.addEventListener("visibilitychange",visible);
@@ -100,10 +101,10 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    try{const events=await call({action:"events",id});if(epoch===generation.current)setLogs({id,events})}
    catch{if(epoch===generation.current)setError("Não foi possível carregar o histórico de operações.")}
  }
- async function showCandidates(id:string){
+ async function showCandidates(id:string,page=0,cursors:(string|null)[]=[null]){
    const epoch=generation.current;
    setBusy(true);setError("");setPendingBinding(null);setReconciliation(null);
-   try{const r=await call({action:"candidates",id});if(epoch===generation.current)setReconciliation({id,entries:r.entries})}
+   try{const r=await call({action:"candidates",id,page_after:cursors[page]||null});if(epoch===generation.current)setReconciliation({id,entries:r.entries,page,cursors,next:r.next_after||null})}
    catch{if(epoch===generation.current)setError("Não foi possível consultar as correspondências.")}
    finally{if(epoch===generation.current)setBusy(false)}
  }
@@ -111,8 +112,8 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    if(!["candidate","missing"].includes(entry.state)||pendingBinding!==entry.contact_key||entry.state==="candidate"&&!entry.match)return;
    const epoch=generation.current;setBusy(true);setError("");
    try{
-     await call({action:entry.state==="missing"?"create_contact":"bind_contact",id,contact_key:entry.contact_key,contact_id:entry.match?.id,confirmed:true});
-     if(epoch===generation.current){await showCandidates(id);await refresh()}
+     await call({action:entry.state==="missing"?"create_contact":"bind_contact",id,contact_key:entry.contact_key,contact_id:entry.match?.id,confirmed:true,page_after:reconciliation?.cursors[reconciliation.page]||null});
+     if(epoch===generation.current){await showCandidates(id,reconciliation?.page||0,reconciliation?.cursors||[null]);await refresh()}
    }catch{if(epoch===generation.current)setError("Vínculo não confirmado. Confira se os dados do contato mudaram.")}
    finally{if(epoch===generation.current)setBusy(false)}
  }
@@ -180,7 +181,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  },[call,refresh]);
  useEffect(()=>{
    if(!canAuto||busy||mutationLock.current||confirmation||reconciliation||document.visibilityState!=="visible")return;
-   const next=data?.jobs.find(job=>job.state==="completed"&&!automaticAttempted.current.has(job.id));
+   const next=data?.jobs.find(job=>job.state==="completed"&&!automaticAttempted.current.has(job.id)&&!job.bulk&&job.total<=100&&!data.bulk_enabled);
    if(next)void runAutomatic(next.id);
  },[canAuto,busy,confirmation,reconciliation,data,runAutomatic]);
  if(!permitted("view"))return <p className="p-4 text-sm text-muted-foreground">Sem permissão para visualizar importações.</p>;
@@ -202,6 +203,11 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    {data.jobs.map(j=>{
      const count=(s:string)=>j.counts.find(c=>c.state===s)?.count||0;
      const verified=count("verified"),review=count("review"),percent=j.total?Math.floor(verified*100/j.total):0;
+     const bulk=j.bulk;
+     const bulkState=bulk?.state==="running"&&j.state==="failed"?"failed":bulk?.state;
+     const bulkPercent=bulk&&j.total?Math.min(100,Math.floor(bulk.processed*100/j.total)):0;
+     const hours=bulk?Math.max(0,(Date.parse(bulk.updated_at)-Date.parse(bulk.started_at))/3600000):0;
+     const rate=bulk&&hours>0?Math.round(bulk.processed/hours):0;
      return <section key={j.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/35 px-4 py-3">
          <div className="flex min-w-0 items-center gap-2.5"><span className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border "+tones.green}><MessageCircle size={20}/></span><strong className="text-sm sm:text-base">Importação · {formatWhatsAppPhone(j.account_phone)}</strong></div>
@@ -215,20 +221,32 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
        </div>
        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">{metrics.map(([key,name,Icon,tone])=><div key={key} className={"flex min-w-0 items-center gap-2.5 rounded-lg border p-3 "+tones[tone]}><Icon size={22} className="shrink-0"/><div className="min-w-0"><p className="text-xs font-medium leading-tight">{name}</p><strong className="text-base tabular-nums text-foreground">{number(j.verified[key])} / {number(j.totals[key])}</strong></div></div>)}</div>
        <div className="flex flex-wrap gap-2">
-         {(actions[j.state]||[]).filter(a=>permitted(a.permission)).map(a=>{
+         {(actions[j.state]||[]).filter(a=>permitted(a.permission)&&(!data.bulk_enabled&&!bulk&&j.total<=100||a.key==="rollback"&&(!bulk||["completed","cancelled"].includes(bulk.state)))).map(a=>{
            const style=actionStyle[a.key],Icon=style.icon;
            return <AdminButton key={a.key} variant={a.key==="resume"&&j.state==="failed"?"tertiary":style.variant} disabled={busy} loading={pendingAction?.id===j.id&&pendingAction.key===a.key} loadingText={style.pending} onClick={()=>["start","cancel","rollback"].includes(a.key)?setConfirmation({id:j.id,command:a.key,label:a.label}):act({action:"control",id:j.id,command:a.key})}><Icon size={16}/>{a.label}</AdminButton>;
          })}
-         {j.state==="completed"&&permitted("manage")&&<AdminButton variant="success" disabled={busy} onClick={()=>showCandidates(j.id)}><UserCheck size={16}/> Revisar contatos</AdminButton>}
-         {j.state==="completed"&&permitted("manage")&&automatic[j.id]&&!automatic[j.id].running&&<AdminButton variant="secondary" disabled={busy} onClick={()=>void runAutomatic(j.id)}><RefreshCw size={16}/> {automatic[j.id].failed?"Retomar conciliação":"Conferir novamente"}</AdminButton>}
+         {data.bulk_enabled&&permitted("manage")&&permitted("start")&&!bulk&&["prepared","queued","running","completed","paused","failed"].includes(j.state)&&<AdminButton variant="primary" disabled={busy} onClick={()=>setConfirmation({id:j.id,command:"start",label:"Iniciar importação automática",bulk:true})}><Play size={16}/> Iniciar importação automática</AdminButton>}
+         {bulk&&permitted("manage")&&bulkState==="running"&&<AdminButton variant="warning" disabled={busy} onClick={()=>act({action:"bulk_control",id:j.id,command:"pause"})}><Pause size={16}/> Pausar</AdminButton>}
+         {bulk&&permitted("manage")&&permitted("start")&&["paused","failed"].includes(bulkState||"")&&j.state!=="pausing"&&<AdminButton variant="primary" disabled={busy} onClick={()=>act({action:"bulk_control",id:j.id,command:"resume"})}><Play size={16}/> Retomar</AdminButton>}
+         {bulk&&permitted("manage")&&["running","paused","failed"].includes(bulkState||"")&&<AdminButton variant="danger" disabled={busy} onClick={()=>setConfirmation({id:j.id,command:"cancel",label:"Interromper importação",bulk:true})}><X size={16}/> Interromper</AdminButton>}
+         {j.total>100&&!data.bulk_enabled&&<p className="text-xs text-muted-foreground">O worker de importação em massa ainda não está habilitado no servidor.</p>}
+         {j.state==="completed"&&permitted("manage")&&bulkState!=="running"&&<AdminButton variant="success" disabled={busy} onClick={()=>showCandidates(j.id)}><UserCheck size={16}/> Revisar contatos</AdminButton>}
+         {j.state==="completed"&&!data.bulk_enabled&&!bulk&&permitted("manage")&&automatic[j.id]&&!automatic[j.id].running&&<AdminButton variant="secondary" disabled={busy} onClick={()=>void runAutomatic(j.id)}><RefreshCw size={16}/> {automatic[j.id].failed?"Retomar conciliação":"Conferir novamente"}</AdminButton>}
          <AdminButton variant="secondary" disabled={busy} onClick={()=>showLogs(j.id)}><History size={16}/> Histórico de operações</AdminButton>
        </div>
-       {automatic[j.id]&&<div role="status" className="rounded-lg border border-border bg-muted/25 px-3 py-2 text-xs space-y-1">
+       {bulk&&<div role="status" className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+         <div className="flex items-center justify-between gap-2 text-sm"><strong>Conciliação no servidor</strong><span className="text-xs text-muted-foreground">{bulkState==="running"?(j.state==="completed"?"Conciliando":"Validando índice"):bulkState==="completed"?"Concluída":bulkState==="paused"?"Pausada":bulkState==="failed"?"Falha · pode retomar":"Interrompida"}</span></div>
+         <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Conciliação automática" aria-valuenow={bulkPercent}><div className="h-full rounded-full bg-emerald-500" style={{width:bulkPercent+"%"}}/></div>
+         <p className="flex justify-between text-xs"><span>{number(bulk.processed)} de {number(j.total)} processados</span><strong>{bulkPercent}%</strong></p>
+         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{([["created","Novos contatos"],["linked","Vinculados"],["bound","Já vinculados"],["renamed","Nomes melhorados"],["review","Para revisão"]] as const).map(([key,label])=><div key={key} className="rounded-md border border-border bg-card p-2"><p className="text-xs text-muted-foreground">{label}</p><strong className="text-lg tabular-nums">{number(bulk[key])}</strong></div>)}<div className="rounded-md border border-border bg-card p-2"><p className="text-xs text-muted-foreground">Média desde o início</p><strong className="text-lg tabular-nums">{rate?number(rate)+"/h":"—"}</strong></div></div>
+         <p className="text-xs text-muted-foreground">Você pode fechar o CRM. Os checkpoints são mantidos no servidor; mensagens e arquivos permanecem no armazenamento privado.</p>
+       </div>}
+       {!bulk&&automatic[j.id]&&<div role="status" className="rounded-lg border border-border bg-muted/25 px-3 py-2 text-xs space-y-1">
          <strong>{automatic[j.id].running?"Salvando e conciliando automaticamente...":automatic[j.id].failed?"Conciliação interrompida":"Conciliação automática verificada"}</strong>
          <p>{number(automatic[j.id].processed)} de {number(j.total)} conferidos · {number(automatic[j.id].created)} criados · {number(automatic[j.id].linked)} vinculados · {number(automatic[j.id].bound)} já vinculados</p>
          <p>{number(automatic[j.id].renamed)} nomes melhorados · {number(automatic[j.id].review)} exigem revisão</p>
        </div>}
-       {confirmation?.id===j.id&&<div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3"><p className="text-sm">Confirma {confirmation.label.toLowerCase()} para o número {formatWhatsAppPhone(j.account_phone)}?</p><div className="flex flex-wrap gap-2"><AdminButton variant={actionStyle[confirmation.command].variant} disabled={busy} loading={pendingAction?.id===j.id&&pendingAction.key===confirmation.command} loadingText={actionStyle[confirmation.command].pending} onClick={()=>act({action:"control",id:j.id,command:confirmation.command})}><CheckCircle2 size={16}/> Confirmar</AdminButton><AdminButton variant="secondary" disabled={busy} onClick={()=>setConfirmation(null)}>Voltar</AdminButton></div></div>}
+       {confirmation?.id===j.id&&<div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3"><p className="text-sm">Confirma {confirmation.label.toLowerCase()} para o número {formatWhatsAppPhone(j.account_phone)}?</p><div className="flex flex-wrap gap-2"><AdminButton variant={actionStyle[confirmation.command].variant} disabled={busy} loading={pendingAction?.id===j.id&&pendingAction.key===confirmation.command} loadingText={actionStyle[confirmation.command].pending} onClick={()=>act({action:confirmation.bulk?"bulk_control":"control",id:j.id,command:confirmation.command})}><CheckCircle2 size={16}/> Confirmar</AdminButton><AdminButton variant="secondary" disabled={busy} onClick={()=>setConfirmation(null)}>Voltar</AdminButton></div></div>}
        {j.state==="completed"&&reconciliation?.id===j.id&&<div className="rounded-md border border-border p-3 space-y-3">
          <div className="flex items-center justify-between"><strong className="text-sm">Conciliação de contatos</strong><button className="text-xs underline" onClick={()=>{setReconciliation(null);setPendingBinding(null)}}>Fechar</button></div>
          <p className="text-xs text-muted-foreground">Confirme apenas contatos que pertencem à mesma pessoa. Números compartilhados, reciclados ou sem correspondência ficam para revisão. Nenhum cadastro será sobrescrito.</p>
@@ -244,6 +262,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
            {e.state==="missing"&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Criar este contato na agenda e vincular seu histórico? Nenhum atendimento será iniciado.</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}><UserPlus size={15}/> Criar e vincular</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir novo cadastro</AdminButton>)}
            {e.state==="candidate"&&e.match&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Confirma que este histórico pertence ao contato atual?</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}><UserCheck size={15}/> Confirmar vínculo</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir vínculo</AdminButton>)}
          </div>)}</div>
+         <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground"><span>Página {reconciliation.page+1}</span><div className="flex gap-2"><AdminButton variant="secondary" size="sm" disabled={busy||reconciliation.page===0} onClick={()=>void showCandidates(j.id,reconciliation.page-1,reconciliation.cursors)}>Anterior</AdminButton><AdminButton variant="secondary" size="sm" disabled={busy||!reconciliation.next} onClick={()=>void showCandidates(j.id,reconciliation.page+1,[...reconciliation.cursors.slice(0,reconciliation.page+1),reconciliation.next])}>Próxima</AdminButton></div></div>
        </div>}
        {logs?.id===j.id&&<div className="max-h-48 overflow-auto rounded-md border border-border p-2"><div className="flex items-center justify-between"><strong className="text-xs">Operações recentes</strong><button className="text-xs underline" onClick={()=>setLogs(null)}>Fechar</button></div>{logs.events.map((e,i)=><p key={i} className="text-xs py-1">{new Date(e.created_at).toLocaleString("pt-BR")} · {e.action==="prepare"?"Preparação":e.action==="validation_failed"?"Validação falhou":e.action} · {e.actor==="worker"?"Processamento automático":"Usuário "+e.actor.slice(0,8)}</p>)}</div>}
        </div>
