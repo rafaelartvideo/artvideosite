@@ -22,6 +22,7 @@ import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOp
 import { countAvailableFutureOpportunities,futureOpportunityQueryKey,markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { HistoricalMessageBody } from "./HistoricalMessageBody";
+import { HistoryPager, ProtocolStatus, protocolTitle } from "./UnionWhatsAppProtocolHistory";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -40,7 +41,7 @@ import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, wait
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppUnansweredCount, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact, openBoundHistoricalConversation, isUnifiedHistoryPilotEnabled,
-  operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
+  operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS, PROTOCOL_PAGE_SIZE,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppProtocolMarker, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
@@ -462,6 +463,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
   const [protocolsHasMore,setProtocolsHasMore]=useState(false);
   const [protocolsPage,setProtocolsPage]=useState(0);
+  const [protocolsVisiblePage,setProtocolsVisiblePage]=useState(0);
   const [protocolsCursor,setProtocolsCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFallback,setSelectedFallback]=useState<UnionWhatsAppConversation|null>(null);
@@ -1317,7 +1319,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
-  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setProtocolsCursor(null);setHandoffs([]);}, [selectedId]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setProtocolsVisiblePage(0);setProtocolsCursor(null);setHandoffs([]);}, [selectedId]);
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
   useEffect(() => {
@@ -1739,7 +1741,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
         setProtocols(data.items);setProtocolsCursor(data.nextCursor||null);
         setProtocolsHasMore(data.hasMore);
-        setProtocolsPage(0);
+        setProtocolsPage(0);setProtocolsVisiblePage(0);
         setHandoffs(audit?.history||[]);
       }
     }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
@@ -1760,7 +1762,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return [...unique.values()];
       });
       setProtocolsHasMore(result.hasMore);
-      setProtocolsPage(next);setProtocolsCursor(result.nextCursor||null);
+      setProtocolsPage(next);setProtocolsVisiblePage(next);setProtocolsCursor(result.nextCursor||null);
     }catch(reason){
       reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
@@ -3654,9 +3656,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <AdminButton variant="secondary" onClick={()=>setProtocolsOpen(false)}>Fechar</AdminButton>
       </div>}>
       {protocolsLoading ? <LoadingState text="Consultando protocolos..."/> :
-        protocols.length ? <div className="space-y-2">
-          {protocols.map(protocol=>{
-            const label=protocol.read_only?"Atendimento · SAC Digital":unionWhatsAppProtocolLabel(protocol.protocol_number);
+        protocols.length ? <div className="overflow-hidden rounded-lg border border-border">
+          <div className="divide-y divide-border">{protocols.slice(protocolsVisiblePage*PROTOCOL_PAGE_SIZE,(protocolsVisiblePage+1)*PROTOCOL_PAGE_SIZE).map(protocol=>{
+            const label=protocolTitle(protocol);
             const duration=protocol.closed_at && !protocol.unknown_date ? Math.max(0,Math.round(
               (Date.parse(protocol.closed_at)-Date.parse(protocol.opened_at))/60000
             )) : null;
@@ -3664,12 +3666,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 setProtocolFilter({id:protocol.id,label});
                 setProtocolsOpen(false);
               }}
-              className="flex w-full flex-col gap-2 rounded-lg border border-border px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/35">
+              className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/35">
               <span className="flex w-full flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-bold text-foreground">{label}</span>
-                <span className="text-xs font-semibold text-muted-foreground">
-                  {protocol.read_only?(protocol.original_status||"Histórico importado"):filters.find(item=>item.value===protocol.status)?.label}
-                </span>
+                <ProtocolStatus item={protocol}/>
               </span>
               <span className="text-xs text-muted-foreground">
                 Abertura: {protocol.unknown_date?"Não informada":new Date(protocol.opened_at).toLocaleString("pt-BR")}
@@ -3691,13 +3691,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </span>)}
               <span className="text-xs font-semibold text-primary">Visualizar mensagens deste protocolo</span>
             </button>;
-          })}
-          {protocolsHasMore && <div className="pt-3 text-center">
-            <AdminButton variant="secondary" loading={protocolsMoreLoading}
-              disabled={protocolsMoreLoading} onClick={()=>void loadMoreProtocols()}>
-              Carregar protocolos anteriores
-            </AdminButton>
-          </div>}
+          })}</div>
+          <HistoryPager page={protocolsVisiblePage} pageSize={PROTOCOL_PAGE_SIZE}
+            count={protocols.slice(protocolsVisiblePage*PROTOCOL_PAGE_SIZE,(protocolsVisiblePage+1)*PROTOCOL_PAGE_SIZE).length}
+            hasMore={protocolsVisiblePage<protocolsPage||protocolsHasMore} busy={protocolsLoading||protocolsMoreLoading}
+            onPrevious={()=>setProtocolsVisiblePage(v=>Math.max(0,v-1))}
+            onNext={()=>protocolsVisiblePage<protocolsPage?setProtocolsVisiblePage(v=>v+1):void loadMoreProtocols()}/>
         </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
     </AdminDialog>
     {newContact && <CrmAdditionalContactDialog key={newContact.launch}
