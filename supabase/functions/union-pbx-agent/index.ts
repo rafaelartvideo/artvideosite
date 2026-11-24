@@ -358,6 +358,7 @@ Deno.serve(async request=>{
           const admitted=await admin.rpc('pbx_admit_universal_telephony_poll',{p_agent_id:agent.id,p_sequence:seq,p_features:body.features});
           if(!admitted.error&&admitted.data===true){
             const report=body.universal_report;
+            let expiredReportProof=false;
             const hashValid=(hash:unknown)=>typeof hash==='string'&&/^[a-f0-9]{64}$/.test(hash);
             const integer=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0&&Number(value)<=1000000;
             if(report!==undefined){
@@ -371,10 +372,14 @@ Deno.serve(async request=>{
                 return {connection_id:row.connection_id,state:row.state,used:row.used,inbound_used:row.inbound_used,outbound_used:row.outbound_used,available:row.available,checked_at:row.checked_at};
               });
               const acknowledged=await admin.rpc('pbx_report_universal_telephony',{p_agent_id:agent.id,p_revision:report.revision,p_status:report.status,p_observed:{ready:obs.ready,active_legs:obs.active_legs,legacy_coverage:obs.legacy_coverage,connections},p_hash:report.hash});
-              if(acknowledged.error)throw Error('Report unavailable');
+              if(acknowledged.error){
+                // Discard the rejected report; only a new admitted full snapshot may recover.
+                expiredReportProof=acknowledged.error.code==='42501'&&acknowledged.error.message==='Snapshot lease unavailable';
+                if(!expiredReportProof)throw Error('Report unavailable');
+              }
             }
-            const revision=Number.isSafeInteger(body.universal_revision)&&body.universal_revision>0?body.universal_revision:null;
-            const hash=hashValid(body.universal_hash)?body.universal_hash:null;
+            const revision=!expiredReportProof&&Number.isSafeInteger(body.universal_revision)&&body.universal_revision>0?body.universal_revision:null;
+            const hash=!expiredReportProof&&hashValid(body.universal_hash)?body.universal_hash:null;
             const result=await admin.rpc('pbx_poll_universal_telephony',{p_agent_id:agent.id,p_applied_revision:revision,p_applied_hash:hash});
             const snapshot=result.data,now=Date.now()/1000;
             if(result.error||!snapshot||snapshot.schema_version!==1||snapshot.organization_id!==agent.organization_id||snapshot.agent_id!==agent.id||!Number.isSafeInteger(snapshot.revision)||snapshot.revision<1||typeof snapshot.issued_at!=='number'||typeof snapshot.expires_at!=='number'||!Number.isFinite(snapshot.issued_at)||!Number.isFinite(snapshot.expires_at)||snapshot.issued_at<now-100||snapshot.issued_at>now+5||snapshot.expires_at<=now||snapshot.expires_at>now+100||snapshot.expires_at<=snapshot.issued_at||snapshot.expires_at-snapshot.issued_at>100)throw Error('Invalid universal envelope');

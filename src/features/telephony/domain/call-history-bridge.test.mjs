@@ -8,7 +8,7 @@ const agentId = '86aa884f-02c0-4ddd-af77-99391b177287';
 const organizationId = 'ffec0c6c-c18e-4f01-83e8-88dcdac82a8b';
 const managedEndpoint = `uwt-${organizationId.replaceAll('-', '')}-${agentId.replaceAll('-', '')}-ep`;
 
-async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null, bootstrap=null, universalAdmitted=true, universalSnapshot=null } = {}) {
+async function bridge({ fail = false, enabled = true, admitted = true, platform = true, admissionError = false, sipAdmitted = true, sipHistory = [managedEndpoint], recordingAdmitted=true, policy=null, recording=null, purge=[], callModesAdmitted=true, callModes=null, bootstrap=null, universalAdmitted=true, universalSnapshot=null, universalReportError=null, universalPollError=null } = {}) {
   const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const publicKey = Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64');
   let handler;
@@ -41,8 +41,8 @@ async function bridge({ fail = false, enabled = true, admitted = true, platform 
       // new consolidated RPC has not been migrated yet. The bridge must
       // retain its independently signed fallback without throwing.
       if(name==='pbx_admit_universal_telephony_poll')return {data:universalAdmitted};
-      if(name==='pbx_poll_universal_telephony')return {data:universalSnapshot};
-      if(name==='pbx_report_universal_telephony')return {data:true};
+      if(name==='pbx_poll_universal_telephony')return {data:universalSnapshot,error:universalPollError};
+      if(name==='pbx_report_universal_telephony')return universalReportError?{error:universalReportError}:{data:true};
       if(name==='pbx_poll_bootstrap_v1')return bootstrap===null ? {error:{code:'PGRST202'}} : {data:bootstrap};
       if(name==='pbx_write_queue_telemetry_v1')return {error:{code:'PGRST202'}};
       if(name==='pbx_admit_call_modes_poll_v2')return {data:callModesAdmitted};
@@ -339,4 +339,36 @@ test('universal incremental sync forwards only revision and hash and redacts rep
  assert.deepEqual(b.calls.find(c=>c.name==='pbx_poll_universal_telephony').args,{p_agent_id:agentId,p_applied_revision:2,p_applied_hash:hash});
  assert.equal('password' in b.calls.find(c=>c.name==='pbx_report_universal_telephony').args,false);
  assert.equal(JSON.stringify(b.calls).includes('not-forwarded'),false);
+});
+
+
+test('expired universal report proof permits one fresh full delivery without replaying the report',async()=>{
+ const now=Date.now()/1000,hash='a'.repeat(64);
+ const snapshot={schema_version:1,organization_id:organizationId,agent_id:agentId,revision:2,issued_at:now,expires_at:now+90,hash:null,document:{routing_enabled:false},extensions:[],credentials:[]};
+ const request={action:'poll',protocol_version:2,features:['universal_telephony_v1'],universal_revision:2,universal_hash:hash,universal_report:{revision:2,status:'applied',hash,observed:{ready:false,active_legs:0,legacy_coverage:false,connections:[]}}};
+ const options={universalSnapshot:snapshot,universalReportError:{code:'42501',message:'Snapshot lease unavailable'}};
+ const recovered=await bridge(options);
+ assert.deepEqual((await(await recovered.send(request)).json()).universal_telephony,snapshot);
+ assert.deepEqual(recovered.calls.filter(c=>c.name.includes('universal')).map(c=>c.name),['pbx_admit_universal_telephony_poll','pbx_report_universal_telephony','pbx_poll_universal_telephony']);
+ assert.deepEqual(recovered.calls.find(c=>c.name==='pbx_poll_universal_telephony').args,{p_agent_id:agentId,p_applied_revision:null,p_applied_hash:null});
+ for(const change of [{enabled:false},{admitted:false},{universalAdmitted:false}]){
+  const denied=await bridge({...options,...change});
+  assert.equal('universal_telephony' in await(await denied.send(request)).json(),false);
+  assert.equal(denied.calls.some(c=>c.name==='pbx_poll_universal_telephony'),false);
+ }
+ for(const change of [{organization_id:agentId},{agent_id:organizationId},{expires_at:now-1},{unchanged:true,hash}]){
+  const invalid=await bridge({...options,universalSnapshot:{...snapshot,...change}});
+  assert.equal('universal_telephony' in await(await invalid.send(request)).json(),false);
+ }
+ const revoked=await bridge({...options,universalPollError:{code:'42501',message:'Agent unavailable'}});
+ assert.equal('universal_telephony' in await(await revoked.send(request)).json(),false);
+ assert.equal(revoked.calls.filter(c=>c.name==='pbx_poll_universal_telephony').length,1);
+ for(const error of [{code:'42501',message:'Agent unavailable'},{code:'XX000',message:'Snapshot lease unavailable'},{code:'42501',message:'Snapshot lease unavailable extra'},{code:'23514',message:'Invalid observation'}]){
+  const failed=await bridge({...options,universalReportError:error});
+  assert.equal('universal_telephony' in await(await failed.send(request)).json(),false);
+  assert.equal(failed.calls.some(c=>c.name==='pbx_poll_universal_telephony'),false);
+ }
+ const unsigned=await bridge(options);
+ assert.equal('universal_telephony' in await(await unsigned.send(request,true)).json(),false);
+ assert.equal(unsigned.calls.some(c=>c.name.includes('universal')),false);
 });
