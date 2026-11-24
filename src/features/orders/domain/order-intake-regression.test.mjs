@@ -186,3 +186,16 @@ test("wizard público tem erros locais, fotos por categoria, revisão e uma prep
  assert.ok(inbox.includes("fallback={newOrder.intake?null:"));
  assert.ok(inbox.includes("if(intakeContext)void loadEmbeddedNewOrder()"));
 });
+
+test("confirmação pública usa apenas o WhatsApp empresarial da conversa vinculada",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ assert.ok(page.includes("Solicitação confirmada!"));
+ assert.ok(page.includes("Confirmar pelo WhatsApp"));
+ assert.ok(page.includes('https://wa.me/${confirmationPhone}?text=${encodeURIComponent('));
+ assert.ok(page.includes("setConfirmationPhone(r.confirmation_phone||null)"));
+ assert.ok(page.includes("setConfirmationPhone(c.confirmation_phone||null)"));
+ assert.ok(api.includes('.select("account_phone").eq("organization_id",row.organization_id).eq("id",row.conversation_id)'));
+ assert.ok(api.includes('return json({status:"received",confirmation_phone})'));
+ assert.equal((api.match(/return receivedResponse\(\);/g)||[]).length,3);
+});
