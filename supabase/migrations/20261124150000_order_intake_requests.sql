@@ -42,6 +42,7 @@ create index order_intake_creator_created_idx on public.order_intake_requests(or
 create index order_intake_org_created_idx on public.order_intake_requests(organization_id, created_at desc);
 create index order_intake_conversation_idx on public.order_intake_requests(organization_id, conversation_id, created_at desc);
 alter table public.order_intake_requests enable row level security;
+create index order_intake_images_idx on public.order_intake_requests using gin(images jsonb_path_ops);
 revoke all on public.order_intake_requests from public, anon, authenticated;
 grant select,insert,update,delete on public.order_intake_requests to service_role;
 
@@ -51,13 +52,13 @@ create or replace function private.mark_order_intake_converted()
 returns trigger language plpgsql security definer set search_path='' as $$
 begin
   if exists(select 1 from public.order_intake_requests r where r.id=new.id) then
-    update public.order_intake_requests
+    update public.order_intake_requests r
        set status='converted', order_id=new.id, converted_at=now(), converted_by=auth.uid()
-     where id=new.id and organization_id=new.organization_id and status='received'
+     where r.id=new.id and r.organization_id=new.organization_id and r.status='received'
        and private.has_effective_organization_permission(new.organization_id,'orders.create')
        and (created_by=auth.uid() or private.has_effective_organization_permission(new.organization_id,'orders.view_all'))
        and exists(select 1 from public.customers c where c.id=new.customer_id and c.organization_id=new.organization_id
-         and regexp_replace(coalesce(case when length(payload->>'document')=11 then c.document else c.cnpj end,''),'[^0-9]','','g')=payload->>'document');
+         and regexp_replace(coalesce(case when length(r.payload->>'document')=11 then c.document else c.cnpj end,''),'[^0-9]','','g')=r.payload->>'document');
     if not found then raise exception 'Pré-OS indisponível para conversão.' using errcode='23514'; end if;
   end if;
   return new;
@@ -98,4 +99,25 @@ revoke all on function private.publish_order_intake_event() from public,anon,aut
 create trigger publish_order_intake_event after insert or update of status on public.order_intake_requests
 for each row execute function private.publish_order_intake_event();
 alter publication supabase_realtime add table public.order_intake_events;
+-- Authorize only intake images already visible to the reviewer, including the
+-- brief transactional interval between inserting the OS and linking its media.
+create or replace function private.can_read_order_intake_media(p_media_id uuid,p_org uuid)
+returns boolean language sql stable security definer set search_path='' as $media$
+  select auth.uid() is not null
+    and private.has_effective_organization_permission(p_org,'orders.create')
+    and private.has_effective_organization_permission(p_org,'orders.view')
+    and exists (
+      select 1 from public.order_intake_requests r
+      where r.organization_id=p_org
+        and r.status in ('received','converted')
+        and (r.created_by=auth.uid() or private.has_effective_organization_permission(p_org,'orders.view_all'))
+        and (r.status='received' or private.can_view_service_order(r.order_id))
+        and r.images @> jsonb_build_array(jsonb_build_object('mediaId',p_media_id::text))
+    );
+$media$;
+revoke all on function private.can_read_order_intake_media(uuid,uuid) from public,anon,authenticated;
+grant execute on function private.can_read_order_intake_media(uuid,uuid) to authenticated;
+create policy media_order_intake_reviewer_select on public.media for select to authenticated
+using (bucket_id='service-images' and storage_path like 'orders/%/draft/pre-os-%'
+  and private.can_read_order_intake_media(id,organization_id));
 commit;
