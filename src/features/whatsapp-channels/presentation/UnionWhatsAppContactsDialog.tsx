@@ -562,7 +562,7 @@ export function UnionWhatsAppContactsDialog({
               </p>:<>
                 {conversationError&&<p role="alert" className="mb-2 text-xs text-destructive">{conversationError}</p>}
                 <UnionWhatsAppContactHistory key={organizationId+":"+selected.id+":"+(selected.updated_at||"")} organizationId={organizationId}
-                  contactJid={selected.chat_jid} accountPhone={accountPhone}
+                  contactJid={selected.chat_jid} accountPhone={accountPhone} contactId={selected.id} channelId={channelId}
                   conversation={contactConversation?.chat_jid===selected.chat_jid?contactConversation:null}/>
               </>}
             </section>}
