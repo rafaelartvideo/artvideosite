@@ -1499,3 +1499,25 @@ test("Históricos geral e de protocolos paginam cinco registros e consultam arqu
   assert.match(protocols,/Somente consulta/);
   assert.match(inbox,/protocols\.slice\(protocolsVisiblePage\*PROTOCOL_PAGE_SIZE/);
 });
+
+
+test("Contatos conciliados consultam mídia histórica sem publicar uma conversa",()=>{
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const info=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactDetails.tsx");
+  const contacts=read("src/features/whatsapp-channels/presentation/UnionWhatsAppContactsDialog.tsx");
+  const edge=read("supabase/functions/union-history-import/index.ts");
+  const start=repo.indexOf("export async function listContactOnlyHistoricalSharedItems(");
+  const end=repo.indexOf("export async function listUnionWhatsAppSharedItems(",start);
+  assert.ok(start>=0&&end>start);
+  const query=repo.slice(start,end);
+  assert.match(query,/action:"history_page",contact_only:true,kind:"shared",category/);
+  assert.match(query,/limit:SHARED_PAGE_SIZE/);
+  assert.match(query,/historical_scope:\{channel_id:channelId,account_phone:accountPhone,contact_only:true\}/);
+  assert.doesNotMatch(query,/open_archive|check_number|send_text/);
+  assert.match(info,/await listContactOnlyHistoricalSharedItems\(organizationId,archiveContact\.id,archiveContact\.channelId,archiveContact\.accountPhone,key,before\)/);
+  assert.match(info,/getHistoricalWhatsAppMedia\(item,asset\.id\)/);
+  assert.match(info,/Indisponível/);
+  assert.match(contacts,/archiveContact=\{\{id:selected\.id,channelId,accountPhone,name:labelFor\(selected\)\}\}/);
+  assert.match(contacts,/hasPermission\("whatsapp.history_import.view"\)&&hasPermission\("whatsapp.history_import.manage"\)/);
+  assert.match(edge,/if\(!openArchive&&await threadExists\(\)\)/);
+});
