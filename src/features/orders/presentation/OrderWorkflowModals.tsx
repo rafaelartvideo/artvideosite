@@ -22,6 +22,7 @@ import {
 type Toast = { msg: string; type: "success" | "error" };
 
 type Props = {
+  initialIntake?: import("../intake/order-intake.repository").IntakePrefill | null;
   detail: any;
   saving: boolean;
   workspace: ReturnType<typeof useOrdersWorkspace>;
@@ -46,7 +47,7 @@ function appendUniqueById(current: any[], item?: any | null) {
 }
 
 export function OrderWorkflowModals({
-  detail, saving, workspace, formState, customers, images, resolution, completion, completionPreparing = false,
+  initialIntake, detail, saving, workspace, formState, customers, images, resolution, completion, completionPreparing = false,
   completionPrepareError = "", onRetryCompletionPreparation, onCancelCompletionPreparation,
   partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
 }: Props) {
@@ -104,6 +105,8 @@ export function OrderWorkflowModals({
         equipmentModels={workspace.equipmentModels}
         initialTypeId={form.equipment_type_id}
         initialBrandId={form.equipment_brand_id}
+        initialBrandName={initialIntake&&!form.equipment_brand_id?initialIntake.payload.brand_name||initialIntake.payload.brand_text:undefined}
+        initialModelName={initialIntake&&!form.equipment_model_id?initialIntake.payload.model:undefined}
         onSaved={({ type, brand, model }) => {
           setEquipmentTypes(current => appendUniqueById(current, type));
           setEquipmentBrands(current => appendUniqueById(current, brand));
@@ -122,7 +125,9 @@ export function OrderWorkflowModals({
         }}
       />}
       {quickCustomer && <QuickCustomerModal
-        initialValues={initialCustomerValues}
+        initialValues={initialIntake?.customerDraft?.values||initialCustomerValues}
+        initialAddress={initialIntake?.customerDraft?.address}
+        initialWhatsappFromConversation={Boolean(initialIntake?.customerDraft)}
         onClose={() => setQuickCustomer(false)}
         onSaved={selectCustomer}
       />}
