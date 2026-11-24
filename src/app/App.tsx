@@ -9,6 +9,7 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 // A estrutura completa do site público não entra no bundle inicial do CRM.
 const PublicShell = lazy(() => import("@/features/public-shell/presentation/PublicShell").then(({ PublicShell }) => ({ default: PublicShell })));
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
+import { OrderIntakeRealtime } from "@/features/orders/intake/OrderIntakeRealtime";
 import { LocalPerformanceObserver } from "@/infrastructure/query/LocalPerformanceObserver";
 import { AdminCodeWarmup } from "@/features/admin-shell/application/AdminCodeWarmup";
 import { LocalPerformancePanel } from "@/infrastructure/query/LocalPerformancePanel";
@@ -204,7 +205,7 @@ function AuthenticatedAdminRealtimeSync() {
   const { session, accessWindow } = useAuth();
   const { pathname } = useLocation();
   if (!session || !accessWindow?.allowed || !pathname.startsWith("/admin")) return null;
-  return <QueryRealtimeSync />;
+  return <><QueryRealtimeSync /><OrderIntakeRealtime /></>;
 }
 
 export default function App() {
