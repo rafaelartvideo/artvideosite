@@ -7,7 +7,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { chmodSync, lstatSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { projectHistorical,timestampMicros,historyId } from "./history-page.mjs";
+import { projectHistorical,timestampMicros,historyId,normalizeArchiveTimestamp } from "./history-page.mjs";
 import { validatePackageId, validateDestination, validateIndex, validatePayload, nextJobState } from "./archive-contract.mjs";
 const sha=b=>createHash("sha256").update(b).digest("hex");
 const now=()=>new Date().toISOString();
@@ -144,8 +144,8 @@ export function openArchiveStore(filename,read){
         if(ids.has(id))throw Error("Colisão de protocolo.");
         ids.add(id);
         // Original metadata only; never manufacture dates or operational protocol numbers.
-        const opened=typeof p.original_opened_at==="string"&&Number.isFinite(Date.parse(p.original_opened_at))?p.original_opened_at:null;
-        const closed=typeof p.original_closed_at==="string"&&Number.isFinite(Date.parse(p.original_closed_at))?p.original_closed_at:null;
+        const opened=typeof p.original_opened_at==="string"&&p.original_opened_at.trim()?normalizeArchiveTimestamp(p.original_opened_at):null;
+        const closed=typeof p.original_closed_at==="string"&&p.original_closed_at.trim()?normalizeArchiveTimestamp(p.original_closed_at):null;
         return {id,opened_at:opened,closed_at:closed,original_status:typeof p.original_status==="string"?p.original_status:null,message_count:counts.get(id)||0};
       });
       // A gallery row per asset, including independently recovered files. Dates are
@@ -156,7 +156,7 @@ export function openArchiveStore(filename,read){
         if(!old||timestampMicros(m.sent_at)>timestampMicros(old.sent_at))linked.set(a.id,m);
       }
       shared=[];
-      const epoch="1970-01-01T00:00:00.000Z",validDate=at=>{try{timestampMicros(at);return at}catch{return null}};
+      const epoch="1970-01-01T00:00:00.000Z",validDate=at=>{try{return normalizeArchiveTimestamp(at)}catch{return null}};
       for(const a of assets){
         const m=linked.get(a.id), at=validDate(a.original_at)||m?.sent_at||null;
         const mime=a.mime.toLowerCase(), kind=mime.startsWith("image/")?(a.kind==="sticker"?"sticker":"image"):mime.startsWith("video/")?"video":mime.startsWith("audio/")?"audio":(["image","audio","video","sticker"].includes(a.kind)?a.kind:"file");
