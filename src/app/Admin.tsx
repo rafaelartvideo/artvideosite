@@ -191,6 +191,7 @@ export function AdminDashboard({
     if ((tab === "siteDelivery" || tab === "sitePayments" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
     // A visualização no modal permanece independente da navegação direta.
+    if (tab === "customers") return hasPermission("customers.view") && hasPermission("customers.menu.view") && isAdminModuleEnabled(tab, hasModule);
     if (tab === "agenda") return hasPermission("agenda.view") && hasPermission("agenda.menu.view")
       && isAdminModuleEnabled(tab, hasModule);
     if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
@@ -238,6 +239,16 @@ export function AdminDashboard({
   };
 
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
+  // A ficha individual continua disponível sem o menu, mas a lista e /new não.
+  const canAccessCurrentRoute = activeTab === "customers"
+    ? hasPermission("customers.view") && isAdminModuleEnabled("customers", hasModule) && (
+        route.resourceId === "new"
+          ? canAccessTab("customers") && hasPermission("customers.create") && hasPermission("customers.module.create")
+          : route.resourceId
+            ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(route.resourceId)
+            : canAccessTab("customers")
+      )
+    : canAccessTab(activeTab);
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
   const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "sales" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "serviceProviders" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
@@ -305,7 +316,7 @@ export function AdminDashboard({
     if (activeTab !== "customers") customersListScrollRef.current = null;
   }, [activeOrganizationId, activeTab, route.resourceId]);
 
-  useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
+  useEffect(() => { if (canAccessCurrentRoute || !fallbackTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, route.resourceId, route.subpage, fallbackTab, canAccessCurrentRoute]);
 
   useEffect(() => {
     const root = contentRef.current;
@@ -357,7 +368,7 @@ export function AdminDashboard({
   const backToParent = (tab: AdminTab) => crmMode
     ? navigateAdmin("crm", null, null, { crmMode: true })
     : navigateAdmin(parentAdminTab(tab) || "dashboard");
-  const crmHub = <PlatformCrmHub onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
+  const crmHub = <PlatformCrmHub showCustomers={canAccessTab("customers")} onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => canAccessTab(item.id as AdminTab))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
@@ -567,7 +578,7 @@ export function AdminDashboard({
               />
         }>
         <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
-        {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
+        {!canAccessCurrentRoute ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
             <Route index element={<AdminHomePage
               onNavigate={tab => navigateAdmin(tab, null, null, { crmMode: false })}
               canAccessTab={canAccessTab}
@@ -660,7 +671,7 @@ export function AdminDashboard({
             <Route path="work-items/*" element={<TabWorkItems />} />
             <Route path="field-map/*" element={<TabFieldTracking />} />
             <Route path="customer-requests/*" element={<TabCustomerRequests />} />
-            <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
+            <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={(id, subpage) => id || canAccessTab("customers") ? navigateAdmin("customers", id, subpage) : navigateAdmin(fallbackTab || "home", null, null, { replace: true })} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="sales/*" element={<TabSales key={(activeOrganizationId || "none") + ":" + (user?.id || "none")} />} />
