@@ -58,7 +58,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
   const reviewRow=(row:IntakeRow)=>{if(gate.current||!canManage)return;setReviewId(row.id);void run(async()=>{try{
     const response=await reviewIntake(organizationId,row.id);const item=response.intake;
     if(scope.current!==organizationId)return;
-    const isCpf=item.payload.document.length===11;
+    const isCpf=item.payload.customer_type?item.payload.customer_type==="PF":item.payload.document.length===11;
     const result=item.bound_customer_id?{data:{id:item.bound_customer_id},error:null}:await findQuickCustomerByTaxId(organizationId,isCpf?"PF":"PJ",item.payload.document);
     if(result.error)throw result.error;
     let current=null;
@@ -73,8 +73,8 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
     if(scope.current!==organizationId)return;
     const whatsapp=localPhone(item.phone),phone=item.payload.phone?localPhone(item.payload.phone):whatsapp;
     const name=official?.name||item.payload.name||"";
-    const values:Partial<CustomerForm>=item.payload.document.length===14
-      ? {customerType:"PJ",cnpj:item.payload.document,full_name:name,trade_name:name,legal_name:name,phone,whatsapp}
+    const values:Partial<CustomerForm>=!isCpf
+      ? {customerType:"PJ",cnpj:item.payload.document,full_name:item.payload.trade_name||name,trade_name:item.payload.trade_name||name,legal_name:name,state_registration:item.payload.state_registration||"",foundation_date:item.payload.foundation_date||"",phone,whatsapp}
       : {customerType:"PF",document:item.payload.document,full_name:name,birth_date:official?.birthDate||"",gender:official?.gender||"",phone,whatsapp};
     const customerNotice=official&&norm(official.name)!==norm(item.payload.name)?"Nome informado diverge do CPF: "+item.payload.name+" / "+official.name:notice;
     const verifiedDemographics=official&&current&&(!current.birth_date||!current.gender)?{customerId:current.id,document:item.payload.document,birthDate:current.birth_date?null:official.birthDate,gender:current.gender?null:official.gender}:undefined;
