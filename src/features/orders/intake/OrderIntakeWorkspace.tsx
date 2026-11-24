@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CheckCircle2, ClipboardList, Copy, ExternalLink, Link2, LoaderCircle, QrCode, Send, XCircle } from "lucide-react";
 import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
@@ -50,7 +50,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       }else notice="Seu perfil não permite consulta de CPF. Confira o cadastro antes de continuar.";
     }else if(item.bound_customer_id){notice="Cadastro já identificado. Dados pessoais não foram solicitados ao cliente." ;}
     if(scope.current!==organizationId)return;
-    setReview(item);setExisting(current);setCpf(official);setCpfNotice(notice);setConfirmed(false);setAddAddress(false);setUpdatePhone(false);
+    setReview(item);setExisting(current);setCpf(official);setCpfNotice(notice);setAddAddress(false);setUpdatePhone(false);
   });
   const convert=(customerId:string)=>{if(!review||!canManage)return;onConvert(customerId,{id:review.id,payload:review.payload,images:review.images,conversationId:review.conversation_id,verifiedDemographics:cpf?{customerId,document:review.payload.document,birthDate:cpf.birthDate,gender:cpf.gender}:undefined});};
   const addressKey=(a:any)=>[a?.zip_code?.replace(/\D/g,""),a?.street,a?.number,a?.complement,a?.neighborhood,a?.city,a?.state].map(v=>norm(String(v||""))).join("|");
@@ -79,8 +79,8 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
     ? {customerType:"PJ",cnpj:review.payload.document,full_name:name,trade_name:name,legal_name:name,phone,whatsapp}
     : {customerType:"PF",document:review?.payload.document||"",full_name:name,birth_date:cpf?.birthDate||"",gender:cpf?.gender||"",phone,whatsapp};
   const rows=list.data?.rows||[];
-  const genderLabel=(value?:string|null)=>({M:"Masculino",F:"Feminino",I:"Não informado"}[value||""]||"Não informado");
-  const field=(label:string,value:React.ReactNode)=><div className="min-w-0 space-y-1"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><div className="break-words text-sm font-medium text-foreground">{value||"—"}</div></div>;
+  const genderLabel=(value?:string|null)=>(({M:"Masculino",F:"Feminino",I:"Não informado"} as Record<string,string>)[value||""]||"Não informado");
+  const field=(label:string,value:ReactNode)=><div className="min-w-0 space-y-1"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><div className="break-words text-sm font-medium text-foreground">{value||"—"}</div></div>;
   const doc=review?.payload.document||"";
   const photoGroups=[{title:"Etiqueta",test:(im:OrderImage)=>im.kind==="label"},{title:"Equipamento",test:(im:OrderImage)=>im.kind!=="label"&&!/^Problema/i.test(im.name||"")},{title:"Defeito",test:(im:OrderImage)=>/^Problema/i.test(im.name||"")}];
   return <>
