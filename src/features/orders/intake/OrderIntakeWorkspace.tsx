@@ -78,6 +78,6 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
     </AdminDialog>
-    {quick&&review&&<QuickCustomerModal initialValues={initialValues} initialAddress={review.payload.address} description="Dados recebidos na Pré-OS. Confira antes de criar o cadastro." onClose={()=>setQuick(false)} onSaved={customer=>convert(customer.id)}/>}
+    {quick&&review&&<QuickCustomerModal initialValues={initialValues} initialAddress={review.payload.address} initialWhatsappFromConversation description="Dados recebidos na Pré-OS. Confira antes de criar o cadastro." onClose={()=>setQuick(false)} onSaved={customer=>convert(customer.id)}/>}
   </>;
 }
