@@ -5,7 +5,13 @@ const uuid=(v:unknown)=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{
 const clean=(v:unknown,max=160)=>typeof v==="string"?v.trim().slice(0,max):"";
 const digits=(v:unknown)=>clean(v).replace(/\D/g,"");
 const hash=async(token:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token))),b=>b.toString(16).padStart(2,"0")).join("");
-const tokenValue=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");
+// Derive a recoverable, unguessable bearer token without storing its plaintext.
+async function recoverableToken(org:string,id:string){
+  const secret=Deno.env.get("ORDER_INTAKE_TOKEN_SECRET")||Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  const signed=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode("union-order-intake-link-v1:"+org+":"+id));
+  return Array.from(new Uint8Array(signed),b=>b.toString(16).padStart(2,"0")).join("");
+}
 const ddCodes=new Set("11 12 13 14 15 16 17 18 19 21 22 24 27 28 31 32 33 34 35 37 38 41 42 43 44 45 46 47 48 49 51 53 54 55 61 62 63 64 65 66 67 68 69 71 73 74 75 77 79 81 82 83 84 85 86 87 88 89 91 92 93 94 95 96 97 98 99".split(" "));
 const validPhone=(v:string)=>ddCodes.has(v.slice(0,2))&& !/^(\d)\1+$/.test(v) && /^(?:\d{2}[2-5]\d{7}|\d{2}9\d{8})$/.test(v);
 const phoneOf=(v:unknown)=>{const p=digits(v);return /^[1-9]\d{9,10}$/.test(p)?"55"+p:p;};
@@ -195,27 +201,61 @@ Deno.serve(async(req)=>{
           boundCustomerId=customer?.id||null;
         }
       }
-      const token=tokenValue();
+      const requestId=crypto.randomUUID();
+      const token=await recoverableToken(org,requestId);
       // Bound active invitations per operator/conversation (new invitations can be cancelled).
       const existing=check(await admin.from("order_intake_requests").select("id").eq("organization_id",org).eq("conversation_id",conv.id).in("status",["sent","filling","submitting"]).gt("expires_at",new Date().toISOString()).limit(5));
       if(existing.length>=5)throw new InputError("Há links pendentes demais. Cancele os antigos antes de gerar outro.");
-      check(await admin.from("order_intake_requests").insert({organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,bound_customer_id:boundCustomerId,token_hash:await hash(token)}));
-      return json({token,requires_customer_details:!boundCustomerId});
+      check(await admin.from("order_intake_requests").insert({id:requestId,organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,bound_customer_id:boundCustomerId,token_hash:await hash(token)}));
+      return json({id:requestId,token,requires_customer_details:!boundCustomerId});
     }
-    let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name").eq("organization_id",org);
-    if(!keys.has("orders.view_all"))scope=scope.eq("created_by",actor.id);
+    const scoped=(columns:string,options?:{count:"exact";head?:boolean})=>{
+      let q=admin.from("order_intake_requests").select(columns,options).eq("organization_id",org);
+      if(!keys.has("orders.view_all"))q=q.eq("created_by",actor.id);
+      return q;
+    };
+    let scope=scoped("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name,bound_customer_id");
     if(action==="list"){
-      if(body.conversation_id){if(!uuid(body.conversation_id))throw new InputError("Conversa inválida.");scope=scope.eq("conversation_id",body.conversation_id);}
+      if(body.conversation_id&&!uuid(body.conversation_id))throw new InputError("Conversa inválida.");
+      const filter=(q:any)=>body.conversation_id?q.eq("conversation_id",body.conversation_id):q;
       const page=Math.max(0,Math.min(10000,Math.trunc(Number(body.page)||0)));
-      return json({rows:check(await scope.order("created_at",{ascending:false}).range(page*25,page*25+24))});
+      const [result,active,completed]=await Promise.all([
+        filter(scoped("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,phone,customer_name:payload->>name,bound_customer_id",{count:"exact"})).order("created_at",{ascending:false}).range(page*25,page*25+24),
+        filter(scoped("id",{count:"exact",head:true})).or("status.in.(received,submitting),and(status.in.(sent,filling),expires_at.gt."+new Date().toISOString()+")"),
+        filter(scoped("id",{count:"exact",head:true})).eq("status","converted")
+      ]);
+      const rows=check(result)||[];check(active);check(completed);
+      const ids=[...new Set(rows.map((r:any)=>r.conversation_id))];
+      const conversations=ids.length?check(await admin.from("union_whatsapp_conversations").select("id,contact_name").eq("organization_id",org).in("id",ids)):[];
+      const customerIds=[...new Set(rows.filter((r:any)=>r.bound_customer_id&&!r.customer_name).map((r:any)=>r.bound_customer_id))];
+      const customers=customerIds.length&&keys.has("customers.view")?check(await client.from("customers").select("id,full_name,legal_name").eq("organization_id",org).in("id",customerIds)):[];
+      const names=new Map(conversations.map((c:any)=>[c.id,c.contact_name]));
+      const registered=new Map(customers.map((c:any)=>[c.id,c.full_name||c.legal_name]));
+      return json({rows:rows.map(({bound_customer_id,...row}:any)=>({...row,customer_name:row.customer_name||registered.get(bound_customer_id)||names.get(row.conversation_id)||null})),total:result.count||0,active:active.count||0,completed:completed.count||0});
     }
     if(!uuid(body.id))throw new InputError("Solicitação inválida.");
     const allowed=check(await scope.eq("id",body.id).maybeSingle());
     if(!allowed)return json({error:"Solicitação não encontrada."},404);
+    if(action==="link"){
+      if(!keys.has("whatsapp.inbox.send"))return json({error:"Sem permissão para compartilhar links."},403);
+      const conversation=check(await client.from("union_whatsapp_conversations").select("id").eq("organization_id",org).eq("id",allowed.conversation_id).maybeSingle());
+      if(!conversation)return json({error:"Sem acesso a este atendimento."},403);
+      const row=check(await admin.from("order_intake_requests").select("id,token_hash,status,expires_at,bound_customer_id").eq("organization_id",org).eq("id",allowed.id).maybeSingle());
+      if(!row||!["sent","filling"].includes(row.status)||Date.parse(row.expires_at)<=Date.now())throw new InputError("Este link não está mais disponível.");
+      const token=await recoverableToken(org,row.id),digest=await hash(token);
+      if(digest!==row.token_hash){
+        if(row.status!=="sent")throw new InputError("O link antigo está em preenchimento. Utilize a mensagem original do WhatsApp.");
+        if(body.replace_legacy!==true)return json({legacy:true});
+        // Explicit replacement only for an unused legacy invitation; never silently invalidate.
+        const changed=check(await admin.from("order_intake_requests").update({token_hash:digest}).eq("organization_id",org).eq("id",row.id).eq("status","sent").eq("token_hash",row.token_hash).gt("expires_at",new Date().toISOString()).select("id").maybeSingle());
+        if(!changed)throw new InputError("A situação do link mudou. Abra a solicitação novamente.");
+      }
+      return json({id:row.id,token,requires_customer_details:!row.bound_customer_id});
+    }
     if(action==="cancel"){
       const cancelled=check(await admin.from("order_intake_requests").update({status:"cancelled"}).eq("id",allowed.id).eq("organization_id",org).in("status",["sent","filling"]).select("id").maybeSingle());
       if(!cancelled)throw new InputError("Só é possível cancelar links não enviados pelo cliente.");
-      return json({status:"cancelled"});
+      return json({id:allowed.id,status:"cancelled"});
     }
     if(action==="review"){
       if(allowed.status!=="received")throw new InputError("A solicitação ainda não está disponível para revisão.");
