@@ -8,6 +8,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { financeServiceOrderLabel, formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
+import { getSettlementInstallmentAllocations } from "../domain/finance-reported-receipts";
 import type { FinancialEntryDetail } from "../domain/finance.types";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
 
@@ -75,10 +76,8 @@ export function FinanceSettlementPanel({
                     {item.settlement_status === "scheduled" ? "Previsão: " + formatDateTime(item.expected_settlement_at) : item.posted_at ? "Liquidada: " + formatDateTime(item.posted_at) : "Movimentação financeira"}
                   </p>
                   <p className="mt-2 text-xs font-semibold text-foreground">{(() => {
-                    const event = detail.events.find(e=>e.event_type==="settlement_registered" && e.event_data?.settlement_id===item.id);
-                    const allocations = event?.event_data?.allocations;
-                    const rows = Array.isArray(allocations) ? allocations : [{installment_id:item.financial_installment_id,principal:item.principal_amount}];
-                    return rows.map((row:any)=>{
+                    const rows=getSettlementInstallmentAllocations(item,detail.events);
+                    return rows.map(row=>{
                       const installment=detail.installments.find(i=>i.id===row.installment_id);
                       return installment ? `Parcela ${installment.installment_number}/${installment.total_installments} · ${formatCurrency(Number(row.principal||0))}` : "Parcela não identificada";
                     }).join(" | ");
