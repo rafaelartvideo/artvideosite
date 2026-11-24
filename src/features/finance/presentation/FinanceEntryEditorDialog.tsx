@@ -61,7 +61,7 @@ export function FinanceEntryEditorDialog({
   /** Renderiza o editor dentro do extrato, sem abrir outro modal sobre ele. */
   embedded?: boolean;
 }) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission, hasModule, activeOrganizationId } = useAuth();
   const recurring = useFinanceRecurring(false);
   const [accountType, setAccountType] = useState<"single" | "recurring">("single");
   const [frequency, setFrequency] = useState<FinancialRecurringFrequency>("monthly");
@@ -95,7 +95,9 @@ export function FinanceEntryEditorDialog({
   const [scanBusy,setScanBusy]=useState(false),[scanMenu,setScanMenu]=useState(false),[scanError,setScanError]=useState(""),[scanResult,setScanResult]=useState<ExpenseScan|null>(null),[scanFile,setScanFile]=useState<File|null>(null),[paidExpense,setPaidExpense]=useState(false);
   const scanCamera=useRef<HTMLInputElement>(null),scanPicker=useRef<HTMLInputElement>(null),scanSeq=useRef(0),scanGate=useRef(false),saveGate=useRef(false);
   const [persisting,setPersisting]=useState(false);
-  useEffect(()=>{scanSeq.current++;setScanBusy(false);scanGate.current=false;setScanResult(null);setScanFile(null);setScanError("");setScanMenu(false);setPaidExpense(false);return()=>{scanSeq.current++;};},[open,activeOrganizationId,initial]);
+  const [failedScanFile,setFailedScanFile]=useState<File|null>(null);
+  const canUseExpenseAi=hasModule("ai")&&hasPermission("ai.view");
+  useEffect(()=>{scanSeq.current++;setScanBusy(false);scanGate.current=false;setScanResult(null);setScanFile(null);setScanError("");setScanMenu(false);setPaidExpense(false);setFailedScanFile(null);return()=>{scanSeq.current++;};},[open,activeOrganizationId,initial]);
   const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string; paymentPlan?: string }>({});
 
   const numericAmount = Number(amount || 0);
@@ -188,7 +190,7 @@ export function FinanceEntryEditorDialog({
   const runScan=async(file:File)=>{
     if(!activeOrganizationId||scanGate.current||busy||initial||entryType!=="payable")return;
     const org=activeOrganizationId,seq=++scanSeq.current;
-    scanGate.current=true;setScanBusy(true);setScanMenu(false);setScanError("");
+    scanGate.current=true;setScanBusy(true);setScanMenu(false);setScanError("");setFailedScanFile(null);
     try{
       const active=categories.filter(c=>c.is_active&&c.nature==="expense");
       const result=await scanExpenseDocument(org,file,active.map(c=>c.name));
@@ -212,7 +214,7 @@ export function FinanceEntryEditorDialog({
       setPaymentPlan(methods.length===1&&result.amount!=null?[{payment_method_id:methods[0].id,amount:String(result.amount)}]:[]);
       setNotes(current=>[current.trim(),result.reference?"Referência do documento: "+result.reference:""].filter(Boolean).join("\n"));
       setInstallmentCount(1);
-    }catch(error){if(seq===scanSeq.current)setScanError(systemErrorMessage(error,"Não foi possível ler o documento."));}
+    }catch(error){if(seq===scanSeq.current){setScanError(systemErrorMessage(error,"Não foi possível ler o documento."));if(file.size<=20*1024*1024)setFailedScanFile(file);}}
     finally{if(seq===scanSeq.current){scanGate.current=false;setScanBusy(false);}}
   };
   const save = async () => {
@@ -312,7 +314,9 @@ export function FinanceEntryEditorDialog({
         <input ref={scanCamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value="";if(f)void runScan(f);}}/>
         <input ref={scanPicker} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.xml" className="hidden" onChange={e=>{const f=e.currentTarget.files?.[0];e.currentTarget.value="";if(f)void runScan(f);}}/>
         {scanMenu&&<div className="flex flex-wrap gap-2"><AdminButton variant="secondary" onClick={()=>scanCamera.current?.click()}><Camera size={16}/> Abrir câmera</AdminButton><AdminButton variant="secondary" onClick={()=>scanPicker.current?.click()}><FileText size={16}/> Selecionar foto, PDF ou XML</AdminButton></div>}
+        {!canUseExpenseAi&&<p className="text-xs text-muted-foreground">A leitura de fotos e PDFs requer Union IA habilitada. XML e códigos bancários válidos podem ser lidos localmente.</p>}
         {scanError&&<p role="alert" className="text-xs text-destructive">{scanError} O preenchimento manual continua disponível.</p>}
+        {failedScanFile&&hasPermission("finance.documents.manage")&&<AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>{setScanFile(failedScanFile);setScanResult({description:"",amount:null,issue_date:null,due_date:null,supplier:"",document:"",category:"",kind:"other",paid:null,payment:"",reference:"",warning:"Documento anexado sem leitura automática."});setFailedScanFile(null);setScanError("");setPaidExpense(false);}}>Anexar e preencher manualmente</AdminButton>}
         {scanResult&&<div className="space-y-2 rounded-md border border-border bg-card p-3"><p className="flex items-center gap-2 text-sm font-semibold"><FileText size={16} className="text-primary"/><span className="min-w-0 truncate">{scanFile?.name}</span></p><p className="text-xs text-muted-foreground">{scanResult.amount==null?"Valor não identificado. Informe o valor.":"Confira os dados preenchidos abaixo."} {scanResult.warning}</p>{!hasPermission("finance.documents.manage")&&<p className="text-xs text-amber-600">Seu perfil pode digitalizar, mas não anexar documentos.</p>}{hasPermission("finance.settlements.create")&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" checked={paidExpense} disabled={busy} onChange={e=>setPaidExpense(e.target.checked)}/> Já paguei — abrir baixa após salvar</label>}<button type="button" className="text-xs font-semibold text-muted-foreground underline" disabled={busy} onClick={()=>{setScanFile(null);setScanResult(null);setPaidExpense(false);}}>Desvincular documento</button></div>}
       </div>}
       <div className="grid gap-4 sm:grid-cols-2">
