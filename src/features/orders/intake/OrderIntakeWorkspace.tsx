@@ -5,7 +5,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { lookupCpf, type CpfLookupResult } from "@/features/customers/infrastructure/cpf.gateway";
-import { findQuickCustomerByTaxId, getOrderCustomerById } from "@/features/orders/infrastructure/orders-customer.repository";
+import { findQuickCustomerByTaxId, getOrderCustomerById, updateOrderCustomer, createQuickCustomerAddress } from "@/features/orders/infrastructure/orders-customer.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import type { CustomerForm } from "@/features/customers/domain/customer-form";
 import { formatPhone } from "@/shared/domain/formatters";
@@ -19,6 +19,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
   const client=useQueryClient();
   const [page,setPage]=useState(0),[link,setLink]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
   const [review,setReview]=useState<OrderIntake|null>(null),[existing,setExisting]=useState<any>(null),[cpf,setCpf]=useState<CpfLookupResult|null>(null),[cpfNotice,setCpfNotice]=useState(""),[quick,setQuick]=useState(false),[confirmed,setConfirmed]=useState(false);
+  const [completeExisting,setCompleteExisting]=useState(false),[addAddress,setAddAddress]=useState(false);
   const gate=useRef(false),scope=useRef(organizationId);scope.current=organizationId;
   const canManage=activeOrganizationId===organizationId&&hasPermission("orders.create")&&hasPermission("orders.view");
   const key=["order-intake",organizationId,user?.id,conversationId||"all",page];
@@ -44,12 +45,31 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       }else notice="Seu perfil não permite consulta de CPF. Confira o cadastro antes de continuar.";
     }
     if(scope.current!==organizationId)return;
-    setReview(item);setExisting(current);setCpf(official);setCpfNotice(notice);setConfirmed(false);
+    setReview(item);setExisting(current);setCpf(official);setCpfNotice(notice);setConfirmed(false);setCompleteExisting(false);setAddAddress(false);
   });
   const convert=(customerId:string)=>{if(!review||!confirmed||!canManage)return;onConvert(customerId,{id:review.id,payload:review.payload,images:review.images});};
+  const missingVerifiedFields = Boolean(existing && cpf && ((!existing.birth_date&&cpf.birthDate)||(!existing.gender&&cpf.gender)));
+  const addressKey=(a:any)=>[a?.zip_code?.replace(/\D/g,""),a?.street,a?.number,a?.complement,a?.neighborhood,a?.city,a?.state].map(v=>norm(String(v||""))).join("|");
+  const addressAlreadySaved=Boolean(review&&existing?.addresses?.some((a:any)=>addressKey(a)===addressKey(review.payload.address)));
   const continueReview=()=>{
     if(!review||!confirmed||!canManage)return;
-    if(existing?.id){convert(existing.id);return;}
+    if(existing?.id){
+      void run(async()=>{
+        if(hasPermission("customers.edit")){
+          if(completeExisting&&cpf){
+            const patch:Record<string,unknown>={};
+            if(!existing.birth_date&&cpf.birthDate)patch.birth_date=cpf.birthDate;
+            if(!existing.gender&&cpf.gender)patch.gender=cpf.gender;
+            if(Object.keys(patch).length){const r=await updateOrderCustomer(organizationId,existing.id,patch);if(r.error)throw r.error;}
+          }
+          if(addAddress&&!addressAlreadySaved){
+            const r=await createQuickCustomerAddress(organizationId,{...review.payload.address,id:review.id,customer_id:existing.id,is_default:!existing.addresses?.length});
+            if(r.error)throw r.error;
+          }
+        }
+        if(scope.current===organizationId)convert(existing.id);
+      });return;
+    }
     if(!hasPermission("customers.create")){setError("Seu perfil não pode cadastrar clientes. Solicite a conferência a um gestor.");return;}
     setQuick(true);
   };
@@ -65,7 +85,7 @@ export function OrderIntakeWorkspace({organizationId,conversationId,onClose,onSh
       <div className="space-y-4">
       {!canManage?<p className="text-sm">Sem permissão para consultar Pré-OS.</p>:review?<div className="space-y-4 text-sm">
         <div className="grid gap-2 sm:grid-cols-2"><div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nome informado</p><p className="font-bold">{review.payload.name}</p><p>{review.payload.document}</p><p>{phone}</p></div><div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Conferência CPF</p>{cpf?<><p className="font-bold">{cpf.name}</p><p className={norm(cpf.name)===norm(review.payload.name)?"text-emerald-600":"text-amber-600"}>{norm(cpf.name)===norm(review.payload.name)?"Nome confere":"Nome diferente — confira antes de salvar"}</p><p>Nascimento: {cpf.birthDate||"Não retornado"} · Gênero: {cpf.gender||"Não retornado"}</p></>:<p>{cpfNotice||"Pessoa jurídica — confira o CNPJ."}</p>}</div></div>
-        {existing&&<p className="rounded-lg border border-emerald-500/30 p-3">CPF/CNPJ já cadastrado: <strong>{existing.full_name||existing.legal_name}</strong>. O cadastro será reutilizado, sem sobrescrever os dados automaticamente.</p>}
+        {existing&&<div className="space-y-2 rounded-lg border border-emerald-500/30 p-3"><p>CPF/CNPJ já cadastrado: <strong>{existing.full_name||existing.legal_name}</strong>. O cadastro será reutilizado.</p>{hasPermission("customers.edit")&&missingVerifiedFields&&<label className="flex items-start gap-2"><input type="checkbox" checked={completeExisting} onChange={e=>setCompleteExisting(e.target.checked)}/><span>Completar nascimento e gênero ausentes com os dados da API de CPF.</span></label>}{hasPermission("customers.edit")&&!addressAlreadySaved&&<label className="flex items-start gap-2"><input type="checkbox" checked={addAddress} onChange={e=>setAddAddress(e.target.checked)}/><span>Adicionar o endereço informado ao cadastro, sem substituir endereços existentes.</span></label>}{addressAlreadySaved&&<p className="text-xs text-muted-foreground">Endereço já cadastrado.</p>}</div>}
         <div className="rounded-lg border p-3"><p className="font-bold">Endereço informado</p><p>{[review.payload.address.street,review.payload.address.number,review.payload.address.complement,review.payload.address.neighborhood,review.payload.address.city,review.payload.address.state,review.payload.address.zip_code].filter(Boolean).join(", ")}</p></div>
         <div className="rounded-lg border p-3"><p className="font-bold">{[review.payload.type_name,review.payload.brand_name,review.payload.model].filter(Boolean).join(" · ")}</p><p>Série: {review.payload.serial||"Não informada"}</p><p className="mt-2 whitespace-pre-wrap">{review.payload.problem}</p><div className="mt-3 grid grid-cols-3 gap-2">{review.images.map(im=><a key={im.key} href={im.url} target="_blank" rel="noopener noreferrer"><img className="aspect-square w-full rounded-lg object-cover" src={im.url} alt={im.name}/><span className="text-xs">{im.name}</span></a>)}</div></div>
         <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>Conferi a identificação do cliente, endereço e dados do equipamento.</span></label>
