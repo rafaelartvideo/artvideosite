@@ -2280,6 +2280,8 @@ if(action==="contacts_groups_manage") {
         return json({success:false,error:"Conversa não disponível para consulta."},403);
       }
       const contactOwnerOnly=body.contact_owner_only===true;
+      const customerIdOnly=body.customer_id_only===true;
+      if(customerIdOnly && !permissions.has("orders.create")) return json({success:false,error:"Sem permissão para criar OS."},403);
       if(contactOwnerOnly && (!permissions.has("registrations.contacts.manage") || !allowed("create_contacts")))
         return json({success:false,error:"Sem permissão para criar contatos."},403);
       // Um número terceirizado pode estar ligado a uma OS de outro cliente.
@@ -2295,7 +2297,7 @@ if(action==="contacts_groups_manage") {
         matches=Array.isArray(data)?data:[];
       }
       let linkedOrders:Array<{id:string;os_number:string;customer_id:string}>=[];
-      if((!contactOwnerOnly || matches.length===0) && permissions.has("orders.details.view")){
+      if(((!contactOwnerOnly && !customerIdOnly) || matches.length===0) && permissions.has("orders.details.view")){
         const {data:links,error:linksError}=await admin.from("union_whatsapp_order_contacts")
           .select("service_order_id").eq("organization_id",org)
           .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
@@ -2324,6 +2326,7 @@ if(action==="contacts_groups_manage") {
       if(!customerId)return json({success:true,customer:null,
         linked_orders:linkedSummary,ambiguous:matches.length>1 ||
           new Set(linkedOrders.map(item=>item.customer_id)).size>1});
+      if(customerIdOnly) return json({success:true,matched_customer_id:customerId,ambiguous:false});
       if(contactOwnerOnly){
         // New contact needs only the unified registration ID and display name.
         // Do not load addresses, equipment, recent orders, or media for this modal.
