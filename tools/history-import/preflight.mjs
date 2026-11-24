@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { lstatSync } from "node:fs";
 import { makeReader } from "./archive-store.mjs";
-import { validatePackageId,validateIndex,validatePayload } from "./archive-contract.mjs";
+import { validatePackageId,validateIndex,validatePayload,BULK_INDEX_MAX_BYTES } from "./archive-contract.mjs";
 try{
   const id=validatePackageId(process.argv[2]);
   const config=process.env.UNION_HISTORY_RCLONE_CONFIG;
@@ -13,7 +13,7 @@ try{
   if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)!==0)throw Error("config_permissions");
   const read=makeReader({config,rclone:process.env.UNION_HISTORY_RCLONE||"rclone"});
   const summary=JSON.parse(read(id,"resumo-seguro.json",65536).toString("utf8"));
-  const rows=read(id,"indice-privado.jsonl",2*1024*1024).toString("utf8").split(/\r?\n/).filter(Boolean).map(JSON.parse);
+  const rows=read(id,"indice-privado.jsonl",summary.stage==="union_history_bulk_packaging"?BULK_INDEX_MAX_BYTES:2*1024*1024).toString("utf8").split(/\r?\n/).filter(Boolean).map(JSON.parse);
   const index=validateIndex(rows,summary,id);
   const seen=new Set(),totals={contacts:index.length,protocols:0,messages:0,incoming:0,outgoing:0,system:0,media_recovered:0,media_pending:0};
   for(const row of index){
