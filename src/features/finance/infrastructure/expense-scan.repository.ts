@@ -5,6 +5,7 @@ import type {FinancialAttachmentType} from "../domain/finance.types";
 export type ExpenseScan = {
   description:string; amount:number|null; issue_date:string|null; due_date:string|null;
   supplier:string; document:string; category:string; kind:string; paid:boolean|null;
+  purpose_evidence?:string;
   payment:string; reference:string; warning:string;
 };
 export type ExpenseSource = {file:File; attachmentType:FinancialAttachmentType; openSettlement:boolean};
@@ -21,6 +22,21 @@ export function suggestedPaymentType(value:string){
   if(name.includes("credito"))return "credit_card";
   if(name.includes("transferencia"))return "transfer";
   return "";
+}
+// Missing evidence is treated as unknown, including responses from older Edge versions.
+export function confirmedScanCategory(scan:ExpenseScan){
+  if(scan.kind==="payment_proof"||scan.kind==="other"||!scan.purpose_evidence?.trim())return "";
+  if(/\b(estoque|revenda)\b/.test(normalize(scan.category))&&!/\b(estoque|revenda|para vender|comercializacao)\b/.test(normalize(scan.purpose_evidence)))return "";
+  return scan.category;
+}
+export function isCreditScan(scan:ExpenseScan|null){
+  return Boolean(scan&&suggestedPaymentType(scan.payment)==="credit_card");
+}
+export async function suggestExpenseCategory(org:string,purpose:string,categories:string[]):Promise<string>{
+  const {data,error}=await supabase.functions.invoke("union-ai-expense",{body:{action:"classify",organization_id:org,purpose:purpose.trim().slice(0,300),categories}});
+  if(error){const context=(error as {context?:unknown}).context;const detail=context instanceof Response?await context.clone().json().catch(()=>null):null;throw new Error(detail?.error||"Não foi possível sugerir a categoria.");}
+  if(data?.error)throw new Error(data.error);
+  return categories.includes(data?.category)?data.category:"";
 }
 function readDataUrl(file:File):Promise<string>{
   return new Promise((resolve,reject)=>{
@@ -96,6 +112,7 @@ export async function scanExpenseDocument(org:string,file:File,categories:string
     else if(validated.amount!=null&&scan.amount==null)scan.amount=validated.amount;
     scan.reference=validated.barcode;scan.kind="boleto";scan.payment="boleto";
   }
+    scan.category=confirmedScanCategory(scan);
   return scan;
 }
 
