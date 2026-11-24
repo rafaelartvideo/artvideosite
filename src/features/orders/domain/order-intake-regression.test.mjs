@@ -55,7 +55,7 @@ test("telefone opcional e fotos obrigatórias são validados no formulário e no
  assert.ok(page.includes("validation(i)"));
  assert.ok(api.includes('!kinds.includes("label")||!kinds.includes("problem")'));
  assert.ok(api.includes("!validPhone(phone)"));
- assert.ok(staff.includes("formatPhone(review.payload.phone):whatsapp"));
+ assert.ok(staff.includes("localPhone(review.payload.phone):whatsapp"));
  assert.ok(staff.includes("phone,whatsapp"));
  // Execute the exact pure validator defined in the Edge Function.
  const start=api.indexOf("const ddCodes=");
@@ -117,7 +117,7 @@ test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF 
  assert.ok(!staff.includes("setConfirmed"));
  assert.ok(!staff.includes("completeExisting"));
  assert.ok(!staff.includes("list.refetch()"));
- assert.ok(staff.includes("verifiedDemographics:cpf?"));
+ assert.ok(staff.includes("verifiedDemographics:cpf&&existing"));
  assert.ok(!tab.includes("Endereço informado na Pré-OS:"));
  assert.ok(tab.indexOf("if (!savedOrderId) return;")<tab.indexOf("await completeIntakeCustomerDemographics("));
  assert.ok(repo.includes('.is("birth_date",null)'));
