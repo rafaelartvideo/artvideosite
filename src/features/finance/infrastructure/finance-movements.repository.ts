@@ -343,3 +343,21 @@ export async function configureFinancialOpeningBalance(organizationId: string, a
   if (error) throw error;
   return Number(data || 0);
 }
+
+/** Only fetched for an opened statement movement; never fan out across the list. */
+export async function getFinancialSettlementMovementDetails(organizationId: string, settlementId: string) {
+  const org = requiredOrganizationId(organizationId);
+  type Installment = { installment_number: number; total_installments: number };
+  type Allocation = { principal_amount: number; installment: Installment | null };
+  type SettlementDetails = {
+    payment_method_name_snapshot: string; principal_amount: number; gross_amount: number; fee_amount: number; net_amount: number;
+    installment: Installment | null; allocations: Allocation[];
+  };
+  const { data, error } = await supabase.from("financial_settlements")
+    .select("payment_method_name_snapshot,principal_amount,gross_amount,fee_amount,net_amount,installment:financial_installments!financial_settlements_organization_id_financial_installmen_fkey(installment_number,total_installments),allocations:financial_settlement_allocations!financial_settlement_allocati_organization_id_financial_se_fkey(principal_amount,installment:financial_installments!financial_settlement_allocati_organization_id_financial_in_fkey(installment_number,total_installments))")
+    .eq("organization_id",org).eq("id",settlementId).maybeSingle();
+  if(error)throw error;
+  const row=data as unknown as SettlementDetails|null;
+  if(!row)return null;
+  return {...row,allocations:row.allocations?.length?row.allocations:[{principal_amount:row.principal_amount,installment:row.installment}]};
+}
