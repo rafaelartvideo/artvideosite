@@ -1,4 +1,5 @@
-import { Search, X } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
 
 /** Busca compacta para acompanhar cabeçalhos e abas de listagens administrativas. */
 export function AdminInlineSearch({
@@ -16,8 +17,11 @@ export function AdminInlineSearch({
   iconTone?: "primary" | "neutral";
   size?: "default" | "compact";
 }) {
+  const inputId = useId();
+  const [expanded, setExpanded] = useState(true);
   return (
-    <div className="relative w-full min-w-0 sm:w-[280px] sm:max-w-[38vw]">
+    <div className="flex w-full min-w-0 items-center gap-1 sm:w-[280px] sm:max-w-[38vw]">
+      <div id={inputId} className={expanded ? "relative min-w-0 flex-1" : "hidden"}>
       <Search size={16} aria-hidden="true" className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 ${iconTone === "neutral" ? "text-muted-foreground" : "text-[#0057e7]"}`} />
       <input
         type="search"
@@ -25,7 +29,7 @@ export function AdminInlineSearch({
         value={value}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`${size === "compact" ? "h-9" : "h-[42px]"} w-full rounded-lg border border-[#0057e7]/30 bg-white py-2 pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15`}
+        className={`${size === "compact" ? "h-9" : "h-[42px]"} w-full rounded-lg border border-[#0057e7]/30 bg-card py-2 pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15`}
       />
       {value && (
         <button
@@ -38,6 +42,13 @@ export function AdminInlineSearch({
           <X size={15} />
         </button>
       )}
+      </div>
+      {!expanded && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={value || placeholder}>{value || placeholder}</span>}
+      <button type="button" aria-label={expanded ? "Recolher busca" : "Expandir busca"} title={expanded ? "Recolher busca" : "Expandir busca"}
+        aria-expanded={expanded} aria-controls={inputId} onClick={() => setExpanded(current => !current)}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground">
+        <ChevronDown size={17} className={expanded ? "rotate-180 transition-transform" : "transition-transform"} aria-hidden="true" />
+      </button>
     </div>
   );
 }
