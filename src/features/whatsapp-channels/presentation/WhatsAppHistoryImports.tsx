@@ -53,6 +53,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const [reconciliation,setReconciliation]=useState<{id:string;entries:Candidate[]}|null>(null);
  const [pendingBinding,setPendingBinding]=useState<string|null>(null);
+ const [publication,setPublication]=useState<{id:string;done:number;total:number;failed:number}|null>(null);
  const [logs,setLogs]=useState<{id:string;events:Audit[]}|null>(null);
  const [confirmation,setConfirmation]=useState<{id:string;command:string;label:string}|null>(null);
  const requestInFlight=useRef<{epoch:number;sequence:number}|null>(null), generation=useRef(0), sequence=useRef(0);
@@ -75,7 +76,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    catch{if(current())setError("Não foi possível consultar as importações. Tente novamente.")}
    finally{if(requestInFlight.current===request)requestInFlight.current=null}
  },[call]);
- useEffect(()=>{generation.current++;setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
+ useEffect(()=>{generation.current++;setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
  useEffect(()=>{if(data||error)onPreparationChange?.(data?null:error)},[data,error,onPreparationChange]);
  const running=Boolean(data?.jobs.some(j=>active.has(j.state)));
  useEffect(()=>{
@@ -112,6 +113,28 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
      if(epoch===generation.current){await showCandidates(id);await refresh()}
    }catch{if(epoch===generation.current)setError("Vínculo não confirmado. Confira se os dados do contato mudaram.")}
    finally{if(epoch===generation.current)setBusy(false)}
+ }
+ async function publishConversations(job:Job){
+   if(mutationLock.current||reconciliation?.id!==job.id)return;
+   const channel=data?.accounts.find(a=>a.phone===job.account_phone);
+   const entries=reconciliation.entries.filter(e=>e.state==="bound"&&e.match);
+   if(!channel||!entries.length)return;
+   mutationLock.current=true;const epoch=generation.current;
+   setBusy(true);setError("");setPublication({id:job.id,done:0,total:entries.length,failed:0});
+   let done=0,failed=0;
+   try{
+     // Deliberately sequential and idempotent; never poll or read full history.
+     for(const entry of entries){
+       if(epoch!==generation.current)break;
+       try{
+         const result=await call({action:"open_archive",contact_only:true,conversation_id:entry.match!.id,channel_id:channel.id,account_phone:job.account_phone});
+         if(!result?.conversation_id)failed++;
+       }catch{failed++}
+       done++;
+       if(epoch===generation.current)setPublication({id:job.id,done,total:entries.length,failed});
+     }
+     if(epoch===generation.current&&failed)setError("Algumas conversas não foram disponibilizadas. Confira as identidades e tente novamente.");
+   }finally{mutationLock.current=false;if(epoch===generation.current)setBusy(false)}
  }
  if(!permitted("view"))return <p className="p-4 text-sm text-muted-foreground">Sem permissão para visualizar importações.</p>;
  return <div className="min-w-0 space-y-4" aria-busy={busy}>
@@ -156,7 +179,12 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
        {j.state==="completed"&&reconciliation?.id===j.id&&<div className="rounded-md border border-border p-3 space-y-3">
          <div className="flex items-center justify-between"><strong className="text-sm">Conciliação de contatos</strong><button className="text-xs underline" onClick={()=>{setReconciliation(null);setPendingBinding(null)}}>Fechar</button></div>
          <p className="text-xs text-muted-foreground">Confirme apenas contatos que pertencem à mesma pessoa. Números compartilhados, reciclados ou sem correspondência ficam para revisão. Nenhum cadastro será sobrescrito.</p>
-         <div className="max-h-96 overflow-y-auto space-y-2">{reconciliation.entries.map(e=><div key={e.contact_key} className="border border-border rounded-md p-3 space-y-1">
+         {reconciliation.entries.some(e=>e.state==="bound")&&<div className="space-y-2">
+           <AdminButton variant="success" disabled={busy} loading={busy&&publication?.id===j.id&&publication.done<publication.total} onClick={()=>void publishConversations(j)}><MessageCircle size={16}/> Disponibilizar conversas vinculadas</AdminButton>
+           <p className="text-xs text-muted-foreground">Disponibiliza os históricos confirmados em Finalizados, sem iniciar atendimentos, enviar mensagens ou alterar cadastros.</p>
+           {publication?.id===j.id&&<p role="status" className="text-xs">{publication.done-publication.failed} de {publication.total} disponíveis{publication.failed>0?` · ${publication.failed} para conferir`:""}</p>}
+         </div>}
+         <div className="space-y-2">{reconciliation.entries.map(e=><div key={e.contact_key} className="border border-border rounded-md p-3 space-y-1">
            <div className="flex items-center justify-between gap-2"><strong className="text-sm">{formatWhatsAppPhone(e.phone)}</strong><span className="text-xs">{e.state==="bound"?"Vinculado":e.state==="candidate"?"Confirmar correspondência":e.state==="missing"?"Sem cadastro":"Revisão necessária"}</span></div>
            <p className="text-xs break-words">Nome recuperado: {e.historical_name||"Não informado"}</p>
            <p className="text-xs break-words">Cadastro atual: {e.match?.display_name||"Não identificado"}</p>
