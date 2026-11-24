@@ -78,6 +78,18 @@ export async function createFinancialAttachmentSignedUrl(
 }
 
 
+/** Request a small signed image, never the original for a thumbnail. */
+export async function createFinancialAttachmentThumbnailUrl(
+  storagePath: string, storageBucket: "financial-documents" | "service-images" = "financial-documents",
+): Promise<string> {
+  const { data, error } = await supabase.storage.from(storageBucket).createSignedUrl(storagePath, 300, {
+    transform: { width: 240, height: 240, resize: "contain", quality: 65 },
+  });
+  if (error) throw error;
+  if (!data?.signedUrl) throw new Error("Miniatura indisponível.");
+  return data.signedUrl;
+}
+
 // Executado apenas na ação do usuário. Evita consultas por comprovante para
 // cada linha da tabela e não duplica arquivos no Storage.
 export async function getFinancialEntryProofUrl(organizationId: string, entryId: string): Promise<string | null> {
