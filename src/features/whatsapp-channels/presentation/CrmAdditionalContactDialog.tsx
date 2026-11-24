@@ -7,7 +7,7 @@ import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { isValidBrazilianMobile } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
-import { VerifiedWhatsAppPhoneInput } from "./WhatsAppNumberVerification";
+import { brazilianWhatsAppNumber, VerifiedWhatsAppPhoneInput } from "./WhatsAppNumberVerification";
 
 type Owner = { id: string; name: string };
 
@@ -58,7 +58,7 @@ export function CrmAdditionalContactDialog({ organizationId, owner, ownerLoading
       {ownerError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive"><span>{ownerError}</span><button type="button" onClick={onRetryOwner} className="font-semibold text-primary underline underline-offset-2">Tentar novamente</button></div>}
       <FInput label="Nome do contato" required maxLength={160} value={name} disabled={saving} onChange={event => { setManualName(event.target.value); setError(""); }} />
       <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile required value={whatsapp} verificationMode="create" verificationEnabled={Boolean(owner) && !ownerLoading && !ownerError} onVerifiedName={setSuggestedName} disabled={saving}
-        onChange={event => { if (event.target.value.replace(/\D/g, "") !== whatsapp.replace(/\D/g, "")) setSuggestedName(""); setWhatsapp(event.target.value); setError(""); }} />
+        onChange={event => { if (brazilianWhatsAppNumber(event.target.value) !== brazilianWhatsAppNumber(whatsapp)) setSuggestedName(""); setWhatsapp(event.target.value); setError(""); }} />
       <FInput label="Identificação (opcional)" placeholder="Ex.: esposa, responsável, financeiro" maxLength={160} value={jobTitle} disabled={saving} onChange={event => setJobTitle(event.target.value)} />
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     </div>
