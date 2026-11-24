@@ -39,7 +39,7 @@ import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminF
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppUnansweredCount, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppUnansweredCount, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, listUnionWhatsAppProtocolMarkers, getUnionWhatsAppConversation, findUnionWhatsAppConversationByContact, openBoundHistoricalConversation, isUnifiedHistoryPilotEnabled,
   operateUnionWhatsAppInbox, startUnionWhatsAppWithFirstMessage, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppProtocolMarker, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -1739,7 +1739,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
         setProtocols(data.items);setProtocolsCursor(data.nextCursor||null);
         setProtocolsHasMore(data.hasMore);
-        setProtocolsPage(0);setProtocolsCursor(null);
+        setProtocolsPage(0);
         setHandoffs(audit?.history||[]);
       }
     }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
@@ -2055,8 +2055,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone)return false;
     // Busca exata no servidor, inclusive entre outras abas e fora da página 1.
     // A RLS impede abrir conversas às quais o operador não tem acesso.
-    const existing=await findUnionWhatsAppConversationByContact(
-      activeOrganizationId,activeChannelId,activeChannelPhone,contact.chat_jid);
+    const org=activeOrganizationId,channel=activeChannelId,account=activeChannelPhone;
+    let existing=await findUnionWhatsAppConversationByContact(org,channel,account,contact.chat_jid);
+    if(!existing&&canManage&&isUnifiedHistoryPilotEnabled(org)&&hasPermission("whatsapp.history_import.view")&&hasPermission("whatsapp.history_import.manage")){
+      // An archive lookup never verifies the WhatsApp number or opens an active attendance.
+      const id=await openBoundHistoricalConversation(org,contact.id,channel,account);
+      if(id){
+        existing=await getUnionWhatsAppConversation(org,id,channel,account);
+        if(!existing)throw Error("Conversa histórica indisponível.");
+      }
+    }
+    if(organizationRef.current!==org||accountRef.current!==account)return false;
     if(existing){
       setDepartmentFilter("all");setOperatorFilter("all");
       setQuery("");setDebouncedQuery("");setConversationPage(0);
@@ -3078,7 +3087,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <div className="my-1.5 flex justify-center px-2" role="note"
                       aria-label={`${unionWhatsAppProtocolLabel(entry.protocolNumber)}: atendimento ${entry.kind==="protocol_start"?"iniciado":"finalizado"}`}>
                       <span className="rounded-lg border border-border/60 bg-card/80 px-3 py-1 text-center text-[10px] font-medium text-muted-foreground">
-                        {unionWhatsAppProtocolLabel(entry.protocolNumber)} · Atendimento {entry.kind==="protocol_start"?"iniciado":"finalizado"} · {clock(entry.sentAt)}
+                        {entry.protocolNumber===0?"SAC Digital":unionWhatsAppProtocolLabel(entry.protocolNumber)} · Atendimento {entry.kind==="protocol_start"?"iniciado":"finalizado"} · {clock(entry.sentAt)}
                       </span>
                     </div>
                   : entry.kind==="persisted" ? (
@@ -3645,8 +3654,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       {protocolsLoading ? <LoadingState text="Consultando protocolos..."/> :
         protocols.length ? <div className="space-y-2">
           {protocols.map(protocol=>{
-            const label=unionWhatsAppProtocolLabel(protocol.protocol_number);
-            const duration=protocol.closed_at ? Math.max(0,Math.round(
+            const label=protocol.read_only?"Atendimento · SAC Digital":unionWhatsAppProtocolLabel(protocol.protocol_number);
+            const duration=protocol.closed_at && !protocol.unknown_date ? Math.max(0,Math.round(
               (Date.parse(protocol.closed_at)-Date.parse(protocol.opened_at))/60000
             )) : null;
             return <button key={protocol.id} type="button" onClick={()=>{
@@ -3657,12 +3666,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <span className="flex w-full flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-bold text-foreground">{label}</span>
                 <span className="text-xs font-semibold text-muted-foreground">
-                  {filters.find(item=>item.value===protocol.status)?.label}
+                  {protocol.read_only?(protocol.original_status||"Histórico importado"):filters.find(item=>item.value===protocol.status)?.label}
                 </span>
               </span>
               <span className="text-xs text-muted-foreground">
-                Abertura: {new Date(protocol.opened_at).toLocaleString("pt-BR")}
-                {protocol.closed_at ? ` · Encerramento: ${new Date(protocol.closed_at).toLocaleString("pt-BR")}` : " · Em aberto"}
+                Abertura: {protocol.unknown_date?"Não informada":new Date(protocol.opened_at).toLocaleString("pt-BR")}
+                {protocol.closed_at ? ` · Encerramento: ${new Date(protocol.closed_at).toLocaleString("pt-BR")}` : protocol.read_only?" · Encerramento não informado":" · Em aberto"}
               </span>
               <span className="text-xs text-muted-foreground">
                 {protocol.message_count} mensagem(ns)
