@@ -817,7 +817,7 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.match(crm,/onNewOrder\?: \(\) => void/);
   assert.match(crm,/aria-label="Nova OS pelo atendimento"/);
   assert.match(crm,/disabled=\{Boolean\(newOrderLoading \|\| newOrderDisabled\)\}/);
-  assert.match(inbox,/newOrderDisabled=\{Boolean\(newOrder\)\}/);
+  assert.match(inbox,/newOrderDisabled=\{Boolean\(newOrder&&!detachedNewOrder\.detached\)\}/);
   assert.match(inbox,/useEffect\(\(\)=>setNewOrder\(null\),\[activeOrganizationId\]\)/);
   assert.match(crm,/onClick=\{event=>\{event\.stopPropagation\(\);onNewOrder\(\);\}\}/);
   assert.match(crm,/<AdminButton variant="tertiary" size="sm"/);
@@ -1408,4 +1408,24 @@ test("Nova OS can minimize and detach without remounting the order controller",a
   for(const [name,source] of [["TabOrders.tsx",tab],["OrderEditorPage.tsx",editor],["useDetachedOrderEditor.ts",detached]]){
     assert.ok((await transformWithEsbuild(source,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code);
   }
+});
+
+
+test("Nova OS destacada reutiliza a mesma janela ao trocar de atendimento",async()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const tab=read("src/features/orders/presentation/TabOrders.tsx");
+  const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  assert.match(inbox,/const detachedNewOrder=useDetachedOrderEditor\(\)/);
+  assert.match(inbox,/embeddedDetachedEditor=\{detachedNewOrder\}/);
+  assert.match(inbox,/embeddedSwitchGuardRef=\{embeddedSwitchGuardRef\}/);
+  assert.match(inbox,/newOrder\.conversationId===threadId\)\{detached\.popup\.focus\(\);return;\}/);
+  assert.match(inbox,/if\(!embeddedSwitchGuardRef\.current\?\.\(\)\)/);
+  assert.match(inbox,/organizationId:org,conversationId:threadId/);
+  assert.match(inbox,/<EmbeddedNewOrder key=\{newOrder\.key\}/);
+  assert.match(tab,/embeddedDetachedEditor \?\? localDetachedEditor/);
+  assert.match(tab,/saving \|\| routedSaveInFlight\.current \|\| formState\.pendingCreatedOrderId/);
+  assert.match(tab,/queueGateOpen \|\| form\.queue_reservation_id/);
+  assert.match(tab,/!hasDraft \|\| window\.confirm/);
+  assert.match(editor,/onChangeCapture=\{onDraftInteraction\}/);
+  for(const [name,source] of [["TabOrders.tsx",tab],["OrderEditorPage.tsx",editor],["UnionWhatsAppInboxPage.tsx",inbox]])assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
 });
