@@ -202,7 +202,7 @@ Deno.serve(async(req)=>{
       check(await admin.from("order_intake_requests").insert({organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,bound_customer_id:boundCustomerId,token_hash:await hash(token)}));
       return json({token,requires_customer_details:!boundCustomerId});
     }
-    let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by").eq("organization_id",org);
+    let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by,phone,customer_name:payload->>name").eq("organization_id",org);
     if(!keys.has("orders.view_all"))scope=scope.eq("created_by",actor.id);
     if(action==="list"){
       if(body.conversation_id){if(!uuid(body.conversation_id))throw new InputError("Conversa inválida.");scope=scope.eq("conversation_id",body.conversation_id);}

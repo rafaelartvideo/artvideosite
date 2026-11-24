@@ -55,7 +55,7 @@ test("telefone opcional e fotos obrigatórias são validados no formulário e no
  assert.ok(page.includes("validation(i)"));
  assert.ok(api.includes('!kinds.includes("label")||!kinds.includes("problem")'));
  assert.ok(api.includes("!validPhone(phone)"));
- assert.ok(staff.includes("formatPhone(review.payload.phone):whatsapp"));
+ assert.ok(staff.includes("localPhone(review.payload.phone):whatsapp"));
  assert.ok(staff.includes("phone,whatsapp"));
  // Execute the exact pure validator defined in the Edge Function.
  const start=api.indexOf("const ddCodes=");
@@ -98,4 +98,29 @@ test("Pré-OS da Artvideo reaproveita o validador, cache e ticket de CPF do site
  assert.ok(page.includes('identityProof.current'));
  assert.ok(page.includes('await checkIdentity()'));
  assert.ok(page.includes('cpf_identity_ticket:ticket||undefined'));
+});
+
+test("Pré-OS permanece em Atendimentos, com seções, QR local, realtime e CPF após criação",async()=>{
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const tab=read("src/features/orders/presentation/TabOrders.tsx");
+ const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+ const repo=read("src/features/orders/infrastructure/orders-customer.repository.ts");
+ const realtime=read("src/features/orders/intake/OrderIntakeRealtime.tsx");
+ for(const [path,source] of [["staff.tsx",staff],["tab.tsx",tab],["inbox.tsx",inbox],["realtime.tsx",realtime]])assert.ok((await transformWithEsbuild(source,path,{loader:"tsx"})).code);
+ assert.ok(!tab.includes("OrderIntakeWorkspace"));
+ assert.ok(inbox.includes('setIntakeContext({org:activeOrganizationId})'));
+ assert.ok(staff.includes('QRCodeSVG value={link}'));
+ assert.ok(staff.includes('<Section title="Cliente"'));
+ assert.ok(staff.includes('<Section title="Fotos"'));
+ assert.ok(staff.includes("formatCpf(doc)"));
+ assert.ok(staff.includes("formatZipCode(review.payload.address.zip_code"));
+ assert.ok(!staff.includes("setConfirmed"));
+ assert.ok(!staff.includes("completeExisting"));
+ assert.ok(!staff.includes("list.refetch()"));
+ assert.ok(staff.includes("verifiedDemographics:cpf&&existing"));
+ assert.ok(!tab.includes("Endereço informado na Pré-OS:"));
+ assert.ok(tab.indexOf("if (!savedOrderId) return;")<tab.indexOf("await completeIntakeCustomerDemographics("));
+ assert.ok(repo.includes('.is("birth_date",null)'));
+ assert.ok(realtime.includes('status==="SUBSCRIBED"'));
+ assert.ok(realtime.includes('queryKey:["order-intake",org]'));
 });

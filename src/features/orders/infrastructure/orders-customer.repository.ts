@@ -92,7 +92,22 @@ export const searchOrderCustomers = (organizationId: string, query: string) => {
 export const getOrderCustomerById = (organizationId: string, customerId: string) =>
   supabase
     .from("customers")
-    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)")
+    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,gender,addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
     .eq("id", customerId)
     .maybeSingle();
+
+/** Only fill missing verified CPF fields after the order has actually been saved.
+ * Conditional updates avoid overwriting concurrent edits or a different CPF. */
+export async function completeIntakeCustomerDemographics(organizationId:string, customerId:string, verified:{document:string;birthDate?:string|null;gender?:string|null}) {
+  const document=verified.document.replace(/\D/g,"");
+  if(document.length!==11)return;
+  if(verified.birthDate&&/^\d{4}-\d{2}-\d{2}$/.test(verified.birthDate)){
+    const {error}=await supabase.from("customers").update({birth_date:verified.birthDate}).eq("organization_id",organizationId).eq("id",customerId).eq("document",document).is("birth_date",null);
+    if(error)throw error;
+  }
+  if(verified.gender&&["M","F","I"].includes(verified.gender)){
+    const {error}=await supabase.from("customers").update({gender:verified.gender}).eq("organization_id",organizationId).eq("id",customerId).eq("document",document).or("gender.is.null,gender.eq.");
+    if(error)throw error;
+  }
+}

@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { PortalContainerProvider } from "@/shared/ui/primitives/portal-container";
 import { useDetachedOrderEditor } from "./useDetachedOrderEditor";
@@ -33,7 +33,7 @@ import {
   usedItemsTotal,
 } from "@/features/orders/application/order-display-rules";
 import { getServiceOrderForRoute } from "@/features/orders/infrastructure/orders-list.repository";
-import { getOrderCustomerById } from "@/features/orders/infrastructure/orders-customer.repository";
+import { completeIntakeCustomerDemographics, getOrderCustomerById } from "@/features/orders/infrastructure/orders-customer.repository";
 import {
   consumeQueueOsCode,
   releaseQueueOsCode,
@@ -51,7 +51,6 @@ import { AdminButton, AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 import type { IntakePrefill } from "../intake/order-intake.repository";
-const OrderIntakeWorkspace = lazy(() => import("../intake/OrderIntakeWorkspace").then(m=>({default:m.OrderIntakeWorkspace})));
 
 type SharedAccessMode = "default" | "read";
 type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-records" | "checklists";
@@ -158,8 +157,6 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
-  const [intakeOpen,setIntakeOpen]=useState(false);
-  const [intakeEditor,setIntakeEditor]=useState<{customerId:string;prefill:IntakePrefill}|null>(null);
   const localDetachedEditor = useDetachedOrderEditor();
   const detachedEditor = embeddedDetachedEditor ?? localDetachedEditor;
   const routedSaveInFlight = useRef(false);
@@ -402,7 +399,7 @@ export function TabOrders({
     const model=workspace.equipmentModels.find((m:any)=>m.equipment_brand_id===p.brand_id && String(m.name||"").trim().toLowerCase()===p.model.trim().toLowerCase());
     const brandValid=workspace.equipmentBrands.some((b:any)=>b.id===p.brand_id&&b.equipment_type_id===p.type_id);
     const typeValid=workspace.equipmentTypes.some((t:any)=>t.id===p.type_id);
-    setForm(current=>({...current,equipment_type_id:typeValid?p.type_id:"",equipment_brand_id:typeValid&&brandValid?p.brand_id||"":"",equipment_model_id:typeValid&&brandValid?model?.id||"":"",model:p.model,serial_number:p.serial,customer_notes:p.problem,internal_notes:[p.brand_name&&!brandValid?"Marca informada: "+p.brand_name:"",p.model&&!model?"Modelo informado: "+p.model:"", "Endereço informado na Pré-OS: "+[p.address.street,p.address.number,p.address.complement,p.address.neighborhood,p.address.city,p.address.state,p.address.zip_code].filter(Boolean).join(", ")].filter(Boolean).join("\n")}));
+    setForm(current=>({...current,equipment_type_id:typeValid?p.type_id:"",equipment_brand_id:typeValid&&brandValid?p.brand_id||"":"",equipment_model_id:typeValid&&brandValid?model?.id||"":"",model:p.model,serial_number:p.serial,customer_notes:p.problem,internal_notes:[p.brand_name&&!brandValid?"Marca informada: "+p.brand_name:"",p.model&&!model?"Modelo informado: "+p.model:""].filter(Boolean).join("\n")}));
     replaceOrderImages(intake.images.map(im=>({...im,url:im.url}))); // existing media IDs; no second upload
   };
 
@@ -749,6 +746,11 @@ export function TabOrders({
     const savedOrderId = await saveOS();
     if (!savedOrderId) return;
     if (wasCreating) setToast({ msg: "OS criada com sucesso!", type: "success" });
+    const demographics=initialIntake?.verifiedDemographics;
+    if(wasCreating && demographics && workspaceBase.organizationId && effectiveHasPermission("customers.edit") && form.customer_id===demographics.customerId){
+      try { await completeIntakeCustomerDemographics(workspaceBase.organizationId,demographics.customerId,demographics); }
+      catch(error){ setToast({msg:systemErrorMessage(error,"OS criada, mas não foi possível completar os dados do CPF."),type:"error"}); }
+    }
 
     openingEditRouteRef.current = null;
 
@@ -919,9 +921,6 @@ export function TabOrders({
         </AdminPage>
       )}
 
-      {!detailOnly && !initialOrderId && !formOpen && !intakeEditor && !scopedReadOnly && effectiveHasPermission("orders.create") && workspaceBase.organizationId && <div className="flex justify-end"><AdminButton variant="secondary" onClick={()=>setIntakeOpen(true)}>Pré-OS Digital</AdminButton></div>}
-      {intakeOpen && workspaceBase.organizationId && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={workspaceBase.organizationId} onClose={()=>setIntakeOpen(false)} onConvert={(customerId,prefill)=>{setIntakeOpen(false);setIntakeEditor({customerId,prefill});}}/></Suspense>}
-      {intakeEditor && workspaceBase.organizationId && <TabOrders key={intakeEditor.prefill.id} initialOrderId="new" initialCustomerId={intakeEditor.customerId} initialIntake={intakeEditor.prefill} organizationIdOverride={workspaceBase.organizationId} detailOnly embeddedCreate onEmbeddedClose={()=>setIntakeEditor(null)} onEmbeddedCreated={()=>{setIntakeEditor(null);void queryClient.invalidateQueries({queryKey:["order-intake",workspaceBase.organizationId]});}}/>}
       <OrdersListWorkspace
         // A rota, não a limpeza assíncrona de detail, determina quando a lista volta.
         // Assim, lista e detalhe trocam juntos, sem um frame vazio/intermediário.

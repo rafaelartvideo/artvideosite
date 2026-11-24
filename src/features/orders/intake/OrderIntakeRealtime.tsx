@@ -15,8 +15,8 @@ export function OrderIntakeRealtime(){
         const row=event.new as {organization_id?:string;status?:string};
         if(row.organization_id!==org)return;
         void queryClient.invalidateQueries({queryKey:["order-intake",org]});
-        if(row.status==="received")notifyAdmin("Nova Pré-OS recebida. Abra Pré-OS Digital para conferir.","success");
-      }).subscribe();
+        if(row.status==="received")notifyAdmin("Nova Pré-OS recebida. Abra Pré-OS em Atendimentos para conferir.","success");
+      }).subscribe(status=>{if(status==="SUBSCRIBED")void queryClient.invalidateQueries({queryKey:["order-intake",org]});});
     return()=>{void supabase.removeChannel(channel);};
   },[enabled,activeOrganizationId,user?.id,queryClient]);
   return null;
