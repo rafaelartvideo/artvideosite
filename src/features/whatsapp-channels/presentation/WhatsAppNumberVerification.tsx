@@ -21,7 +21,7 @@ type LookupResult =
 type LookupState = { key: string; result: LookupResult | { kind: "checking" } };
 const recentChecks = new Map<string, { expiresAt: number; result: LookupResult }>();
 
-function brazilianWhatsAppNumber(value: string): string {
+export function brazilianWhatsAppNumber(value: string): string {
   const digits = value.replace(/\D/g, "");
   if (/^[1-9]\d{9,10}$/.test(digits)) return "55" + digits;
   if (/^55[1-9]\d{9,10}$/.test(digits)) return digits;
