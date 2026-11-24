@@ -64,7 +64,7 @@ create policy order_intake_events_select on public.order_intake_events for selec
 );
 create index order_intake_events_scope_idx on public.order_intake_events(organization_id,created_by,status);
 create or replace function private.publish_order_intake_event()
-returns trigger language plpgsql security definer set search_path='' as $
+returns trigger language plpgsql security definer set search_path='' as $function$
 begin
   if TG_OP='UPDATE' then if old.status=new.status then return new; end if; end if;
   insert into public.order_intake_events(request_id,organization_id,conversation_id,created_by,status,updated_at)
@@ -72,7 +72,7 @@ begin
   on conflict(request_id) do update set status=excluded.status,updated_at=excluded.updated_at;
   return new;
 end;
-$;
+$function$;
 revoke all on function private.publish_order_intake_event() from public,anon,authenticated;
 create trigger publish_order_intake_event after insert or update of status on public.order_intake_requests
 for each row execute function private.publish_order_intake_event();
