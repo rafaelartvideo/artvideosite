@@ -38,3 +38,14 @@ export function getInstallmentPaymentPreference(sourceDetails: Record<string, un
     occurred_at: reported?.occurred_at || null,
   };
 }
+
+/** Existing aggregate settlements have their exact allocation in the registration event. */
+export function getSettlementInstallmentAllocations(settlement: {id:string;financial_installment_id:string;principal_amount:number}, events: Array<{event_type:string;event_data:Record<string,unknown>}>) {
+  const event=events.find(item=>item.event_type==="settlement_registered" && item.event_data?.settlement_id===settlement.id);
+  const allocations=event?.event_data?.allocations;
+  if(Array.isArray(allocations) && allocations.length) return allocations.flatMap(row=>{
+    if(!row || typeof row!=="object" || typeof row.installment_id!=="string")return [];
+    return [{installment_id:row.installment_id,principal:Number(row.principal||0)}];
+  });
+  return [{installment_id:settlement.financial_installment_id,principal:Number(settlement.principal_amount)}];
+}
