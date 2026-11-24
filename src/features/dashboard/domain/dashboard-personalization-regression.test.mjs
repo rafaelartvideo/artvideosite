@@ -111,8 +111,8 @@ test("gráfico temporal utiliza o valor de cada dia real, sem agrupar datas dist
     {name:"2026-11-11",value:0},
   ],30);
   assert.deepEqual(result,[
-    {name:"09/11",value:31},
-    {name:"10/11",value:37},
+    {name:"09/11",value:31,key:"2026-11-09"},
+    {name:"10/11",value:37,key:"2026-11-10"},
   ]);
   assert.equal(result.reduce((sum,item)=>sum+item.value,0),68);
   assert.equal(result.some(item=>item.name==="08/11"),false);
@@ -184,4 +184,37 @@ test("Dashboard > Atendimentos carrega sob demanda, com cache e isolamento por e
   assert.match(latest,/make_interval\(mins=>v_unanswered_limit\)/);
   assert.doesNotMatch(latest,/FROM public.union_whatsapp_messages/);
   assert.doesNotMatch(latest,/FROM public.sac_digital_messages/);
+});
+
+
+test("todos os gráficos e indicadores de OS atualizam uma única janela flutuante e destacável",async()=>{
+  const tab=read("src/features/dashboard/presentation/TabDashboard.tsx");
+  const dialog=read("src/features/dashboard/presentation/DashboardOrderSelectionDialog.tsx");
+  const repo=read("src/features/dashboard/infrastructure/dashboard.repository.ts");
+  const widgets=read("src/features/dashboard/domain/dashboard-widgets.ts");
+  const rpc=read("supabase/migrations/20261124122929_dashboard_order_selection_page.sql");
+  await compile("src/features/dashboard/presentation/DashboardOrderSelectionDialog.tsx");
+  await compile("src/features/dashboard/presentation/TabDashboard.tsx");
+  await compile("src/features/dashboard/infrastructure/dashboard.repository.ts","ts");
+  assert.match(tab,/onSelect=\{selectDistribution\(key\)\}/);
+  assert.match(tab,/onSlaSelect=\{selectSituationSla\}/);
+  assert.match(tab,/point.key\|\|point.name/);
+  assert.match(tab,/const DASHBOARD_ORDER_PAGE_SIZE = 25/);
+  assert.match(tab,/enabled: orderSelectionActive/);
+  assert.match(tab,/queryFn: \(\{signal\}\)/);
+  assert.doesNotMatch(tab,/keepPreviousData/);
+  assert.equal((tab.match(/<DashboardOrderSelectionDialog/g)||[]).length,1);
+  assert.doesNotMatch(widgets,/id: "selection"/);
+  assert.match(dialog,/draggable floating/);
+  assert.match(dialog,/if \(detached\) return createPortal/);
+  assert.match(dialog,/href=\{new URL\(adminPath\("orders",order.id\),window.location.origin\).href\}/);
+  assert.match(dialog,/totalItems=\{total\}/);
+  assert.match(dialog,/order.row_key \|\| order.id/);
+  assert.match(repo,/request.abortSignal\(signal\)/);
+  assert.match(rpc,/security invoker/);
+  assert.match(rpc,/private.dashboard_order_selection_ids_v1/);
+  assert.match(rpc,/v_actor uuid := auth.uid\(\)/);
+  assert.match(rpc,/private.is_current_user_service_order_staff/);
+  assert.match(rpc,/q.status='approved' then q.approved_at else q.updated_at/);
+  assert.match(rpc,/order by event_at desc,row_key desc limit v_size offset v_offset/);
 });

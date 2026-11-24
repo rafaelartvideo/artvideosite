@@ -4,7 +4,7 @@ import { useWorkspaceFirstVisit } from "@/shared/ui/admin/useWorkspaceFirstVisit
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -32,7 +32,6 @@ import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminMetricDetailDialog, type AdminMetricDetailRow } from "@/shared/ui/admin/AdminMetricDetailDialog";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -44,12 +43,13 @@ import type {
   DashboardOrder,
   DashboardOrderDistributionItem,
   DashboardOrderGroupItem,
+  DashboardOrderSelectionKind,
   DashboardQuote,
   DashboardRegistration,
   DashboardSlaState,
 } from "../domain/dashboard";
 import {
-  loadDashboardOrderGroupPage,
+  loadDashboardOrderSelectionPage,
   loadDashboardOrdersSummary,
   loadDashboardOrdersCharts,
   loadDashboardOverview,
@@ -67,6 +67,7 @@ import {
 } from "./DashboardUi";
 import { DashboardOrderChartPanel, type DashboardOrderChartKey, type DashboardOrderChartMode } from "./DashboardOrderChartPanel";
 import { DashboardWidgetSettings, useDashboardWidgetSettings } from "./DashboardWidgetSettings";
+import { DashboardOrderSelectionDialog } from "./DashboardOrderSelectionDialog";
 const DashboardAttendances = lazy(() => import("./DashboardAttendances").then(({DashboardAttendances}) => ({default:DashboardAttendances})));
 
 type TabDashboardProps = {
@@ -79,7 +80,7 @@ type Metric = { label: string; value: ReactNode; icon: ElementType; tone?: Dashb
 type MetricSelection = { title: string; value: ReactNode; description: string; rows: AdminMetricDetailRow[]; tab: AdminTab | null };
 
 const DAY_MS = 86_400_000;
-const DASHBOARD_ORDER_PAGE_SIZE = 10;
+const DASHBOARD_ORDER_PAGE_SIZE = 25;
 const DASHBOARD_RETURN_STATE_KEY = "union-dashboard-return-state-v1";
 const DASHBOARD_ORDER_CHART_MODE_KEY = "union-dashboard-order-chart-mode-v1";
 const DASHBOARD_ORDER_CARD_MODES_KEY = "union-dashboard-order-card-modes-v2";
@@ -140,13 +141,21 @@ function groupByLabel<T>(items: T[], getLabel: (item: T) => string): DashboardCh
     .slice(0, 7);
 }
 
-type OrderDistributionKind = "situation" | "status";
+type OrderDistributionKind = DashboardOrderSelectionKind;
 type OrderDistributionSelection = {
   kind: OrderDistributionKind;
   id: string | null;
+  value?: string | null;
   name: string;
   total: number;
   slaState?: DashboardSlaState | null;
+};
+
+const ORDER_SELECTION_LABELS: Record<OrderDistributionKind,string> = {
+  situation:"Situação",status:"Status",opened:"Data de abertura",service_type:"Tipo de atendimento",
+  equipment_type:"Tipo de equipamento",equipment_model:"Modelo do equipamento",
+  quote_approved:"Orçamentos aprovados",quote_rejected:"Orçamentos reprovados",
+  metric_opened:"OS abertas",metric_active:"Em andamento",metric_waiting:"Aguardando",metric_completed:"Concluídas",
 };
 
 const SLA_STATE_LABELS: Record<DashboardSlaState, string> = {
@@ -220,6 +229,7 @@ function chartTrend(values:DashboardChartPoint[], _days:number):DashboardChartPo
     .filter(point => Number(point.value) > 0)
     .map(point => ({
       ...point,
+      key: point.key || point.name,
       name: /^\d{4}-\d{2}-\d{2}$/.test(point.name)
         ? `${point.name.slice(8,10)}/${point.name.slice(5,7)}`
         : point.name,
@@ -314,6 +324,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
     }
   };
   const organizationRef = useRef(activeOrganizationId);
+  const selectionUserRef = useRef(user?.id);
   const canViewInventoryMovements = hasPermission("inventory.movements.view");
   const canRequestAttendanceDashboard = hasModule("whatsapp")
     && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.manage");
@@ -371,12 +382,13 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
   },[activeOrganizationId,user?.id]);
 
   useEffect(() => {
-    if (organizationRef.current === activeOrganizationId) return;
+    if (organizationRef.current === activeOrganizationId && selectionUserRef.current === user?.id) return;
     organizationRef.current = activeOrganizationId;
+    selectionUserRef.current = user?.id;
     setOrderDistributionSelection(null);
     setOrderDistributionPage(1);
     setMetricSelection(null);
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId,user?.id]);
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.admin.dashboard(activeOrganizationId || "no-organization", periodDays, accessScope),
@@ -387,7 +399,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
     retry: false, // Evita multiplicar RPCs quando o servidor retorna timeout 57014.
   });
 
-  const orderSummaryNeeded=["metrics","situation","status","selection"]
+  const orderSummaryNeeded=["metrics","situation","status"]
     .some(key=>widgetSettings.isVisible("orders",key));
   const ordersSummaryQuery = useQuery({
     queryKey: ["dashboard", "orders-summary", activeOrganizationId, periodDays],
@@ -414,31 +426,26 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
     refetchOnWindowFocus:false,
     retry:false,
   });
+  const orderSelectionActive = Boolean(activeOrganizationId && user?.id && access.orders && activeModule === "orders"
+    && orderDistributionSelection && organizationRef.current === activeOrganizationId && selectionUserRef.current === user?.id);
   const orderGroupPageQuery = useQuery({
     queryKey: [
-      "dashboard",
-      "orders-group-page",
-      activeOrganizationId,
+      "dashboard", "orders-selection-page", activeOrganizationId, user?.id, periodDays,
       orderDistributionSelection?.kind || "none",
-      orderDistributionSelection?.id || "none",
-      orderDistributionSelection?.slaState || "all",
-      orderDistributionPage,
-      DASHBOARD_ORDER_PAGE_SIZE,
+      orderDistributionSelection?.id ?? null,
+      orderDistributionSelection?.value ?? null,
+      orderDistributionSelection?.slaState ?? null,
+      orderDistributionPage, DASHBOARD_ORDER_PAGE_SIZE,
     ],
-    queryFn: () => loadDashboardOrderGroupPage({
-      organizationId: activeOrganizationId!,
-      kind: orderDistributionSelection!.kind,
+    queryFn: ({signal}) => loadDashboardOrderSelectionPage({
+      organizationId: activeOrganizationId!, kind: orderDistributionSelection!.kind,
       groupId: orderDistributionSelection!.id,
-      slaState: orderDistributionSelection!.kind === "situation" ? orderDistributionSelection!.slaState || null : null,
-      page: orderDistributionPage,
-      pageSize: DASHBOARD_ORDER_PAGE_SIZE,
+      value: orderDistributionSelection!.value ?? null,
+      slaState: orderDistributionSelection!.slaState || null,
+      periodDays, page: orderDistributionPage, pageSize: DASHBOARD_ORDER_PAGE_SIZE, signal,
     }),
-    enabled: Boolean(activeOrganizationId && activeModule === "orders" && orderDistributionSelection
-      && widgetSettings.isVisible("orders","selection")),
-    placeholderData: keepPreviousData,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    retry: false,
+    enabled: orderSelectionActive,
+    staleTime: 60_000, refetchOnWindowFocus: false, retry: false,
   });
   const inventoryPurchasesQuery = useQuery({
     queryKey: ["dashboard", "inventory-purchases", activeOrganizationId, periodDays],
@@ -488,21 +495,26 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
   const convertedQuoteIds = new Set(data.orders.map(order => order.quote_request_id).filter(Boolean));
   const fmtDate = (value?: string | null) => formatDateOnly(value, "—");
   const open = (tab: AdminTab) => onNavigate?.(tab);
-  const selectedSummaryGroup = orderDistributionSelection && ordersSummaryQuery.data
-    ? (orderDistributionSelection.kind === "situation" ? ordersSummaryQuery.data.situations : ordersSummaryQuery.data.statuses)
-        .find(item => item.id === orderDistributionSelection.id)
-    : null;
-  const selectedOrderTotal = orderDistributionSelection?.kind === "situation"
-    && orderDistributionSelection.slaState
-    && selectedSummaryGroup?.sla
-      ? Number(selectedSummaryGroup.sla[orderDistributionSelection.slaState] || 0)
-      : selectedSummaryGroup?.total ?? orderDistributionSelection?.total ?? 0;
+  const selectedOrderTotal = orderGroupPageQuery.data?.total ?? orderDistributionSelection?.total ?? 0;
   const selectedOrderTotalPages = Math.max(1, Math.ceil(selectedOrderTotal / DASHBOARD_ORDER_PAGE_SIZE));
   const safeOrderDistributionPage = Math.min(orderDistributionPage, selectedOrderTotalPages);
-
+  const closeOrderSelection = () => { setOrderDistributionSelection(null); setOrderDistributionPage(1); };
+  const selectOrderGroup = (next: OrderDistributionSelection) => {
+    setMetricSelection(null);
+    setOrderDistributionSelection(next);
+    setOrderDistributionPage(1);
+  };
+  const selectedTitle = orderDistributionSelection
+    ? ORDER_SELECTION_LABELS[orderDistributionSelection.kind] + (orderDistributionSelection.kind.startsWith("metric_") ? "" : " · " + orderDistributionSelection.name)
+    : "Ordens por seleção";
+  const selectedSubtitle = orderDistributionSelection
+    ? [`${selectedOrderTotal} ${orderDistributionSelection.kind.startsWith("quote_") ? (selectedOrderTotal===1?"orçamento":"orçamentos") : (selectedOrderTotal===1?"ordem":"ordens")}`,
+      orderDistributionSelection.slaState ? SLA_STATE_LABELS[orderDistributionSelection.slaState] : null,
+      ["situation","status","metric_active","metric_waiting"].includes(orderDistributionSelection.kind) ? "Todas as OS" : `Últimos ${periodDays} dias`,
+    ].filter(Boolean).join(" · ") : "";
   useEffect(() => {
-    if (orderDistributionPage > selectedOrderTotalPages) setOrderDistributionPage(selectedOrderTotalPages);
-  }, [orderDistributionPage, selectedOrderTotalPages]);
+    if (orderGroupPageQuery.data && orderDistributionPage > selectedOrderTotalPages) setOrderDistributionPage(selectedOrderTotalPages);
+  }, [orderDistributionPage, selectedOrderTotalPages, orderGroupPageQuery.data]);
 
   const openOrderFromDashboard = (orderId: string) => {
     if (onOpenOrder) {
@@ -517,7 +529,6 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
       orderDistributionSelection: orderDistributionSelection
         ? {
             ...orderDistributionSelection,
-            name: selectedSummaryGroup?.name || orderDistributionSelection.name,
             total: selectedOrderTotal,
           }
         : null,
@@ -562,17 +573,10 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
     }));
 
     if (activeModule === "orders") {
-      // This overview uses aggregated totals, not a fetched full list of OS.
-      // The modal shows the existing distribution; selecting a group uses the paginated order endpoint.
-      description = "Distribuição geral das ordens visíveis. Selecione um status para filtrar a lista paginada de OS no Dashboard.";
-      tab = "orders";
-      rows = (ordersSummaryQuery.data?.statuses || []).map(item => ({
-        id: item.id || item.name, title: item.name, amount: `${item.total} OS`,
-        onClick: () => {
-          setOrderDistributionSelection({ kind: "status", id: item.id, name: item.name, total: item.total, slaState: null });
-          setOrderDistributionPage(1);
-        },
-      }));
+      const kind: OrderDistributionKind = label === "Em andamento" ? "metric_active"
+        : label === "Aguardando" ? "metric_waiting" : label === "Concluídas" ? "metric_completed" : "metric_opened";
+      selectOrderGroup({kind,id:null,value:null,name:label,total:Number(metric.value)||0,slaState:null});
+      return;
     } else if (activeModule === "registrations" || (activeModule === "overview" && label === "Novos cadastros")) {
       tab = "customers";
       const collection = activeModule === "overview" ? registrationsInPeriod : activeRegistrations;
@@ -655,23 +659,13 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
       }));
       const statusData=distributionPoints(summary.statuses,"status");
       const analytics=orderChartsQuery.data;
-      const selectedName=selectedSummaryGroup?.name||orderDistributionSelection?.name||"";
-      const selectedTitle=orderDistributionSelection?`OS em ${selectedName}`:"Ordens por seleção";
-      const selectedSubtitle=orderDistributionSelection
-        ? [`${selectedOrderTotal} ${selectedOrderTotal===1?"ordem":"ordens"}`,
-          orderDistributionSelection.kind==="situation"?"Situação":"Status",
-          orderDistributionSelection.slaState?SLA_STATE_LABELS[orderDistributionSelection.slaState]:null,
-        ].filter(Boolean).join(" · ")
-        :"Selecione uma situação ou status para listar as OS";
       const selectDistribution=(kind:OrderDistributionKind)=>(point:DashboardChartPoint)=>{
-        setOrderDistributionSelection({kind,id:point.id||null,name:point.name,total:point.value,slaState:null});
-        setOrderDistributionPage(1);
+        const grouping = kind === "status" || kind === "situation";
+        selectOrderGroup({kind,id:grouping?point.id||null:null,value:grouping?null:point.key||point.name,
+          name:point.name,total:point.value,slaState:null});
       };
       const selectSituationSla=(point:DashboardSlaChartPoint,slaState:DashboardSlaState,value:number)=>{
-        setOrderDistributionSelection({
-          kind:"situation",id:point.id,name:point.name,total:value,slaState,
-        });
-        setOrderDistributionPage(1);
+        selectOrderGroup({kind:"situation",id:point.id,name:point.name,total:value,slaState});
       };
       const charts:ReactNode[]=[];
       const chart=(key:DashboardOrderChartKey,title:string,subtitle:string,values:DashboardChartPoint[],icon:ElementType=BarChart3)=>{
@@ -688,7 +682,9 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
         }
         charts.push(<DashboardOrderChartPanel key={key} chartKey={key} title={title} subtitle={subtitle}
           icon={icon} data={values} mode={orderChartMode(key)}
-          onModeChange={mode=>setOrderChartMode(key,mode)}/>);
+          onModeChange={mode=>setOrderChartMode(key,mode)}
+          selectedKey={orderDistributionSelection?.kind===key ? orderDistributionSelection.value || orderDistributionSelection.name : null}
+          onSelect={selectDistribution(key)}/>);
       };
       if(widgetVisible("situation"))charts.push(
         <DashboardOrderChartPanel key="situation" chartKey="situation" title="Situação"
@@ -726,27 +722,6 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
         `Reprovações atuais no período · ${summedChart(analytics?.quote_rejected||[])}`,
         chartTrend(analytics?.quote_rejected||[],periodDays),AlertTriangle);
 
-      if(widgetVisible("selection"))charts.push(
-        <DashboardPanel key="selection" title={selectedTitle} subtitle={selectedSubtitle}
-          icon={ClipboardList} onOpen={()=>open("orders")}
-          className="h-[580px] w-full min-w-0">
-          {!orderDistributionSelection? <DashboardEmpty text="Selecione uma situação ou um status no gráfico para visualizar as OS."/>
-          :orderGroupPageQuery.isError?<DashboardEmpty text={systemErrorMessage(orderGroupPageQuery.error)}/>
-          :<div className="-m-3 flex h-[calc(100%+1.5rem)] min-h-0 flex-col sm:-m-4 sm:h-[calc(100%+2rem)]">
-              <div className={cn("relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-4",
-                orderGroupPageQuery.isFetching && "opacity-55")}>
-                <OrdersList orders={orderGroupPageQuery.data||[]} onOpen={openOrderFromDashboard}
-                  badge={orderDistributionSelection.kind==="situation"?"status":"situation"}/>
-              </div>
-              <div className="shrink-0 border-t border-border">
-                <PaginationBar page={safeOrderDistributionPage} pageSize={DASHBOARD_ORDER_PAGE_SIZE}
-                  totalItems={selectedOrderTotal} defaultPageSize={DASHBOARD_ORDER_PAGE_SIZE}
-                  showPageSizeSelector={false}
-                  onPageChange={nextPage=>setOrderDistributionPage(Math.max(1,Math.min(nextPage,selectedOrderTotalPages)))}
-                  onPageSizeChange={()=>undefined}/>
-              </div>
-            </div>}
-        </DashboardPanel>);
       return <div className="mx-auto w-full min-w-0 space-y-4">
         {widgetVisible("metrics")&&<MetricGrid metrics={metrics} onSelect={showMetric}/>}
         {charts.length>0?<div className="mx-auto grid w-full min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -883,13 +858,14 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
             onRestore={()=>widgetSettings.restore(activeModule)} />
           <div className="w-28 sm:w-32">
             <AdminSelect value={periodDays} options={activeModule==="attendances"?attendancePeriodOptions:periodOptions}
-              onValueChange={value=>{setMetricSelection(null);setPeriodDays(Number(value));}}
+              onValueChange={value=>{setMetricSelection(null);closeOrderSelection();setPeriodDays(Number(value));}}
               ariaLabel="Período do dashboard" className="min-h-9 text-xs font-black"/>
           </div>
         </div>}/>
 
       <DashboardModuleNav items={modules} value={activeModule} onChange={next => {
         setMetricSelection(null);
+        if(next!==activeModule)closeOrderSelection();
         if(next!=="attendances" && periodDays===1)setPeriodDays(7);
         setActiveModule(next);
       }} />
@@ -899,6 +875,16 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
         value={metricSelection.value} description={metricSelection.description}
         rows={metricSelection.rows}
         onViewAll={metricSelection.tab && onNavigate ? () => open(metricSelection.tab!) : undefined}
+      />}
+
+      {orderSelectionActive && orderDistributionSelection && <DashboardOrderSelectionDialog
+        title={selectedTitle} description={selectedSubtitle}
+        rows={orderGroupPageQuery.data?.rows || []} total={selectedOrderTotal}
+        page={safeOrderDistributionPage} pageSize={DASHBOARD_ORDER_PAGE_SIZE}
+        loading={orderGroupPageQuery.isPending} error={orderGroupPageQuery.isError ? systemErrorMessage(orderGroupPageQuery.error) : null}
+        canOpen={Boolean(onOpenOrder && hasPermission("orders.details.view"))}
+        onClose={closeOrderSelection} onRetry={()=>{void orderGroupPageQuery.refetch();}}
+        onPageChange={nextPage=>setOrderDistributionPage(Math.max(1,Math.min(nextPage,selectedOrderTotalPages)))}
       />}
 
       <div className="min-w-0">
