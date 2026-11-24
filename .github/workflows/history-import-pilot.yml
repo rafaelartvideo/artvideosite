@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'tools/history-import/**'
+      - 'supabase/functions/union-history-import/**'
       - '.github/workflows/history-import-pilot.yml'
 permissions:
   contents: read
@@ -15,8 +16,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tools/history-import/*.test.mjs
+      - run: node --test tools/history-import/*.test.mjs supabase/functions/union-history-import/*.test.mjs
       - run: bash -n tools/history-import/install-pilot.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+      - run: deno check --no-lock supabase/functions/union-history-import/index.ts
       - uses: actions/upload-artifact@v4
         with:
           name: union-history-pilot
