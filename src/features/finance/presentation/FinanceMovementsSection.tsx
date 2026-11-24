@@ -174,7 +174,10 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
         <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Descrição</dt><dd className="break-words text-sm font-semibold text-foreground">{selectedMovement.description_snapshot}</dd></div>
       </dl>
         {selectedMovement.movement_type === "receipt" && selectedMovement.origin_order_id && selectedMovement.origin_entry_id &&
-          <FinanceOrderEvidenceGallery entryId={selectedMovement.origin_entry_id} kind="payment_proof" />}
+          <div className="grid items-start gap-3 md:grid-cols-2">
+            <FinanceOrderEvidenceGallery entryId={selectedMovement.origin_entry_id} kind="payment_proof" />
+            <FinanceOrderEvidenceGallery entryId={selectedMovement.origin_entry_id} kind="delivery_evidence" />
+          </div>}
       </div>}
     </AdminDialog>
 
