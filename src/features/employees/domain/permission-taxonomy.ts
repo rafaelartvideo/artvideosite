@@ -112,7 +112,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
   if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
-  if (key === "agenda.menu.view" || key === "whatsapp.inbox.menu.view") return "Navegação";
+  if (key === "agenda.menu.view" || key === "whatsapp.inbox.menu.view" || key === "customers.menu.view" || key === "customers.module.create") return "Navegação";
   if (module === "tools") {
     if (key === "tools.sac_digital.use") return "SAC Digital";
     return "Acesso geral";
@@ -351,6 +351,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
 export function permissionDependencies(key: string) {
   // WhatsApp não possui chave whatsapp.view: exige a leitura da caixa de entrada.
   if (key === "whatsapp.inbox.menu.view") return ["whatsapp.inbox.view"];
+  if (key === "customers.menu.view") return ["customers.view"];
+  if (key === "customers.module.create") return ["customers.menu.view", "customers.create", "customers.view"];
   if (key === "platform.catalog.view") return ["tools.view"];
   if (key === "platform.catalog.manage") return ["platform.catalog.view", "tools.view"];
   if (key.startsWith("notifications.")) {
@@ -415,6 +417,8 @@ export function permissionPresentationKind(permission: PermissionRecord): Permis
 export function permissionLabelForEditor(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const label = permissionLabel(permission);
+  if (key === "customers.view") return "Visualizar perfil do cadastro";
+  if (key === "customers.create") return "Cadastrar cliente (OS, atendimentos e outros fluxos)";
   if (key.endsWith(".table.actions") || key.endsWith(".column.actions")) return "Coluna Ações";
   if (key.includes(".table.") && !key.endsWith(".table.view")) return "Coluna " + label;
   if (key.includes(".column.")) return "Coluna " + label;
