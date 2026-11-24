@@ -5,9 +5,10 @@ import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { AlertTriangle, Database, RefreshCw } from "lucide-react";
 
 type Totals={messages:number;protocols:number;media_available:number;media_pending:number};
-type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals};
+type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals;bound:number};
 type Data={packages:Array<{package_id:string;created_at:string}>;accounts:Array<{id:string;display_name:string;phone:string}>;jobs:Job[]};
 type Audit={actor:string;action:string;created_at:string};
+type Candidate={contact_key:string;phone:string;historical_name:string;state:"candidate"|"bound"|"missing"|"review";match:{id:string;display_name:string|null}|null};
 const active=new Set(["queued","running","pausing","cancelling"]);
 const label:Record<string,string>={prepared:"Preparado",queued:"Na fila",running:"Validando histórico",pausing:"Pausando",paused:"Pausado",cancelling:"Interrompendo",cancelled:"Interrompido",failed:"Falha de validação",completed:"Índice validado",rolled_back:"Vínculo desfeito"};
 const actions:Record<string,Array<{key:string;label:string;permission:string}>>={
@@ -24,6 +25,8 @@ export function WhatsAppHistoryImports(){
  const [data,setData]=useState<Data|null>(null);
  const [account,setAccount]=useState(""),[packageId,setPackageId]=useState("");
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [reconciliation,setReconciliation]=useState<{id:string;entries:Candidate[]}|null>(null);
+ const [pendingBinding,setPendingBinding]=useState<string|null>(null);
  const [logs,setLogs]=useState<{id:string;events:Audit[]}|null>(null);
  const [confirmation,setConfirmation]=useState<{id:string;command:string;label:string}|null>(null);
  const requestInFlight=useRef(false), generation=useRef(0);
@@ -41,7 +44,7 @@ export function WhatsAppHistoryImports(){
    catch{if(epoch===generation.current)setError("Serviço privado de importação indisponível. Nenhum histórico foi importado por esta tela.")}
    finally{requestInFlight.current=false}
  },[call]);
- useEffect(()=>{generation.current++;setData(null);setAccount("");setPackageId("");setLogs(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
+ useEffect(()=>{generation.current++;setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
  const running=Boolean(data?.jobs.some(j=>active.has(j.state)));
  useEffect(()=>{
    if(!running)return;
@@ -58,6 +61,22 @@ export function WhatsAppHistoryImports(){
    const epoch=generation.current;
    try{const events=await call({action:"events",id});if(epoch===generation.current)setLogs({id,events})}
    catch{if(epoch===generation.current)setError("Não foi possível carregar o histórico de operações.")}
+ }
+ async function showCandidates(id:string){
+   const epoch=generation.current;
+   setBusy(true);setError("");setPendingBinding(null);setReconciliation(null);
+   try{const r=await call({action:"candidates",id});if(epoch===generation.current)setReconciliation({id,entries:r.entries})}
+   catch{if(epoch===generation.current)setError("Não foi possível consultar as correspondências.")}
+   finally{if(epoch===generation.current)setBusy(false)}
+ }
+ async function confirmBinding(id:string,entry:Candidate){
+   if(!entry.match||entry.state!=="candidate"||pendingBinding!==entry.contact_key)return;
+   const epoch=generation.current;setBusy(true);setError("");
+   try{
+     await call({action:"bind_contact",id,contact_key:entry.contact_key,contact_id:entry.match.id,confirmed:true});
+     if(epoch===generation.current){await showCandidates(id);await refresh()}
+   }catch{if(epoch===generation.current)setError("Vínculo não confirmado. Confira se os dados do contato mudaram.")}
+   finally{if(epoch===generation.current)setBusy(false)}
  }
  if(!permitted("view"))return <p className="p-4 text-sm text-muted-foreground">Sem permissão para visualizar importações.</p>;
  return <div className="space-y-4 p-3">
@@ -81,12 +100,24 @@ export function WhatsAppHistoryImports(){
        <div className="flex flex-wrap items-center justify-between gap-2"><strong>Importação · +{j.account_phone}</strong><span className="text-sm font-medium">{label[j.state]||j.state}</span></div>
        <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-primary" style={{width:percent+"%"}}/></div>
        <p className="text-sm">{verified} de {j.total} validados · {review} para revisão · {percent}%</p>
+       <p className="text-xs text-muted-foreground">{j.bound||0} contatos vinculados; {Math.max(0,j.total-(j.bound||0))} sem vínculo confirmado.</p>
        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">{([["Mensagens",j.verified.messages,j.totals.messages],["Protocolos",j.verified.protocols,j.totals.protocols],["Mídias referenciadas",j.verified.media_available,j.totals.media_available],["Mídias indisponíveis",j.verified.media_pending,j.totals.media_pending]] as const).map(([name,value,total])=><div key={name} className="rounded-md border border-border p-2"><p className="text-muted-foreground">{name}</p><strong>{value} / {total}</strong></div>)}</div>
        <div className="flex flex-wrap gap-2">
          {(actions[j.state]||[]).filter(a=>permitted(a.permission)).map(a=><AdminButton key={a.key} variant="secondary" disabled={busy} onClick={()=>["start","cancel","rollback"].includes(a.key)?setConfirmation({id:j.id,command:a.key,label:a.label}):void act({action:"control",id:j.id,command:a.key})}>{a.label}</AdminButton>)}
+         {j.state==="completed"&&permitted("manage")&&<AdminButton variant="secondary" disabled={busy} onClick={()=>void showCandidates(j.id)}>Conciliar contatos</AdminButton>}
          <AdminButton variant="secondary" disabled={busy} onClick={()=>void showLogs(j.id)}>Histórico de operações</AdminButton>
        </div>
        {confirmation?.id===j.id&&<div className="rounded-md border border-border p-3 space-y-2"><p className="text-sm">Confirma {confirmation.label.toLowerCase()} para o número +{j.account_phone}?</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void act({action:"control",id:j.id,command:confirmation.command})}>Confirmar</AdminButton><AdminButton variant="secondary" onClick={()=>setConfirmation(null)}>Voltar</AdminButton></div></div>}
+       {j.state==="completed"&&reconciliation?.id===j.id&&<div className="rounded-md border border-border p-3 space-y-3">
+         <div className="flex items-center justify-between"><strong className="text-sm">Conciliação de contatos</strong><button className="text-xs underline" onClick={()=>{setReconciliation(null);setPendingBinding(null)}}>Fechar</button></div>
+         <p className="text-xs text-muted-foreground">Confirme apenas contatos que pertencem à mesma pessoa. Números compartilhados, reciclados ou sem correspondência ficam para revisão. Nenhum cadastro será sobrescrito.</p>
+         <div className="max-h-96 overflow-y-auto space-y-2">{reconciliation.entries.map(e=><div key={e.contact_key} className="border border-border rounded-md p-3 space-y-1">
+           <div className="flex items-center justify-between gap-2"><strong className="text-sm">+{e.phone}</strong><span className="text-xs">{e.state==="bound"?"Vinculado":e.state==="candidate"?"Confirmar correspondência":e.state==="missing"?"Sem cadastro":"Revisão necessária"}</span></div>
+           <p className="text-xs break-words">Nome recuperado: {e.historical_name||"Não informado"}</p>
+           <p className="text-xs break-words">Cadastro atual: {e.match?.display_name||"Não identificado"}</p>
+           {e.state==="candidate"&&e.match&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Confirma que este histórico pertence ao contato atual?</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}>Confirmar vínculo</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir vínculo</AdminButton>)}
+         </div>)}</div>
+       </div>}
        {logs?.id===j.id&&<div className="max-h-48 overflow-auto rounded-md border border-border p-2"><div className="flex items-center justify-between"><strong className="text-xs">Operações recentes</strong><button className="text-xs underline" onClick={()=>setLogs(null)}>Fechar</button></div>{logs.events.map((e,i)=><p key={i} className="text-xs py-1">{new Date(e.created_at).toLocaleString("pt-BR")} · {e.action==="prepare"?"Preparação":e.action==="validation_failed"?"Validação falhou":e.action} · {e.actor==="worker"?"Processamento automático":"Usuário "+e.actor.slice(0,8)}</p>)}</div>}
      </div>
    })}
