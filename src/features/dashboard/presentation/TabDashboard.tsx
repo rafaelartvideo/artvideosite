@@ -306,6 +306,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
   const [metricSelection, setMetricSelection] = useState<MetricSelection | null>(null);
   const [orderDistributionSelection, setOrderDistributionSelection] = useState<OrderDistributionSelection | null>(returnState?.orderDistributionSelection || null);
+  const [orderClosureFilter, setOrderClosureFilter] = useState<"all" | "open" | "closed">("all");
   const [orderDistributionPage, setOrderDistributionPage] = useState(Math.max(1, returnState?.orderDistributionPage || 1));
   const [orderCardModes,setOrderCardModes] = useState<Record<string,DashboardOrderChartMode>>(
     ()=>readOrderCardModes(activeOrganizationId,user?.id));
@@ -386,6 +387,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
     organizationRef.current = activeOrganizationId;
     selectionUserRef.current = user?.id;
     setOrderDistributionSelection(null);
+    setOrderClosureFilter("all");
     setOrderDistributionPage(1);
     setMetricSelection(null);
   }, [activeOrganizationId,user?.id]);
@@ -435,14 +437,14 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
       orderDistributionSelection?.id ?? null,
       orderDistributionSelection?.value ?? null,
       orderDistributionSelection?.slaState ?? null,
-      orderDistributionPage, DASHBOARD_ORDER_PAGE_SIZE,
+      orderClosureFilter, orderDistributionPage, DASHBOARD_ORDER_PAGE_SIZE,
     ],
     queryFn: ({signal}) => loadDashboardOrderSelectionPage({
       organizationId: activeOrganizationId!, kind: orderDistributionSelection!.kind,
       groupId: orderDistributionSelection!.id,
       value: orderDistributionSelection!.value ?? null,
       slaState: orderDistributionSelection!.slaState || null,
-      periodDays, page: orderDistributionPage, pageSize: DASHBOARD_ORDER_PAGE_SIZE, signal,
+      closureFilter: orderClosureFilter, periodDays, page: orderDistributionPage, pageSize: DASHBOARD_ORDER_PAGE_SIZE, signal,
     }),
     enabled: orderSelectionActive,
     staleTime: 60_000, refetchOnWindowFocus: false, retry: false,
@@ -495,13 +497,14 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
   const convertedQuoteIds = new Set(data.orders.map(order => order.quote_request_id).filter(Boolean));
   const fmtDate = (value?: string | null) => formatDateOnly(value, "—");
   const open = (tab: AdminTab) => onNavigate?.(tab);
-  const selectedOrderTotal = orderGroupPageQuery.data?.total ?? orderDistributionSelection?.total ?? 0;
+  const selectedOrderTotal = orderGroupPageQuery.data?.total ?? (orderClosureFilter === "all" ? orderDistributionSelection?.total ?? 0 : 0);
   const selectedOrderTotalPages = Math.max(1, Math.ceil(selectedOrderTotal / DASHBOARD_ORDER_PAGE_SIZE));
   const safeOrderDistributionPage = Math.min(orderDistributionPage, selectedOrderTotalPages);
-  const closeOrderSelection = () => { setOrderDistributionSelection(null); setOrderDistributionPage(1); };
+  const closeOrderSelection = () => { setOrderDistributionSelection(null); setOrderClosureFilter("all"); setOrderDistributionPage(1); };
   const selectOrderGroup = (next: OrderDistributionSelection) => {
     setMetricSelection(null);
     setOrderDistributionSelection(next);
+    setOrderClosureFilter("all");
     setOrderDistributionPage(1);
   };
   const selectedTitle = orderDistributionSelection
@@ -879,6 +882,7 @@ export function TabDashboard({ onNavigate, onOpenOrder, onOpenWhatsApp, onOpenAt
 
       {orderSelectionActive && orderDistributionSelection && <DashboardOrderSelectionDialog
         title={selectedTitle} description={selectedSubtitle}
+        closureFilter={orderClosureFilter} onClosureFilterChange={filter=>{setOrderClosureFilter(filter);setOrderDistributionPage(1);}}
         rows={orderGroupPageQuery.data?.rows || []} total={selectedOrderTotal}
         page={safeOrderDistributionPage} pageSize={DASHBOARD_ORDER_PAGE_SIZE}
         loading={orderGroupPageQuery.isPending} error={orderGroupPageQuery.isError ? systemErrorMessage(orderGroupPageQuery.error) : null}

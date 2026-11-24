@@ -12,6 +12,8 @@ type Props = {
   title: string; description: string; rows: DashboardOrderGroupItem[];
   total: number; page: number; pageSize: number; loading: boolean;
   error: string | null; canOpen: boolean; onClose: () => void;
+  closureFilter: "all" | "open" | "closed";
+  onClosureFilterChange: (filter: "all" | "open" | "closed") => void;
   onRetry: () => void; onPageChange: (page: number) => void;
 };
 
@@ -67,6 +69,7 @@ function dateLabel(value: string | null | undefined) {
 
 export function DashboardOrderSelectionDialog(props: Props) {
   const {title,description,rows,total,page,pageSize,loading,error,canOpen,onClose,onRetry,onPageChange} = props;
+  const {closureFilter,onClosureFilterChange} = props;
   const [detached,setDetached] = useState<DetachedWindow | null>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -97,6 +100,11 @@ export function DashboardOrderSelectionDialog(props: Props) {
     setDetached(next); next.popup.focus();
   };
   const reintegrate = () => { setDetached(null); window.focus(); };
+  const closureControl = <div role="group" aria-label="Filtrar OS por abertura ou fechamento" className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+    {([["all","Todas"],["open","Abertas"],["closed","Fechadas"]] as const).map(([value,label])=>
+      <button key={value} type="button" aria-pressed={closureFilter===value} onClick={()=>onClosureFilterChange(value)}
+        className={"rounded-md px-2 py-1.5 text-xs font-semibold whitespace-nowrap focus-visible:outline focus-visible:outline-primary " + (closureFilter===value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{label}</button>)}
+  </div>;
   const body = <div className="flex min-h-0 flex-1 flex-col" aria-busy={loading}>
     <div className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-4">
       {loading ? <div className="flex h-full min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground" role="status"><LoadingSpinner size="sm"/> Carregando ordens...</div>
@@ -131,7 +139,7 @@ export function DashboardOrderSelectionDialog(props: Props) {
     <section data-dashboard-orders-detached="true" className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-bold">{title}</h1><p className="mt-1 text-xs text-muted-foreground">{description}</p></div>
-        <div className="flex shrink-0 items-center gap-2"><AdminButton variant="secondary" size="sm" onClick={reintegrate}><PanelTop size={15}/> Reintegrar ao CRM</AdminButton><button type="button" aria-label="Fechar janela destacada" onClick={onClose} className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><X size={17}/></button></div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{closureControl}<AdminButton variant="secondary" size="sm" onClick={reintegrate}><PanelTop size={15}/> Reintegrar ao CRM</AdminButton><button type="button" aria-label="Fechar janela destacada" onClick={onClose} className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><X size={17}/></button></div>
       </header>
       {body}
     </section>,detached.host);
@@ -139,7 +147,7 @@ export function DashboardOrderSelectionDialog(props: Props) {
     draggable floating minimizable={false}
     className="!h-[min(74dvh,680px)] !max-h-[calc(100dvh-1rem)] !w-[calc(100vw-1rem)] !max-w-[820px]"
     bodyClassName="!flex !min-h-0 !flex-1 !flex-col !overflow-hidden !p-0"
-    headerActions={<AdminButton variant="secondary" size="sm" aria-label="Destacar janela" onClick={detach} className="hidden md:inline-flex"><ExternalLink size={15}/> Destacar janela</AdminButton>}>
+    headerActions={<div className="flex flex-wrap items-center gap-2">{closureControl}<AdminButton variant="secondary" size="sm" aria-label="Destacar janela" onClick={detach} className="hidden md:inline-flex"><ExternalLink size={15}/> Destacar janela</AdminButton></div>}>
     {body}
   </AdminDialog>;
 }
