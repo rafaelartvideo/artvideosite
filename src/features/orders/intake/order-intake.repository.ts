@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { Address } from "@/lib/address";
 import type { OrderImage } from "../domain/order-image";
 
-export type IntakePayload = { name:string; document:string; address:Address; type_id:string; brand_id:string|null; brand_text?:string; type_name?:string; brand_name?:string; model:string; serial:string; problem:string };
+export type IntakePayload = { name:string; document:string; phone?:string; address:Address; type_id:string; brand_id:string|null; brand_text?:string; type_name?:string; brand_name?:string; model:string; serial:string; problem:string };
 export type OrderIntake = {id:string; phone:string; payload:IntakePayload; images:OrderImage[]; conversation_id:string};
 export type IntakeRow = {id:string; status:string; created_at:string; expires_at:string; submitted_at:string|null; order_id:string|null; conversation_id:string};
 export type IntakeCatalog = { status:string; company?:string; types?:{id:string;name:string}[]; brands?:{id:string;name:string;equipment_type_id:string}[] };
