@@ -167,6 +167,7 @@ export function RegistrationContactsPage({
       return;
     }
     updateContactCache(result.data);
+    window.dispatchEvent(new CustomEvent("union:registration-contacts-changed", { detail: { organizationId } }));
     setFormOpen(false);
     notifyAdmin(editing ? "Contato atualizado." : "Contato adicionado.");
   };
@@ -179,6 +180,7 @@ export function RegistrationContactsPage({
       return;
     }
     updateContactCache(result.data);
+    window.dispatchEvent(new CustomEvent("union:registration-contacts-changed", { detail: { organizationId } }));
     notifyAdmin(next ? "Contato ativado." : "Contato inativado.");
   };
 
