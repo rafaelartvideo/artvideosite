@@ -862,22 +862,35 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         if(contactsPending.get(cacheKey)===pending)contactsPending.delete(cacheKey);
       }
     }
-    const entry=contacts[jid];
-    if(!entry || entry.Found===false) return {ok:true,name:null,source:null};
-    // An address-book name belongs to the exact recipient JID. WuzAPI
-    // message PushName from outgoing events belongs to our account instead.
-    // Cached fields are already normalized. Trimming a sliced name again
-    // would drop a space at the 160-character boundary on cache hits.
-    const nameField=field=>cached ? entry[field] : String(entry[field]||"").trim().slice(0,160);
-    const full=nameField("FullName");
-    const first=nameField("FirstName");
-    const business=nameField("BusinessName");
-    const push=nameField("PushName");
-    // BusinessName is a public business profile, not proof of a phonebook
-    // save. Only FullName / FirstName are authoritative saved names.
-    const saved=full||first;
-    const name=saved||push||business;
-    return {ok:true,name:name||null,source:saved?"saved":"push"};
+    // The signed backend can supply phone aliases already confirmed by the
+    // same provider JID. Never derive aliases from an opaque LID.
+    const readName=entry=>{
+      if(!entry || entry.Found===false)return null;
+      const nameField=field=>cached ? entry[field] : String(entry[field]||"").trim().slice(0,160);
+      const full=nameField("FullName");
+      const first=nameField("FirstName");
+      const business=nameField("BusinessName");
+      const push=nameField("PushName");
+      const saved=full||first;
+      const name=saved||push||business;
+      return name ? {name,source:saved?"saved":"push"} : null;
+    };
+    const exact=readName(contacts[jid]);
+    if(exact)return {ok:true,...exact};
+    let aliases=[];
+    try{
+      const supplied=JSON.parse(String(bodyText||"[]"));
+      if(Array.isArray(supplied))aliases=[...new Set(supplied.filter(value=>
+        typeof value==="string" && /^55[1-9][0-9][0-9]{8,9}@s\.whatsapp\.net$/.test(value)))].slice(0,4);
+    }catch{/* Older callers send an empty string. */}
+    // Read the SAME directory snapshot, without an additional provider call.
+    const candidates=aliases.filter(alias=>alias!==jid).map(alias=>readName(contacts[alias])).filter(Boolean);
+    const names=new Set(candidates.map(candidate=>candidate.name));
+    if(names.size===1){
+      const match=candidates.find(candidate=>candidate.source==="saved")||candidates[0];
+      return {ok:true,...match};
+    }
+    return {ok:true,name:null,source:null};
   }
   if (action === "send_media") {
     const jid=String(chatJid||"");
