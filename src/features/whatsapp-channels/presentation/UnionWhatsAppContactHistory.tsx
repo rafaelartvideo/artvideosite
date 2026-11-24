@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { FileText, History, Image, Link as LinkIcon, LoaderCircle, MessageCircle, Mic, Pencil, Video } from "lucide-react";
 import {
-  listUnionWhatsAppMessages, operateUnionWhatsAppInbox,
+  listUnionWhatsAppMessages, operateUnionWhatsAppInbox, listContactOnlyHistoricalMessages, isUnifiedHistoryPilotEnabled,
   type UnionWhatsAppContactChange, type UnionWhatsAppConversation, type UnionWhatsAppMessage,
   type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -108,14 +109,18 @@ type TimelineEntry={
 
 // Histórico único do contato, independente do número de protocolos.
 // A auditoria é solicitada sob demanda, nunca junto à carga da caixa de entrada.
-export function UnionWhatsAppContactHistory({conversation,organizationId,contactJid,accountPhone}:{ 
+export function UnionWhatsAppContactHistory({conversation,organizationId,contactJid,accountPhone,contactId,channelId}:{ 
   conversation?:UnionWhatsAppConversation|null;
   organizationId:string;
   contactJid?:string;
   accountPhone?:string;
+  contactId?:string;
+  channelId?:string;
 }){
   const jid=contactJid||conversation?.chat_jid||"";
   const account=accountPhone||conversation?.account_phone||"";
+  const {hasPermission}=useAuth();
+  const contactOnly=Boolean(!conversation&&contactId&&channelId&&account&&isUnifiedHistoryPilotEnabled(organizationId)&&hasPermission("whatsapp.history_import.manage")&&hasPermission("whatsapp.history_import.view"));
   const [tab,setTab]=useState<"general"|"protocols">("general");
   const [items,setItems]=useState<UnionWhatsAppMessage[]>([]);
   const [cursor,setCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
@@ -134,10 +139,9 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
   useEffect(()=>{
     let cancelled=false;
     setItems([]);setCursor(null);setHasMore(false);setError("");
-    setLoading(Boolean(conversation));
-    if(!conversation)return;
-    void listUnionWhatsAppMessages(organizationId,conversation.id,
-      conversation.channel_id,conversation.account_phone)
+    setLoading(Boolean(conversation||contactOnly));
+    if(!conversation&&!contactOnly)return;
+    void (conversation?listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone):listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account))
       .then(result=>{
         if(cancelled)return;
         setItems(result.items.slice().reverse());
@@ -150,7 +154,7 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
       })
       .finally(()=>{if(!cancelled)setLoading(false);});
     return()=>{cancelled=true;};
-  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,revision]);
+  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,contactOnly,contactId,channelId,account,revision]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -172,11 +176,10 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
   },[organizationId,conversation?.id,conversation?.contact_name,jid,account,revision]);
 
   const loadOlder=async()=>{
-    if(!conversation||!cursor||loading||olderLoading||!hasMore)return;
+    if((!conversation&&!contactOnly)||!cursor||loading||olderLoading||!hasMore)return;
     setOlderLoading(true);
     try{
-      const result=await listUnionWhatsAppMessages(organizationId,conversation.id,
-        conversation.channel_id,conversation.account_phone,null,cursor);
+      const result=conversation?await listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone,null,cursor):await listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account,cursor);
       setItems(current=>{
         const unique=new Map(current.map(item=>[item.id,item]));
         for(const item of result.items)unique.set(item.id,item);
