@@ -1,11 +1,57 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 const panel = read("src/features/technician-panel/presentation/TechnicianPanel.tsx");
 const rpc = read("supabase/migrations/20261014180500_technician_order_address_problem_scope.sql");
+
+// Compare the complete read bodies, including tenant joins, assignments, redaction and ordering.
+// These historical bodies match the production definitions inspected on 2026-11-24.
+function latestTechnicianRead(name) {
+  const files = readdirSync("supabase/migrations").filter(file => file.endsWith(".sql") && file >= "20261124").sort().reverse();
+  for (const file of files) {
+    const sql = read(`supabase/migrations/${file}`);
+    if (sql.includes("v_permission_") && sql.toLowerCase().includes(`function public.${name}(`)) return functionBody(sql, name);
+  }
+  assert.fail(`No committed permission-cache migration found for ${name}`);
+}
+
+function functionBody(sql, name) {
+  const start = sql.toLowerCase().indexOf(`function public.${name}(`);
+  assert.ok(start >= 0, `missing ${name}`);
+  const definition = sql.slice(start);
+  const body = definition.match(/\bas\s+(\$[a-z_]*\$)([\s\S]*?)\1\s*;/i);
+  assert.ok(body, `missing body for ${name}`);
+  return body[2];
+}
+
+function expandPermissionCache(body) {
+  const assignments = [...body.matchAll(/(v_permission_[a-z_]+)\s*:=\s*(private\.[^;]+);/g)];
+  assert.ok(assignments.length > 0, "expected invocation-local permission cache");
+  const guardEnd = body.indexOf("end if;");
+  for (const match of assignments) assert.ok(match.index > guardEnd, "cache must follow original access guard");
+  let expanded = body.replace(/^\s*v_permission_[a-z_]+ boolean;\s*$/gm, "")
+    .replace(/^\s*v_permission_[a-z_]+\s*:=\s*private\.[^;]+;\s*$/gm, "");
+  for (const [, variable, expression] of assignments) {
+    expanded = expanded.replace(new RegExp(`\\b${variable}\\b`, "g"), expression.replace("p_order_id,", "ord.id,"));
+  }
+  assert.doesNotMatch(expanded, /v_permission_/);
+  return expanded.replace(/\s+/g, " ").trim();
+}
+
+for (const [name, baseline] of [
+  ["get_my_technician_order_details_v1", "20261028124442_technician_customer_document_permission.sql"],
+  ["list_my_technician_tasks_v1", "20261015084000_employee_self_schedule_and_technician_order_counts.sql"],
+]) {
+  test(`${name}: permission caching preserves every authorization and response expression`, () => {
+    const optimized = latestTechnicianRead(name);
+    const original = functionBody(read(`supabase/migrations/${baseline}`), name);
+    assert.equal(expandPermissionCache(optimized), original.replace(/\s+/g, " ").trim());
+    assert.doesNotMatch(optimized, /set_config|statement_timeout|disable row level security/i);
+  });
+}
 
 test("painel técnico utiliza padrão de página, seção e toolbar do CRM", () => {
   assert.match(panel, /<PageHeader/);
