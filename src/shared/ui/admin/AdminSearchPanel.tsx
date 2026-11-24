@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, useId, useState, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useId, useMemo, useState, useSyncExternalStore, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
@@ -7,6 +7,17 @@ import {
 import { AdminCard } from "./AdminLayout";
 import { AdminFieldLabel, INPUT } from "./AdminFormControls";
 import { AdminMobileSearchSwitch } from "./AdminMobileSearchSwitch";
+import { COMPACT_SEARCH_MEDIA, searchPanelPreferenceKey, readSearchPanelExpanded, writeSearchPanelExpanded } from "./search-panel-preference";
+
+function subscribeCompactSearch(callback: () => void) {
+  const media = window.matchMedia(COMPACT_SEARCH_MEDIA);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+function getCompactSearch() {
+  return typeof window !== "undefined" && window.matchMedia(COMPACT_SEARCH_MEDIA).matches;
+}
+const getServerCompactSearch = () => false;
 
 type SearchChildProps = { className?: string; children?: ReactNode; mobileOnly?: boolean; label?: ReactNode; ariaLabel?: string };
 
@@ -25,7 +36,17 @@ export type AdminSearchField = { value: string; label: string; content: ReactNod
 
 export function AdminSearchPanel({ title, children, fields, headerActions, allowOverflow = false }: { title: string; children?: ReactNode; fields?: AdminSearchField[]; headerActions?: ReactNode; allowOverflow?: boolean }) {
   const panelId = useId();
-  const [expanded, setExpanded] = useState(true);
+  const compactViewport = useSyncExternalStore(subscribeCompactSearch, getCompactSearch, getServerCompactSearch);
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const preferenceKey = searchPanelPreferenceKey(pathname, title, compactViewport);
+  const storedExpanded = useMemo(() => readSearchPanelExpanded(preferenceKey, compactViewport), [preferenceKey, compactViewport]);
+  const [preference, setPreference] = useState<{ key: string; expanded: boolean } | null>(null);
+  const expanded = preference?.key === preferenceKey ? preference.expanded : storedExpanded;
+  const toggleExpanded = () => {
+    const next = !expanded;
+    writeSearchPanelExpanded(preferenceKey, next);
+    setPreference({ key: preferenceKey, expanded: next });
+  };
   const content = Children.toArray(children);
   const compactIndex = content.findIndex(child => isValidElement(child) && child.type === AdminMobileSearchSwitch);
   const compact = compactIndex >= 0 ? content[compactIndex] : null;
@@ -34,10 +55,10 @@ export function AdminSearchPanel({ title, children, fields, headerActions, allow
   const hasCompact = hasExistingCompact || hasFields;
   const [fieldValue, setFieldValue] = useState("");
   const selectedField = fields?.find(field => field.value === fieldValue) || fields?.[0];
-  // Painéis de campo único mantêm a pesquisa visível inicialmente; a seta recolhe o conteúdo.
-  const [singleCollapsed, setSingleCollapsed] = useState(false);
-  const isExpanded = hasCompact ? expanded : !singleCollapsed;
-  const toggleLabel = hasCompact ? (expanded ? "Recolher filtros" : "Expandir filtros") : (singleCollapsed ? "Expandir busca" : "Recolher busca");
+  // Compact mode retains the single-field selector where available.
+  // Single-field panels without a selector collapse their content instead.
+  const isExpanded = expanded;
+  const toggleLabel = hasCompact ? (expanded ? "Recolher filtros" : "Expandir filtros") : (expanded ? "Recolher busca" : "Expandir busca");
   return <AdminCard square className={cn("admin-search-panel p-0", allowOverflow ? "overflow-visible" : "overflow-hidden")}>
     <div className="flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 admin-primary-bar px-4 text-white md:h-11">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -45,13 +66,13 @@ export function AdminSearchPanel({ title, children, fields, headerActions, allow
         <span className="min-w-0 truncate text-xs font-bold uppercase tracking-[0.08em]">{title}</span>
         <button type="button" aria-label={toggleLabel} title={toggleLabel} aria-expanded={isExpanded} aria-controls={panelId}
           className="inline-flex h-7 w-5 shrink-0 items-center justify-center self-center border-0 bg-transparent p-0 leading-none text-white shadow-none hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-          onClick={() => hasCompact ? setExpanded(value => !value) : setSingleCollapsed(value => !value)}>
+          onClick={toggleExpanded}>
           <ChevronDown size={16} aria-hidden="true" className={cn("block shrink-0 transition-transform", isExpanded && "rotate-180")} />
         </button>
       </div>
       {headerActions && <div className="ml-auto flex shrink-0 items-center justify-end gap-2">{headerActions}</div>}
     </div>
-    <div id={panelId} className={cn("admin-search-panel-content min-w-0", !hasCompact && singleCollapsed ? "hidden" : "p-4 md:p-3")}>
+    <div id={panelId} className={cn("admin-search-panel-content min-w-0", !hasCompact && !expanded ? "hidden" : "p-4 md:p-3")}>
       {hasFields && selectedField && (expanded
         ? <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{fields?.map(field => <div key={field.value} className="min-w-0">{field.content}</div>)}</div>
         : <AdminMobileSearchSwitch mobileOnly={false} value={selectedField.value} options={fields || []} onChange={setFieldValue}>{selectedField.content}</AdminMobileSearchSwitch>)}
