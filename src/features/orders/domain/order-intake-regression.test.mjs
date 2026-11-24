@@ -237,3 +237,19 @@ test("Pré-OS completa carrega campos técnicos e tipos de atendimento e abre o 
  assert.ok(modals.includes("initialIntake?.customerDraft?.values"));
  assert.ok(modals.includes("initialModelName="));
 });
+
+
+test("Pré-OS separa PF/PJ e transfere os dados empresariais para Nova OS",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ assert.ok(page.includes('Pessoa física'));
+ assert.ok(page.includes('Pessoa jurídica'));
+ assert.ok(page.includes('fetchCnpjData(document)'));
+ assert.ok(page.includes('trade_name:trade||legal'));
+ assert.ok(page.includes('cnpjBusy||Boolean(pending)'));
+ assert.ok(api.includes('customer_type:customerType'));
+ assert.ok(api.includes('customerType==="PF"?!validCpf(cpf):!validCnpj(cpf)'));
+ assert.ok(staff.includes('trade_name:item.payload.trade_name||name'));
+ assert.ok(staff.includes('legal_name:name'));
+});
