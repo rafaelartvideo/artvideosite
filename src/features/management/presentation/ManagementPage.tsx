@@ -2,6 +2,7 @@ import { AdminWorkspaceSkeleton } from "@/shared/ui/admin/AdminWorkspaceSkeleton
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server, Copy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { HistoryImportProvisioning } from "./HistoryImportProvisioning";
 import { UnionWhatsAppEnginePage } from "./UnionWhatsAppEnginePage";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { ManagementTrashDialog } from "./ManagementTrashDialog";
@@ -93,6 +94,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [uploading,setUploading]=useState(false);
   const [trashOpen,setTrashOpen]=useState(false);
   const [engineOpen,setEngineOpen]=useState(false);
+  const [historyImportOpen,setHistoryImportOpen]=useState(false);
   const [movingItem,setMovingItem]=useState<MoveItem|null>(null);
   const [moveDestination,setMoveDestination]=useState("");
   const [moving,setMoving]=useState(false);
@@ -391,8 +393,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."
       actions={<div className="flex flex-wrap items-center gap-2">
         {canManage&&activeOrganization?.is_platform_operator===true&&<AdminButton size="sm" variant="secondary" onClick={()=>setEngineOpen(true)}><Server size={16}/>Motor WhatsApp</AdminButton>}
+        {canManage&&activeOrganization?.is_platform_operator===true&&<AdminButton size="sm" variant="secondary" onClick={()=>setHistoryImportOpen(true)}><Archive size={16}/>Importações de histórico</AdminButton>}
         <AdminButton size="sm" variant="tertiary" onClick={()=>setTrashOpen(true)}><Trash2 size={16}/>Lixeira</AdminButton>
       </div>}/>
+    {historyImportOpen&&canManage&&activeOrganization?.is_platform_operator===true&&<HistoryImportProvisioning key={activeOrganizationId} onClose={()=>setHistoryImportOpen(false)}/>}
     {selectedSpace&&<ManagementWorkspaceTools records={records}/>}
     <AdminCard square>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
