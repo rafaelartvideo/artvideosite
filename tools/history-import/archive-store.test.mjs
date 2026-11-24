@@ -11,7 +11,12 @@ const payload={schema_version:1,scope:"union_world_historical_archive",contact:{
 const file=gzipSync(JSON.stringify(payload));
 const row={contact_key:ck,phone_normalized:phone,file:"historicos/"+ck+".json.gz",sha256:createHash("sha256").update(file).digest("hex"),bytes:file.length,messages:1,protocols:1,media:1,media_available:0,media_pending:1};
 const summary={version:1,stage:"union_history_pilot_packaging",package_id:pid,contacts:1,messages:1,protocols:1,media_recovered:0,media_pending:1};
-function fixture(){
+const globalRow=row,globalSummary=summary;
+function fixture(customPayload=payload){
+ const file=gzipSync(JSON.stringify(customPayload));
+ const available=customPayload.media.filter(m=>m.available).length;
+ const row={...globalRow,sha256:createHash("sha256").update(file).digest("hex"),bytes:file.length,messages:customPayload.messages.length,protocols:customPayload.protocols.length,media:customPayload.media.length,media_available:available,media_pending:customPayload.media.length-available};
+ const summary={...globalSummary,messages:row.messages,protocols:row.protocols,media_recovered:row.media_available,media_pending:row.media_pending};
  let corrupt=false, reads=0;
  const read=(packageId,name)=>{
    reads++;
@@ -133,5 +138,29 @@ test("indexed history is paginated, explicitly bound, private, and never rereads
    assert.equal(reads(),count);
    store.control({id,organizationId:org,actor,action:"rollback"});
    assert.equal(store.pageBound(query).items.length,0);
+ }finally{store.close()}
+});
+
+test("private manifests include unlinked assets without exposing paths or digests in message pages",()=>{
+ const availableId="e".repeat(64), path="contatos/fixture/anexos/arquivo.pdf";
+ const custom={...payload,media:[...payload.media,{url_sha256:availableId,type:"file",available:true,mime:"application/pdf",sha256:"f".repeat(64),size_bytes:12,rclone_relative_key:path,linked_to_message:false}]};
+ const {store,reads}=fixture(custom),contactId="44444444-4444-4444-8444-444444444444",conversationId="55555555-5555-4555-8555-555555555555";
+ const scope={organizationId:org,accountPhone:account,contactPhone:phone,contactId,conversationId};
+ try{
+   store.grantPackage(pid,org,actor);
+   const id=store.prepare({packageId:pid,organizationId:org,accountPhone:account,actor});
+   store.control({id,organizationId:org,actor,action:"start"});store.tick();store.tick();
+   assert.equal(store.assetBound(scope,availableId),null);
+   store.bindContact({id,organizationId:org,actor,accountPhone:account,contactKey:ck,contactId,contactPhone:phone});
+   const count=reads();
+   assert.equal(store.assetBound(scope,availableId).rclone_relative_key,path);
+   assert.equal(store.assetBound(scope,hash),null);
+   assert.equal(store.assetBound({...scope,organizationId:other},availableId),null);
+   assert.equal(store.assetBound({...scope,contactId:conversationId},availableId),null);
+   assert.equal(JSON.stringify(store.pageBound(scope)).includes(path),false);
+   assert.equal(JSON.stringify(store.pageBound(scope)).includes("rclone_relative_key"),false);
+   assert.equal(reads(),count);
+   store.control({id,organizationId:org,actor,action:"rollback"});
+   assert.equal(store.assetBound(scope,availableId),null);
  }finally{store.close()}
 });
