@@ -10,6 +10,7 @@ type BulkRun={state:string;processed:number;created:number;linked:number;bound:n
 type Job={id:string;state:string;account_phone:string;total:number;updated_at:string;counts:Array<{state:string;count:number}>;totals:Totals;verified:Totals;bound:number;bulk?:BulkRun|null};
 type Data={bulk_enabled?:boolean;packages:Array<{package_id:string;created_at:string}>;accounts:Array<{id:string;display_name:string;phone:string}>;jobs:Job[]};
 type Audit={actor:string;action:string;created_at:string};
+type Integrity={total:number;verified:number;review:number;indexed:number;bound:number;expected:Totals;actual:Totals;duplicateMessages:number;duplicateProtocols:number;index_matches:boolean;media_binary_verified:boolean;backup_modified:boolean};
 type Candidate={contact_key:string;phone:string;historical_name:string;state:"candidate"|"bound"|"missing"|"review";match:{id:string;display_name:string|null}|null};
 const active=new Set(["queued","running","pausing","cancelling"]);
 const label:Record<string,string>={prepared:"Preparado",queued:"Na fila",running:"Validando histórico",pausing:"Pausando",paused:"Pausado",cancelling:"Interrompendo",cancelled:"Interrompido",failed:"Falha de validação",completed:"Índice validado",rolled_back:"Vínculo desfeito"};
@@ -56,6 +57,8 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  const [pendingBinding,setPendingBinding]=useState<string|null>(null);
  const [publication,setPublication]=useState<{id:string;done:number;total:number;failed:number}|null>(null);
  const [logs,setLogs]=useState<{id:string;events:Audit[]}|null>(null);
+ const [integrity,setIntegrity]=useState<{id:string;report:Integrity}|null>(null);
+ const [auditBusy,setAuditBusy]=useState(false);
  const [confirmation,setConfirmation]=useState<{id:string;command:string;label:string;bulk?:boolean}|null>(null);
  const requestInFlight=useRef<{epoch:number;sequence:number}|null>(null), generation=useRef(0), sequence=useRef(0);
  const [pendingAction,setPendingAction]=useState<{id?:string;key:string}|null>(null);
@@ -79,7 +82,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    catch{if(current())setError("Não foi possível consultar as importações. Tente novamente.")}
    finally{if(requestInFlight.current===request)requestInFlight.current=null}
  },[call]);
- useEffect(()=>{generation.current++;automaticAttempted.current.clear();setAutomatic({});setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
+ useEffect(()=>{generation.current++;automaticAttempted.current.clear();setAutomatic({});setData(null);setAccount("");setPackageId("");setLogs(null);setIntegrity(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
  useEffect(()=>{if(data||error)onPreparationChange?.(data?null:error)},[data,error,onPreparationChange]);
  const running=Boolean(data?.jobs.some(j=>active.has(j.state)||j.bulk?.state==="running"));
  useEffect(()=>{
@@ -95,6 +98,12 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    try{await call(body);if(epoch===generation.current){setConfirmation(null);await refresh(true)}}
    catch{if(epoch===generation.current){await refresh(true);if(epoch===generation.current)setError("Operação não confirmada. Confira a situação antes de tentar novamente.")}}
    finally{mutationLock.current=false;if(epoch===generation.current){setBusy(false);setPendingAction(null)}}
+ }
+ async function auditIntegrity(id:string){
+   const epoch=generation.current;setAuditBusy(true);setError("");
+   try{const report=await call({action:"audit_integrity",id});if(epoch===generation.current)setIntegrity({id,report});}
+   catch{if(epoch===generation.current)setError("Não foi possível concluir a auditoria do índice.");}
+   finally{if(epoch===generation.current)setAuditBusy(false);}
  }
  async function showLogs(id:string){
    const epoch=generation.current;
@@ -232,6 +241,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
          {j.total>100&&!data.bulk_enabled&&<p className="text-xs text-muted-foreground">O worker de importação em massa ainda não está habilitado no servidor.</p>}
          {j.state==="completed"&&permitted("manage")&&bulkState!=="running"&&<AdminButton variant="success" disabled={busy} onClick={()=>showCandidates(j.id)}><UserCheck size={16}/> Revisar contatos</AdminButton>}
          {j.state==="completed"&&!data.bulk_enabled&&!bulk&&permitted("manage")&&automatic[j.id]&&!automatic[j.id].running&&<AdminButton variant="secondary" disabled={busy} onClick={()=>void runAutomatic(j.id)}><RefreshCw size={16}/> {automatic[j.id].failed?"Retomar conciliação":"Conferir novamente"}</AdminButton>}
+         {data.bulk_enabled&&j.state==="completed"&&permitted("manage")&&<AdminButton variant="secondary" disabled={busy||auditBusy||bulkState==="running"} loading={auditBusy} onClick={()=>void auditIntegrity(j.id)}><CheckCircle2 size={16}/> Auditar integridade</AdminButton>}
          <AdminButton variant="secondary" disabled={busy} onClick={()=>showLogs(j.id)}><History size={16}/> Histórico de operações</AdminButton>
        </div>
        {bulk&&<div role="status" className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
@@ -263,6 +273,14 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
            {e.state==="candidate"&&e.match&&(pendingBinding===e.contact_key?<div className="space-y-2"><p className="text-xs">Confirma que este histórico pertence ao contato atual?</p><div className="flex gap-2"><AdminButton disabled={busy} onClick={()=>void confirmBinding(j.id,e)}><UserCheck size={15}/> Confirmar vínculo</AdminButton><AdminButton variant="secondary" onClick={()=>setPendingBinding(null)}>Voltar</AdminButton></div></div>:<AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingBinding(e.contact_key)}>Conferir vínculo</AdminButton>)}
          </div>)}</div>
          <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground"><span>Página {reconciliation.page+1}</span><div className="flex gap-2"><AdminButton variant="secondary" size="sm" disabled={busy||reconciliation.page===0} onClick={()=>void showCandidates(j.id,reconciliation.page-1,reconciliation.cursors)}>Anterior</AdminButton><AdminButton variant="secondary" size="sm" disabled={busy||!reconciliation.next} onClick={()=>void showCandidates(j.id,reconciliation.page+1,[...reconciliation.cursors.slice(0,reconciliation.page+1),reconciliation.next])}>Próxima</AdminButton></div></div>
+       </div>}
+       {integrity?.id===j.id&&<div className="rounded-lg border border-border p-3 space-y-2 text-xs">
+         <div className="flex justify-between gap-2"><strong>Auditoria do índice privado</strong><button type="button" className="underline" onClick={()=>setIntegrity(null)}>Fechar</button></div>
+         <p className={integrity.report.index_matches?"text-emerald-700 dark:text-emerald-300":"text-destructive"}>{integrity.report.index_matches?"Contagens do índice conferem com o manifesto validado.":"Divergências no índice: investigar antes de avançar."}</p>
+         <p>{number(integrity.report.indexed)} contatos indexados · {number(integrity.report.bound)} vinculados · {number(integrity.report.review)} para revisão de origem</p>
+         <div className="overflow-hidden rounded-md border border-border divide-y divide-border">{metrics.map(([key,name])=><div key={key} className="flex justify-between px-2 py-2"><span>{name}</span><strong>{number(integrity.report.actual[key])} / {number(integrity.report.expected[key])}</strong></div>)}</div>
+         <p>IDs de mensagens repetidos: {number(integrity.report.duplicateMessages)} · IDs de protocolos repetidos: {number(integrity.report.duplicateProtocols)}</p>
+         <p className="text-muted-foreground">Esta auditoria compara o índice e o manifesto. Não comprova a integridade binária de todos os anexos no R2.</p>
        </div>}
        {logs?.id===j.id&&<div className="max-h-48 overflow-auto rounded-md border border-border p-2"><div className="flex items-center justify-between"><strong className="text-xs">Operações recentes</strong><button className="text-xs underline" onClick={()=>setLogs(null)}>Fechar</button></div>{logs.events.map((e,i)=><p key={i} className="text-xs py-1">{new Date(e.created_at).toLocaleString("pt-BR")} · {e.action==="prepare"?"Preparação":e.action==="validation_failed"?"Validação falhou":e.action} · {e.actor==="worker"?"Processamento automático":"Usuário "+e.actor.slice(0,8)}</p>)}</div>}
        </div>
