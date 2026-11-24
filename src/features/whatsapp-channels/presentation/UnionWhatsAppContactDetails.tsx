@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouse
 import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
-  listUnionWhatsAppSharedItems, operateUnionWhatsAppInbox, getHistoricalWhatsAppMedia,
+  listUnionWhatsAppSharedItems, listContactOnlyHistoricalSharedItems, operateUnionWhatsAppInbox, getHistoricalWhatsAppMedia,
   type UnionWhatsAppConversation, type UnionWhatsAppMessage,
   type UnionWhatsAppSharedTab, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -109,15 +109,21 @@ function MediaTile({item,organization,conversation,onOpen}:{
   </button>;
 }
 
-export function UnionWhatsAppContactDetails({conversation,organizationId,gender,onClose,onEdit,inline=false,canRecordOpportunity=true}:{
-  conversation:UnionWhatsAppConversation;
+type ContactDetailsProps={
+  conversation?:UnionWhatsAppConversation;
+  archiveContact?:{id:string;channelId:string;accountPhone:string;name:string};
   organizationId:string;
   gender?:string|null;
   onClose:()=>void;
   onEdit?:()=>void;
   inline?:boolean;
   canRecordOpportunity?:boolean;
-}){
+};
+export function UnionWhatsAppContactDetails(props:ContactDetailsProps){
+  const scope=[props.organizationId,props.conversation?.id||props.archiveContact?.id,props.conversation?.channel_id||props.archiveContact?.channelId,props.conversation?.account_phone||props.archiveContact?.accountPhone,props.conversation?"conversation":"archive"].join(":");
+  return <ContactDetailsContent key={scope} {...props}/>;
+}
+function ContactDetailsContent({conversation,archiveContact,organizationId,gender,onClose,onEdit,inline=false,canRecordOpportunity=true}:ContactDetailsProps){
   const [tab,setTab]=useState<UnionWhatsAppSharedTab>("media");
   const [historyOpen,setHistoryOpen]=useState(false);
   const [sections,setSections]=useState<Record<UnionWhatsAppSharedTab,Section>>({
@@ -128,7 +134,8 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
   const [preview,setPreview]=useState<{url:string;downloadUrl:string|null;type:string;name:string}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
-  const name=conversation.contact_name||"Contato WhatsApp";
+  const name=conversation?.contact_name||archiveContact?.name||"Contato WhatsApp";
+  const scopeId=conversation?.id||archiveContact?.id||"";
   const section=sections[tab];
 
   const fetchPage=useCallback(async(key:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null)=>{
@@ -136,8 +143,12 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     requests.current.add(key);
     setSections(current=>({...current,[key]:{...current[key],loading:true,error:""}}));
     try{
-      const result=await listUnionWhatsAppSharedItems(organizationId,conversation.id,
-        conversation.channel_id,conversation.account_phone,key,before);
+      const result=conversation
+        ?await listUnionWhatsAppSharedItems(organizationId,conversation.id,
+          conversation.channel_id,conversation.account_phone,key,before)
+        :archiveContact
+          ?await listContactOnlyHistoricalSharedItems(organizationId,archiveContact.id,archiveContact.channelId,archiveContact.accountPhone,key,before)
+          :{items:[],hasMore:false,nextCursor:null};
       setSections(current=>{
         const stored=current[key];
         const unique=new Map<string,UnionWhatsAppMessage>((!before?[]:stored.items)
@@ -150,7 +161,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
       setSections(current=>({...current,[key]:{...current[key],loaded:true,loading:false,
         error:systemErrorMessage(error,"Não foi possível consultar o histórico.")}}));
     }finally{requests.current.delete(key);}
-  },[organizationId,conversation.id,conversation.channel_id,conversation.account_phone]);
+  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,archiveContact?.id,archiveContact?.channelId,archiveContact?.accountPhone]);
   useEffect(()=>{
     if(!sections[tab].loaded&&!sections[tab].loading)void fetchPage(tab,null);
   },[tab,sections,fetchPage]);
@@ -180,7 +191,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
     setPreviewError("");setPreviewLoading(true);
     try{
       const asset=item.historical_attachments?.[0];
-      const links=item.read_only?(asset?.available?{url:(await getHistoricalWhatsAppMedia(item,asset.id)).url,downloadUrl:null}:null):await signedMedia(organizationId,conversation.id,item.id);
+      const links=item.read_only?(asset?.available?{url:(await getHistoricalWhatsAppMedia(item,asset.id)).url,downloadUrl:null}:null):conversation?await signedMedia(organizationId,conversation.id,item.id):null;
       if(!links){setPreviewError("Este arquivo não está mais disponível.");return;}
       setPreview({url:links.url,downloadUrl:links.downloadUrl,type:item.message_type,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
@@ -206,7 +217,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           className="admin-action-blue-outline inline-flex h-9 w-9 items-center justify-center rounded-lg border"><Pencil size={17}/></button>}
       </div>}
       <div className={inline?"w-full":"min-h-0 flex-1 overflow-y-auto overscroll-contain"}>
-        {!inline&&<div className="flex flex-col items-center gap-2 border-b border-border px-5 py-6 text-center">
+        {!inline&&conversation&&<div className="flex flex-col items-center gap-2 border-b border-border px-5 py-6 text-center">
           <div className="rounded-full ring-4 ring-primary/10">
             <WhatsAppContactAvatar name={name} size="detail"
               identity={{organizationId,accountPhone:conversation.account_phone,
@@ -216,13 +227,13 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
           <p className="text-sm text-muted-foreground">{formatWhatsAppPhone(conversation.contact_phone)}</p>
           <p className="text-xs text-muted-foreground">WhatsApp · Histórico desta conversa</p>
         </div>}
-        <FutureOpportunityContactSection identity={{
+        {conversation&&<FutureOpportunityContactSection identity={{
           organization_id:organizationId,channel_id:conversation.channel_id,
           account_phone:conversation.account_phone,chat_jid:conversation.chat_jid,
           conversation_id:conversation.id,contact_name:conversation.contact_name,
           contact_phone:conversation.contact_phone,
-        }} canEdit={canRecordOpportunity}/>
-        {historyOpen&&<div className="border-b border-border px-4 py-4">
+        }} canEdit={canRecordOpportunity}/> }
+        {historyOpen&&conversation&&<div className="border-b border-border px-4 py-4">
           <h3 className="mb-3 text-sm font-bold">Histórico geral do contato</h3>
           <UnionWhatsAppContactHistory organizationId={organizationId} conversation={conversation}/>
         </div>}
@@ -255,7 +266,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
               </p> : tab==="media" ?
               <div className="grid grid-cols-3 gap-2">
                 {section.items.map(item=><MediaTile key={item.id} item={item}
-                  organization={organizationId} conversation={conversation.id}
+                  organization={organizationId} conversation={scopeId}
                   onOpen={()=>void openShared(item)}/>)}
               </div> : tab==="documents" ?
               <div className="divide-y divide-border">
@@ -286,7 +297,7 @@ export function UnionWhatsAppContactDetails({conversation,organizationId,gender,
             </button>}
           </div>
         </div>
-        {!inline&&<div className="px-4 py-4 text-xs text-muted-foreground">
+        {!inline&&conversation&&<div className="px-4 py-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2"><CalendarDays size={15}/>
             Conversa iniciada em {sharedDate(conversation.created_at)}</div>
           <p className="mt-2">As mídias e documentos usam o histórico desta conversa e respeitam as permissões do CRM.</p>
