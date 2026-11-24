@@ -148,10 +148,10 @@ export function OrderEquipmentSection({
   return (
     <Section
       title="Equipamento"
-      actions={!editingOS && showSerial && showImages && canAddImages ? (
+      actions={!editingOS && showImages && canAddImages ? (
         <div className="hidden md:block">
           <DeviceCaptureBridge
-            onSerial={value => upF("serial_number", value)}
+            onSerial={value => { if (showSerial) upF("serial_number", value); }}
             onPhoto={(file, kind) => onAddImages([file], kind)}
           />
         </div>

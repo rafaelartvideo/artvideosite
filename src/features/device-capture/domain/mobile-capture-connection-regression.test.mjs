@@ -81,3 +81,24 @@ test("todos os modais Usar celular fecham ao conectar, bolinha verde pulsante e 
     assert.ok(endButton > codeRow && endButton < codeRow + 1300, "Encerrar ao lado do código: " + file);
   }
 });
+
+
+test("Nova OS captura etiqueta e equipamento sem depender do campo de série e confirma rotação antes do upload", async () => {
+  const equipment = read("src/features/orders/presentation/OrderEquipmentSection.tsx");
+  const mobile = read("src/features/device-capture/presentation/MobileDeviceCapturePage.tsx");
+  for (const [name, source] of [["OrderEquipmentSection.tsx", equipment], ["MobileDeviceCapturePage.tsx", mobile]]) {
+    assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
+  }
+  assert.ok(equipment.includes("actions={!editingOS && showImages && canAddImages ?"));
+  assert.ok(equipment.includes('if (showSerial) upF("serial_number", value)'));
+  assert.ok(mobile.includes('previewOrderPhoto("label", file)'));
+  assert.ok(mobile.includes('previewOrderPhoto("equipment", file)'));
+  assert.ok(mobile.includes('if (await uploadPhoto(pendingPhoto.kind, file))'));
+  assert.ok(mobile.includes("const file = await rotateOrderPhoto(pendingPhoto.file, photoRotation, pendingPhoto.kind)"));
+  assert.ok(mobile.includes("(value + 270) % 360"));
+  assert.ok(mobile.includes("(value + 90) % 360"));
+  assert.ok(mobile.includes("ctx.rotate(rotation * Math.PI / 180)"));
+  assert.ok(mobile.includes('output.toBlob(resolve, "image/png")'));
+  assert.ok(mobile.includes("output.width = sideways ? height : width"));
+  assert.ok(mobile.includes("output.height = sideways ? width : height"));
+});
