@@ -8,6 +8,24 @@ export function timestampMicros(value){
   if(!Number.isFinite(milliseconds))throw Error("Data inválida.");
   return BigInt(milliseconds)*1000n+BigInt((match[2]||"").padEnd(6,"0"));
 }
+// Archive source dates can use a SQL space separator, extra fractional digits,
+// or compact explicit UTC offsets. Never infer an absent timezone from the VPS.
+// The original exact string stays in the immutable archive; the index uses UTC
+// with microsecond precision (the same resolution as Postgres).
+export function normalizeArchiveTimestamp(value){
+  if(typeof value!=="string")throw Error("Data inválida.");
+  const m=/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?(?:[.,](\d{1,12}))?\s*(Z|UTC|GMT|[+-]\d{2}(?::?\d{2})?)$/i.exec(value.trim());
+  if(!m)throw Error("Formato de data histórica sem fuso explícito ou incompatível.");
+  const zone=m[5].toUpperCase();
+  const offset=["Z","UTC","GMT"].includes(zone)?"Z":zone.length===3?zone+":00":zone.length===5?zone.slice(0,3)+":"+zone.slice(3):zone;
+  const wall=m[1]+"T"+m[2]+":"+(m[3]||"00");
+  const calendar=Date.parse(wall+"Z");
+  if(!Number.isFinite(calendar)||new Date(calendar).toISOString().slice(0,19)!==wall)throw Error("Data inválida.");
+  const seconds=Date.parse(wall+offset);
+  if(!Number.isFinite(seconds))throw Error("Data inválida.");
+  return new Date(seconds).toISOString().slice(0,19)+"."+(m[4]||"").padEnd(6,"0").slice(0,6)+"Z";
+}
+
 const keyId=id=>{
   if(typeof id!=="string"||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id))throw Error("Identificador inválido.");
   return id;
@@ -54,10 +72,11 @@ export function projectHistorical(payload,scope){
       return {id:item.url_sha256,kind:typeof ref.kind==="string"?ref.kind:"unknown",
         mime:typeof item.mime==="string"?item.mime:"",available:item.available===true};
     });
-    timestampMicros(m.at);
+    const sentAt=normalizeArchiveTimestamp(m.at);
+    timestampMicros(sentAt);
     return {id,history_key:m.import_key,protocol_id:historyId(m.protocol_key),
       organization_id:scope.organizationId,conversation_id:scope.conversationId,
-      sent_at:m.at,direction:m.direction,body_text:typeof m.text==="string"?m.text:"",
+      sent_at:sentAt,direction:m.direction,body_text:typeof m.text==="string"?m.text:"",
       sender_name:m.sender_original==="operator"&&typeof m.sender_detail_original==="string"?m.sender_detail_original:null,
       attachments,links:Array.isArray(m.links)?m.links.filter(v=>typeof v==="string"):[],
       location:m.location||null,shared_contact:m.shared_contact||null,
