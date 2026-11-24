@@ -32,7 +32,11 @@ begin
   if exists(select 1 from public.order_intake_requests r where r.id=new.id) then
     update public.order_intake_requests
        set status='converted', order_id=new.id, converted_at=now(), converted_by=auth.uid()
-     where id=new.id and organization_id=new.organization_id and status='received';
+     where id=new.id and organization_id=new.organization_id and status='received'
+       and private.has_effective_organization_permission(new.organization_id,'orders.create')
+       and (created_by=auth.uid() or private.has_effective_organization_permission(new.organization_id,'orders.view_all'))
+       and exists(select 1 from public.customers c where c.id=new.customer_id and c.organization_id=new.organization_id
+         and regexp_replace(coalesce(case when length(payload->>'document')=11 then c.document else c.cnpj end,''),'[^0-9]','','g')=payload->>'document');
     if not found then raise exception 'Pré-OS indisponível para conversão.' using errcode='23514'; end if;
   end if;
   return new;
@@ -41,4 +45,36 @@ $$;
 revoke all on function private.mark_order_intake_converted() from public,anon,authenticated;
 create trigger mark_order_intake_converted after insert on public.service_orders
 for each row execute function private.mark_order_intake_converted();
+-- Only metadata is published; no CPF, phone, address, token, image or problem text.
+create table public.order_intake_events (
+  request_id uuid primary key references public.order_intake_requests(id) on delete cascade,
+  organization_id uuid not null references public.organizations(id),
+  conversation_id uuid not null,
+  created_by uuid not null,
+  status text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.order_intake_events enable row level security;
+revoke all on public.order_intake_events from public,anon,authenticated;
+grant select on public.order_intake_events to authenticated;
+create policy order_intake_events_select on public.order_intake_events for select to authenticated using (
+  private.has_effective_organization_permission(organization_id,'orders.create')
+  and private.has_effective_organization_permission(organization_id,'orders.view')
+  and (created_by=auth.uid() or private.has_effective_organization_permission(organization_id,'orders.view_all'))
+);
+create index order_intake_events_scope_idx on public.order_intake_events(organization_id,created_by,status);
+create or replace function private.publish_order_intake_event()
+returns trigger language plpgsql security definer set search_path='' as $
+begin
+  if TG_OP='UPDATE' then if old.status=new.status then return new; end if; end if;
+  insert into public.order_intake_events(request_id,organization_id,conversation_id,created_by,status,updated_at)
+  values(new.id,new.organization_id,new.conversation_id,new.created_by,new.status,now())
+  on conflict(request_id) do update set status=excluded.status,updated_at=excluded.updated_at;
+  return new;
+end;
+$;
+revoke all on function private.publish_order_intake_event() from public,anon,authenticated;
+create trigger publish_order_intake_event after insert or update of status on public.order_intake_requests
+for each row execute function private.publish_order_intake_event();
+alter publication supabase_realtime add table public.order_intake_events;
 commit;
