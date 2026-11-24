@@ -52,7 +52,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   spaceId?:string|null;folderId?:string|null;
   onRouteChange:(spaceId:string|null,folderId?:string|null)=>void;
 }) {
-  const {hasPermission,activeOrganization}=useAuth();
+  const {hasPermission,activeOrganization,activeOrganizationId}=useAuth();
   const canManage=hasPermission("platform.management.manage");
   const [spaces,setSpaces]=useState<ManagementSpace[]>([]);
   const [folders,setFolders]=useState<ManagementFolder[]>([]);
@@ -79,8 +79,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [metadata,setMetadata]=useState<Record<string,string>>({});
   const [newSecret,setNewSecret]=useState("");
   const [showSecret,setShowSecret]=useState(false);
-  const [detailSelection,setDetailSelection]=useState<{record:ManagementRecord;organizationId:string|undefined;spaceId:string|null|undefined;folderId:string|null|undefined}|null>(null);
-  const detailRecord=detailSelection&&detailSelection.organizationId===activeOrganization?.id&&detailSelection.spaceId===spaceId&&detailSelection.folderId===folderId?detailSelection.record:null;
+  const [detailSelection,setDetailSelection]=useState<{record:ManagementRecord;organizationId:string|null;spaceId:string|null|undefined;folderId:string|null|undefined}|null>(null);
+  const detailRecord=detailSelection&&detailSelection.organizationId===activeOrganizationId&&detailSelection.spaceId===spaceId&&detailSelection.folderId===folderId?detailSelection.record:null;
   const [detailSecret,setDetailSecret]=useState<string|null>(null);
   const [detailSecretLoading,setDetailSecretLoading]=useState(false);
   const [detailSecretError,setDetailSecretError]=useState(false);
@@ -346,7 +346,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     if(record.kind==="file"){void openFile(record);return;}
     setDetailSecret(null);setDetailSecretError(false);setDetailSecretVisible(true);
     setDetailSecretLoading(record.kind==="account"&&canManage);
-    setDetailSelection({record,organizationId:activeOrganization?.id,spaceId,folderId});
+    setDetailSelection({record,organizationId:activeOrganizationId,spaceId,folderId});
   };
   useEffect(()=>{
     if(!detailRecord||detailRecord.kind!=="account"||!canManage){
