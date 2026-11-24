@@ -538,7 +538,7 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   assert.match(recipientLookup,/const seen=new Set<string>\(\)/,
     "A lista de destinatários precisa remover números repetidos");
   assert.match(modal,/WhatsAppContactAvatar/);
-  assert.match(modal,/recipient\.kind==="linked" \? "Vinculado" : "Cadastro"/);
+  assert.match(modal,/recipient\.kind==="linked" \? "Vinculado" : recipient\.entity_contact_id \? "Contato adicional" : "Cadastro"/);
   assert.match(inbox,/Trocar número/);
   assert.match(modal,/order_recipients/);
   assert.match(modal,/linked_conversation_id:recipient\.conversation_id/);
@@ -819,10 +819,17 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.match(crm,/onClick=\{event=>\{event\.stopPropagation\(\);onNewOrder\(\);\}\}/);
   assert.match(crm,/<AdminButton variant="tertiary" size="sm"/);
   assert.doesNotMatch(crm,/flex-1 items-center gap-2 text-left text-xs font-semibold/);
-  const crmRow=crm.slice(crm.indexOf('<div className="flex min-w-0 items-center gap-2">'),
-    crm.indexOf('{open && <div id={regionId}'));
-  assert.ok(crmRow.indexOf('ChevronDown') < crmRow.indexOf('aria-label="Nova OS pelo atendimento"'),
-    "Nova OS deve ficar imediatamente depois da seta de consulta");
+  const rowStart=crm.indexOf('<div ref={menuRef} className="relative">');
+  const rowEnd=crm.indexOf('{open && <div id={regionId}',rowStart);
+  assert.ok(rowStart>=0 && rowEnd>rowStart,"A linha Dados do CRM deve existir");
+  const crmRow=crm.slice(rowStart,rowEnd);
+  const caret=crmRow.indexOf('<ChevronDown');
+  const newOrder=crmRow.indexOf('aria-label="Nova OS pelo atendimento"');
+  const newContact=crmRow.indexOf('{onNewContact && <AdminButton');
+  assert.ok(caret>=0 && newOrder>caret && newContact>newOrder,
+    "Nova OS deve ficar após a seta e Novo contato após Nova OS");
+  assert.match(crmRow,/flex min-w-0 flex-wrap items-center gap-2/);
+  assert.match(crmRow.slice(newContact),/Novo contato/);
   assert.doesNotMatch(inbox,/aria-label="Protocolos do atendimento"/);
   assert.match(inbox,/UnionWhatsAppContactsDialog/);
 });
