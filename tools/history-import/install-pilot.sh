@@ -21,7 +21,7 @@ for f in "$APP" "$STATE/index.sqlite" "$SECRET" "/etc/systemd/system/$GATEWAY" "
 done
 if ss -H -ltn 'sport = :19091' | grep -q .; then echo "FALHA SEGURA: porta local ocupada"; exit 1; fi
 echo "===== TESTES DO IMPORTADOR ====="
-"$NODE" --test archive-store.test.mjs history-page.test.mjs
+"$NODE" --test archive-store.test.mjs history-page.test.mjs archive-media.test.mjs
 echo "===== VALIDACAO PRIVADA DO PACOTE ====="
 UNION_HISTORY_RCLONE_CONFIG="$CONFIG" UNION_HISTORY_RCLONE="$RCLONE" "$NODE" preflight.mjs "$PID"
 # Installation only after real package and unit tests pass.
@@ -32,7 +32,7 @@ else
 fi
 install -d -o root -g root -m 755 "$APP"
 install -d -o union-history -g union-history -m 700 "$STATE"
-for f in archive-contract.mjs archive-store.mjs archive-gateway.mjs history-page.mjs preflight.mjs; do
+for f in archive-contract.mjs archive-store.mjs archive-gateway.mjs history-page.mjs preflight.mjs archive-media.mjs; do
   install -o root -g root -m 644 "$f" "$APP/$f"
 done
 python3 -c 'import secrets; print(secrets.token_hex(48))' > "$SECRET"
