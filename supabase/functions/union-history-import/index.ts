@@ -108,7 +108,7 @@ Deno.serve(async req=>{
           const {error:insertError}=await admin.from("union_whatsapp_conversations").upsert({
             organization_id:org,channel_id:contact.channel_id,account_phone:contact.account_phone,
             chat_jid:contact.chat_jid,contact_phone:contact.contact_phone,contact_name:contact.display_name||contact.contact_phone,
-            status:"finished",unread_count:0,last_message_at:at,last_message:null,
+            status:"finished",history_archive_only:true,unread_count:0,last_message_at:at,last_message:null,
           },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true});
           if(insertError)throw Error("Conversa não confirmada.");
           const created=await exactThread();
