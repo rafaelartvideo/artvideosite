@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, LoaderCircle, Plus, UserRound } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ContactRound, Cpu, Link2, LoaderCircle, Plus, UserRound } from "lucide-react";
 import { getOrderStatusBadgeClass } from "@/features/orders/domain/order-status-palette";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses } from "../domain/crm-contact-format";
@@ -129,7 +129,7 @@ const panelLabels: Record<Panel, string> = {
 };
 
 export function UnionWhatsAppCrmMenu({
-  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading, newOrderDisabled, onNewContact, newContactLoading,
+  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading, newOrderDisabled, onNewContact, newContactLoading, onIntake,
 }: {
   context?: CrmConversationContext;
   open: boolean;
@@ -143,6 +143,7 @@ export function UnionWhatsAppCrmMenu({
   newOrderDisabled?: boolean;
   onNewContact?: () => void;
   newContactLoading?: boolean;
+  onIntake?: () => void;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export function UnionWhatsAppCrmMenu({
         {newOrderLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>}
         Nova OS
       </AdminButton>}
+      {onIntake && <AdminButton variant="tertiary" size="sm" onClick={event=>{event.stopPropagation();onIntake();}} title="Gerar link de Pré-OS e consultar solicitações" className="!h-7 !shrink-0 !rounded-md !px-2.5"><Link2 size={14}/> Pré-OS</AdminButton>}
       {onNewContact && <AdminButton variant="tertiary" size="sm" onClick={event=>{event.stopPropagation();onNewContact();}}
         disabled={newContactLoading} title="Adicionar um número ao cadastro do cliente" className="!h-7 !shrink-0 !rounded-md !px-2.5">
         {newContactLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>} Novo contato
