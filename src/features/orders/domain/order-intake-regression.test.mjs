@@ -143,3 +143,18 @@ test("geração e recuperação de QR usam o mesmo modal e cancelamento atualiza
  assert.ok(api.includes('keys.has("whatsapp.inbox.send")'));
  assert.ok(api.includes('registered.get(bound_customer_id)||names.get(row.conversation_id)'));
 });
+
+test("token recuperável não muda entre chamadas e é isolado por empresa e solicitação",async()=>{
+ const {webcrypto}=await import("node:crypto");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const start=api.indexOf("async function recoverableToken("),end=api.indexOf("\n}",start)+2;
+ const source=api.slice(start,end).replace("(org:string,id:string)","(org,id)").replace('get("SUPABASE_SERVICE_ROLE_KEY")!','get("SUPABASE_SERVICE_ROLE_KEY")');
+ const fn=new Function("Deno","crypto",source+";return recoverableToken;")({env:{get:()=>"test-key-only"}},webcrypto);
+ const a=await fn("org-a","id-a");
+ assert.match(a,/^[a-f0-9]{64}$/);
+ assert.equal(a,await fn("org-a","id-a"));
+ assert.notEqual(a,await fn("org-b","id-a"));
+ assert.notEqual(a,await fn("org-a","id-b"));
+ assert.ok(api.includes("await hash(match[1])===row.token_hash"));
+ assert.ok(api.includes('client.from("union_whatsapp_messages")'));
+});
