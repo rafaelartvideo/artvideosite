@@ -191,13 +191,15 @@ export async function loadDashboardOrdersCharts({
 
 /** Somente a página selecionada, sem pré-carregar as OS dos demais gráficos. */
 export async function loadDashboardOrderSelectionPage({
-  organizationId, kind, groupId, value, slaState, periodDays, page, pageSize = 10, signal,
+  organizationId, kind, groupId, value, slaState, closureFilter = "all", periodDays, page, pageSize = 10, signal,
 }: {
   organizationId: string; kind: DashboardOrderSelectionKind; groupId: string | null;
   value: string | null; slaState?: "success" | "warning" | "danger" | "neutral" | null;
+  closureFilter?: "all" | "open" | "closed";
   periodDays: number; page: number; pageSize?: number; signal?: AbortSignal;
 }): Promise<DashboardOrderSelectionPage> {
-  let request = supabase.rpc("load_dashboard_order_selection_page_v1", {
+  let request = supabase.rpc("load_dashboard_order_selection_page_v2", {
+    p_closure_filter: closureFilter,
     p_organization_id: organizationId, p_kind: kind, p_group_id: groupId,
     p_value: value, p_sla_state: kind === "situation" ? slaState ?? null : null,
     p_period_days: Math.min(365, Math.max(1, Math.trunc(periodDays || 30))),
