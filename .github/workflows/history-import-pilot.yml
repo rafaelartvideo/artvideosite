@@ -16,3 +16,20 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/history-import/*.test.mjs
+      - run: bash -n tools/history-import/install-pilot.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: union-history-pilot
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            tools/history-import/archive-contract.mjs
+            tools/history-import/archive-store.mjs
+            tools/history-import/archive-gateway.mjs
+            tools/history-import/preflight.mjs
+            tools/history-import/archive-store.test.mjs
+            tools/history-import/history-page.mjs
+            tools/history-import/history-page.test.mjs
+            tools/history-import/install-pilot.sh
+            tools/history-import/install-pilot.ps1
+            tools/history-import/iniciar-instalacao.cmd
