@@ -39,7 +39,7 @@ const EmbeddedNewOrder = lazy(() =>
 );
 
 type Recipient={kind:"registered"|"linked";name:string;phone:string;field?:"whatsapp"|"phone";
-  conversation_id?:string;account_phone?:string;chat_jid?:string};
+  conversation_id?:string;entity_contact_id?:string;account_phone?:string;chat_jid?:string};
 type State =
   | { status: "loading"; message?: string }
   | { status: "choosing"; recipients:Recipient[] }
@@ -67,7 +67,7 @@ export type WhatsAppModalContext = {
         customerName: string;
         documentOptions?: Array<{id:string;label:string}>;
         prepareDocument?: (templateId:string)=>Promise<File>;
-        preferredRecipient?: {kind:"registered"|"linked";phone:string;field?:"whatsapp"|"phone";conversation_id?:string};
+        preferredRecipient?: {kind:"registered"|"linked";phone:string;field?:"whatsapp"|"phone";conversation_id?:string;entity_contact_id?:string};
       }
     | {
         kind: "contact";
@@ -136,7 +136,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
         service_order_id:orderId,
         ...(recipient.kind==="linked"
           ?{linked_conversation_id:recipient.conversation_id}
-          :{registered_phone_field:recipient.field||"whatsapp"}),
+          :{registered_phone_field:recipient.field||"whatsapp",entity_contact_id:recipient.entity_contact_id}),
       });
       if(found.found&&found.conversation_id){
         setState({status:"ready",conversationId:found.conversation_id,
@@ -195,7 +195,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
             item.kind===preferred.kind && item.phone===preferred.phone &&
             (item.kind==="linked"
               ? item.conversation_id===preferred.conversation_id
-              : item.field===preferred.field));
+              : item.field===preferred.field && item.entity_contact_id===preferred.entity_contact_id));
           if(matching)void chooseOrderRecipient(matching);
           else if(recipients.length>1)set({status:"choosing",recipients});
           else if(recipients.length===1)void chooseOrderRecipient(recipients[0]);
@@ -365,12 +365,12 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
                 <span className={recipient.kind==="linked"
                   ?"shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary"
                   :"shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground"}>
-                  {recipient.kind==="linked" ? "Vinculado" : "Cadastro"}
+                  {recipient.kind==="linked" ? "Vinculado" : recipient.entity_contact_id ? "Contato adicional" : "Cadastro"}
                 </span>
               </span>
               <span className="mt-1 block text-sm text-muted-foreground">{formatWhatsAppPhone(recipient.phone)}</span>
               <span className="mt-0.5 block text-xs text-muted-foreground">{recipient.kind==="linked"
-                ?"Número vinculado à OS" : recipient.field==="phone" ? "Telefone do cadastro" : "WhatsApp do cadastro"}</span>
+                ?"Número vinculado à OS" : recipient.entity_contact_id ? "Contato adicional do cadastro" : recipient.field==="phone" ? "Telefone do cadastro" : "WhatsApp do cadastro"}</span>
             </span>
             <WhatsAppBrandIcon size={21} className="shrink-0 text-[#25D366]" />
           </button>)}
