@@ -48,6 +48,7 @@ const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistan
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
 
+const PublicOrderIntakePage = lazy(() => import("@/features/orders/intake/PublicOrderIntakePage").then(m => ({ default: m.PublicOrderIntakePage })));
 const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
 const MobileOrderEditPage = lazy(() => import("@/features/device-capture/presentation/MobileOrderEditPage").then(module => ({ default: module.MobileOrderEditPage })));
 const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presentation/MobileOrderChecklistPage").then(module => ({ default: module.MobileOrderChecklistPage })));
@@ -208,6 +209,7 @@ function AuthenticatedAdminRealtimeSync() {
 
 export default function App() {
   const { pathname } = useLocation();
+  if (pathname === "/solicitacao") return <Suspense fallback={<StandaloneFallback text="Carregando solicitação..." />}><PublicOrderIntakePage /></Suspense>;
   const scope = APP_TARGET === "site" || (APP_TARGET === "combined" && !pathname.startsWith("/admin"))
     ? "customer"
     : "crm";
