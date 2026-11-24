@@ -25,3 +25,16 @@ export function getOrderReportedReceipts(sourceDetails?: Record<string, unknown>
     }];
   });
 }
+
+
+/** Preserve the actual per-installment plan; never guess a method from unrelated installments. */
+export function getInstallmentPaymentPreference(sourceDetails: Record<string, unknown> | undefined, installmentNumber: number) {
+  const reported = getOrderReportedReceipts(sourceDetails).find(item => item.installment_number === installmentNumber);
+  const raw = sourceDetails?.payment_preferences;
+  const planned = Array.isArray(raw) ? raw.find(item => item && typeof item === "object" && Number(item.installment_number) === installmentNumber) : undefined;
+  return {
+    payment_method_id: reported?.payment_method_id || (typeof planned?.payment_method_id === "string" ? planned.payment_method_id : ""),
+    financial_account_id: reported?.financial_account_id || (typeof planned?.financial_account_id === "string" ? planned.financial_account_id : ""),
+    occurred_at: reported?.occurred_at || null,
+  };
+}
