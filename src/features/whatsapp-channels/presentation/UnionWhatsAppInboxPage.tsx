@@ -462,6 +462,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
   const [protocolsHasMore,setProtocolsHasMore]=useState(false);
   const [protocolsPage,setProtocolsPage]=useState(0);
+  const [protocolsCursor,setProtocolsCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFallback,setSelectedFallback]=useState<UnionWhatsAppConversation|null>(null);
   const [fallbackErrorId,setFallbackErrorId]=useState<string|null>(null);
@@ -1316,7 +1317,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
-  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setHandoffs([]);}, [selectedId]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setProtocolsCursor(null);setHandoffs([]);}, [selectedId]);
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
   useEffect(() => {
@@ -1736,9 +1737,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           : Promise.resolve(null),
       ]);
       if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
-        setProtocols(data.items);
+        setProtocols(data.items);setProtocolsCursor(data.nextCursor||null);
         setProtocolsHasMore(data.hasMore);
-        setProtocolsPage(0);
+        setProtocolsPage(0);setProtocolsCursor(null);
         setHandoffs(audit?.history||[]);
       }
     }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
@@ -1751,7 +1752,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setProtocolsMoreLoading(true);
     try{
       const result=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,
-        activeChannelId,activeChannelPhone,next);
+        activeChannelId,activeChannelPhone,next,protocolsCursor);
       if(organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       setProtocols(old=>{
         const unique=new Map(old.map(item=>[item.id,item]));
@@ -1759,7 +1760,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return [...unique.values()];
       });
       setProtocolsHasMore(result.hasMore);
-      setProtocolsPage(next);
+      setProtocolsPage(next);setProtocolsCursor(result.nextCursor||null);
     }catch(reason){
       reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
