@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { gunzipSync } from "node:zlib";
-import { chmodSync, lstatSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, lstatSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { projectHistorical,timestampMicros,historyId,normalizeArchiveTimestamp } from "./history-page.mjs";
 import { validatePackageId, validateDestination, validateIndex, validatePayload, nextJobState } from "./archive-contract.mjs";
@@ -22,7 +22,17 @@ export function makeReader({rclone="rclone",config}={}){
     return result.stdout;
   };
 }
-export function openArchiveStore(filename,read){
+export function openArchiveStore(filename,read,{sourceOffsets}={}){
+  if(sourceOffsets===undefined){
+    const config=new URL("./source-offsets.json",import.meta.url);
+    sourceOffsets=filename!==":memory:"&&existsSync(config)?JSON.parse(readFileSync(config,"utf8")):{};
+  }
+  if(!sourceOffsets||typeof sourceOffsets!=="object"||Array.isArray(sourceOffsets))throw Error("Configuração de fusos inválida.");
+  for(const [packageId,offset] of Object.entries(sourceOffsets)){
+    validatePackageId(packageId);
+    if(typeof offset!=="string"||!/^[-+](?:0\d|1[0-4]):[0-5]\d$/.test(offset))throw Error("Fuso de pacote inválido.");
+  }
+  sourceOffsets=Object.freeze({...sourceOffsets});
   if(typeof read!=="function")throw Error("Leitor privado obrigatório.");
   if(filename!==":memory:"){
     const dir=dirname(resolve(filename));mkdirSync(dir,{recursive:true,mode:0o700});
@@ -133,8 +143,12 @@ export function openArchiveStore(filename,read){
     const {j,e}=claim;let verifiedMetadata=null,projected=null,protocols=null,assets=null,shared=null;
     try{
       const metadata=JSON.parse(e.metadata), payload=readPayload(j.package_id,metadata);
+      const sourceOffset=sourceOffsets[j.package_id]||null;
+      // Once any contact was indexed, a resume must use the same date policy.
+      const prior=db.prepare("SELECT metadata FROM entries WHERE job_id=? AND state='verified' LIMIT 1").get(j.id);
+      if(prior&&(JSON.parse(prior.metadata).source_offset||null)!==sourceOffset)throw Error("Fuso do lote alterado.");
       const name=typeof payload.contact.display_name==="string"?payload.contact.display_name.slice(0,200):"";
-      projected=projectHistorical(payload,{organizationId:j.organization_id,conversationId:null});
+      projected=projectHistorical(payload,{organizationId:j.organization_id,conversationId:null,sourceOffset});
       // Preserve private manifests for both linked and independently recovered attachments.
       assets=payload.media.map(m=>({id:m.url_sha256,kind:typeof m.type==="string"?m.type:"unknown",available:m.available===true,mime:typeof m.mime==="string"?m.mime:"",size_bytes:m.available?m.size_bytes:null,sha256:m.available?m.sha256:null,rclone_relative_key:m.available?m.rclone_relative_key:null,original_at:typeof m.original_at==="string"&&Number.isFinite(Date.parse(m.original_at))?m.original_at:null,linked_to_message:m.linked_to_message===true}));
       const ids=new Set(),counts=new Map();
@@ -144,8 +158,8 @@ export function openArchiveStore(filename,read){
         if(ids.has(id))throw Error("Colisão de protocolo.");
         ids.add(id);
         // Original metadata only; never manufacture dates or operational protocol numbers.
-        const opened=typeof p.original_opened_at==="string"&&p.original_opened_at.trim()?normalizeArchiveTimestamp(p.original_opened_at):null;
-        const closed=typeof p.original_closed_at==="string"&&p.original_closed_at.trim()?normalizeArchiveTimestamp(p.original_closed_at):null;
+        const opened=typeof p.original_opened_at==="string"&&p.original_opened_at.trim()?normalizeArchiveTimestamp(p.original_opened_at,sourceOffset):null;
+        const closed=typeof p.original_closed_at==="string"&&p.original_closed_at.trim()?normalizeArchiveTimestamp(p.original_closed_at,sourceOffset):null;
         return {id,opened_at:opened,closed_at:closed,original_status:typeof p.original_status==="string"?p.original_status:null,message_count:counts.get(id)||0};
       });
       // A gallery row per asset, including independently recovered files. Dates are
@@ -156,7 +170,7 @@ export function openArchiveStore(filename,read){
         if(!old||timestampMicros(m.sent_at)>timestampMicros(old.sent_at))linked.set(a.id,m);
       }
       shared=[];
-      const epoch="1970-01-01T00:00:00.000Z",validDate=at=>{try{return normalizeArchiveTimestamp(at)}catch{return null}};
+      const epoch="1970-01-01T00:00:00.000Z",validDate=at=>{try{return normalizeArchiveTimestamp(at,sourceOffset)}catch{return null}};
       for(const a of assets){
         const m=linked.get(a.id), at=validDate(a.original_at)||m?.sent_at||null;
         const mime=a.mime.toLowerCase(), kind=mime.startsWith("image/")?(a.kind==="sticker"?"sticker":"image"):mime.startsWith("video/")?"video":mime.startsWith("audio/")?"audio":(["image","audio","video","sticker"].includes(a.kind)?a.kind:"file");
@@ -168,7 +182,7 @@ export function openArchiveStore(filename,read){
         const links=[...new Set([...(m.links||[]),...((m.body_text||"").match(/https?:\/\/[^\s<>"']+|www\.[^\s<>"']+/gi)||[])])].filter(v=>/^(https?:\/\/|www\.)/i.test(v));
         if(links.length)shared.push({category:"links",row:{...m,attachments:[],body_text:links.join("\n"),message_type:"text"}});
       }
-      verifiedMetadata=JSON.stringify({...metadata,historical_name:name});
+      verifiedMetadata=JSON.stringify({...metadata,historical_name:name,source_offset:sourceOffset});
     }catch{/* Never log private payload or paths. */}
     tx(()=>{
       const current=job(j.id,j.organization_id);
