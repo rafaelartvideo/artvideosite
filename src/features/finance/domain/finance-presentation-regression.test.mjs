@@ -370,7 +370,13 @@ test("finance installment editor opens directly below its own row, not after the
   const detail = source("FinanceEntryDetail.tsx");
   assert.match(detail, /detail\.installments\.map\(item => <Fragment key=\{item\.id\}>/);
   assert.match(detail, /<\/tr>[\s\S]*?\{forecastEdit\?\.id === item\.id && canAdjustForecast && <tr/);
-  assert.match(detail, /<td colSpan=\{6\} className="px-4 py-3">/);
+  // The inline editor is shown only when the optional Action column is present.
+  const tableHeader = detail.match(/<thead><tr>([\s\S]*?)<\/tr><\/thead>/)?.[1] || "";
+  assert.match(tableHeader, />Forma de pagamento<\/th>/);
+  assert.match(tableHeader, /\{canAdjustForecast && <th[^>]*>Ação<\/th>\}/);
+  const columnCount = (tableHeader.match(/<th\b/g) || []).length;
+  assert.equal(columnCount, 7);
+  assert.match(detail, new RegExp('<td colSpan=\\{' + columnCount + '\\} className="px-4 py-3">'));
   assert.match(detail, /<FCurrencyInput label="Novo valor previsto"/);
   assert.match(detail, /<AdminButton variant="secondary" className="!h-\[42px\]"/);
   assert.match(detail, /<AdminButton className="!h-\[42px\]" loading=\{forecastBusy\} loadingText="Aplicando\.\.\."/);
