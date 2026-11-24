@@ -52,3 +52,12 @@ test("archive timestamps normalize SQL spaces, compact offsets and fractional pr
  const projected=projectHistorical({media:[],messages:[{import_key:"a".repeat(40),protocol_key:"b".repeat(32),at:"2024-01-01 07:00:00.123456-0300",direction:"incoming",media:[]}]},{organizationId:"org",conversationId:"conv"});
  assert.equal(projected[0].sent_at,expected);
 });
+
+test("naive archive dates require an explicit offset and explicit source zones take precedence",()=>{
+ const value="2024-01-01 07:00:00.123456";
+ assert.throws(()=>normalizeArchiveTimestamp(value));
+ assert.throws(()=>normalizeArchiveTimestamp(value,"invalid"));
+ assert.equal(normalizeArchiveTimestamp(value,"-03:00"),"2024-01-01T10:00:00.123456Z");
+ assert.equal(normalizeArchiveTimestamp(value,"+00:00"),"2024-01-01T07:00:00.123456Z");
+ assert.equal(normalizeArchiveTimestamp(value+"Z","-03:00"),"2024-01-01T07:00:00.123456Z");
+});
