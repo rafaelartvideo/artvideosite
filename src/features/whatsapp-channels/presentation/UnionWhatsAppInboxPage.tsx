@@ -3686,7 +3686,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }}/>}
     {intakeContext && intakeContext.org===activeOrganizationId && (!intakeContext.conversationId||intakeContext.conversationId===selectedId) && <Suspense fallback={null}><OrderIntakeWorkspace key={intakeContext.org+":"+(intakeContext.conversationId||"all")} organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
       onClose={()=>setIntakeContext(null)}
-      onShare={intakeContext.conversationId?message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);setIntakeContext(null);}:undefined}
+      onShare={intakeContext.conversationId?message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);notifyAdmin("Mensagem inserida no WhatsApp.","success");}:undefined}
       onConvert={(customerId,prefill)=>{if(newOrder){notifyAdmin("Feche ou conclua a Nova OS aberta antes de converter outra solicitação.","error");return;}setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:prefill.conversationId||intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
     {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
       <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
