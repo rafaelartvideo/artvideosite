@@ -45,6 +45,7 @@ if(process.argv[2]==="worker"){
         case "events":result=store.events(b.id,b.organizationId);break;
         case "candidates":result=store.candidates(b.id,b.organizationId);break;
         case "bind_contact":result=store.bindContact(b);break;
+        case "history_page":result=store.pageBound(b);break;
         default:return respond(res,400,{success:false,error:"Operação inválida."});
       }
       return respond(res,200,{success:true,result});
