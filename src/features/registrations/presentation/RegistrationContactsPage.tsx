@@ -1,6 +1,6 @@
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Mail, Phone, Plus, Trash2, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -122,6 +122,12 @@ export function RegistrationContactsPage({
   const [editing, setEditing] = useState<RegistrationContact | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ContactForm>(emptyContactForm());
+  const contactNameEdited = useRef(false);
+  const onVerifiedContactName = useCallback((name: string) => {
+    if (!formOpen || editing || saving || contactNameEdited.current) return;
+    setForm(current => current.name === name ? current : { ...current, name });
+    if (name) setFieldErrors(current => current.name ? { ...current, name: undefined } : current);
+  }, [formOpen, editing, saving]);
   const [fieldErrors, setFieldErrors] = useState<ContactFormErrors>({});
 
   useEffect(() => {
@@ -137,6 +143,7 @@ export function RegistrationContactsPage({
   };
 
   const openNew = () => {
+    contactNameEdited.current = false;
     setEditing(null);
     setForm(emptyContactForm());
     setFieldErrors({});
@@ -144,6 +151,7 @@ export function RegistrationContactsPage({
   };
 
   const openEdit = (contact: RegistrationContact) => {
+    contactNameEdited.current = true;
     setEditing(contact);
     setForm(contactFormFromRecord(contact));
     setFieldErrors({});
@@ -273,10 +281,10 @@ export function RegistrationContactsPage({
       footer={<div className="flex w-full gap-2 sm:justify-end"><BtnSecondary onClick={() => setFormOpen(false)} disabled={saving} className="min-w-0 flex-1 sm:flex-none">Cancelar</BtnSecondary><BtnPrimary onClick={() => void save()} loading={saving} loadingText="Salvando..." className="min-w-0 flex-1 sm:flex-none">Salvar contato</BtnPrimary></div>}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /></div>
+        <div className="sm:col-span-2"><FInput label="Nome" required error={fieldErrors.name} value={form.name} onChange={(event: any) => { contactNameEdited.current = true; setFieldErrors(current => ({ ...current, name: undefined })); setForm(current => ({ ...current, name: event.target.value })); }} /></div>
         <div className="sm:col-span-2"><FInput label="Cargo / identificação" value={form.job_title} onChange={(event: any) => setForm(current => ({ ...current, job_title: event.target.value }))} placeholder="Ex.: Financeiro, responsável técnico" /></div>
         <FPhoneInput label="Telefone" copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { setFieldErrors(current => ({...current, phone: undefined})); setForm(current => ({...current, phone})); }} error={fieldErrors.phone} value={form.phone} onChange={(event: any) => { setFieldErrors(current => ({ ...current, phone: undefined })); setForm(current => ({ ...current, phone: event.target.value })); }} />
-        <VerifiedWhatsAppPhoneInput verificationMode={editing ? "edit" : "create"} label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => { setFieldErrors(current => ({...current, whatsapp: undefined})); setForm(current => ({...current, whatsapp: phone})); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined, phone: undefined })); setForm(current => ({ ...current, whatsapp: event.target.value })); }} />
+        <VerifiedWhatsAppPhoneInput verificationMode={editing ? "edit" : "create"} label="WhatsApp" mobile onVerifiedName={onVerifiedContactName} copyFromPhone={form.phone} onCopyPhone={phone => { setFieldErrors(current => ({...current, whatsapp: undefined})); setForm(current => ({...current, whatsapp: phone, name: !editing && !contactNameEdited.current && normalizeDigits(current.whatsapp) !== normalizeDigits(phone) ? "" : current.name})); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(event: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined, phone: undefined })); setForm(current => ({ ...current, whatsapp: event.target.value, name: !editing && !contactNameEdited.current && normalizeDigits(current.whatsapp) !== normalizeDigits(event.target.value) ? "" : current.name })); }} />
         <div className="sm:col-span-2"><FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(event: any) => { setFieldErrors(current => ({ ...current, email: undefined, phone: undefined })); setForm(current => ({ ...current, email: event.target.value })); }} /></div>
       </div>
     </AdminDialog>
