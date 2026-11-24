@@ -34,7 +34,7 @@ Deno.serve(async(req)=>{
     if(action==="open"||action==="models"||action==="submit"){
       const token=String(body.token||"");
       if(!/^[a-f0-9]{64}$/.test(token))return json({error:"Link inválido ou expirado."},404);
-      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at").eq("token_hash",await hash(token)).maybeSingle());
+      const row=check(await admin.from("order_intake_requests").select("id,organization_id,created_by,phone,status,expires_at,upload_attempt,upload_started_at,bound_customer_id").eq("token_hash",await hash(token)).maybeSingle());
       if(!row||Date.parse(row.expires_at)<Date.now()||row.status==="cancelled")return json({error:"Link inválido ou expirado. Peça outro à assistência."},404);
       if(["received","converted"].includes(row.status))return json({status:"received"});
       // Recover only a lease older than the maximum Edge runtime. Use a CAS to
@@ -69,14 +69,26 @@ Deno.serve(async(req)=>{
         if(row.status==="sent")check(await admin.from("order_intake_requests").update({status:"filling"}).eq("id",row.id).eq("status","sent"));
         const types=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("is_active",true).order("name").limit(1000));
         const brands=check(await admin.from("equipment_brands").select("id,name,equipment_type_id").eq("organization_id",org.id).eq("is_active",true).order("name").limit(2000));
-        return json({status:"filling",company:org.name,types,brands});
+        return json({status:"filling",company:org.name,types,brands,requires_customer_details:!row.bound_customer_id});
       }
-      const p=body.payload||{}, a=p.address||{}, cpf=digits(p.document), name=clean(p.name), problem=clean(p.problem,2500);
-      const phone=digits(p.phone);
-      if(p.phone!=null&&p.phone!==""&&!validPhone(phone))throw new InputError("Informe um telefone válido com DDD ou deixe em branco.");
-      if(name.length<3||(!validCpf(cpf)&&!validCnpj(cpf))||problem.length<5)throw new InputError("Confira nome, CPF/CNPJ e descrição do problema.");
+      const p=body.payload||{}, problem=clean(p.problem,2500);
+      let a=p.address||{}, cpf=digits(p.document), name=clean(p.name), phone=digits(p.phone);
+      const bound=Boolean(row.bound_customer_id);
+      if(bound){
+        const customer=check(await admin.from("customers").select("id,full_name,legal_name,document,cnpj,phone,addresses:customer_addresses(zip_code,street,number,complement,neighborhood,city,state,is_default)").eq("organization_id",org.id).eq("id",row.bound_customer_id).maybeSingle());
+        if(!customer)throw new InputError("Cadastro não disponível. Solicite um novo link à assistência.");
+        const matches=check(await admin.rpc("union_whatsapp_find_customer_by_phone",{p_organization:org.id,p_phone:row.phone}));
+        if(matches.length!==1||matches[0].customer_id!==customer.id)throw new InputError("Vínculo do cadastro alterado. Solicite um novo link à assistência.");
+        name=customer.full_name||customer.legal_name||"Cliente";
+        cpf=digits(customer.document)||digits(customer.cnpj);
+        phone=digits(customer.phone)||row.phone.replace(/^55(?=\d{10,11}$)/,"");
+        const addresses=customer.addresses||[];
+        a=addresses.find((address:any)=>address.is_default)||addresses[0]||{};
+      }
+      if(!bound&&p.phone!=null&&p.phone!==""&&!validPhone(phone))throw new InputError("Informe um telefone válido com DDD ou deixe em branco.");
+      if((!bound&&(name.length<3||(!validCpf(cpf)&&!validCnpj(cpf))))||problem.length<5)throw new InputError("Confira nome, CPF/CNPJ e descrição do problema.");
       const address={zip_code:digits(a.zip_code),street:clean(a.street),number:clean(a.number,20),complement:clean(a.complement),neighborhood:clean(a.neighborhood),city:clean(a.city),state:clean(a.state,2).toUpperCase()};
-      if(address.zip_code.length!==8||!address.street||!address.number||!address.neighborhood||!address.city||! /^[A-Z]{2}$/.test(address.state))throw new InputError("Complete o endereço.");
+      if(!bound&&(address.zip_code.length!==8||!address.street||!address.number||!address.neighborhood||!address.city||! /^[A-Z]{2}$/.test(address.state)))throw new InputError("Complete o endereço.");
       const typeId=p.type_id, brandId=p.brand_id;
       if(!uuid(typeId))throw new InputError("Selecione o tipo do equipamento.");
       const type=check(await admin.from("equipment_types").select("id,name").eq("organization_id",org.id).eq("id",typeId).eq("is_active",true).maybeSingle());
@@ -136,12 +148,20 @@ Deno.serve(async(req)=>{
       if(!conv||String(conv.chat_jid).endsWith("@g.us"))return json({error:"Conversa indisponível."},404);
       const phone=phoneOf(conv.contact_phone);
       if(!/^55[1-9]\d{9,10}$/.test(phone))throw new InputError("Não foi possível identificar o número desta conversa.");
+      let boundCustomerId:string|null=null;
+      if(keys.has("customers.view")){
+        const matches=check(await admin.rpc("union_whatsapp_find_customer_by_phone",{p_organization:org,p_phone:phone}));
+        if(Array.isArray(matches)&&matches.length===1&&uuid(matches[0].customer_id)){
+          const customer=check(await client.from("customers").select("id").eq("organization_id",org).eq("id",matches[0].customer_id).maybeSingle());
+          boundCustomerId=customer?.id||null;
+        }
+      }
       const token=tokenValue();
       // Bound active invitations per operator/conversation (new invitations can be cancelled).
       const existing=check(await admin.from("order_intake_requests").select("id").eq("organization_id",org).eq("conversation_id",conv.id).in("status",["sent","filling","submitting"]).gt("expires_at",new Date().toISOString()).limit(5));
       if(existing.length>=5)throw new InputError("Há links pendentes demais. Cancele os antigos antes de gerar outro.");
-      check(await admin.from("order_intake_requests").insert({organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,token_hash:await hash(token)}));
-      return json({token});
+      check(await admin.from("order_intake_requests").insert({organization_id:org,conversation_id:conv.id,created_by:actor.id,phone,bound_customer_id:boundCustomerId,token_hash:await hash(token)}));
+      return json({token,requires_customer_details:!boundCustomerId});
     }
     let scope=admin.from("order_intake_requests").select("id,status,created_at,expires_at,submitted_at,order_id,conversation_id,created_by").eq("organization_id",org);
     if(!keys.has("orders.view_all"))scope=scope.eq("created_by",actor.id);
@@ -160,7 +180,7 @@ Deno.serve(async(req)=>{
     }
     if(action==="review"){
       if(allowed.status!=="received")throw new InputError("A solicitação ainda não está disponível para revisão.");
-      const intake=check(await admin.from("order_intake_requests").select("id,phone,payload,images,conversation_id").eq("organization_id",org).eq("id",allowed.id).single());
+      const intake=check(await admin.from("order_intake_requests").select("id,phone,payload,images,conversation_id,bound_customer_id").eq("organization_id",org).eq("id",allowed.id).single());
       const images=await Promise.all((intake.images||[]).map(async(im:any)=>{
         const signed=check(await admin.storage.from("service-images").createSignedUrl(im.path,600));
         return {key:im.mediaId,mediaId:im.mediaId,kind:im.kind,name:im.name,url:signed.signedUrl};
