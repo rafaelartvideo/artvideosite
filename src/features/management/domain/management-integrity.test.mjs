@@ -120,3 +120,28 @@ test("atalhos retirados, busca somente dentro de espaços e botões padronizados
   assert.match(page,/<Plus size=\{15\}\/\>Novo registro/);
   assert.match(page,/variant="tertiary" onClick=\{\(\)=>uploadRef\.current\?\.click\(\)\}/);
 });
+
+
+test("registros abrem detalhes de consulta e só gestores podem editar",()=>{
+  const ui=read("src/features/management/presentation/ManagementPage.tsx");
+  assert.match(ui,/onClick=\{\(\)=>openDetails\(record\)\}/);
+  assert.match(ui,/onClick=\{\(\)=>openDetails\(result\)\}/);
+  assert.match(ui,/data-testid="management-record-details"/);
+  assert.match(ui,/canManage&&detailRecord&&<AdminButton onClick=\{\(\)=>\{closeDetails\(\);openRecord\(detailRecord\);/);
+  assert.match(ui,/if\(!canManage\)return;\s*resetForm\(\);if\(record\)/);
+  assert.match(ui,/editingRecord\?\.folder_id\|\|visibleFolderId/);
+});
+
+test("senha aparece nos detalhes autorizados sem modal separado e sem resposta atrasada",()=>{
+  const ui=read("src/features/management/presentation/ManagementPage.tsx");
+  assert.doesNotMatch(ui,/openVault|Cofre de acesso|vaultRecord/);
+  assert.match(ui,/if\(!detailRecord\|\|detailRecord.kind!=="account"\|\|!canManage\)/);
+  assert.match(ui,/revealManagementCredential\(detailRecord.id\)/);
+  assert.match(ui,/if\(current\)setDetailSecret\(secret\)/);
+  assert.match(ui,/return\(\)=>\{current=false;\};\s*\},\[detailRecord,canManage,detailSecretRetry\]/);
+  assert.match(ui,/setDetailSelection\(null\);setDetailSecret\(null\)/);
+  assert.match(ui,/detailSelection.organizationId===activeOrganizationId/);
+  assert.match(ui,/minimizable=\{false\}/);
+  assert.match(ui,/detailSecretVisible\?detailSecret:"••••••••"/);
+  assert.match(ui,/aria-label="Copiar senha"/);
+});
