@@ -141,11 +141,13 @@ function TrunksWorkspace({ organizationId, platform, onBack }: { organizationId:
   }
   const update = (field: keyof SipTrunkDraft, value: string | number | boolean | string[]) => setDraft(current => current ? { ...current, [field]: value } : current);
   return <div className="min-w-0 space-y-5 text-foreground">
+    <PageHeader title="Troncos SIP" subtitle="Cadastre operadoras e organize as linhas de telefone desta empresa." />
+    <AdminButton variant="ghost" onClick={onBack}>Voltar ao PABX</AdminButton>
     <UnionPbxUniversalTelephony key={organizationId} organizationId={organizationId} />
-    <PageHeader title="Troncos SIP" subtitle="Configure a operadora e autorize os ramais de saída da empresa." />
-    <div className="flex flex-wrap gap-2"><AdminButton onClick={onBack}>Voltar</AdminButton><AdminButton disabled={busy || loading} onClick={() => { setPassword(''); setDraft(null); setReload(value => value + 1); }}>Atualizar</AdminButton><AdminButton disabled={busy || loading || !!error} onClick={() => open()}>Novo tronco</AdminButton></div>
+    <details data-pbx-previous className="rounded-xl border border-border bg-card p-4 space-y-4"><summary className="cursor-pointer font-semibold">Linhas existentes · configuração anterior</summary><p className="text-sm text-muted-foreground">Use esta seção para consultar ou manter linhas cadastradas antes do assistente. Para novos cadastros, utilize o passo a passo acima. Nenhuma linha existente é migrada automaticamente.</p>
+    <div className="flex flex-wrap gap-2"><AdminButton onClick={onBack}>Voltar</AdminButton><AdminButton disabled={busy || loading} onClick={() => { setPassword(''); setDraft(null); setReload(value => value + 1); }}>Atualizar</AdminButton><AdminButton disabled={busy || loading || !!error} onClick={() => open()}>Cadastrar no formato anterior</AdminButton></div>
     <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground space-y-2">
-      <p>Somente um tronco de saída pode ficar habilitado por empresa. Essa regra também é verificada no servidor.</p>
+      <p>Na configuração anterior desta seção, somente um tronco de saída pode ficar habilitado por empresa. Para várias contas e operadoras, utilize o assistente acima.</p>
       <p>Você pode salvar com o agente offline. Um agente compatível aplica a configuração somente quando não houver chamadas ativas. Configuração aplicada não confirma registro na operadora.</p>
       <p role="note">Entrada para este tronco ainda não está disponível. Essa limitação vale para novos troncos gerenciados; mudar a saída não transfere o número de entrada.</p>
       <p>A mesma conta SIP pode ser salva inativa em outras empresas, mas só pode estar ativa em uma por vez. Desative na empresa atual, aguarde a desativação aplicada e então ative na empresa de destino. Configure os dados uma vez em cada empresa; credenciais não são compartilhadas automaticamente. Para reutilizar uma configuração salva, não é necessário redigitar a senha.</p>
@@ -185,5 +187,6 @@ function TrunksWorkspace({ organizationId, platform, onBack }: { organizationId:
       </fieldset>
       <div className="flex gap-2"><AdminButton type="submit" disabled={busy || loading}>{busy ? 'Salvando…' : 'Salvar configuração'}</AdminButton><AdminButton disabled={busy} onClick={() => { setPassword(''); setDraft(null); }}>Cancelar</AdminButton></div>
     </form>}
+    </details>
   </div>;
 }
