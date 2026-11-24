@@ -1,11 +1,11 @@
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Mail, Phone, Plus, UserRound } from "lucide-react";
+import { Edit2, Mail, Phone, Plus, Trash2, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn, formatPhone, isValidBrazilianMobile, isValidBrazilianPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
-import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FEmailInput, FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
@@ -14,6 +14,7 @@ import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/present
 import { WhatsAppContactAction } from "@/features/whatsapp-channels/presentation/WhatsAppContactAction";
 import {
   createRegistrationContact,
+  deleteRegistrationContact,
   listRegistrationContacts,
   setRegistrationContactActive,
   updateRegistrationContact,
@@ -115,6 +116,9 @@ export function RegistrationContactsPage({
   const contacts = contactsQuery.data ?? [];
   const loading = contactsQuery.isPending && !contactsQuery.data;
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RegistrationContact | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deleteGate = useRef(false);
   const [editing, setEditing] = useState<RegistrationContact | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<ContactForm>(emptyContactForm());
@@ -184,6 +188,27 @@ export function RegistrationContactsPage({
     notifyAdmin(next ? "Contato ativado." : "Contato inativado.");
   };
 
+  const confirmDelete = async () => {
+    if (!canManage || !deleteTarget || deleteTarget.is_primary || deleteGate.current) return;
+    deleteGate.current = true;
+    setDeleting(true);
+    const contactId = deleteTarget.id;
+    try {
+      const result = await deleteRegistrationContact(organizationId, registration.id, contactId);
+      if (result.error) throw result.error;
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<RegistrationContact[]>(queryKey, current => (current || []).filter(item => item.id !== contactId));
+      window.dispatchEvent(new CustomEvent("union:registration-contacts-changed", { detail: { organizationId } }));
+      setDeleteTarget(null);
+      notifyAdmin("Contato excluído.");
+    } catch (error) {
+      notifyAdmin(`Erro ao excluir contato: ${systemErrorMessage(error)}`, "error");
+    } finally {
+      deleteGate.current = false;
+      setDeleting(false);
+    }
+  };
+
   const hasPrimaryChannels = Boolean(registration.phone || registration.whatsapp || registration.email);
 
   return <>
@@ -214,6 +239,7 @@ export function RegistrationContactsPage({
             {canManage && <div className="flex shrink-0 items-center gap-1.5">
               <AdminIconButton ariaLabel="Editar contato" title="Editar contato" onClick={() => openEdit(contact)}><Edit2 size={14} /></AdminIconButton>
               <AdminActiveStateButton active={contact.is_active} entityLabel="contato" onClick={() => void toggleActive(contact)} iconSize={14} />
+              {!contact.is_primary && <AdminIconButton ariaLabel="Excluir contato" title="Excluir contato" variant="danger" onClick={() => setDeleteTarget(contact)}><Trash2 size={14} /></AdminIconButton>}
             </div>}
           </div>
           <ContactChannels phone={contact.phone} whatsapp={contact.whatsapp} email={contact.email} organizationId={organizationId} contactName={contact.name} entityId={registration.id} entityContactId={contact.id} />
@@ -225,6 +251,18 @@ export function RegistrationContactsPage({
         {canManage && <BtnPrimary onClick={openNew}><Plus size={15} /> Adicionar contato</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>
+
+    {deleteTarget && <AdminDialog open onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      title="Excluir contato" description="Esta ação é permanente." className="max-w-md" minimizable={false}
+      footer={<div className="flex w-full justify-end gap-2">
+        <BtnSecondary disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancelar</BtnSecondary>
+        <AdminButton variant="danger" disabled={deleting} onClick={() => void confirmDelete()}>
+          <Trash2 size={15} />{deleting ? "Excluindo..." : "Excluir contato"}
+        </AdminButton>
+      </div>}>
+      <p className="text-sm text-foreground">Deseja excluir o contato adicional <strong>{deleteTarget.name}</strong> deste cadastro?</p>
+      <p className="mt-2 text-xs text-muted-foreground">O número deixará de aparecer entre os contatos adicionais. O cadastro principal, as ordens de serviço e o histórico de conversas não serão excluídos.</p>
+    </AdminDialog>}
 
     <AdminDialog
       open={formOpen}

@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
+const read = path => readFileSync(path,"utf8");
+test("contatos adicionais podem ser excluídos com confirmação e autorização tenant-scoped",async()=>{
+  const page=read("src/features/registrations/presentation/RegistrationContactsPage.tsx");
+  const repo=read("src/features/registrations/infrastructure/registration-contacts.repository.ts");
+  const sql=read("supabase/migrations/20261124130357_registration_contacts_delete.sql");
+  assert.ok((await transformWithEsbuild(page,"RegistrationContactsPage.tsx",{loader:"tsx"})).code);
+  assert.ok((await transformWithEsbuild(repo,"registration-contacts.repository.ts",{loader:"ts"})).code);
+  assert.ok(page.includes('!contact.is_primary && <AdminIconButton ariaLabel="Excluir contato"'));
+  assert.ok(page.includes("!canManage || !deleteTarget || deleteTarget.is_primary || deleteGate.current"));
+  assert.ok(page.includes("item.id !== contactId"));
+  assert.ok(page.includes("union:registration-contacts-changed"));
+  const deletion=repo.slice(repo.indexOf("export async function deleteRegistrationContact"),repo.indexOf("/** Resolve the unified CRM record"));
+  for(const fragment of ['.delete()', '.eq("organization_id", organizationId)', '.eq("entity_id", entityId)', '.eq("id", contactId)', '.eq("is_primary", false)', '.select("id")']) assert.ok(deletion.includes(fragment));
+  assert.ok(sql.includes("for delete to authenticated"));
+  assert.ok(sql.includes("is_primary is false"));
+  assert.ok(sql.includes("'registrations.contacts.manage'"));
+});

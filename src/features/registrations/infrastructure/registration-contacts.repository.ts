@@ -125,6 +125,21 @@ export async function setRegistrationContactActive(
 }
 
 
+/** Remove only the additional contact; the registration and linked histories remain intact. */
+export async function deleteRegistrationContact(organizationId: string, entityId: string, contactId: string) {
+  const result = await supabase.from("entity_contacts")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("entity_id", entityId)
+    .eq("id", contactId)
+    .eq("is_primary", false)
+    .select("id")
+    .maybeSingle();
+  if (result.error) return { error: normalizeError(result.error) };
+  if (!result.data) return { error: new Error("Contato não encontrado ou sem permissão para excluir.") };
+  return { error: null };
+}
+
 /** Resolve the unified CRM record by its actual customer foreign key, never by name or phone. */
 export async function getRegistrationContactOwner(organizationId: string, customerId: string) {
   const result = await supabase.from("entities")
