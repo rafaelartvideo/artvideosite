@@ -351,12 +351,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           { value: "dueFrom", label: "Vencimento de" },
           { value: "dueTo", label: "Vencimento até" },
         ]}
-        onChange={value => {
-          setMobileCriterion(value);
-          setName(""); setDocumentSearch(""); setOs(""); setOriginSearch("");
-          setOperationalFilter("pending"); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false);
-          setDateFrom(""); setDateTo(""); setPage(1);
-        }}
+        onChange={value => { setMobileCriterion(value); setCreatorOpen(false); }}
       >
         {mobileCriterion === "status"
           ? <FSelect value={operationalFilter}
