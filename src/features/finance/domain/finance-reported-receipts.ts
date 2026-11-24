@@ -35,6 +35,7 @@ export function getInstallmentPaymentPreference(sourceDetails: Record<string, un
   return {
     payment_method_id: reported?.payment_method_id || (typeof planned?.payment_method_id === "string" ? planned.payment_method_id : ""),
     financial_account_id: reported?.financial_account_id || (typeof planned?.financial_account_id === "string" ? planned.financial_account_id : ""),
+    payment_method_name_snapshot: typeof planned?.payment_method_name_snapshot === "string" ? planned.payment_method_name_snapshot : "",
     occurred_at: reported?.occurred_at || null,
   };
 }
