@@ -3,6 +3,7 @@
 import { createServer } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { openArchiveStore,makeReader } from "./archive-store.mjs";
+import { createMediaService,makeAssetReader } from "./archive-media.mjs";
 const env=process.env;
 const store=openArchiveStore(env.UNION_HISTORY_DB||"/var/lib/union-history/index.sqlite",
   makeReader({rclone:env.UNION_HISTORY_RCLONE||"rclone",config:env.UNION_HISTORY_RCLONE_CONFIG}));
@@ -18,11 +19,16 @@ if(process.argv[2]==="worker"){
   const secret=env.UNION_HISTORY_GATEWAY_SECRET||"";
   if(secret.length<32)throw Error("Chave de gateway ausente.");
   const nonces=new Map();
+  const media=createMediaService({resolveAsset:(scope,id)=>store.assetBound(scope,id),readAsset:makeAssetReader({rclone:env.UNION_HISTORY_RCLONE||"rclone",config:env.UNION_HISTORY_RCLONE_CONFIG})});
   const respond=(res,status,value)=>{
     res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});
     res.end(JSON.stringify(value));
   };
   const server=createServer(async(req,res)=>{
+    if((req.method==="GET"||req.method==="HEAD")&&/^\/history-import\?media=[a-f0-9]{64}$/.test(req.url||"")){
+      try{return await media.serve(req,res,req.url.slice("/history-import?media=".length))}
+      catch{if(!res.headersSent)return respond(res,404,{success:false});res.destroy();return}
+    }
     if(req.method!=="POST"||req.url!=="/history-import")return respond(res,404,{success:false});
     try{
       let length=0;const chunks=[];
@@ -46,6 +52,7 @@ if(process.argv[2]==="worker"){
         case "candidates":result=store.candidates(b.id,b.organizationId);break;
         case "bind_contact":result=store.bindContact(b);break;
         case "history_page":result=store.pageBound(b);break;
+        case "media_ticket":result=media.issue({organizationId:b.organizationId,accountPhone:b.accountPhone,contactId:b.contactId,contactPhone:b.contactPhone},b.assetId,b.download===true);break;
         default:return respond(res,400,{success:false,error:"Operação inválida."});
       }
       return respond(res,200,{success:true,result});
