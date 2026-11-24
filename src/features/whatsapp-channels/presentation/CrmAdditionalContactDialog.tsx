@@ -1,0 +1,70 @@
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
+import { queryKeys } from "@/infrastructure/query/query-keys";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { isValidBrazilianMobile, normalizeDigits } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { createRegistrationContact, listRegistrationContacts } from "@/features/registrations/infrastructure/registration-contacts.repository";
+import { VerifiedWhatsAppPhoneInput } from "./WhatsAppNumberVerification";
+
+type Owner = { id: string; name: string; phone?: string | null; whatsapp?: string | null };
+
+function phoneKey(value: string | null | undefined) {
+  const digits = normalizeDigits(value || "");
+  return digits.length === 12 || digits.length === 13 ? digits.replace(/^55/, "") : digits;
+}
+
+/** Writes to the existing CRM contacts table. No separate WhatsApp contact or protocol is created. */
+export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onSaved }: {
+  organizationId: string; owner: Owner; onClose: () => void; onSaved: () => void;
+}) {
+  const { activeOrganizationId, hasPermission } = useAuth();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const gate = useRef(false);
+  const canSave = activeOrganizationId === organizationId && hasPermission("registrations.contacts.manage");
+  const save = async () => {
+    if (!canSave || gate.current) return;
+    if (!name.trim() || !isValidBrazilianMobile(whatsapp)) {
+      setError("Informe o nome e um número de WhatsApp válido com DDD."); return;
+    }
+    gate.current = true; setSaving(true); setError("");
+    try {
+      const result = await listRegistrationContacts(organizationId, owner.id);
+      if (result.error) throw result.error;
+      const key = phoneKey(whatsapp);
+      if ([owner.phone, owner.whatsapp, ...result.data.flatMap(contact => [contact.phone, contact.whatsapp])].some(number => phoneKey(number) === key))
+        throw new Error("Este número já existe neste cadastro, inclusive entre os contatos inativos. Edite ou reative o contato existente.");
+      const created = await createRegistrationContact(organizationId, owner.id, {
+        name: name.trim(), whatsapp, job_title: jobTitle.trim(),
+      });
+      if (created.error || !created.data) throw created.error || new Error("O contato não foi retornado após salvar.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.contacts(organizationId, owner.id) });
+      onSaved();
+    } catch (reason) {
+      setError(systemErrorMessage(reason, "Não foi possível salvar o contato."));
+    } finally {
+      gate.current = false; setSaving(false);
+    }
+  };
+  return <AdminDialog open title="Novo contato" description={"Adicionar número ao cadastro de " + owner.name}
+    onClose={() => { if (!saving) onClose(); }} className="max-w-md"
+    footer={<div className="flex justify-end gap-2">
+      <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Cancelar</AdminButton>
+      <AdminButton disabled={!canSave || saving} loading={saving} onClick={() => void save()}>Salvar contato</AdminButton>
+    </div>}>
+    <div className="space-y-3">
+      <FInput label="Nome do contato" required value={name} disabled={saving} onChange={event => { setName(event.target.value); setError(""); }} />
+      <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile required value={whatsapp} verificationMode="create" disabled={saving}
+        onChange={event => { setWhatsapp(event.target.value); setError(""); }} />
+      <FInput label="Identificação (opcional)" placeholder="Ex.: esposa, responsável, financeiro" value={jobTitle} disabled={saving} onChange={event => setJobTitle(event.target.value)} />
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    </div>
+  </AdminDialog>;
+}
