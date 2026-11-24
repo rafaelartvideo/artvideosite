@@ -387,3 +387,21 @@ test("FFmpeg can encode a valid MP3 audio attachment from a browser-like recordi
     assert.match(probe.stdout,/mp3/);
   }
 });
+
+
+test("verified LID aliases reuse one directory fetch and never guess between conflicting names",async()=>{
+  const pn="5511999999999@s.whatsapp.net";
+  const alt="551199999999@s.whatsapp.net";
+  const lid="123456789012@lid";
+  const h=await contactHarness(async()=>({
+    [pn]:{FullName:"Nome confirmado"},
+    [alt]:{FullName:"Outro nome"},
+  }));
+  assert.deepEqual(await h.lookup({chat_jid:lid,body_text:JSON.stringify([pn])}),
+    {ok:true,name:"Nome confirmado",source:"saved"});
+  assert.deepEqual(await h.lookup({chat_jid:lid,body_text:JSON.stringify([pn,alt])}),
+    {ok:true,name:null,source:null});
+  assert.deepEqual(await h.lookup({chat_jid:lid,body_text:""}),
+    {ok:true,name:null,source:null});
+  assert.equal(h.calls.length,1);
+});
