@@ -113,17 +113,19 @@ test("compact CRM search is independent of viewport and serial scanner stays acc
 });
 
 
-test("shared search starts expanded and collapses existing filters without changing data", async () => {
+test("shared search uses responsive preference and collapses existing filters without changing data", async () => {
   const panel=read("src/shared/ui/admin/AdminSearchPanel.tsx");
   const orders=read("src/features/orders/presentation/OrdersFilters.tsx");
-  assert.match(panel,/const \[expanded, setExpanded\] = useState\(true\)/);
+  assert.match(panel,/useSyncExternalStore\(subscribeCompactSearch, getCompactSearch, getServerCompactSearch\)/);
+  assert.match(panel,/readSearchPanelExpanded\(preferenceKey, compactViewport\)/);
   assert.match(panel,/aria-expanded=\{isExpanded\} aria-controls=\{panelId\}/);
   const header=panel.slice(panel.indexOf("return <AdminCard"),panel.indexOf("<div id={panelId}"));
   assert.ok(header.indexOf("{title}</span>") < header.indexOf("aria-label={toggleLabel}"));
   assert.ok(header.indexOf("aria-label={toggleLabel}") < header.indexOf("{headerActions &&"));
   assert.match(panel,/cloneElement\(compact, \{ mobileOnly: false \}\)/);
   assert.match(panel,/expanded \? showExpandedSearch\(child\) : null/);
-  assert.match(panel,/setExpanded\(value => !value\)/);
+  assert.match(panel,/writeSearchPanelExpanded\(preferenceKey, next\)/);
+  assert.match(panel,/onClick=\{toggleExpanded\}/);
   assert.match(panel,/selectedField.content/);
   assert.doesNotMatch(orders,/compactSearch \?/);
   for(const path of [
@@ -162,4 +164,30 @@ test("Nova OS pesquisa tipo, marca e modelo no mesmo combobox do cadastro rapido
   for(const [name,source] of [["OrderEquipmentSection",equipment],["OrderQuickCreateModals",quick]]) {
     assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
   }
+});
+
+
+test("search preference restores explicit choices across remounts, independently of module and device", async () => {
+  const path="src/shared/ui/admin/search-panel-preference.ts";
+  const {code}=await transformWithEsbuild(read(path),path,{loader:"ts",format:"esm"});
+  const {COMPACT_SEARCH_MEDIA,searchPanelPreferenceKey:key,readSearchPanelExpanded:restore,writeSearchPanelExpanded:save}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+  const data=new Map();
+  const storage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
+  const desktop=key("/admin/orders","Buscar OS",false);
+  const compact=key("/admin/orders","Buscar OS",true);
+  const customers=key("/admin/customers","Buscar cadastros",false);
+  assert.equal(COMPACT_SEARCH_MEDIA,"(max-width: 1023px), (pointer: coarse)");
+  assert.equal(restore(desktop,false,storage),true);
+  assert.equal(restore(compact,true,storage),false);
+  save(desktop,false,storage);
+  save(compact,true,storage);
+  assert.equal(restore(customers,false,storage),true);
+  assert.equal(restore(desktop,false,storage),false);
+  assert.equal(restore(compact,true,storage),true);
+  assert.equal(data.get(desktop),"false");
+  assert.equal(data.get(compact),"true");
+  const blocked={getItem(){throw Error("blocked");},setItem(){throw Error("blocked");}};
+  const fallback=key("/admin/orders","blocked-storage",true);
+  save(fallback,true,blocked);
+  assert.equal(restore(fallback,true,blocked),true);
 });
