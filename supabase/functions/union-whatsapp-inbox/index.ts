@@ -1312,6 +1312,26 @@ if(action==="contacts_groups_manage") {
           name:String(customer?.full_name||customer?.trade_name||customer?.legal_name||"Cliente"),
           phone});
       }
+      // Contatos adicionais são compartilhados com Cadastros pelo vínculo legado do cliente.
+      if(permissions.has("registrations.contacts.view") || permissions.has("registrations.contacts.manage")){
+        const {data:entity,error:entityError}=await admin.from("entities")
+          .select("id").eq("organization_id",org).eq("legacy_customer_id",order.customer_id).maybeSingle();
+        if(entityError)throw entityError;
+        if(entity){
+          const {data:contacts,error:contactsError}=await admin.from("entity_contacts")
+            .select("id,name,phone,whatsapp").eq("organization_id",org)
+            .eq("entity_id",entity.id).eq("is_active",true).order("name");
+          if(contactsError)throw contactsError;
+          for(const contact of contacts||[]){
+            for(const field of ["whatsapp","phone"] as const){
+              const phone=normalize(contact[field]);
+              if(!/^55[1-9]\d{9,10}$/.test(phone)||seen.has(phone))continue;
+              seen.add(phone);
+              recipients.push({kind:"registered",field,entity_contact_id:contact.id,name:contact.name,phone});
+            }
+          }
+        }
+      }
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,phone").eq("organization_id",org).eq("provider","wuzapi")
         .eq("state","connected").eq("webhook_ready",true).maybeSingle();
@@ -1368,7 +1388,22 @@ if(action==="contacts_groups_manage") {
           selectedLinkedConversation=linkedId;
         }
         const field=body.registered_phone_field==="phone"?"phone":"whatsapp";
-        storedPhone=String(customer[field]||customer.whatsapp||customer.phone||"");
+        const additionalId=String(body.entity_contact_id||"");
+        if(additionalId){
+          if(linkedId || !uuid(additionalId) ||
+            !(permissions.has("registrations.contacts.view")||permissions.has("registrations.contacts.manage")))
+            return json({success:false,error:"Contato adicional inválido ou acesso negado."},403);
+          const {data:entity,error:entityError}=await admin.from("entities")
+            .select("id").eq("organization_id",org).eq("legacy_customer_id",order.customer_id).maybeSingle();
+          if(entityError)throw entityError;
+          if(!entity)return json({success:false,error:"Cadastro do cliente não encontrado."},404);
+          const {data:contact,error:contactError}=await admin.from("entity_contacts")
+            .select("phone,whatsapp").eq("organization_id",org).eq("entity_id",entity.id)
+            .eq("id",additionalId).eq("is_active",true).maybeSingle();
+          if(contactError)throw contactError;
+          if(!contact)return json({success:false,error:"Contato não pertence ao cadastro desta OS ou está inativo."},403);
+          storedPhone=String(contact[field]||"");
+        }else storedPhone=String(customer[field]||customer.whatsapp||customer.phone||"");
       }else{
         if(!canRead) return json({success:false,error:"Sem acesso aos atendimentos."},403);
         const entityId=String(body.entity_id||"");
@@ -1386,7 +1421,7 @@ if(action==="contacts_groups_manage") {
               return json({success:false,error:"Sem permissão para acessar contatos do cadastro."},403);
             const {data,error}=await admin.from("entity_contacts")
               .select("phone,whatsapp").eq("organization_id",org).eq("entity_id",entityId)
-              .eq("id",entityContactId).maybeSingle();
+              .eq("id",entityContactId).eq("is_active",true).maybeSingle();
             if(error)throw error;
             registered=data;
           }else{
