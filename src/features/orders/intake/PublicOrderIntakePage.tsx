@@ -40,6 +40,7 @@ export function PublicOrderIntakePage(){
   const cameraInput=useRef<HTMLInputElement>(null),fileInput=useRef<HTMLInputElement>(null),sourceRef=useRef(photoSource);sourceRef.current=photoSource;
   const serialInput=useRef<HTMLInputElement>(null),scanGeneration=useRef(0);
   const [scan,setScan]=useState<{busy:boolean;values:string[];value:string;error:string}|null>(null);
+  const [modelsError,setModelsError]=useState(""),[modelsRetry,setModelsRetry]=useState(0);
   const [modelsByBrand,setModelsByBrand]=useState<Record<string,{id:string;name:string}[]>>({});
   const [busy,setBusy]=useState(false),[zipBusy,setZipBusy]=useState(false),[confirmed,setConfirmed]=useState(false),[done,setDone]=useState(false);
   const [confirmationPhone,setConfirmationPhone]=useState<string|null>(null);
@@ -51,10 +52,10 @@ export function PublicOrderIntakePage(){
   useEffect(()=>{
     const brand=payload.brand_id;
     if(!brand||!token||modelsByBrand[brand])return;
-    let active=true;
-    listIntakeModels(token,brand).then(r=>{if(active)setModelsByBrand(old=>({...old,[brand]:r.models||[]}));}).catch(()=>{if(active)setModelsByBrand(old=>({...old,[brand]:[]}));});
+    let active=true;setModelsError("");
+    listIntakeModels(token,brand).then(r=>{if(active)setModelsByBrand(old=>({...old,[brand]:r.models||[]}));}).catch(()=>{if(active)setModelsError("Não foi possível carregar os modelos. Tente novamente.");});
     return()=>{active=false;};
-  },[payload.brand_id,token,modelsByBrand]);
+  },[payload.brand_id,token,modelsByBrand,modelsRetry]);
   const clearField=(key:string)=>setFieldErrors(old=>{const next={...old};delete next[key];return next;});
   const update=(key:keyof IntakePayload,value:string|null)=>{clearField(key);setPayload(p=>({...p,[key]:value}));setConfirmed(false);};
   const address=(key:string,value:string)=>{clearField(key);setPayload(p=>({...p,address:{...p.address,[key]:value}}));setConfirmed(false);};
@@ -154,8 +155,9 @@ export function PublicOrderIntakePage(){
           {step===2&&<><h2 className="text-lg font-bold">Qual é o aparelho?</h2>
             <IntakeCatalogField label="Tipo de atendimento" options={catalog.service_types||[]} selectedId={payload.service_type_id||""} error={fieldErrors.service_type_id} disabled={busy} onSelect={id=>update("service_type_id",id)}/>
             <IntakeCatalogField label="Equipamento" options={catalog.types||[]} selectedId={payload.type_id} error={fieldErrors.type_id} disabled={busy} onSelect={id=>{if(id===payload.type_id)return;setFieldErrors({});setConfirmed(false);setPayload(p=>({...p,type_id:id,brand_id:null,brand_text:"",model_id:null,model:"",serial:"",technical_values:{}}));}}/>
-            <IntakeCatalogField key={"brand:"+payload.type_id} label="Marca" options={(catalog.brands||[]).filter(b=>b.equipment_type_id===payload.type_id)} selectedId={payload.brand_id||(payload.brand_text!==undefined&&payload.brand_text!==""?"other":"")} allowOther disabled={busy||!payload.type_id} error={fieldErrors.brand_id} otherValue={payload.brand_text} onOtherChange={v=>{clearField("brand_id");setPayload(p=>({...p,brand_text:v}));setConfirmed(false);}} onSelect={(id,name)=>{clearField("brand_id");clearField("model");setConfirmed(false);setPayload(p=>({...p,brand_id:id==="other"?null:id,brand_text:id==="other"?name||" ": "",model_id:null,model:""}));}}/>
-            <IntakeCatalogField key={"model:"+(payload.brand_id||"other")+":"+payload.type_id} label="Modelo" options={modelsByBrand[payload.brand_id||""]||[]} selectedId={payload.model_id||(payload.model!==""?"other":"")} allowOther disabled={busy||!payload.type_id||(!payload.brand_id&&!payload.brand_text?.trim())} error={fieldErrors.model} otherValue={payload.model} onOtherChange={v=>update("model",v||" ")} onSelect={(id,name)=>{clearField("model");setConfirmed(false);setPayload(p=>({...p,model_id:id==="other"?null:id,model:id==="other"?name||" ":name}));}}/>
+            <IntakeCatalogField key={"brand:"+payload.type_id} label="Marca" options={(catalog.brands||[]).filter(b=>b.equipment_type_id===payload.type_id)} selectedId={payload.brand_id||(payload.brand_text!==undefined&&payload.brand_text!==""?"other":"")} allowOther disabled={busy||!payload.type_id} error={fieldErrors.brand_id} otherValue={payload.brand_text} onOtherChange={v=>{clearField("brand_id");setPayload(p=>({...p,brand_text:v||" ",model_id:null,model:""}));setConfirmed(false);}} onSelect={(id,name)=>{clearField("brand_id");clearField("model");setConfirmed(false);setPayload(p=>({...p,brand_id:id==="other"?null:id,brand_text:id==="other"?name||" ": "",model_id:null,model:""}));}}/>
+            <IntakeCatalogField key={"model:"+(payload.brand_id||"other")+":"+payload.type_id} label="Modelo" options={modelsByBrand[payload.brand_id||""]||[]} selectedId={payload.model_id||(payload.model!==""?"other":"")} allowOther disabled={busy||!payload.type_id||(!payload.brand_id&&!payload.brand_text?.trim())||Boolean(payload.brand_id&&!modelsByBrand[payload.brand_id])} error={fieldErrors.model} otherValue={payload.model} onOtherChange={v=>update("model",v||" ")} onSelect={(id,name)=>{clearField("model");setConfirmed(false);setPayload(p=>({...p,model_id:id==="other"?null:id,model:id==="other"?name||" ":name}));}}/>
+            {payload.brand_id&&!modelsByBrand[payload.brand_id]&&(modelsError?<div className="flex items-center justify-between gap-2 text-xs text-red-600"><span>{modelsError}</span><button type="button" className="font-bold underline" onClick={()=>setModelsRetry(n=>n+1)}>Tentar novamente</button></div>:<p className="text-xs text-blue-700">Carregando modelos...</p>)}
             <div className="flex items-start gap-2"><div className="min-w-0 flex-1">{input("serial","Número de série *",payload.serial,v=>update("serial",v))}</div><button type="button" disabled={busy} className="mt-7 flex min-h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-200 text-[#0131cd]" onClick={()=>serialInput.current?.click()} aria-label="Escanear número de série"><ScanLine size={23}/></button></div>
             {technicalFields.map(f=><label key={f.id} className="block space-y-1.5 text-sm font-semibold">{requiredLabel(f.label+" *")}<input aria-required="true" aria-invalid={Boolean(fieldErrors[f.id])} className={fieldStyle(Boolean(fieldErrors[f.id]))} maxLength={500} inputMode={f.field_type==="number"?"decimal":"text"} value={payload.technical_values?.[f.id]||""} disabled={busy} onChange={e=>{const value=e.target.value;clearField(f.id);setConfirmed(false);setPayload(p=>({...p,technical_values:{...p.technical_values,[f.id]:value}}));}}/>{inlineError(f.id)}</label>)}
             {photoButton("label","Foto da etiqueta *")}</>}
