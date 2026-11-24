@@ -13,7 +13,6 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { CrmAdditionalContactDialog } from "./CrmAdditionalContactDialog";
-import { getRegistrationContactOwner } from "@/features/registrations/infrastructure/registration-contacts.repository";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
@@ -686,10 +685,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
   const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
-  const [newContact,setNewContact]=useState<{owner:Awaited<ReturnType<typeof getRegistrationContactOwner>>;organizationId:string;conversationId:string}|null>(null);
-  const [preparingContact,setPreparingContact]=useState(false);
+  const [newContact,setNewContact]=useState<{owner:{id:string;name:string}|null;organizationId:string;conversationId:string;loading:boolean;error:string;previewName?:string;launch:number}|null>(null);
   const contactLaunch=useRef(0);
-  useEffect(()=>{contactLaunch.current++;setNewContact(null);setPreparingContact(false);},[selectedId,activeOrganizationId]);
+  const contactOpenRef=useRef(false);
+  useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
   const [newOrder,setNewOrder]=useState<{customerId:string|null;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
   const [preparingNewOrder,setPreparingNewOrder]=useState(false);
   const newOrderGateRef=useRef(false);
@@ -1500,24 +1499,38 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
     }
   };
-  const openNewContactFromConversation=async()=>{
-    if(!selectedId || !activeOrganizationId || preparingContact || newContact ||
+  const contactOwnerKey=(org:string,threadId:string)=>["whatsapp","crm-contact-owner",org,user?.id,activeChannelId,activeChannelPhone,threadId] as const;
+  const closeNewContact=()=>{
+    contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);
+  };
+  const resolveNewContactOwner=async(org:string,threadId:string,launch:number)=>{
+    try{
+      const owner=await futureQueryClient.fetchQuery({
+        queryKey:contactOwnerKey(org,threadId),
+        staleTime:30_000,gcTime:120_000,retry:false,
+        queryFn:async()=>{
+          const match=await operateUnionWhatsAppInbox(org,threadId,"customer_match",{contact_owner_only:true});
+          if(match.ambiguous || !match.contact_owner?.id)
+            throw new Error("Vincule uma OS ou identifique um único cadastro do cliente antes de adicionar outro número.");
+          return match.contact_owner;
+        },
+      });
+      if(contactLaunch.current!==launch || organizationRef.current!==org || selectedIdRef.current!==threadId)return;
+      setNewContact(current=>current?.launch===launch?{...current,owner,loading:false,error:""}:current);
+    }catch(reason){
+      if(contactLaunch.current!==launch || organizationRef.current!==org || selectedIdRef.current!==threadId)return;
+      setNewContact(current=>current?.launch===launch?{...current,loading:false,error:systemErrorMessage(reason,"Não foi possível localizar o cadastro.")}:current);
+    }
+  };
+  const openNewContactFromConversation=()=>{
+    if(!selectedId || !activeOrganizationId || contactOpenRef.current ||
       !hasPermission("registrations.contacts.manage") || !hasPermission("customers.view") || !canAction("create_contacts"))return;
     const org=activeOrganizationId, threadId=selectedId, launch=++contactLaunch.current;
-    setPreparingContact(true);
-    try{
-      const match=await operateUnionWhatsAppInbox(org,threadId,"customer_match");
-      if(match.ambiguous || !match.customer?.id)
-        throw new Error("Vincule uma OS ou identifique um único cadastro do cliente antes de adicionar outro número.");
-      const owner=await getRegistrationContactOwner(org,match.customer.id);
-      if(contactLaunch.current!==launch || organizationRef.current!==org)return;
-      setCrmDetailsOpen(false);
-      setNewContact({owner,organizationId:org,conversationId:threadId});
-    }catch(reason){
-      if(contactLaunch.current===launch)reportError(systemErrorMessage(reason,"Não foi possível localizar o cadastro."));
-    }finally{
-      if(contactLaunch.current===launch)setPreparingContact(false);
-    }
+    contactOpenRef.current=true;
+    setCrmDetailsOpen(false);
+    setNewContact({owner:null,organizationId:org,conversationId:threadId,loading:true,error:"",
+      previewName:linkedCustomers[threadId]?.customer?.name,launch});
+    void resolveNewContactOwner(org,threadId,launch);
   };
   const openNewOrderFromConversation=async()=>{
     if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
@@ -1789,6 +1802,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         ?{...item,service_order_id:unlink
           ?(item.service_order_id===id?null:item.service_order_id):id}:item));
       setLinkedCustomers(old=>{const next={...old};delete next[selected.id];return next;});
+      void futureQueryClient.invalidateQueries({queryKey:["whatsapp","crm-contact-owner",activeOrganizationId],refetchType:"none"});
       if(unlink){
         setLinkedOrders(old=>old.filter(order=>order.id!==id));
       }else{
@@ -3006,7 +3020,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               newOrderLoading={preparingNewOrder}
               newOrderDisabled={Boolean(newOrder)}
               onNewContact={hasPermission("registrations.contacts.manage") && canAction("create_contacts") ? ()=>void openNewContactFromConversation():undefined}
-              newContactLoading={preparingContact || Boolean(newContact)}
+              newContactLoading={false}
             />}
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
@@ -3663,12 +3677,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
         </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
     </AdminDialog>
-    {newContact && <CrmAdditionalContactDialog key={newContact.organizationId+":"+newContact.owner.id}
-      organizationId={newContact.organizationId} owner={newContact.owner} onClose={()=>setNewContact(null)}
+    {newContact && <CrmAdditionalContactDialog key={newContact.launch}
+      organizationId={newContact.organizationId} owner={newContact.owner}
+      ownerLoading={newContact.loading} ownerError={newContact.error} previewName={newContact.previewName}
+      onClose={closeNewContact}
+      onRetryOwner={()=>{
+        if(newContact.loading)return;
+        const {organizationId:org,conversationId:threadId,launch}=newContact;
+        setNewContact(current=>current?.launch===launch?{...current,loading:true,error:""}:current);
+        void resolveNewContactOwner(org,threadId,launch);
+      }}
       onSaved={()=>{
         const id=newContact.conversationId;
         setLinkedCustomers(old=>{const next={...old};delete next[id];return next;});
-        setNewContact(null);
+        void futureQueryClient.invalidateQueries({queryKey:["whatsapp","crm-contact-owner",newContact.organizationId],refetchType:"none"});
+        if(contactLaunch.current===newContact.launch)closeNewContact();
         notifyAdmin("Contato adicionado ao cadastro e disponível nas OS.","success");
       }}/>}
     {newOrder && <Suspense fallback={null}>
