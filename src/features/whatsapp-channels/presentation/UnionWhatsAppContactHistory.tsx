@@ -7,6 +7,7 @@ import {
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { HistoricalMessageBody } from "./HistoricalMessageBody";
 
 const formatWhen=(iso:string)=>{
   const date=new Date(iso);
@@ -142,6 +143,7 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
         setItems(result.items.slice().reverse());
         setCursor(result.nextCursor);
         setHasMore(result.hasMore);
+        if(result.historyUnavailable)setError("Não foi possível consultar todas as mensagens anteriores.");
       })
       .catch(reason=>{
         if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível consultar as mensagens anteriores."));
@@ -250,10 +252,10 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
                 <span className="text-[10px] text-muted-foreground">{formatWhen(entry.message.sent_at)}</span>
               </div>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {entry.message.direction==="incoming"?"Recebido":"Enviado"}
+                {entry.message.historical_system?"Registro de atendimento":entry.message.direction==="incoming"?"Recebido":"Enviado"}
                 {entry.message.sender_name?" · "+entry.message.sender_name:""}
               </p>
-              <p className="mt-1 break-words text-xs text-foreground/85">{description(entry.message)}</p>
+              {entry.message.read_only?<HistoricalMessageBody message={entry.message}/>:<p className="mt-1 break-words text-xs text-foreground/85">{description(entry.message)}</p>}
             </div>
           </div>:null)}
         {(error||changesError)&&<p role="alert" className="py-2 text-center text-xs text-destructive">
