@@ -1,5 +1,12 @@
 name: History Import Pilot
 on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/history-import/**'
+      - 'supabase/functions/union-history-import/**'
+      - '.github/workflows/history-import-pilot.yml'
   pull_request:
     paths:
       - 'tools/history-import/**'
@@ -17,14 +24,26 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/history-import/*.test.mjs supabase/functions/union-history-import/*.test.mjs
-      - run: bash -n tools/history-import/install-pilot.sh && bash -n tools/history-import/update-pilot.sh
+      - run: bash -n tools/history-import/install-pilot.sh && bash -n tools/history-import/update-pilot.sh && bash -n tools/history-import/update-bulk.sh
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.5.6
       - run: deno check --no-lock --node-modules-dir=auto supabase/functions/union-history-import/index.ts
+      - name: Prepare public API credential for the installer
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib,re,base64,json
+          source=pathlib.Path('utils/supabase/info.tsx').read_text()
+          jwt=re.search(r'publicAnonKey\s*=\s*["\x27](eyJ[\w.-]+)["\x27]',source).group(1)
+          p=jwt.split('.')[1]
+          claims=json.loads(base64.urlsafe_b64decode(p+'='*(-len(p)%4)))
+          assert claims.get('role')=='anon' and claims.get('ref')=='wmjmtcjpunmzvonlkjcu'
+          pathlib.Path('tools/history-import/public.jwt').write_text(jwt+'\n')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: union-history-pilot
+          name: union-history-bulk
           retention-days: 7
           if-no-files-found: error
           path: |
@@ -43,3 +62,8 @@ jobs:
             tools/history-import/update-pilot.sh
             tools/history-import/iniciar-atualizacao.cmd
             tools/history-import/iniciar-instalacao.cmd
+            tools/history-import/update-bulk.sh
+            tools/history-import/update-bulk.ps1
+            tools/history-import/iniciar-atualizacao-bulk.cmd
+            tools/history-import/build-bulk-manifest.mjs
+            tools/history-import/public.jwt
