@@ -375,6 +375,7 @@ export interface FinancialDecisionResult {
 export interface FinancialSettlementDraft {
   entry_id: string;
   settle_all?: boolean;
+  settlement_parts?: Array<Omit<FinancialSettlementDraft, "entry_id" | "settle_all" | "settlement_parts">>;
   installment_id: string;
   principal_amount: number;
   interest_amount: number;
