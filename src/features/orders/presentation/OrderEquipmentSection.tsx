@@ -13,6 +13,7 @@ import { OrderImageDownloadMenu, OrderImagesField, type OrderImage } from "./Ord
 import type { OrderImageKind } from "../domain/order-image";
 
 export function OrderEquipmentSection({
+  intakeMode = false,
   disposalMode = false,
   form,
   rules,
@@ -39,6 +40,7 @@ export function OrderEquipmentSection({
   onUnlockUpdate,
   orderId,
 }: {
+  intakeMode?: boolean;
   disposalMode?: boolean;
   form: any;
   rules: RuleSet;
@@ -104,7 +106,7 @@ export function OrderEquipmentSection({
   const setQuickEquipment = (open: boolean) => {
     if (open) onCreateEquipment();
   };
-  const upF = onFieldChange;
+  const upF = (field:string,value:any)=>{onFieldChange(field,value);if(field==="serial_number"){const relation=technicalFields.find(r=>r.technical_field?.field_key==="numero_serie");if(relation)onTechnicalValueChange(relation.technical_field_id,String(value||""));}};
   // All options are already loaded by the order editor; typing only filters memory.
   const typeOptions = useMemo(() => equipmentTypes.map(type => ({ id: type.id, name: type.name })), [equipmentTypes]);
   const brandOptions = useMemo(() => equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id)
@@ -130,7 +132,7 @@ export function OrderEquipmentSection({
     .filter(relation => relation.technical_field?.field_key !== "numero_serie")
     .sort((first, second) => first.sort_order - second.sort_order);
   // Mostrar a série apenas para equipamentos com campo extra; preservar dados históricos.
-  const showSerial = disposalMode || (technicalFields.some(relation =>
+  const showSerial = intakeMode || disposalMode || (technicalFields.some(relation =>
     relation.technical_field?.field_key === "numero_serie"
       && relation.technical_field?.is_active !== false
   ) || Boolean(editingOS && String(form.serial_number || "").trim()))
@@ -160,7 +162,7 @@ export function OrderEquipmentSection({
           <div className="min-w-0 flex-1">
             <CatalogCombobox
               label="Tipo de equipamento"
-              required={disposalMode}
+              required={intakeMode||disposalMode}
               selectionOnly
               allowCreate={false}
               value={typeOptions.find(type => type.id === form.equipment_type_id)?.name || ""}
@@ -198,7 +200,7 @@ export function OrderEquipmentSection({
           <CatalogCombobox
             key={form.equipment_type_id || "no-type"}
             label="Marca"
-            required={!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
+            required={intakeMode||!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
             selectionOnly
             allowCreate={false}
             value={brandOptions.find(brand => brand.id === form.equipment_brand_id)?.name || ""}
@@ -221,7 +223,7 @@ export function OrderEquipmentSection({
           <CatalogCombobox
             key={form.equipment_brand_id || "no-brand"}
             label="Modelo"
-            required={!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
+            required={intakeMode||!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
             selectionOnly
             allowCreate={false}
             value={modelOptions.find(model => model.id === form.equipment_model_id)?.name || ""}
@@ -240,7 +242,7 @@ export function OrderEquipmentSection({
           <div className="min-w-0 w-full flex-1">
             <FInput
               label="NÚMERO DE SÉRIE"
-              required={!disposalMode&&!editingOS&&rules.fields.serial_number?.mode==="required"&&rules.fields.serial_number?.stage==="create"}
+              required={intakeMode||!disposalMode&&!editingOS&&rules.fields.serial_number?.mode==="required"&&rules.fields.serial_number?.stage==="create"}
               className="w-full"
               type="text"
               value={form.serial_number || ""}
@@ -322,8 +324,9 @@ export function OrderEquipmentSection({
               <FInput
                 label={field.label}
                 className="w-full"
-                required={relation.required}
+                required={intakeMode||relation.required}
                 type="text"
+                inputMode={field.field_type==="number"?"decimal":undefined}
                 value={technicalValues[relation.technical_field_id] || ""}
                 disabled={!isCurrentField}
                 onChange={(e: any) => onTechnicalValueChange(relation.technical_field_id, e.target.value)}
@@ -350,7 +353,7 @@ export function OrderEquipmentSection({
 
         {showImages && (
           <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
-            <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
+            <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">{intakeMode?"Fotos":"Fotos do equipamento"}</p>
 
             <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-2">
               <div className={(rules.photos.label?.mode==="hidden"&&!labelImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-primary-soft/70 p-3 shadow-sm shadow-[#0057e7]/5"}>
@@ -379,10 +382,10 @@ export function OrderEquipmentSection({
               <div className={(rules.photos.equipment?.mode==="hidden"&&!otherImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-border bg-white p-3"}>
                 <div className="mb-3 flex items-start justify-between gap-2 md:min-h-[74px]">
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-[#0d1b2e]">Fotos do equipamento</p>
-                    <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">Registre o estado geral, detalhes, avarias e outros pontos importantes.</p>
+                    <p className="text-sm font-black text-[#0d1b2e]">{intakeMode?"Fotos do defeito":"Fotos do equipamento"}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{intakeMode?"Confira as fotos do defeito ou da parte afetada enviadas pelo cliente.":"Registre o estado geral, detalhes, avarias e outros pontos importantes."}</p>
                   </div>
-                  <OrderImageDownloadMenu images={otherImages} label="fotos do equipamento" />
+                  <OrderImageDownloadMenu images={otherImages} label={intakeMode?"fotos do defeito":"fotos do equipamento"} />
                 </div>
                 <OrderImagesField
                   embedded
