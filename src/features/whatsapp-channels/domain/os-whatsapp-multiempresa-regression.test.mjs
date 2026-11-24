@@ -1429,3 +1429,53 @@ test("Nova OS destacada reutiliza a mesma janela ao trocar de atendimento",async
   assert.match(editor,/onChangeCapture=\{onDraftInteraction\}/);
   for(const [name,source] of [["TabOrders.tsx",tab],["OrderEditorPage.tsx",editor],["UnionWhatsAppInboxPage.tsx",inbox]])assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
 });
+
+
+test("SAC importado: texto com coordenadas vazias não é localização e anexos mantêm seu tipo", async () => {
+  const source=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const start=source.indexOf("function mapHistoricalMessage(");
+  const end=source.indexOf("// A manager may expose",start);
+  assert.ok(start>=0&&end>start);
+  const result=await transformWithEsbuild("export "+source.slice(start,end),"historical-map.ts",{loader:"ts",format:"esm",target:"es2022"});
+  const {mapHistoricalMessage}=await import("data:text/javascript;base64,"+Buffer.from(result.code).toString("base64"));
+  const base={id:"message-1",read_only:true,body_text:"Oi",direction:"incoming",protocol_id:"original-protocol",sent_at:"2020-06-22T19:09:13Z",attachments:[]};
+  const map=row=>mapHistoricalMessage({...base,...row},"org","conversation","channel","account");
+  for(const location of [null,{}, {latitude:"",longitude:""}, {latitude:null,longitude:null}, {latitude:false,longitude:false}, {latitude:0,longitude:0}, {latitude:"0",longitude:"0"}]){
+    const m=map({location});
+    assert.equal(m.message_type,"text");
+    assert.equal(m.body_text,"Oi");
+    assert.equal(m.sent_at,base.sent_at);
+    assert.equal(m.protocol_id,base.protocol_id);
+  }
+  assert.equal(map({location:{latitude:-10.9,longitude:-37.07}}).message_type,"location");
+  assert.equal(map({location:{latitude:0,longitude:0},message_type:"location"}).message_type,"location");
+  for(const [mime,kind,expected] of [["image/jpeg","unknown","image"],["audio/mpeg","unknown","audio"],["video/mp4","unknown","video"],["application/pdf","unknown","file"],["image/webp","sticker","sticker"]]){
+    const m=map({attachments:[{id:"a".repeat(64),mime,kind,available:false}]});
+    assert.equal(m.message_type,expected);
+    assert.equal(m.historical_attachments[0].available,false);
+  }
+  assert.equal(map({id:"message-2"}).provider_message_id,"message-2");
+  assert.equal(map({direction:"system"}).historical_system,true);
+});
+
+test("SAC importado: publicar vínculos não cria atendimento ativo nem duplica conversas",()=>{
+  const history=read("supabase/functions/union-history-import/index.ts");
+  const migration=read("supabase/migrations/20261124220412_union_whatsapp_archive_conversation_anchor.sql");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const manager=read("src/features/whatsapp-channels/presentation/WhatsAppHistoryImports.tsx");
+  const start=history.indexOf("if(openArchive){");
+  const end=history.indexOf("const result=mediaTicket?",start);
+  assert.ok(start>=0&&end>start);
+  const publish=history.slice(start,end);
+  assert.match(history,/has\("whatsapp.history_import.view"\)\|\|!has\("whatsapp.history_import.manage"\)/);
+  assert.match(publish,/bridge\(\{action:"history_page",\.\.\.scope,kind:"messages",limit:1\}\)/);
+  assert.match(publish,/status:"finished",history_archive_only:true,unread_count:0/);
+  assert.match(publish,/onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true/);
+  assert.doesNotMatch(publish,/from\("union_whatsapp_messages"\)|check_number|send_text/);
+  assert.match(migration,/if tg_op='INSERT' and new.history_archive_only and new.status='finished' then\s+return new/);
+  assert.match(migration,/history_archive_only=false/);
+  assert.match(inbox,/await openBoundHistoricalConversation\(org,contact.id,channel,account\)/);
+  assert.match(inbox,/onClick=\{\(\)=>void viewProtocols\(\)\}/);
+  assert.match(manager,/for\(const entry of entries\)/);
+  assert.match(manager,/Disponibilizar conversas vinculadas/);
+});
