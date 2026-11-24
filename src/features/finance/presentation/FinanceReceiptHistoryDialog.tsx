@@ -184,7 +184,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
       }>
         <AdminMobileSearchSwitch value={mobileCriterion}
           options={[{value:"query",label:"Número / Cliente / CPF-CNPJ / OS / Motivo"},{value:"direction",label:"Tipo"}]}
-          onChange={value=>{setMobileCriterion(value);setSearch("");setDirection("all");setPage(1);}}>
+          onChange={setMobileCriterion}>
           {mobileCriterion==="direction"
             ? <AdminSelect value={direction} onValueChange={value=>{setDirection(value as DirectionFilter);setPage(1);}}
                 options={directionOptions} className="h-[42px] w-full min-w-0" ariaLabel="Filtrar recibos por tipo" />
