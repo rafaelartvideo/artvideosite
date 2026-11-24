@@ -47,6 +47,8 @@ export function openArchiveStore(filename,read){
     "CREATE TABLE IF NOT EXISTS history_protocols(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,id TEXT NOT NULL,opened_micros INTEGER NOT NULL,body TEXT NOT NULL,PRIMARY KEY(job_id,contact_key,id),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
     "CREATE INDEX IF NOT EXISTS history_protocols_page ON history_protocols(job_id,contact_key,opened_micros DESC,id DESC)",
     "CREATE TABLE IF NOT EXISTS history_assets(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,id TEXT NOT NULL,kind TEXT NOT NULL,available INTEGER NOT NULL,metadata TEXT NOT NULL,PRIMARY KEY(job_id,contact_key,id),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
+    "CREATE TABLE IF NOT EXISTS history_shared(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,category TEXT NOT NULL,id TEXT NOT NULL,sent_micros INTEGER NOT NULL,body TEXT NOT NULL,PRIMARY KEY(job_id,contact_key,category,id),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))",
+    "CREATE INDEX IF NOT EXISTS history_shared_page ON history_shared(job_id,contact_key,category,sent_micros DESC,id DESC)",
     "CREATE TABLE IF NOT EXISTS history_index_ready(job_id TEXT NOT NULL,contact_key TEXT NOT NULL,PRIMARY KEY(job_id,contact_key),FOREIGN KEY(job_id,contact_key) REFERENCES entries(job_id,contact_key))"
   ].join(";")+";");
   const tx=fn=>{db.exec("BEGIN IMMEDIATE");try{const result=fn();db.exec("COMMIT");return result}catch(e){db.exec("ROLLBACK");throw e}};
@@ -128,7 +130,7 @@ export function openArchiveStore(filename,read){
       state(j.id,"running");return {j,e};
     });
     if(!claim)return false;if(claim.settled)return true;
-    const {j,e}=claim;let verifiedMetadata=null,projected=null,protocols=null,assets=null;
+    const {j,e}=claim;let verifiedMetadata=null,projected=null,protocols=null,assets=null,shared=null;
     try{
       const metadata=JSON.parse(e.metadata), payload=readPayload(j.package_id,metadata);
       const name=typeof payload.contact.display_name==="string"?payload.contact.display_name.slice(0,200):"";
@@ -146,19 +148,41 @@ export function openArchiveStore(filename,read){
         const closed=typeof p.original_closed_at==="string"&&Number.isFinite(Date.parse(p.original_closed_at))?p.original_closed_at:null;
         return {id,opened_at:opened,closed_at:closed,original_status:typeof p.original_status==="string"?p.original_status:null,message_count:counts.get(id)||0};
       });
+      // A gallery row per asset, including independently recovered files. Dates are
+      // original when known; an internal epoch cursor sorts undated items last.
+      const linked=new Map();
+      for(const m of projected)for(const a of m.attachments){
+        const old=linked.get(a.id);
+        if(!old||timestampMicros(m.sent_at)>timestampMicros(old.sent_at))linked.set(a.id,m);
+      }
+      shared=[];
+      const epoch="1970-01-01T00:00:00.000Z",validDate=at=>{try{timestampMicros(at);return at}catch{return null}};
+      for(const a of assets){
+        const m=linked.get(a.id), at=validDate(a.original_at)||m?.sent_at||null;
+        const mime=a.mime.toLowerCase(), kind=mime.startsWith("image/")?(a.kind==="sticker"?"sticker":"image"):mime.startsWith("video/")?"video":mime.startsWith("audio/")?"audio":(["image","audio","video","sticker"].includes(a.kind)?a.kind:"file");
+        const id=historyId(sha(Buffer.from("asset:"+a.id)));
+        const row={id,history_key:a.id,read_only:true,organization_id:j.organization_id,sent_at:at||epoch,unknown_date:!at,direction:m?.direction||null,protocol_id:m?.protocol_id||null,body_text:"",sender_name:null,delivery_status:null,message_type:kind,attachments:[{id:a.id,kind,mime:a.mime,available:a.available}]};
+        shared.push({category:kind==="file"?"documents":"media",row});
+      }
+      for(const m of projected){
+        const links=[...new Set([...(m.links||[]),...((m.body_text||"").match(/https?:\/\/[^\s<>"']+|www\.[^\s<>"']+/gi)||[])])].filter(v=>/^(https?:\/\/|www\.)/i.test(v));
+        if(links.length)shared.push({category:"links",row:{...m,attachments:[],body_text:links.join("\n"),message_type:"text"}});
+      }
       verifiedMetadata=JSON.stringify({...metadata,historical_name:name});
     }catch{/* Never log private payload or paths. */}
     tx(()=>{
       const current=job(j.id,j.organization_id);
       if(current.state==="pausing"||current.state==="cancelling"){state(j.id,current.state==="pausing"?"paused":"cancelled");return}
       if(current.state!=="running")return;
-      if(!verifiedMetadata||!projected||!protocols||!assets){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
+      if(!verifiedMetadata||!projected||!protocols||!assets||!shared){state(j.id,"failed");audit(j.id,"worker","validation_failed");return}
       const insert=db.prepare("INSERT INTO history_messages VALUES (?,?,?,?,?,?)");
       const insertProtocol=db.prepare("INSERT INTO history_protocols VALUES (?,?,?,?,?)");
       for(const m of projected)insert.run(j.id,e.contact_key,m.id,timestampMicros(m.sent_at),m.protocol_id,JSON.stringify(m));
       for(const p of protocols)insertProtocol.run(j.id,e.contact_key,p.id,p.opened_at?timestampMicros(p.opened_at):0n,JSON.stringify(p));
       const insertAsset=db.prepare("INSERT INTO history_assets VALUES (?,?,?,?,?,?)");
       for(const a of assets)insertAsset.run(j.id,e.contact_key,a.id,a.kind,a.available?1:0,JSON.stringify(a));
+      const insertShared=db.prepare("INSERT INTO history_shared VALUES (?,?,?,?,?,?)");
+      for(const {category,row} of shared)insertShared.run(j.id,e.contact_key,category,row.id,timestampMicros(row.sent_at),JSON.stringify(row));
       db.prepare("INSERT INTO history_index_ready VALUES (?,?)").run(j.id,e.contact_key);
       db.prepare("UPDATE entries SET state='verified',metadata=? WHERE job_id=? AND contact_key=? AND state='pending'").run(verifiedMetadata,j.id,e.contact_key);
       state(j.id,"queued");
@@ -216,17 +240,18 @@ export function openArchiveStore(filename,read){
   }
   // Scope is supplied ONLY by a server that has authorized the exact conversation.
   // Read pages from local indexed rows: no R2 reads or full-contact decompression.
-  function pageBound({organizationId,accountPhone,contactPhone,contactId,conversationId,before=null,protocolId=null,limit=60,kind="messages"}){
+  function pageBound({organizationId,accountPhone,contactPhone,contactId,conversationId,before=null,protocolId=null,limit=60,kind="messages",category=null}){
     const destination=validateDestination(organizationId,accountPhone);
     const uuid=v=>typeof v==="string"&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
-    if(!uuid(contactId)||!uuid(conversationId)||!/^[1-9][0-9]{9,14}$/.test(contactPhone||"")||!Number.isSafeInteger(limit)||limit<1||limit>100||!["messages","protocols"].includes(kind)||protocolId!==null&&!uuid(protocolId)||before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"))throw Error("Página inválida.");
+    if(!uuid(contactId)||!uuid(conversationId)||!/^[1-9][0-9]{9,14}$/.test(contactPhone||"")||!Number.isSafeInteger(limit)||limit<1||limit>100||!["messages","protocols","shared"].includes(kind)||protocolId!==null&&!uuid(protocolId)||before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"))throw Error("Página inválida.");
     const cutoff=before===null?null:timestampMicros(before.sent_at);
     const bound=boundIndex({organizationId:destination.organizationId,accountPhone,contactPhone,contactId});
     if(!bound)return {items:[],hasMore:false,nextCursor:null};
-    const {job_id,contact_key}=bound, time=kind==="messages"?"sent_micros":"opened_micros", table=kind==="messages"?"history_messages":"history_protocols";
-    if(kind==="protocols"&&protocolId!==null)throw Error("Filtro inválido.");
+    const {job_id,contact_key}=bound, time=kind==="protocols"?"opened_micros":"sent_micros", table=kind==="protocols"?"history_protocols":kind==="shared"?"history_shared":"history_messages";
+    if(kind!=="messages"&&protocolId!==null)throw Error("Filtro inválido.");
     let sql="SELECT body FROM "+table+" WHERE job_id=? AND contact_key=?";
     const params=[job_id,contact_key];
+    if(kind==="shared"){if(!["media","documents","links"].includes(category))throw Error("Categoria inválida.");sql+=" AND category=?";params.push(category)}
     if(protocolId!==null){sql+=" AND protocol_id=?";params.push(protocolId)}
     if(cutoff!==null){sql+=" AND ("+time+"<? OR ("+time+"=? AND id<?))";params.push(cutoff,cutoff,before.id)}
     sql+=" ORDER BY "+time+" DESC,id DESC LIMIT ?";
@@ -240,7 +265,7 @@ export function openArchiveStore(filename,read){
       items.push(r);bytes+=size;
     }
     const last=items.at(-1);
-    return {items,hasMore:rows.length>items.length,nextCursor:last?{sent_at:kind==="messages"?last.sent_at:last.opened_at||"1970-01-01T00:00:00.000Z",id:last.id}:null};
+    return {items,hasMore:rows.length>items.length,nextCursor:last?{sent_at:kind!=="protocols"?last.sent_at:last.opened_at||"1970-01-01T00:00:00.000Z",id:last.id}:null};
   }
   function lookup({organizationId,accountPhone,contactPhone}){
     validateDestination(organizationId,accountPhone);
