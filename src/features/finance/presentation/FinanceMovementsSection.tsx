@@ -122,23 +122,22 @@ export function FinanceMovementsSection({ createSignal = 0, onInitialReady }: { 
     
 
     {loading ? <AdminWorkspaceSkeleton searchFields={3} columns={7} rows={pageSize} /> : <>
-    <AdminSearchPanel title="Buscar movimentações" headerActions={(accountFilter !== "all" || dateFrom || dateTo) ? <AdminSearchClearButton onClick={() => {
-      setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
-    }} /> : null}>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} />
-        <FInput label="Data inicial" type="date" value={dateFrom} onChange={(event: any) => {
+    <AdminSearchPanel title="Buscar movimentações" fields={[
+        { value: "account", label: "Conta", content: <FSelect label="Conta" value={accountFilter} onChange={(event: any) => setAccountFilter(event.target.value)} options={[{ value: "all", label: "Todas as contas" }, ...accounts.map(item => ({ value: item.id, label: item.name }))]} /> },
+        { value: "from", label: "Data inicial", content: <FInput label="Data inicial" type="date" value={dateFrom} onChange={(event: any) => {
           const next = event.target.value;
           setDateFrom(next);
           if (dateTo && next && next > dateTo) setDateTo(next);
-        }} />
-        <FInput label="Data final" type="date" value={dateTo} onChange={(event: any) => {
+        }} /> },
+        { value: "to", label: "Data final", content: <FInput label="Data final" type="date" value={dateTo} onChange={(event: any) => {
           const next = event.target.value;
           setDateTo(next);
           if (dateFrom && next && next < dateFrom) setDateFrom(next);
-        }} />
-      </div>
-    </AdminSearchPanel>
+        }} /> }
+      ]} headerActions={(accountFilter !== "all" || dateFrom || dateTo) ? <AdminSearchClearButton onClick={() => {
+      setAccountFilter("all"); setDateFrom(""); setDateTo(""); setPage(1);
+    }} /> : null}>
+</AdminSearchPanel>
       {movements.length === 0 ? <div className="p-10"><EmptyState icon={ArrowRightLeft} title="Nenhuma movimentação encontrada" /></div> : <>
         <div className="grid gap-2 p-3 md:hidden">{movements.map(item => <div role="button" tabIndex={0} key={item.id} aria-label={`Abrir movimentação ${item.description_snapshot}`} onClick={event => { if (!(event.target instanceof Element && event.target.closest("a, button"))) setSelectedMovement(item); }} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedMovement(item); } }} className="w-full cursor-pointer rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/60"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 gap-2">{item.direction === "credit" ? <ArrowDownLeft size={17} className="mt-0.5 shrink-0 text-emerald-600" /> : <ArrowUpRight size={17} className="mt-0.5 shrink-0 text-red-600" />}<div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.description_snapshot}</p><p className="text-xs text-[#5a6a82]">{item.origin_order_id ? <FinanceServiceOrderLink orderId={item.origin_order_id} label={formatFinanceOriginLabel(item.origin_label || "Ordem de Serviço")} /> : formatFinanceOriginLabel(item.origin_label || "Movimentação financeira")} · {accountById.get(item.financial_account_id)?.name || "Conta"}</p><p className="text-[11px] text-[#8a98aa]">{formatDateTime(item.occurred_at)}</p></div></div><p className={`shrink-0 text-sm font-black ${item.direction === "credit" ? "text-emerald-700" : "text-red-700"}`}>{item.direction === "credit" ? "+" : "-"}{formatCurrency(item.amount)}</p></div></div>)}</div>
         <FinanceTableSurface className="hidden md:block"><table className="min-w-[1100px]"><thead><tr><th className="text-left">Data</th><th className="text-left">Origem</th><th className="text-left">Descrição</th><th className="text-left">Conta</th><th className="text-left">Tipo</th><th className="text-right">Entrada</th><th className="text-right">Saída</th></tr></thead><tbody>{movements.map(item => <FinanceTableRow key={item.id} label={`Abrir movimentação ${item.description_snapshot}`} onOpen={() => setSelectedMovement(item)}><td className="text-xs">{formatDateTime(item.occurred_at)}</td><td className="text-xs font-semibold">{item.origin_order_id ? <FinanceServiceOrderLink orderId={item.origin_order_id} label={formatFinanceOriginLabel(item.origin_label || "Ordem de Serviço")} /> : formatFinanceOriginLabel(item.origin_label || "Movimentação financeira")}</td><td className="text-xs text-muted-foreground">{item.description_snapshot}</td><td className="text-xs">{accountById.get(item.financial_account_id)?.name || "—"}</td><td className="text-xs text-muted-foreground">{MOVEMENT_LABELS[item.movement_type]}</td><td className="text-right font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{item.direction === "credit" ? formatCurrency(item.amount) : "—"}</td><td className="text-right font-bold tabular-nums text-red-600 dark:text-red-400">{item.direction === "debit" ? formatCurrency(item.amount) : "—"}</td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>
