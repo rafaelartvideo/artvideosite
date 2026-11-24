@@ -9,6 +9,7 @@ import type { PublicPage as Page } from "@/features/public-shell/domain/navigati
 // A estrutura completa do site público não entra no bundle inicial do CRM.
 const PublicShell = lazy(() => import("@/features/public-shell/presentation/PublicShell").then(({ PublicShell }) => ({ default: PublicShell })));
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
+import { OrderIntakeRealtime } from "@/features/orders/intake/OrderIntakeRealtime";
 import { LocalPerformanceObserver } from "@/infrastructure/query/LocalPerformanceObserver";
 import { AdminCodeWarmup } from "@/features/admin-shell/application/AdminCodeWarmup";
 import { LocalPerformancePanel } from "@/infrastructure/query/LocalPerformancePanel";
@@ -48,6 +49,7 @@ const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistan
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
 
+const PublicOrderIntakePage = lazy(() => import("@/features/orders/intake/PublicOrderIntakePage").then(m => ({ default: m.PublicOrderIntakePage })));
 const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
 const MobileOrderEditPage = lazy(() => import("@/features/device-capture/presentation/MobileOrderEditPage").then(module => ({ default: module.MobileOrderEditPage })));
 const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presentation/MobileOrderChecklistPage").then(module => ({ default: module.MobileOrderChecklistPage })));
@@ -203,11 +205,12 @@ function AuthenticatedAdminRealtimeSync() {
   const { session, accessWindow } = useAuth();
   const { pathname } = useLocation();
   if (!session || !accessWindow?.allowed || !pathname.startsWith("/admin")) return null;
-  return <QueryRealtimeSync />;
+  return <><QueryRealtimeSync /><OrderIntakeRealtime /></>;
 }
 
 export default function App() {
   const { pathname } = useLocation();
+  if (pathname === "/solicitacao") return <Suspense fallback={<StandaloneFallback text="Carregando solicitação..." />}><PublicOrderIntakePage /></Suspense>;
   const scope = APP_TARGET === "site" || (APP_TARGET === "combined" && !pathname.startsWith("/admin"))
     ? "customer"
     : "crm";

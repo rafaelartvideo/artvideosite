@@ -46,6 +46,7 @@ export async function persistServiceOrder({
   editingOrder,
   pendingOrderId,
   creationRequestId,
+  requireAtomic = false,
   payload,
   selectedTechnicianIds,
   selectedSellerIds,
@@ -60,6 +61,7 @@ export async function persistServiceOrder({
   editingOrder: any;
   pendingOrderId?: string | null;
   creationRequestId?: string | null;
+  requireAtomic?: boolean;
   payload: Record<string, any>;
   selectedTechnicianIds: string[];
   selectedSellerIds: string[];
@@ -77,6 +79,9 @@ export async function persistServiceOrder({
   // Caminho seguro para uma NOVA OS: fotos são preparadas antes de existir a OS
   // e todo o estado relacional é persistido por uma única função PostgreSQL.
   // Se qualquer insert de filho falhar, a transação inteira é revertida.
+  if (requireAtomic && !editingOrder && (!creationRequestId || pendingOrderId)) {
+    return { success:false,stage:"record",error:new Error("A Pré-OS exige criação atômica. Reabra a solicitação.") };
+  }
   if (!editingOrder && !pendingOrderId && creationRequestId) {
     const connection=typeof navigator==='undefined'?undefined:(navigator as any).connection;
     const restricted=connection?.saveData || ['slow-2g','2g','3g'].includes(connection?.effectiveType);
@@ -116,7 +121,7 @@ export async function persistServiceOrder({
     // Compatibilidade temporária enquanto a migration atômica ainda não existe
     // em algum ambiente. Nesse caso os uploads precisam ser preservados para o
     // fluxo legado, e o estado local recebe os mediaIds para evitar novo upload.
-    if (isAtomicRpcUnavailable(atomicResult.error)) {
+    if (isAtomicRpcUnavailable(atomicResult.error) && !requireAtomic) {
       for (const uploaded of uploadedInThisAttempt) {
         if (uploaded.key) onImageUploaded?.(uploaded.key, uploaded.mediaId);
       }

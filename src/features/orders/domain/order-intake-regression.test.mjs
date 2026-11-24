@@ -1,0 +1,101 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {transformWithEsbuild} from "vite";
+const read=path=>readFileSync(path,"utf8");
+test("Pré-OS pública é independente da sessão do CRM, sem pedir WhatsApp ou expor consulta de CPF",async()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const app=read("src/app/App.tsx");
+ for(const [name,source,loader] of [["PublicOrderIntakePage.tsx",page,"tsx"],["OrderIntakeWorkspace.tsx",read("src/features/orders/intake/OrderIntakeWorkspace.tsx"),"tsx"],["order-intake/index.ts",api,"ts"]])assert.ok((await transformWithEsbuild(source,name,{loader})).code);
+ assert.ok(app.includes('pathname === "/solicitacao"'));
+ assert.ok(page.includes("fetchAddressByZipCode(zip)"));
+ assert.ok(page.includes("listIntakeModels(token,brand)"));
+ assert.ok(page.includes("ctx.rotate(degrees*Math.PI/180)"));
+ assert.ok(page.includes('c.toBlob(resolve,"image/webp",quality)'));
+ assert.ok(!page.includes("lookupCpf("));
+ assert.ok(!page.includes("lookup-cpf"));
+ assert.ok(api.includes('.eq("token_hash",await hash(token))'));
+ assert.ok(api.includes("crypto.getRandomValues(new Uint8Array(32))"));
+ assert.ok(api.includes("Date.parse(row.expires_at)<Date.now()"));
+ assert.ok(api.includes('status:"submitting"'));
+ assert.ok(api.includes("size>9_000_000"));
+ assert.ok(api.includes('client.auth.getUser()'));
+ assert.ok(api.includes('my_organization_permissions'));
+ assert.ok(api.includes('client.from("union_whatsapp_conversations")'));
+});
+test("conversão usa CPF autenticado, editor existente e IDs de mídias sem novo upload",()=>{
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const tab=read("src/features/orders/presentation/TabOrders.tsx");
+ const sql=read("supabase/migrations/20261124143550_order_intake_requests.sql");
+ const persist=read("src/features/orders/application/order-submission.ts");
+ assert.ok(staff.includes("lookupCpf(item.payload.document,organizationId,null,{checkExisting:false})"));
+ assert.ok(staff.includes("findQuickCustomerByTaxId"));
+ assert.ok(staff.includes("birth_date:cpf?.birthDate"));
+ assert.ok(staff.includes("gender:cpf?.gender"));
+ assert.ok(tab.includes("creationRequestId:intake.id"));
+ assert.ok(tab.includes("replaceOrderImages(intake.images"));
+ assert.ok(persist.includes("&& !requireAtomic"));
+ assert.ok(sql.includes("revoke all on public.order_intake_requests from public, anon, authenticated"));
+ assert.ok(sql.includes("private.has_effective_organization_permission(new.organization_id,'orders.create')"));
+ assert.ok(sql.includes("status='converted', order_id=new.id"));
+ assert.ok(sql.includes("alter publication supabase_realtime add table public.order_intake_events"));
+ assert.ok(sql.includes("and (created_by=auth.uid()"));
+});
+
+
+test("telefone opcional e fotos obrigatórias são validados no formulário e no servidor",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ assert.ok(page.includes("Seu WhatsApp já está preenchido automaticamente."));
+ assert.ok(page.includes('Telefone (opcional)'));
+ assert.ok(page.includes('!hasPhoto("label")'));
+ assert.ok(page.includes('!hasPhoto("problem")'));
+ assert.ok(page.includes("validation(i)"));
+ assert.ok(api.includes('!kinds.includes("label")||!kinds.includes("problem")'));
+ assert.ok(api.includes("!validPhone(phone)"));
+ assert.ok(staff.includes("formatPhone(review.payload.phone):whatsapp"));
+ assert.ok(staff.includes("phone,whatsapp"));
+ // Execute the exact pure validator defined in the Edge Function.
+ const start=api.indexOf("const ddCodes=");
+ const end=api.indexOf("const phoneOf=",start);
+ const validPhone=new Function(api.slice(start,end).replace("(v:string)","(v)")+"return validPhone;")();
+ for(const number of ["7932220000","79912345678","11987654321"])assert.equal(validPhone(number),true);
+ for(const number of ["","00912345678","7991234567","7912345678","11111111111"])assert.equal(validPhone(number),false);
+});
+
+test("cliente identificado preenche somente equipamento, defeito e revisão",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
+ const sql=read("supabase/migrations/20261124143926_order_intake_bound_customer.sql");
+ assert.ok(page.includes("requires_customer_details===false?2:0"));
+ assert.ok(page.includes("firstStep===0&&step===0"));
+ assert.ok(page.includes("firstStep===0&&step===1"));
+ assert.ok(page.includes("for(let i=firstStep;i<4;i++)"));
+ assert.ok(page.includes("Math.max(firstStep,s-1)"));
+ assert.ok(api.includes('requires_customer_details:!row.bound_customer_id'));
+ assert.ok(api.includes('matches.length===1'));
+ assert.ok(api.includes('matches[0].customer_id!==customer.id'));
+ assert.ok(api.includes('bound_customer_id:boundCustomerId'));
+ assert.ok(!api.includes('body.bound_customer_id'));
+ assert.ok(staff.includes("item.bound_customer_id?{data:{id:item.bound_customer_id}"));
+ assert.ok(sql.includes("c.id=r.bound_customer_id"));
+});
+test("Pré-OS da Artvideo reaproveita o validador, cache e ticket de CPF do site",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ assert.ok(api.includes('"/functions/v1/artvideo-customer-access"'));
+ assert.ok(api.includes('action:"registration_identity",cpf,name'));
+ assert.ok(api.includes('artvideo_site_cpf_check_v1'));
+ assert.ok(api.includes('artvideo_site_cpf_enforcement_v1'));
+ assert.ok(api.includes('String(artvideo)!==org'));
+ assert.ok(api.includes('if(row.bound_customer_id)return json({required:false})'));
+ assert.ok(api.includes('if(!verified)await validateArtvideoIdentity'));
+ assert.ok(!api.includes('APICPF_SITE_API_KEY'));
+ assert.ok(!api.includes('https://apicpf.com/'));
+ assert.ok(page.includes('identityProof.current'));
+ assert.ok(page.includes('await checkIdentity()'));
+ assert.ok(page.includes('cpf_identity_ticket:ticket||undefined'));
+});

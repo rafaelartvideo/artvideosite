@@ -13,6 +13,8 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { UnionWhatsAppGroupsInbox } from "./UnionWhatsAppGroupsInbox";
 import { UnionWhatsAppCrmMenu, type CrmConversationContext } from "./UnionWhatsAppCrmMenu";
 import { useDetachedOrderEditor } from "@/features/orders/presentation/useDetachedOrderEditor";
+import type { IntakePrefill } from "@/features/orders/intake/order-intake.repository";
+const OrderIntakeWorkspace = lazy(() => import("@/features/orders/intake/OrderIntakeWorkspace").then(m=>({default:m.OrderIntakeWorkspace})));
 import { CrmAdditionalContactDialog } from "./CrmAdditionalContactDialog";
 import { UnionWhatsAppContactEditDialog } from "./UnionWhatsAppContactEditDialog";
 import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
@@ -690,7 +692,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactLaunch=useRef(0);
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
-  const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string}|null>(null);
+  const [intakeContext,setIntakeContext]=useState<{org:string;conversationId:string}|null>(null);
+  useEffect(()=>{setIntakeContext(null);},[selectedId,activeOrganizationId]);
+  const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null;conversationId?:string;intake?:IntakePrefill}|null>(null);
   const detachedNewOrder=useDetachedOrderEditor();
   const embeddedSwitchGuardRef=useRef<(()=>boolean)|null>(null);
   const newOrderGateRef=useRef(false);
@@ -3003,6 +3007,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
               newOrderLoading={false}
               newOrderDisabled={Boolean(newOrder&&!detachedNewOrder.detached)}
+              onIntake={!embedded && canSend && hasPermission("orders.create") && activeOrganizationId ? ()=>setIntakeContext({org:activeOrganizationId,conversationId:selected.id}):undefined}
               onNewContact={hasPermission("registrations.contacts.manage") && canAction("create_contacts") ? ()=>void openNewContactFromConversation():undefined}
               newContactLoading={false}
             />}
@@ -3678,10 +3683,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(contactLaunch.current===newContact.launch)closeNewContact();
         notifyAdmin("Contato adicionado ao cadastro e disponível nas OS.","success");
       }}/>}
+    {intakeContext && intakeContext.org===activeOrganizationId && intakeContext.conversationId===selectedId && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={intakeContext.org} conversationId={intakeContext.conversationId}
+      onClose={()=>setIntakeContext(null)}
+      onShare={message=>{if(!canSend || selectedIdRef.current!==intakeContext.conversationId || organizationRef.current!==intakeContext.org)return;setDraft(current=>current?current+"\n\n"+message:message);setIntakeContext(null);}}
+      onConvert={(customerId,prefill)=>{if(newOrder)return;setNewOrder({customerId,key:prefill.id,organizationId:intakeContext.org,conversationId:intakeContext.conversationId,intake:prefill});setIntakeContext(null);}}/></Suspense>}
     {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
       <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
         initialCustomerId={newOrder.customerId}
         initialCustomerLookup={newOrder.customerLookup}
+        initialIntake={newOrder.intake}
         organizationIdOverride={newOrder.organizationId}
         detailOnly embeddedCreate
         embeddedDetachedEditor={detachedNewOrder}
@@ -3691,6 +3701,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           const opportunityId=newOrder.opportunityId;
           const org=newOrder.organizationId;
           setNewOrder(null);
+          if(newOrder.intake)void futureQueryClient.invalidateQueries({queryKey:["order-intake",org]});
           if(opportunityId){
             void markFutureOpportunityConverted(org,opportunityId,orderId)
               .then(()=>{
