@@ -207,7 +207,7 @@ test("todos os gráficos e indicadores de OS atualizam uma única janela flutuan
   assert.doesNotMatch(widgets,/id: "selection"/);
   assert.match(dialog,/draggable floating/);
   assert.match(dialog,/if \(detached\) return createPortal/);
-  assert.match(dialog,/href=\{adminPath\("orders",order.id\)\}/);
+  assert.match(dialog,/href=\{new URL\(adminPath\("orders",order.id\),window.location.origin\).href\}/);
   assert.match(dialog,/totalItems=\{total\}/);
   assert.match(dialog,/order.row_key \|\| order.id/);
   assert.match(repo,/request.abortSignal\(signal\)/);
