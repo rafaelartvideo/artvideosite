@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import {
   listUnionWhatsAppProtocols, unionWhatsAppProtocolLabel,
-  type UnionWhatsAppConversation, type UnionWhatsAppProtocol,
+  type UnionWhatsAppConversation, type UnionWhatsAppProtocol, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
@@ -19,16 +19,17 @@ export function UnionWhatsAppProtocolHistory({conversation,organizationId}:{
   const [moreLoading,setMoreLoading]=useState(false);
   const [hasMore,setHasMore]=useState(false);
   const [page,setPage]=useState(0);
+  const [cursor,setCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
   const [error,setError]=useState("");
   const [revision,setRevision]=useState(0);
 
   useEffect(()=>{
     let cancelled=false;
-    setItems([]);setPage(0);setHasMore(false);setError("");setLoading(true);
+    setItems([]);setPage(0);setCursor(null);setHasMore(false);setError("");setLoading(true);
     void listUnionWhatsAppProtocols(organizationId,conversation.id,conversation.channel_id,conversation.account_phone)
       .then(result=>{
         if(cancelled)return;
-        setItems(result.items);setHasMore(result.hasMore);
+        setItems(result.items);setHasMore(result.hasMore);setCursor(result.nextCursor||null);
       })
       .catch(reason=>{
         if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível carregar os protocolos."));
@@ -43,13 +44,13 @@ export function UnionWhatsAppProtocolHistory({conversation,organizationId}:{
     try{
       const next=page+1;
       const result=await listUnionWhatsAppProtocols(organizationId,conversation.id,
-        conversation.channel_id,conversation.account_phone,next);
+        conversation.channel_id,conversation.account_phone,next,cursor);
       setItems(current=>{
         const unique=new Map(current.map(item=>[item.id,item]));
         for(const item of result.items)unique.set(item.id,item);
         return [...unique.values()];
       });
-      setPage(next);setHasMore(result.hasMore);setError("");
+      setPage(next);setHasMore(result.hasMore);setCursor(result.nextCursor||null);setError("");
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível carregar os protocolos anteriores."));}
     finally{setMoreLoading(false);}
   };
@@ -60,16 +61,16 @@ export function UnionWhatsAppProtocolHistory({conversation,organizationId}:{
     </div>:items.length===0&&!error?<p className="py-5 text-center text-xs text-muted-foreground">
       Nenhum atendimento registrado para este contato.
     </p>:items.map(item=>{
-      const duration=item.closed_at?Math.max(0,Math.round(
+      const duration=item.closed_at&&!item.unknown_date?Math.max(0,Math.round(
         (Date.parse(item.closed_at)-Date.parse(item.opened_at))/60000)):null;
       return <div key={item.id} className="rounded-lg border border-border px-3 py-3 text-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong className="text-sm text-foreground">{unionWhatsAppProtocolLabel(item.protocol_number)}</strong>
-          <span className="font-medium text-muted-foreground">{statusName(item.status)}</span>
+          <span className="font-medium text-muted-foreground">{item.read_only?(item.closed_at?"Finalizado":"Encerramento não registrado"):statusName(item.status)}</span>
         </div>
-        <p className="mt-1.5 text-muted-foreground">Abertura: {new Date(item.opened_at).toLocaleString("pt-BR")}</p>
+        <p className="mt-1.5 text-muted-foreground">Abertura: {item.unknown_date?"Data não registrada":new Date(item.opened_at).toLocaleString("pt-BR")}</p>
         <p className="mt-0.5 text-muted-foreground">
-          {item.closed_at?"Encerramento: "+new Date(item.closed_at).toLocaleString("pt-BR"):"Em aberto"}
+          {item.closed_at?"Encerramento: "+new Date(item.closed_at).toLocaleString("pt-BR"):item.read_only?"Encerramento não registrado":"Em aberto"}
         </p>
         <p className="mt-1.5 text-muted-foreground">
           {item.message_count} mensagem(ns){duration!==null?" · "+duration+" min":""}

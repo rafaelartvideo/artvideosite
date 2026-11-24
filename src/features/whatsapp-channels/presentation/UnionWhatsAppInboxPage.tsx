@@ -21,6 +21,7 @@ import { UnionWhatsAppContactDetails } from "./UnionWhatsAppContactDetails";
 import { FutureOpportunityEditor,FutureOpportunitiesWorkspace } from "./FutureOpportunities";
 import { countAvailableFutureOpportunities,futureOpportunityQueryKey,markFutureOpportunityConverted,type FutureOpportunity } from "../infrastructure/future-opportunities.repository";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
+import { HistoricalMessageBody } from "./HistoricalMessageBody";
 import { UnionWhatsAppStickerPicker } from "./UnionWhatsAppStickerPicker";
 import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -461,6 +462,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
   const [protocolsHasMore,setProtocolsHasMore]=useState(false);
   const [protocolsPage,setProtocolsPage]=useState(0);
+  const [protocolsCursor,setProtocolsCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFallback,setSelectedFallback]=useState<UnionWhatsAppConversation|null>(null);
   const [fallbackErrorId,setFallbackErrorId]=useState<string|null>(null);
@@ -506,6 +508,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesResolvedId,setMessagesResolvedId]=useState<string|null>(null);
   const [messagesErrorId,setMessagesErrorId]=useState<string|null>(null);
+  const [historyUnavailableId,setHistoryUnavailableId]=useState<string|null>(null);
   const lastFeedbackRef = useRef<{message:string;at:number}|null>(null);
   const reportError = useCallback((message:string) => {
     if (!message) return;
@@ -832,7 +835,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!silent)setMessagesLoading(true);
     try{
       const page=await listUnionWhatsAppMessages(activeOrganizationId,conversationId,
-        activeChannelId,activeChannelPhone,protocolFilter?.id);
+        activeChannelId,activeChannelPhone,protocolFilter?.id,null,silent&&messageHistoryLoadedRef.current);
       if(identity!==messageIdentity.current ||
         organizationRef.current!==activeOrganizationId ||
         accountRef.current!==activeChannelPhone)return;
@@ -841,6 +844,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         messageHistoryLoadedRef.current=true;
         setMessagesResolvedId(conversationId);
         setMessagesErrorId(null);
+        setHistoryUnavailableId(page.historyUnavailable?conversationId:null);
       }
       setMessages(current=>{
         if(!silent)return page.items;
@@ -1298,6 +1302,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useLayoutEffect(() => {
     messageCursorRef.current=null;
     messageHistoryLoadedRef.current=false;
+    setHistoryUnavailableId(null);
     setMessagesResolvedId(null);
     setMessagesErrorId(null);
     chatScrollReadyRef.current=false;
@@ -1312,7 +1317,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
-  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setHandoffs([]);}, [selectedId]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setProtocolsCursor(null);setHandoffs([]);}, [selectedId]);
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
   useEffect(() => {
@@ -1353,6 +1358,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen]);
 
   const startReplyTo=(message:UnionWhatsAppMessage)=>{
+    if(message.read_only)return;
     if(!canReply || attachment){
       if(attachment)reportError("Remova o anexo antes de responder a uma mensagem.");
       return;
@@ -1731,9 +1737,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           : Promise.resolve(null),
       ]);
       if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
-        setProtocols(data.items);
+        setProtocols(data.items);setProtocolsCursor(data.nextCursor||null);
         setProtocolsHasMore(data.hasMore);
-        setProtocolsPage(0);
+        setProtocolsPage(0);setProtocolsCursor(null);
         setHandoffs(audit?.history||[]);
       }
     }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
@@ -1746,7 +1752,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setProtocolsMoreLoading(true);
     try{
       const result=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,
-        activeChannelId,activeChannelPhone,next);
+        activeChannelId,activeChannelPhone,next,protocolsCursor);
       if(organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       setProtocols(old=>{
         const unique=new Map(old.map(item=>[item.id,item]));
@@ -1754,7 +1760,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         return [...unique.values()];
       });
       setProtocolsHasMore(result.hasMore);
-      setProtocolsPage(next);
+      setProtocolsPage(next);setProtocolsCursor(result.nextCursor||null);
     }catch(reason){
       reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
@@ -2445,7 +2451,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // the entire company sticker library (and generating signed URLs) on every
   // conversation refresh. The action is scoped to this operator and thread.
   const visibleStickerIds=useMemo(()=>messages
-    .filter(row=>row.message_type==="sticker").map(row=>row.id)
+    .filter(row=>!row.read_only&&row.message_type==="sticker").map(row=>row.id)
     .slice(-100).sort().join(","),[messages]);
   useEffect(()=>{
     stickerSavedScopeRef.current=String(activeOrganizationId||"")+":"+String(selectedId||"");
@@ -2531,6 +2537,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const saveReceivedSticker=(message:UnionWhatsAppMessage)=>{
+    if(message.read_only)return;
     if(!activeOrganizationId || !selected?.id || savedStickerMessageIds.has(message.id) ||
       stickerSaveInFlightRef.current.has(message.id))return;
     const org=activeOrganizationId,threadId=selected.id,scope=org+":"+threadId;
@@ -3035,6 +3042,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
                 style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px", overflowAnchor:"none" }}>
               <div ref={messagesContentRef} className="min-h-full">
+              {historyUnavailableId===selectedId&&selectedId&&<div role="status" className="mx-auto mb-3 flex max-w-md flex-wrap items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-center text-xs">Não foi possível consultar as mensagens anteriores.<AdminButton size="sm" variant="secondary" onClick={()=>void refreshMessages(selectedId)}>Tentar novamente</AdminButton></div>}
               {messagesHasMore && <div className="mb-3 flex justify-center">
                 <button type="button" disabled={messagesOlderLoading}
                   onClick={()=>void loadOlderMessages()}
@@ -3102,18 +3110,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                             {quotedSummary(entry.message.reply_to_text,entry.message.reply_to_message_type)}
                           </span>
                         </button>}
-                      <MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
+                      {entry.message.read_only?<HistoricalMessageBody message={entry.message}/>:<MessageBody message={entry.message} organizationId={activeOrganizationId || ""}
                         onSaveSticker={canSend?message=>void saveReceivedSticker(message):undefined}
                         stickerSaved={savedStickerMessageIds.has(entry.message.id)}
-                        onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
+                        onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>}
                       <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                        {canReply && <button type="button" aria-label="Responder mensagem" title="Responder"
+                        {canReply && !entry.message.read_only && <button type="button" aria-label="Responder mensagem" title="Responder"
                           onClick={()=>startReplyTo(entry.message)}
                           className="mr-1 inline-flex min-h-6 items-center gap-1 rounded px-0.5 py-0.5 text-[10px] font-semibold leading-none text-primary underline-offset-2 transition-colors hover:underline hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">
                           <Reply size={13} aria-hidden="true"/><span>Responder</span>
                         </button>}
                         {clock(entry.message.sent_at)}
-                        {entry.message.direction === "outgoing" && (entry.message.delivery_status === "read"
+                        {!entry.message.read_only && entry.message.direction === "outgoing" && (entry.message.delivery_status === "read"
                           ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
                           : entry.message.delivery_status === "delivered"
                             ? <CheckCheck size={13} aria-label="Entregue"/>

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { FileText, History, Image, Link as LinkIcon, LoaderCircle, MessageCircle, Mic, Pencil, Video } from "lucide-react";
 import {
-  listUnionWhatsAppMessages, operateUnionWhatsAppInbox,
+  listUnionWhatsAppMessages, operateUnionWhatsAppInbox, listContactOnlyHistoricalMessages, isUnifiedHistoryPilotEnabled,
   type UnionWhatsAppContactChange, type UnionWhatsAppConversation, type UnionWhatsAppMessage,
   type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppProtocolHistory } from "./UnionWhatsAppProtocolHistory";
+import { HistoricalMessageBody } from "./HistoricalMessageBody";
 
 const formatWhen=(iso:string)=>{
   const date=new Date(iso);
@@ -107,14 +109,18 @@ type TimelineEntry={
 
 // Histórico único do contato, independente do número de protocolos.
 // A auditoria é solicitada sob demanda, nunca junto à carga da caixa de entrada.
-export function UnionWhatsAppContactHistory({conversation,organizationId,contactJid,accountPhone}:{ 
+export function UnionWhatsAppContactHistory({conversation,organizationId,contactJid,accountPhone,contactId,channelId}:{ 
   conversation?:UnionWhatsAppConversation|null;
   organizationId:string;
   contactJid?:string;
   accountPhone?:string;
+  contactId?:string;
+  channelId?:string;
 }){
   const jid=contactJid||conversation?.chat_jid||"";
   const account=accountPhone||conversation?.account_phone||"";
+  const {hasPermission}=useAuth();
+  const contactOnly=Boolean(!conversation&&contactId&&channelId&&account&&isUnifiedHistoryPilotEnabled(organizationId)&&hasPermission("whatsapp.history_import.manage")&&hasPermission("whatsapp.history_import.view"));
   const [tab,setTab]=useState<"general"|"protocols">("general");
   const [items,setItems]=useState<UnionWhatsAppMessage[]>([]);
   const [cursor,setCursor]=useState<UnionWhatsAppMessageCursor|null>(null);
@@ -133,22 +139,22 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
   useEffect(()=>{
     let cancelled=false;
     setItems([]);setCursor(null);setHasMore(false);setError("");
-    setLoading(Boolean(conversation));
-    if(!conversation)return;
-    void listUnionWhatsAppMessages(organizationId,conversation.id,
-      conversation.channel_id,conversation.account_phone)
+    setLoading(Boolean(conversation||contactOnly));
+    if(!conversation&&!contactOnly)return;
+    void (conversation?listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone):listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account))
       .then(result=>{
         if(cancelled)return;
         setItems(result.items.slice().reverse());
         setCursor(result.nextCursor);
         setHasMore(result.hasMore);
+        if(result.historyUnavailable)setError("Não foi possível consultar todas as mensagens anteriores.");
       })
       .catch(reason=>{
         if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível consultar as mensagens anteriores."));
       })
       .finally(()=>{if(!cancelled)setLoading(false);});
     return()=>{cancelled=true;};
-  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,revision]);
+  },[organizationId,conversation?.id,conversation?.channel_id,conversation?.account_phone,contactOnly,contactId,channelId,account,revision]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -170,11 +176,10 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
   },[organizationId,conversation?.id,conversation?.contact_name,jid,account,revision]);
 
   const loadOlder=async()=>{
-    if(!conversation||!cursor||loading||olderLoading||!hasMore)return;
+    if((!conversation&&!contactOnly)||!cursor||loading||olderLoading||!hasMore)return;
     setOlderLoading(true);
     try{
-      const result=await listUnionWhatsAppMessages(organizationId,conversation.id,
-        conversation.channel_id,conversation.account_phone,null,cursor);
+      const result=conversation?await listUnionWhatsAppMessages(organizationId,conversation.id,conversation.channel_id,conversation.account_phone,null,cursor):await listContactOnlyHistoricalMessages(organizationId,contactId!,channelId!,account,cursor);
       setItems(current=>{
         const unique=new Map(current.map(item=>[item.id,item]));
         for(const item of result.items)unique.set(item.id,item);
@@ -250,10 +255,10 @@ export function UnionWhatsAppContactHistory({conversation,organizationId,contact
                 <span className="text-[10px] text-muted-foreground">{formatWhen(entry.message.sent_at)}</span>
               </div>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {entry.message.direction==="incoming"?"Recebido":"Enviado"}
+                {entry.message.historical_system?"Registro de atendimento":entry.message.direction==="incoming"?"Recebido":"Enviado"}
                 {entry.message.sender_name?" · "+entry.message.sender_name:""}
               </p>
-              <p className="mt-1 break-words text-xs text-foreground/85">{description(entry.message)}</p>
+              {entry.message.read_only?<HistoricalMessageBody message={entry.message}/>:<p className="mt-1 break-words text-xs text-foreground/85">{description(entry.message)}</p>}
             </div>
           </div>:null)}
         {(error||changesError)&&<p role="alert" className="py-2 text-center text-xs text-destructive">

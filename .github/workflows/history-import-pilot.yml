@@ -1,0 +1,45 @@
+name: History Import Pilot
+on:
+  pull_request:
+    paths:
+      - 'tools/history-import/**'
+      - 'supabase/functions/union-history-import/**'
+      - '.github/workflows/history-import-pilot.yml'
+permissions:
+  contents: read
+jobs:
+  archive-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tools/history-import/*.test.mjs supabase/functions/union-history-import/*.test.mjs
+      - run: bash -n tools/history-import/install-pilot.sh && bash -n tools/history-import/update-pilot.sh
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+      - run: deno check --no-lock --node-modules-dir=auto supabase/functions/union-history-import/index.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: union-history-pilot
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            tools/history-import/archive-contract.mjs
+            tools/history-import/archive-store.mjs
+            tools/history-import/archive-gateway.mjs
+            tools/history-import/archive-media.mjs
+            tools/history-import/archive-media.test.mjs
+            tools/history-import/preflight.mjs
+            tools/history-import/archive-store.test.mjs
+            tools/history-import/history-page.mjs
+            tools/history-import/history-page.test.mjs
+            tools/history-import/install-pilot.sh
+            tools/history-import/install-pilot.ps1
+            tools/history-import/update-pilot.ps1
+            tools/history-import/update-pilot.sh
+            tools/history-import/iniciar-atualizacao.cmd
+            tools/history-import/iniciar-instalacao.cmd
