@@ -83,3 +83,19 @@ test("cliente identificado preenche somente equipamento, defeito e revisão",()=
  assert.ok(staff.includes("item.bound_customer_id?{data:{id:item.bound_customer_id}"));
  assert.ok(sql.includes("c.id=r.bound_customer_id"));
 });
+test("Pré-OS da Artvideo reaproveita o validador, cache e ticket de CPF do site",()=>{
+ const page=read("src/features/orders/intake/PublicOrderIntakePage.tsx");
+ const api=read("supabase/functions/order-intake/index.ts");
+ assert.ok(api.includes('"/functions/v1/artvideo-customer-access"'));
+ assert.ok(api.includes('action:"registration_identity",cpf,name'));
+ assert.ok(api.includes('artvideo_site_cpf_check_v1'));
+ assert.ok(api.includes('artvideo_site_cpf_enforcement_v1'));
+ assert.ok(api.includes('String(artvideo)!==org'));
+ assert.ok(api.includes('if(row.bound_customer_id)return json({required:false})'));
+ assert.ok(api.includes('if(!verified)await validateArtvideoIdentity'));
+ assert.ok(!api.includes('APICPF_SITE_API_KEY'));
+ assert.ok(!api.includes('https://apicpf.com/'));
+ assert.ok(page.includes('identityProof.current'));
+ assert.ok(page.includes('await checkIdentity()'));
+ assert.ok(page.includes('cpf_identity_ticket:ticket||undefined'));
+});
