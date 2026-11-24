@@ -240,7 +240,7 @@ export function OrdersFilters({
       {renderMobileFilter()}
     </AdminMobileSearchSwitch>
     <div className="hidden min-w-0 md:block">
-        <div className="grid grid-cols-3 items-start gap-x-2 gap-y-3">
+        <div className="grid grid-cols-1 items-start gap-x-2 gap-y-3 sm:grid-cols-2 md:grid-cols-3">
           <OrderNumbersField osNumberSearch={osNumberSearch} externalOsSearch={externalOsSearch} onOsNumberSearchChange={onOsNumberSearchChange} onExternalOsSearchChange={onExternalOsSearchChange} />
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
