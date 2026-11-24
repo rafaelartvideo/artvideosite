@@ -123,7 +123,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
   const startGateRef = useRef(false);
   // Retain the idempotency key across a retry of the same first message.
   const firstSendIdRef = useRef<{ key: string; id: string } | null>(null);
-  const [newOrder, setNewOrder] = useState<{ customerId: string | null; key: string } | null>(null);
+  const [newOrder, setNewOrder] = useState<{ customerId: string | null; customerLookup?: Promise<string | null>; key: string } | null>(null);
   const [preparingNewOrder, setPreparingNewOrder] = useState(false);
   const newOrderGateRef = useRef(false);
 
@@ -268,34 +268,17 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
     };
   }, [open, orderId, canViewInbox, organizationId, activeOrganizationId]);
 
-  const openNewOrder = async () => {
+  const openNewOrder = () => {
     if (!canCreateOrder || !canViewInbox || organizationId !== activeOrganizationId ||
         newOrderGateRef.current || newOrder) return;
     newOrderGateRef.current = true;
-    setPreparingNewOrder(true);
-    try {
-      // Priorizar o vinculo exato da OS/cadastro, sem inferir apenas pelo telefone.
-      let customerId = source.kind === "conversation" ? null : source.customerId || null;
-      if (!customerId && state.status === "ready") {
-        try {
-          const found = await operateUnionWhatsAppInbox(
-            organizationId, state.conversationId, "customer_match",
-          );
-          // Nunca vincular automaticamente um cliente quando houver ambiguidade.
-          if (!found.ambiguous) customerId = found.customer?.id || null;
-        } catch {
-          // Sem vinculo confirmado, a Nova OS conserva a busca manual de clientes.
-        }
-      }
-      // Importar antes de abrir evita janela vazia durante o primeiro carregamento.
-      await import("@/features/orders/presentation/TabOrders");
-      setNewOrder({ customerId, key: crypto.randomUUID() });
-    } catch (error) {
-      notifyAdmin(systemErrorMessage(error, "Não foi possível abrir a Nova OS."), "error");
-    } finally {
-      newOrderGateRef.current = false;
-      setPreparingNewOrder(false);
-    }
+    const customerId = source.kind === "conversation" ? null : source.customerId || null;
+    const customerLookup = !customerId && state.status === "ready" && hasPermission("customers.view")
+      ? operateUnionWhatsAppInbox(organizationId, state.conversationId, "customer_match", {customer_id_only:true})
+        .then(found => !found.ambiguous ? found.matched_customer_id || found.customer?.id || null : null).catch(()=>null)
+      : undefined;
+    setNewOrder({ customerId, customerLookup, key: crypto.randomUUID() });
+    newOrderGateRef.current = false;
   };
 
   const sendFirstMessage = async (message: string) => {
@@ -452,11 +435,12 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       </AdminButton>}
       {startError && <p role="alert" className="max-w-md text-sm text-destructive">{startError}</p>}
     </div>}
-  {newOrder && <Suspense fallback={null}>
+  {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
     <EmbeddedNewOrder
       key={newOrder.key}
       initialOrderId="new"
       initialCustomerId={newOrder.customerId}
+      initialCustomerLookup={newOrder.customerLookup}
       organizationIdOverride={organizationId}
       detailOnly
       embeddedCreate
