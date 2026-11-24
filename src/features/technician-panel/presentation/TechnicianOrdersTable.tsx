@@ -121,11 +121,7 @@ export function TechnicianOrdersTable({
           { value: "dateFrom", label: "Agendamento de" },
           { value: "dateTo", label: "Agendamento até" },
         ]}
-        onChange={value => {
-          setMobileCriterion(value);
-          setSearch(""); setFilter("all"); setDateFrom(""); setDateTo("");
-          setDraftFrom(""); setDraftTo(""); setDateOpen(false); setPage(1);
-        }}
+        onChange={value => { setMobileCriterion(value); setDateOpen(false); }}
       >
         {mobileCriterion === "status"
           ? <select className={INPUT + " h-[42px] w-full min-w-0 text-sm"} value={filter}
