@@ -48,6 +48,7 @@ export type UnionWhatsAppProtocol = {
 export const unionWhatsAppProtocolLabel = (number: number) => `ATD-${String(number).padStart(6,"0")}`;
 export type UnionWhatsAppProtocolMarker = Pick<UnionWhatsAppProtocol,"id"|"protocol_number"|"opened_at"|"closed_at">;
 
+export type UnionWhatsAppHistoricalAttachment = {id:string;kind:string;mime:string;available:boolean};
 export type UnionWhatsAppMessage = {
   id: string;
   organization_id: string;
@@ -68,6 +69,10 @@ export type UnionWhatsAppMessage = {
   media_name?: string | null;
   media_mime?: string | null;
   media_available?: boolean;
+  read_only?: boolean;
+  historical_attachments?: UnionWhatsAppHistoricalAttachment[];
+  historical_scope?: {channel_id:string;account_phone:string};
+  historical_system?: boolean;
 };
 
 export type UnionWhatsAppSavedSticker = {
@@ -144,7 +149,7 @@ export type UnionWhatsAppConversationCounts={
 };
 export type UnionWhatsAppMessageCursor={sent_at:string;id:string};
 export type UnionWhatsAppMessagePage={
-  items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null;
+  items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null;historyUnavailable?:boolean;
 };
 export type UnionWhatsAppProtocolPage={
   items:UnionWhatsAppProtocol[];hasMore:boolean;
@@ -380,7 +385,7 @@ export async function getUnionWhatsAppConversation(
     [data as UnionWhatsAppConversation]))[0] : null;
 }
 
-export async function listUnionWhatsAppMessages(
+async function listLiveUnionWhatsAppMessages(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   protocolId?:string|null,before?:UnionWhatsAppMessageCursor|null,
 ):Promise<UnionWhatsAppMessagePage>{
@@ -400,6 +405,61 @@ export async function listUnionWhatsAppMessages(
   const oldest=current[current.length-1];
   return {items:current.reverse(),hasMore:rows.length>MESSAGE_PAGE_SIZE,
     nextCursor:oldest?{sent_at:oldest.sent_at,id:oldest.id}:null};
+}
+
+// The pilot is opt-in per organization; no additional requests for other tenants.
+// The setting is a routing switch, not an authorization mechanism. RLS and the
+// exact bound identity are always checked by the Edge Function.
+export function isUnifiedHistoryPilotEnabled(organizationId:string):boolean{
+  return String(import.meta.env.VITE_UNION_HISTORY_PILOT_ORGANIZATIONS||"").split(",").map(v=>v.trim()).includes(organizationId);
+}
+export async function listUnionWhatsAppMessages(
+  organizationId:string,conversationId:string,channelId:string,accountPhone:string,
+  protocolId?:string|null,before?:UnionWhatsAppMessageCursor|null,liveOnly=false,
+):Promise<UnionWhatsAppMessagePage>{
+  if(liveOnly||!isUnifiedHistoryPilotEnabled(organizationId))
+    return listLiveUnionWhatsAppMessages(organizationId,conversationId,channelId,accountPhone,protocolId,before);
+  try{
+    const {data,error}=await supabase.functions.invoke("union-history-import",{body:{
+      action:"conversation_page",organization_id:organizationId,conversation_id:conversationId,
+      channel_id:channelId,account_phone:accountPhone,protocol_id:protocolId||null,before:before||null,limit:MESSAGE_PAGE_SIZE,
+    }});
+    if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Histórico temporariamente indisponível.");
+    const result=data.result;
+    const items=result.items.map((row: any):UnionWhatsAppMessage=>{
+      if(row.read_only!==true)return row as UnionWhatsAppMessage;
+      const attachments=(Array.isArray(row.attachments)?row.attachments:[]).filter((a:any)=>typeof a?.id==="string"&&/^[a-f0-9]{64}$/.test(a.id)).map((a:any)=>({id:a.id,kind:String(a.kind||"unknown"),mime:String(a.mime||""),available:a.available===true}));
+      const text=String(row.body_text||"");
+      const links=Array.isArray(row.links)?row.links.filter((v:unknown)=>typeof v==="string"&&/^https?:\/\//i.test(v)).filter((v:string)=>!text.includes(v)):[];
+      const location=row.location;
+      const latitude=Number(location?.latitude??location?.lat),longitude=Number(location?.longitude??location?.lng??location?.lon);
+      const position=location&&Number.isFinite(latitude)&&Number.isFinite(longitude)&&Math.abs(latitude)<=90&&Math.abs(longitude)<=180?"geo:"+latitude+","+longitude:null;
+      return {id:row.id,organization_id:organizationId,conversation_id:conversationId,protocol_id:row.protocol_id||null,
+        provider_message_id:row.id,direction:row.direction==="outgoing"?"outgoing":"incoming",message_type:position?"location":"text",
+        body_text:[position,text,...links].filter(Boolean).join("\n"),sender_name:row.sender_name||null,sent_at:row.sent_at,
+        delivery_status:null,read_only:true,historical_system:row.direction==="system",historical_attachments:attachments,
+        historical_scope:{channel_id:channelId,account_phone:accountPhone}};
+    });
+    return {items,hasMore:result.hasMore===true,nextCursor:result.nextCursor||null};
+  }catch{
+    // Never advance a merged cursor with only one source available. A retry
+    // must restart the unified page; current messages remain visible on open.
+    if(before||protocolId)throw Error("Não foi possível consultar as mensagens anteriores. Tente novamente.");
+    const live=await listLiveUnionWhatsAppMessages(organizationId,conversationId,channelId,accountPhone);
+    return {...live,hasMore:false,nextCursor:null,historyUnavailable:true};
+  }
+}
+export async function getHistoricalWhatsAppMedia(message:UnionWhatsAppMessage,assetId:string,download=false){
+  const scope=message.historical_scope;
+  if(!message.read_only||!scope||!message.historical_attachments?.some(a=>a.id===assetId&&a.available))throw Error("Arquivo indisponível.");
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{
+    action:"media_ticket",organization_id:message.organization_id,conversation_id:message.conversation_id,
+    channel_id:scope.channel_id,account_phone:scope.account_phone,asset_id:assetId,download,
+  }});
+  if(error||data?.success!==true||typeof data.result?.url!=="string")throw Error("Não foi possível abrir o arquivo.");
+  const url=new URL(data.result.url);
+  if(url.protocol!=="https:"||url.username||url.password||url.pathname!=="/history-import"||!(/^[a-f0-9]{64}$/).test(url.searchParams.get("media")||""))throw Error("Arquivo indisponível.");
+  return {url:url.toString(),expiresAt:String(data.result.expires_at||"")};
 }
 
 // Compartilhamentos do perfil da conversa: carregamento por aba, paginado,
