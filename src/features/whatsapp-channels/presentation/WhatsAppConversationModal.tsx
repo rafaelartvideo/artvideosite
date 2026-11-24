@@ -244,6 +244,30 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
     return () => { cancelled = true; };
   }, [open, organizationId, phone, sourceKey, activeOrganizationId, canViewInbox,chooseOrderRecipient]);
 
+  // Refresh recipients only on an actual CRM contact change, without rejoining
+  // the current thread or fetching messages / checking WuzAPI again.
+  useEffect(() => {
+    if (!open || !orderId || !canViewInbox || organizationId !== activeOrganizationId) return;
+    let cancelled = false;
+    let revision = 0;
+    const refreshRecipients = (event: Event) => {
+      if ((event as CustomEvent<{ organizationId?: string }>).detail?.organizationId !== organizationId) return;
+      const request = ++revision;
+      void operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), "order_recipients", { service_order_id: orderId })
+        .then(result => {
+          if (cancelled || request !== revision) return;
+          const recipients = result.recipients || [];
+          setOrderRecipients(recipients);
+          setState(current => current.status === "choosing" ? { status: "choosing", recipients } : current);
+        }).catch(() => undefined);
+    };
+    window.addEventListener("union:registration-contacts-changed", refreshRecipients);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("union:registration-contacts-changed", refreshRecipients);
+    };
+  }, [open, orderId, canViewInbox, organizationId, activeOrganizationId]);
+
   const openNewOrder = async () => {
     if (!canCreateOrder || !canViewInbox || organizationId !== activeOrganizationId ||
         newOrderGateRef.current || newOrder) return;
