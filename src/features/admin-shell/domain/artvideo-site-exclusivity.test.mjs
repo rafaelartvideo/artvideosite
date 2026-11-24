@@ -13,7 +13,8 @@ test("Site, orçamentos da web e suas rotas são exclusivos da Artvideo, não ba
     assert.match(source,/!isArtVideoOrganization/);
     assert.match(source,/tab === "siteRequests"\) return isArtVideoOrganization && hasPermission\("site.view"\)/);
   }
-  assert.match(app(),/!canAccessTab\(activeTab\)/);
+  assert.match(app(),/const canAccessCurrentRoute = activeTab === "customers"[\s\S]*?: canAccessTab\(activeTab\);/);
+  assert.match(app(),/!canAccessCurrentRoute/);
   assert.match(nav(),/export const siteModuleKeys = \[\s*"site_categories"/);
   assert.doesNotMatch(nav().slice(nav().indexOf("export const siteModuleKeys"),nav().indexOf("export const operationModuleKeys")),/"quotes"/);
   assert.match(read("src/features/settings/presentation/SiteRequestsPage.tsx"),/const canQuotes = isArtvideo && hasPermission\("site.view"\)/);
