@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "./utils";
+import { usePortalContainer } from "./portal-container";
 
 function Select({
   ...props
@@ -60,8 +61,9 @@ function SelectContent({
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const container = usePortalContainer();
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
