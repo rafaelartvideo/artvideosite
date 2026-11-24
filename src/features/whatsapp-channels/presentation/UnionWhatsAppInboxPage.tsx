@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery,useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound, ClipboardList } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Sticker, Star, Settings, Settings2, MoreVertical, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, Reply, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, History, Clock3, MapPin, BookmarkPlus, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil, MessageSquareText, UserRound, ClipboardList } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
@@ -587,6 +587,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [editContactId,setEditContactId]=useState<string|null>(null);
   const [contactDetailsOpen,setContactDetailsOpen]=useState(false);
   const [opportunitiesOpen,setOpportunitiesOpen]=useState(false);
+  const [attendanceMenuOpen,setAttendanceMenuOpen]=useState(false);
+  const [attendanceViewExpanded,setAttendanceViewExpanded]=useState(false);
+  useEffect(()=>{setOpportunitiesOpen(false);setAttendanceMenuOpen(false);setAttendanceViewExpanded(false);},[activeOrganizationId]);
   const [opportunityCreateOpen,setOpportunityCreateOpen]=useState(false);
   useEffect(()=>setOpportunityCreateOpen(false),[selectedId,activeOrganizationId]);
   const closeContactDetails=useCallback(()=>setContactDetailsOpen(false),[]);
@@ -2599,26 +2602,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </div>
       <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto md:shrink-0">
         {!embedded&&activeOrganizationId&&hasPermission("orders.create")&&hasPermission("orders.view")&&<AdminButton variant="tertiary" onClick={()=>setIntakeContext({org:activeOrganizationId})} className="shrink-0"><ClipboardList size={16}/> Pré-OS</AdminButton>}
-        <AdminButton variant={opportunitiesOpen?"primary":"secondary"}
-          className="max-md:!px-2.5 max-md:!py-2" onClick={()=>{setOpportunitiesOpen(value=>!value);setOpportunityCreateOpen(false);}}>
-          <BookmarkPlus size={16}/> <span className="hidden sm:inline">{opportunitiesOpen?"Conversas":"Oportunidades futuras"}</span>
-          <span className="sm:hidden">{opportunitiesOpen?"Conversas":"Oportunidades"}</span>
-          {!opportunitiesOpen && Boolean(availableFutureOpportunities.data) &&
-            <span aria-label={availableFutureOpportunities.data+" oportunidades disponíveis e autorizadas"}
-              className="ml-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white tabular-nums">
-              {availableFutureOpportunities.data}
-            </span>}
-        </AdminButton>
-        {canUseAttendancePreferences && attendancePreferences && <Popover>
+        <Popover open={attendanceMenuOpen} onOpenChange={open=>{setAttendanceMenuOpen(open);if(!open)setAttendanceViewExpanded(false);}}>
           <PopoverTrigger asChild>
-            <button type="button" aria-label="Preferências de visualização dos atendimentos"
-              title="Preferências de visualização" data-attendance-preferences-trigger="true"
-              className={`flex h-[42px] shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${attendancePreferences.preserveUnreadOnView?"border-primary/50 bg-primary/10 text-primary":"border-border bg-card text-foreground hover:bg-muted"}`}>
-              <Settings2 size={16}/><span className="hidden sm:inline">Visualização</span><ChevronDown size={15}/>
+            <button type="button" aria-label="Mais opções de atendimentos" title="Mais opções"
+              data-attendance-preferences-trigger="true"
+              className={`relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${attendanceMenuOpen?"border-primary/50 bg-primary/10 text-primary":"border-border bg-card text-foreground hover:bg-muted"}`}>
+              <MoreVertical size={20}/>
+              {Boolean(availableFutureOpportunities.data)&&<span aria-hidden="true" className="absolute right-1.5 top-1.5 size-2 rounded-full bg-emerald-500 ring-2 ring-card"/>}
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" side="bottom" sideOffset={8}
-            className="z-[90] w-[min(21rem,calc(100vw-1.5rem))] space-y-3 rounded-xl border border-border bg-card p-4 shadow-xl">
+          <PopoverContent align="end" side="bottom" sideOffset={8} className="z-[90] w-[min(21rem,calc(100vw-1.5rem))] space-y-1 rounded-xl border border-border bg-card p-2 shadow-xl">
+            <button type="button" onClick={()=>{setAttendanceMenuOpen(false);setAttendanceViewExpanded(false);setOpportunityCreateOpen(false);setOpportunitiesOpen(true);}}
+              className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <BookmarkPlus size={16} className="shrink-0"/> <span className="flex-1">Oportunidades futuras</span>
+              {Boolean(availableFutureOpportunities.data)&&<span aria-label={availableFutureOpportunities.data+" oportunidades disponíveis e autorizadas"} className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white tabular-nums">{availableFutureOpportunities.data}</span>}
+            </button>
+            {canUseAttendancePreferences && attendancePreferences && <>
+              <button type="button" aria-expanded={attendanceViewExpanded} onClick={()=>setAttendanceViewExpanded(value=>!value)}
+                className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <Settings2 size={16} className="shrink-0"/><span className="flex-1">Visualização</span>{attendanceViewExpanded?<ChevronUp size={15}/>:<ChevronRight size={15}/>}
+              </button>
+              {attendanceViewExpanded&&<div className="space-y-2 border-t border-border px-2 py-3">
             <div>
               <p className="text-sm font-bold text-foreground">Preferências de visualização</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -2658,13 +2662,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </span>
               </span>
             </label>
+              </div>}
+            </>}
           </PopoverContent>
-        </Popover>}
+        </Popover>
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")) &&
           <button type="button" data-whatsapp-attendance-settings-trigger="true" aria-label="Configurações dos Atendimentos" title="Configurações dos Atendimentos"
             onClick={onConfigure}
             className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <Settings2 size={20} strokeWidth={2}/>
+            <Settings size={20} strokeWidth={2}/>
           </button>}
         {canAction("collaborate") && canSend && <AdminButton variant="secondary" className="max-md:!px-2.5 max-md:!py-2" onClick={()=>setRequestOpen(true)}>
           <Users size={15} className="shrink-0"/><span className="md:hidden">Participar</span><span className="hidden md:inline">Solicitar participação</span>
@@ -2672,13 +2678,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <AdminButton variant="secondary" className="max-md:!px-3 max-md:!py-2" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>}
-    {opportunitiesOpen && !embedded && activeOrganizationId
-      ? <FutureOpportunitiesWorkspace organizationId={activeOrganizationId} canEdit={canSend}
-          onNewOrder={hasPermission("orders.create")&&canSend?item=>void openNewOrderFromFuture(item):undefined}
-          onClose={()=>setOpportunitiesOpen(false)} onOpenConversation={id=>{
-            setOpportunitiesOpen(false);setSelectedFallback(null);setSelectedId(id);
-          }}/>
-      : bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
+    {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
      channelReady === false ? <div className={embedded
       ? "flex min-h-0 flex-1 items-center justify-center bg-card px-6 py-8 text-center"
       : "flex min-h-[440px] items-center justify-center bg-card px-6 py-12 text-center"}>
@@ -3352,6 +3352,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </section>
       </div>}
     </div>}
+    {opportunitiesOpen && !embedded && activeOrganizationId && <FutureOpportunitiesWorkspace
+      modal key={activeOrganizationId} organizationId={activeOrganizationId} canEdit={canSend}
+      onNewOrder={hasPermission("orders.create")&&canSend?item=>{setOpportunitiesOpen(false);void openNewOrderFromFuture(item);}:undefined}
+      onClose={()=>setOpportunitiesOpen(false)} onOpenConversation={id=>{
+        setOpportunitiesOpen(false);setSelectedFallback(null);setSelectedId(id);
+      }}/>}
     {opportunityCreateOpen && selected && activeOrganizationId &&
       <FutureOpportunityEditor key={"new:"+selected.id}
         identity={{organization_id:activeOrganizationId,channel_id:selected.channel_id,
