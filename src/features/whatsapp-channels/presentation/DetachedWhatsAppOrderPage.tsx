@@ -5,7 +5,7 @@ import { UnionWhatsAppActivityProvider } from "./UnionWhatsAppActivityProvider";
 import { WhatsAppConversationModal, type WhatsAppModalContext } from "./WhatsAppConversationModal";
 
 type Recipient={kind:"registered"|"linked";name:string;phone:string;field?:"whatsapp"|"phone";
-  conversation_id?:string;account_phone?:string;chat_jid?:string};
+  conversation_id?:string;entity_contact_id?:string;account_phone?:string;chat_jid?:string};
 type DocumentRequest={resolve:(file:File)=>void;reject:(error:Error)=>void;timeout:number};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -139,7 +139,7 @@ export function DetachedWhatsAppOrderPage({
       organizationId:expectedOrganizationId,orderId:currentOrderId,
       recipient:recipient ? {
         kind:recipient.kind,phone:recipient.phone,field:recipient.field,
-        conversation_id:recipient.conversation_id,
+        conversation_id:recipient.conversation_id,entity_contact_id:recipient.entity_contact_id,
       }:null},window.location.origin);
   },[expectedOrganizationId,currentOrderId,navigate]);
 
