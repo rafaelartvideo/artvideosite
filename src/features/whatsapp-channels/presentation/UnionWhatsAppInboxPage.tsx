@@ -689,7 +689,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactLaunch=useRef(0);
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
-  const [newOrder,setNewOrder]=useState<{customerId:string|null;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
+  const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
   const [preparingNewOrder,setPreparingNewOrder]=useState(false);
   const newOrderGateRef=useRef(false);
   const newOrderLaunchRef=useRef(0);
@@ -1532,39 +1532,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       previewName:linkedCustomers[threadId]?.customer?.name,launch});
     void resolveNewContactOwner(org,threadId,launch);
   };
-  const openNewOrderFromConversation=async()=>{
+  const openNewOrderFromConversation=()=>{
     if(embedded || !selected || !activeOrganizationId || channelReady!==true ||
       !hasPermission("orders.create") || newOrderGateRef.current || newOrder)return;
-    const org=activeOrganizationId;
-    const threadId=selected.id;
-    const launch=newOrderLaunchRef.current;
+    const org=activeOrganizationId, threadId=selected.id;
     newOrderGateRef.current=true;
-    setPreparingNewOrder(true);
-    try{
-      let customerId:string|null=null;
-      if(hasPermission("customers.view")){
-        try{
-          // A consulta confirma o cliente desta conversa na empresa ativa.
-          // Sem correspondência única (ou se falhar), a Nova OS abre sem cliente.
-          const result=await operateUnionWhatsAppInbox(org,threadId,"customer_match");
-          if(!result.ambiguous && result.customer?.id)customerId=result.customer.id;
-        }catch{
-          customerId=null;
-        }
-      }
-      if(newOrderLaunchRef.current!==launch || organizationRef.current!==org)return;
-      await import("@/features/orders/presentation/TabOrders");
-      if(newOrderLaunchRef.current!==launch || organizationRef.current!==org)return;
-      setNewOrder({customerId,key:crypto.randomUUID(),organizationId:org});
-    }catch(reason){
-      if(newOrderLaunchRef.current===launch)
-        reportError(systemErrorMessage(reason,"Não foi possível abrir a Nova OS."));
-    }finally{
-      if(newOrderLaunchRef.current===launch){
-        newOrderGateRef.current=false;
-        setPreparingNewOrder(false);
-      }
-    }
+    const cached=linkedCustomers[threadId];
+    const canViewCustomer=hasPermission("customers.view");
+    const hasCached=canViewCustomer && cached && !cached.error;
+    const customerId=hasCached && !cached.ambiguous ? cached.customer?.id || null : null;
+    // A synchronous open. The promise starts only for this editor, not for every conversation.
+    const customerLookup=canViewCustomer && !hasCached ? futureQueryClient.fetchQuery({
+      queryKey:["whatsapp","new-order-customer",org,user?.id,activeChannelId,activeChannelPhone,threadId],
+      staleTime:15_000,gcTime:60_000,retry:false,
+      queryFn:async()=>{
+        const result=await operateUnionWhatsAppInbox(org,threadId,"customer_match",{customer_id_only:true});
+        return !result.ambiguous ? result.matched_customer_id || result.customer?.id || null : null;
+      },
+    }).catch(()=>null) : undefined;
+    setNewOrder({customerId,customerLookup,key:crypto.randomUUID(),organizationId:org});
+    newOrderGateRef.current=false;
   };
   useEffect(()=>{
     if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
@@ -3694,9 +3681,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(contactLaunch.current===newContact.launch)closeNewContact();
         notifyAdmin("Contato adicionado ao cadastro e disponível nas OS.","success");
       }}/>}
-    {newOrder && <Suspense fallback={null}>
+    {newOrder && <Suspense fallback={<AdminDialog open onClose={()=>setNewOrder(null)} title="Nova OS" description="Cadastre os dados do atendimento" preparing preparingText="Carregando Nova OS..." floating showOverlay={false} minimizable={false}>{null}</AdminDialog>}>
       <EmbeddedNewOrder key={newOrder.key} initialOrderId="new"
         initialCustomerId={newOrder.customerId}
+        initialCustomerLookup={newOrder.customerLookup}
         organizationIdOverride={newOrder.organizationId}
         detailOnly embeddedCreate
         onEmbeddedClose={()=>setNewOrder(null)}
