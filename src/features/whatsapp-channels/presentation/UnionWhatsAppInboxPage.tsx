@@ -194,7 +194,7 @@ function WhatsAppVoicePlayer({src,loading=false,error="",onRetry,compact=false}:
   </div>;
 }
 
-function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stickerSaved = false }: {
+export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticker, stickerSaved = false }: {
   message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
   onSaveSticker?: (message:UnionWhatsAppMessage)=>void;
   stickerSaved?: boolean;
