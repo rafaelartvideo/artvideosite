@@ -27,7 +27,7 @@ test("Pré-OS pública é independente da sessão do CRM, sem pedir WhatsApp ou 
 test("conversão usa CPF autenticado, editor existente e IDs de mídias sem novo upload",()=>{
  const staff=read("src/features/orders/intake/OrderIntakeWorkspace.tsx");
  const tab=read("src/features/orders/presentation/TabOrders.tsx");
- const sql=read("supabase/migrations/20261124150000_order_intake_requests.sql");
+ const sql=read("supabase/migrations/20261124143550_order_intake_requests.sql");
  const persist=read("src/features/orders/application/order-submission.ts");
  assert.ok(staff.includes("lookupCpf(item.payload.document,organizationId,null,{checkExisting:false})"));
  assert.ok(staff.includes("findQuickCustomerByTaxId"));
