@@ -23,6 +23,7 @@ export async function intakeCall<T>(body:Record<string,unknown>|FormData):Promis
   return data as T;
 }
 export const openIntake=(token:string)=>intakeCall<IntakeCatalog>({action:"open",token});
+export const listIntakeModels=(token:string,brandId:string)=>intakeCall<{models:{id:string;name:string}[]}>({action:"models",token,brand_id:brandId});
 export const createIntake=(org:string,conversationId:string)=>intakeCall<{token:string}>({action:"create",organization_id:org,conversation_id:conversationId});
 export const listIntakes=(org:string,conversationId?:string,page=0)=>intakeCall<{rows:IntakeRow[]}>({action:"list",organization_id:org,conversation_id:conversationId,page});
 export const reviewIntake=(org:string,id:string)=>intakeCall<{intake:OrderIntake}>({action:"review",organization_id:org,id});
