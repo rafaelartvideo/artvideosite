@@ -82,7 +82,7 @@ export const searchOrderCustomers = (organizationId: string, query: string) => {
 
   return supabase
     .from("customers")
-    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)")
+    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,gender,addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
     .or(conditions.join(","))
     .limit(8);
