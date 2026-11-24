@@ -48,3 +48,30 @@ test("Migração mantém menu dos demais perfis e não concede por padrão ao T�
   assert.match(sql, /not in \('técnico', 'tecnico'\)/i);
   assert.match(sql, /on conflict \(role_id, permission_id\) do nothing/i);
 });
+
+
+test("Cadastros separa menu, perfil individual e criação operacional", () => {
+  const admin = read("src/app/Admin.tsx");
+  const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
+  const registrations = read("src/features/registrations/presentation/TabRegistrations.tsx");
+  for (const source of [admin, sidebar]) {
+    assert.match(source, /if \(tab === "customers"\) return hasPermission\("customers\.view"\) && hasPermission\("customers\.menu\.view"\)/);
+  }
+  assert.match(admin, /const canAccessCurrentRoute = activeTab === "customers"/);
+  assert.match(admin, /route\.resourceId === "new"\s*\? canAccessTab\("customers"\) && hasPermission\("customers\.create"\) && hasPermission\("customers\.module\.create"\)/);
+  assert.match(admin, /!canAccessCurrentRoute \?/);
+  assert.match(registrations, /const canList = canView && hasPermission\("customers\.menu\.view"\)/);
+  assert.match(registrations, /const canCreate = canList && hasPermission\("customers\.module\.create"\) && hasPermission\("customers\.create"\)/);
+  assert.match(registrations, /if \(!canCreate\) return;/);
+  assert.match(registrations, /creating && !canCreate/);
+  assert.match(registrations, /activeOrganizationId && routeRegistrationId && canView/);
+  assert.doesNotMatch(registrations, /activeOrganizationId && canView && !routeResourceId/);
+  const order = read("src/features/orders/presentation/OrderCustomerSection.tsx");
+  assert.match(order, /hasPermission\("customers\.create"\) && <BtnPrimary/);
+  assert.doesNotMatch(order, /customers\.module\.create|customers\.menu\.view/);
+  assert.deepEqual(permissionDependencies("customers.menu.view"), ["customers.view"]);
+  assert.deepEqual(permissionDependencies("customers.module.create"), ["customers.menu.view", "customers.create", "customers.view"]);
+  assert.ok(!permissionDependencies("customers.create").includes("customers.menu.view"));
+  assert.equal(permissionSectionName({ key: "customers.menu.view" }), "Navegação");
+  assert.equal(permissionSectionName({ key: "customers.module.create" }), "Navegação");
+});
