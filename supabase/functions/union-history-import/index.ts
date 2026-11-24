@@ -42,8 +42,8 @@ Deno.serve(async req=>{
     if(b.action==="history_page"||b.action==="conversation_page"||b.action==="media_ticket"){
       const unified=b.action==="conversation_page",mediaTicket=b.action==="media_ticket";
       if(mediaTicket&&(typeof b.asset_id!=="string"||!/^[a-f0-9]{64}$/.test(b.asset_id)))return json({success:false,error:"Anexo inválido."},400);
-      const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null;
-      if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols"].includes(kind)||(unified&&kind!=="messages")||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind==="protocols"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
+      const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null,category=b.category??null;
+      if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols","shared"].includes(kind)||(kind==="shared"&&!["media","documents","links"].includes(category))||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind!=="messages"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
       if(before!==null){try{timestampMicros(before.sent_at)}catch{return json({success:false,error:"Cursor inválido."},400)}}
       const {data:visibleThread,error:threadError}=await scoped.from("union_whatsapp_conversations")
         .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone")
@@ -53,10 +53,23 @@ Deno.serve(async req=>{
       const thread=visibleThread;
       const empty={items:[],hasMore:false,nextCursor:null};
       async function currentPage(){
+        if(kind==="protocols"){
+          let q=scoped.from("union_whatsapp_protocols").select("id,conversation_id,protocol_number,status,assigned_to,department_id,opened_at,assigned_at,closed_at,first_reply_at,message_count,opened_by,closed_by")
+            .eq("organization_id",thread.organization_id).eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone).eq("conversation_id",thread.id);
+          if(before)q=q.or(`opened_at.lt.${before.sent_at},and(opened_at.eq.${before.sent_at},id.lt.${before.id})`);
+          const {data,error}=await q.order("opened_at",{ascending:false}).order("id",{ascending:false}).limit(limit+1);
+          if(error)throw Error("Atendimentos indisponíveis.");
+          const rows=data||[];return {items:rows.slice(0,limit).map(r=>({...r,sent_at:r.opened_at})),hasMore:rows.length>limit};
+        }
         let q=scoped.from("union_whatsapp_messages")
           .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available,reply_to_provider_message_id,reply_to_text,reply_to_message_type,reply_to_direction")
           .eq("organization_id",thread.organization_id).eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone).eq("conversation_id",thread.id);
         if(protocolId)q=q.eq("protocol_id",protocolId);
+        if(kind==="shared"){
+          if(category==="media")q=q.in("message_type",["image","video","sticker","audio"]);
+          else if(category==="documents")q=q.eq("message_type","file");
+          else q=q.eq("message_type","text").or("body_text.ilike.%http%,body_text.ilike.%www.%");
+        }
         if(before)q=q.or(`sent_at.lt.${before.sent_at},and(sent_at.eq.${before.sent_at},id.lt.${before.id})`);
         const {data,error}=await q.order("sent_at",{ascending:false}).order("id",{ascending:false}).limit(limit+1);
         if(error)throw Error("Mensagens indisponíveis.");
@@ -65,7 +78,8 @@ Deno.serve(async req=>{
       }
       async function finishPage(archive:typeof empty|{items:Record<string,unknown>[];hasMore:boolean;nextCursor:unknown}){
         if(!unified)return archive;
-        return mergeFetchedHistoryPages(await currentPage(),archive,before,limit);
+        const page=kind==="protocols"?{...archive,items:archive.items.map((r:Record<string,unknown>)=>({...r,sent_at:r.opened_at||"1970-01-01T00:00:00.000Z",read_only:true}))}:archive;
+        return mergeFetchedHistoryPages(await currentPage(),page,before,limit);
       }
       // LIDs, groups, ambiguous or changed identities must not be guessed.
       if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return mediaTicket?json({success:false,error:"Anexo indisponível."},404):json({success:true,result:await finishPage(empty)});
@@ -76,7 +90,7 @@ Deno.serve(async req=>{
       if(matchError)throw Error("Identidade indisponível.");
       if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return mediaTicket?json({success:false,error:"Anexo indisponível."},404):json({success:true,result:await finishPage(empty)});
       const scope={organizationId:thread.organization_id,accountPhone:thread.account_phone,contactId:matches[0].id,contactPhone:thread.contact_phone,conversationId:thread.id};
-      const result=mediaTicket?await bridge({action:"media_ticket",...scope,assetId:b.asset_id,download:b.download===true}):await bridge({action:"history_page",...scope,kind,protocolId,before,limit});
+      const result=mediaTicket?await bridge({action:"media_ticket",...scope,assetId:b.asset_id,download:b.download===true}):await bridge({action:"history_page",...scope,kind,category,protocolId,before,limit});
       const page=mediaTicket?null:await finishPage(result);
       // Recheck visibility at delivery time (the conversation may have been reassigned).
       const {data:stillVisible,error:visibilityError}=await scoped.from("union_whatsapp_conversations")
