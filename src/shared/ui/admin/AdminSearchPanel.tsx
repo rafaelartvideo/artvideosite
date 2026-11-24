@@ -1,22 +1,59 @@
-import { useId, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
-import { Check, Search } from "lucide-react";
+import { Children, cloneElement, isValidElement, useId, useState, type HTMLInputTypeAttribute, type KeyboardEvent, type ReactNode } from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminCard } from "./AdminLayout";
 import { AdminFieldLabel, INPUT } from "./AdminFormControls";
+import { AdminMobileSearchSwitch } from "./AdminMobileSearchSwitch";
+
+type SearchChildProps = { className?: string; children?: ReactNode; mobileOnly?: boolean; label?: ReactNode; ariaLabel?: string };
+
+// A grade antiga continua disponível, inclusive em telas estreitas, sem duplicar inputs.
+function showExpandedSearch(node: ReactNode): ReactNode {
+  if (!isValidElement<SearchChildProps>(node) || typeof node.type !== "string") return node;
+  const className = node.props.className || "";
+  const classes = className.split(/\s+/);
+  const display = classes.includes("md:grid") ? "grid" : classes.includes("md:block") ? "block" : classes.includes("md:flex") ? "flex" : null;
+  const nextClass = display && classes.includes("hidden") ? classes.filter(item => item !== "hidden").concat(display).join(" ") : className;
+  return cloneElement(node, { className: nextClass || undefined },
+    node.props.children == null ? node.props.children : Children.map(node.props.children, showExpandedSearch));
+}
 
 export function AdminSearchPanel({ title, children, headerActions, allowOverflow = false }: { title: string; children: ReactNode; headerActions?: ReactNode; allowOverflow?: boolean }) {
+  const panelId = useId();
+  const [expanded, setExpanded] = useState(false);
+  const content = Children.toArray(children);
+  const compactIndex = content.findIndex(child => isValidElement(child) && child.type === AdminMobileSearchSwitch);
+  const compact = compactIndex >= 0 ? content[compactIndex] : null;
+  const hasCompact = isValidElement<SearchChildProps>(compact);
+  // Painéis de campo único mantêm a pesquisa visível inicialmente; a seta recolhe o conteúdo.
+  const [singleCollapsed, setSingleCollapsed] = useState(false);
+  const isExpanded = hasCompact ? expanded : !singleCollapsed;
+  const toggleLabel = hasCompact ? (expanded ? "Recolher filtros" : "Expandir filtros") : (singleCollapsed ? "Expandir busca" : "Recolher busca");
   return <AdminCard square className={cn("admin-search-panel p-0", allowOverflow ? "overflow-visible" : "overflow-hidden")}>
     <div className="flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 admin-primary-bar px-4 text-white md:h-11">
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} className="shrink-0 text-white/90" /></span>
-        <span className="text-xs font-bold uppercase tracking-[0.08em]">{title}</span>
+        <span className="min-w-0 truncate text-xs font-bold uppercase tracking-[0.08em]">{title}</span>
       </div>
-      {headerActions && <div className="ml-auto flex min-w-0 items-center justify-end gap-2">{headerActions}</div>}
+      <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
+        {headerActions}
+        <button type="button" aria-label={toggleLabel} title={toggleLabel} aria-expanded={isExpanded} aria-controls={panelId}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2"
+          onClick={() => hasCompact ? setExpanded(value => !value) : setSingleCollapsed(value => !value)}>
+          <ChevronDown size={19} aria-hidden="true" className={cn("transition-transform", isExpanded && "rotate-180")} />
+        </button>
+      </div>
     </div>
-    <div className="admin-search-panel-content min-w-0 p-4 md:p-3">{children}</div>
+    <div id={panelId} className={cn("admin-search-panel-content min-w-0", !hasCompact && singleCollapsed ? "hidden" : "p-4 md:p-3")}>
+      {hasCompact ? content.map((child, index) => index === compactIndex
+        ? (!expanded ? cloneElement(compact, { mobileOnly: false }) : null)
+        : index === compactIndex + 1 && isValidElement<SearchChildProps>(child) && /(?:^|\s)hidden(?:\s|$)/.test(child.props.className || "")
+          ? (expanded ? showExpandedSearch(child) : null)
+          : child) : children}
+    </div>
   </AdminCard>;
 }
 
