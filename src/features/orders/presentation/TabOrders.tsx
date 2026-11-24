@@ -396,10 +396,10 @@ export function TabOrders({
     openBlankOrder(intake ? {...queueContext,creationRequestId:intake.id} : queueContext);
     if(!intake)return;
     const p=intake.payload;
-    const model=workspace.equipmentModels.find((m:any)=>m.equipment_brand_id===p.brand_id && String(m.name||"").trim().toLowerCase()===p.model.trim().toLowerCase());
+    const model=workspace.equipmentModels.find((m:any)=>m.equipment_brand_id===p.brand_id && (m.id===p.model_id||String(m.name||"").trim().toLowerCase()===p.model.trim().toLowerCase()));
     const brandValid=workspace.equipmentBrands.some((b:any)=>b.id===p.brand_id&&b.equipment_type_id===p.type_id);
     const typeValid=workspace.equipmentTypes.some((t:any)=>t.id===p.type_id);
-    setForm(current=>({...current,equipment_type_id:typeValid?p.type_id:"",equipment_brand_id:typeValid&&brandValid?p.brand_id||"":"",equipment_model_id:typeValid&&brandValid?model?.id||"":"",model:p.model,serial_number:p.serial,customer_notes:p.problem,internal_notes:[p.brand_name&&!brandValid?"Marca informada: "+p.brand_name:"",p.model&&!model?"Modelo informado: "+p.model:""].filter(Boolean).join("\n")}));
+    setForm(current=>({...current,equipment_type_id:typeValid?p.type_id:"",equipment_brand_id:typeValid&&brandValid?p.brand_id||"":"",equipment_model_id:typeValid&&brandValid?model?.id||"":"",model:p.model,serial_number:p.serial,customer_notes:p.problem,service_type_id:workspace.serviceTypes.some((t:any)=>t.id===p.service_type_id&&!t.is_disposal)?p.service_type_id||"":"",technicalValues:typeValid?Object.fromEntries(workspace.technicalFieldLinks.filter((l:any)=>l.equipment_type_id===p.type_id&&workspace.technicalFields.some((f:any)=>f.id===l.technical_field_id&&f.is_active!==false)).map((l:any)=>[l.technical_field_id,p.technical_values?.[l.technical_field_id]||(workspace.technicalFields.find((f:any)=>f.id===l.technical_field_id)?.field_key==="numero_serie"?p.serial:"")])):{}}));
     replaceOrderImages(intake.images.map(im=>({...im,url:im.url}))); // existing media IDs; no second upload
   };
 
@@ -742,6 +742,7 @@ export function TabOrders({
     routedSaveInFlight.current = true;
     try {
     const wasCreating = !editingOS;
+    if(wasCreating&&initialIntake&&(!form.equipment_type_id||!form.equipment_brand_id||!form.equipment_model_id||!form.serial_number.trim()||!form.service_type_id)){setToast({msg:"Confira equipamento, marca, modelo, número de série e tipo de atendimento antes de criar a OS. Cadastre o modelo informado, se necessário.",type:"error"});return;}
     const queueReservationId = wasCreating ? String(form.queue_reservation_id || "") : "";
     const savedOrderId = await saveOS();
     if (!savedOrderId) return;
@@ -978,6 +979,7 @@ export function TabOrders({
       {!scopedReadOnly && <OrderEditorPage
         visible={editingContentReady || embeddedCreate}
         preparingEmbedded={embeddedCreate && !editingContentReady}
+        initialIntake={initialIntake}
         saving={saving}
         workspace={workspace}
         formState={formState}
@@ -999,6 +1001,7 @@ export function TabOrders({
       />}
 
       {!scopedReadOnly && <OrderWorkflowModals
+        initialIntake={initialIntake}
         detail={detail}
         saving={saving}
         workspace={workspace}
