@@ -496,6 +496,15 @@ export async function getHistoricalWhatsAppMedia(message:UnionWhatsAppMessage,as
 // com o mesmo escopo e políticas RLS já usados no histórico.
 export type UnionWhatsAppSharedTab="media"|"documents"|"links";
 const SHARED_PAGE_SIZE=24;
+// Same archive gallery index as the conversation view, without publishing a thread.
+export async function listContactOnlyHistoricalSharedItems(
+  organizationId:string,contactId:string,channelId:string,accountPhone:string,
+  category:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null=null,
+):Promise<{items:UnionWhatsAppMessage[];hasMore:boolean;nextCursor:UnionWhatsAppMessageCursor|null}>{
+  const {data,error}=await supabase.functions.invoke("union-history-import",{body:{action:"history_page",contact_only:true,kind:"shared",category,organization_id:organizationId,conversation_id:contactId,channel_id:channelId,account_phone:accountPhone,before,limit:SHARED_PAGE_SIZE}});
+  if(error||data?.success!==true||!Array.isArray(data.result?.items))throw Error("Não foi possível consultar os arquivos do histórico.");
+  return {items:data.result.items.map((row:any)=>({...mapHistoricalMessage(row,organizationId,contactId,channelId,accountPhone),historical_scope:{channel_id:channelId,account_phone:accountPhone,contact_only:true}})),hasMore:data.result.hasMore===true,nextCursor:data.result.nextCursor||null};
+}
 export async function listUnionWhatsAppSharedItems(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   category:UnionWhatsAppSharedTab,before:UnionWhatsAppMessageCursor|null=null,
