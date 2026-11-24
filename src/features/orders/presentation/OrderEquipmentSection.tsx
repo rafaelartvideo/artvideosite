@@ -3,6 +3,7 @@ import type { RuleSet } from "../domain/order-rules";
 import { Plus, Tag, ScanLine } from "lucide-react";
 import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { readSerialCodes } from "../domain/read-serial-code";
 import { CatalogCombobox } from "./OrderQuickCreateModals";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 import { NewOrderEntryChecklist } from "@/features/checklists/presentation/NewOrderEntryChecklist";
@@ -86,24 +87,14 @@ export function OrderEquipmentSection({
     setScanError("");
     setScanValues([]);
     setScanValue("");
-    let bitmap: ImageBitmap | undefined;
-
     try {
-      const Detector = (window as unknown as {
-        BarcodeDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue: string }>> };
-      }).BarcodeDetector;
-      if (!Detector) throw new Error("Este navegador não oferece leitura de códigos. Use um aplicativo de scanner e cole o número no campo de série.");
-      bitmap = await createImageBitmap(file);
-      const codes = await new Detector().detect(bitmap);
+      const values = await readSerialCodes(file);
       if (generation !== scanGeneration.current) return;
-      const values = [...new Set(codes.map(code => code.rawValue.trim()).filter(Boolean))];
-      if (!values.length) throw new Error("Código não encontrado. Tire uma foto mais próxima e nítida do código de barras ou QR da série. Texto sem código deve ser digitado.");
       setScanValues(values);
       setScanValue(values[0]);
     } catch (error) {
       if (generation === scanGeneration.current) setScanError(error instanceof Error ? error.message : "Não foi possível ler o código.");
     } finally {
-      bitmap?.close();
       if (generation === scanGeneration.current) setScanBusy(false);
     }
   };
