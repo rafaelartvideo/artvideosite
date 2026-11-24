@@ -400,7 +400,7 @@ export function TabWorkItems() {
     </>}>
       <AdminMobileSearchSwitch value={mobileCriterion}
         options={[{value:"query",label:"Título / Cliente / Descrição"},{value:"scope",label:"Exibição"},{value:"kind",label:"Tipo"},{value:"status",label:"Situação"}]}
-        onChange={value=>{setMobileCriterion(value);setQueryText("");setScope("all");setKind("all");setFilterStatus("all");setPage(1);}}>
+        onChange={setMobileCriterion}>
         {mobileCriterion==="scope"
           ? <select className={cn(INPUT,"h-[42px] w-full min-w-0 text-sm")} value={scope} aria-label="Filtrar atividades"
               onChange={event=>{setScope(event.target.value as Scope);setPage(1);}}>
