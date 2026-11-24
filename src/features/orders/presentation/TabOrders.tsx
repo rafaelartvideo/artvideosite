@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PortalContainerProvider } from "@/shared/ui/primitives/portal-container";
 import { useDetachedOrderEditor } from "./useDetachedOrderEditor";
@@ -49,6 +49,8 @@ import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflo
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
+import type { IntakePrefill } from "../intake/order-intake.repository";
+const OrderIntakeWorkspace = lazy(() => import("../intake/OrderIntakeWorkspace").then(m=>({default:m.OrderIntakeWorkspace})));
 
 type SharedAccessMode = "default" | "read";
 type OrderDetailSubpage = "history" | "documents" | "part-requests" | "sla-records" | "checklists";
@@ -58,6 +60,7 @@ type TabOrdersProps = {
   initialOrderId?: string | null;
   initialCustomerId?: string | null;
   initialCustomerLookup?: Promise<string | null>;
+  initialIntake?: IntakePrefill | null;
   routeSubpage?: string | null;
   onOrderRouteChange?: (id: string | null, subpage?: string | null) => void;
   onOrderRouteClose?: () => void;
@@ -118,6 +121,7 @@ export function TabOrders({
   initialOrderId,
   initialCustomerId,
   initialCustomerLookup,
+  initialIntake,
   routeSubpage,
   onOrderRouteChange,
   onOrderRouteClose,
@@ -148,6 +152,8 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
+  const [intakeOpen,setIntakeOpen]=useState(false);
+  const [intakeEditor,setIntakeEditor]=useState<{customerId:string;prefill:IntakePrefill}|null>(null);
   const detachedEditor = useDetachedOrderEditor();
   const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
   // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
@@ -378,7 +384,18 @@ export function TabOrders({
     formatError: supabaseErrorMessage,
     organizationIdOverride,
   });
-  const { selectCustomer, openNew, openEdit, save: saveOS } = orderEditor;
+  const { selectCustomer, openNew: openBlankOrder, openEdit, save: saveOS } = orderEditor;
+  const openNew = (queueContext?:{reservationId?:string|null;ticketNumber?:string|null;overrideReason?:string|null}) => {
+    const intake=initialIntake;
+    openBlankOrder(intake ? {...queueContext,creationRequestId:intake.id} : queueContext);
+    if(!intake)return;
+    const p=intake.payload;
+    const model=workspace.equipmentModels.find((m:any)=>m.equipment_brand_id===p.brand_id && String(m.name||"").trim().toLowerCase()===p.model.trim().toLowerCase());
+    const brandValid=workspace.equipmentBrands.some((b:any)=>b.id===p.brand_id&&b.equipment_type_id===p.type_id);
+    const typeValid=workspace.equipmentTypes.some((t:any)=>t.id===p.type_id);
+    setForm(current=>({...current,equipment_type_id:typeValid?p.type_id:"",equipment_brand_id:typeValid&&brandValid?p.brand_id||"":"",equipment_model_id:typeValid&&brandValid?model?.id||"":"",model:p.model,serial_number:p.serial,customer_notes:p.problem,internal_notes:[p.brand_name&&!brandValid?"Marca informada: "+p.brand_name:"",p.model&&!model?"Modelo informado: "+p.model:"", "Endereço informado na Pré-OS: "+[p.address.street,p.address.number,p.address.complement,p.address.neighborhood,p.address.city,p.address.state,p.address.zip_code].filter(Boolean).join(", ")].filter(Boolean).join("\n")}));
+    replaceOrderImages(intake.images.map(im=>({...im,url:im.url}))); // existing media IDs; no second upload
+  };
 
   // One customer lookup per editor opening. A late response must not overwrite manual input.
   const initialCustomerRequest = useRef(0);
@@ -869,6 +886,9 @@ export function TabOrders({
         </AdminPage>
       )}
 
+      {!detailOnly && !initialOrderId && !formOpen && !intakeEditor && !scopedReadOnly && effectiveHasPermission("orders.create") && workspaceBase.organizationId && <div className="flex justify-end"><AdminButton variant="secondary" onClick={()=>setIntakeOpen(true)}>Pré-OS Digital</AdminButton></div>}
+      {intakeOpen && workspaceBase.organizationId && <Suspense fallback={null}><OrderIntakeWorkspace organizationId={workspaceBase.organizationId} onClose={()=>setIntakeOpen(false)} onConvert={(customerId,prefill)=>{setIntakeOpen(false);setIntakeEditor({customerId,prefill});}}/></Suspense>}
+      {intakeEditor && workspaceBase.organizationId && <TabOrders key={intakeEditor.prefill.id} initialOrderId="new" initialCustomerId={intakeEditor.customerId} initialIntake={intakeEditor.prefill} organizationIdOverride={workspaceBase.organizationId} detailOnly embeddedCreate onEmbeddedClose={()=>setIntakeEditor(null)} onEmbeddedCreated={()=>{setIntakeEditor(null);void queryClient.invalidateQueries({queryKey:["order-intake",workspaceBase.organizationId]});}}/>}
       <OrdersListWorkspace
         // A rota, não a limpeza assíncrona de detail, determina quando a lista volta.
         // Assim, lista e detalhe trocam juntos, sem um frame vazio/intermediário.
