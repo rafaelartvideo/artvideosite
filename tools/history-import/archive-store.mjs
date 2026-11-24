@@ -104,7 +104,11 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
   }
   function control({id,organizationId,actor,action}){
     if(!actor)throw Error("Responsável obrigatório.");
-    return tx(()=>{const j=job(id,organizationId);const next=nextJobState(j.state,action);state(id,next);audit(id,actor,action);return next});
+    return tx(()=>{
+      const j=job(id,organizationId),bulk=db.prepare("SELECT state FROM bulk_runs WHERE job_id=?").get(id);
+      if(bulk&&(action!=="rollback"||!["completed","cancelled"].includes(bulk.state)))throw Error("Use os controles da importação automática.");
+      const next=nextJobState(j.state,action);state(id,next);audit(id,actor,action);return next;
+    });
   }
   function status(id,org){
     const j=job(id,org);
@@ -241,7 +245,7 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
           if(j.state==="queued")state(id,"paused");
           if(j.state==="running")state(id,"pausing");
           db.prepare("UPDATE bulk_runs SET state='paused',updated_at=? WHERE job_id=?").run(now(),id);
-        }else if(command==="resume"&&["paused","failed"].includes(old.state)&&j.state!=="pausing"){
+        }else if(command==="resume"&&(["paused","failed"].includes(old.state)||old.state==="running"&&j.state==="failed")&&j.state!=="pausing"){
           if(["paused","failed","prepared"].includes(j.state))state(id,"queued");
           db.prepare("UPDATE bulk_runs SET state='running',actor=?,updated_at=? WHERE job_id=?").run(actor,now(),id);
         }else if(command==="cancel"&&["running","paused","failed"].includes(old.state)){
@@ -258,6 +262,24 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     const j=job(id,organizationId),run=db.prepare("SELECT * FROM bulk_runs WHERE job_id=?").get(id);
     if(j.state!=="completed"||run?.state!=="running")throw Error("Conciliação indisponível.");
     return {id,organizationId,accountPhone:j.account_phone,actor:run.actor,after:run.after_key};
+  }
+  function auditIntegrity(id,org){
+    const summary=status(id,org);
+    if(summary.state!=="completed")throw Error("Conclua a validação antes de auditar.");
+    const actual={
+      messages:Number(db.prepare("SELECT count(*) AS n FROM history_messages WHERE job_id=?").get(id).n),
+      protocols:Number(db.prepare("SELECT count(*) AS n FROM history_protocols WHERE job_id=?").get(id).n),
+      media_available:Number(db.prepare("SELECT count(*) AS n FROM history_assets WHERE job_id=? AND available=1").get(id).n),
+      media_pending:Number(db.prepare("SELECT count(*) AS n FROM history_assets WHERE job_id=? AND available=0").get(id).n)
+    };
+    const indexed=Number(db.prepare("SELECT count(*) AS n FROM history_index_ready WHERE job_id=?").get(id).n);
+    const duplicateMessages=Number(db.prepare("SELECT coalesce(sum(n-1),0) AS n FROM (SELECT count(*) AS n FROM history_messages WHERE job_id=? GROUP BY id HAVING count(*)>1)").get(id).n);
+    const duplicateProtocols=Number(db.prepare("SELECT coalesce(sum(n-1),0) AS n FROM (SELECT count(*) AS n FROM history_protocols WHERE job_id=? GROUP BY id HAVING count(*)>1)").get(id).n);
+    const verified=summary.counts.find(row=>row.state==="verified")?.count||0;
+    const review=summary.counts.find(row=>row.state==="review")?.count||0;
+    return {id,total:summary.total,verified,review,indexed,bound:summary.bound,expected:summary.verified,actual,duplicateMessages,duplicateProtocols,
+      index_matches:verified===indexed&&Object.keys(actual).every(k=>actual[k]===summary.verified[k])&&duplicateMessages===0&&duplicateProtocols===0,
+      media_binary_verified:false,backup_modified:false};
   }
   function bulkWork(){
     const row=db.prepare("SELECT j.id,j.organization_id FROM bulk_runs b JOIN jobs j ON j.id=b.job_id WHERE b.state='running' AND j.state='completed' ORDER BY b.updated_at,j.id LIMIT 1").get();
@@ -367,5 +389,5 @@ export function openArchiveStore(filename,read,{sourceOffsets}={}){
     if(matches.length>1)throw Error("Contato exige revisão.");
     return matches.length===1?readPayload(matches[0].package_id,JSON.parse(matches[0].metadata)):null;
   }
-  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,assetBound,bulkControl,bulkContext,bulkWork,bulkCommit,bulkFail,close:()=>db.close()};
+  return {grantPackage,prepare,control,status,list,events,tick,lookup,candidates,bindContact,lookupBound,pageBound,assetBound,auditIntegrity,bulkControl,bulkContext,bulkWork,bulkCommit,bulkFail,close:()=>db.close()};
 }
