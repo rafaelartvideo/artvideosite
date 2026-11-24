@@ -59,6 +59,8 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
  const requestInFlight=useRef<{epoch:number;sequence:number}|null>(null), generation=useRef(0), sequence=useRef(0);
  const [pendingAction,setPendingAction]=useState<{id?:string;key:string}|null>(null);
  const mutationLock=useRef(false);
+ const automaticAttempted=useRef(new Set<string>());
+ const [automatic,setAutomatic]=useState<Record<string,{processed:number;created:number;linked:number;bound:number;review:number;renamed:number;running:boolean;failed:boolean}>>({});
  const permitted=(key:string)=>hasPermission("whatsapp.history_import."+key);
  const call=useCallback(async(body:Record<string,unknown>)=>{
    if(!activeOrganizationId)throw Error("Empresa indisponível.");
@@ -76,7 +78,7 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
    catch{if(current())setError("Não foi possível consultar as importações. Tente novamente.")}
    finally{if(requestInFlight.current===request)requestInFlight.current=null}
  },[call]);
- useEffect(()=>{generation.current++;setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
+ useEffect(()=>{generation.current++;automaticAttempted.current.clear();setAutomatic({});setData(null);setAccount("");setPackageId("");setLogs(null);setReconciliation(null);setPendingBinding(null);setPublication(null);setConfirmation(null);setError("");void refresh();return()=>{generation.current++}},[refresh]);
  useEffect(()=>{if(data||error)onPreparationChange?.(data?null:error)},[data,error,onPreparationChange]);
  const running=Boolean(data?.jobs.some(j=>active.has(j.state)));
  useEffect(()=>{
@@ -136,6 +138,51 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
      if(epoch===generation.current&&failed)setError("Algumas conversas não foram disponibilizadas. Confira as identidades e tente novamente.");
    }finally{mutationLock.current=false;if(epoch===generation.current)setBusy(false)}
  }
+ // Run once when a validated package becomes visible, including a previously
+ // validated package. Closing the manager stops new requests; committed
+ // bindings stay in the private journal and the next opening resumes safely.
+ const canAuto=permitted("view")&&permitted("manage");
+ const runAutomatic=useCallback(async(id:string)=>{
+   if(mutationLock.current)return;
+   automaticAttempted.current.add(id);
+   mutationLock.current=true;const epoch=generation.current;
+   const summary={processed:0,created:0,linked:0,bound:0,review:0,renamed:0,running:true,failed:false};
+   const publish=()=>{if(epoch===generation.current)setAutomatic(old=>({...old,[id]:{...summary}}));};
+   setBusy(true);setError("");publish();
+   try{
+     let after:string|null=null;
+     for(let step=0;step<20;step++){
+       if(epoch!==generation.current)return;
+       const result=await call({action:"auto_reconcile",id,after});
+       if(!Array.isArray(result?.entries)||result.entries.length>5)throw Error("Lote inválido.");
+       for(const item of result.entries){
+         summary.processed++;
+         if(item.state==="created")summary.created++;
+         else if(item.state==="linked")summary.linked++;
+         else if(item.state==="bound")summary.bound++;
+         else summary.review++;
+         if(item.renamed===true)summary.renamed++;
+       }
+       publish();
+       const next=result.next_after;
+       if(!next)break;
+       if(typeof next!=="string"||(after!==null&&next<=after)||step===19)throw Error("Cursor inválido.");
+       after=next;
+     }
+     if(epoch===generation.current)await refresh(true);
+   }catch{
+     summary.failed=true;
+     if(epoch===generation.current)setError("Conciliação automática não concluída. Retome para continuar sem duplicar contatos.");
+   }finally{
+     summary.running=false;publish();mutationLock.current=false;
+     if(epoch===generation.current)setBusy(false);
+   }
+ },[call,refresh]);
+ useEffect(()=>{
+   if(!canAuto||busy||mutationLock.current||confirmation||reconciliation||document.visibilityState!=="visible")return;
+   const next=data?.jobs.find(job=>job.state==="completed"&&!automaticAttempted.current.has(job.id));
+   if(next)void runAutomatic(next.id);
+ },[canAuto,busy,confirmation,reconciliation,data,runAutomatic]);
  if(!permitted("view"))return <p className="p-4 text-sm text-muted-foreground">Sem permissão para visualizar importações.</p>;
  return <div className="min-w-0 space-y-4" aria-busy={busy}>
    {error&&data&&<div role="alert" className="flex items-center gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive"><AlertTriangle size={16} className="shrink-0"/><span className="flex-1">{error}</span><AdminButton size="sm" variant="tertiary" disabled={busy} onClick={()=>refresh(true)}><RefreshCw size={14}/> Tentar novamente</AdminButton></div>}
@@ -172,9 +219,15 @@ export function WhatsAppHistoryImports({onPreparationChange}:{onPreparationChang
            const style=actionStyle[a.key],Icon=style.icon;
            return <AdminButton key={a.key} variant={a.key==="resume"&&j.state==="failed"?"tertiary":style.variant} disabled={busy} loading={pendingAction?.id===j.id&&pendingAction.key===a.key} loadingText={style.pending} onClick={()=>["start","cancel","rollback"].includes(a.key)?setConfirmation({id:j.id,command:a.key,label:a.label}):act({action:"control",id:j.id,command:a.key})}><Icon size={16}/>{a.label}</AdminButton>;
          })}
-         {j.state==="completed"&&permitted("manage")&&<AdminButton variant="success" disabled={busy} onClick={()=>showCandidates(j.id)}><UserCheck size={16}/> Conciliar contatos</AdminButton>}
+         {j.state==="completed"&&permitted("manage")&&<AdminButton variant="success" disabled={busy} onClick={()=>showCandidates(j.id)}><UserCheck size={16}/> Revisar contatos</AdminButton>}
+         {j.state==="completed"&&permitted("manage")&&automatic[j.id]&&!automatic[j.id].running&&<AdminButton variant="secondary" disabled={busy} onClick={()=>void runAutomatic(j.id)}><RefreshCw size={16}/> {automatic[j.id].failed?"Retomar conciliação":"Conferir novamente"}</AdminButton>}
          <AdminButton variant="secondary" disabled={busy} onClick={()=>showLogs(j.id)}><History size={16}/> Histórico de operações</AdminButton>
        </div>
+       {automatic[j.id]&&<div role="status" className="rounded-lg border border-border bg-muted/25 px-3 py-2 text-xs space-y-1">
+         <strong>{automatic[j.id].running?"Salvando e conciliando automaticamente...":automatic[j.id].failed?"Conciliação interrompida":"Conciliação automática verificada"}</strong>
+         <p>{number(automatic[j.id].processed)} de {number(j.total)} conferidos · {number(automatic[j.id].created)} criados · {number(automatic[j.id].linked)} vinculados · {number(automatic[j.id].bound)} já vinculados</p>
+         <p>{number(automatic[j.id].renamed)} nomes melhorados · {number(automatic[j.id].review)} exigem revisão</p>
+       </div>}
        {confirmation?.id===j.id&&<div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3"><p className="text-sm">Confirma {confirmation.label.toLowerCase()} para o número {formatWhatsAppPhone(j.account_phone)}?</p><div className="flex flex-wrap gap-2"><AdminButton variant={actionStyle[confirmation.command].variant} disabled={busy} loading={pendingAction?.id===j.id&&pendingAction.key===confirmation.command} loadingText={actionStyle[confirmation.command].pending} onClick={()=>act({action:"control",id:j.id,command:confirmation.command})}><CheckCircle2 size={16}/> Confirmar</AdminButton><AdminButton variant="secondary" disabled={busy} onClick={()=>setConfirmation(null)}>Voltar</AdminButton></div></div>}
        {j.state==="completed"&&reconciliation?.id===j.id&&<div className="rounded-md border border-border p-3 space-y-3">
          <div className="flex items-center justify-between"><strong className="text-sm">Conciliação de contatos</strong><button className="text-xs underline" onClick={()=>{setReconciliation(null);setPendingBinding(null)}}>Fechar</button></div>
