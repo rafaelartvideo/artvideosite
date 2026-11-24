@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { RuleSet } from "../domain/order-rules";
 import { Plus, Tag, ScanLine } from "lucide-react";
 import { AdminButton, AdminDialog, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { CatalogCombobox } from "./OrderQuickCreateModals";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 import { NewOrderEntryChecklist } from "@/features/checklists/presentation/NewOrderEntryChecklist";
 import { DeviceCaptureBridge } from "./DeviceCaptureBridge";
@@ -113,6 +114,12 @@ export function OrderEquipmentSection({
     if (open) onCreateEquipment();
   };
   const upF = onFieldChange;
+  // All options are already loaded by the order editor; typing only filters memory.
+  const typeOptions = useMemo(() => equipmentTypes.map(type => ({ id: type.id, name: type.name })), [equipmentTypes]);
+  const brandOptions = useMemo(() => equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id)
+    .map(brand => ({ id: brand.id, name: brand.name })), [equipmentBrands, form.equipment_type_id]);
+  const modelOptions = useMemo(() => equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id)
+    .map(model => ({ id: model.id, name: model.name })), [equipmentModels, form.equipment_brand_id]);
   const historicalFields = technicalHistory
     .filter(value => !technicalFields.some(field => field.technical_field_id === value.technical_field_id))
     .map(value => ({
@@ -160,18 +167,26 @@ export function OrderEquipmentSection({
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
         <div className={(!disposalMode&&rules.fields.equipment_type_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"flex min-w-0 items-end gap-2 sm:col-span-2"}>
           <div className="min-w-0 flex-1">
-            <FSelect
+            <CatalogCombobox
               label="Tipo de equipamento"
               required={disposalMode}
-              value={form.equipment_type_id}
-              onChange={(e: any) => {
-                upF("equipment_type_id", e.target.value);
+              selectionOnly
+              allowCreate={false}
+              value={typeOptions.find(type => type.id === form.equipment_type_id)?.name || ""}
+              selectedId={form.equipment_type_id || ""}
+              options={typeOptions}
+              placeholder="Digite ou selecione o equipamento..."
+              emptyText="Nenhum equipamento encontrado."
+              onChange={() => {}}
+              onSelect={option => {
+                const id = option?.id || "";
+                if (id === (form.equipment_type_id || "")) return;
+                upF("equipment_type_id", id);
                 upF("equipment_brand_id", "");
                 upF("equipment_model_id", "");
                 upF("technicalValues", {});
                 onUnlockUpdate({ unlock_type: "none", unlock_value: "", unlock_dirty: false, unlock_has_existing: false });
               }}
-              options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]}
             />
           </div>
 
@@ -189,27 +204,43 @@ export function OrderEquipmentSection({
         </div>
 
         <div className={(!disposalMode&&rules.fields.equipment_brand_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
-          <FSelect
+          <CatalogCombobox
+            key={form.equipment_type_id || "no-type"}
             label="Marca"
             required={!editingOS&&rules.fields.equipment_brand_id?.mode==="required"&&rules.fields.equipment_brand_id?.stage==="create"}
-            value={form.equipment_brand_id}
+            selectionOnly
+            allowCreate={false}
+            value={brandOptions.find(brand => brand.id === form.equipment_brand_id)?.name || ""}
+            selectedId={form.equipment_brand_id || ""}
+            options={brandOptions}
             disabled={!form.equipment_type_id}
-            onChange={(e: any) => {
-              upF("equipment_brand_id", e.target.value);
+            placeholder={form.equipment_type_id ? "Digite ou selecione a marca..." : "Selecione o tipo primeiro"}
+            emptyText="Nenhuma marca encontrada para este equipamento."
+            onChange={() => {}}
+            onSelect={option => {
+              const id = option?.id || "";
+              if (id === (form.equipment_brand_id || "")) return;
+              upF("equipment_brand_id", id);
               upF("equipment_model_id", "");
             }}
-            options={[{ value: "", label: form.equipment_type_id ? "Selecionar marca..." : "Selecione o tipo primeiro" }, ...equipmentBrands.filter(brand => brand.equipment_type_id === form.equipment_type_id).map(brand => ({ value: brand.id, label: brand.name }))]}
           />
         </div>
 
         <div className={(!disposalMode&&rules.fields.equipment_model_id?.mode==="hidden"&&!editingOS?"hidden ":"")+"min-w-0"}>
-          <FSelect
+          <CatalogCombobox
+            key={form.equipment_brand_id || "no-brand"}
             label="Modelo"
             required={!editingOS&&rules.fields.equipment_model_id?.mode==="required"&&rules.fields.equipment_model_id?.stage==="create"}
-            value={form.equipment_model_id}
+            selectionOnly
+            allowCreate={false}
+            value={modelOptions.find(model => model.id === form.equipment_model_id)?.name || ""}
+            selectedId={form.equipment_model_id || ""}
+            options={modelOptions}
             disabled={!form.equipment_brand_id}
-            onChange={(e: any) => upF("equipment_model_id", e.target.value)}
-            options={[{ value: "", label: form.equipment_brand_id ? "Selecionar modelo..." : "Selecione a marca primeiro" }, ...equipmentModels.filter(model => model.equipment_brand_id === form.equipment_brand_id).map(model => ({ value: model.id, label: model.name }))]}
+            placeholder={form.equipment_brand_id ? "Digite ou selecione o modelo..." : "Selecione a marca primeiro"}
+            emptyText="Nenhum modelo encontrado para esta marca."
+            onChange={() => {}}
+            onSelect={option => upF("equipment_model_id", option?.id || "")}
           />
         </div>
 
