@@ -131,7 +131,7 @@ test("Nova OS reaproveita cliente confirmado sem criar vinculos por telefone amb
   assert.match(order, /customerId: detail\.customer_id \|\| undefined/);
   assert.match(modal, /source\.customerId \|\| null/);
   assert.match(modal, /"customer_match"/);
-  assert.match(modal, /if \(!found\.ambiguous\) customerId = found\.customer\?\.id \|\| null/);
+  assert.match(modal, /!found\.ambiguous \? found\.matched_customer_id \|\| found\.customer\?\.id \|\| null : null/);
   assert.match(tab, /getOrderCustomerById\(/);
   assert.match(tab, /selectCustomer\(data\)/);
 });
@@ -805,11 +805,14 @@ test("WhatsApp abre a mesma Nova OS flutuante pela linha Dados do CRM, sem proto
   assert.match(inbox,/detailOnly embeddedCreate/);
   assert.match(orderEditor,/draggable floating modal showOverlay=\{false\}/);
   // Match único e autorizado: nenhum CPF/número é inventado quando não há cadastro.
-  assert.match(inbox,/operateUnionWhatsAppInbox\(org,threadId,"customer_match"\)/);
-  assert.match(inbox,/let customerId:string\|null=null/);
-  assert.match(inbox,/if\(!result\.ambiguous && result\.customer\?\.id\)customerId=result\.customer\.id/);
-  assert.match(inbox,/if\(hasPermission\("customers\.view"\)\)/);
-  assert.match(inbox,/newOrderLaunchRef\.current!==launch/);
+  assert.match(inbox,/operateUnionWhatsAppInbox\(org,threadId,"customer_match",\{customer_id_only:true\}\)/);
+  assert.match(inbox,/hasCached && !cached\.ambiguous/);
+  assert.match(inbox,/!result\.ambiguous \? result\.matched_customer_id \|\| result\.customer\?\.id \|\| null : null/);
+  assert.match(inbox,/const canViewCustomer=hasPermission\("customers\.view"\)/);
+  const open=inbox.slice(inbox.indexOf("const openNewOrderFromConversation=()=>{"),inbox.indexOf("  useEffect(()=>{",inbox.indexOf("const openNewOrderFromConversation=()=>{")));
+  assert.match(open,/setNewOrder\(\{customerId,customerLookup/);
+  assert.doesNotMatch(open,/await import\(/);
+  assert.match(inbox,/initialCustomerLookup=\{newOrder\.customerLookup\}/);
   assert.match(inbox,/!embedded && hasPermission\("orders\.create"\)/);
   assert.match(crm,/onNewOrder\?: \(\) => void/);
   assert.match(crm,/aria-label="Nova OS pelo atendimento"/);
@@ -1375,8 +1378,31 @@ test("Novo contato abre imediatamente e consulta somente o cadastro necessario",
   assert.match(ownerBranch,/\.select\("id,name"\)/);
   assert.match(ownerBranch,/return json\(\{success:true,contact_owner:owner\|\|null,ambiguous:false\}\)/);
   assert.doesNotMatch(ownerBranch,/customer_equipments|customer_addresses|service_orders/);
-  assert.match(edge,/if\(\(!contactOwnerOnly \|\| matches.length===0\) && permissions.has\("orders.details.view"\)\)/);
+  assert.match(edge,/if\(\(\(!contactOwnerOnly && !customerIdOnly\) \|\| matches.length===0\) && permissions.has\("orders.details.view"\)\)/);
   for(const [name,source] of [["UnionWhatsAppInboxPage",inbox],["CrmAdditionalContactDialog",dialog],["WhatsAppNumberVerification",verification]]) {
     assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
+
+
+test("Nova OS can minimize and detach without remounting the order controller",async()=>{
+  const tab=read("src/features/orders/presentation/TabOrders.tsx");
+  const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  const detached=read("src/features/orders/presentation/useDetachedOrderEditor.ts");
+  assert.match(editor,/minimizable=\{!saving\}/);
+  assert.match(editor,/ariaLabel="Destacar janela"/);
+  assert.match(editor,/ariaLabel="Reintegrar janela"/);
+  assert.match(tab,/createPortal\(<PortalContainerProvider/);
+  assert.match(tab,/customerLookupScope\.current\.open && !customerLookupScope\.current\.customerId/);
+  assert.match(detached,/popup\.opener=null/);
+  assert.match(detached,/if\(unavailable\)setDetached/);
+  assert.doesNotMatch(detached,/supabase|fetch\(/);
+  assert.match(edge,/if\(customerIdOnly\) return json\(\{success:true,matched_customer_id:customerId,ambiguous:false\}\)/);
+  for(const file of ["dialog","popover","select","dropdown-menu"]){
+    const primitive=read("src/shared/ui/primitives/"+file+".tsx");
+    assert.match(primitive,/usePortalContainer\(\)/);
+  }
+  for(const [name,source] of [["TabOrders.tsx",tab],["OrderEditorPage.tsx",editor],["useDetachedOrderEditor.ts",detached]]){
+    assert.ok((await transformWithEsbuild(source,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code);
   }
 });
