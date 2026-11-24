@@ -137,7 +137,7 @@ Deno.serve(async req=>{
       return json({success:true,result:await bridge({action:"prepare",organizationId:org,packageId:b.package_id,accountPhone:channel.phone,actor})});
     }
     if(!uuid(b.id))return json({success:false,error:"Importação inválida."},400);
-    if(b.action==="candidates"||b.action==="bind_contact"){
+    if(b.action==="candidates"||b.action==="bind_contact"||b.action==="create_contact"){
       // Only authorized managers may see the reconciliation preview or approve a binding.
       if(!has(prefix+"manage"))return json({success:false,error:"Sem permissão de conciliar contatos."},403);
       const preview=await bridge({action:"candidates",id:b.id,organizationId:org});
@@ -156,6 +156,26 @@ Deno.serve(async req=>{
           match:match?{id:match.id,display_name:match.display_name}:null};
       });
       if(b.action==="candidates")return json({success:true,result:{account_phone:preview.account_phone,entries:candidates}});
+      if(b.action==="create_contact"){
+        if(b.confirmed!==true||typeof b.contact_key!=="string"||!/^[a-f0-9]{32}$/.test(b.contact_key))return json({success:false,error:"Confirme a criação do contato."},400);
+        const entry=candidates.find((e:Record<string,unknown>)=>e.contact_key===b.contact_key);
+        if(!entry||entry.state!=="missing"||!phone(entry.phone))return json({success:false,error:"Contato exige revisão."},409);
+        const {data:channels,error:channelError}=await admin.from("whatsapp_channel_connections").select("id")
+          .eq("organization_id",org).eq("provider","wuzapi").eq("phone",preview.account_phone).eq("state","connected").limit(2);
+        if(channelError||channels?.length!==1)return json({success:false,error:"Conta de destino não confirmada."},409);
+        const jid=entry.phone+"@s.whatsapp.net";
+        const {data:exact,error:exactError}=await admin.from("union_whatsapp_contacts").select("id").eq("organization_id",org).eq("account_phone",preview.account_phone).eq("chat_jid",jid).limit(1);
+        const {data:aliases,error:aliasError}=await admin.from("union_whatsapp_verified_jid_aliases").select("phone_jid").eq("organization_id",org).eq("account_phone",preview.account_phone).eq("phone_jid",jid).limit(1);
+        if(exactError||aliasError||exact?.length||aliases?.length)return json({success:false,error:"Identidade exige revisão."},409);
+        // Only the address book is changed: no new operational thread, protocol,
+        // unread counter, network verification or notification is generated.
+        const name=String(entry.historical_name||entry.phone).trim().slice(0,160)||entry.phone;
+        const {data:created,error:createdError}=await admin.from("union_whatsapp_contacts").insert({organization_id:org,channel_id:channels[0].id,account_phone:preview.account_phone,chat_jid:jid,contact_phone:entry.phone,display_name:name,wuzapi_verified_saved:false}).select("id").single();
+        if(createdError||!created)return json({success:false,error:"Cadastro não confirmado; atualize as correspondências."},409);
+        // If the second step fails, preserve the newly created contact and expose
+        // it as a normal candidate on retry; never delete or overwrite it.
+        return json({success:true,result:await bridge({action:"bind_contact",id:b.id,organizationId:org,actor,contactKey:b.contact_key,contactId:created.id,contactPhone:entry.phone,accountPhone:preview.account_phone})});
+      }
       if(!uuid(b.contact_id)||typeof b.contact_key!=="string"||!(/^[a-f0-9]{32}$/).test(b.contact_key)||b.confirmed!==true)return json({success:false,error:"Confirme o vínculo individual."},400);
       const entry=candidates.find((e:Record<string,unknown>)=>e.contact_key===b.contact_key);
       if(!entry||!["candidate","bound"].includes(entry.state)||entry.match?.id!==b.contact_id)return json({success:false,error:"Identidade não confirmada ou alterada."},409);
