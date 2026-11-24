@@ -117,7 +117,7 @@ export function DashboardOrderSelectionDialog(props: Props) {
             </>;
             const key = order.row_key || order.id;
             const rowClass = "flex min-w-0 w-full items-center gap-3 px-2 py-3 text-left";
-            return canOpen ? <a key={key} href={adminPath("orders",order.id)} target="_blank" rel="noopener noreferrer" className={rowClass + " cursor-pointer rounded-md hover:bg-muted/70 focus-visible:outline focus-visible:outline-primary"}>{content}</a>
+            return canOpen ? <a key={key} href={new URL(adminPath("orders",order.id),window.location.origin).href} target="_blank" rel="noopener noreferrer" className={rowClass + " cursor-pointer rounded-md hover:bg-muted/70 focus-visible:outline focus-visible:outline-primary"}>{content}</a>
               : <div key={key} className={rowClass}>{content}</div>;
           })}
         </div>}
