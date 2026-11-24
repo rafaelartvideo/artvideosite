@@ -50,6 +50,12 @@ export function openArchiveStore(filename,read){
     // Only platform provisioning service may call this; never accept an end-user-supplied grant.
     validatePackageId(packageId);org=validateDestination(org,"550000000000").organizationId;
     if(!actor)throw Error("Responsável obrigatório.");
+    const old=db.prepare("SELECT organization_id FROM grants WHERE package_id=?").get(packageId);
+    if(old&&old.organization_id!==org)throw Error("Pacote já vinculado a outra empresa.");
+    if(!old){
+      const summary=JSON.parse(read(packageId,"resumo-seguro.json",65536).toString("utf8"));
+      if(summary.package_id!==packageId||summary.stage!=="union_history_pilot_packaging"||summary.version!==1||!Number.isInteger(summary.contacts)||summary.contacts<1||summary.contacts>100)throw Error("Pacote privado não reconhecido.");
+    }
     db.prepare("INSERT INTO grants VALUES (?,?,?,?) ON CONFLICT(package_id) DO NOTHING").run(packageId,org,actor,now());
     if(db.prepare("SELECT organization_id FROM grants WHERE package_id=?").get(packageId)?.organization_id!==org)throw Error("Pacote já vinculado a outra empresa.");
   }
@@ -79,7 +85,12 @@ export function openArchiveStore(filename,read){
   function status(id,org){
     const j=job(id,org);
     const counts=db.prepare("SELECT state,COUNT(*) AS count FROM entries WHERE job_id=? GROUP BY state").all(id);
-    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts};
+    const totals={messages:0,protocols:0,media_available:0,media_pending:0},verified={...totals};
+    for(const e of db.prepare("SELECT metadata,state FROM entries WHERE job_id=?").all(id)){
+      const m=JSON.parse(e.metadata);
+      for(const k of Object.keys(totals)){totals[k]+=m[k];if(e.state==="verified")verified[k]+=m[k];}
+    }
+    return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts,totals,verified};
   }
   function list(organizationId){
     validateDestination(organizationId,"550000000000");
