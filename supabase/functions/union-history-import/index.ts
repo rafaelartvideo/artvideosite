@@ -36,6 +36,34 @@ Deno.serve(async req=>{
     const admin=createClient(url,key("SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEYS"),{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:auth,error:authError}=await scoped.auth.getUser();
     if(authError||!auth.user)return json({success:false,error:"Sessão expirada."},401);
+    // Historical reads use the exact live conversation RLS, NOT management permissions.
+    // The request cannot select a contact, destination phone or archived package.
+    if(b.action==="history_page"){
+      const kind=b.kind??"messages",limit=b.limit??60,before=b.before??null,protocolId=b.protocol_id??null;
+      if(!uuid(b.conversation_id)||!uuid(b.channel_id)||!phone(b.account_phone)||!["messages","protocols"].includes(kind)||!Number.isSafeInteger(limit)||limit<1||limit>100||(protocolId!==null&&!uuid(protocolId))||(kind==="protocols"&&protocolId!==null)||(before!==null&&(!uuid(before.id)||typeof before.sent_at!=="string"||before.sent_at.length>40||!Number.isFinite(Date.parse(before.sent_at)))))return json({success:false,error:"Página inválida."},400);
+      const {data:thread,error:threadError}=await scoped.from("union_whatsapp_conversations")
+        .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone")
+        .eq("id",b.conversation_id).eq("organization_id",org)
+        .eq("channel_id",b.channel_id).eq("account_phone",b.account_phone).maybeSingle();
+      if(threadError||!thread)return json({success:false,error:"Conversa indisponível."},403);
+      const empty={items:[],hasMore:false,nextCursor:null};
+      // LIDs, groups, ambiguous or changed identities must not be guessed.
+      if(!phone(thread.contact_phone)||thread.chat_jid!==thread.contact_phone+"@s.whatsapp.net")return json({success:true,result:empty});
+      // Contacts are private backend data. Only resolve AFTER scoped conversation authorization.
+      const {data:matches,error:matchError}=await admin.from("union_whatsapp_contacts").select("id,channel_id,chat_jid,contact_phone")
+        .eq("organization_id",thread.organization_id).eq("account_phone",thread.account_phone)
+        .eq("contact_phone",thread.contact_phone).limit(2);
+      if(matchError)throw Error("Identidade indisponível.");
+      if(!matches||matches.length!==1||matches[0].chat_jid!==thread.chat_jid||matches[0].channel_id!==thread.channel_id)return json({success:true,result:empty});
+      const result=await bridge({action:"history_page",organizationId:thread.organization_id,accountPhone:thread.account_phone,contactId:matches[0].id,contactPhone:thread.contact_phone,conversationId:thread.id,kind,protocolId,before,limit});
+      // Recheck visibility at delivery time (the conversation may have been reassigned).
+      const {data:stillVisible,error:visibilityError}=await scoped.from("union_whatsapp_conversations")
+        .select("id").eq("id",thread.id).eq("organization_id",thread.organization_id)
+        .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone)
+        .eq("chat_jid",thread.chat_jid).eq("contact_phone",thread.contact_phone).maybeSingle();
+      if(visibilityError||!stillVisible)return json({success:false,error:"Conversa indisponível."},403);
+      return json({success:true,result});
+    }
     const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
     const has=(permission:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===permission);
     const actor=auth.user.id;
