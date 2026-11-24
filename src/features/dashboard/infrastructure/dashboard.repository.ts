@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 import type {
   DashboardAccess,
   DashboardOrderGroupItem,
+  DashboardOrderSelectionKind,
+  DashboardOrderSelectionPage,
   DashboardOrdersCharts,
   DashboardOrdersSummary,
   DashboardOverview,
@@ -184,4 +186,26 @@ export async function loadDashboardOrdersCharts({
     quote_approved:values(result.quote_approved),
     quote_rejected:values(result.quote_rejected),
   };
+}
+
+
+/** Somente a página selecionada, sem pré-carregar as OS dos demais gráficos. */
+export async function loadDashboardOrderSelectionPage({
+  organizationId, kind, groupId, value, slaState, periodDays, page, pageSize = 10, signal,
+}: {
+  organizationId: string; kind: DashboardOrderSelectionKind; groupId: string | null;
+  value: string | null; slaState?: "success" | "warning" | "danger" | "neutral" | null;
+  periodDays: number; page: number; pageSize?: number; signal?: AbortSignal;
+}): Promise<DashboardOrderSelectionPage> {
+  let request = supabase.rpc("load_dashboard_order_selection_page_v1", {
+    p_organization_id: organizationId, p_kind: kind, p_group_id: groupId,
+    p_value: value, p_sla_state: kind === "situation" ? slaState ?? null : null,
+    p_period_days: Math.min(365, Math.max(1, Math.trunc(periodDays || 30))),
+    p_page: Math.max(1, Math.trunc(page || 1)),
+    p_page_size: Math.min(50, Math.max(1, Math.trunc(pageSize || 10))),
+  });
+  if (signal) request = request.abortSignal(signal);
+  const { data, error } = await request;
+  if (error) throw error;
+  return { total: Number(data?.total || 0), rows: Array.isArray(data?.rows) ? data.rows : [] };
 }
