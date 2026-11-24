@@ -218,7 +218,7 @@ export function CatalogCombobox({
             disabled={disabled}
             autoComplete="off"
             placeholder={placeholder}
-            onFocus={() => setOpen(true)}
+            onFocus={event => { setOpen(true); if (selectionOnly) event.currentTarget.select(); }}
             onPointerDown={() => setOpen(true)}
             onKeyDown={(event) => {
               if (event.key === "Escape") { if (open) event.stopPropagation(); closeOptions(); }
