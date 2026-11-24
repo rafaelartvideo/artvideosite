@@ -4,19 +4,14 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { isValidBrazilianMobile, normalizeDigits } from "@/shared/domain/formatters";
+import { isValidBrazilianMobile } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { createRegistrationContact, listRegistrationContacts } from "@/features/registrations/infrastructure/registration-contacts.repository";
+import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 import { VerifiedWhatsAppPhoneInput } from "./WhatsAppNumberVerification";
 
 type Owner = { id: string; name: string; phone?: string | null; whatsapp?: string | null };
 
-function phoneKey(value: string | null | undefined) {
-  const digits = normalizeDigits(value || "");
-  return digits.length === 12 || digits.length === 13 ? digits.replace(/^55/, "") : digits;
-}
-
-/** Writes to the existing CRM contacts table. No separate WhatsApp contact or protocol is created. */
+/** Verifies and saves CRM contact plus WhatsApp address-book identity atomically. */
 export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onSaved }: {
   organizationId: string; owner: Owner; onClose: () => void; onSaved: () => void;
 }) {
@@ -31,20 +26,15 @@ export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onS
   const canSave = activeOrganizationId === organizationId && hasPermission("registrations.contacts.manage");
   const save = async () => {
     if (!canSave || gate.current) return;
-    if (!name.trim() || !isValidBrazilianMobile(whatsapp)) {
+    if (name.trim().length < 2 || !isValidBrazilianMobile(whatsapp)) {
       setError("Informe o nome e um número de WhatsApp válido com DDD."); return;
     }
     gate.current = true; setSaving(true); setError("");
     try {
-      const result = await listRegistrationContacts(organizationId, owner.id);
-      if (result.error) throw result.error;
-      const key = phoneKey(whatsapp);
-      if ([owner.phone, owner.whatsapp, ...result.data.flatMap(contact => [contact.phone, contact.whatsapp])].some(number => phoneKey(number) === key))
-        throw new Error("Este número já existe neste cadastro, inclusive entre os contatos inativos. Edite ou reative o contato existente.");
-      const created = await createRegistrationContact(organizationId, owner.id, {
-        name: name.trim(), whatsapp, job_title: jobTitle.trim(),
+      const created = await operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), "crm_contact_save", {
+        entity_id: owner.id, display_name: name.trim(), phone: whatsapp, job_title: jobTitle.trim(),
       });
-      if (created.error || !created.data) throw created.error || new Error("O contato não foi retornado após salvar.");
+      if (!created.entity_contact_id) throw new Error("O contato não foi retornado após salvar.");
       void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.contacts(organizationId, owner.id) });
       onSaved();
     } catch (reason) {
@@ -60,10 +50,10 @@ export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onS
       <AdminButton disabled={!canSave || saving} loading={saving} onClick={() => void save()}>Salvar contato</AdminButton>
     </div>}>
     <div className="space-y-3">
-      <FInput label="Nome do contato" required value={name} disabled={saving} onChange={event => { setName(event.target.value); setError(""); }} />
+      <FInput label="Nome do contato" required maxLength={160} value={name} disabled={saving} onChange={event => { setName(event.target.value); setError(""); }} />
       <VerifiedWhatsAppPhoneInput label="WhatsApp" mobile required value={whatsapp} verificationMode="create" disabled={saving}
         onChange={event => { setWhatsapp(event.target.value); setError(""); }} />
-      <FInput label="Identificação (opcional)" placeholder="Ex.: esposa, responsável, financeiro" value={jobTitle} disabled={saving} onChange={event => setJobTitle(event.target.value)} />
+      <FInput label="Identificação (opcional)" placeholder="Ex.: esposa, responsável, financeiro" maxLength={160} value={jobTitle} disabled={saving} onChange={event => setJobTitle(event.target.value)} />
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     </div>
   </AdminDialog>;
