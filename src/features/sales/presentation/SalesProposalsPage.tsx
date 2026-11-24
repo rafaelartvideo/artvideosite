@@ -116,7 +116,12 @@ export function SalesProposalsPage({ onInitialReady }: { onInitialReady?: (secti
       </div>
     </div>
     {canView && proposalsQuery.isPending ? <AdminWorkspaceSkeleton searchFields={2} columns={6} rows={pageSize} /> : <>
-<AdminSearchPanel title="Buscar propostas"
+<AdminSearchPanel title="Buscar propostas" fields={[
+        { value: "query", label: "Número, cliente, produto ou SKU", content: <AdminSearchTextField label="Número, cliente, produto ou SKU"
+          value={search} onChange={value=>{setSearch(value);setPage(1);}}
+          placeholder="Buscar propostas..."/> },
+        { value: "status", label: "Situação", content: <div className="min-w-0"><AdminFieldLabel label="Situação"/><AdminSelect value={status} onValueChange={value=>{setStatus(value);setPage(1);}} options={options} ariaLabel="Situação da proposta" className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/></div> }
+      ]}
       headerActions={<>
         {(search||status!=="all"||sort!=="newest")&&<AdminSearchClearButton onClick={()=>{
           setSearch("");setStatus("all");setPage(1);setSort("newest");
@@ -129,18 +134,7 @@ export function SalesProposalsPage({ onInitialReady }: { onInitialReady?: (secti
             {value:"lowest",label:"Menor valor"},
           ]}/>
       </>}>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">
-        <AdminSearchTextField label="Número, cliente, produto ou SKU"
-          value={search} onChange={value=>{setSearch(value);setPage(1);}}
-          placeholder="Buscar propostas..."/>
-        <div className="min-w-0">
-          <AdminFieldLabel label="Situação"/>
-          <AdminSelect value={status} onValueChange={value=>{setStatus(value);setPage(1);}}
-            options={options} ariaLabel="Situação da proposta"
-            className="h-[42px] md:h-9 md:min-h-9 md:py-1.5 md:text-xs"/>
-        </div>
-      </div>
-    </AdminSearchPanel>
+</AdminSearchPanel>
 
     {!canView?
       <EmptyState icon={ClipboardList} title="Acesso indisponível" message="Solicite permissão para consultar Vendas."/>
