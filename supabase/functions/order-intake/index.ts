@@ -42,18 +42,18 @@ Deno.serve(async(req)=>{
       if(row.status==="submitting"){
         if(!row.upload_attempt||!row.upload_started_at||Date.now()-Date.parse(row.upload_started_at)<15*60_000)
           return json({error:"Envio em andamento. Tente novamente em instantes."},409);
-        const recovery=crypto.randomUUID();
-        const recovered=check(await admin.from("order_intake_requests").update({upload_attempt:recovery,upload_started_at:new Date().toISOString()}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",row.upload_attempt).select("id").maybeSingle());
+        const recoveryStarted=new Date().toISOString();
+        const recovered=check(await admin.from("order_intake_requests").update({upload_started_at:recoveryStarted}).eq("id",row.id).eq("status","submitting").eq("upload_attempt",row.upload_attempt).eq("upload_started_at",row.upload_started_at).select("id").maybeSingle());
         if(!recovered)return json({error:"Envio em recuperação. Tente novamente."},409);
         // Files are deterministic for the old attempt; clean only these paths.
         const paths=Array.from({length:5},(_,i)=>"orders/"+row.organization_id+"/draft/pre-os-"+row.id+"-"+row.upload_attempt+"-"+i+".webp");
         try{
           check(await admin.storage.from("service-images").remove(paths));
           check(await admin.from("media").delete().eq("organization_id",row.organization_id).eq("bucket_id","service-images").in("storage_path",paths));
-          check(await admin.from("order_intake_requests").update({status:"filling",upload_attempt:null,upload_started_at:null}).eq("id",row.id).eq("upload_attempt",recovery).eq("status","submitting"));
+          check(await admin.from("order_intake_requests").update({status:"filling",upload_attempt:null,upload_started_at:null}).eq("id",row.id).eq("upload_attempt",row.upload_attempt).eq("upload_started_at",recoveryStarted).eq("status","submitting"));
           row.status="filling";
         }catch{
-          await admin.from("order_intake_requests").update({upload_attempt:row.upload_attempt,upload_started_at:row.upload_started_at}).eq("id",row.id).eq("upload_attempt",recovery);
+          await admin.from("order_intake_requests").update({upload_started_at:row.upload_started_at}).eq("id",row.id).eq("upload_attempt",row.upload_attempt).eq("upload_started_at",recoveryStarted);
           return json({error:"Não foi possível recuperar o envio. Tente novamente."},503);
         }
       }
