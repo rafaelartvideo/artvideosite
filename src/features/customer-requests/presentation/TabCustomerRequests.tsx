@@ -258,14 +258,7 @@ export function TabCustomerRequests() {
     </>}>
       <AdminMobileSearchSwitch
         value={searchBy}
-        onChange={value => {
-          setSearchBy(value);
-          setSearch("");
-          setCustomerFilter("");
-          setKind("all");
-          setStatus("all");
-          setPage(1);
-        }}
+        onChange={setSearchBy}
         options={[
           { value: "order", label: "Pedido / Produto / Serviço" },
           { value: "customer", label: "Cliente / CPF / CNPJ" },
