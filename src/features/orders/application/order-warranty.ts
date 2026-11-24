@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { loadWarrantyCertificateTemplate, loadWarrantyCertificateOrderItems, type CertificateOrderItem } from "./warranty-certificate-template";
 
+import { warrantyFinancialRows, warrantyMoney } from "../domain/warranty-financial";
+
 export type WarrantyOption = { id:string; organization_id:string; equipment_type_id:string; label:string; warranty_days:number; is_default:boolean; sort_order:number };
 export type WarrantyDraft = { label:string; warranty_days:number; is_default:boolean };
 export type WarrantyCertificate = { id:string; organization_id:string; service_order_id:string; certificate_number:number; warranty_option_label:string; warranty_days:number; starts_at:string; expires_at:string; issued_at:string; snapshot:Record<string,string|null> };
@@ -74,10 +76,12 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
   const displayItems=(items:CertificateOrderItem[],emptyText:string)=>items.length
     ? '<ul class="certificate-items">'+items.map(item=>
       '<li><strong>'+esc(item.name)+'</strong>'+(item.quantity!==1?'<span>Qtd. '+esc(item.quantity)+'</span>':'')+
+      (item.amount!==null?'<b class="item-price">'+esc(warrantyMoney(item.amount))+'</b>':'')+
       (item.description?'<small>'+esc(item.description)+'</small>':'')+'</li>').join("")+'</ul>'
     : '<p class="empty-items">'+esc(emptyText)+'</p>';
   const services=displayItems(orderItems.services,"Nenhum serviço registrado na OS.");
   const products=displayItems(orderItems.products,"Nenhum produto registrado na OS.");
+  const financial= '<div class="financial-summary">'+warrantyFinancialRows(orderItems.financial).map(row=>'<div class="financial-row '+esc(row.kind)+'"><span>'+esc(row.label)+'</span><strong>'+esc(row.value)+'</strong></div>').join("")+'</div>'+(orderItems.financial.no_charge?'<p class="empty-items">Atendimento sem cobrança ao cliente.</p>':'');
   const customer='<div class="data-cols"><div>'+line("Cliente",d.customer_name)+line("CPF/CNPJ",documentMask(d.customer_document))+'</div><div>'+line("Telefone",phoneMask(d.customer_phone))+line("Cidade/UF",[d.customer_city,d.customer_state].filter(Boolean).join("/"))+'</div></div>';
   const equipment='<div class="data-cols"><div>'+line("Equipamento",d.equipment_name)+line("Marca",d.equipment_brand)+'</div><div>'+line("Modelo",d.equipment_model)+line("Nº de série",d.serial_number)+line("Acessórios",d.accessories)+'</div></div>';
   const extraWarrantyRows=template.warranty_rows.split(/\r?\n/).map(row=>row.trim()).filter(Boolean).map(row=>{
@@ -102,6 +106,7 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
     section("DADOS DO EQUIPAMENTO","screen",equipment),
     section(template.section_services,"tool",services),
     ...(orderItems.products.length?[section(template.section_products,"clipboard",products)]:[]),
+    section("VALORES DO ATENDIMENTO","clipboard",financial),
     section("MODALIDADE E PRAZO DA GARANTIA","shield",warranty),
     '<div class="terms-grid"><div>'+section(template.section_coverage,"approved",covered)+'</div><div>'+section(template.section_exclusions,"excluded",excluded)+'</div></div>',
     ...(template.show_signatures?[section("VALIDAÇÃO E ASSINATURAS","pen",'<div class="sign-row"><div class="sign-field"><i></i><strong>'+esc(template.technician_label)+'</strong></div><div class="sign-field"><i></i><strong>'+esc(template.client_label)+'</strong></div></div>')]:[]),
@@ -122,7 +127,8 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
     @media print{.ribbon,.terms-grid .ribbon{height:7mm;min-height:7mm}}
   `;
   const printOverflowCss="\n@media print{.page.certificate-overflow{height:auto;max-height:none;min-height:297mm;overflow:visible;padding-bottom:10mm}.page.certificate-overflow .contact,.page.certificate-overflow .bottom-notice{position:relative;left:auto;right:auto;bottom:auto;margin-top:2mm}}\n";
-  return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Certificado de Garantia - '+esc(String(d.os_number||'OS'))+'</title><style>'+css+extraCss+printOverflowCss+ribbonLegibilityCss+'</style></head><body><article class="page">'+content+'</article><script>window.addEventListener("load",function(){setTimeout(function(){var p=document.querySelector(".page"), f=document.querySelector(".contact"), a=p&&p.querySelectorAll(".block,.terms-grid,.sign-row"),last=a&&a[a.length-1];if(p&&f&&last&&last.getBoundingClientRect().bottom+12>f.getBoundingClientRect().top){p.classList.add("certificate-overflow")}window.focus();window.print()},450)});</script></body></html>');
+  const financialCss=`.item-price{white-space:nowrap;font-size:8pt;color:#203c5f}.financial-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1mm 5mm;font-size:8pt}.financial-row{display:flex;justify-content:space-between;align-items:baseline;gap:2mm}.financial-row strong{white-space:nowrap}.financial-row.discount{color:#a22626}.financial-row.total{grid-column:1/-1;border-top:1px solid #b1cce8;padding-top:1mm;font-size:9pt;color:#076648}.financial-row.total:only-child{border:0;padding:0}.page.certificate-overflow{height:auto;max-height:none;min-height:297mm;overflow:visible;padding-bottom:10mm}.page.certificate-overflow .contact,.page.certificate-overflow .bottom-notice{position:relative;left:auto;right:auto;bottom:auto;margin-top:2mm}.certificate-overflow .block{break-inside:avoid}.certificate-overflow .certificate-items li{break-inside:avoid}`;
+  return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Certificado de Garantia - '+esc(String(d.os_number||'OS'))+'</title><style>'+css+extraCss+printOverflowCss+ribbonLegibilityCss+financialCss+'</style></head><body><article class="page">'+content+'</article><script>window.addEventListener("load",function(){setTimeout(function(){var p=document.querySelector(".page"), f=document.querySelector(".contact"), a=p&&p.querySelectorAll(".block,.terms-grid,.sign-row"),last=a&&a[a.length-1];if(p&&f&&last&&last.getBoundingClientRect().bottom+12>f.getBoundingClientRect().top){p.classList.add("certificate-overflow")}window.focus();window.print()},450)});</script></body></html>');
 }
 
 /** A impressão e o envio usam o mesmo conteúdo e os mesmos dados congelados. */
@@ -144,7 +150,9 @@ export async function createWarrantyCertificatePdfFile(cert:WarrantyCertificate,
  const root=document.createElement("div");
  const style=document.createElement("style");
  style.textContent=parsed.head.querySelector("style")?.textContent||"";
- root.append(style,page.cloneNode(true));
+ const printablePage=page.cloneNode(true) as HTMLElement;
+ printablePage.classList.add("certificate-overflow");
+ root.append(style,printablePage);
  const html2pdf=(await import("html2pdf.js")).default;
  const safeNumber=String(osNumber||"OS").replace(/[^a-z0-9_-]/gi,"");
  const blob=await html2pdf().set({

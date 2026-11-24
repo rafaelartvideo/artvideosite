@@ -1,0 +1,28 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {transformWithEsbuild} from "vite";
+const read=p=>readFileSync(p,"utf8");
+test("certificado exibe valores reais, desconto e total sem confundir ausência com zero",async()=>{
+ const source=read("src/features/orders/domain/warranty-financial.ts");
+ const {code}=await transformWithEsbuild(source,"warranty-financial.ts",{loader:"ts",format:"esm"});
+ const {warrantyFinancialRows,warrantyMoney}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+ const values={service_price:250,parts_total:100,subtotal:350,discount_amount:30,final_total:320};
+ const rows=warrantyFinancialRows(values);
+ assert.equal(rows.length,5);
+ assert.equal(rows[3].value,warrantyMoney(30));
+ assert.equal(rows[4].value,warrantyMoney(320));
+ assert.equal(warrantyMoney(null),"Não registrado");
+ assert.notEqual(warrantyMoney(0),warrantyMoney(null));
+ assert.deepEqual(warrantyFinancialRows({...values,no_charge:true,final_total:0}),[{label:"Total cobrado do cliente",value:warrantyMoney(0),kind:"total"}]);
+ const template=read("src/features/orders/application/warranty-certificate-template.ts");
+ const print=read("src/features/orders/application/order-warranty.ts");
+ const portal=read("src/features/customer-account/presentation/CustomerOrderDetailsModal.tsx");
+ for(const [name,source,loader] of [["template.ts",template,"ts"],["print.ts",print,"ts"],["portal.tsx",portal,"tsx"]])assert.ok((await transformWithEsbuild(source,name,{loader})).code);
+ assert.ok(template.includes("inventory_item_id,subtotal"));
+ assert.ok(template.includes("amount: noCharge || item.subtotal == null"));
+ assert.ok(print.includes("VALORES DO ATENDIMENTO"));
+ assert.ok(print.includes("warrantyFinancialRows(orderItems.financial)"));
+ assert.ok(print.includes('printablePage.classList.add("certificate-overflow")'));
+ assert.ok(portal.includes("warrantyFinancialRows(item.financial)"));
+});
