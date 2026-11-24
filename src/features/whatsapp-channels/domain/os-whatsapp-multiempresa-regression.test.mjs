@@ -1521,3 +1521,27 @@ test("Contatos conciliados consultam mídia histórica sem publicar uma conversa
   assert.match(contacts,/hasPermission\("whatsapp.history_import.view"\)&&hasPermission\("whatsapp.history_import.manage"\)/);
   assert.match(edge,/if\(!openArchive&&await threadExists\(\)\)/);
 });
+
+
+test("Conciliação automática do SAC mantém nomes válidos, ignora nomes genéricos e não mescla variantes",async()=>{
+  const source=read("supabase/functions/union-history-import/index.ts");
+  const helpers=source.slice(source.indexOf("function usableArchiveName"),source.indexOf("const key=(legacy"));
+  const {code}=await transformWithEsbuild(helpers+"\nexport {usableArchiveName,archiveNameKey,archivePhoneVariants};","archive-name.ts",{loader:"ts",format:"esm",target:"es2022"});
+  const {usableArchiveName,archiveNameKey,archivePhoneVariants}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+  for(const name of ["CONTATO WHATSAPP","Contato WhatsApp 123","5579999999999","(79) 99999-9999","Cliente","Sem nome"])assert.equal(usableArchiveName(name),"");
+  for(const name of ["João Silva","MECÂNICA 24H","Tela Philips","REJANE NETO - 083059"])assert.equal(usableArchiveName(name),name);
+  assert.equal(archiveNameKey(" João "),archiveNameKey("JOAO"));
+  assert.deepEqual(archivePhoneVariants("5579981234567"),["5579981234567","557981234567"]);
+  const batch=source.slice(source.indexOf('if(b.action==="auto_reconcile"){'),source.indexOf('if(b.action==="create_contact"){'));
+  assert.match(batch,/remaining\.slice\(0,5\)/);
+  assert.match(batch,/alternateInPackage\|\|aliases\?\.length\|\|rows\.length>1/);
+  assert.match(batch,/if\(!recovered\|\|\(savedName\?savedName!==recovered/);
+  assert.match(batch,/if\(!usableArchiveName\(current\.display_name\)\)/);
+  assert.match(batch,/distinct\.size===1/);
+  assert.match(batch,/update\.eq\("updated_at",current\.updated_at\)/);
+  assert.match(batch,/action:"bind_contact"/);
+  assert.doesNotMatch(batch,/action:"open_archive"|check_number|send_text/);
+  const ui=read("src/features/whatsapp-channels/presentation/WhatsAppHistoryImports.tsx");
+  assert.match(ui,/job\.state==="completed"&&!automaticAttempted\.current\.has\(job\.id\)/);
+  assert.match(ui,/action:"auto_reconcile",id,after/);
+});
