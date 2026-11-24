@@ -48,7 +48,7 @@ export function openArchiveStore(filename,read){
   }
   function grantPackage(packageId,org,actor){
     // Only platform provisioning service may call this; never accept an end-user-supplied grant.
-    validatePackageId(packageId);validateDestination(org,"550000000000");
+    validatePackageId(packageId);org=validateDestination(org,"550000000000").organizationId;
     if(!actor)throw Error("Responsável obrigatório.");
     db.prepare("INSERT INTO grants VALUES (?,?,?,?) ON CONFLICT(package_id) DO NOTHING").run(packageId,org,actor,now());
     if(db.prepare("SELECT organization_id FROM grants WHERE package_id=?").get(packageId)?.organization_id!==org)throw Error("Pacote já vinculado a outra empresa.");
@@ -63,6 +63,8 @@ export function openArchiveStore(filename,read){
     const rows=read(packageId,"indice-privado.jsonl",2*1024*1024).toString("utf8").split(/\r?\n/).filter(Boolean).map(JSON.parse);
     const index=validateIndex(rows,summary,packageId);
     return tx(()=>{
+      const race=db.prepare("SELECT id,account_phone FROM jobs WHERE package_id=?").get(packageId);
+      if(race){if(race.account_phone!==accountPhone)throw Error("Pacote já associado a outra conta.");return race.id}
       const id=randomUUID();
       db.prepare("INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?)").run(id,packageId,organizationId,accountPhone,actor,"prepared",index.length,now());
       const insert=db.prepare("INSERT INTO entries(job_id,contact_key,phone,metadata,state) VALUES (?,?,?,?,?)");
@@ -78,6 +80,15 @@ export function openArchiveStore(filename,read){
     const j=job(id,org);
     const counts=db.prepare("SELECT state,COUNT(*) AS count FROM entries WHERE job_id=? GROUP BY state").all(id);
     return {id:j.id,state:j.state,account_phone:j.account_phone,total:j.total,updated_at:j.updated_at,counts};
+  }
+  function list(organizationId){
+    validateDestination(organizationId,"550000000000");
+    const packages=db.prepare("SELECT package_id,created_at FROM grants WHERE organization_id=? ORDER BY created_at DESC LIMIT 100").all(organizationId);
+    const jobs=db.prepare("SELECT id FROM jobs WHERE organization_id=? ORDER BY updated_at DESC LIMIT 100").all(organizationId).map(j=>status(j.id,organizationId));
+    return {packages,jobs};
+  }
+  function events(id,org){
+    job(id,org);return db.prepare("SELECT actor,action,created_at FROM events WHERE job_id=? ORDER BY id DESC LIMIT 100").all(id);
   }
   function readPayload(packageId,metadata){
     const compressed=read(packageId,metadata.file,16*1024*1024);
@@ -116,5 +127,5 @@ export function openArchiveStore(filename,read){
     if(matches.length>1)throw Error("Contato exige revisão.");
     return matches.length===1?readPayload(matches[0].package_id,JSON.parse(matches[0].metadata)):null;
   }
-  return {grantPackage,prepare,control,status,tick,lookup,close:()=>db.close()};
+  return {grantPackage,prepare,control,status,list,events,tick,lookup,close:()=>db.close()};
 }
