@@ -57,7 +57,7 @@ export function WhatsAppAttendanceSettings({
   const onHistoryPreparation=useCallback((error:string|null)=>setHistoryPreparation(previous=>previous?.key===historyKey&&previous.error===error?previous:{key:historyKey,error}),[historyKey]);
   const historyReady=historyPreparation?.key===historyKey;
   const preparingHistory=section==="history-imports"&&canViewImports&&!historyReady;
-  const historyError=section==="history-imports"&&canViewImports&&historyReady?historyPreparation.error:null;
+  const historyError=section==="history-imports"&&canViewImports&&historyReady?historyPreparation?.error??null:null;
   const [createRequest,setCreateRequest]=useState(0);
   const [canCreateConnection,setCanCreateConnection]=useState(false);
   const [canCreateDepartment,setCanCreateDepartment]=useState(false);
