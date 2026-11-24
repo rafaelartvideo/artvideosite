@@ -1311,3 +1311,33 @@ test("Atendimento finalizado nao volta para Aguardando sem primeira mensagem",()
 });
 import './whatsapp-unanswered-refresh.test.mjs';
 import './whatsapp-counts-session.test.mjs';
+
+
+test("OS and CRM share active additional registration contacts with scoped identities", async () => {
+  const repo = read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const menu = read("src/features/whatsapp-channels/presentation/UnionWhatsAppCrmMenu.tsx");
+  const inbox = read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const form = read("src/features/whatsapp-channels/presentation/CrmAdditionalContactDialog.tsx");
+  const registrations = read("src/features/registrations/presentation/RegistrationContactsPage.tsx");
+  const lookup = read("supabase/migrations/20261124120000_union_whatsapp_registration_contact_lookup.sql");
+  assert.match(edge, /recipients.push\(\{kind:"registered",field,entity_contact_id:contact.id/);
+  assert.match(join, /\.eq\("legacy_customer_id",order.customer_id\)/);
+  assert.match(join, /\.eq\("id",additionalId\)\.eq\("is_active",true\)/);
+  assert.match(join, /registrations.contacts.view/);
+  assert.match(modal, /entity_contact_id:recipient.entity_contact_id/);
+  assert.match(repo, /entity_contact_id\?:string/);
+  assert.match(menu, /Nova OS[\s\S]*?onNewContact[\s\S]*?Novo contato/);
+  assert.match(inbox, /getRegistrationContactOwner\(org,match.customer.id\)/);
+  assert.match(inbox, /onNewContact=\{hasPermission\("registrations.contacts.manage"\)/);
+  assert.match(form, /<VerifiedWhatsAppPhoneInput/);
+  assert.match(form, /createRegistrationContact\(organizationId, owner.id/);
+  assert.match(form, /queryKeys.registrations.contacts\(organizationId, owner.id\)/);
+  assert.match(registrations, /<VerifiedWhatsAppPhoneInput verificationMode=\{editing \? "edit" : "create"\}/);
+  assert.match(lookup, /additional_matches as/);
+  assert.match(lookup, /ec.organization_id=p_organization and ec.is_active/);
+  assert.match(lookup, /e.legacy_customer_id/);
+  assert.match(lookup, /limit 2;/);
+  for (const [name, code] of [["CrmAdditionalContactDialog", form], ["UnionWhatsAppCrmMenu", menu], ["UnionWhatsAppInboxPage", inbox], ["WhatsAppConversationModal", modal]]) {
+    assert.ok((await transformWithEsbuild(code,name+".tsx",{loader:"tsx"})).code,name);
+  }
+});
