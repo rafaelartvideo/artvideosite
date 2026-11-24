@@ -39,12 +39,17 @@ Deno.serve(async req=>{
     const {data:permissions,error:permissionError}=await scoped.rpc("my_organization_permissions",{p_organization_id:org});
     const has=(permission:string)=>!permissionError&&Array.isArray(permissions)&&permissions.some((r:Record<string,unknown>)=>r.permission_key===permission);
     const actor=auth.user.id;
-    if(b.action==="grant"){
+    if(b.action==="grant"||b.action==="platform_companies"||b.action==="platform_list"){
       const {data:platform,error}=await admin.rpc("platform_operator_organization_id");
       if(error||platform!==org||!has("platform.management.manage"))return json({success:false,error:"Acesso reservado à administração Union."},403);
-      if(!uuid(b.target_organization_id)||!packageKey(b.package_id)||b.target_organization_id===org)return json({success:false,error:"Destino ou pacote inválido."},400);
-      const {data:target,error:targetError}=await admin.from("organizations").select("id").eq("id",b.target_organization_id).maybeSingle();
+      if(b.action==="platform_companies"){
+        const {data,error}=await admin.from("organizations").select("id,name").eq("status","active").neq("id",org).order("name").limit(200);
+        if(error)throw Error("Empresas indisponíveis.");return json({success:true,result:data||[]});
+      }
+      if(!uuid(b.target_organization_id)||b.target_organization_id===org||(b.action==="grant"&&!packageKey(b.package_id)))return json({success:false,error:"Destino ou pacote inválido."},400);
+      const {data:target,error:targetError}=await admin.from("organizations").select("id").eq("id",b.target_organization_id).eq("status","active").maybeSingle();
       if(targetError||!target)return json({success:false,error:"Empresa indisponível."},404);
+      if(b.action==="platform_list")return json({success:true,result:await bridge({action:"list",organizationId:target.id})});
       return json({success:true,result:await bridge({action:"grant",organizationId:target.id,packageId:b.package_id,actor})});
     }
     const prefix="whatsapp.history_import.";
