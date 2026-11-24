@@ -10,7 +10,7 @@ import { FutureOpportunityContactSection } from "./FutureOpportunities";
 import { formatCrmDocument, formatCrmFullAddress, orderedCrmAddresses, type CrmContactAddress } from "../domain/crm-contact-format";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { findUnionWhatsAppConversationByContact, operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppConversation } from "../infrastructure/union-whatsapp-inbox.repository";
+import { findUnionWhatsAppConversationByContact, isUnifiedHistoryPilotEnabled, operateUnionWhatsAppInbox, type UnionWhatsAppContact, type UnionWhatsAppConversation } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
   CONTACT_IMPORT_BATCH_SIZE, parseContactTable, parseContactsCSV,
   type ContactImportSummary,
@@ -710,10 +710,14 @@ export function UnionWhatsAppContactsDialog({
                   conversation={contactConversation} organizationId={organizationId}
                   canRecordOpportunity={hasPermission("whatsapp.inbox.send")}
                   onClose={()=>undefined}/>:
+                !conversationError&&isUnifiedHistoryPilotEnabled(organizationId)&&hasPermission("whatsapp.history_import.view")&&hasPermission("whatsapp.history_import.manage")&&selected.contact_phone&&selected.chat_jid===selected.contact_phone+"@s.whatsapp.net"?
+                <UnionWhatsAppContactDetails key={"archive:"+selected.id} inline organizationId={organizationId}
+                  archiveContact={{id:selected.id,channelId,accountPhone,name:labelFor(selected)}}
+                  onClose={()=>undefined}/>:
                 <div className="overflow-hidden rounded-xl border border-border text-xs">
                   <h3 className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-bold">Mídias, documentos e links</h3>
                   <p className="px-4 py-6 text-center text-muted-foreground">
-                    {conversationError||"Nenhuma conversa registrada para consultar arquivos deste contato."}
+                    {conversationError||"Nenhum histórico de arquivos acessível para este contato."}
                   </p>
                 </div>}
             </section>}
