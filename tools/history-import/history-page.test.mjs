@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { historyId, timestampMicros, compareHistory, mergeHistoryPage, mergeFetchedHistoryPages, projectHistorical } from "./history-page.mjs";
+import { historyId, timestampMicros, normalizeArchiveTimestamp, compareHistory, mergeHistoryPage, mergeFetchedHistoryPages, projectHistorical } from "./history-page.mjs";
 const row=(key,at,body_text="same")=>({id:historyId(key.repeat(40)),sent_at:at,body_text});
 const old=row("a","2024-01-01T10:00:00.000001Z"),first=row("b","2026-11-24T18:00:00.000001+00:00"),second=row("c","2026-11-24T18:00:00.000002+00:00"),third=row("d","2026-11-24T18:00:00.000002Z");
 test("microsecond precision and stable ID tie breaker",()=>{
@@ -39,3 +39,16 @@ test("truncated source pages cannot skip unseen archived rows",()=>{
  assert.throws(()=>mergeFetchedHistoryPages({items:[third],hasMore:false},{items:[third],hasMore:false}));
 });
 
+
+test("archive timestamps normalize SQL spaces, compact offsets and fractional precision without guessing zones",()=>{
+ const expected="2024-01-01T10:00:00.123456Z";
+ for(const input of ["2024-01-01 07:00:00.123456-03:00","2024-01-01T07:00:00.1234560-0300","2024-01-01 10:00:00.123456+00","2024-01-01 10:00:00.123456 UTC","2024-01-01T10:00:00.123456789Z"]){
+  assert.equal(normalizeArchiveTimestamp(input),expected);
+  assert.equal(timestampMicros(normalizeArchiveTimestamp(input)),timestampMicros(expected));
+ }
+ assert.equal(normalizeArchiveTimestamp("2024-01-01T07:00-03:00"),"2024-01-01T10:00:00.000000Z");
+ for(const invalid of ["2024-01-01 07:00:00","2024-02-30T07:00:00Z","2024-01-01T07:00:00+99:00","not a date"])
+  assert.throws(()=>normalizeArchiveTimestamp(invalid));
+ const projected=projectHistorical({media:[],messages:[{import_key:"a".repeat(40),protocol_key:"b".repeat(32),at:"2024-01-01 07:00:00.123456-0300",direction:"incoming",media:[]}]},{organizationId:"org",conversationId:"conv"});
+ assert.equal(projected[0].sent_at,expected);
+});
