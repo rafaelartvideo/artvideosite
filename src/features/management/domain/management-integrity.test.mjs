@@ -52,7 +52,11 @@ test("menus da Central usam portal com colisão para não serem cortados no roda
   const primitive=read("src/shared/ui/primitives/dropdown-menu.tsx");
   assert.match(page,/DropdownMenuTrigger asChild/);
   assert.match(page,/DropdownMenuContent align="end" sideOffset=\{5\} collisionPadding=\{10\}/);
-  assert.match(primitive,/<DropdownMenuPrimitive\.Portal>/);
+  const content = primitive.slice(primitive.indexOf("function DropdownMenuContent("),primitive.indexOf("function DropdownMenuGroup("));
+  assert.match(content,/const container = usePortalContainer\(\);/);
+  assert.match(content,/<DropdownMenuPrimitive\.Portal container=\{container\}>[\s\S]*?<DropdownMenuPrimitive\.Content\b[\s\S]*?<\/DropdownMenuPrimitive\.Portal>/);
+  assert.match(content,/max-h-\(--radix-dropdown-menu-content-available-height\)/);
+  assert.match(content,/overflow-y-auto/);
   assert.doesNotMatch(page,/absolute right-0 top-full z-30/);
   assert.match(page,/Opções do registro/);
 });
