@@ -14,11 +14,12 @@ function browserStorage(): PreferenceStorage | undefined {
 }
 
 export function readSearchPanelExpanded(key: string, compact: boolean, storage = browserStorage()) {
+  if (memory.has(key)) return memory.get(key)!;
   try {
     const value = storage?.getItem(key);
     if (value === "true" || value === "false") return value === "true";
   } catch { /* Browser storage can be unavailable. */ }
-  return memory.get(key) ?? !compact;
+  return !compact;
 }
 
 export function writeSearchPanelExpanded(key: string, expanded: boolean, storage = browserStorage()) {
