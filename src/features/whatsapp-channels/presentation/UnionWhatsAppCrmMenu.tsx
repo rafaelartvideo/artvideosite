@@ -129,7 +129,7 @@ const panelLabels: Record<Panel, string> = {
 };
 
 export function UnionWhatsAppCrmMenu({
-  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading, newOrderDisabled,
+  context, open, onToggle, onRetry, organizationId, canViewOrders, onOpenCustomer, onNewOrder, newOrderLoading, newOrderDisabled, onNewContact, newContactLoading,
 }: {
   context?: CrmConversationContext;
   open: boolean;
@@ -141,6 +141,8 @@ export function UnionWhatsAppCrmMenu({
   onNewOrder?: () => void;
   newOrderLoading?: boolean;
   newOrderDisabled?: boolean;
+  onNewContact?: () => void;
+  newContactLoading?: boolean;
 }) {
   const [activePanel, setActivePanel] = useState<Panel | null>(null);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null);
@@ -186,7 +188,7 @@ export function UnionWhatsAppCrmMenu({
 
   return <section aria-label="Dados do cliente no CRM" className="relative z-20 shrink-0 border-b border-border bg-muted/20 px-3 py-2">
     <div ref={menuRef} className="relative">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
       <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={regionId}
         aria-haspopup="dialog"
         className="inline-flex min-w-0 max-w-full items-center gap-2 text-left text-xs font-semibold text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -205,6 +207,10 @@ export function UnionWhatsAppCrmMenu({
         className="!h-7 !shrink-0 !rounded-md !px-2.5">
         {newOrderLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>}
         Nova OS
+      </AdminButton>}
+      {onNewContact && <AdminButton variant="tertiary" size="sm" onClick={event=>{event.stopPropagation();onNewContact();}}
+        disabled={newContactLoading} title="Adicionar um número ao cadastro do cliente" className="!h-7 !shrink-0 !rounded-md !px-2.5">
+        {newContactLoading ? <LoaderCircle size={14} className="animate-spin"/> : <Plus size={14}/>} Novo contato
       </AdminButton>}
       </div>
 
