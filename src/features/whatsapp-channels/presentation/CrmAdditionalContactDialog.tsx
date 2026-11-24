@@ -36,6 +36,7 @@ export function CrmAdditionalContactDialog({ organizationId, owner, onClose, onS
       });
       if (!created.entity_contact_id) throw new Error("O contato não foi retornado após salvar.");
       void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.contacts(organizationId, owner.id) });
+      window.dispatchEvent(new CustomEvent("union:registration-contacts-changed", { detail: { organizationId } }));
       onSaved();
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível salvar o contato."));
