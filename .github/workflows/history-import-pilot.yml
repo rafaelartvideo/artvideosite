@@ -31,6 +31,8 @@ jobs:
             tools/history-import/archive-contract.mjs
             tools/history-import/archive-store.mjs
             tools/history-import/archive-gateway.mjs
+            tools/history-import/archive-media.mjs
+            tools/history-import/archive-media.test.mjs
             tools/history-import/preflight.mjs
             tools/history-import/archive-store.test.mjs
             tools/history-import/history-page.mjs
