@@ -21,13 +21,19 @@ function showExpandedSearch(node: ReactNode): ReactNode {
     node.props.children == null ? node.props.children : Children.map(node.props.children, showExpandedSearch));
 }
 
-export function AdminSearchPanel({ title, children, headerActions, allowOverflow = false }: { title: string; children: ReactNode; headerActions?: ReactNode; allowOverflow?: boolean }) {
+export type AdminSearchField = { value: string; label: string; content: ReactNode };
+
+export function AdminSearchPanel({ title, children, fields, headerActions, allowOverflow = false }: { title: string; children?: ReactNode; fields?: AdminSearchField[]; headerActions?: ReactNode; allowOverflow?: boolean }) {
   const panelId = useId();
   const [expanded, setExpanded] = useState(false);
   const content = Children.toArray(children);
   const compactIndex = content.findIndex(child => isValidElement(child) && child.type === AdminMobileSearchSwitch);
   const compact = compactIndex >= 0 ? content[compactIndex] : null;
-  const hasCompact = isValidElement<SearchChildProps>(compact);
+  const hasExistingCompact = isValidElement<SearchChildProps>(compact);
+  const hasFields = Boolean(fields?.length);
+  const hasCompact = hasExistingCompact || hasFields;
+  const [fieldValue, setFieldValue] = useState("");
+  const selectedField = fields?.find(field => field.value === fieldValue) || fields?.[0];
   // Painéis de campo único mantêm a pesquisa visível inicialmente; a seta recolhe o conteúdo.
   const [singleCollapsed, setSingleCollapsed] = useState(false);
   const isExpanded = hasCompact ? expanded : !singleCollapsed;
@@ -48,7 +54,10 @@ export function AdminSearchPanel({ title, children, headerActions, allowOverflow
       </div>
     </div>
     <div id={panelId} className={cn("admin-search-panel-content min-w-0", !hasCompact && singleCollapsed ? "hidden" : "p-4 md:p-3")}>
-      {hasCompact ? content.map((child, index) => index === compactIndex
+      {hasFields && selectedField && (expanded
+        ? <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{fields?.map(field => <div key={field.value} className="min-w-0">{field.content}</div>)}</div>
+        : <AdminMobileSearchSwitch mobileOnly={false} value={selectedField.value} options={fields || []} onChange={setFieldValue}>{selectedField.content}</AdminMobileSearchSwitch>)}
+      {hasExistingCompact ? content.map((child, index) => index === compactIndex
         ? (!expanded ? cloneElement(compact, { mobileOnly: false }) : null)
         : index === compactIndex + 1 && isValidElement<SearchChildProps>(child) && /(?:^|\s)hidden(?:\s|$)/.test(child.props.className || "")
           ? (expanded ? showExpandedSearch(child) : null)
