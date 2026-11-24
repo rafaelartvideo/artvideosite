@@ -59,10 +59,11 @@ function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
   return null;
 }
 
-export function QuickCustomerModal({ onClose, onSaved, initialValues, description, allowCustomerRequests = false }: {
+export function QuickCustomerModal({ onClose, onSaved, initialValues, initialAddress, description, allowCustomerRequests = false }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
   initialValues?: Partial<CustomerForm>;
+  initialAddress?: Partial<Address>;
   description?: string;
   allowCustomerRequests?: boolean;
 }) {
@@ -76,7 +77,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
     phone: formatPhone(initialValues?.phone || ""),
     whatsapp: formatPhone(initialValues?.whatsapp || ""),
   }));
-  const [addresses, setAddresses] = useState<Address[]>(() => [newQuickCustomerAddress(true)]);
+  const [addresses, setAddresses] = useState<Address[]>(() => [{ ...newQuickCustomerAddress(true), ...initialAddress, is_default: true }]);
   const [addressValidationAttempted, setAddressValidationAttempted] = useState(false);
   const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
