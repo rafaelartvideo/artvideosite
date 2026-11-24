@@ -690,13 +690,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const contactOpenRef=useRef(false);
   useEffect(()=>{contactLaunch.current++;contactOpenRef.current=false;setNewContact(null);},[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone]);
   const [newOrder,setNewOrder]=useState<{customerId:string|null;customerLookup?:Promise<string|null>;key:string;organizationId:string;opportunityId?:string|null}|null>(null);
-  const [preparingNewOrder,setPreparingNewOrder]=useState(false);
   const newOrderGateRef=useRef(false);
-  const newOrderLaunchRef=useRef(0);
   useEffect(()=>setNewOrder(null),[activeOrganizationId]);
-  useEffect(()=>{setCrmDetailsOpen(false);newOrderLaunchRef.current+=1;
-    newOrderGateRef.current=false;setPreparingNewOrder(false);
-  },[selectedId,activeOrganizationId]);
+  useEffect(()=>{setCrmDetailsOpen(false);newOrderGateRef.current=false;},[selectedId,activeOrganizationId]);
   const messageIdentity = useRef(0);
 
   const organizationRef = useRef(activeOrganizationId);
@@ -1471,33 +1467,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(()=>{
     if(selectedInPage)setSelectedFallback(selectedInPage);
   },[selectedInPage]);
-  const openNewOrderFromFuture=async(item:FutureOpportunity)=>{
+  const openNewOrderFromFuture=(item:FutureOpportunity)=>{
     if(embedded||!activeOrganizationId||!hasPermission("orders.create")||!canSend||
       newOrderGateRef.current||newOrder)return;
     const org=activeOrganizationId;
-    const launch=newOrderLaunchRef.current;
     newOrderGateRef.current=true;
-    setPreparingNewOrder(true);
-    try{
-      let customerId:string|null=null;
-      if(item.conversation_id&&hasPermission("customers.view")){
-        try{
-          const match=await operateUnionWhatsAppInbox(org,item.conversation_id,"customer_match");
-          if(!match.ambiguous&&match.customer?.id)customerId=match.customer.id;
-        }catch{customerId=null;}
-      }
-      if(newOrderLaunchRef.current!==launch||organizationRef.current!==org)return;
-      await import("@/features/orders/presentation/TabOrders");
-      if(newOrderLaunchRef.current!==launch||organizationRef.current!==org)return;
-      setNewOrder({customerId,key:crypto.randomUUID(),organizationId:org,opportunityId:item.id});
-    }catch(reason){
-      if(newOrderLaunchRef.current===launch)
-        reportError(systemErrorMessage(reason,"Não foi possível abrir a Nova OS."));
-    }finally{
-      if(newOrderLaunchRef.current===launch){
-        newOrderGateRef.current=false;setPreparingNewOrder(false);
-      }
-    }
+    const threadId=item.conversation_id;
+    const customerLookup=threadId&&hasPermission("customers.view")
+      ? futureQueryClient.fetchQuery({
+          queryKey:["whatsapp","new-order-customer",org,user?.id,activeChannelId,activeChannelPhone,threadId],
+          staleTime:15_000,gcTime:60_000,retry:false,
+          queryFn:async()=>{
+            const match=await operateUnionWhatsAppInbox(org,threadId,"customer_match",{customer_id_only:true});
+            return !match.ambiguous ? match.matched_customer_id || match.customer?.id || null : null;
+          },
+        }).catch(()=>null) : undefined;
+    setNewOrder({customerId:null,customerLookup,key:crypto.randomUUID(),organizationId:org,opportunityId:item.id});
+    newOrderGateRef.current=false;
   };
   const contactOwnerKey=(org:string,threadId:string)=>["whatsapp","crm-contact-owner",org,user?.id,activeChannelId,activeChannelPhone,threadId] as const;
   const closeNewContact=()=>{
@@ -3004,7 +2990,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               canViewOrders={hasPermission("orders.details.view")}
               onOpenCustomer={onOpenCustomer}
               onNewOrder={!embedded && hasPermission("orders.create") ? ()=>void openNewOrderFromConversation():undefined}
-              newOrderLoading={preparingNewOrder}
+              newOrderLoading={false}
               newOrderDisabled={Boolean(newOrder)}
               onNewContact={hasPermission("registrations.contacts.manage") && canAction("create_contacts") ? ()=>void openNewContactFromConversation():undefined}
               newContactLoading={false}
