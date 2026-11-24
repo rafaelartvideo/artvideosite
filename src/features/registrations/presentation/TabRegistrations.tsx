@@ -866,17 +866,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             { value: "creator", label: "Cadastrado por" },
             { value: "date", label: "Data" },
           ]}
-          onChange={value => {
-            if (value === mobileSearchField) return;
-            setMobileSearchField(value);
-            setNameSearch("");
-            setDocumentSearch("");
-            setRoleFilter("all");
-            setStatusFilter("all");
-            setCreatorFilter("all");
-            setCreatedDate("");
-            setPage(1);
-          }}
+          onChange={setMobileSearchField}
         >
           {mobileSearchField === "role" && !platformUsersOnly
             ? <AdminSelect value={roleFilter} onValueChange={value => { setRoleFilter(value as "all" | RegistrationRole); setPage(1); }}
