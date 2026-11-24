@@ -15,7 +15,7 @@ import type {
   FinancialPaymentMethod,
 } from "../domain/finance.types";
 import { searchFinancialCounterparties, type FinancialCounterparty } from "../infrastructure/finance-entries.repository";
-import { scanExpenseDocument, expenseAttachmentType, suggestedPaymentType, findExpenseScanHints, type ExpenseScan, type ExpenseSource } from "../infrastructure/expense-scan.repository";
+import { scanExpenseDocument, expenseAttachmentType, suggestedPaymentType, findExpenseScanHints, confirmedScanCategory, isCreditScan, suggestExpenseCategory, type ExpenseScan, type ExpenseSource } from "../infrastructure/expense-scan.repository";
 import { AdminFieldLabel, FCurrencyInput, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -96,13 +96,18 @@ export function FinanceEntryEditorDialog({
   const scanCamera=useRef<HTMLInputElement>(null),scanPicker=useRef<HTMLInputElement>(null),scanSeq=useRef(0),scanGate=useRef(false),saveGate=useRef(false);
   const [persisting,setPersisting]=useState(false);
   const [failedScanFile,setFailedScanFile]=useState<File|null>(null);
+  const [historyCategoryId,setHistoryCategoryId]=useState("");
+  const [categoryMessage,setCategoryMessage]=useState("");
+  const [categoryBusy,setCategoryBusy]=useState(false);
   const canUseExpenseAi=hasModule("ai")&&hasPermission("ai.view");
-  useEffect(()=>{scanSeq.current++;setScanBusy(false);scanGate.current=false;setScanResult(null);setScanFile(null);setScanError("");setScanMenu(false);setPaidExpense(false);setFailedScanFile(null);return()=>{scanSeq.current++;};},[open,activeOrganizationId,initial]);
+  useEffect(()=>{scanSeq.current++;setScanBusy(false);scanGate.current=false;setScanResult(null);setScanFile(null);setScanError("");setScanMenu(false);setPaidExpense(false);setFailedScanFile(null);setHistoryCategoryId("");setCategoryMessage("");setCategoryBusy(false);return()=>{scanSeq.current++;};},[open,activeOrganizationId,initial]);
   const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string; paymentPlan?: string }>({});
 
   const numericAmount = Number(amount || 0);
   const isRecurring = entryType === "payable" && !initial && accountType === "recurring";
-  const busy = saving || persisting || scanBusy || recurring.saveMutation.isPending || recurring.generateMutation.isPending;
+  const creditExpense=Boolean(scanResult&&(isCreditScan(scanResult)||paymentPlan.some(part=>paymentMethods.some(method=>method.id===part.payment_method_id&&method.method_type==="credit_card"))));
+  const needsPurpose=Boolean(scanResult&&!confirmedScanCategory(scanResult));
+  const busy = saving || persisting || scanBusy || categoryBusy || recurring.saveMutation.isPending || recurring.generateMutation.isPending;
   const title = entryType === "receivable" ? "Conta a receber" : "Conta a pagar";
   const counterpartLabel = entryType === "receivable" ? "Cliente / pagador" : "Fornecedor / favorecido";
   const selectedCounterpart = useMemo(
@@ -160,13 +165,13 @@ export function FinanceEntryEditorDialog({
   // Preenche automaticamente somente novas contas. Nunca sobrescreve a categoria
   // editada pelo usuário nem uma alocação de conta existente.
   useEffect(() => {
-    if (!open || initial || !defaultCategoryId) return;
+    if (!open || initial || !defaultCategoryId || scanResult || scanGate.current) return;
     const standard = categories.find(item =>
       item.id === defaultCategoryId && item.is_active &&
       item.nature === (entryType === "receivable" ? "revenue" : "expense"),
     );
     if (standard) setCategoryId(current => current || standard.id);
-  }, [open, initial, defaultCategoryId, categories, entryType]);
+  }, [open, initial, defaultCategoryId, categories, entryType, scanResult]);
 
   useEffect(() => {
     if (!counterpartId || !selectedCounterpart) return;
@@ -190,7 +195,7 @@ export function FinanceEntryEditorDialog({
   const runScan=async(file:File)=>{
     if(!activeOrganizationId||scanGate.current||busy||initial||entryType!=="payable")return;
     const org=activeOrganizationId,seq=++scanSeq.current;
-    scanGate.current=true;setScanBusy(true);setScanMenu(false);setScanError("");setFailedScanFile(null);
+    scanGate.current=true;setScanBusy(true);setScanMenu(false);setScanError("");setFailedScanFile(null);setCategoryMessage("");
     try{
       const active=categories.filter(c=>c.is_active&&c.nature==="expense");
       const result=await scanExpenseDocument(org,file,active.map(c=>c.name));
@@ -202,13 +207,18 @@ export function FinanceEntryEditorDialog({
       const hints=await findExpenseScanHints(org,result,match?.id).catch(()=>({possibleDuplicate:false,categoryId:null}));
       if(seq!==scanSeq.current)return;
       if(hints.possibleDuplicate)result.warning=[result.warning,"Possível despesa duplicada: já existe um lançamento com dados semelhantes. Confira antes de salvar."].filter(Boolean).join(" ");
-      setScanResult(result);setScanFile(file);setFieldErrors({});setPaidExpense(result.paid===true&&hasPermission("finance.settlements.create"));
-      if(result.description)setDescription(result.description);
+      const credit=isCreditScan(result);
+      setScanResult(result);setScanFile(file);setFieldErrors({});setPaidExpense(result.paid===true&&!credit&&hasPermission("finance.settlements.create"));
+      setHistoryCategoryId(active.find(c=>c.id===hints.categoryId)?.id||"");
+      setDescription(result.description||"");
       if(result.amount!=null)setAmount(String(result.amount));
       else setAmount("");
       if(result.issue_date){setIssueDate(result.issue_date);setCompetenceDate(result.issue_date);}
-      if(result.due_date||result.issue_date)setFirstDueDate(result.due_date||result.issue_date!);
-      const category=active.find(c=>c.id===hints.categoryId)||active.find(c=>c.name===result.category);if(category)setCategoryId(category.id);
+      // Compra no crédito não informa o vencimento da fatura no recibo da maquineta.
+      if(credit)setFirstDueDate(result.kind==="payment_proof"?"":result.due_date||"");
+      else if(result.due_date||result.issue_date)setFirstDueDate(result.due_date||result.issue_date!);
+      const category=active.find(c=>c.name===confirmedScanCategory(result));
+      setCategoryId(category?.id||"");
       setCounterpartId(match?.id||"");setSelectedCounterpartSnapshot(match||null);setCounterpartName(match?.name||result.supplier);setCounterpartDocument(match?.document||digits);onCounterpartySearchChange(match?.name||result.supplier);
       const methodType=suggestedPaymentType(result.payment);const methods=paymentMethods.filter(m=>m.is_active&&m.method_type===methodType);
       setPaymentPlan(methods.length===1&&result.amount!=null?[{payment_method_id:methods[0].id,amount:String(result.amount)}]:[]);
@@ -216,6 +226,24 @@ export function FinanceEntryEditorDialog({
       setInstallmentCount(1);
     }catch(error){if(seq===scanSeq.current){setScanError(systemErrorMessage(error,"Não foi possível ler o documento."));if(file.size<=20*1024*1024)setFailedScanFile(file);}}
     finally{if(seq===scanSeq.current){scanGate.current=false;setScanBusy(false);}}
+  };
+  const classifyPurpose=async()=>{
+    if(busy||scanGate.current||!scanResult||!activeOrganizationId||!canUseExpenseAi)return;
+    const purpose=description.trim();
+    if(purpose.length<3||purpose===scanResult.description.trim()){
+      setCategoryMessage("Informe na origem o que foi comprado e para qual finalidade.");return;
+    }
+    const seq=++scanSeq.current;
+    scanGate.current=true;setCategoryBusy(true);setCategoryMessage("");
+    try{
+      const active=categories.filter(c=>c.is_active&&c.nature==="expense");
+      const name=await suggestExpenseCategory(activeOrganizationId,purpose,active.map(c=>c.name));
+      if(seq!==scanSeq.current)return;
+      const match=active.find(c=>c.name===name);
+      if(match){setCategoryId(match.id);setFieldErrors(current=>({...current,allocations:undefined}));setCategoryMessage("Categoria sugerida pela finalidade informada. Confira antes de salvar.");}
+      else setCategoryMessage("Não foi possível definir a categoria com segurança. Selecione manualmente.");
+    }catch(error){if(seq===scanSeq.current)setCategoryMessage(systemErrorMessage(error,"Não foi possível sugerir a categoria."));}
+    finally{if(seq===scanSeq.current){scanGate.current=false;setCategoryBusy(false);}}
   };
   const save = async () => {
     if(busy||saveGate.current)return;
@@ -242,7 +270,7 @@ export function FinanceEntryEditorDialog({
     if (!competenceDate) nextErrors.competenceDate = "Informe a competência.";
     if (!categoryId) nextErrors.allocations = "Selecione uma categoria.";
     if (paymentPlan.length && (paymentPlan.some(item => !item.payment_method_id || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0) || Math.round(paymentPlan.reduce((sum,item)=>sum+Number(item.amount),0)*100) !== Math.round(numericAmount*100))) nextErrors.paymentPlan = "Selecione as formas e distribua exatamente o valor total.";
-    if (!firstDueDate || (!isRecurring && !installments.length)) nextErrors.installments = "Informe o vencimento.";
+    if (!firstDueDate || (!isRecurring && !installments.length)) nextErrors.installments = creditExpense?"Informe o vencimento da fatura do cartão.":"Informe o vencimento.";
     if (isRecurring && recurringEndDate && recurringEndDate < firstDueDate) nextErrors.installments = "O término deve ser igual ou posterior ao primeiro vencimento.";
     if (isRecurring && (!Number.isInteger(interval) || interval < 1)) nextErrors.installments = "Informe um intervalo válido.";
     else if (!isRecurring && Math.round(numericAmount * 100) < installmentCount) nextErrors.installments = "Reduza a quantidade de parcelas para evitar parcelas de valor zero.";
@@ -287,7 +315,7 @@ export function FinanceEntryEditorDialog({
         counterpart_name: (counterpartId ? counterpartName : counterpartySearch).trim() || null, counterpart_document: counterpartDocument.trim() || null,
         notes: notes.trim() || null, installments, allocations,
         payment_plan: paymentPlan.map(item => ({payment_method_id:item.payment_method_id,amount:Number(item.amount)})),
-      }, !initial&&entryType==="payable"&&scanFile&&scanResult?{file:scanFile,attachmentType:expenseAttachmentType(scanResult.kind),openSettlement:paidExpense&&hasPermission("finance.settlements.create")}:undefined);
+      }, !initial&&entryType==="payable"&&scanFile&&scanResult?{file:scanFile,attachmentType:expenseAttachmentType(scanResult.kind),openSettlement:paidExpense&&!creditExpense&&hasPermission("finance.settlements.create")}:undefined);
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, `Não foi possível salvar a ${title.toLocaleLowerCase("pt-BR")}.`), "error");
     }finally{saveGate.current=false;setPersisting(false);}
@@ -316,15 +344,21 @@ export function FinanceEntryEditorDialog({
         {scanMenu&&<div className="flex flex-wrap gap-2"><AdminButton variant="secondary" onClick={()=>scanCamera.current?.click()}><Camera size={16}/> Abrir câmera</AdminButton><AdminButton variant="secondary" onClick={()=>scanPicker.current?.click()}><FileText size={16}/> Selecionar foto, PDF ou XML</AdminButton></div>}
         {!canUseExpenseAi&&<p className="text-xs text-muted-foreground">A leitura de fotos e PDFs requer Union IA habilitada. XML e códigos bancários válidos podem ser lidos localmente.</p>}
         {scanError&&<p role="alert" className="text-xs text-destructive">{scanError} O preenchimento manual continua disponível.</p>}
-        {failedScanFile&&hasPermission("finance.documents.manage")&&<AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>{setScanFile(failedScanFile);setScanResult({description:"",amount:null,issue_date:null,due_date:null,supplier:"",document:"",category:"",kind:"other",paid:null,payment:"",reference:"",warning:"Documento anexado sem leitura automática."});setFailedScanFile(null);setScanError("");setPaidExpense(false);}}>Anexar e preencher manualmente</AdminButton>}
-        {scanResult&&<div className="space-y-2 rounded-md border border-border bg-card p-3"><p className="flex items-center gap-2 text-sm font-semibold"><FileText size={16} className="text-primary"/><span className="min-w-0 truncate">{scanFile?.name}</span></p><p className="text-xs text-muted-foreground">{scanResult.amount==null?"Valor não identificado. Informe o valor.":"Confira os dados preenchidos abaixo."} {scanResult.warning}</p>{!hasPermission("finance.documents.manage")&&<p className="text-xs text-amber-600">Seu perfil pode digitalizar, mas não anexar documentos.</p>}{hasPermission("finance.settlements.create")&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" checked={paidExpense} disabled={busy} onChange={e=>setPaidExpense(e.target.checked)}/> Já paguei — abrir baixa após salvar</label>}<button type="button" className="text-xs font-semibold text-muted-foreground underline" disabled={busy} onClick={()=>{setScanFile(null);setScanResult(null);setPaidExpense(false);}}>Desvincular documento</button></div>}
+        {failedScanFile&&hasPermission("finance.documents.manage")&&<AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>{setScanFile(failedScanFile);setScanResult({description:"",amount:null,issue_date:null,due_date:null,supplier:"",document:"",category:"",kind:"other",paid:null,payment:"",reference:"",warning:"Documento anexado sem leitura automática."});setFailedScanFile(null);setScanError("");setPaidExpense(false);setCategoryId("");setHistoryCategoryId("");setCategoryMessage("");}}>Anexar e preencher manualmente</AdminButton>}
+        {scanResult&&<div className="space-y-2 rounded-md border border-border bg-card p-3"><p className="flex items-center gap-2 text-sm font-semibold"><FileText size={16} className="text-primary"/><span className="min-w-0 truncate">{scanFile?.name}</span></p><p className="text-xs text-muted-foreground">{scanResult.amount==null?"Valor não identificado. Informe o valor.":"Confira os dados preenchidos abaixo."} {scanResult.warning}</p>{!hasPermission("finance.documents.manage")&&<p className="text-xs text-amber-600">Seu perfil pode digitalizar, mas não anexar documentos.</p>}{creditExpense?<p className="rounded-md border border-amber-500/25 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">Compra no cartão de crédito. Informe o vencimento da fatura; não será dada baixa automática.</p>:hasPermission("finance.settlements.create")&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" checked={paidExpense} disabled={busy} onChange={e=>setPaidExpense(e.target.checked)}/> Já paguei — abrir baixa após salvar</label>}<button type="button" className="text-xs font-semibold text-muted-foreground underline" disabled={busy} onClick={()=>{setScanFile(null);setScanResult(null);setPaidExpense(false);setHistoryCategoryId("");setCategoryMessage("");}}>Desvincular documento</button></div>}
       </div>}
       <div className="grid gap-4 sm:grid-cols-2">
         {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value={accountType} options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => {if(busy)return;setAccountType(event.target.value);if(event.target.value==="recurring"){setScanFile(null);setScanResult(null);setPaidExpense(false);}}} /></div>}
-        <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
+        <div className="sm:col-span-2"><FInput label={needsPurpose?"O que você comprou?":entryType === "payable" ? "Origem" : "Descrição"} disabled={busy} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value);setCategoryMessage(""); }} placeholder={needsPurpose?"Ex.: Multímetro para uso da assistência":entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
         <FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} />
-        <FSelect label="Categoria" required value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
-        <FInput label={isRecurring ? "Primeiro vencimento" : "Vencimento"} required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
+        <div className="space-y-2">
+          <FSelect label="Categoria" required disabled={busy} value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value);setCategoryMessage(""); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
+          {needsPurpose&&<p className="text-xs text-amber-700 dark:text-amber-300">O documento não identifica a finalidade com segurança. Informe o que comprou ou selecione a categoria.</p>}
+          {needsPurpose&&canUseExpenseAi&&<AdminButton variant="tertiary" size="sm" disabled={busy||description.trim().length<3||description.trim()===scanResult?.description.trim()} loading={categoryBusy} loadingText="Sugerindo..." onClick={()=>void classifyPurpose()}><ScanLine size={14}/> Sugerir categoria</AdminButton>}
+          {needsPurpose&&!categoryId&&historyCategoryId&&<button type="button" disabled={busy} className="block text-left text-xs font-semibold text-primary underline" onClick={()=>{setCategoryId(historyCategoryId);setFieldErrors(current=>({...current,allocations:undefined}));setCategoryMessage("Sugestão do histórico selecionada por você.");}}>Usar sugestão do histórico: {categories.find(c=>c.id===historyCategoryId)?.name}</button>}
+          {categoryMessage&&<p role="status" className="text-xs text-muted-foreground">{categoryMessage}</p>}
+        </div>
+        <FInput label={creditExpense?"Vencimento da fatura":isRecurring ? "Primeiro vencimento" : "Vencimento"} required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
         {!isRecurring && <FInput label="Número de parcelas" type="number" min="1" max="60" value={installmentCount} onChange={(event: any) => setInstallmentCount(Math.min(60, Math.max(1, Number(event.target.value || 1))))} />}
       </div>
       {isRecurring && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
@@ -402,7 +436,7 @@ export function FinanceEntryEditorDialog({
     <AdminButton variant="secondary" onClick={onClose} disabled={busy}>
       {embedded ? <><ArrowLeft size={16} /> Voltar</> : "Cancelar"}
     </AdminButton>
-    <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">{paidExpense&&scanResult&&accountType==="single"?"Salvar e dar baixa":"Salvar"}</AdminButton>
+    <AdminButton onClick={() => void save()} loading={busy} loadingText="Salvando...">{paidExpense&&!creditExpense&&scanResult&&accountType==="single"?"Salvar e dar baixa":"Salvar"}</AdminButton>
   </div>;
   return <>
     {embedded ? <section aria-label="Editar lançamento" className="min-w-0 space-y-5">
