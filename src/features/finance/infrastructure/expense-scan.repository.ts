@@ -62,3 +62,32 @@ export async function scanExpenseDocument(org:string,file:File,categories:string
   if(!data||data.error)throw new Error(data?.error||"Leitura indisponível.");
   return data as ExpenseScan;
 }
+
+/** One bounded lookup after a scan, scoped to the company's RLS-protected payables. */
+export async function findExpenseScanHints(org:string,scan:ExpenseScan,counterpartId?:string){
+  let possibleDuplicate=false, categoryId:string|null=null;
+  if(scan.amount!=null&&scan.issue_date&&(scan.document||scan.supplier||scan.reference)){
+    const query=await supabase.from("financial_entries").select("description,counterpart_name_snapshot,counterpart_document_snapshot,notes")
+      .eq("organization_id",org).eq("entry_type","payable").eq("issue_date",scan.issue_date).eq("original_amount",scan.amount)
+      .is("cancelled_at",null).is("reversed_at",null).limit(30);
+    const digits=scan.document.replace(/\D/g,""),name=normalize(scan.supplier),ref=scan.reference;
+    possibleDuplicate=(query.data||[]).some((row:any)=>
+      Boolean((digits&&String(row.counterpart_document_snapshot||"").replace(/\D/g,"")===digits)
+      ||(name&&normalize(String(row.counterpart_name_snapshot||""))===name)
+      ||(ref&&String(row.notes||"").split("\n").includes("Referência do documento: "+ref))));
+  }
+  if(counterpartId){
+    const recent=await supabase.from("financial_entries").select("id").eq("organization_id",org).eq("entry_type","payable")
+      .eq("counterpart_entity_id",counterpartId).is("cancelled_at",null).is("reversed_at",null).order("issue_date",{ascending:false}).limit(5);
+    const ids=(recent.data||[]).map((r:any)=>r.id);
+    if(ids.length){
+      const allocations=await supabase.from("financial_allocations").select("category_id,financial_entry_id")
+        .eq("organization_id",org).in("financial_entry_id",ids).limit(30);
+      const byEntry=new Map<string,Set<string>>();
+      for(const a of allocations.data||[]){const id=String(a.financial_entry_id);const values=byEntry.get(id)||new Set<string>();values.add(String(a.category_id));byEntry.set(id,values);}
+      const single=[...byEntry.values()].filter(x=>x.size===1).map(x=>[...x][0]);
+      if(single.length&&single.every(x=>x===single[0]))categoryId=single[0];
+    }
+  }
+  return {possibleDuplicate,categoryId};
+}
