@@ -1,5 +1,8 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { PortalContainerProvider } from "@/shared/ui/primitives/portal-container";
+import { useDetachedOrderEditor } from "./useDetachedOrderEditor";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -54,6 +57,7 @@ type TabOrdersProps = {
   onNavigate?: (tab: AdminTab) => void;
   initialOrderId?: string | null;
   initialCustomerId?: string | null;
+  initialCustomerLookup?: Promise<string | null>;
   routeSubpage?: string | null;
   onOrderRouteChange?: (id: string | null, subpage?: string | null) => void;
   onOrderRouteClose?: () => void;
@@ -113,6 +117,7 @@ export function TabOrders({
   onNavigate,
   initialOrderId,
   initialCustomerId,
+  initialCustomerLookup,
   routeSubpage,
   onOrderRouteChange,
   onOrderRouteClose,
@@ -143,6 +148,7 @@ export function TabOrders({
     return window.localStorage.getItem("os_view_mode") === "kanban" ? "kanban" : "list";
   });
   const [saving, setSaving] = useState(false);
+  const detachedEditor = useDetachedOrderEditor();
   const [detailInitialSection, setDetailInitialSection] = useState<"details" | "products-services">("details");
   // Concluir a partir da lista não altera a rota nem abre os detalhes da OS.
   const [completionFromListId, setCompletionFromListId] = useState<string | null>(null);
@@ -374,13 +380,22 @@ export function TabOrders({
   });
   const { selectCustomer, openNew, openEdit, save: saveOS } = orderEditor;
 
+  // One customer lookup per editor opening. A late response must not overwrite manual input.
+  const initialCustomerRequest = useRef(0);
+  const customerLookupScope = useRef({org:workspaceBase.organizationId, customerId:form.customer_id, search:customerSelection.customerSearch, quick:formState.quickCustomer, open:formOpen});
+  customerLookupScope.current={org:workspaceBase.organizationId,customerId:form.customer_id,search:customerSelection.customerSearch,quick:formState.quickCustomer,open:formOpen};
+  useEffect(()=>()=>{initialCustomerRequest.current++;},[]);
   const loadInitialCustomerForNewOrder = async () => {
-    if (!initialCustomerId || !workspaceBase.organizationId) return;
+    const org=workspaceBase.organizationId;
+    if ((!initialCustomerId && !initialCustomerLookup) || !org) return;
+    const request=++initialCustomerRequest.current;
+    const stillCurrent=()=>initialCustomerRequest.current===request && customerLookupScope.current.org===org
+      && customerLookupScope.current.open && !customerLookupScope.current.customerId && !customerLookupScope.current.search && !customerLookupScope.current.quick;
     try {
-      const { data, error } = await getOrderCustomerById(
-        workspaceBase.organizationId,
-        initialCustomerId,
-      );
+      const customerId=initialCustomerId || await initialCustomerLookup;
+      if (!customerId || initialCustomerRequest.current!==request) return;
+      const { data, error } = await getOrderCustomerById(org, customerId);
+      if (!stillCurrent()) return;
       if (error) throw error;
       if (!data) {
         setToast({ msg: "O cliente informado não foi encontrado nesta empresa.", type: "error" });
@@ -388,7 +403,7 @@ export function TabOrders({
       }
       selectCustomer(data);
     } catch (error) {
-      setToast({
+      if(stillCurrent())setToast({
         msg: `Não foi possível carregar o cliente na Nova OS: ${systemErrorMessage(error)}`,
         type: "error",
       });
@@ -824,7 +839,7 @@ export function TabOrders({
   const detailHasError = detailPageVisible && !detailsController.detailHydrated && Boolean(detailsController.detailLoadError);
   const detailIsLoading = routedDetailLoading || (detailPageVisible && !detailsController.detailHydrated && !detailHasError && !switchingRoutedOrder);
 
-  return (
+  const content = (
     <div className="space-y-5">
       {toast && <Toast message={toast.msg} type={toast.type} persistent={toast.type === "error"} onRetry={toast.msg.startsWith("Erro ao carregar dados da OS") ? workspaceBase.retryLoadWorkspace : undefined} onClose={() => setToast(null)} />}
 
@@ -925,6 +940,9 @@ export function TabOrders({
         onSave={saveRoutedOrder}
         onClose={cancelOrderEditor}
         embeddedDialog={embeddedCreate}
+        detached={Boolean(detachedEditor.detached)}
+        onDetach={embeddedCreate ? detachedEditor.detach : undefined}
+        onReintegrate={detachedEditor.reintegrate}
       />}
 
       {!scopedReadOnly && <OrderWorkflowModals
@@ -961,4 +979,7 @@ export function TabOrders({
       />}
     </div>
   );
+  return embeddedCreate && detachedEditor.detached
+    ? createPortal(<PortalContainerProvider container={detachedEditor.detached.host.ownerDocument.body}>{content}</PortalContainerProvider>, detachedEditor.detached.host)
+    : content;
 }
