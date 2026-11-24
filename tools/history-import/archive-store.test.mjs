@@ -12,7 +12,7 @@ const file=gzipSync(JSON.stringify(payload));
 const row={contact_key:ck,phone_normalized:phone,file:"historicos/"+ck+".json.gz",sha256:createHash("sha256").update(file).digest("hex"),bytes:file.length,messages:1,protocols:1,media:1,media_available:0,media_pending:1};
 const summary={version:1,stage:"union_history_pilot_packaging",package_id:pid,contacts:1,messages:1,protocols:1,media_recovered:0,media_pending:1};
 const globalRow=row,globalSummary=summary;
-function fixture(customPayload=payload){
+function fixture(customPayload=payload,options){
  const file=gzipSync(JSON.stringify(customPayload));
  const available=customPayload.media.filter(m=>m.available).length;
  const row={...globalRow,sha256:createHash("sha256").update(file).digest("hex"),bytes:file.length,messages:customPayload.messages.length,protocols:customPayload.protocols.length,media:customPayload.media.length,media_available:available,media_pending:customPayload.media.length-available};
@@ -26,7 +26,7 @@ function fixture(customPayload=payload){
    if(name===row.file)return corrupt?Buffer.from("invalid"):file;
    throw Error("unexpected");
  };
- const store=openArchiveStore(":memory:",read);
+ const store=openArchiveStore(":memory:",read,options);
  return {store,reads:()=>reads,corrupt:()=>{corrupt=true},repair:()=>{corrupt=false}};
 }
 test("reject unsafe paths, directions, inconsistent media and transitions",()=>{
@@ -163,4 +163,27 @@ test("private manifests include unlinked assets without exposing paths or digest
    store.control({id,organizationId:org,actor,action:"rollback"});
    assert.equal(store.assetBound(scope,availableId),null);
  }finally{store.close()}
+});
+
+test("package-scoped offset indexes naive message, protocol and gallery timestamps without modifying original",()=>{
+ const at="2024-01-01 07:00:00.123456",expected="2024-01-01T10:00:00.123456Z";
+ const custom={...payload,protocols:[{protocol_key:ck,original_opened_at:at,original_closed_at:"2024-01-01 08:00:00"}],messages:[{...payload.messages[0],at}],media:[{...payload.media[0],original_at:at}]};
+ for(const options of [{sourceOffsets:{}},{sourceOffsets:{[pid]:"-03:00"}}]){
+  const {store}=fixture(custom,options);
+  try{
+   store.grantPackage(pid,org,actor);
+   const id=store.prepare({packageId:pid,organizationId:org,accountPhone:account,actor});
+   store.control({id,organizationId:org,actor,action:"start"});store.tick();
+   if(!options.sourceOffsets[pid]){assert.equal(store.status(id,org).state,"failed");continue}
+   store.tick();assert.equal(store.status(id,org).state,"completed");
+   const contactId="44444444-4444-4444-8444-444444444444",conversationId="55555555-5555-4555-8555-555555555555";
+   store.bindContact({id,organizationId:org,actor,accountPhone:account,contactKey:ck,contactId,contactPhone:phone});
+   const scope={organizationId:org,accountPhone:account,contactPhone:phone,contactId,conversationId};
+   assert.equal(store.pageBound(scope).items[0].sent_at,expected);
+   assert.equal(store.pageBound({...scope,kind:"protocols"}).items[0].opened_at,expected);
+   assert.equal(store.pageBound({...scope,kind:"protocols"}).items[0].closed_at,"2024-01-01T11:00:00.000000Z");
+   assert.equal(store.pageBound({...scope,kind:"shared",category:"documents"}).items[0].sent_at,expected);
+   assert.deepEqual(store.lookupBound(scope),custom);
+  }finally{store.close()}
+ }
 });
