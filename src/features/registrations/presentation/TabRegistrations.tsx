@@ -133,9 +133,9 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const canView = platformUsersOnly
     ? hasPermission("customers.view") && hasPermission("employees.view")
     : hasPermission("customers.view");
-  const canCreate = platformUsersOnly
-    ? hasPermission("customers.create") && hasPermission("employees.create")
-    : hasPermission("customers.create");
+  const canList = canView && hasPermission("customers.menu.view");
+  const canCreate = canList && hasPermission("customers.module.create") && hasPermission("customers.create")
+    && (!platformUsersOnly || hasPermission("employees.create"));
   const canEdit = platformUsersOnly
     ? (hasPermission("customers.edit") || hasPermission("customers.update")) && hasPermission("employees.edit")
     : hasPermission("customers.edit") || hasPermission("customers.update");
@@ -168,7 +168,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const creatorsQuery = useQuery({
     queryKey: [...listBaseKey, "creators"],
     queryFn: () => listRegistrationCreators(activeOrganizationId!),
-    enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
+    enabled: Boolean(activeOrganizationId && canList && !routeResourceId),
     staleTime: 5 * 60_000,
   });
   const creatorOptions = [
@@ -207,7 +207,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       sort: sortOrder,
       employeeOnly: platformUsersOnly,
     }),
-    enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
+    enabled: Boolean(activeOrganizationId && canList && !routeResourceId),
     // Reaproveita a página anterior apenas dentro da mesma empresa.
     // Evita exibir dados de outra organização durante a troca de contexto.
     placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === activeOrganizationId ? previous : undefined,
@@ -224,13 +224,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       organizationId: activeOrganizationId!, page: 1, pageSize: 1,
       role: "all", status: "all", employeeOnly: false,
     }),
-    enabled: Boolean(activeOrganizationId && canView && !platformUsersOnly && !routeResourceId && !pageHasGlobalTotal),
+    enabled: Boolean(activeOrganizationId && canList && !platformUsersOnly && !routeResourceId && !pageHasGlobalTotal),
     staleTime: 30_000,
   });
   const registrationsTotal = pageHasGlobalTotal ? totalItems : registrationsCountQuery.data?.total ?? totalItems;
   // Não substituir uma página já exibida por spinner durante o refresh.
   // O placeholder paginado permanece na tela até a próxima página chegar.
-  const loading = Boolean(activeOrganizationId && canView && !routeResourceId)
+  const loading = Boolean(activeOrganizationId && canList && !routeResourceId)
     && registrationsQuery.isPending && !registrationsQuery.data;
 
   const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
@@ -651,6 +651,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   };
 
   const openNew = () => {
+    if (!canCreate) return;
     setRegistrationFieldErrors({});
     editorBaseHydratedRef.current = null;
     editorOriginRef.current = "list";
@@ -730,7 +731,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </div>
   </AdminPage>;
 
-  if (!canView) return null;
+  if (!canView || (!routeResourceId && !canList) || (creating && !canCreate)) return null;
 
   if (contactsOpen) {
     if (recordLoading || !routeRegistration) return <AdminPage open onClose={() => onRouteChange?.(routeResourceId, null)} breadcrumb="Cadastros" title="Carregando contatos"><LoadingState /></AdminPage>;
