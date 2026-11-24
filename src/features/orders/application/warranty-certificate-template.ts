@@ -62,19 +62,27 @@ export type CertificateOrderItem = {
   description: string;
   quantity: number;
   inventoryId: string | null;
+  amount: number | null;
 };
 
 export async function loadWarrantyCertificateOrderItems(organizationId: string, serviceOrderId: string) {
-  const [commercial, used] = await Promise.all([
+  const [commercial, used, order] = await Promise.all([
     supabase.from("service_order_items")
-      .select("item_type,title_snapshot,description_snapshot,quantity,inventory_item_id")
+      .select("item_type,title_snapshot,description_snapshot,quantity,inventory_item_id,subtotal")
       .eq("organization_id", organizationId).eq("service_order_id", serviceOrderId).order("created_at"),
     supabase.from("service_order_used_items")
       .select("inventory_item_id,quantity,inventory_item:inventory_items(name,unit)")
       .eq("organization_id", organizationId).eq("service_order_id", serviceOrderId),
+    supabase.from("service_orders")
+      .select("service_price,parts_total,subtotal,discount_amount,final_total,service_type:service_types(charge_customer),general_service:general_services(name),service:services(title)")
+      .eq("organization_id", organizationId).eq("id", serviceOrderId).single(),
   ]);
   if (commercial.error) throw commercial.error;
   if (used.error) throw used.error;
+  if (order.error) throw order.error;
+  const data = order.data;
+  const noCharge = (data.service_type as unknown as {charge_customer?:boolean}|null)?.charge_customer === false && Number(data.final_total) === 0;
+  const financial = {service_price:data.service_price,parts_total:data.parts_total,subtotal:data.subtotal,discount_amount:data.discount_amount,final_total:data.final_total,no_charge:noCharge};
   const services: CertificateOrderItem[] = [];
   const products: CertificateOrderItem[] = [];
   for (const item of commercial.data ?? []) {
@@ -85,19 +93,16 @@ export async function loadWarrantyCertificateOrderItems(organizationId: string, 
       description: String(item.description_snapshot || "").trim(),
       quantity: Number(item.quantity || 1),
       inventoryId: item.inventory_item_id || null,
+      amount: noCharge || item.subtotal == null ? null : Number(item.subtotal),
     };
-    if (item.item_type === "product") products.push(mapped);
-    if (item.item_type === "service" || item.item_type === "custom_service") services.push(mapped);
+    if (["product","produto"].includes(item.item_type)) products.push(mapped);
+    if (["service","custom_service","servico"].includes(item.item_type)) services.push(mapped);
   }
   if (!services.length) {
-    const { data, error } = await supabase.from("service_orders")
-      .select("general_service:general_services(name),service:services(title)")
-      .eq("organization_id", organizationId).eq("id", serviceOrderId).maybeSingle();
-    if (error) throw error;
     const general = data?.general_service as unknown as { name?: string } | null;
     const legacy = data?.service as unknown as { title?: string } | null;
     const name = String(general?.name || legacy?.title || "").trim();
-    if (name) services.push({ name, description: "", quantity: 1, inventoryId: null });
+    if (name) services.push({ name, description: "", quantity: 1, inventoryId: null, amount: noCharge || data.service_price == null ? null : Number(data.service_price) });
   }
   const catalogProductIds = new Set(products.map(item => item.inventoryId).filter(Boolean));
   for (const item of used.data ?? []) {
@@ -105,8 +110,8 @@ export async function loadWarrantyCertificateOrderItems(organizationId: string, 
     const inventory = item.inventory_item as unknown as { name?: string } | null;
     if (inventory?.name) products.push({
       name: inventory.name, description: "", quantity: Number(item.quantity || 1),
-      inventoryId: item.inventory_item_id || null,
+      inventoryId: item.inventory_item_id || null, amount: null,
     });
   }
-  return { services, products };
+  return { services, products, financial };
 }

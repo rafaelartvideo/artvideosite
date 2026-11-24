@@ -4,6 +4,7 @@ import { Check, Download, FileText, Image as ImageIcon, LoaderCircle, ShieldChec
 import { supabase } from "@/lib/supabase";
 import type { CustomerOrderDetails, CustomerServiceOrder } from "../infrastructure/customer-account.repository";
 import { customerAccessRequest } from "@/lib/customer-access";
+import { warrantyFinancialRows, warrantyMoney } from "@/features/orders/domain/warranty-financial";
 import { CustomerSectionLoading } from "./CustomerSectionLoading";
 
 const date = (value?: string | null) => value ? new Date(value).toLocaleDateString("pt-BR") : "—";
@@ -74,15 +75,20 @@ function WarrantyCertificate({ item, detail, busy, onBusy, onError }: {
       const escape=(value:unknown)=>String(value??"").replace(/[&<>"']/g,m=>({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       }[m]||m));
+      const groups=[{label:"Serviços realizados",types:["service","custom_service","servico"]},{label:"Produtos e peças",types:["product","produto"]}];
+      const pricing=item.financial ? groups.map(group=>{
+        const rows=(item.items||[]).filter(line=>group.types.includes(line.item_type));
+        return rows.length?'<div style="margin-top:12px"><b>'+escape(group.label)+'</b>'+rows.map(line=>'<div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;padding:5px 0;border-bottom:1px solid #dce5f1"><span>'+escape(line.title)+(line.quantity!==1?' · Qtd. '+escape(line.quantity):'')+'</span><b style="white-space:nowrap">'+(line.amount==null?'':escape(warrantyMoney(line.amount)))+'</b></div>').join("")+'</div>':"";
+      }).join("")+'<div style="margin-top:14px;padding:10px;background:#f0f4ff;border-radius:6px">'+warrantyFinancialRows(item.financial).map(row=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px;'+(row.kind==="discount"?'color:#a22626':row.kind==="total"?'color:#076648;border-top:1px solid #cbd5e1':'')+'"><span>'+escape(row.label)+'</span><b>'+escape(row.value)+'</b></div>').join("")+(item.financial.no_charge?'<p style="font-size:11px">Atendimento sem cobrança ao cliente.</p>':'')+'</div>':"";
       const root=document.createElement("div");
-      root.style.cssText="box-sizing:border-box;width:190mm;min-height:260mm;padding:20mm 16mm;color:#173450;background:#fff;font-family:Arial,sans-serif";
+      root.style.cssText="box-sizing:border-box;width:190mm;min-height:260mm;padding:12mm 14mm;color:#173450;background:#fff;font-family:Arial,sans-serif";
       root.innerHTML=`
         <div style="border-bottom:3px solid #1032dc;padding-bottom:17px">
           <div style="font-size:12px;font-weight:700;letter-spacing:.15em;color:#1032dc">ELETRÔNICA ARTVIDEO</div>
           <h1 style="font-size:23px;margin:13px 0 4px">Certificado de Garantia</h1>
           <p style="font-size:12px;color:#63758a;margin:0">Segunda via simplificada das informações registradas na OS</p>
         </div>
-        <div style="margin-top:28px;font-size:14px;line-height:2.3">
+        <div style="margin-top:14px;font-size:12px;line-height:1.7">
           <p><b>Certificado:</b> ${escape(code)}</p>
           <p><b>Ordem de Serviço:</b> ${escape(detail.order.os_number)}</p>
           <p><b>Equipamento:</b> ${escape([detail.order.equipment_type,detail.order.brand,detail.order.equipment_model||detail.order.model].filter(Boolean).join(" · "))}</p>
@@ -91,12 +97,13 @@ function WarrantyCertificate({ item, detail, busy, onBusy, onError }: {
           <p><b>Início:</b> ${escape(date(item.starts_at))}</p>
           <p><b>Válida até:</b> ${escape(date(item.expires_at))}</p>
         </div>
-        <p style="margin-top:40px;padding:18px;background:#f0f4ff;border-radius:8px;font-size:12px;line-height:1.7">
+        ${pricing}
+        <p style="margin-top:18px;padding:12px;background:#f0f4ff;border-radius:8px;font-size:12px;line-height:1.7">
           Este arquivo é uma segunda via simplificada dos dados da garantia emitida.
           As condições de cobertura são as definidas pela Eletrônica Artvideo no certificado original.
         </p>`;
       await html2pdf().set({margin:0,filename:"Certificado de Garantia - "+String(detail.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"")+".pdf",
-        html2canvas:{scale:2},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}}).from(root).save();
+        pagebreak:{mode:["css","legacy"]},html2canvas:{scale:2},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}}).from(root).save();
     } catch (e) {
       onError(e instanceof Error ? e.message : "Não foi possível preparar o certificado.");
     } finally { onBusy(false); }

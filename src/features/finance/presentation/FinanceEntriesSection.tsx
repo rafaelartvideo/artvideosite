@@ -17,7 +17,8 @@ import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
 import { listFinancialReceivableCreators } from "../infrastructure/finance-entries.repository";
-import { getFinancialEntryProofUrl } from "../infrastructure/finance-documents.repository";
+import { getFinancialEntryProofUrl, uploadFinancialAttachment } from "../infrastructure/finance-documents.repository";
+import type { ExpenseSource } from "../infrastructure/expense-scan.repository";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
@@ -290,15 +291,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     setCounterpartySearch("");
   };
 
-  const save = async (draft: any) => {
+  const save = async (draft: any, source?: ExpenseSource) => {
     const wasEditingCurrentEntry = editingSelectedEntry;
     // Retorna assim que o banco confirma o salvamento. A atualização do extrato é
     // revalidada sem prender o operador na tela de edição.
     const id = await finance.saveMutation.mutateAsync(draft);
+    // A falha do anexo não pode provocar a criação de uma segunda conta.
+    if(source&&hasPermission("finance.documents.manage")){
+      try{await uploadFinancialAttachment(finance.organizationId,id,source.file,source.attachmentType);}
+      catch{notifyAdmin("Conta salva, mas o documento não foi anexado. Adicione-o pelo extrato.","error");}
+    }
     setEditorOpen(false);
     setEditing(null);
     setCounterpartySearch("");
-    onSelectEntry(id);
+    if(source?.openSettlement&&canSettle)openSettlement(id);else onSelectEntry(id);
     notifyAdmin(wasEditingCurrentEntry ? "Lançamento atualizado com sucesso." : "Lançamento salvo com sucesso.", "success");
     if (wasEditingCurrentEntry) void finance.detailQuery.refetch();
   };

@@ -23,7 +23,7 @@ export type CustomerOrderDetails = {
     id:string;title:string;signed_at:string|null;type:"signature"|"invoice";
     created_at?:string|null;file_name?:string|null;mime_type?:string|null;
   }[];
-  certificate:{id:string;number:number;issued_at:string;starts_at:string;expires_at:string;warranty:string}|null;
+  certificate:{id:string;number:number;issued_at:string;starts_at:string;expires_at:string;warranty:string;financial?:import("@/features/orders/domain/warranty-financial").WarrantyFinancial;items?:{title:string;description:string;quantity:number;item_type:string;amount:number|null}[]}|null;
 };
 export type CustomerSignatureRequest = {
   id:string;service_order_id:string;os_number:string;title:string;created_at:string;
