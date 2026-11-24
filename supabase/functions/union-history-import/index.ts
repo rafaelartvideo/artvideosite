@@ -274,6 +274,10 @@ Deno.serve(async req=>{
       return json({success:true,result:await bridge({action:"prepare",organizationId:org,packageId:b.package_id,accountPhone:channel.phone,actor})});
     }
     if(!uuid(b.id))return json({success:false,error:"Importação inválida."},400);
+    if(b.action==="audit_integrity"){
+      if(!has(prefix+"manage"))return json({success:false,error:"Sem permissão de auditar importações."},403);
+      return json({success:true,result:await bridge({action:"audit_integrity",id:b.id,organizationId:org})});
+    }
     if(b.action==="bulk_control"){
       if(!has(prefix+"manage")||(["start","resume"].includes(b.command)&&!has(prefix+"start"))||!["start","pause","resume","cancel"].includes(b.command))return json({success:false,error:"Operação não autorizada."},403);
       const j=await bridge({action:"status",id:b.id,organizationId:org});
@@ -317,6 +321,14 @@ Deno.serve(async req=>{
         const channel=channels[0].id,account=preview.account_phone;
         const remaining=worker?candidates:candidates.filter(e=>!b.after||String(e.contact_key)>b.after);
         const batch=remaining.slice(0,5),results=[];
+        // The CRM batch resolver provides only unambiguous matches (exact first).
+        // A name from a phone alone is never enough to bind a recycled number.
+        const crmPhones=batch.map(e=>e.phone).filter((v):v is string=>typeof v==="string"&&/^55[1-9][0-9]{9,10}$/.test(v));
+        const crmNames=new Map<string,string>();
+        if(crmPhones.length){
+          const {data:crmRows,error:crmError}=await admin.rpc("union_whatsapp_crm_names_batch",{p_organization_id:org,p_phones:crmPhones});
+          if(!crmError&&Array.isArray(crmRows))for(const row of crmRows){const name=usableArchiveName(row.crm_name);if(name)crmNames.set(row.phone_e164,name);}
+        }
         for(const entry of batch){
           const result={contact_key:entry.contact_key,state:"review",renamed:false};
           try{
@@ -344,7 +356,7 @@ Deno.serve(async req=>{
               // (numbers can be recycled). Require an actual matching saved name.
               const savedName=archiveNameKey(current.display_name);
               const recovered=archiveNameKey(historical);
-              const known=[current.imported_name,current.device_name,current.profile_name].map(archiveNameKey).filter(Boolean);
+              const known=[current.imported_name,current.device_name,current.profile_name,crmNames.get(entry.phone)].map(archiveNameKey).filter(Boolean);
               if(!recovered||(savedName?savedName!==recovered:!known.length||known.some(n=>n!==recovered))){
                 results.push(result);continue;
               }
@@ -369,9 +381,10 @@ Deno.serve(async req=>{
             // Improve placeholders only after a confirmed binding. A concurrent
             // manual edit wins; no meaningful saved name is ever overwritten.
             if(!usableArchiveName(current.display_name)){
-              const alternatives=[current.device_name,current.profile_name,current.imported_name,historical].map(usableArchiveName).filter(Boolean);
+              const alternatives=[historical,current.imported_name,current.device_name,current.profile_name,crmNames.get(entry.phone)].map(usableArchiveName).filter(Boolean);
               const distinct=new Set(alternatives.map(archiveNameKey));
-              if(distinct.size===1){
+              // A CRM phone match is corroboration only, never a sole name source.
+              if(distinct.size===1&&[historical,current.imported_name,current.device_name,current.profile_name].some(usableArchiveName)){
                 const name=alternatives[0];
                 let update=admin.from("union_whatsapp_contacts").update({display_name:name,updated_at:new Date().toISOString()})
                   .eq("id",current.id).eq("organization_id",org).eq("channel_id",channel).eq("account_phone",account).eq("chat_jid",jid);
