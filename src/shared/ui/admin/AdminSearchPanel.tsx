@@ -25,7 +25,7 @@ export type AdminSearchField = { value: string; label: string; content: ReactNod
 
 export function AdminSearchPanel({ title, children, fields, headerActions, allowOverflow = false }: { title: string; children?: ReactNode; fields?: AdminSearchField[]; headerActions?: ReactNode; allowOverflow?: boolean }) {
   const panelId = useId();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const content = Children.toArray(children);
   const compactIndex = content.findIndex(child => isValidElement(child) && child.type === AdminMobileSearchSwitch);
   const compact = compactIndex >= 0 ? content[compactIndex] : null;
@@ -43,15 +43,13 @@ export function AdminSearchPanel({ title, children, fields, headerActions, allow
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} className="shrink-0 text-white/90" /></span>
         <span className="min-w-0 truncate text-xs font-bold uppercase tracking-[0.08em]">{title}</span>
-      </div>
-      <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
-        {headerActions}
         <button type="button" aria-label={toggleLabel} title={toggleLabel} aria-expanded={isExpanded} aria-controls={panelId}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2"
           onClick={() => hasCompact ? setExpanded(value => !value) : setSingleCollapsed(value => !value)}>
           <ChevronDown size={19} aria-hidden="true" className={cn("transition-transform", isExpanded && "rotate-180")} />
         </button>
       </div>
+      {headerActions && <div className="ml-auto flex shrink-0 items-center justify-end gap-2">{headerActions}</div>}
     </div>
     <div id={panelId} className={cn("admin-search-panel-content min-w-0", !hasCompact && singleCollapsed ? "hidden" : "p-4 md:p-3")}>
       {hasFields && selectedField && (expanded
