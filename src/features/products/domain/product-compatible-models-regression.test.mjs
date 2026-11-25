@@ -17,7 +17,7 @@ test("cadastro de produtos inclui modelos de aparelhos na aba Variações e Rela
   assert.match(page, /<ProductCompatibleModelsEditor/);
   assert.match(page, /getProductCompatibleModels\(activeOrganizationId, product\.id\)/);
   assert.match(page, /replaceProductCompatibleModels\(activeOrganizationId, savedProductId,/);
-  assert.match(page, /if \(!compatibleModelsLoaded\)/);
+  assert.match(page, /if \(compatibleModelsChanged && !compatibleModelsLoaded\)/);
   assert.match(editor, /Herdar modelos compatíveis do produto principal/);
   assert.match(editor, /Modelos compatíveis/);
   assert.match(editor, /Adicionar modelos/);
@@ -130,4 +130,14 @@ test("estoque cria subcategoria, tipo e marca de aparelho diretamente nos seleto
   assert.match(editor,/aria-label="Nova marca de aparelho"/);
   assert.match(editor,/onCreateCatalogOption\(quickKind, quickName\)/);
   assert.match(editor,/setDeviceType\(item.name\); else setBrand\(item.name\)/);
+});
+
+
+test("modelos compatíveis são opcionais e somente alterações explícitas são persistidas", () => {
+  const page=read("src/features/products/presentation/TabProducts.tsx");
+  assert.match(page,/if \(editItem \? compatibleModelsChanged : compatibleModels.length > 0 \|\| compatibleModelsInherited\) \{\s*try \{\s*await replaceProductCompatibleModels/);
+  assert.match(page,/onChange=\{models => \{ setCompatibleModels\(models\); setCompatibleModelsChanged\(true\); \}\}/);
+  assert.match(page,/onInheritedChange=\{inherited => \{ setCompatibleModelsInherited\(inherited\); setCompatibleModelsChanged\(true\); \}\}/);
+  assert.doesNotMatch(page,/Aguarde a consulta dos modelos compatíveis antes de salvar/);
+  assert.match(page,/setCompatibleModelsLoadError\(true\)/);
 });

@@ -11,7 +11,7 @@ function normalize(value: string) {
 }
 
 export function ProductCompatibleModelsEditor({
-  models, onChange, inherited, onInheritedChange, parentProductId, disabled = false, loaded = true,
+  models, onChange, inherited, onInheritedChange, parentProductId, disabled = false, loaded = true, loadError = false,
   deviceTypes = [], deviceBrands = [], canCreateDeviceType = false, canCreateDeviceBrand = false, onCreateCatalogOption,
 }: {
   models: CompatibleDeviceModel[];
@@ -21,6 +21,7 @@ export function ProductCompatibleModelsEditor({
   parentProductId?: string | null;
   disabled?: boolean;
   loaded?: boolean;
+  loadError?: boolean;
   deviceTypes?: InventoryCatalogOption[];
   deviceBrands?: InventoryCatalogOption[];
   canCreateDeviceType?: boolean;
@@ -102,7 +103,7 @@ export function ProductCompatibleModelsEditor({
       </span>
     </label>}
 
-    {!loaded ? <p className="py-4 text-center text-xs text-muted-foreground">Carregando modelos compatíveis...</p>
+    {!loaded ? <p className="py-4 text-center text-xs text-muted-foreground">{loadError ? "Modelos compatíveis indisponíveis no momento. Você pode salvar o produto sem alterar essa lista." : "Carregando modelos compatíveis..."}</p>
     : <div className="space-y-3">
       {!inheritedFromParent && <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(135px,0.8fr)_minmax(140px,1fr)]">
         <div className="min-w-0">

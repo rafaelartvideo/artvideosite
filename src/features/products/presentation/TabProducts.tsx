@@ -464,6 +464,8 @@ export function TabProducts({
   const relatedCodesRequestRef = useRef(0);
   const [compatibleModels, setCompatibleModels] = useState<CompatibleDeviceModel[]>([]);
   const [compatibleModelsLoaded, setCompatibleModelsLoaded] = useState(true);
+  const [compatibleModelsLoadError, setCompatibleModelsLoadError] = useState(false);
+  const [compatibleModelsChanged, setCompatibleModelsChanged] = useState(false);
   const [compatibleModelsInherited, setCompatibleModelsInherited] = useState(false);
   const [compatibleModelsParentId, setCompatibleModelsParentId] = useState<string | null>(null);
   const compatibleModelsRequestRef = useRef(0);
@@ -604,6 +606,8 @@ export function TabProducts({
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
     compatibleModelsRequestRef.current += 1;
+    setCompatibleModelsChanged(false);
+    setCompatibleModelsLoadError(false);
     setCompatibleModels([]);
     setCompatibleModelsLoaded(true);
     setCompatibleModelsInherited(false);
@@ -725,6 +729,8 @@ export function TabProducts({
         });
     }
     const modelRequest = ++compatibleModelsRequestRef.current;
+    setCompatibleModelsChanged(false);
+    setCompatibleModelsLoadError(false);
     setCompatibleModels([]);
     setCompatibleModelsLoaded(false);
     setCompatibleModelsInherited(false);
@@ -738,9 +744,10 @@ export function TabProducts({
           setCompatibleModelsParentId(data.parent_product_id);
           setCompatibleModelsLoaded(true);
         })
-        .catch(error => {
+        .catch(() => {
           if (modelRequest !== compatibleModelsRequestRef.current) return;
-          setToast({ msg: "Não foi possível carregar modelos compatíveis: " + systemErrorMessage(error), type: "error" });
+          // An unavailable optional relationship must not block editing the product.
+          setCompatibleModelsLoadError(true);
         });
     }
     setLinkedSuppliers([]);
@@ -885,9 +892,9 @@ export function TabProducts({
     }
 
     const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
-    if (!compatibleModelsLoaded) {
+    if (compatibleModelsChanged && !compatibleModelsLoaded) {
       setEditorTab("relationships");
-      setToast({ msg: "Aguarde a consulta dos modelos compatíveis antes de salvar.", type: "error" });
+      setToast({ msg: "Não foi possível confirmar os modelos alterados. Reabra o item antes de salvar essas alterações.", type: "error" });
       return false;
     }
     if (!relatedCodesLoaded) {
@@ -1075,17 +1082,23 @@ export function TabProducts({
         editItem ? 0 : Number(form.initial_quantity || 0),
         editItem ? null : nullableNumber(form.initial_unit_cost),
       );
-      try {
-        await replaceProductCompatibleModels(activeOrganizationId, savedProductId,
-          compatibleModels, compatibleModelsInherited);
-      } catch (compatibilityError) {
-        setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
-        onRouteChange?.(savedProductId, "edit");
-        setEditorTab("relationships");
-        setToast({ msg: "Produto salvo, mas não foi possível registrar os modelos compatíveis: "
-          + systemErrorMessage(compatibilityError) + ". Corrija e salve novamente.", type: "error" });
-        void refresh();
-        return;
+      // Optional relationship: do not request inventory.update or write an
+      // empty settings row for a new product with no compatible models.
+      // On edit, an explicitly emptied list must still be persisted.
+      if (editItem ? compatibleModelsChanged : compatibleModels.length > 0 || compatibleModelsInherited) {
+        try {
+          await replaceProductCompatibleModels(activeOrganizationId, savedProductId,
+            compatibleModels, compatibleModelsInherited);
+          setCompatibleModelsChanged(false);
+        } catch (compatibilityError) {
+          setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
+          onRouteChange?.(savedProductId, "edit");
+          setEditorTab("relationships");
+          setToast({ msg: "Produto salvo, mas não foi possível registrar os modelos compatíveis: "
+            + systemErrorMessage(compatibilityError) + ". Corrija e salve novamente.", type: "error" });
+          void refresh();
+          return;
+        }
       }
       void queryClient.invalidateQueries({ queryKey: ["products", "device-compatible-models"] });
       void queryClient.invalidateQueries({ queryKey: ["sales"] });
@@ -1914,12 +1927,13 @@ export function TabProducts({
               <ProductCompatibleModelsEditor
                 key={editItem?.id || "new"}
                 models={compatibleModels}
-                onChange={setCompatibleModels}
+                onChange={models => { setCompatibleModels(models); setCompatibleModelsChanged(true); }}
                 inherited={compatibleModelsInherited}
-                onInheritedChange={setCompatibleModelsInherited}
+                onInheritedChange={inherited => { setCompatibleModelsInherited(inherited); setCompatibleModelsChanged(true); }}
                 parentProductId={compatibleModelsParentId}
                 disabled={saving}
                 loaded={compatibleModelsLoaded}
+                loadError={compatibleModelsLoadError}
                 deviceTypes={catalogSettings?.deviceTypes || []}
                 deviceBrands={catalogSettings?.deviceBrands || []}
                 canCreateDeviceType={canManageCategories || canEdit}
