@@ -25,6 +25,7 @@ import {
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { FleetWorkspace } from "./FleetWorkspace";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
@@ -187,6 +188,8 @@ export function TabFieldTracking() {
   const canShare = hasPermission("field_tracking.share") || locationRequired;
   const canManage = hasPermission("field_tracking.manage");
   const [now, setNow] = useState(Date.now());
+  const [workspace,setWorkspace] = useState<"map"|"fleet">("map");
+  useEffect(() => { setWorkspace("map"); }, [activeOrganizationId, canView, canManage]);
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -258,7 +261,7 @@ export function TabFieldTracking() {
   const selectedUnit = visibleUnits.find(unit => unit.id === selectedId && unit.organization_id === activeOrganizationId);
   const historyQuery = useQuery({
     queryKey: ["field-trip-history", activeOrganizationId, selectedUnit?.id, historyHours],
-    enabled: Boolean(canView && activeOrganizationId && selectedUnit && historyOpen),
+    enabled: Boolean(workspace === "map" && canView && activeOrganizationId && selectedUnit && historyOpen),
     queryFn: () => listRecentFieldTrackingPoints(activeOrganizationId!, selectedUnit!.id, historyHours),
     staleTime: 60000,
     refetchOnWindowFocus: false,
@@ -483,7 +486,11 @@ export function TabFieldTracking() {
       </div> : undefined}
     />
 
-    {!canView ? (
+    {canView && canManage && <div className="flex flex-wrap gap-2" role="group" aria-label="Seções do Mapa de Campo">
+      <AdminButton variant={workspace==="map"?"primary":"secondary"} onClick={()=>setWorkspace("map")}>Mapa de Campo</AdminButton>
+      <AdminButton variant={workspace==="fleet"?"primary":"secondary"} onClick={()=>setWorkspace("fleet")}>Frota e jornadas</AdminButton>
+    </div>}
+    {workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
       <AdminCard className="p-8 text-center">
         <Navigation className="mx-auto text-primary" size={28} />
         <h2 className="mt-3 text-base font-black text-foreground">Rastreamento do dispositivo</h2>
