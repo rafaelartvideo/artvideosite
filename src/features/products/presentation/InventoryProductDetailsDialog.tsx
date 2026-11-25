@@ -5,7 +5,7 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
-import { listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
+import { getProductCreatorName, listRelatedProductCodes, listProductRelations } from "../infrastructure/products.repository";
 import { listCompatibleModelsForProducts } from "../infrastructure/product-compatible-models.repository";
 import { CompatibleDeviceModelsList } from "./CompatibleDeviceModelsList";
 import { productRelationLabel } from "../domain/product-relation-labels";
@@ -65,6 +65,13 @@ export function InventoryProductDetailsDialog({
   const [expandedImage, setExpandedImage] = useState<(InventoryProductPhoto & { photos?: InventoryProductPhoto[]; startIndex?: number }) | null>(null);
   const coverIllustration = salesHomologationImage(product?.sku);
 
+  const creator = useQuery({
+    queryKey: ["products", "creator-detail", organizationId, id, product?.created_by ?? null],
+    queryFn: () => getProductCreatorName(organizationId, id!),
+    enabled: Boolean(view === "details" && organizationId && id && product?.created_by),
+    staleTime: 30 * 60_000,
+    retry: false,
+  });
   const relatedCodes = useQuery({
     queryKey: ["products", "related-codes-detail", organizationId, id],
     queryFn: () => listRelatedProductCodes(organizationId, id!),
@@ -222,6 +229,7 @@ export function InventoryProductDetailsDialog({
         <Detail label="Prazo para vender" value={product.sale_window_days ? `${product.sale_window_days} dias por entrada` : "Não configurado"}/>
         <Detail label="Endereço no estoque" value={location}/>
         <Detail label="Cadastrado em" value={product.created_at ? formatDateTime(product.created_at) : "—"}/>
+        <Detail label="Cadastrado por" value={creator.data || (product.created_by && creator.isPending ? "Carregando..." : "Não identificado")}/>
       </div>
       {product.description && <div className="px-1 py-2.5">
         <p className="text-[10px] font-semibold uppercase text-muted-foreground">Descrição</p>

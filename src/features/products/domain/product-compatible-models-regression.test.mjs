@@ -162,3 +162,20 @@ test("estoque usa o mesmo combobox local da Nova OS nos seletores de cadastro",a
   assert.match(shared,/normalizeCatalogValue\(option.name\).includes\(query\)/);
   assert.doesNotMatch(shared,/supabase\.|await |fetch\(/);
 });
+
+
+test("detalhes do estoque mostram o autor original sem consultar a lista inteira de funcionários", async () => {
+  const ui=read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const repo=read("src/features/products/infrastructure/products.repository.ts");
+  assert.ok((await transformWithEsbuild(ui,"InventoryProductDetailsDialog.tsx",{loader:"tsx"})).code);
+  assert.ok((await transformWithEsbuild(repo,"products.repository.ts",{loader:"ts"})).code);
+  assert.match(ui,/label="Cadastrado em"/);
+  assert.match(ui,/label="Cadastrado por"/);
+  assert.match(ui,/getProductCreatorName\(organizationId, id!\)/);
+  assert.match(ui,/enabled: Boolean\(view === "details" && organizationId && id && product\?\.created_by\)/);
+  const creator=repo.slice(repo.indexOf("export async function getProductCreatorName"),repo.indexOf("export async function saveCompleteProduct"));
+  assert.match(creator,/\.select\("created_by"\)\.eq\("organization_id", organizationId\)\.eq\("id", productId\)/);
+  assert.match(creator,/\.eq\("id", product.created_by\)/);
+  assert.match(creator,/\.eq\("organization_id", organizationId\)\.eq\("profile_id", product.created_by\)/);
+  assert.doesNotMatch(creator,/updated_by/);
+});

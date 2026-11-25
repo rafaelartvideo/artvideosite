@@ -32,6 +32,23 @@ export async function loadProductCatalog(
   };
 }
 
+// Resolve only the author recorded on an authorized product, without expanding
+// the catalog bootstrap or loading the employee directory for every item.
+export async function getProductCreatorName(organizationId: string, productId: string): Promise<string | null> {
+  if (!organizationId || !productId) return null;
+  const { data: product, error } = await supabase.from("products")
+    .select("created_by").eq("organization_id", organizationId).eq("id", productId).maybeSingle();
+  if (error) throw error;
+  if (!product?.created_by) return null;
+  const { data: profile, error: profileError } = await supabase.from("profiles")
+    .select("full_name").eq("id", product.created_by).maybeSingle();
+  if (!profileError && profile?.full_name?.trim()) return profile.full_name.trim();
+  const { data: employees, error: employeeError } = await supabase.from("employees")
+    .select("full_name").eq("organization_id", organizationId).eq("profile_id", product.created_by).limit(1);
+  if (employeeError) throw employeeError;
+  return employees?.[0]?.full_name?.trim() || null;
+}
+
 export async function saveCompleteProduct(
   organizationId: string,
   productId: string | undefined,
