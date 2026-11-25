@@ -19,7 +19,7 @@ export function isFinancialEvidenceImage(document: FinancialAttachment) {
   return Boolean(document.mime_type?.startsWith("image/") || /\.(?:jpe?g|png|webp|gif)$/i.test(document.file_name));
 }
 
-function EvidencePhoto({ document, organizationId, label }: { document: FinancialAttachment; organizationId: string; label: string }) {
+function EvidencePhoto({ document, organizationId, label, large = false }: { document: FinancialAttachment; organizationId: string; label: string; large?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible,setVisible] = useState(false);
   const [loaded,setLoaded] = useState(false);
@@ -37,7 +37,7 @@ function EvidencePhoto({ document, organizationId, label }: { document: Financia
     queryFn:()=>createFinancialAttachmentThumbnailUrl(document.storage_path,document.storage_bucket||"financial-documents"),
   });
   const url=query.data;
-  return <div ref={ref} className="relative h-24 w-full overflow-hidden rounded-md bg-muted/30">
+  return <div ref={ref} className={`relative w-full overflow-hidden rounded-md bg-muted/30 ${large ? "h-48" : "h-24"}`}>
     {!loaded && !failed && !query.isError && <div role="status" aria-label="Carregando miniatura" className="absolute inset-0 flex items-center justify-center text-muted-foreground">
       {visible ? <LoaderCircle size={18} className="animate-spin"/> : <ImageIcon size={20}/>}
     </div>}
@@ -59,7 +59,7 @@ export function FinanceEvidenceViewer({ document, organizationId, onClose }: { d
   </AdminDialog>;
 }
 
-export function FinanceOrderEvidenceGallery({ entryId, kind }: { entryId: string; kind: EvidenceKind }) {
+export function FinanceOrderEvidenceGallery({ entryId, kind, statement = false }: { entryId: string; kind: EvidenceKind; statement?: boolean }) {
   const {activeOrganizationId,hasPermission}=useAuth();
   const canView=hasPermission("finance.documents.view")||hasPermission("finance.documents.manage");
   const organizationId=activeOrganizationId||"";
@@ -78,9 +78,9 @@ export function FinanceOrderEvidenceGallery({ entryId, kind }: { entryId: string
   if(!evidence.length)return null;
   return <section aria-label={label} className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
     <div className="flex items-center gap-2"><ImageIcon size={17} className="text-primary"/><h3 className="text-sm font-bold text-foreground">{label}</h3></div>
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {evidence.map(document=><button key={document.id} type="button" onClick={()=>setSelected(document)} className="min-w-0 space-y-1.5 rounded-lg border border-border p-2 text-left hover:border-primary/40">
-        {isFinancialEvidenceImage(document)?<EvidencePhoto document={document} organizationId={organizationId} label={label}/>:<div className="flex h-24 items-center justify-center rounded-md bg-muted/40"><FileText size={28} className="text-muted-foreground"/></div>}
+    <div className={statement ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "grid grid-cols-2 gap-3 sm:grid-cols-3"}>
+      {evidence.map(document=><button key={document.id} type="button" onClick={()=>setSelected(document)} className={statement ? "min-w-0 space-y-1.5 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" : "min-w-0 space-y-1.5 rounded-lg border border-border p-2 text-left hover:border-primary/40"}>
+        {isFinancialEvidenceImage(document)?<EvidencePhoto document={document} organizationId={organizationId} label={label} large={statement}/>:<div className="flex h-24 items-center justify-center rounded-md bg-muted/40"><FileText size={28} className="text-muted-foreground"/></div>}
         <span className="block truncate text-xs font-semibold text-foreground" title={document.file_name}>{document.file_name}</span>
         <span className="block text-[11px] text-muted-foreground">Visualizar</span>
       </button>)}
