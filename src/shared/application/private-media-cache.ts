@@ -28,7 +28,7 @@ export function createPrivateMediaCache(now=Date.now){
     pending.set(key,job);return job;
   }
   function trackRelease(release:()=>void){if(scope)releases.add(release);return ()=>{releases.delete(release);release();};}
-  return {get,clear,setScope,invalidate:remove,trackRelease};
+  return {get,clear,setScope,invalidate:remove,trackRelease,scopeVersion:()=>generation};
 }
 export const privateMediaCache=createPrivateMediaCache();
 export const privateMediaKey=(...parts:unknown[])=>JSON.stringify(parts);

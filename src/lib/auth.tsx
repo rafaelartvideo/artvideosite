@@ -557,8 +557,8 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   }
 
   function clearResolvedAccess() {
-    if(scope==="crm")privateMediaCache.setScope(null);
     const previousOrganizationId = activeOrganizationIdRef.current;
+    if(scope==="crm")privateMediaCache.setScope(null);
     activeOrganizationIdRef.current = null;
     setEmployee(null);
     setRole(null);

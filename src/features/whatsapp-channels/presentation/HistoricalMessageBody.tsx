@@ -4,6 +4,7 @@ import { getHistoricalWhatsAppMedia,type UnionWhatsAppMessage,type UnionWhatsApp
 import { parseWhatsAppLocation } from "../domain/whatsapp-location";
 import { WhatsAppFormattedText } from "./WhatsAppInboxVisuals";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
+import { actOnSharedDocument } from "../application/private-media-access";
 
 const kindOf=(asset:UnionWhatsAppHistoricalAttachment)=>{
  const mime=asset.mime.toLowerCase();
@@ -14,21 +15,23 @@ const kindOf=(asset:UnionWhatsAppHistoricalAttachment)=>{
 };
 function Attachment({message,asset}:{message:UnionWhatsAppMessage;asset:UnionWhatsAppHistoricalAttachment}){
  const [url,setUrl]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[viewer,setViewer]=useState(false);
- const [downloadUrl,setDownloadUrl]=useState("");
+
  const active=useRef(true),gate=useRef(false);
  useEffect(()=>{active.current=true;return()=>{active.current=false}},[]);
  const kind=kindOf(asset),label=kind==="image"?"Imagem":kind==="sticker"?"Figurinha":kind==="audio"?"Áudio":kind==="video"?"Vídeo":"Documento";
  const Icon=kind==="image"||kind==="sticker"?ImageIcon:kind==="audio"?Mic:kind==="video"?Video:FileText;
- const open=async(download=false)=>{
+ const open=async()=>{
    if(gate.current||!asset.available)return;
    gate.current=true;setBusy(true);setError("");
    try{
-     const result=await getHistoricalWhatsAppMedia(message,asset.id,download);
+     const result=await getHistoricalWhatsAppMedia(message,asset.id);
      if(!active.current)return;
-     if(download){setDownloadUrl(result.url)}
-     else {setUrl(result.url);if(kind==="file")setViewer(true)}
+     setUrl(result.url);if(kind==="file")setViewer(true);
    }catch{if(active.current)setError("Não foi possível abrir o arquivo. Tente novamente.")}
    finally{gate.current=false;if(active.current)setBusy(false)}
+ };
+ const fileAction=async(action:"open"|"download",owner:Window)=>{
+   await actOnSharedDocument(action,owner,async()=>{const result=await getHistoricalWhatsAppMedia(message,asset.id,action==="download");return {url:result.url,downloadUrl:result.url};});
  };
  const failed=()=>{setUrl("");setViewer(false);setError("Arquivo indisponível. Tente novamente.")};
  return <div className="mt-1.5 space-y-1.5 rounded-md border border-border/60 bg-background/35 p-2">
@@ -41,11 +44,10 @@ function Attachment({message,asset}:{message:UnionWhatsAppMessage;asset:UnionWha
      {url&&kind==="video"&&<video controls src={url} preload="metadata" onError={failed} className="max-h-64 max-w-full rounded-md"/>}
      {url&&kind==="file"&&<button type="button" className="text-xs font-medium underline" onClick={()=>setViewer(true)}>{label} · Abrir arquivo</button>}
      <div className="flex flex-wrap gap-2">
-       <button type="button" disabled={busy} className="flex items-center gap-1 text-[11px] hover:underline" onClick={()=>void open(true)}><Download size={13}/> Preparar download</button>
-       {downloadUrl&&<a className="text-[11px] font-semibold underline" href={downloadUrl} rel="noreferrer" target="_blank" onClick={()=>setDownloadUrl("")}>Baixar arquivo</a>}
+       <button type="button" disabled={busy} className="flex items-center gap-1 text-[11px] hover:underline" onClick={event=>{const owner=event.currentTarget.ownerDocument.defaultView||window;setBusy(true);setError("");void fileAction("download",owner).catch(()=>setError("Não foi possível baixar o arquivo.")).finally(()=>setBusy(false));}}><Download size={13}/> Baixar arquivo</button>
      </div>
      {error&&<p role="alert" className="text-[11px] text-muted-foreground">{error}</p>}
-     {viewer&&url&&<UnionWhatsAppMediaViewer url={url} type={kind} name={label} onClose={()=>setViewer(false)}/>}
+     {viewer&&url&&<UnionWhatsAppMediaViewer url={url} type={kind} name={label} onDocumentAction={kind==="file"?fileAction:undefined} onClose={()=>setViewer(false)}/>}
    </>}
  </div>;
 }

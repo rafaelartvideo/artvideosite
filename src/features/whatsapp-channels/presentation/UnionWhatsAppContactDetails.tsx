@@ -10,7 +10,8 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { FutureOpportunityContactSection } from "./FutureOpportunities";
-import { getWhatsAppMediaLinks } from "../application/private-media-access";
+import { getWhatsAppMediaLinks, getWhatsAppDocument, actOnSharedDocument } from "../application/private-media-access";
+import { privateMediaCache } from "@/shared/application/private-media-cache";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;nextCursor:UnionWhatsAppMessageCursor|null};
 const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",nextCursor:null});
@@ -33,12 +34,14 @@ function nextJob(){
   job();
 }
 function signedMedia(organization:string,conversation:string,messageId:string){
-  const key=organization+":"+conversation+":"+messageId;
+  const epoch=privateMediaCache.scopeVersion();
+  const key=epoch+":"+organization+":"+conversation+":"+messageId;
 
   const previous=pending.get(key);
   if(previous)return previous;
   const job=new Promise<SharedMediaLinks|null>(resolve=>{
     jobs.push(()=>{
+      if(epoch!==privateMediaCache.scopeVersion()){pending.delete(key);active--;resolve(null);nextJob();return;}
       void getWhatsAppMediaLinks(organization,conversation,messageId)
         .then(data=>resolve({url:data.url,downloadUrl:data.downloadUrl}))
         .catch(()=>resolve(null)).finally(()=>{
@@ -123,7 +126,7 @@ function ContactDetailsContent({conversation,archiveContact,organizationId,gende
   });
   const requests=useRef(new Set<UnionWhatsAppSharedTab>());
   const drawerRef=useRef<HTMLElement|null>(null);
-  const [preview,setPreview]=useState<{url:string;downloadUrl:string|null;type:string;name:string}|null>(null);
+  const [preview,setPreview]=useState<{url:string;downloadUrl:string|null;type:string;name:string;item:UnionWhatsAppMessage}|null>(null);
   const [previewError,setPreviewError]=useState("");
   const [previewLoading,setPreviewLoading]=useState(false);
   const name=conversation?.contact_name||archiveContact?.name||"Contato WhatsApp";
@@ -185,7 +188,7 @@ function ContactDetailsContent({conversation,archiveContact,organizationId,gende
       const asset=item.historical_attachments?.[0];
       const links=item.read_only?(asset?.available?{url:(await getHistoricalWhatsAppMedia(item,asset.id)).url,downloadUrl:null}:null):conversation?await signedMedia(organizationId,conversation.id,item.id):null;
       if(!links){setPreviewError("Este arquivo não está mais disponível.");return;}
-      setPreview({url:links.url,downloadUrl:links.downloadUrl,type:item.message_type,
+      setPreview({url:links.url,downloadUrl:links.downloadUrl,type:item.message_type,item,
         name:item.media_name||({image:"Imagem",audio:"Áudio",video:"Vídeo",sticker:"Figurinha"} as Record<string,string>)[item.message_type]||"Documento"});
     }catch{setPreviewError("Não foi possível abrir este arquivo. Tente novamente.");}finally{setPreviewLoading(false);}
   };
@@ -302,6 +305,15 @@ function ContactDetailsContent({conversation,archiveContact,organizationId,gende
     </div>}
     {preview&&<UnionWhatsAppMediaViewer url={preview.url} downloadUrl={preview.downloadUrl} type={preview.type}
       name={preview.name} placement={inline?"viewport":"drawer"}
+      onDocumentAction={preview.type==="file"?async(action,owner)=>{
+        const item=preview.item;
+        if(item.read_only){
+          const asset=item.historical_attachments?.[0];if(!asset?.available)throw Error("Arquivo indisponível.");
+          await actOnSharedDocument(action,owner,async()=>{const result=await getHistoricalWhatsAppMedia(item,asset.id,action==="download");return {url:result.url,downloadUrl:result.url};});
+        }else if(conversation){
+          await actOnSharedDocument(action,owner,()=>getWhatsAppMediaLinks(organizationId,conversation.id,item.id),()=>getWhatsAppDocument(organizationId,conversation.id,item.id,item.media_name,item.media_mime));
+        }
+      }:undefined}
       onClose={()=>setPreview(null)}/>}
     {previewError&&<div role="alert" className={inline?"fixed bottom-4 left-4 right-4 z-[80] rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive":"pointer-events-auto absolute bottom-4 left-4 right-4 z-50 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive"}>
       {previewError}

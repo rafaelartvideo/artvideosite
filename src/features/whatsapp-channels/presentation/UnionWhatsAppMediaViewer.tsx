@@ -12,6 +12,7 @@ type WhatsAppMediaViewerProps = {
   name:string;
   onClose:()=>void;
   placement?:"drawer"|"viewport";
+  onDocumentAction?:(action:"open"|"download",owner:Window)=>Promise<void>;
 };
 
 type Point = {x:number;y:number};
@@ -22,7 +23,7 @@ const clampZoom=(value:number)=>Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,value));
 // A mesma visualização para imagens da conversa e arquivos do perfil do contato.
 // Tocar na imagem nunca abre outra guia: zoom, movimento e abertura do arquivo são ações separadas.
 export function UnionWhatsAppMediaViewer({
-  url,downloadUrl,type,name,onClose,placement="viewport",
+  url,downloadUrl,type,name,onClose,placement="viewport",onDocumentAction,
 }:WhatsAppMediaViewerProps){
   const isImage=type==="image"||type==="sticker";
   const isPhoto=type==="image";
@@ -205,6 +206,12 @@ export function UnionWhatsAppMediaViewer({
       setDownloadBusy(false);
     }
   };
+  const documentAction=async(action:"open"|"download",owner:Window)=>{
+    if(!onDocumentAction||downloadGate.current)return;
+    downloadGate.current=true;setDownloadBusy(true);setDownloadError("");
+    try{await onDocumentAction(action,owner);}catch(error){setDownloadError(error instanceof Error?error.message:"Arquivo indisponível.");}
+    finally{downloadGate.current=false;setDownloadBusy(false);}
+  };
   const viewer=<div role="dialog" aria-modal={!detached} aria-label="Visualizar arquivo"
     onClick={event=>{if(!detached&&event.target===event.currentTarget)onClose();}}
     className={`${detached?"relative h-dvh w-full bg-background":placement==="drawer"?"pointer-events-auto absolute inset-0 z-50 bg-black/55":"fixed inset-0 z-[200] bg-black/55"} flex flex-col items-center gap-3 p-4`}>
@@ -274,14 +281,14 @@ export function UnionWhatsAppMediaViewer({
           {downloadBusy?<LoaderCircle size={14} className="animate-spin"/>:<Download size={14}/>}
           {downloadBusy?"Baixando...":"Baixar"}
         </button>
-      </> : <a href={url} target="_blank" rel="noopener noreferrer"
+      </> : onDocumentAction&&type==="file"?<button type="button" disabled={downloadBusy} onClick={event=>void documentAction("open",event.currentTarget.ownerDocument.defaultView||window)} className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground">Abrir arquivo</button> : <a href={url} target="_blank" rel="noopener noreferrer"
         className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
         Abrir arquivo
       </a>}
-      {type==="file" && <a href={downloadUrl||url} target="_blank" rel="noopener noreferrer"
+      {type==="file" && (onDocumentAction?<button type="button" disabled={downloadBusy} onClick={event=>void documentAction("download",event.currentTarget.ownerDocument.defaultView||window)} className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground">Baixar</button>:<a href={downloadUrl||url} target="_blank" rel="noopener noreferrer"
         download={name} className="shrink-0 rounded-md border border-border bg-card px-3 py-2 text-xs font-bold text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
         Baixar
-      </a>}
+      </a>)}
     </div>
     {(windowError||downloadError)&&<p role="alert" className="max-w-full rounded-md bg-black/80 px-3 py-2 text-xs text-white">{windowError||downloadError}</p>}
   </div>;
