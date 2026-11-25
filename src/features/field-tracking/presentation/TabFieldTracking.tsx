@@ -494,7 +494,7 @@ export function TabFieldTracking() {
       <AdminButton variant={workspace==="jobs"?"primary":"secondary"} onClick={()=>setWorkspace("jobs")}>Coletas e entregas</AdminButton>
       <AdminButton variant={workspace==="routes"?"primary":"secondary"} onClick={()=>setWorkspace("routes")}>Rotas</AdminButton>
     </div>}
-    {workspace==="routes" && canView && canManage && activeOrganizationId ? <RoutesWorkspace key={activeOrganizationId} organizationId={activeOrganizationId}/> : workspace==="jobs" && canView && canManage && activeOrganizationId ? <LogisticsJobsWorkspace key={activeOrganizationId} organizationId={activeOrganizationId}/> : workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
+    {workspace==="routes" && canView && canManage && activeOrganizationId ? <RoutesWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : workspace==="jobs" && canView && canManage && activeOrganizationId ? <LogisticsJobsWorkspace key={activeOrganizationId} organizationId={activeOrganizationId}/> : workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
       <AdminCard className="p-8 text-center">
         <Navigation className="mx-auto text-primary" size={28} />
         <h2 className="mt-3 text-base font-black text-foreground">Rastreamento do dispositivo</h2>
