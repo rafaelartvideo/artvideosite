@@ -29,7 +29,7 @@ import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
 import { formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
-import { getOrderReportedReceipts } from "../domain/finance-reported-receipts";
+import { getOrderReportedReceipts, getOrderPaymentMethodNames } from "../domain/finance-reported-receipts";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
 function formatDate(value?: string | null) {
@@ -270,10 +270,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
   const editingSelectedEntry = Boolean(editorOpen && editing && selectedEntryId && editing.id === selectedEntryId);
   const displayPaymentMethods = (entry: FinancialEntry) => {
-    if (entry.payment_method_summary) return entry.payment_method_summary;
-    const planned = Array.isArray(entry.source_details?.payment_plan) ? entry.source_details.payment_plan as Array<{payment_method_id:string}> : [];
-    const names = planned.map(part => paymentMethods.find(method=>method.id===part.payment_method_id)?.name).filter(Boolean);
-    return names.length ? `${names.join(", ")} (previsto)` : "A definir";
+    const names = getOrderPaymentMethodNames(entry.source_details, paymentMethods);
+    if (entry.origin_type === "service_order" && names.length) return names.join(", ");
+    return entry.payment_method_summary || names.join(", ") || "A definir";
   };
 
   const closeSelectedEntry = () => {
@@ -492,7 +491,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             <thead><tr>
               <th className="text-left">Origem</th>
               <th className="text-left">Cliente / Parceiro / Fornecedor</th>
-              <th className="text-left">Forma de pagamento</th>
+              <th className="text-left">Formas de pagamento</th>
               <th className="text-left">Vencimento</th>
               <th className="text-right">Valor</th>
               <th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th>
@@ -504,7 +503,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}>
                 <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : entry.origin_type === "service_order" ? <FinanceServiceOrderLink orderId={entry.origin_reference} number={sourceValue(entry, "os_number")} label={originText(entry)} /> : originText(entry)}</p>{entry.origin_type === "recurring" && <p className="mt-1 text-[11px] text-muted-foreground">Assinatura / recorrência</p>}</td>
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
-                <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
+                <td className="text-xs text-muted-foreground">{displayPaymentMethods(entry)}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{warrantyNeedsDetails(entry) ? "A definir" : formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
