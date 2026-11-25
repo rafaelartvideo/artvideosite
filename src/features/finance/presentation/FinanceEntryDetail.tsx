@@ -15,7 +15,7 @@ import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
 import { financialDueUrgency } from "../domain/finance-due-urgency.mjs";
-import { getOrderReportedReceipts, getInstallmentPaymentPreference, getSettlementInstallmentAllocations } from "../domain/finance-reported-receipts";
+import { getOrderReportedReceipts, getOrderPaymentMethodNames, getInstallmentPaymentPreference, getSettlementInstallmentAllocations } from "../domain/finance-reported-receipts";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -71,8 +71,8 @@ function EntryDetailContent({
     : detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
   const methods = [...new Set(detail.settlements.filter(item => item.settlement_status !== "reversed").map(item => item.payment_method_name_snapshot).filter(Boolean))];
   const reportedReceipts = getOrderReportedReceipts(detail.source_details);
-  const plannedMethods = (Array.isArray(detail.source_details?.payment_plan) ? detail.source_details.payment_plan : []) as Array<{payment_method_id:string;amount:number}>;
-  const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
+  const plannedMethods = getOrderPaymentMethodNames(detail.source_details, paymentMethods);
+  const displayedMethods = detail.origin_type === "service_order" && plannedMethods.length ? plannedMethods : [...new Set([...methods, ...plannedMethods])];
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   const dueUrgency = financialDueUrgency(due?.due_date);
   const dueTone = dueUrgency === "today" || dueUrgency === "overdue"
@@ -175,7 +175,7 @@ function EntryDetailContent({
           <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             <Info label={isReceivable ? "Cliente / pagador" : "Favorecido"} value={detail.counterpart_name_snapshot || "—"} />
             <Info label="CPF / CNPJ" value={formatFinancialDocument(detail.counterpart_document_snapshot)} />
-            <Info label="Forma de pagamento" value={methods.length ? methods.join(", ") : plannedText ? `${plannedText} (previsto)` : "A definir (sem baixa)"} />
+            <Info label="Formas de pagamento" value={displayedMethods.join(", ") || "A definir"} />
             <Info label="Emissão" value={formatDate(detail.issue_date)} />
             <Info label="Competência" value={formatDate(detail.competence_date)} />
             <Info label="Categoria" value={Array.from(new Set(detail.allocations.map(item => item.category_name_snapshot))).join(", ") || "—"} />
@@ -198,12 +198,12 @@ function EntryDetailContent({
       <AdminCard>
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto"><TopTableScrollbar />
-          <table className="min-w-[760px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-left">Forma de pagamento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
+          <table className="min-w-[760px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-left">Formas de pagamento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
             <tbody>{detail.installments.map(item => <Fragment key={item.id}>
               <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}
                 {reportedReceipts.some(receipt => receipt.installment_number === item.installment_number) && <span className="mt-1 block text-[11px] font-semibold text-blue-700 dark:text-blue-300">
                   {Number(item.settled_amount) + 0.005 >= Number(item.original_amount) ? "Informado na OS · baixa confirmada" : "Informado como recebido na OS · aguardando baixa"}
-                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-xs">{(() => { const paid = detail.settlements.filter(s => s.settlement_status !== "reversed" && getSettlementInstallmentAllocations(s, detail.events).some(a=>a.installment_id===item.id)).map(s => s.payment_method_name_snapshot); const pref = getInstallmentPaymentPreference(detail.source_details, item.installment_number); const planned = paymentMethods.find(m => m.id === pref.payment_method_id)?.name || pref.payment_method_name_snapshot; return <><span className="font-semibold">{[...new Set(paid)].join(", ") || planned || "A definir"}</span>{paid.length > 0 && planned && Number(item.original_amount) > Number(item.settled_amount) && <span className="block text-muted-foreground">Previsto: {planned}</span>}{!paid.length && planned && <span className="block text-muted-foreground">Previsto</span>}</>; })()}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-xs">{(() => { const paid = detail.settlements.filter(s => s.settlement_status !== "reversed" && getSettlementInstallmentAllocations(s, detail.events).some(a=>a.installment_id===item.id)).map(s => s.payment_method_name_snapshot); const pref = getInstallmentPaymentPreference(detail.source_details, item.installment_number); const planned = paymentMethods.find(m => m.id === pref.payment_method_id)?.name || pref.payment_method_name_snapshot; const names = detail.origin_type === "service_order" && planned ? [planned] : [...new Set([...paid, ...(planned ? [planned] : [])])]; return <span className="font-semibold">{names.join(", ") || "A definir"}</span>; })()}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
                 {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                   type="button" disabled={forecastBusy} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
