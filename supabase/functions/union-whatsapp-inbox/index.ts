@@ -2493,13 +2493,15 @@ if(action==="contacts_groups_manage") {
         !mediaPath.startsWith(org+"/stickers/")) {
         return json({success:false,error:"Arquivo inválido."},403);
       }
-      const safeOriginalName=mediaFileName.replace(/[^\\p{L}\\p{N}._() -]/gu,"").trim().slice(0,160);
+      const safeOriginalName=mediaFileName.replace(/[^\p{L}\p{N}._() -]/gu,"").trim().slice(0,160);
       const mimeExt=mediaMime==="application/pdf"?"pdf":
         mediaMime==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"?"docx":
         mediaMime==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"?"xlsx":
         mediaMime==="application/vnd.openxmlformats-officedocument.presentationml.presentation"?"pptx":
         mediaMime==="text/plain"?"txt":"bin";
-      const originalName=safeOriginalName || (mediaMessage.message_type==="file"?"Documento."+mimeExt:"");
+      const originalName=mediaMessage.message_type==="file" && mimeExt!=="bin" && safeOriginalName && !safeOriginalName.toLowerCase().endsWith("."+mimeExt)
+        ? safeOriginalName.replace(/\.[a-z0-9]{1,8}$/i,"")+"."+mimeExt
+        : safeOriginalName || (mediaMessage.message_type==="file"?"Documento."+mimeExt:"");
       const storage=admin.storage.from("union-whatsapp-media");
       const {data:link,error:linkError}=await storage.createSignedUrl(mediaPath,120);
       if(linkError || !link?.signedUrl) throw linkError||Error("signed_url_unavailable");

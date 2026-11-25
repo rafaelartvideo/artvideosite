@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as I
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
+import { DOCUMENT_LINK_SAFE_MS, fetchDocumentBlob, saveDocumentBlob, type DocumentLinks } from "../application/document-access";
 import { parseWhatsAppLocation } from "../domain/whatsapp-location";
 import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
@@ -201,7 +202,9 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
   stickerSaved?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
-  const [mediaDownloadUrl,setMediaDownloadUrl]=useState("");
+  const documentLinks=useRef<{key:string;links:DocumentLinks;until:number}|null>(null);
+  const documentActionInFlight=useRef(false);
+  const [documentAction,setDocumentAction]=useState<"open"|"download"|null>(null);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [mediaRequested,setMediaRequested]=useState(false);
@@ -233,7 +236,7 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
       if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
       if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
       setMediaUrl(data.url);
-      setMediaDownloadUrl(data.download_url||"");
+      if(message.message_type==="file")documentLinks.current={key:organizationId+":"+message.conversation_id+":"+message.id,links:{url:data.url,filename:data.filename,mime:data.mime},until:Date.now()+DOCUMENT_LINK_SAFE_MS};
       if(message.message_type==="sticker"){
         if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
         stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
@@ -252,7 +255,8 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
   // Fotos e figurinhas são consultadas quando estiverem próximas da área visível,
   // evitando um download simultâneo para cada imagem do histórico.
   useEffect(()=>{
-    setMediaUrl("");setMediaDownloadUrl("");setMediaError("");setMediaRequested(false);
+    setMediaUrl("");setMediaError("");setMediaRequested(false);
+    documentLinks.current=null;
     if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
       (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
     const element=mediaTargetRef.current;
@@ -264,6 +268,48 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     return()=>observer.disconnect();
   },[message.id,hasStoredMedia,message.message_type,message.media_mime,organizationId]);
   useEffect(()=>{if(mediaRequested)void loadMedia();},[mediaRequested,loadMedia]);
+  const actOnDocument=async(action:"open"|"download",owner:Window)=>{
+    if(documentActionInFlight.current||!hasStoredMedia||!organizationId)return;
+    const popup=action==="open"?owner.open("","_blank"):null;
+    if(action==="open"&&!popup){setMediaError("Permita pop-ups para abrir o documento.");return;}
+    if(popup){popup.opener=null;popup.document.title="Abrindo documento";popup.document.body.textContent="Abrindo documento...";}
+    documentActionInFlight.current=true;setDocumentAction(action);setMediaError("");
+    const key=organizationId+":"+message.conversation_id+":"+message.id;
+    const getLinks=async(force:boolean):Promise<DocumentLinks>=>{
+      const cached=documentLinks.current;
+      if(!force&&cached?.key===key&&cached.until>Date.now())return cached.links;
+      const controller=new AbortController();
+      const timeout=owner.setTimeout(()=>controller.abort(),75000);
+      try{
+        const data=await operateUnionWhatsAppInbox(organizationId,message.conversation_id,"media_view",{message_id:message.id},controller.signal);
+        if(!data.url)throw Error("Arquivo indisponível.");
+        const links={url:data.url,filename:data.filename,mime:data.mime};
+        documentLinks.current={key,links,until:Date.now()+DOCUMENT_LINK_SAFE_MS};
+        return links;
+      }finally{owner.clearTimeout(timeout);}
+    };
+    try{
+      const links=await getLinks(false);
+      const isPdf=String(message.media_mime||links.mime||"").toLowerCase().startsWith("application/pdf")||/\.pdf$/i.test(message.media_name||links.filename||"");
+      if(popup&&!isPdf){
+        // Do not create same-origin blob pages for arbitrary active content.
+        if(!popup.closed)popup.location.replace(links.url);
+      }else{
+        const result=await fetchDocumentBlob(getLinks,message.media_name,message.media_mime);
+        if(popup){
+          if(popup.closed)return;
+          const localUrl=URL.createObjectURL(result.blob);
+          popup.location.replace(localUrl);
+          const timer=owner.setInterval(()=>{
+            if(popup.closed){owner.clearInterval(timer);URL.revokeObjectURL(localUrl);}
+          },5000);
+        }else saveDocumentBlob(result.blob,result.name,owner);
+      }
+    }catch(reason){
+      if(popup&&!popup.closed)popup.close();
+      setMediaError(systemErrorMessage(reason,"Não foi possível abrir o arquivo."));
+    }finally{documentActionInFlight.current=false;setDocumentAction(null);}
+  };
   const onImageError=()=>{
     stickerPreviewCache.delete(organizationId+":"+message.id);
     setMediaUrl("");
@@ -364,12 +410,14 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     </button>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
-    {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
-      <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
-      <a href={mediaDownloadUrl||mediaUrl} target="_blank" rel="noopener noreferrer"
-        download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
+    {hasStoredMedia && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
+      <FileText size={17}/>
+      <button type="button" disabled={Boolean(documentAction)} onClick={event=>void actOnDocument("open",event.currentTarget.ownerDocument.defaultView||window)}
+        className="font-bold hover:underline disabled:opacity-50">{documentAction==="open"?"Abrindo...":"Abrir "+(message.media_name||"documento")}</button>
+      <button type="button" disabled={Boolean(documentAction)} onClick={event=>void actOnDocument("download",event.currentTarget.ownerDocument.defaultView||window)}
+        className="font-semibold hover:underline disabled:opacity-50">{documentAction==="download"?"Baixando...":"Baixar"}</button>
     </div>}
-    {!mediaUrl && (mediaLoading ?
+    {!mediaUrl && !(hasStoredMedia && message.message_type==="file") && (mediaLoading ?
       <div role="status" aria-label="Carregando arquivo" className="flex min-h-9 items-center justify-center">
         <LoaderCircle size={18} className="animate-spin text-muted-foreground"/>
       </div> :

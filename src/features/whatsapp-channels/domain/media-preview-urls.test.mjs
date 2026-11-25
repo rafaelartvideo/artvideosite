@@ -178,7 +178,8 @@ test("Nomes dos documentos WhatsApp nao usam o UUID interno do Storage",async()=
   assert.match(edge,/download_url:downloadUrl/);
   assert.match(edge,/mediaFileName=String\(ref.file_name\|\|mediaFileName\)/);
   assert.match(repository,/download_url\?: string\|null/);
-  assert.match(inbox,/href=\{mediaDownloadUrl\|\|mediaUrl\}/);
+  assert.match(inbox,/actOnDocument\("download"/);
+  assert.match(inbox,/saveDocumentBlob\(result.blob,result.name,owner\)/);
   assert.match(details,/downloadUrl:links.downloadUrl/);
   assert.match(viewer,/href=\{downloadUrl\|\|url\}/);
   assert.match(viewer,/download=\{name\}/);
@@ -246,4 +247,28 @@ test("visualizador destaca fotos e baixa WebP sem consultar mídia novamente qua
   for(const [name,code] of [["UnionWhatsAppMediaViewer.tsx",viewer],["useDetachedMediaWindow.ts",popup],["download-media-webp.ts",download]]){
     assert.ok((await transformWithEsbuild(code,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code);
   }
+});
+
+
+test("documentos renovam links vencidos e preservam nome e bytes reais do PDF",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {transformWithEsbuild}=await import("vite");
+  const source=readFileSync(new URL("../application/document-access.ts",import.meta.url),"utf8");
+  const built=await transformWithEsbuild(source,"document-access.ts",{loader:"ts",format:"esm"});
+  const {documentName,fetchDocumentBlob,DOCUMENT_LINK_SAFE_MS}=await import("data:text/javascript;base64,"+Buffer.from(built.code).toString("base64"));
+  assert.equal(DOCUMENT_LINK_SAFE_MS,90000);
+  assert.equal(documentName("pdf_261123091447.pdf","application/pdf"),"pdf_261123091447.pdf");
+  assert.equal(documentName("Certidão de Garantia.p","application/pdf"),"Certidão de Garantia.pdf");
+  assert.equal(documentName(null,"application/pdf"),"Documento.pdf");
+  const calls=[];
+  const originalFetch=globalThis.fetch;
+  try{
+    globalThis.fetch=async url=>url==="expired"?new Response("InvalidJWT",{status:400}):new Response("%PDF-1.7\ncontent",{headers:{"Content-Type":"application/pdf"}});
+    const result=await fetchDocumentBlob(async force=>{calls.push(force);return {url:force?"fresh":"expired",filename:"p.p",mime:"application/pdf"}},"Nota fiscal.pdf");
+    assert.deepEqual(calls,[false,true]);
+    assert.equal(result.name,"Nota fiscal.pdf");
+    assert.equal(await result.blob.text(),"%PDF-1.7\ncontent");
+    globalThis.fetch=async()=>new Response('{"error":"InvalidJWT"}',{status:200});
+    await assert.rejects(fetchDocumentBlob(async()=>({url:"bad",mime:"application/pdf"})),/PDF válido/);
+  }finally{globalThis.fetch=originalFetch;}
 });
