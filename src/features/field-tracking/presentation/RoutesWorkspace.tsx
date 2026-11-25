@@ -4,6 +4,7 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMapEvents 
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { evaluateRoute,optimizeRoute,MAX_ROUTE_STOPS } from "../domain/route-planner.mjs";
+import type { FieldTrackingUnit } from "../domain/field-tracking";
 import { listFleet } from "../infrastructure/logistics.repository";
 import { listRouteJobs,listRoutePlans,saveRoutePlan,type RouteInput,type RoutePoint,type RouteStop } from "../infrastructure/logistics-routes.repository";
 
@@ -14,20 +15,22 @@ function MapPicker({onPick}:{onPick:(p:RoutePoint)=>void}) {
   useMapEvents({click:e=>onPick({latitude:Number(e.latlng.lat.toFixed(6)),longitude:Number(e.latlng.lng.toFixed(6))})});
   return null;
 }
-export function RoutesWorkspace({organizationId:org}:{organizationId:string}) {
+export function RoutesWorkspace({organizationId:org,units}:{organizationId:string;units:FieldTrackingUnit[]}) {
   const fleet=useQuery({queryKey:["logistics-fleet",org],queryFn:()=>listFleet(org),retry:false,staleTime:60000,refetchOnWindowFocus:false});
   const [shift,setShift]=useState("");
   if(fleet.isPending)return <AdminCard className="p-4">Carregando jornadas...</AdminCard>;
   if(fleet.isError||!fleet.data)return <AdminCard className="p-4">Não foi possível consultar jornadas. <AdminButton variant="secondary" onClick={()=>void fleet.refetch()}>Atualizar</AdminButton></AdminCard>;
   const {activeShifts,vehicles,drivers,employees}=fleet.data;
+  const tracker=units.find(u=>u.organization_id===org&&u.id===activeShifts.find(s=>s.id===shift)?.tracker_id);
+  const center: [number,number] = tracker?.latitude!=null&&tracker.longitude!=null ? [Number(tracker.latitude),Number(tracker.longitude)] : [-14.235,-51.9253];
   return <div className="space-y-3">
     <AdminCard className="space-y-2 p-3">
       <label className="block text-sm font-semibold">Jornada do motorista<select className={field} value={shift} onChange={e=>setShift(e.target.value)}><option value="">Selecione uma jornada aberta</option>{activeShifts.map(s=><option key={s.id} value={s.id}>{employees.find(e=>e.id===drivers.find(d=>d.id===s.driver_id)?.employee_id)?.full_name??"Motorista"} · {vehicles.find(v=>v.id===s.vehicle_id)?.name??"Veículo"}</option>)}</select></label>
     </AdminCard>
-    {shift&&activeShifts.some(s=>s.id===shift)&&<RouteEditor key={org+":"+shift} org={org} shift={shift}/>}
+    {shift&&activeShifts.some(s=>s.id===shift)&&<RouteEditor key={org+":"+shift} org={org} shift={shift} center={center} initialZoom={tracker?.latitude!=null&&tracker.longitude!=null?13:4}/>}
   </div>;
 }
-function RouteEditor({org,shift}:{org:string;shift:string}) {
+function RouteEditor({org,shift,center,initialZoom}:{org:string;shift:string;center:[number,number];initialZoom:number}) {
   const jobs=useQuery({queryKey:["logistics-route-jobs",org,shift],queryFn:()=>listRouteJobs(org,shift),retry:false,refetchOnWindowFocus:false});
   const plans=useQuery({queryKey:["logistics-route-plans",org,shift],queryFn:()=>listRoutePlans(org,shift),retry:false,refetchOnWindowFocus:false});
   const [departure,setDeparture]=useState("");
@@ -48,7 +51,7 @@ function RouteEditor({org,shift}:{org:string;shift:string}) {
     return {origin,departure:new Date(departure).toISOString(),speedKmh:Number(speed),returnToOrigin:back,stops};
   },[origin,departure,stops,speed,back]);
   const estimate=useMemo(()=>{if(!input)return null;try{return evaluateRoute(input);}catch{return null;}},[input]);
-  const stale=stops.some(s=>!available.some(j=>j.id===s.id&&j.window_start===s.window_start&&j.window_end===s.window_end));
+  const stale=stops.some(s=>!available.some(j=>j.id===s.id&&Date.parse(j.window_start)===Date.parse(s.window_start)&&Date.parse(j.window_end)===Date.parse(s.window_end)));
   const pick=(p:RoutePoint)=>{
     if(!Number.isFinite(p.latitude)||Math.abs(p.latitude)>90||!Number.isFinite(p.longitude)||Math.abs(p.longitude)>180)return;
     if(target==="origin")setOrigin(p);else setStops(rows=>rows.map(s=>s.id===target?{...s,...p}:s));
@@ -82,7 +85,7 @@ function RouteEditor({org,shift}:{org:string;shift:string}) {
       {available.length>100&&<p className="text-xs text-muted-foreground">Lista limitada às primeiras 100 operações elegíveis.</p>}
       <label className="block text-xs">Marcar ponto no mapa<select className={field} value={target} onChange={e=>setTarget(e.target.value)}><option value="origin">Origem</option>{stops.map((s,i)=><option value={s.id} key={s.id}>Parada {i+1}</option>)}</select></label>
       <div className="relative isolate overflow-hidden rounded-lg border border-border">
-        <MapContainer center={[-10.9472,-37.0731]} zoom={12} scrollWheelZoom={false} className="h-[340px] w-full">
+        <MapContainer center={center} zoom={initialZoom} scrollWheelZoom={false} className="h-[340px] w-full">
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
           <MapPicker onPick={pick}/>
           {origin&&<CircleMarker center={[origin.latitude,origin.longitude]} radius={8} pathOptions={{color:"#059669"}}><Tooltip permanent>Origem</Tooltip></CircleMarker>}
