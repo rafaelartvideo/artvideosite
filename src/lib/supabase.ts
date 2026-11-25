@@ -81,6 +81,8 @@ const persistentAuthStorage = typeof window === "undefined"
 // Single reusable client — only uses the public anon key.
 // Never import or use the service_role key on the frontend.
 export const supabase = createClient(supabaseUrl, publicAnonKey, {
+  // QueryClient owns read recovery; SDK retries multiply load during overload.
+  db: { retry: false },
   global: { fetch: performanceFetch },
   auth: {
     persistSession: true,
@@ -92,6 +94,7 @@ export const supabase = createClient(supabaseUrl, publicAnonKey, {
 
 export function createTransientSupabaseClient() {
   return createClient(supabaseUrl, publicAnonKey, {
+    db: { retry: false },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
