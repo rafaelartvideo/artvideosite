@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
 import { Camera, Download, ExternalLink, MoreVertical, PanelTop, RotateCcw, RotateCw, Scan, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
@@ -590,9 +590,13 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     const [a, b] = Array.from(pointers.current.values());
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   };
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerDown = (event: ReactPointerEvent<HTMLImageElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (pointers.current.size >= 2) return;
+    // A foto recebe o gesto diretamente, como no visualizador de Atendimentos.
+    // Não iniciar o drag nativo de imagem nem selecionar conteúdo do modal.
+    event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size === 2) {
@@ -602,8 +606,10 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
       drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, pan };
     }
   };
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLImageElement>) => {
     if (!pointers.current.has(event.pointerId)) return;
+    event.preventDefault();
+    event.stopPropagation();
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pinch.current && pointers.current.size === 2 && pinch.current.distance > 0) {
       changeZoom(pinch.current.zoom * pointerDistance() / pinch.current.distance);
@@ -614,18 +620,24 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
       setPan(clampPan(start.pan.x + event.clientX - start.x, start.pan.y + event.clientY - start.y, zoomRef.current));
     }
   };
-  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
-    pointers.current.delete(event.pointerId);
+  const onPointerEnd = (event: ReactPointerEvent<HTMLImageElement>) => {
+    const wasTracked = pointers.current.delete(event.pointerId);
     if (drag.current?.id === event.pointerId) drag.current = null;
     if (pointers.current.size < 2) pinch.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    // Continue moving with the remaining finger after a pinch.
+    if (wasTracked && pointers.current.size === 1 && !drag.current && zoomRef.current > 1) {
+      const [id, point] = Array.from(pointers.current.entries())[0];
+      drag.current = { id, x: point.x, y: point.y, pan };
+    }
+    if (event.type !== "lostpointercapture" && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
   const viewportProps = {
     ref: viewportRef,
-    onPointerDown, onPointerMove,
-    onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd, onLostPointerCapture: onPointerEnd,
-    onDoubleClick: () => zoomRef.current > 1 ? resetZoom() : changeZoom(2),
-    style: { containerType: "size" as const, touchAction: "none", cursor: zoom > 1 ? "grab" : "zoom-in" },
+    onDragStartCapture: (event: ReactDragEvent<HTMLDivElement>) => event.preventDefault(),
+    "data-no-dialog-drag": true,
+    style: { containerType: "size" as const, touchAction: "none", userSelect: "none" as const },
     "aria-label": "Foto — use a roda do mouse, dois dedos ou os controles de zoom",
   };
 
@@ -745,11 +757,19 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
   // photos remain fully visible in both the modal and the detached window.
   const rotatedPhoto = url ? <img
     ref={photoRef} src={url} alt={image.name} draggable={false}
-    className="pointer-events-none absolute left-1/2 top-1/2 max-h-none max-w-none select-none object-contain"
+    onDragStart={event => event.preventDefault()}
+    onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+    onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onLostPointerCapture={onPointerEnd}
+    onDoubleClick={() => zoomRef.current > 1 ? resetZoom() : changeZoom(2)}
+    className="absolute left-1/2 top-1/2 max-h-none max-w-none select-none object-contain active:cursor-grabbing [-webkit-user-drag:none]"
     style={{
+      pointerEvents: "auto",
+      touchAction: "none",
+      userSelect: "none",
+      cursor: zoom > 1 ? "grab" : "zoom-in",
       width: sideways ? "100cqh" : "100cqw",
       height: sideways ? "100cqw" : "100cqh",
-      transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) rotate(${rotation}deg) scale(${zoom})`,
+      transform: `translate3d(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px), 0) rotate(${rotation}deg) scale(${zoom})`,
     }}
   /> : <LoadingSpinner size="sm" />;
 

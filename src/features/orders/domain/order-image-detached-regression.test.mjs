@@ -36,3 +36,18 @@ test("visualizador gira em quartos de volta no modal e na janela destacada sem a
   assert.equal(source.split("{rotatedPhoto}").length - 1, 2);
   assert.ok(source.includes("await downloadOrderImage(image, format, 0)"));
 });
+
+
+test("foto ampliada recebe o gesto diretamente e não inicia o arraste nativo do navegador", () => {
+  const source = readFileSync("src/features/orders/presentation/OrderImages.tsx", "utf8");
+  const photo = source.split("const rotatedPhoto =")[1].split("const downloadActions =")[0];
+  assert.match(photo, /draggable=\{false\}/);
+  assert.match(photo, /onDragStart=\{event => event.preventDefault\(\)\}/);
+  assert.match(photo, /onPointerDown=\{onPointerDown\}/);
+  assert.match(photo, /onPointerMove=\{onPointerMove\}/);
+  assert.match(photo, /onLostPointerCapture=\{onPointerEnd\}/);
+  assert.match(photo, /pointerEvents: "auto"/);
+  assert.match(photo, /translate3d\(/);
+  assert.doesNotMatch(photo, /pointer-events-none/);
+  assert.match(source, /onDragStartCapture:/);
+});
