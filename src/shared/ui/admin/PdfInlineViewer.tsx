@@ -173,6 +173,39 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
     };
   }, [pdfDocument, availableWidth, pageNumber, pageCount, zoom]);
 
+  // A roda amplia o documento sobre a página. Shift + roda e as barras
+  // continuam permitindo navegar pelo PDF, sem rolar o formulário atrás.
+  useEffect(() => {
+    if (!viewportElement || !pdfDocument || loading || loadError) return;
+    const ownerWindow = viewportElement.ownerDocument.defaultView || window;
+    let timer: number | null = null;
+    let delta = 0;
+    const onWheel = (event: WheelEvent) => {
+      const target = event.target as Element | null;
+      if (!event.deltaY || !target?.closest?.("[data-wheel-zoom]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.shiftKey) {
+        viewportElement.scrollTop += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewportElement.clientHeight : 1);
+        return;
+      }
+      delta += event.deltaY < 0 ? 1 : -1;
+      // Agrupa eventos do trackpad para não iniciar dezenas de renders PDF.js.
+      if (timer !== null) return;
+      timer = ownerWindow.setTimeout(() => {
+        const steps = Math.max(-3, Math.min(3, delta));
+        delta = 0;
+        timer = null;
+        if (steps) setZoom(value => Math.min(2.5, Math.max(0.5, Math.round((value + steps * 0.1) * 10) / 10)));
+      }, 80);
+    };
+    viewportElement.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      viewportElement.removeEventListener("wheel", onWheel);
+      if (timer !== null) ownerWindow.clearTimeout(timer);
+    };
+  }, [viewportElement, pdfDocument, loading, loadError]);
+
   const inlineFallbackUrl = fallbackUrl || (typeof source === "string" ? source : "");
 
   return <div className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${className}`}>
@@ -207,7 +240,7 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
       {loadError && inlineFallbackUrl ? (
         <iframe title={title} src={inlineFallbackUrl} className="mx-auto block h-full min-h-[380px] w-full max-w-[1000px] border border-border bg-white" />
       ) : <div className="flex min-h-full min-w-max justify-center">
-        <div className="relative min-h-[280px] min-w-[240px] bg-white shadow-md">
+        <div data-wheel-zoom={pdfDocument && !loading && !loadError ? true : undefined} title="Roda do mouse: zoom. Shift + roda: rolar o documento." className="relative min-h-[280px] min-w-[240px] bg-white shadow-md">
           <canvas ref={canvasRef} aria-label={title} className={`block bg-white ${rendered && !loadError ? "" : "invisible"}`} />
           {(loading || rendering || (!loadError && !rendered)) && source && <div className="absolute inset-0 flex min-h-[280px] flex-col items-center justify-center gap-3 bg-white/90">
             <span className="text-primary"><LoadingSpinner size="lg" /></span>

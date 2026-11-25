@@ -138,7 +138,9 @@ export function UnionWhatsAppMediaViewer({
     const viewport=viewportRef.current;
     if(!viewport)return;
     const onWheel=(event:WheelEvent)=>{
+      if(!event.deltaY)return;
       event.preventDefault();
+      event.stopPropagation();
       changeZoom(zoomRef.current*(event.deltaY<0?1.2:1/1.2));
     };
     // Non-passive para o scroll ampliar a imagem sem rolar a tela que está atrás.
@@ -210,7 +212,7 @@ export function UnionWhatsAppMediaViewer({
       className="absolute right-4 top-4 z-10 rounded-full border border-white/30 bg-black/65 p-2 text-white hover:bg-black/80">
       <X size={23}/>
     </button>
-    <div ref={viewportRef} className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+    <div ref={viewportRef} data-wheel-zoom={isImage ? true : undefined} className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
       onClick={event=>{if(!detached&&event.target===event.currentTarget)onClose();}}
       aria-label={isImage?"Visualização da imagem — use a roda do mouse, dois dedos ou os botões para ampliar":undefined}>
       {isImage

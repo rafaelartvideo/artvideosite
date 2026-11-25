@@ -479,6 +479,9 @@ export function AdminDialog({
     if (!nestedScrollAssist) return;
     const body = event.currentTarget;
     if (body.scrollHeight <= body.clientHeight + 1 || !event.deltaY) return;
+    // Visualizadores consomem a roda para zoom; nunca antecipar a rolagem
+    // do modal sobre esses gestos, inclusive em uma janela aninhada.
+    if (event.target instanceof Element && event.target.closest("[data-wheel-zoom]")) return;
     // Campos com rolagem propria devem continuar recebendo o gesto.
     let target = event.target instanceof HTMLElement ? event.target : null;
     while (target && target !== body) {

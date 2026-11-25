@@ -209,3 +209,21 @@ test("Financeiro aguarda dados de extratos, contas e recibos na primeira abertur
   assert.match(accounts, /preparingKey=\{selectedAccount.id\}/);
 });
 
+
+
+test("a rolagem assistida dos modais não intercepta o zoom dos visualizadores", () => {
+  const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
+  const orders = readFileSync("src/features/orders/presentation/OrderImages.tsx", "utf8");
+  const whatsapp = readFileSync("src/features/whatsapp-channels/presentation/UnionWhatsAppMediaViewer.tsx", "utf8");
+  const pdf = readFileSync("src/shared/ui/admin/PdfInlineViewer.tsx", "utf8");
+  const assist = layout.split("const scrollNestedDialog =")[1].split("const preparedSizeRef")[0];
+  assert.ok(assist.indexOf('closest("[data-wheel-zoom]")') >= 0);
+  assert.ok(assist.indexOf('closest("[data-wheel-zoom]")') < assist.indexOf("event.stopPropagation()"));
+  for (const source of [orders, whatsapp, pdf]) {
+    assert.match(source, /data-wheel-zoom/);
+    assert.match(source, /addEventListener\("wheel",\s*onWheel,\s*\{\s*passive:\s*false\s*\}\)/);
+    assert.match(source, /removeEventListener\("wheel",\s*onWheel\)/);
+  }
+  assert.match(pdf, /event.shiftKey/);
+  assert.match(pdf, /viewportElement.scrollTop \+=/);
+});

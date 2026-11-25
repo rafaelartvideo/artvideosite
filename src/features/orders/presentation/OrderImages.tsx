@@ -637,6 +637,7 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     ref: viewportRef,
     onDragStartCapture: (event: ReactDragEvent<HTMLDivElement>) => event.preventDefault(),
     "data-no-dialog-drag": true,
+    "data-wheel-zoom": true,
     style: { containerType: "size" as const, touchAction: "none", userSelect: "none" as const },
     "aria-label": "Foto — use a roda do mouse, dois dedos ou os controles de zoom",
   };
