@@ -17,32 +17,34 @@ function valid(point) {
 }
 // Pontos em ordem cronológica. Lacunas e saltos não são conectados.
 export function summarizeFieldTrip(points) {
-  let distance = 0, rejected = 0, gaps = 0, accepted = 0, movingSeconds = 0;
+  let distance = 0, rejected = 0, gaps = 0, accepted = 0;
   let previous = null;
+  let lastObservation = null;
   let segment = [];
   const segments = [];
   const finish = () => { if (segment.length > 1) segments.push(segment); segment = []; };
   for (const point of points) {
-    if (!valid(point)) { rejected++; finish(); previous = null; continue; }
+    if (!valid(point)) { rejected++; finish(); previous = null; lastObservation = null; continue; }
     const position = [point.latitude, point.longitude];
-    if (!previous) { segment = [position]; previous = point; accepted++; continue; }
+    if (!previous) { segment = [position]; previous = point; lastObservation = point; accepted++; continue; }
     const elapsed = (Date.parse(point.recorded_at) - Date.parse(previous.recorded_at)) / 1000;
-    if (elapsed <= 0) { rejected++; continue; }
+    const observationGap = (Date.parse(point.recorded_at) - Date.parse(lastObservation.recorded_at)) / 1000;
+    if (observationGap <= 0 || elapsed <= 0) { rejected++; continue; }
+    lastObservation = point;
     const km = distanceKm(previous, point);
-    if (elapsed > 300 || km / elapsed * 3600 > 160) {
+    if (observationGap > 300 || km / elapsed * 3600 > 160) {
       gaps++; finish(); segment = [position]; previous = point; accepted++; continue;
     }
     // Evita somar pequenas oscilações do GPS quando não há movimento observado.
     if (km >= 0.015) {
       distance += km;
-      if (km / elapsed * 3600 >= 3) movingSeconds += elapsed;
       segment.push(position);
       previous = point;
       accepted++;
     }
   }
   finish();
-  return { distanceKm: distance, movingSeconds, rejected, gaps, accepted, segments };
+  return { distanceKm: distance, rejected, gaps, accepted, segments };
 }
 export function currentSpeedKmh(unit, now = Date.now()) {
   if (!unit.is_active || !unit.is_sharing || unit.speed_mps == null) return null;
