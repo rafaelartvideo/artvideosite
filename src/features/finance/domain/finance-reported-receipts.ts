@@ -50,3 +50,20 @@ export function getSettlementInstallmentAllocations(settlement: {id:string;finan
   });
   return [{installment_id:settlement.financial_installment_id,principal:Number(settlement.principal_amount)}];
 }
+
+/** Display the methods captured at OS completion, without marking a financial settlement. */
+export function getOrderPaymentMethodNames(sourceDetails: Record<string, unknown> | undefined, methods: ReadonlyArray<{id:string;name:string}>): string[] {
+  const names = new Set<string>();
+  const add = (id: unknown, snapshot?: unknown) => {
+    const name = (typeof id === "string" ? methods.find(method => method.id === id)?.name : undefined) || (typeof snapshot === "string" ? snapshot.trim() : "");
+    if (name) names.add(name);
+  };
+  for (const key of ["payment_preferences", "payment_plan", "reported_receipts"]) {
+    const rows = sourceDetails?.[key];
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (row && typeof row === "object") add(row.payment_method_id, row.payment_method_name_snapshot);
+    }
+  }
+  return [...names];
+}
