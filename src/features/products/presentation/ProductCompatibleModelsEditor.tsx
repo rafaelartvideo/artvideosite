@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Tv2 } from "lucide-react";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { AdminFieldLabel, AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import type { InventoryCatalogOption } from "../infrastructure/inventory-catalog-settings.repository";
 import type { CompatibleDeviceModel } from "../infrastructure/product-compatible-models.repository";
 
@@ -11,7 +12,7 @@ function normalize(value: string) {
 
 export function ProductCompatibleModelsEditor({
   models, onChange, inherited, onInheritedChange, parentProductId, disabled = false, loaded = true,
-  deviceTypes = [], deviceBrands = [],
+  deviceTypes = [], deviceBrands = [], canCreateDeviceType = false, canCreateDeviceBrand = false, onCreateCatalogOption,
 }: {
   models: CompatibleDeviceModel[];
   onChange: (models: CompatibleDeviceModel[]) => void;
@@ -22,11 +23,30 @@ export function ProductCompatibleModelsEditor({
   loaded?: boolean;
   deviceTypes?: InventoryCatalogOption[];
   deviceBrands?: InventoryCatalogOption[];
+  canCreateDeviceType?: boolean;
+  canCreateDeviceBrand?: boolean;
+  onCreateCatalogOption?: (kind: "device_type" | "device_brand", name: string) => Promise<InventoryCatalogOption>;
 }) {
   const [deviceType, setDeviceType] = useState("");
   const [brand, setBrand] = useState("");
   const [modelInput, setModelInput] = useState("");
   const [error, setError] = useState("");
+  const [quickKind, setQuickKind] = useState<"device_type" | "device_brand" | null>(null);
+  const [quickName, setQuickName] = useState("");
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState("");
+  const openQuick = (kind: "device_type" | "device_brand") => { setQuickName(""); setQuickError(""); setQuickKind(kind); };
+  const saveQuick = async () => {
+    if (!quickKind || !quickName.trim() || quickSaving || disabled || !onCreateCatalogOption) return;
+    if (quickKind === "device_type" ? !canCreateDeviceType : !canCreateDeviceBrand) return;
+    setQuickSaving(true); setQuickError("");
+    try {
+      const item = await onCreateCatalogOption(quickKind, quickName);
+      if (quickKind === "device_type") setDeviceType(item.name); else setBrand(item.name);
+      setQuickKind(null); setQuickName(""); setError("");
+    } catch (cause) { setQuickError(systemErrorMessage(cause, "Não foi possível criar o cadastro.")); }
+    finally { setQuickSaving(false); }
+  };
   const inheritedFromParent = Boolean(parentProductId && inherited);
   const activeTypes = deviceTypes.filter(item => item.is_active);
   const activeBrands = deviceBrands.filter(item => item.is_active);
@@ -87,20 +107,30 @@ export function ProductCompatibleModelsEditor({
       {!inheritedFromParent && <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(135px,0.8fr)_minmax(140px,1fr)]">
         <div className="min-w-0">
           <AdminFieldLabel label="Tipo de aparelho" />
-          <AdminSelect value={deviceType} ariaLabel="Tipo de aparelho compatível" disabled={disabled || activeTypes.length === 0}
-            dropdownClassName="!max-h-[148px]"
-            onValueChange={setDeviceType}
-            options={activeTypes.length
-              ? activeTypes.map(type => ({ value: type.name, label: type.name }))
-              : [{ value: "", label: "Cadastre em Configurações do Estoque" }]} />
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1"><AdminSelect value={deviceType} ariaLabel="Tipo de aparelho compatível" disabled={disabled || activeTypes.length === 0}
+              dropdownClassName="!max-h-[148px]"
+              onValueChange={setDeviceType}
+              options={activeTypes.length
+                ? activeTypes.map(type => ({ value: type.name, label: type.name }))
+                : [{ value: "", label: "Selecione um tipo" }]} /></div>
+            {canCreateDeviceType && onCreateCatalogOption && <AdminButton type="button" disabled={disabled}
+              aria-label="Novo tipo de aparelho" title="Novo tipo de aparelho" onClick={() => openQuick("device_type")}
+              className="h-[42px] w-[42px] shrink-0 !p-0"><Plus size={17}/></AdminButton>}
+          </div>
         </div>
         <div className="min-w-0">
           <AdminFieldLabel label="Marca do aparelho" />
-          <AdminSelect value={brand} ariaLabel="Marca do aparelho compatível" disabled={disabled || activeBrands.length === 0}
-            dropdownClassName="!max-h-[148px]"
-            onValueChange={setBrand}
-            options={[{ value: "", label: activeBrands.length ? "Selecione uma marca" : "Cadastre em Configurações do Estoque" },
-              ...activeBrands.map(item => ({ value: item.name, label: item.name }))]} />
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1"><AdminSelect value={brand} ariaLabel="Marca do aparelho compatível" disabled={disabled || activeBrands.length === 0}
+              dropdownClassName="!max-h-[148px]"
+              onValueChange={setBrand}
+              options={[{ value: "", label: "Selecione uma marca" },
+                ...activeBrands.map(item => ({ value: item.name, label: item.name }))]} /></div>
+            {canCreateDeviceBrand && onCreateCatalogOption && <AdminButton type="button" disabled={disabled}
+              aria-label="Nova marca de aparelho" title="Nova marca de aparelho" onClick={() => openQuick("device_brand")}
+              className="h-[42px] w-[42px] shrink-0 !p-0"><Plus size={17}/></AdminButton>}
+          </div>
         </div>
         <div className="min-w-0 sm:col-span-2">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Modelos compatíveis</label>
@@ -142,5 +172,17 @@ export function ProductCompatibleModelsEditor({
         </div>}
       </div>
     </div>}
+    {quickKind && <AdminDialog open onClose={() => { if (!quickSaving) setQuickKind(null); }}
+      title={quickKind === "device_type" ? "Novo tipo de aparelho" : "Nova marca de aparelho"} className="max-w-md"
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton type="button" variant="secondary" disabled={quickSaving} onClick={() => setQuickKind(null)}>Cancelar</AdminButton>
+        <AdminButton type="button" loading={quickSaving} loadingText="Criando..." disabled={!quickName.trim()} onClick={() => void saveQuick()}>Criar</AdminButton>
+      </div>}>
+      <FInput label={quickKind === "device_type" ? "Nome do tipo de aparelho" : "Nome da marca do aparelho"}
+        value={quickName} disabled={quickSaving} error={quickError} maxLength={quickKind === "device_type" ? 60 : 80}
+        placeholder={quickKind === "device_type" ? "Ex.: Televisão" : "Ex.: Samsung"}
+        onChange={(event: any) => { setQuickName(event.target.value); setQuickError(""); }}
+        onKeyDown={(event: any) => { if (event.key === "Enter") { event.preventDefault(); void saveQuick(); } }}/>
+    </AdminDialog>}
   </div>;
 }

@@ -114,3 +114,20 @@ test("configurações do estoque são persistidas por empresa e alimentam os sel
   assert.ok(!editor.includes("Informe os aparelhos nos quais"));
   assert.ok(productRepo.includes('save_inventory_item_unified_v7'));
 });
+
+
+test("estoque cria subcategoria, tipo e marca de aparelho diretamente nos seletores", async () => {
+  const page=read("src/features/products/presentation/TabProducts.tsx");
+  const editor=read("src/features/products/presentation/ProductCompatibleModelsEditor.tsx");
+  for(const [name,source] of [["page",page],["editor",editor]]) assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code);
+  assert.match(page,/aria-label="Nova subcategoria"/);
+  assert.match(page,/createQuickCatalogOption\("subcategory", masterDataName, parentId\)/);
+  assert.match(page,/subcategory_id: item.id/);
+  assert.match(page,/queryClient.setQueryData<InventoryCatalogSettings>/);
+  assert.match(page,/canCreateDeviceType=\{canManageCategories \|\| canEdit\}/);
+  assert.match(page,/canCreateDeviceBrand=\{canManageBrands \|\| canEdit\}/);
+  assert.match(editor,/aria-label="Novo tipo de aparelho"/);
+  assert.match(editor,/aria-label="Nova marca de aparelho"/);
+  assert.match(editor,/onCreateCatalogOption\(quickKind, quickName\)/);
+  assert.match(editor,/setDeviceType\(item.name\); else setBrand\(item.name\)/);
+});

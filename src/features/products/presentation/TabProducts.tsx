@@ -79,7 +79,7 @@ import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptur
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductCompatibleModelsEditor } from "./ProductCompatibleModelsEditor";
 import { InventoryCatalogSettingsDialog } from "./InventoryCatalogSettingsDialog";
-import { listInventoryCatalogSettings } from "../infrastructure/inventory-catalog-settings.repository";
+import { createInventoryCatalogOption, listInventoryCatalogSettings, type InventoryCatalogOption, type InventoryCatalogSettings } from "../infrastructure/inventory-catalog-settings.repository";
 import {
   getProductCompatibleModels, replaceProductCompatibleModels,
   type CompatibleDeviceModel,
@@ -549,7 +549,7 @@ export function TabProducts({
     }
   };
 
-  const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | null>(null);
+  const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | "subcategory" | null>(null);
   const [masterDataName, setMasterDataName] = useState("");
   const [masterDataSaving, setMasterDataSaving] = useState(false);
 
@@ -1188,13 +1188,43 @@ export function TabProducts({
     }
   };
 
+  const createQuickCatalogOption = async (kind: "subcategory" | "device_type" | "device_brand", name: string, categoryId?: string): Promise<InventoryCatalogOption> => {
+    if (!activeOrganizationId || saving || !(editItem ? canEdit : canCreate)) throw new Error("Cadastro indisponível.");
+    const allowed = kind === "device_brand" ? canManageBrands || canEdit : canManageCategories || canEdit;
+    if (!allowed) throw new Error("Sem permissão para criar este cadastro.");
+    const key = ["inventory", "catalog-settings", activeOrganizationId];
+    // Cancel only this reference query; an older response must not overwrite the new option.
+    await queryClient.cancelQueries({ queryKey: key, exact: true });
+    const item = await createInventoryCatalogOption(activeOrganizationId, kind, name, categoryId);
+    const field = kind === "subcategory" ? "subcategories" : kind === "device_type" ? "deviceTypes" : "deviceBrands";
+    queryClient.setQueryData<InventoryCatalogSettings>(key, current => {
+      if (!current) return current;
+      return { ...current, [field]: [...current[field].filter(entry => entry.id !== item.id), item]
+        .sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name,"pt-BR",{sensitivity:"base"})) };
+    });
+    // If the cache was not populated yet, load only the catalog settings.
+    if (!queryClient.getQueryData(key)) await queryClient.fetchQuery({
+      queryKey: key, queryFn: () => listInventoryCatalogSettings(activeOrganizationId),
+    });
+    return item;
+  };
+
   const saveMasterData = async () => {
-    if (!activeOrganizationId || !masterDataDialog || !masterDataName.trim()) return;
+    if (!activeOrganizationId || !masterDataDialog || !masterDataName.trim() || masterDataSaving) return;
     setMasterDataSaving(true);
     try {
       if (masterDataDialog === "category") {
         const item = await findOrCreateInventoryCategory(activeOrganizationId, masterDataName, canManageCategories);
-        if (item) setForm(current => ({ ...current, category_id: item.id }));
+        if (item) setForm(current => ({ ...current, category_id: item.id, subcategory_id: current.category_id === item.id ? current.subcategory_id : "" }));
+      } else if (masterDataDialog === "subcategory") {
+        const parentId = form.category_id;
+        if (!parentId) throw new Error("Selecione a categoria principal.");
+        const item = await createQuickCatalogOption("subcategory", masterDataName, parentId);
+        setForm(current => current.category_id === parentId ? { ...current, subcategory_id: item.id } : current);
+        setFieldErrors(current => ({ ...current, subcategory_id: undefined }));
+        setMasterDataDialog(null);
+        setMasterDataName("");
+        return;
       } else {
         const item = await findOrCreateInventoryBrand(activeOrganizationId, masterDataName, canManageBrands);
         if (item) setForm(current => ({ ...current, brand_id: item.id }));
@@ -1637,14 +1667,24 @@ export function TabProducts({
                   ><Plus size={17} /></AdminButton>}
                 </div>
 
-                <FSelect
-                  label="Subcategoria"
-                  value={form.subcategory_id}
-                  disabled={saving || !form.category_id || inventoryCatalogQuery.isPending}
-                  error={fieldErrors.subcategory_id}
-                  options={subcategoryOptions}
-                  onChange={(event: any) => { setFieldErrors(current => ({ ...current, subcategory_id: undefined })); setForm(current => ({ ...current, subcategory_id: event.target.value })); }}
-                />
+                <div className="flex min-w-0 items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <FSelect
+                      label="Subcategoria"
+                      value={form.subcategory_id}
+                      disabled={saving || !form.category_id || inventoryCatalogQuery.isPending}
+                      error={fieldErrors.subcategory_id}
+                      options={subcategoryOptions}
+                      onChange={(event: any) => { setFieldErrors(current => ({ ...current, subcategory_id: undefined })); setForm(current => ({ ...current, subcategory_id: event.target.value })); }}
+                    />
+                  </div>
+                  {(canManageCategories || canEdit) && <AdminButton type="button"
+                    disabled={saving || !form.category_id || inventoryCatalogQuery.isPending}
+                    aria-label="Nova subcategoria"
+                    title={form.category_id ? "Nova subcategoria" : "Selecione uma categoria primeiro"}
+                    onClick={() => { setMasterDataName(""); setMasterDataDialog("subcategory"); }}
+                    className="mt-[23px] h-[42px] w-[42px] shrink-0 !p-0"><Plus size={17}/></AdminButton>}
+                </div>
 
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
@@ -1882,6 +1922,9 @@ export function TabProducts({
                 loaded={compatibleModelsLoaded}
                 deviceTypes={catalogSettings?.deviceTypes || []}
                 deviceBrands={catalogSettings?.deviceBrands || []}
+                canCreateDeviceType={canManageCategories || canEdit}
+                canCreateDeviceBrand={canManageBrands || canEdit}
+                onCreateCatalogOption={createQuickCatalogOption}
               />
             </Section>
             <Section title={<span className="inline-flex min-w-0 items-center gap-1.5">
@@ -2463,8 +2506,8 @@ export function TabProducts({
         setMasterDataDialog(null);
         setMasterDataName("");
       }}
-      title={masterDataDialog === "category" ? "Nova categoria" : "Nova marca"}
-      description="O cadastro será vinculado à empresa atual e ficará disponível para todos os itens do Estoque."
+      title={masterDataDialog === "category" ? "Nova categoria" : masterDataDialog === "subcategory" ? "Nova subcategoria" : "Nova marca"}
+      description={masterDataDialog === "subcategory" ? "Categoria: " + (catOptions.find(option => option.value === form.category_id)?.label || "") : "O cadastro será vinculado à empresa atual e ficará disponível para todos os itens do Estoque."}
       className="max-w-md"
       footer={<div className="flex justify-end gap-2">
         <AdminButton variant="secondary" disabled={masterDataSaving} onClick={() => setMasterDataDialog(null)}>Cancelar</AdminButton>
@@ -2477,11 +2520,12 @@ export function TabProducts({
       </div>}
     >
       <FInput
-        label={masterDataDialog === "category" ? "Nome da categoria" : "Nome da marca"}
+        label={masterDataDialog === "category" ? "Nome da categoria" : masterDataDialog === "subcategory" ? "Nome da subcategoria" : "Nome da marca"}
         value={masterDataName}
         disabled={masterDataSaving}
         onChange={(event: any) => setMasterDataName(event.target.value)}
-        placeholder={masterDataDialog === "category" ? "Ex.: Controles remotos" : "Ex.: Samsung"}
+        placeholder={masterDataDialog === "category" ? "Ex.: Controles remotos" : masterDataDialog === "subcategory" ? "Ex.: Controles para TV" : "Ex.: Samsung"}
+        onKeyDown={(event: any) => { if (event.key === "Enter") { event.preventDefault(); void saveMasterData(); } }}
       />
     </AdminDialog>
   </div>;
