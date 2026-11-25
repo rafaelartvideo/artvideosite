@@ -372,7 +372,7 @@ test("finance installment editor opens directly below its own row, not after the
   assert.match(detail, /<\/tr>[\s\S]*?\{forecastEdit\?\.id === item\.id && canAdjustForecast && <tr/);
   // The inline editor is shown only when the optional Action column is present.
   const tableHeader = detail.match(/<thead><tr>([\s\S]*?)<\/tr><\/thead>/)?.[1] || "";
-  assert.match(tableHeader, />Forma de pagamento<\/th>/);
+  assert.match(tableHeader, />Formas de pagamento<\/th>/);
   assert.match(tableHeader, /\{canAdjustForecast && <th[^>]*>Ação<\/th>\}/);
   const columnCount = (tableHeader.match(/<th\b/g) || []).length;
   assert.equal(columnCount, 7);
