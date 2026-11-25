@@ -16,7 +16,7 @@ export async function requestJob(org:string,orderId:string,input:{kind:JobKind;a
   if(error) throw error;
 }
 export async function advanceJob(org:string,job:LogisticsJob,status:JobStatus,extra:{shift_id?:string;recipient?:string;notes?:string}={}) {
-  const {data,error}=await supabase.from("logistics_jobs").update({status,...extra}).eq("organization_id",org).eq("id",job.id).eq("status",job.status).select("id");
+  const {data,error}=await supabase.from("logistics_jobs").update({status,notes:extra.notes??null,recipient:extra.recipient??null,...extra}).eq("organization_id",org).eq("id",job.id).eq("status",job.status).select("id");
   if(error) throw error;
   if(data?.length!==1) throw Error("Operação alterada por outro usuário. Atualize a lista.");
 }
