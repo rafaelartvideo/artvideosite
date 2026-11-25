@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { Camera, Download, ExternalLink, MoreVertical, PanelTop, RotateCcw, RotateCw, Upload, X } from "lucide-react";
+import { Camera, Download, ExternalLink, MoreVertical, PanelTop, RotateCcw, RotateCw, Scan, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -527,10 +527,117 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
   const [orientation, setOrientation] = useState({ key: image.key, degrees: 0 });
   const rotation = orientation.key === image.key ? orientation.degrees : 0;
   const sideways = rotation === 90 || rotation === 270;
-  const rotatePhoto = (delta: number) => setOrientation(current => ({
-    key: image.key,
-    degrees: ((current.key === image.key ? current.degrees : 0) + delta + 360) % 360,
-  }));
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const photoRef = useRef<HTMLImageElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const drag = useRef<{ id: number; x: number; y: number; pan: { x: number; y: number } } | null>(null);
+  const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+
+  const clampPan = useCallback((x: number, y: number, level: number) => {
+    const viewport = viewportRef.current;
+    const photo = photoRef.current;
+    if (!viewport || !photo?.naturalWidth || !photo.naturalHeight || level <= 1) return { x: 0, y: 0 };
+    const width = sideways ? photo.naturalHeight : photo.naturalWidth;
+    const height = sideways ? photo.naturalWidth : photo.naturalHeight;
+    const fit = Math.min(viewport.clientWidth / width, viewport.clientHeight / height);
+    const maxX = Math.max(0, (width * fit * level - viewport.clientWidth) / 2);
+    const maxY = Math.max(0, (height * fit * level - viewport.clientHeight) / 2);
+    return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+  }, [sideways]);
+
+  const changeZoom = useCallback((value: number) => {
+    const next = Math.max(1, Math.min(5, value));
+    zoomRef.current = next;
+    setZoom(next);
+    setPan(current => clampPan(current.x, current.y, next));
+  }, [clampPan]);
+
+  const resetZoom = useCallback(() => {
+    zoomRef.current = 1;
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    pointers.current.clear();
+    drag.current = null;
+    pinch.current = null;
+  }, []);
+
+  useEffect(() => { resetZoom(); }, [image.key, resetZoom]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!url || !viewport) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.deltaY) return;
+      event.preventDefault();
+      event.stopPropagation();
+      changeZoom(zoomRef.current * (event.deltaY < 0 ? 1.2 : 1 / 1.2));
+    };
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+      setPan(current => clampPan(current.x, current.y, zoomRef.current));
+    }) : null;
+    observer?.observe(viewport);
+    return () => {
+      viewport.removeEventListener("wheel", onWheel);
+      observer?.disconnect();
+    };
+  }, [url, detached, changeZoom, clampPan]);
+
+  const pointerDistance = () => {
+    const [a, b] = Array.from(pointers.current.values());
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (pointers.current.size >= 2) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size === 2) {
+      drag.current = null;
+      pinch.current = { distance: pointerDistance(), zoom: zoomRef.current };
+    } else {
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, pan };
+    }
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(event.pointerId)) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch.current && pointers.current.size === 2 && pinch.current.distance > 0) {
+      changeZoom(pinch.current.zoom * pointerDistance() / pinch.current.distance);
+      return;
+    }
+    const start = drag.current;
+    if (start?.id === event.pointerId && zoomRef.current > 1) {
+      setPan(clampPan(start.pan.x + event.clientX - start.x, start.pan.y + event.clientY - start.y, zoomRef.current));
+    }
+  };
+  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointers.current.delete(event.pointerId);
+    if (drag.current?.id === event.pointerId) drag.current = null;
+    if (pointers.current.size < 2) pinch.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const viewportProps = {
+    ref: viewportRef,
+    onPointerDown, onPointerMove,
+    onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd, onLostPointerCapture: onPointerEnd,
+    onDoubleClick: () => zoomRef.current > 1 ? resetZoom() : changeZoom(2),
+    style: { containerType: "size" as const, touchAction: "none", cursor: zoom > 1 ? "grab" : "zoom-in" },
+    "aria-label": "Foto — use a roda do mouse, dois dedos ou os controles de zoom",
+  };
+
+  const rotatePhoto = (delta: number) => {
+    setOrientation(current => ({
+      key: image.key,
+      degrees: ((current.key === image.key ? current.degrees : 0) + delta + 360) % 360,
+    }));
+    setPan({ x: 0, y: 0 });
+    drag.current = null;
+    pinch.current = null;
+  };
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -621,15 +728,28 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     </button>
   </> : null;
 
+  const zoomActions = url ? <div role="group" aria-label="Controles de zoom" className="flex shrink-0 items-center justify-center gap-1 pt-2 text-white">
+    <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom" disabled={zoom <= 1}
+      onClick={() => changeZoom(zoomRef.current / 1.25)}
+      className="rounded-md p-2 hover:bg-white/15 disabled:opacity-35"><ZoomOut size={18}/></button>
+    <span className="min-w-12 text-center text-xs font-semibold tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</span>
+    <button type="button" aria-label="Ampliar zoom" title="Ampliar zoom" disabled={zoom >= 5}
+      onClick={() => changeZoom(zoomRef.current * 1.25)}
+      className="rounded-md p-2 hover:bg-white/15 disabled:opacity-35"><ZoomIn size={18}/></button>
+    <button type="button" aria-label="Restaurar zoom" title="Restaurar zoom" disabled={zoom <= 1}
+      onClick={resetZoom}
+      className="rounded-md border-l border-white/20 p-2 hover:bg-white/15 disabled:opacity-35"><Scan size={17}/></button>
+  </div> : null;
+
   // Swap the available axes before rotating a quarter turn, so wide and tall
   // photos remain fully visible in both the modal and the detached window.
   const rotatedPhoto = url ? <img
-    src={url} alt={image.name}
-    className="absolute left-1/2 top-1/2 max-h-none max-w-none object-contain"
+    ref={photoRef} src={url} alt={image.name} draggable={false}
+    className="pointer-events-none absolute left-1/2 top-1/2 max-h-none max-w-none select-none object-contain"
     style={{
       width: sideways ? "100cqh" : "100cqw",
       height: sideways ? "100cqw" : "100cqh",
-      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) rotate(${rotation}deg) scale(${zoom})`,
     }}
   /> : <LoadingSpinner size="sm" />;
 
@@ -697,10 +817,11 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
         </div>
       </header>
       {downloadError && <div className="m-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
-      <main className="flex min-h-0 flex-1 bg-[#0d1b2e] p-2">
-        <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden" style={{ containerType: "size" }}>
+      <main className="flex min-h-0 flex-1 flex-col bg-[#0d1b2e] p-2">
+        <div {...viewportProps} className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
           {rotatedPhoto}
         </div>
+        {zoomActions}
       </main>
     </section>, detached.host,
   );
@@ -724,9 +845,10 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
   >
     {downloadError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{downloadError}</div>}
     <div className="rounded-xl bg-[#0d1b2e] p-2">
-      <div className="relative h-[min(72dvh,760px)] w-full overflow-hidden" style={{ containerType: "size" }}>
+      <div {...viewportProps} className="relative h-[min(66dvh,700px)] w-full overflow-hidden">
         {rotatedPhoto}
       </div>
+      {zoomActions}
     </div>
   </AdminDialog> : null;
 }
