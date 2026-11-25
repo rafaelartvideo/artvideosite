@@ -30,9 +30,10 @@ export function summarizeFieldTrip(points) {
     const elapsed = (Date.parse(point.recorded_at) - Date.parse(previous.recorded_at)) / 1000;
     const observationGap = (Date.parse(point.recorded_at) - Date.parse(lastObservation.recorded_at)) / 1000;
     if (observationGap <= 0 || elapsed <= 0) { rejected++; continue; }
+    const observationKm = distanceKm(lastObservation, point);
     lastObservation = point;
     const km = distanceKm(previous, point);
-    if (observationGap > 300 || km / elapsed * 3600 > 160) {
+    if (observationGap > 300 || observationKm / observationGap * 3600 > 160 || km / elapsed * 3600 > 160) {
       gaps++; finish(); segment = [position]; previous = point; accepted++; continue;
     }
     // Evita somar pequenas oscilações do GPS quando não há movimento observado.
