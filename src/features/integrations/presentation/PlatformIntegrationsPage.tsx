@@ -1,9 +1,10 @@
-import { lazy, useEffect, useState } from "react";
+import { lazy, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { setOrganizationModuleEnabled } from "@/features/partner-companies/infrastructure/partner-companies.repository";
+import { UnionPbxAgentPanel } from "@/features/telephony/presentation/UnionPbxAgentPanel";
 import { OlxIntegrationPage } from "./OlxIntegrationPage";
 
 const UnionWhatsAppEnginePage = lazy(() => import("@/features/management/presentation/UnionWhatsAppEnginePage").then(module => ({ default: module.UnionWhatsAppEnginePage })));
@@ -24,9 +25,16 @@ const PAGE_SIZE = 15;
 type IntegrationTool = "union-whatsapp" | "union-pbx" | "union-senhas" | "union-ia";
 
 export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () => void; onOpenTool: (tool: IntegrationTool) => void }) {
-  const { hasPermission, user } = useAuth();
+  const { hasPermission, user, activeOrganizationId, organizations } = useAuth();
+  const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
+  const canAdministerPbx = isPlatformOperatorOrganization && hasPermission("platform.management.manage");
+  const [pbxCompany, setPbxCompany] = useState<PartnerRow | null>(null);
+  const pbxPanel = useRef<HTMLElement>(null);
+  useEffect(() => { if (pbxCompany) pbxPanel.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [pbxCompany]);
+
   const canManage = hasPermission("organizations.modules.manage");
   const [selected, setSelected] = useState<IntegrationKey>("olx");
+  useEffect(() => { setPbxCompany(null); }, [activeOrganizationId, selected]);
   const [showOlxGuide, setShowOlxGuide] = useState(false);
   const [showEngine, setShowEngine] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -86,7 +94,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     }
     void load();
     return () => { cancelled = true; };
-  }, [selected, page, search]);
+  }, [selected, page, search, activeOrganizationId, user?.id]);
 
   async function updateCompany(company: PartnerRow, enabled: boolean) {
     if (!canManage || savingId || !availableKeys.includes(selected)) return;
@@ -141,6 +149,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
         </div>
         <div className="flex flex-wrap gap-2">
           {selected === "olx" && <AdminButton variant="secondary" onClick={() => setShowOlxGuide(true)}>Requisitos da OLX</AdminButton>}
+          {selected === "pbx" && canAdministerPbx && activeOrganizationId && <AdminButton variant="secondary" onClick={() => setPbxCompany({id:activeOrganizationId,name:"Union World",status:"active"})}>Central da Union</AdminButton>}
           {selected === "whatsapp" && hasPermission("platform.management.manage") && <AdminButton variant="secondary" onClick={() => setShowEngine(true)}>Gerenciar motor WuzAPI</AdminButton>}
           {relatedTool && canOpenRelatedTool && <AdminButton variant="secondary" onClick={() => onOpenTool(relatedTool)}>{selected === "whatsapp" ? "Atendimentos da Union" : "Abrir módulo"}</AdminButton>}
         </div>
@@ -174,6 +183,8 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
                 <p className="truncate text-sm font-semibold">{company.name}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{company.status === "active" ? (enabled ? "Integração disponibilizada" : "Integração indisponível") : "Empresa inativa"}</p>
               </div>
+              <div className="flex flex-wrap gap-2">
+              {selected === "pbx" && canAdministerPbx && <AdminButton variant="secondary" onClick={() => setPbxCompany(company)}>Gerenciar central</AdminButton>}
               <button type="button" role="switch" aria-checked={enabled} aria-label={(enabled ? "Desativar " : "Disponibilizar ") + provider.title + " para " + company.name}
                 disabled={disabled}
                 onClick={() => enabled ? setConfirmDisable(company) : void updateCompany(company, true)}
@@ -181,6 +192,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
                   (enabled ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:bg-muted")}>
                 {savingId === company.id ? "Salvando..." : enabled ? <><Check size={13}/> Ativada</> : "Desativada"}
               </button>
+              </div>
             </div>;
           })}
       </div>
@@ -191,6 +203,11 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
       </div>}
       {!canManage && <p className="mt-3 text-xs text-muted-foreground">Seu perfil permite consultar integrações, mas não alterar a disponibilidade por empresa.</p>}
     </section>
+    {selected === "pbx" && canAdministerPbx && pbxCompany && <section ref={pbxPanel} className="scroll-mt-4 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Administração da central PABX">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Central de {pbxCompany.name}</h2><AdminButton variant="ghost" onClick={() => setPbxCompany(null)}>Fechar central</AdminButton></div>
+      <p className="text-sm text-muted-foreground">Vincule o perfil exclusivo desta empresa à VPS compartilhada. A preparação na VPS é feita pelo administrador técnico; o módulo liberado, sozinho, não conclui essa implantação.</p>
+      <UnionPbxAgentPanel key={pbxCompany.id} organizationId={pbxCompany.id} legacyProfile={pbxCompany.id === activeOrganizationId} administration registrationEnabled={pbxCompany.status === "active" && (pbxCompany.id === activeOrganizationId || assigned[pbxCompany.id] === true)} />
+    </section>}
     {confirmDisable && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" role="presentation">
       <div role="dialog" aria-modal="true" aria-labelledby="disable-integration-title" className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
         <h2 id="disable-integration-title" className="text-base font-bold">Desativar integração?</h2>

@@ -14,7 +14,7 @@ type Agent = {
   last_seen_at: string | null;
 };
 
-export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { organizationId: string; legacyProfile?: boolean }) {
+export function UnionPbxAgentPanel({ organizationId, legacyProfile = false, administration = false, registrationEnabled = true }: { organizationId: string; legacyProfile?: boolean; administration?: boolean; registrationEnabled?: boolean }) {
   const profileOption = legacyProfile ? "" : `--profile ${organizationId} `;
   const requestScope = useRef(new AbortController());
   useEffect(() => {
@@ -22,12 +22,13 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
     return () => scope.abort();
   }, []);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [label, setLabel] = useState("VPS principal Union");
+  const [label, setLabel] = useState("Central da empresa");
   const [publicKey, setPublicKey] = useState("");
   const [registeredId, setRegisteredId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),15000);return()=>window.clearInterval(timer);},[]);
@@ -39,20 +40,22 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
     setLoading(true);
     setError("");
     setAgents([]);
+    setLoadError(false);
     void (async () => {
       const { data, error } = await pbxRequest(signal => supabase.rpc("pbx_list_agents", {
         p_organization_id: organizationId,
       }).abortSignal(signal), "Consulta PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
       if (cancelled) return;
       setLoading(false);
-      if (error) setError("Falha ao consultar a ponte: " + error.message);
+      if (error) { setLoadError(true); setError("Falha ao consultar a ponte: " + error.message); }
       else setAgents((data || []) as Agent[]);
     })();
     return () => { cancelled = true; };
   }, [organizationId, reload]);
 
   async function register() {
-    if (busy) return;
+    if (!administration || busy) return;
+    if (!registrationEnabled) return;
     if (!/^[A-Za-z0-9+/]{43}=$/.test(publicKey.trim())) {
       setError("Informe a chave pública Ed25519 de 44 caracteres emitida pela VPS.");
       return;
@@ -79,7 +82,7 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
   }
 
   async function revoke(agent: Agent) {
-    if (busy || !agent.enabled) return;
+    if (!administration || busy || !agent.enabled) return;
     if (!window.confirm("Revogar o agente " + agent.label + "? A VPS não receberá novos pedidos de ramais. As chamadas atuais continuarão funcionando.")) return;
     setBusy(true);
     setError("");
@@ -89,20 +92,32 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
     }).abortSignal(signal), "Alteração PABX", { signal: requestScope.current.signal }).catch(pbxOperationError);
     setBusy(false);
     if (error) setError(error.message);
-    else setReload(key => key + 1);
+    else { setRegisteredId(null); setReload(key => key + 1); }
   }
 
-  const centralStatus = loading ? "Consultando central…" : error ? "Não foi possível consultar a central"
+  const configuredAgentId = registeredId || agents.find(agent => agent.enabled)?.id || null;
+  const centralStatus = loading ? "Consultando central…" : loadError ? "Não foi possível consultar a central"
     : agents.some(agent => isAgentHeartbeatFresh(agent.enabled, agent.last_seen_at, now)) ? "Central com comunicação recente"
-    : agents.some(agent => agent.enabled) ? "Central sem comunicação recente" : "Configuração pendente";
+    : agents.some(agent => agent.enabled) ? "Comunicação não confirmada · atualize o estado" : "Configuração pendente";
 
   return <section className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Ponte PABX com VPS">
+    <div className="flex flex-wrap items-center justify-between gap-3">
     <p role="status" aria-label="Estado da central" className="flex items-center gap-2 text-sm font-medium text-foreground">
       <ShieldCheck size={18} className="shrink-0 text-primary" /> {centralStatus}
     </p>
-    <details className="rounded-lg border border-border p-3">
+    <AdminButton variant="secondary" size="sm" type="button" aria-label="Atualizar estado da central" onClick={() => setReload(key => key + 1)} disabled={busy || loading}>
+      <RefreshCw size={14} /> Atualizar
+    </AdminButton>
+    </div>
+    {administration && <details className="rounded-lg border border-border p-3">
       <summary className="cursor-pointer text-sm font-medium text-foreground">Configurações avançadas da central</summary>
       <div className="mt-4 space-y-4">
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+          <li>Prepare o perfil exclusivo desta empresa na VPS e gere a chave pública.</li>
+          <li>Autorize a chave abaixo. Isso permite a comunicação, mas não instala o perfil.</li>
+          <li>Execute as instruções de configuração na VPS.</li>
+          <li>Atualize e confira a comunicação recente antes de configurar as linhas.</li>
+        </ol>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -113,9 +128,6 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
           A chave privada de identificação permanece protegida na VPS.
         </p>
       </div>
-      <AdminButton variant="secondary" size="sm" type="button" onClick={() => setReload(key => key + 1)} disabled={busy} >
-        <RefreshCw size={14} /> Atualizar
-      </AdminButton>
     </div>
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
@@ -142,11 +154,11 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
         })}
       </div> : <AdminSectionEmpty compact>Nenhuma VPS autorizada para receber alterações de ramais.</AdminSectionEmpty>}
 
-    {registeredId && <div className="space-y-1 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
-      <p className="text-sm font-semibold text-foreground">Agente registrado no CRM</p>
+    {configuredAgentId && <div className="space-y-1 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
+      <p className="text-sm font-semibold text-foreground">Agente autorizado no CRM</p>
       <p className="text-xs text-muted-foreground">Copie o ID e a organização abaixo para configurar o serviço na VPS.</p>
-      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">{registeredId}</code>
-      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py {profileOption}configure {registeredId} {organizationId}</code>
+      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">{configuredAgentId}</code>
+      <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py {profileOption}configure {configuredAgentId} {organizationId}</code>
       {!legacyProfile && <>
         <p className="text-xs text-muted-foreground">O operador da VPS compartilhada deve concluir a implantação deste perfil antes de conectar os ramais.</p>
         <code className="block break-all rounded bg-background p-2 text-xs text-foreground">python3 /opt/union-pbx-agent/agent.py {profileOption}internal-routes</code>
@@ -154,7 +166,8 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
       </>}
     </div>}
 
-    {!agents.some(agent => agent.enabled) && <div className="space-y-3 border-t border-border pt-4">
+    {!registrationEnabled && <p className="text-sm text-muted-foreground">Para autorizar uma central, a empresa precisa estar ativa e com o módulo PABX liberado. A consulta e a revogação continuam disponíveis.</p>}
+    {registrationEnabled && !agents.some(agent => agent.enabled) && <div className="space-y-3 border-t border-border pt-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><KeyRound size={16} /> Autorizar uma VPS</h3>
       <p className="text-xs leading-5 text-muted-foreground">
         Na VPS, execute <code>python3 /opt/union-pbx-agent/agent.py {profileOption}init</code> e cole abaixo
@@ -177,6 +190,6 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
       </AdminButton>
     </div>}
       </div>
-    </details>
+    </details>}
   </section>;
 }
