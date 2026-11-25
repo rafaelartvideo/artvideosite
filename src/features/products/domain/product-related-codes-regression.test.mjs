@@ -18,7 +18,14 @@ test("catalog editor restores individual related codes and their original relati
   assert.ok(editor.includes("<ProductIdentifiersEditor"));
   assert.ok(editor.includes("Códigos relacionados"));
   assert.ok(editor.includes("Adicionar código"));
-  assert.ok(editor.includes('<FSelect label="Tipo de relação"'));
+  // Searchable dropdown must preserve the individual relationship value and
+  // return the selected ID through the existing form change handler.
+  assert.match(editor, /<InventorySearchSelect label="Tipo de relação" value=\{item.relation_type\}/);
+  assert.match(editor, /options=\{\[\.\.\.RELATED_CODE_TYPE_OPTIONS\]\}/);
+  assert.match(editor, /i === index\s*\? \{ \.\.\.related, relation_type: event.target.value as RelatedProductCode\["relation_type"\] \}/);
+  assert.match(editor, /<CatalogSearchSelect \{\.\.\.props\} onValueChange=\{value=>onChange\(\{target:\{value\}\}\)\}/);
+  const sharedSelector = read("../../../shared/ui/admin/CatalogCombobox.tsx");
+  assert.match(sharedSelector, /onSelect=\{option=>onValueChange\(option\?\.id\|\|""\)\}/);
   const labels = read("./product-relation-labels.ts");
   assert.ok(labels.includes("Código antigo (substituído pelo atual)"));
   assert.ok(labels.includes('DEFAULT_RELATED_CODE_TYPE = RELATED_CODE_TYPE_OPTIONS[0].value'));
