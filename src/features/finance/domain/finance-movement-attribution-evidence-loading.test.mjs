@@ -39,7 +39,9 @@ test("extrato e contas a receber mostram carregamento de anexo e prévia de imag
   const section = read("src/features/orders/presentation/OrderCompletionPaymentSection.tsx");
   assert.ok((await transformWithEsbuild(gallery, "FinanceOrderEvidenceGallery.tsx", { loader: "tsx" })).code);
   assert.ok((await transformWithEsbuild(section, "OrderCompletionPaymentSection.tsx", { loader: "tsx" })).code);
-  assert.match(gallery, /query\.isPending/);
+  assert.match(gallery, /createPortal\(<UnionWhatsAppMediaViewer/);
+  assert.doesNotMatch(gallery, /<AdminDialog/);
+  assert.match(gallery, /aria-label="Carregando arquivo"/);
   assert.match(gallery, /aria-label="Carregando miniatura"/);
   assert.match(gallery, /IntersectionObserver/);
   assert.match(gallery, /enabled:visible/);
