@@ -78,6 +78,7 @@ import { InventorySuppliersEditor } from "@/features/inventory/presentation/Inve
 import { DeviceCaptureBridge } from "@/features/orders/presentation/DeviceCaptureBridge";
 import { validateTypedRelatedCodes } from "../domain/related-code-input";
 import { ProductCompatibleModelsEditor } from "./ProductCompatibleModelsEditor";
+import { CatalogSearchSelect } from "@/shared/ui/admin/CatalogCombobox";
 import { InventoryCatalogSettingsDialog } from "./InventoryCatalogSettingsDialog";
 import { createInventoryCatalogOption, listInventoryCatalogSettings, type InventoryCatalogOption, type InventoryCatalogSettings } from "../infrastructure/inventory-catalog-settings.repository";
 import {
@@ -348,6 +349,11 @@ function EditorTabTrigger({
     <Icon size={14} />
     {children}
   </TabsTrigger>;
+}
+
+
+function InventorySearchSelect({onChange,...props}: Omit<Parameters<typeof CatalogSearchSelect>[0],"onValueChange"> & {onChange:(event:{target:{value:string}})=>void}) {
+  return <CatalogSearchSelect {...props} onValueChange={value=>onChange({target:{value}})}/>;
 }
 
 export function TabProducts({
@@ -1381,7 +1387,7 @@ export function TabProducts({
               value={gtinSearch}
               onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
               placeholder="EAN, UPC ou GTIN" />
-          </div> : mobileSearchField === "category" ? <FSelect
+          </div> : mobileSearchField === "category" ? <InventorySearchSelect
             value={categoryFilter}
             onChange={(event: any) => { setCategoryFilter(event.target.value); setPage(1); }}
             options={[
@@ -1409,7 +1415,7 @@ export function TabProducts({
             onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
             placeholder="EAN, UPC ou GTIN"
           />
-          <FSelect
+          <InventorySearchSelect
             label="Categoria"
             value={categoryFilter}
             onChange={(event: any) => { setCategoryFilter(event.target.value); setPage(1); }}
@@ -1659,7 +1665,7 @@ export function TabProducts({
                 <div className="grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4">
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
-                    <FSelect
+                    <InventorySearchSelect
                       label="Categoria"
                       value={form.category_id}
                       disabled={saving || !canLoadCategories}
@@ -1682,7 +1688,7 @@ export function TabProducts({
 
                 <div className="flex min-w-0 items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <FSelect
+                    <InventorySearchSelect
                       label="Subcategoria"
                       value={form.subcategory_id}
                       disabled={saving || !form.category_id || inventoryCatalogQuery.isPending}
@@ -1701,7 +1707,7 @@ export function TabProducts({
 
                 <div className="flex min-w-0 items-end gap-2">
                   <div className="min-w-0 flex-1">
-                    <FSelect
+                    <InventorySearchSelect
                       label="Marca"
                       value={form.brand_id}
                       disabled={saving || !canLoadBrands}
@@ -1729,7 +1735,7 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
                   placeholder="Modelo comercial"
                 />
-                <FSelect
+                <InventorySearchSelect
                   label="Condição do produto"
                   value={form.product_condition}
                   options={PRODUCT_CONDITION_OPTIONS}
@@ -1970,7 +1976,7 @@ export function TabProducts({
                         related_codes: current.related_codes.map((related,i) =>
                           i === index ? { ...related, code: event.target.value } : related),
                       }))}/></div>
-                    <div className="col-start-1 row-start-2 sm:col-start-2 sm:row-start-1"><FSelect label="Tipo de relação" value={item.relation_type}
+                    <div className="col-start-1 row-start-2 sm:col-start-2 sm:row-start-1"><InventorySearchSelect label="Tipo de relação" value={item.relation_type}
                       disabled={saving || !relatedCodesLoaded}
                       options={[...RELATED_CODE_TYPE_OPTIONS]}
                       onChange={(event: any) => setForm(current => ({
@@ -2114,7 +2120,7 @@ export function TabProducts({
                 {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">
                   {canManageSuppliers && <div>
                     <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label>
-                    <AdminSelect
+                    <CatalogSearchSelect
                       value={form.initial_supplier_entity_id}
                       onValueChange={value => {
                         setFieldErrors(current => ({ ...current, initial_supplier_entity_id: undefined }));

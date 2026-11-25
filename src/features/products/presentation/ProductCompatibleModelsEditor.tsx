@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Tv2 } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminFieldLabel, AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { CatalogSearchSelect } from "@/shared/ui/admin/CatalogCombobox";
 import type { InventoryCatalogOption } from "../infrastructure/inventory-catalog-settings.repository";
 import type { CompatibleDeviceModel } from "../infrastructure/product-compatible-models.repository";
 
@@ -107,10 +108,9 @@ export function ProductCompatibleModelsEditor({
     : <div className="space-y-3">
       {!inheritedFromParent && <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(135px,0.8fr)_minmax(140px,1fr)]">
         <div className="min-w-0">
-          <AdminFieldLabel label="Tipo de aparelho" />
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="min-w-0 flex-1"><AdminSelect value={deviceType} ariaLabel="Tipo de aparelho compatível" disabled={disabled || activeTypes.length === 0}
-              dropdownClassName="!max-h-[148px]"
+          <div className="flex min-w-0 items-end gap-2">
+            <div className="min-w-0 flex-1"><CatalogSearchSelect label="Tipo de aparelho" value={deviceType} disabled={disabled || activeTypes.length === 0}
+              placeholder="Digite ou selecione o tipo..."
               onValueChange={setDeviceType}
               options={activeTypes.length
                 ? activeTypes.map(type => ({ value: type.name, label: type.name }))
@@ -121,10 +121,9 @@ export function ProductCompatibleModelsEditor({
           </div>
         </div>
         <div className="min-w-0">
-          <AdminFieldLabel label="Marca do aparelho" />
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="min-w-0 flex-1"><AdminSelect value={brand} ariaLabel="Marca do aparelho compatível" disabled={disabled || activeBrands.length === 0}
-              dropdownClassName="!max-h-[148px]"
+          <div className="flex min-w-0 items-end gap-2">
+            <div className="min-w-0 flex-1"><CatalogSearchSelect label="Marca do aparelho" value={brand} disabled={disabled || activeBrands.length === 0}
+              placeholder="Digite ou selecione a marca..."
               onValueChange={setBrand}
               options={[{ value: "", label: "Selecione uma marca" },
                 ...activeBrands.map(item => ({ value: item.name, label: item.name }))]} /></div>

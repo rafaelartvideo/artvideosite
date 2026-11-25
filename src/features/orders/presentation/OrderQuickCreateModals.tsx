@@ -1,11 +1,11 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import React, { useMemo, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FIntegerInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import {
   addQuickEquipmentExtraFields,
@@ -18,7 +18,8 @@ import {
   findEquipmentTypeByName,
 } from "../infrastructure/orders-catalog.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
+import { CatalogCombobox, cleanCatalogValue, findExactCatalogOption, normalizeCatalogValue, type CatalogOption } from "@/shared/ui/admin/CatalogCombobox";
+export { CatalogCombobox } from "@/shared/ui/admin/CatalogCombobox";
 
 type QuickEquipmentMode = "full" | "model";
 
@@ -27,25 +28,6 @@ type QuickEquipmentSavedItems = {
   brand?: any | null;
   model?: any | null;
 };
-
-type CatalogOption = {
-  id: string;
-  name: string;
-  meta?: string;
-};
-
-function normalizeCatalogValue(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR");
-}
-
-function cleanCatalogValue(value: unknown) {
-  return String(value ?? "").trim().replace(/\s+/g, " ");
-}
 
 /**
  * Sugestão inicial do cadastro rápido para equipamentos identificáveis por série.
@@ -139,190 +121,7 @@ function getQuickCreateErrorMessage(error: unknown) {
   return "Não foi possível salvar o equipamento. Tente novamente.";
 }
 
-function findExactCatalogOption(options: CatalogOption[], value: string) {
-  const normalized = normalizeCatalogValue(value);
-  if (!normalized) return null;
-  return options.find(option => normalizeCatalogValue(option.name) === normalized) || null;
-}
 
-export function CatalogCombobox({
-  label,
-  value,
-  selectedId,
-  options,
-  onChange,
-  onSelect,
-  placeholder,
-  disabled = false,
-  required = false,
-  allowCreate = true,
-  createLabel = "Novo cadastro",
-  emptyText = "Nenhum cadastro encontrado.",
-  helperText,
-  selectionOnly = false,
-}: {
-  label: string;
-  value: string;
-  selectedId: string;
-  options: CatalogOption[];
-  onChange: (value: string) => void;
-  onSelect: (option: CatalogOption | null) => void;
-  placeholder: string;
-  disabled?: boolean;
-  required?: boolean;
-  allowCreate?: boolean;
-  createLabel?: string;
-  emptyText?: string;
-  helperText?: string;
-  /** Search existing records without changing the saved selection until confirmed. */
-  selectionOnly?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [searchDraft, setSearchDraft] = useState<string | null>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const inputValue = selectionOnly ? searchDraft ?? value : value;
-  const query = normalizeCatalogValue(selectionOnly ? searchDraft ?? "" : value);
-  const selectedOption = options.find(option => option.id === selectedId) || null;
-  const exactOption = findExactCatalogOption(options, inputValue);
-  const duplicateOption = !selectionOnly && exactOption && exactOption.id !== selectedId ? exactOption : null;
-
-  React.useEffect(() => {
-    if (disabled) { setOpen(false); setSearchDraft(null); }
-  }, [disabled]);
-
-  const filteredOptions = useMemo(() => {
-    const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
-    if (!query) return sorted;
-    return sorted.filter(option => normalizeCatalogValue(option.name).includes(query) || normalizeCatalogValue(option.meta).includes(query));
-  }, [options, query]);
-
-  const closeOptions = () => { setOpen(false); setSearchDraft(null); };
-  const selectOption = (option: CatalogOption) => {
-    onSelect(option);
-    onChange(option.name);
-    closeOptions();
-  };
-
-  return <div className="min-w-0">
-    <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
-      {label}{required && <span className="text-red-600 dark:text-red-400">*</span>}
-    </label>
-    <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) { if (nextOpen) setOpen(true); else closeOptions(); } }}>
-      <PopoverAnchor asChild>
-        <div ref={anchorRef} className="relative">
-          <input
-            value={inputValue}
-            aria-label={label}
-            aria-expanded={open && !disabled}
-            aria-required={required}
-            disabled={disabled}
-            autoComplete="off"
-            placeholder={placeholder}
-            onFocus={event => { setOpen(true); if (selectionOnly) event.currentTarget.select(); }}
-            onPointerDown={() => setOpen(true)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") { if (open) event.stopPropagation(); closeOptions(); }
-              if (event.key === "Enter" && (exactOption || (selectionOnly && open))) {
-                event.preventDefault();
-                const match = exactOption || (filteredOptions.length === 1 ? filteredOptions[0] : null);
-                if (match) selectOption(match);
-              }
-            }}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              if (selectionOnly) setSearchDraft(nextValue);
-              else {
-                onChange(nextValue);
-                if (selectedId && normalizeCatalogValue(selectedOption?.name) !== normalizeCatalogValue(nextValue)) onSelect(null);
-              }
-              setOpen(true);
-            }}
-            className={cn(
-              INPUT,
-              "h-[42px] pr-9",
-              disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:focus:ring-0",
-              duplicateOption && "border-amber-400 focus:border-amber-500 focus:ring-amber-400/30",
-              selectedId && !selectionOnly && "border-emerald-300 bg-emerald-50/30",
-            )}
-          />
-          <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6a82] transition-transform", open && "rotate-180")} />
-        </div>
-      </PopoverAnchor>
-
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        collisionPadding={{ top: 12, right: 12, bottom: 84, left: 12 }}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => event.preventDefault()}
-        onInteractOutside={(event) => {
-          const target = event.target as Node | null;
-          if (target && anchorRef.current?.contains(target)) event.preventDefault();
-        }}
-        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-border bg-white p-0 text-[#0d1b2e] shadow-2xl"
-      >
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
-          <Search size={13} className="shrink-0" />
-          <span>{query ? "Resultados encontrados" : selectionOnly ? "Selecionar cadastro" : "Cadastros recentes"}</span>
-        </div>
-        <div
-          className="max-h-40 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable]"
-          onWheelCapture={(event) => event.stopPropagation()}
-          onTouchMoveCapture={(event) => event.stopPropagation()}
-        >
-          {selectionOnly && selectedId && <button type="button" onMouseDown={event => event.preventDefault()}
-            onClick={() => { onSelect(null); onChange(""); closeOptions(); }}
-            className="mb-1 block w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted">Limpar seleção</button>}
-          {filteredOptions.length > 0 ? filteredOptions.map(option => {
-            const selected = selectedId === option.id;
-            return <button
-              key={option.id}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectOption(option)}
-              className={cn(
-                "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-primary-soft focus-visible:bg-primary-soft focus-visible:outline-none",
-                selected && "bg-primary-soft",
-              )}
-            >
-              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
-              <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-xs font-bold", selected ? "text-primary" : "text-[#0d1b2e]")}>{option.name}</span>
-                {option.meta && <span className="mt-0.5 block truncate text-[10px] text-[#5a6a82]">{option.meta}</span>}
-              </span>
-            </button>;
-          }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
-        </div>
-        {!selectionOnly && allowCreate && cleanCatalogValue(value) && !exactOption && (
-          <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-[#5a6a82]">
-            <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-
-    {duplicateOption ? (
-      <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-800">
-        <div className="flex min-w-0 items-start gap-1.5 text-[10px] font-semibold leading-4">
-          <AlertCircle size={13} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 break-words">“{duplicateOption.name}” já está cadastrado.</span>
-        </div>
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => selectOption(duplicateOption)}
-          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-primary/20 bg-white px-2 py-1 text-[9px] font-bold leading-none text-primary transition-colors hover:bg-primary-soft"
-        >
-          Usar cadastro
-        </button>
-      </div>
-    ) : !selectionOnly && selectedId && selectedOption ? (
-      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-700"><Check size={11} /> Cadastro existente selecionado.</p>
-    ) : helperText ? (
-      <p className="mt-1 text-[10px] leading-relaxed text-[#5a6a82]">{helperText}</p>
-    ) : null}
-  </div>;
-}
 
 export function QuickEquipmentModal({
   onClose,

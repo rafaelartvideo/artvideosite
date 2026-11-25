@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Pencil, Plus, Settings2, X } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
-import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
+import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { CatalogSearchSelect } from "@/shared/ui/admin/CatalogCombobox";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   createInventoryCatalogOption,
@@ -115,8 +116,7 @@ export function InventoryCatalogSettingsDialog({
       ? <p role="alert" className="text-sm text-destructive">{systemErrorMessage(query.error, "Erro ao carregar os cadastros.")}</p>
       : <Section title={section.title} contentClassName="space-y-4 !p-3 sm:!p-4">
         {selected === "subcategory" && <div>
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Categoria principal</p>
-          <AdminSelect ariaLabel="Categoria principal da subcategoria" value={parentCategoryId}
+          <CatalogSearchSelect label="Categoria principal" value={parentCategoryId}
             onValueChange={value => { setParentCategoryId(value); setEditingId(null); }}
             options={[{ value: "", label: "Selecione uma categoria" }, ...categories.map(c => ({ value: c.id, label: c.name }))]} />
         </div>}

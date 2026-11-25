@@ -110,7 +110,8 @@ test("configurações do estoque são persistidas por empresa e alimentam os sel
   assert.ok(page.includes("deviceTypes={catalogSettings?.deviceTypes || []}"));
   assert.ok(page.includes("deviceBrands={catalogSettings?.deviceBrands || []}"));
   assert.ok(page.includes("Ajuda sobre códigos relacionados"));
-  assert.ok(editor.includes('dropdownClassName="!max-h-[148px]"'));
+  assert.ok(editor.includes("CatalogSearchSelect"));
+  assert.ok(read("src/shared/ui/admin/CatalogCombobox.tsx").includes("max-h-40 overflow-y-auto"));
   assert.ok(!editor.includes("Informe os aparelhos nos quais"));
   assert.ok(productRepo.includes('save_inventory_item_unified_v7'));
 });
@@ -140,4 +141,24 @@ test("modelos compatíveis são opcionais e somente alterações explícitas sã
   assert.match(page,/onInheritedChange=\{inherited => \{ setCompatibleModelsInherited\(inherited\); setCompatibleModelsChanged\(true\); \}\}/);
   assert.doesNotMatch(page,/Aguarde a consulta dos modelos compatíveis antes de salvar/);
   assert.match(page,/setCompatibleModelsLoadError\(true\)/);
+});
+
+
+test("estoque usa o mesmo combobox local da Nova OS nos seletores de cadastro",async()=>{
+  const page=read("src/features/products/presentation/TabProducts.tsx");
+  const editor=read("src/features/products/presentation/ProductCompatibleModelsEditor.tsx");
+  const settings=read("src/features/products/presentation/InventoryCatalogSettingsDialog.tsx");
+  const shared=read("src/shared/ui/admin/CatalogCombobox.tsx");
+  const quick=read("src/features/orders/presentation/OrderQuickCreateModals.tsx");
+  for(const [name,source] of [["page",page],["editor",editor],["settings",settings],["shared",shared],["quick",quick]]) assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code);
+  assert.match(page,/<InventorySearchSelect\s+label="Categoria"\s+value=\{form.category_id\}/);
+  assert.match(page,/<InventorySearchSelect\s+label="Subcategoria"/);
+  assert.match(page,/<InventorySearchSelect\s+label="Marca"/);
+  assert.match(editor,/<CatalogSearchSelect label="Tipo de aparelho"/);
+  assert.match(editor,/<CatalogSearchSelect label="Marca do aparelho"/);
+  assert.match(settings,/<CatalogSearchSelect label="Categoria principal"/);
+  assert.match(shared,/selectionOnly allowCreate=\{false\}/);
+  assert.match(shared,/allowClear=\{Boolean\(empty\)&&!required\}/);
+  assert.match(shared,/normalizeCatalogValue\(option.name\).includes\(query\)/);
+  assert.doesNotMatch(shared,/supabase\.|await |fetch\(/);
 });

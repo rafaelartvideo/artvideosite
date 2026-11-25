@@ -144,6 +144,7 @@ test("shared search uses responsive preference and collapses existing filters wi
 test("Nova OS pesquisa tipo, marca e modelo no mesmo combobox do cadastro rapido", async () => {
   const equipment=read("src/features/orders/presentation/OrderEquipmentSection.tsx");
   const quick=read("src/features/orders/presentation/OrderQuickCreateModals.tsx");
+  const shared=read("src/shared/ui/admin/CatalogCombobox.tsx");
   assert.match(equipment,/import \{ CatalogCombobox \} from "\.\/OrderQuickCreateModals"/);
   assert.equal((equipment.match(/<CatalogCombobox/g)||[]).length,3);
   assert.equal((equipment.match(/\bselectionOnly\b/g)||[]).length,3);
@@ -154,13 +155,14 @@ test("Nova OS pesquisa tipo, marca e modelo no mesmo combobox do cadastro rapido
   assert.match(equipment,/upF\("equipment_brand_id", id\);\s*upF\("equipment_model_id", ""\);/);
   assert.match(equipment,/disabled=\{!form.equipment_type_id\}/);
   assert.match(equipment,/disabled=\{!form.equipment_brand_id\}/);
-  assert.match(quick,/export function CatalogCombobox/);
-  assert.match(quick,/if \(selectionOnly\) setSearchDraft\(nextValue\)/);
-  assert.match(quick,/const closeOptions = \(\) => \{ setOpen\(false\); setSearchDraft\(null\); \}/);
-  assert.match(quick,/normalizeCatalogValue\(option.name\).includes\(query\)/);
-  assert.match(quick,/!selectionOnly && allowCreate/);
-  assert.match(quick,/Limpar seleção/);
-  const localSearch=quick.slice(quick.indexOf("export function CatalogCombobox"),quick.indexOf("export function",quick.indexOf("export function CatalogCombobox")+1));
+  assert.match(quick,/export \{ CatalogCombobox \} from/);
+  assert.match(shared,/export function CatalogCombobox/);
+  assert.match(shared,/if \(selectionOnly\) setSearchDraft\(nextValue\)/);
+  assert.match(shared,/const closeOptions = \(\) => \{ setOpen\(false\); setSearchDraft\(null\); \}/);
+  assert.match(shared,/normalizeCatalogValue\(option.name\).includes\(query\)/);
+  assert.match(shared,/!selectionOnly && allowCreate/);
+  assert.match(shared,/Limpar seleção/);
+  const localSearch=shared.slice(shared.indexOf("export function CatalogCombobox"),shared.indexOf("export function CatalogSearchSelect"));
   assert.doesNotMatch(localSearch,/supabase\.|await |fetch\(/);
   for(const [name,source] of [["OrderEquipmentSection",equipment],["OrderQuickCreateModals",quick]]) {
     assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code,name);
