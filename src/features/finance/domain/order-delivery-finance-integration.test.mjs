@@ -42,7 +42,9 @@ test("Contas a Receber mostra comprovante e entrega lado a lado no resumo e nos 
   assert.doesNotMatch(gallery, /queryKeys\.finance\.attachments\([^\n]*,kind\)/);
   assert.match(gallery, /if\(!evidence\.length\)return null/);
   assert.match(gallery, /loading="lazy"/);
-  assert.match(gallery, /createFinancialAttachmentThumbnailUrl\(/);
+  assert.match(gallery, /createFinancialAttachmentSignedUrl\(/);
+  assert.equal((gallery.match(/"evidence-original"/g) || []).length, 2);
+  assert.doesNotMatch(gallery, /<AdminDialog/);
   assert.match(gallery, /UnionWhatsAppMediaViewer/);
   assert.match(documents, /Evidência de entrega/);
   assert.match(documents, /typeLabel\(item\.attachment_type, item\.source_document_kind\)/);
