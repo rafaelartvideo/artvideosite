@@ -26,6 +26,7 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { FleetWorkspace } from "./FleetWorkspace";
+import { LogisticsJobsWorkspace } from "./LogisticsJobsWorkspace";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
@@ -188,7 +189,7 @@ export function TabFieldTracking() {
   const canShare = hasPermission("field_tracking.share") || locationRequired;
   const canManage = hasPermission("field_tracking.manage");
   const [now, setNow] = useState(Date.now());
-  const [workspace,setWorkspace] = useState<"map"|"fleet">("map");
+  const [workspace,setWorkspace] = useState<"map"|"fleet"|"jobs">("map");
   useEffect(() => { setWorkspace("map"); }, [activeOrganizationId, canView, canManage]);
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -489,8 +490,9 @@ export function TabFieldTracking() {
     {canView && canManage && <div className="flex flex-wrap gap-2" role="group" aria-label="Seções do Mapa de Campo">
       <AdminButton variant={workspace==="map"?"primary":"secondary"} onClick={()=>setWorkspace("map")}>Mapa de Campo</AdminButton>
       <AdminButton variant={workspace==="fleet"?"primary":"secondary"} onClick={()=>setWorkspace("fleet")}>Frota e jornadas</AdminButton>
+      <AdminButton variant={workspace==="jobs"?"primary":"secondary"} onClick={()=>setWorkspace("jobs")}>Coletas e entregas</AdminButton>
     </div>}
-    {workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
+    {workspace==="jobs" && canView && canManage && activeOrganizationId ? <LogisticsJobsWorkspace key={activeOrganizationId} organizationId={activeOrganizationId}/> : workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
       <AdminCard className="p-8 text-center">
         <Navigation className="mx-auto text-primary" size={28} />
         <h2 className="mt-3 text-base font-black text-foreground">Rastreamento do dispositivo</h2>
