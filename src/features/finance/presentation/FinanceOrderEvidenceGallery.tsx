@@ -34,7 +34,7 @@ function EvidencePhoto({ document, organizationId, label, large = false }: { doc
   const query=useQuery({
     queryKey:["finance",organizationId,"evidence-original",document.id,document.storage_path],
     enabled:visible,staleTime:240_000,gcTime:300_000,retry:false,refetchOnWindowFocus:false,
-    queryFn:()=>createFinancialAttachmentSignedUrl(document.storage_path,document.storage_bucket||"financial-documents"),
+    queryFn:()=>createFinancialAttachmentSignedUrl(document.storage_path,document.storage_bucket||"financial-documents",true),
   });
   const url=query.data;
   return <div ref={ref} className={`relative w-full overflow-hidden rounded-md bg-muted/30 ${large ? "h-48" : "h-24"}`}>
@@ -50,7 +50,7 @@ export function FinanceEvidenceViewer({ document, organizationId, onClose }: { d
   const query=useQuery({
     queryKey:["finance",organizationId,"evidence-original",document.id,document.storage_path],
     enabled:Boolean(organizationId),staleTime:240_000,gcTime:300_000,retry:false,refetchOnWindowFocus:false,
-    queryFn:()=>createFinancialAttachmentSignedUrl(document.storage_path,document.storage_bucket||"financial-documents"),
+    queryFn:()=>createFinancialAttachmentSignedUrl(document.storage_path,document.storage_bucket||"financial-documents",true),
   });
   const anchorRef=useRef<HTMLSpanElement>(null);
   const [host,setHost]=useState<HTMLElement|null>(null);

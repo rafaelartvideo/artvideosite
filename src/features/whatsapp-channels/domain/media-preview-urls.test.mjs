@@ -272,3 +272,31 @@ test("documentos renovam links vencidos e preservam nome e bytes reais do PDF",a
     await assert.rejects(fetchDocumentBlob(async()=>({url:"bad",mime:"application/pdf"})),/PDF válido/);
   }finally{globalThis.fetch=originalFetch;}
 });
+
+
+test("cache privado deduplica, respeita prazo e descarta mídia na troca de sessão",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {transformWithEsbuild}=await import("vite");
+  const source=readFileSync(new URL("../../../shared/application/private-media-cache.ts",import.meta.url),"utf8");
+  const built=await transformWithEsbuild(source,"private-media-cache.ts",{loader:"ts",format:"esm"});
+  const {createPrivateMediaCache}=await import("data:text/javascript;base64,"+Buffer.from(built.code).toString("base64"));
+  let now=1000,calls=0;
+  const cache=createPrivateMediaCache(()=>now);
+  cache.setScope("user:company-A");
+  const load=async()=>++calls;
+  assert.deepEqual(await Promise.all(Array.from({length:20},()=>cache.get("file",90000,load))),Array(20).fill(1));
+  now+=89999;assert.equal(await cache.get("file",90000,load),1);
+  now+=2;assert.equal(await cache.get("file",90000,load),2);
+  assert.equal(await cache.get("file",90000,load,true),3);
+  let finish;
+  const pending=cache.get("slow",90000,()=>new Promise(resolve=>{finish=resolve}));
+  await Promise.resolve();
+  let released=false;cache.trackRelease(()=>{released=true});
+  cache.setScope("user:company-B");finish("old");
+  await assert.rejects(pending,/Sessão alterada/);
+  assert.ok(released);
+  assert.equal(await cache.get("file",90000,load),4);
+  cache.setScope(null);
+  assert.equal(await cache.get("file",90000,load),5);
+  assert.equal(await cache.get("file",90000,load),6);
+});

@@ -5,7 +5,9 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, FileText, Image as I
 import { useAuth } from "@/lib/auth";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
-import { DOCUMENT_LINK_SAFE_MS, fetchDocumentBlob, saveDocumentBlob, type DocumentLinks } from "../application/document-access";
+import { saveDocumentBlob } from "../application/document-access";
+import { getWhatsAppMediaLinks, getWhatsAppDocument, whatsappMediaKey } from "../application/private-media-access";
+import { privateMediaCache } from "@/shared/application/private-media-cache";
 import { parseWhatsAppLocation } from "../domain/whatsapp-location";
 import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
 import { listWhatsAppQuickReplies, type WhatsAppQuickReply } from "../infrastructure/whatsapp-quick-replies.repository";
@@ -118,7 +120,7 @@ const chatDayLabel=(dayKey:string,now:number):string=>{
   });
 };
 // Short-lived cache: signed media URLs expire after 120 seconds.
-const stickerPreviewCache=new Map<string,{url:string;expires:number}>();
+
 
 const voiceTime=(value:number)=>{
   if(!Number.isFinite(value) || value<0)return "0:00";
@@ -202,7 +204,7 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
   stickerSaved?: boolean;
 }) {
   const [mediaUrl, setMediaUrl] = useState("");
-  const documentLinks=useRef<{key:string;links:DocumentLinks;until:number}|null>(null);
+  const imageRetry=useRef(false);
   const documentActionInFlight=useRef(false);
   const [documentAction,setDocumentAction]=useState<"open"|"download"|null>(null);
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -220,33 +222,17 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     return()=>window.removeEventListener("keydown",onEscape);
   },[stickerZoom]);
   const hasStoredMedia = Boolean(message.media_path || message.media_available);
-  const loadMedia = useCallback(async () => {
+  const loadMedia = useCallback(async (force=false) => {
     if (!hasStoredMedia || mediaRequestInFlight.current || !organizationId) return;
-    const cacheKey=organizationId+":"+message.id;
-    const cached=message.message_type==="sticker" ? stickerPreviewCache.get(cacheKey) : null;
-    if(cached && cached.expires>Date.now()){setMediaUrl(cached.url);return;}
     mediaRequestInFlight.current=true;
-    const controller=new AbortController();
-    const timeout=window.setTimeout(()=>controller.abort(),75000);
     setMediaLoading(true);
     setMediaError("");
     try {
-      const data=await operateUnionWhatsAppInbox(organizationId,message.conversation_id,"media_view",
-        {message_id:message.id},controller.signal);
-      if(controller.signal.aborted)throw new Error("Tempo limite para carregar a mídia.");
-      if(!data.url)throw new Error("Mídia não disponível no WhatsApp.");
+      const data=await getWhatsAppMediaLinks(organizationId,message.conversation_id,message.id,force);
       setMediaUrl(data.url);
-      if(message.message_type==="file")documentLinks.current={key:organizationId+":"+message.conversation_id+":"+message.id,links:{url:data.url,filename:data.filename,mime:data.mime},until:Date.now()+DOCUMENT_LINK_SAFE_MS};
-      if(message.message_type==="sticker"){
-        if(stickerPreviewCache.size>120)stickerPreviewCache.clear();
-        stickerPreviewCache.set(cacheKey,{url:data.url,expires:Date.now()+90_000});
-      }
     }catch(reason){
-      setMediaError(controller.signal.aborted
-        ? "O carregamento demorou demais. Toque para tentar novamente."
-        : systemErrorMessage(reason,"Não foi possível abrir o arquivo."));
+      setMediaError(systemErrorMessage(reason,"Não foi possível abrir o arquivo."));
     }finally{
-      window.clearTimeout(timeout);
       mediaRequestInFlight.current=false;
       setMediaLoading(false);
     }
@@ -256,7 +242,7 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
   // evitando um download simultâneo para cada imagem do histórico.
   useEffect(()=>{
     setMediaUrl("");setMediaError("");setMediaRequested(false);
-    documentLinks.current=null;
+    imageRetry.current=false;
     if(!hasStoredMedia || !(["image","sticker","audio"].includes(message.message_type) ||
       (message.message_type==="file" && message.media_mime?.startsWith("audio/"))))return;
     const element=mediaTargetRef.current;
@@ -274,20 +260,7 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     if(action==="open"&&!popup){setMediaError("Permita pop-ups para abrir o documento.");return;}
     if(popup){popup.opener=null;popup.document.title="Abrindo documento";popup.document.body.textContent="Abrindo documento...";}
     documentActionInFlight.current=true;setDocumentAction(action);setMediaError("");
-    const key=organizationId+":"+message.conversation_id+":"+message.id;
-    const getLinks=async(force:boolean):Promise<DocumentLinks>=>{
-      const cached=documentLinks.current;
-      if(!force&&cached?.key===key&&cached.until>Date.now())return cached.links;
-      const controller=new AbortController();
-      const timeout=owner.setTimeout(()=>controller.abort(),75000);
-      try{
-        const data=await operateUnionWhatsAppInbox(organizationId,message.conversation_id,"media_view",{message_id:message.id},controller.signal);
-        if(!data.url)throw Error("Arquivo indisponível.");
-        const links={url:data.url,filename:data.filename,mime:data.mime};
-        documentLinks.current={key,links,until:Date.now()+DOCUMENT_LINK_SAFE_MS};
-        return links;
-      }finally{owner.clearTimeout(timeout);}
-    };
+    const getLinks=(force:boolean)=>getWhatsAppMediaLinks(organizationId,message.conversation_id,message.id,force);
     try{
       const links=await getLinks(false);
       const isPdf=String(message.media_mime||links.mime||"").toLowerCase().startsWith("application/pdf")||/\.pdf$/i.test(message.media_name||links.filename||"");
@@ -295,14 +268,16 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
         // Do not create same-origin blob pages for arbitrary active content.
         if(!popup.closed)popup.location.replace(links.url);
       }else{
-        const result=await fetchDocumentBlob(getLinks,message.media_name,message.media_mime);
+        const result=await getWhatsAppDocument(organizationId,message.conversation_id,message.id,message.media_name,message.media_mime);
         if(popup){
           if(popup.closed)return;
           const localUrl=URL.createObjectURL(result.blob);
           popup.location.replace(localUrl);
-          const timer=owner.setInterval(()=>{
-            if(popup.closed){owner.clearInterval(timer);URL.revokeObjectURL(localUrl);}
-          },5000);
+          const release=privateMediaCache.trackRelease(()=>{
+            owner.clearInterval(timer);URL.revokeObjectURL(localUrl);
+            if(!popup.closed)popup.close();
+          });
+          const timer=owner.setInterval(()=>{if(popup.closed)release();},5000);
         }else saveDocumentBlob(result.blob,result.name,owner);
       }
     }catch(reason){
@@ -311,7 +286,8 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     }finally{documentActionInFlight.current=false;setDocumentAction(null);}
   };
   const onImageError=()=>{
-    stickerPreviewCache.delete(organizationId+":"+message.id);
+    privateMediaCache.invalidate(whatsappMediaKey(organizationId,message.conversation_id,message.id));
+    if(!imageRetry.current){imageRetry.current=true;void loadMedia(true);return;}
     setMediaUrl("");
     setMediaError("Imagem não carregada. Tente novamente.");
   };
@@ -319,7 +295,7 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
   if(message.message_type==="audio" ||
     (message.message_type==="file" && message.media_mime?.startsWith("audio/"))) {
     return <WhatsAppVoicePlayer src={mediaUrl} loading={mediaLoading} error={mediaError}
-      onRetry={()=>void loadMedia()}/>;
+      onRetry={()=>void loadMedia(true)}/>;
   }
   // The operator's name is displayed internally above the bubble instead of
   // duplicating the WhatsApp-facing signature inside the CRM history.

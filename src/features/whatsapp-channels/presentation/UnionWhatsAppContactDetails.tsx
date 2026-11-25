@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouse
 import { ArrowLeft, CalendarDays, History, ExternalLink, FileText, Image as ImageIcon, Link as LinkIcon, LoaderCircle, Music2, Pencil, Play, Video } from "lucide-react";
 import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import {
-  listUnionWhatsAppSharedItems, listContactOnlyHistoricalSharedItems, operateUnionWhatsAppInbox, getHistoricalWhatsAppMedia,
+  listUnionWhatsAppSharedItems, listContactOnlyHistoricalSharedItems, getHistoricalWhatsAppMedia,
   type UnionWhatsAppConversation, type UnionWhatsAppMessage,
   type UnionWhatsAppSharedTab, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -10,6 +10,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { UnionWhatsAppContactHistory } from "./UnionWhatsAppContactHistory";
 import { UnionWhatsAppMediaViewer } from "./UnionWhatsAppMediaViewer";
 import { FutureOpportunityContactSection } from "./FutureOpportunities";
+import { getWhatsAppMediaLinks } from "../application/private-media-access";
 
 type Section={items:UnionWhatsAppMessage[];loaded:boolean;loading:boolean;hasMore:boolean;error:string;nextCursor:UnionWhatsAppMessageCursor|null};
 const empty=():Section=>({items:[],loaded:false,loading:false,hasMore:false,error:"",nextCursor:null});
@@ -17,10 +18,10 @@ const labels:{key:UnionWhatsAppSharedTab;label:string}[]=[
   {key:"media",label:"Mídias"},{key:"documents",label:"Documentos"},{key:"links",label:"Links"},
 ];
 
-// Signed URLs expire after 120 seconds. Reuse only inside their safe lifetime,
+// The shared media_view cache handles signed URL expiry and scope isolation.
 // never persist private media URLs in localStorage or the contact directory.
 type SharedMediaLinks={url:string;downloadUrl:string|null};
-const urlCache=new Map<string,{links:SharedMediaLinks|null;until:number}>();
+
 const pending=new Map<string,Promise<SharedMediaLinks|null>>();
 const jobs:Array<()=>void>=[];
 let active=0;
@@ -33,24 +34,14 @@ function nextJob(){
 }
 function signedMedia(organization:string,conversation:string,messageId:string){
   const key=organization+":"+conversation+":"+messageId;
-  const cached=urlCache.get(key);
-  if(cached&&cached.until>Date.now())return Promise.resolve(cached.links);
+
   const previous=pending.get(key);
   if(previous)return previous;
   const job=new Promise<SharedMediaLinks|null>(resolve=>{
     jobs.push(()=>{
-      void operateUnionWhatsAppInbox(organization,conversation,"media_view",{message_id:messageId})
-        .then(data=>{
-          const url=typeof data.url==="string"&&data.url.startsWith("https://")?data.url:null;
-          const links=url?{url,downloadUrl:typeof data.download_url==="string" &&
-            data.download_url.startsWith("https://")?data.download_url:null}:null;
-          urlCache.set(key,{links,until:Date.now()+(links?100_000:60_000)});
-          if(urlCache.size>160)urlCache.delete(urlCache.keys().next().value||"");
-          resolve(links);
-        }).catch(()=>{
-          urlCache.set(key,{links:null,until:Date.now()+45_000});
-          resolve(null);
-        }).finally(()=>{
+      void getWhatsAppMediaLinks(organization,conversation,messageId)
+        .then(data=>resolve({url:data.url,downloadUrl:data.downloadUrl}))
+        .catch(()=>resolve(null)).finally(()=>{
           pending.delete(key);
           active--;
           nextJob();

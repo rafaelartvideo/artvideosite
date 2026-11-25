@@ -68,7 +68,14 @@ export function AppQueryProvider({ children }: { children: ReactNode }) {
 
       // A empresa anterior deixa de ter observadores quando o contexto muda.
       // Interromper consultas pendentes evita carregar duas empresas em paralelo.
-      if (previousClient !== nextClient) void previousClient.cancelQueries();
+      if (previousClient !== nextClient) {
+        void previousClient.cancelQueries();
+        // Keep ordinary reference data, but discard private preview capabilities.
+        previousClient.removeQueries({predicate: query =>
+          query.queryKey[0] === "storage-preview-url" ||
+          query.queryKey[0] === "media-metadata" ||
+          query.queryKey.some(part=>part==="media"||part==="evidence-original")});
+      }
       setQueryClient(nextClient);
     };
 

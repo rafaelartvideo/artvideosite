@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type { QueryClient } from "@tanstack/react-query";
 import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
+import { privateMediaCache, privateMediaKey, signedUrlSafeMs } from "@/shared/application/private-media-cache";
 
 export type MediaPreviewSource = {
   id: string;
@@ -97,11 +98,13 @@ export async function createStorageSignedUrl(
   expiresIn = 300,
   download?: string | boolean,
 ) {
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(path, expiresIn, download ? { download } : undefined);
-  if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir o arquivo.");
-  return data.signedUrl;
+  return privateMediaCache.get(privateMediaKey("storage",bucket,path,expiresIn,download||false),signedUrlSafeMs(expiresIn),async()=>{
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, expiresIn, download ? { download } : undefined);
+    if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir o arquivo.");
+    return data.signedUrl;
+  });
 }
 
 export function supabaseErrorMessage(error: unknown) {
@@ -129,7 +132,11 @@ export async function getMediaPreview(client: QueryClient, mediaId: string, know
   const path = media.storage_path;
   if (!bucket || !path) throw new Error("Imagem indisponível");
   if (bucket === "service-images") {
-    return getStoragePreviewUrl(client, bucket, path, () => resolveMediaStorageUrl(bucket, path, 3600), 3600);
+    return getStoragePreviewUrl(client, bucket, path, async () => {
+      const {data,error}=await supabase.storage.from(bucket).createSignedUrl(path,3600);
+      if(error||!data?.signedUrl)throw Error(error?.message||"Não foi possível abrir a imagem.");
+      return data.signedUrl;
+    }, 3600);
   }
   return { url: getPublicStorageUrl(bucket, path), expiresAt: null };
 }
@@ -144,11 +151,13 @@ export async function resolveMediaStorageUrl(bucket: string, path: string, expir
   if (bucket === "service-images") {
     if (client) {
       return (await getStoragePreviewUrl(client, bucket, path,
-        () => resolveMediaStorageUrl(bucket, path, expiresIn), expiresIn)).url;
+        async () => {
+          const {data,error}=await supabase.storage.from(bucket).createSignedUrl(path,expiresIn);
+          if(error||!data?.signedUrl)throw Error(error?.message||"Não foi possível abrir a imagem.");
+          return data.signedUrl;
+        }, expiresIn)).url;
     }
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-    if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir a imagem.");
-    return data.signedUrl;
+    return createStorageSignedUrl("service-images",path,expiresIn);
   }
   return getPublicStorageUrl(bucket, path);
 }

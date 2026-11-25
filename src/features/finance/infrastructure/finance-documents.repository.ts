@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { privateMediaCache, privateMediaKey, signedUrlSafeMs } from "@/shared/application/private-media-cache";
 import { prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 
@@ -70,11 +71,19 @@ export async function uploadFinancialAttachment(
 export async function createFinancialAttachmentSignedUrl(
   storagePath: string,
   storageBucket: "financial-documents" | "service-images" = "financial-documents",
+  fresh = false,
 ): Promise<string> {
-  const { data, error } = await supabase.storage.from(storageBucket).createSignedUrl(storagePath, 300);
-  if (error) throw error;
-  if (!data?.signedUrl) throw new Error("Não foi possível gerar o link do documento.");
-  return data.signedUrl;
+  if(fresh){
+    const {data,error}=await supabase.storage.from(storageBucket).createSignedUrl(storagePath,300);
+    if(error||!data?.signedUrl)throw error||Error("Documento indisponível.");
+    return data.signedUrl;
+  }
+  return privateMediaCache.get(privateMediaKey("storage",storageBucket,storagePath,300,false),signedUrlSafeMs(300),async()=>{
+    const { data, error } = await supabase.storage.from(storageBucket).createSignedUrl(storagePath, 300);
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error("Não foi possível gerar o link do documento.");
+    return data.signedUrl;
+  });
 }
 
 

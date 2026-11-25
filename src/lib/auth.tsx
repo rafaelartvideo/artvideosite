@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { privateMediaCache } from "@/shared/application/private-media-cache";
 import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
 import { resolveBootstrapAccessWindow, shouldBlockAccessLoad } from "@/features/auth/domain/access-bootstrap";
 
@@ -527,6 +528,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   }
 
   function resetAccessState(notifyOrganizationChange = false) {
+    if(scope==="crm")privateMediaCache.setScope(null);
     const previousOrganizationId = activeOrganizationIdRef.current;
     accessRequestRef.current += 1;
     accessLoadingKeyRef.current = null;
@@ -555,6 +557,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   }
 
   function clearResolvedAccess() {
+    if(scope==="crm")privateMediaCache.setScope(null);
     const previousOrganizationId = activeOrganizationIdRef.current;
     activeOrganizationIdRef.current = null;
     setEmployee(null);
@@ -739,6 +742,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
 
     const previousOrganizationId = activeOrganizationIdRef.current;
     activeOrganizationIdRef.current = resolvedOrganization.organization_id;
+    if(scope==="crm")privateMediaCache.setScope(resolvedWindow.allowed?JSON.stringify([userId,resolvedOrganization.organization_id,[...permissionKeys].sort()]):null);
     setOrganizations(resolvedOrganizations);
     setActiveOrganizationState(resolvedOrganization);
     setEmployee(access.employee ?? null);
