@@ -24,10 +24,11 @@ create table public.logistics_jobs (
   last_actor uuid not null default auth.uid() references public.profiles(id) on delete restrict,
   recipient text check(length(recipient) <= 200),
   notes text check(length(notes) <= 1000),
+  events jsonb not null default '[]'::jsonb check(jsonb_typeof(events)='array'),
   foreign key(organization_id,order_id) references public.service_orders(organization_id,id) on delete restrict,
   foreign key(organization_id,shift_id) references public.logistics_shifts(organization_id,id) on delete restrict
 );
-create unique index logistics_jobs_unique_open on public.logistics_jobs(organization_id,order_id,kind) where status not in ('received','delivered','cancelled');
+create unique index logistics_jobs_unique_open on public.logistics_jobs(organization_id,order_id) where status not in ('received','delivered','cancelled');
 create index logistics_jobs_org_window on public.logistics_jobs(organization_id,window_start);
 create index logistics_jobs_order on public.logistics_jobs(organization_id,order_id,created_at desc);
 create index logistics_jobs_shift on public.logistics_jobs(organization_id,shift_id) where shift_id is not null;
@@ -53,6 +54,7 @@ begin
   if tg_op='INSERT' then
     select o.os_number into new.order_number from public.service_orders o where o.organization_id=new.organization_id and o.id=new.order_id;
     if not found then raise exception 'OS não disponível nesta empresa.'; end if;
+    new.events := jsonb_build_array(jsonb_build_object('status','requested','at',now(),'actor',auth.uid()));
     return new;
   end if;
   if old.status in ('received','delivered','cancelled') then raise exception 'Operação já encerrada.'; end if;
@@ -80,6 +82,7 @@ begin
   if new.status='collected' then new.collected_at:=now(); end if;
   if new.status in ('received','delivered','cancelled') then new.finished_at:=now(); end if;
   new.last_actor:=auth.uid();
+  new.events := old.events || jsonb_build_array(jsonb_build_object('status',new.status,'at',now(),'actor',auth.uid(),'recipient',case when new.status in ('loaded','collected','received','delivered') then new.recipient else null end,'notes',new.notes));
   return new;
 end $$;
 create trigger logistics_job_validation before insert or update on public.logistics_jobs for each row execute function private.validate_logistics_job();
