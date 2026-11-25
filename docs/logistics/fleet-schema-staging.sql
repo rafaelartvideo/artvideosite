@@ -43,7 +43,7 @@ create table public.logistics_shifts (
   check((ended_at is null and final_odometer_km is null and return_checklist is null and ended_by is null)
      or (ended_at >= started_at and final_odometer_km >= initial_odometer_km and return_checklist is not null and ended_by is not null)),
   check(jsonb_typeof(departure_checklist) = 'object' and departure_checklist @> '{"tires":true,"lights":true,"cargo":true}'),
-  check(return_checklist is null or (jsonb_typeof(return_checklist) = 'object' and return_checklist ?& array['cargo','damage_notes'] and jsonb_typeof(return_checklist->'cargo') = 'boolean' and jsonb_typeof(return_checklist->'damage_notes') = 'string'))
+  check(return_checklist is null or (jsonb_typeof(return_checklist) = 'object' and return_checklist ?& array['cargo','damage_notes'] and jsonb_typeof(return_checklist->'cargo') = 'boolean' and jsonb_typeof(return_checklist->'damage_notes') = 'string' and length(return_checklist->>'damage_notes') <= 1000 and (return_checklist->>'cargo' = 'true' or length(btrim(return_checklist->>'damage_notes')) > 0)))
 );
 create unique index logistics_active_driver on public.logistics_shifts(organization_id,driver_id) where ended_at is null;
 create unique index logistics_active_vehicle on public.logistics_shifts(organization_id,vehicle_id) where ended_at is null;
@@ -99,6 +99,9 @@ create function private.validate_logistics_shift() returns trigger
 language plpgsql security invoker set search_path='' as $$
 begin
   if tg_op='INSERT' then
+    -- Lock driver and vehicle rows to serialize status changes with shift creation.
+    perform 1 from public.logistics_drivers d where d.organization_id=new.organization_id and d.id=new.driver_id for share;
+    perform 1 from public.logistics_vehicles v where v.organization_id=new.organization_id and v.id=new.vehicle_id for share;
     if not exists(select 1 from public.logistics_drivers d join public.employees e on e.organization_id=d.organization_id and e.id=d.employee_id where d.organization_id=new.organization_id and d.id=new.driver_id and d.is_active and e.is_active)
     or not exists(select 1 from public.logistics_vehicles v where v.organization_id=new.organization_id and v.id=new.vehicle_id and v.is_active)
     or not exists(select 1 from public.field_tracking_units t where t.organization_id=new.organization_id and t.id=new.tracker_id and t.is_active) then
