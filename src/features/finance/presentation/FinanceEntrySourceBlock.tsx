@@ -59,8 +59,8 @@ export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: F
         <Value label="Valor do serviço" value={formatCurrency(Number(source.service_price || 0))} />
         <Value label="Peças" value={formatCurrency(Number(source.parts_total || 0))} />
         <Value label="Subtotal" value={formatCurrency(Number(source.subtotal || 0))} />
-        <Value label="Desconto" value={`${formatNumber(Number(source.discount_percentage || 0), { maximumFractionDigits: 2 })}% · ${formatCurrency(Number(source.discount_amount || 0))}`} />
-        <Value label="Valor final" value={<span className="font-black text-[#0057e7]">{formatCurrency(Number(source.final_total || detail.original_amount))}</span>} />
+        <Value label="Desconto" value={<span className="text-red-600 dark:text-red-400">{formatNumber(Number(source.discount_percentage || 0), { maximumFractionDigits: 2 })}% · {formatCurrency(Number(source.discount_amount || 0))}</span>} />
+        <Value label="Valor final" value={<span className="font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(Number(source.final_total || detail.original_amount))}</span>} />
       </div></AdminCardContent>
     </AdminCard>;
   }
