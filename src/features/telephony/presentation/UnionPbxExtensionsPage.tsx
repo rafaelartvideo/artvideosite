@@ -2,7 +2,7 @@ import { listExtensionCallModes, setExtensionCallMode, callModeLabel, callModeOp
 import { FInput, AdminSelect, RequiredFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import { pbxRequest, pbxOperationError } from "../application/pbx-request";
 import { useEffect, useRef, useMemo, useState } from "react";
-import { Check, LoaderCircle, Pencil, Phone, Plus, RefreshCw, Save, ShieldCheck, X } from "lucide-react";
+import { Check, LoaderCircle, Pencil, Phone, Plus, RefreshCw, Save, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { PageHeader, AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
@@ -205,19 +205,9 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
   }
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Ramais do PABX Union" subtitle="Cadastre e vincule ramais aos funcionários, com isolamento por empresa." />
-    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start gap-2.5">
-        <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={20} />
-        <div>
-          <p className="text-sm font-semibold text-foreground">Gerenciamento seguro</p>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-            {isPlatformOperatorOrganization ? "O ramal 301 existente permanece protegido. " : "Os ramais pertencem somente à sua empresa. "}
-            O cadastro e o vínculo ao funcionário podem ser feitos antes da ativação. Acompanhe a confirmação da central na lista.
-            Nenhuma senha SIP nem credencial da FVX é armazenada nesta tela.
-          </p>
-        </div>
-      </div>
+    <PageHeader title="Ramais" subtitle="Cadastre os ramais e escolha os funcionários que vão utilizá-los." />
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-muted-foreground">{loading ? "Carregando ramais…" : `${extensions.length} ${extensions.length === 1 ? "ramal cadastrado" : "ramais cadastrados"}`}</p>
       <div className="flex gap-2">
         <AdminButton variant="secondary" type="button" onClick={() => setReloadKey(key => key + 1)} aria-label="Atualizar ramais" title="Atualizar" >
           <RefreshCw size={16} /> Atualizar
@@ -228,7 +218,6 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
       </div>
     </div>
 
-    {canManage && activeOrganizationId && <UnionPbxAgentPanel organizationId={activeOrganizationId} legacyProfile={isPlatformOperatorOrganization} />}
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     {message && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{message}</p>}
@@ -263,7 +252,7 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     <section className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground">Ramais cadastrados</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{extensions.length} registros nesta empresa · atualização manual sem consultas repetidas</p>
+        <p className="mt-1 text-xs text-muted-foreground">{extensions.length} {extensions.length === 1 ? "ramal" : "ramais"} nesta empresa</p>
       </div>
       {loading ? <AdminWorkspaceSkeleton variant="cards" rows={3} />
       : extensions.length === 0 ? <AdminSectionEmpty>Nenhum ramal cadastrado nesta empresa.</AdminSectionEmpty>
@@ -319,6 +308,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
           </div>)}
         </div>}
     </section>
+    {canManage && activeOrganizationId && <UnionPbxAgentPanel organizationId={activeOrganizationId} legacyProfile={isPlatformOperatorOrganization} />}
+    <p className="text-xs text-muted-foreground">{isPlatformOperatorOrganization ? "O ramal 301 existente permanece protegido." : null}</p>
     <AdminButton variant="ghost" type="button" onClick={onBack} >Voltar para o telefone</AdminButton>
   </div>;
 }

@@ -92,7 +92,17 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
     else setReload(key => key + 1);
   }
 
+  const centralStatus = loading ? "Consultando central…" : error ? "Não foi possível consultar a central"
+    : agents.some(agent => isAgentHeartbeatFresh(agent.enabled, agent.last_seen_at, now)) ? "Central com comunicação recente"
+    : agents.some(agent => agent.enabled) ? "Central sem comunicação recente" : "Configuração pendente";
+
   return <section className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Ponte PABX com VPS">
+    <p role="status" aria-label="Estado da central" className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <ShieldCheck size={18} className="shrink-0 text-primary" /> {centralStatus}
+    </p>
+    <details className="rounded-lg border border-border p-3">
+      <summary className="cursor-pointer text-sm font-medium text-foreground">Configurações avançadas da central</summary>
+      <div className="mt-4 space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -166,5 +176,7 @@ export function UnionPbxAgentPanel({ organizationId, legacyProfile = false }: { 
         {busy ? <LoaderCircle size={16} className="animate-spin" /> : <ShieldCheck size={16}/>} Autorizar agente
       </AdminButton>
     </div>}
+      </div>
+    </details>
   </section>;
 }
