@@ -240,3 +240,31 @@ export function subscribeFieldTracking(organizationId: string, onChange: () => v
     void supabase.removeChannel(channel);
   };
 }
+
+export type FieldTrackingPoint = {
+  id: number;
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  recorded_at: string;
+};
+
+export async function listRecentFieldTrackingPoints(
+  organizationId: string, unitId: string, hours: 1 | 6 | 24,
+) {
+  const until = new Date();
+  const since = new Date(until.getTime() - hours * 3600000);
+  // Consulta explícita, indexada por empresa, unidade e data. Sem polling.
+  const { data, error } = await supabase.from("field_tracking_points")
+    .select("id,latitude,longitude,accuracy_m,recorded_at")
+    .eq("organization_id", organizationId)
+    .eq("unit_id", unitId)
+    .gte("recorded_at", since.toISOString())
+    .lte("recorded_at", until.toISOString())
+    .order("recorded_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+  const points = ((data ?? []) as FieldTrackingPoint[]).reverse();
+  return { points, limited: points.length >= 1000, since: since.toISOString(), until: until.toISOString() };
+}
