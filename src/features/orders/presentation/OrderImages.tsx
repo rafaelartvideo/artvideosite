@@ -403,6 +403,7 @@ type OrderImagesFieldProps = {
   canAdd?: boolean;
   canRemove?: boolean | ((image: OrderImage) => boolean);
   embedded?: boolean;
+  equipmentLayout?: boolean;
   totalCount?: number;
   maxImages?: number;
 };
@@ -416,6 +417,7 @@ export function OrderImagesField({
   canAdd,
   canRemove,
   embedded = false,
+  equipmentLayout = false,
   totalCount,
   maxImages = 5,
 }: OrderImagesFieldProps) {
@@ -430,7 +432,7 @@ export function OrderImagesField({
       <div className="mb-3 flex min-w-0 flex-col gap-2">
         <p className="min-w-0 text-xs text-[#5a6a82]">{count}/{maxImages} imagens</p>
         {allowAdd && (
-          <div className="grid w-full min-w-0 grid-cols-2 gap-2">
+          <div className={`grid w-full min-w-0 grid-cols-2 gap-2 ${equipmentLayout ? "lg:grid-cols-1" : ""}`}>
             <AdminButton
               variant="secondary"
               size="sm"
@@ -438,7 +440,7 @@ export function OrderImagesField({
               onClick={() => inputRef.current?.click()}
               aria-label="Adicionar imagens"
               title="Adicionar imagens"
-              className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3"
+              className={`h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3 ${equipmentLayout ? "lg:!border-dashed lg:!border-border" : ""}`}
             >
               <Upload size={18} className="shrink-0" />
               <span className="hidden text-xs md:inline">Adicionar</span>
@@ -450,7 +452,7 @@ export function OrderImagesField({
               onClick={() => cameraInputRef.current?.click()}
               aria-label="Abrir câmera"
               title="Abrir câmera"
-              className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3"
+              className={`h-[42px] w-full min-w-0 justify-center gap-1.5 border-[#0057e7]/30 px-2 py-0 text-[#0057e7] hover:bg-[#0057e7]/5 md:px-3 ${equipmentLayout ? "lg:!hidden" : ""}`}
             >
               <Camera size={18} className="shrink-0" />
               <span className="hidden text-xs md:inline">Câmera</span>
