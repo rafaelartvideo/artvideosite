@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, CheckCircle2, ChevronDown, FileText, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Camera, Check, CheckCircle2, ChevronDown, CircleHelp, FileText, LoaderCircle, Plus, Trash2, Upload, X } from "lucide-react";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
+import { UnionWhatsAppMediaViewer } from "@/features/whatsapp-channels/presentation/UnionWhatsAppMediaViewer";
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatNumber } from "@/shared/domain/formatters";
@@ -21,6 +24,8 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [viewerHost, setViewerHost] = useState<HTMLElement | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const payment = kind === "payment";
   const title = payment ? "Comprovante de pagamento" : "Evidência de entrega";
   const required = payment ? completion.paymentProofRequired : completion.deliveryEvidenceRequired;
@@ -32,7 +37,8 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
 
   useEffect(() => {
     setPreviewLoaded(false);
-    if (!file?.type.startsWith("image/")) { setPreviewUrl(null); return; }
+    setViewerHost(null);
+    if (!file) { setPreviewUrl(null); return; }
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -43,11 +49,11 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
     if (selected) choose(selected);
   };
 
-  return <div className="min-w-0 space-y-3 rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
+  return <div ref={pickerRef} className="min-w-0 space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 sm:p-4">
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-bold text-foreground">{title}</p>
-        <span className={`text-[10px] font-semibold ${required ? "text-destructive" : "text-muted-foreground"}`}>
+        <span className={`text-[10px] font-semibold ${required ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
           {required ? "(obrigatório)" : "(opcional)"}
         </span>
       </div>
@@ -73,16 +79,17 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <button type="button" disabled={saving} onClick={() => cameraInputRef.current?.click()}
-          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:hidden">
+          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:hidden">
           <Camera size={16} /> Tirar foto
         </button>
         <button type="button" disabled={saving} onClick={() => fileInputRef.current?.click()}
-          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:flex-none md:px-4">
-          <Upload size={16} /> Selecionar arquivo
+          className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-2 text-xs font-bold text-foreground transition-colors hover:border-primary/40 disabled:opacity-50 md:w-full md:px-4">
+          <Upload size={16} /> {file ? "Trocar" : "Adicionar"}
         </button>
       </div>
       {file && <div className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/20 bg-card p-2.5">
-        {previewUrl ? <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted/60">
+        <button type="button" aria-label={`Visualizar ${title.toLowerCase()}`} disabled={!previewUrl} onClick={() => setViewerHost(pickerRef.current?.closest<HTMLElement>('[data-admin-dialog-content="true"]') || document.body)} className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-default">
+        {previewUrl && file.type.startsWith("image/") ? <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted/60">
           {!previewLoaded && <span role="status" aria-label={`Carregando prévia de ${title.toLowerCase()}`}
             className="absolute inset-0 flex items-center justify-center">
             <LoaderCircle size={18} className="animate-spin text-muted-foreground" aria-hidden="true" />
@@ -97,12 +104,14 @@ function OrderCompletionEvidencePicker({ completion, saving, kind }: {
             {file.type.startsWith("image/") ? " · Foto otimizada automaticamente" : " · PDF preservado"}
           </p>
         </div>
+        </button>
         <button type="button" onClick={() => choose(null)} disabled={saving}
           aria-label={`Remover arquivo de ${title.toLowerCase()}`} title="Remover arquivo"
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-50">
           <X size={16} />
         </button>
       </div>}
+      {viewerHost && file && previewUrl && createPortal(<UnionWhatsAppMediaViewer url={previewUrl} name={file.name} type={file.type.startsWith("image/") ? "image" : "file"} placement={viewerHost === document.body ? "viewport" : "drawer"} onClose={() => setViewerHost(null)} />, viewerHost)}
       {payment && completion.paymentProofTypeLoading && <p role="status" className="text-xs text-muted-foreground">Preparando anexo...</p>}
       {payment && file && completion.paymentProofTypeError && <p role="alert" className="text-xs font-semibold text-destructive">{completion.paymentProofTypeError}</p>}
     </>}
@@ -153,7 +162,7 @@ export function OrderCompletionPaymentSection({
           <div>
             <p className="text-sm font-black text-foreground">Parcelas e formas</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Informe as parcelas e marque os valores relatados como recebidos. A baixa será confirmada no Financeiro.
+              Informe as parcelas, formas de pagamento e os valores já pagos pelo cliente.
             </p>
           </div>
 
@@ -275,17 +284,27 @@ export function OrderCompletionPaymentSection({
                     />
 
                     <div className="min-w-0">
-                      <p className="mb-1.5 text-[11px] font-bold text-foreground">Recebido*</p>
+                      <div className="mb-1.5 flex items-center gap-1 text-[11px] font-bold text-foreground">
+                        <span>Recebido</span>
+                        <Popover>
+                          <PopoverTrigger asChild><button type="button" aria-label="Entenda o recebimento" className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-primary"><CircleHelp size={14} /></button></PopoverTrigger>
+                          <PopoverContent className="w-72 max-w-[85vw] text-xs leading-relaxed" align="end">
+                            <p className="mb-1 font-bold">Pagamento do cliente</p>
+                            <p>Marque apenas quando o cliente tiver pago. No cartão, marque quando a transação for aprovada, mesmo que o repasse da operadora ocorra depois. Em parcelas futuras ainda não pagas, deixe desmarcado. A baixa será conferida no Financeiro; esta marcação não movimenta o caixa.</p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <button
                         type="button"
                         role="checkbox"
                         aria-checked={installment.received}
+                        aria-label={`Parcela ${index + 1} recebida`}
                         disabled={saving}
                         onClick={() => completion.updateInstallment(installment.id, { received: !installment.received })}
                         className={cn(
                           "flex h-[42px] w-full items-center justify-center rounded-lg border transition-colors disabled:opacity-50",
                           installment.received
-                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
                             : "border-border bg-muted/30 text-muted-foreground hover:border-primary/30",
                         )}
                       >
@@ -334,14 +353,13 @@ export function OrderCompletionPaymentSection({
               <span className={differenceOk ? "text-muted-foreground" : "text-red-600"}>
                 Diferença: <strong>{formatCurrency(Math.abs(completion.installmentDifference))}</strong>
               </span>
-              <span className="text-emerald-700">
-                Informado recebido*: <strong>{formatCurrency(completion.totalPaidNow)}</strong>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                Recebido: <strong>{formatCurrency(completion.totalPaidNow)}</strong>
               </span>
-              <span className="text-amber-700">
-                Não informado: <strong>{formatCurrency(completion.openAmount)}</strong>
+              <span className="text-amber-700 dark:text-amber-300">
+                A receber: <strong>{formatCurrency(completion.openAmount)}</strong>
               </span>
             </div>
-            <p className="px-4 py-2 text-[11px] text-muted-foreground">* Marcação informativa: todas as parcelas aguardam confirmação da baixa no Financeiro, inclusive as marcadas como recebidas.</p>
           </div>
         )}
 
