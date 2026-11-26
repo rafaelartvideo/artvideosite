@@ -204,15 +204,15 @@ export function InventoryProductDetailsDialog({
         <div className="grid grid-cols-3 divide-x divide-border">
           <div className="min-w-0 pr-2">
             <p className="text-[10px] font-semibold text-muted-foreground">Preço de venda</p>
-            <p className="mt-1 text-sm font-bold text-green-600 dark:text-green-400">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
+            <p className={cn("mt-1 text-xs font-bold", product.price == null ? "text-foreground" : "text-[var(--admin-success-text)]")}>{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
           </div>
           <div className="min-w-0 px-2 sm:px-3">
             <p className="text-[10px] font-semibold text-muted-foreground">Saldo disponível</p>
-            <p className="mt-1 text-sm font-bold text-blue-600 dark:text-blue-400">{formatNumber(stock)} {unit}</p>
+            <p className="mt-1 text-xs font-bold text-foreground">{formatNumber(stock)} {unit}</p>
           </div>
           <div className="min-w-0 pl-2 sm:pl-3">
             <p className="text-[10px] font-semibold text-muted-foreground">Estoque mínimo</p>
-            <p className="mt-1 text-sm font-bold text-foreground">{formatNumber(minimum)} {unit}</p>
+            <p className={cn("mt-1 text-xs font-bold", stock <= minimum ? "text-[var(--admin-error-text)]" : "text-foreground")}>{formatNumber(minimum)} {unit}</p>
           </div>
         </div>
       </div>
@@ -319,8 +319,8 @@ export function InventoryProductDetailsDialog({
               </span>
             </span>
             <span className="mt-auto flex w-full items-center justify-between gap-2 pt-2">
-              <span className="text-xs font-semibold text-green-600 dark:text-green-400">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
-              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{formatNumber(other.stock)} {other.unit}</span>
+              <span className={cn("text-xs font-semibold", other.price == null ? "text-foreground" : "text-[var(--admin-success-text)]")}>{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
+              <span className="text-xs font-semibold text-foreground">{formatNumber(other.stock)} {other.unit}</span>
             </span>
           </button>)}
         </div>}
