@@ -5,16 +5,20 @@ import { transformWithEsbuild } from "vite";
 
 const read = file => readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 
-test("atributos e códigos relacionados seguem Section do CRM", async () => {
+test("atributos e códigos relacionados seguem Section do CRM na aba Geral", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const matrix = read("src/features/products/presentation/ProductVariationMatrix.tsx");
   for (const [name, source] of [["TabProducts.tsx", page], ["ProductVariationMatrix.tsx", matrix]]) {
     assert.ok((await transformWithEsbuild(source, name, { loader: "tsx" })).code);
   }
-  const relations = page.slice(
-    page.indexOf('<TabsContent value="relationships"'),
-    page.indexOf('<TabsContent value="commercial"'),
-  );
+  const generalStart = page.indexOf('<TabsContent value="general"');
+  const commercialStart = page.indexOf('<TabsContent value="commercial"');
+  assert.ok(generalStart >= 0 && commercialStart > generalStart);
+  const general = page.slice(generalStart, commercialStart);
+  assert.ok(!page.includes('<TabsContent value="relationships"'));
+  const relations = general.slice(general.indexOf('Criar atributos e variações'));
+  assert.ok(general.indexOf('Criar atributos e variações') > general.indexOf('label="Nome do item"'));
+  assert.ok(relations.indexOf('Códigos relacionados') > relations.indexOf('<ProductVariationMatrix'));
   assert.ok(relations.includes('Criar atributos e variações'));
   assert.ok(relations.includes('aria-label="Ajuda sobre criar atributos e variações"'));
   assert.ok(relations.includes('{variantOptions.length}/{MAX_VARIATION_ATTRIBUTES} atributos'));
@@ -31,14 +35,14 @@ test("atributos e códigos relacionados seguem Section do CRM", async () => {
   assert.ok(!matrix.includes('>Criar variações</h3>'), "O cabeçalho da Section substitui o título duplicado");
 });
 
-test("Categoria, Marca, Modelo e Condição ficam em linhas individuais no celular", () => {
+test("Categoria, Subcategoria, Marca, Modelo e Condição ficam em linhas individuais no celular", () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const general = page.slice(
     page.indexOf('<TabsContent value="general"'),
     page.indexOf('<TabsContent value="commercial"'),
   );
   assert.ok(general.includes('grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4'));
-  const labels = ["Categoria", "Marca", "Modelo", "Condição do produto"];
+  const labels = ["Categoria", "Subcategoria", "Marca", "Modelo", "Condição do produto"];
   const positions = labels.map(label => general.indexOf(`label="${label}"`));
   assert.ok(positions.every(position => position >= 0));
   assert.ok(positions.every((p, i) => i === 0 || p > positions[i - 1]));

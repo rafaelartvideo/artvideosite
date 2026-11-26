@@ -5,22 +5,28 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Geral alinha nome e SKU, categoria/marca e modelo/condição em duas linhas", async () => {
+test("Geral alinha códigos e nome, com classificação responsiva em duas colunas", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
-  const layout = page.slice(page.indexOf('<TabsContent value="general"'),page.indexOf('<TabsContent value="commercial"'));
+  const generalStart = page.indexOf('<TabsContent value="general"');
+  const commercialStart = page.indexOf('<TabsContent value="commercial"');
+  assert.ok(generalStart >= 0 && commercialStart > generalStart);
+  const layout = page.slice(generalStart, commercialStart);
   for (const [name,source] of [["TabProducts.tsx",page],["ProductIdentifiersEditor.tsx",identifiers]]) {
     assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
   }
   const name = layout.indexOf('label="Nome do item"');
-  const sku = layout.indexOf('label="SKU / código interno"');
+  assert.ok(!layout.includes('label="SKU / código interno"'));
   const category = layout.indexOf('label="Categoria"');
+  const subcategory = layout.indexOf('label="Subcategoria"');
   const brand = layout.indexOf('label="Marca"');
   const model = layout.indexOf('label="Modelo"');
   const condition = layout.indexOf('label="Condição do produto"');
   const codes = layout.indexOf('<ProductIdentifiersEditor');
-  assert.ok(name >= 0 && sku > name && category > sku && brand > category && model > brand);
-  assert.ok(condition > model && codes > condition);
+  assert.ok(codes >= 0 && name > codes && category > name && subcategory > category && brand > subcategory && model > brand);
+  assert.ok(condition > model);
+  assert.ok(identifiers.includes('sm:col-span-2'));
+  assert.ok(layout.includes('value={form.name}'));
   assert.ok(layout.includes('grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4'));
   assert.ok(!layout.includes('sm:col-span-2 sm:grid-cols-3'));
   assert.ok(!identifiers.includes('<h3 className="text-sm font-semibold text-foreground">Códigos de identificação</h3>'));
