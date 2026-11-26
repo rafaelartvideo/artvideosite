@@ -82,7 +82,7 @@ export const searchOrderCustomers = (organizationId: string, query: string, sign
 
   const request = supabase
     .from("customers")
-    .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,gender,addresses:customer_addresses(*)")
+    .select("id,customer_type,full_name,document,whatsapp,phone,trade_name,legal_name,cnpj")
     .eq("organization_id", organizationId)
     .or(conditions.join(","))
     .limit(8);
@@ -90,13 +90,14 @@ export const searchOrderCustomers = (organizationId: string, query: string, sign
 };
 
 
-export const getOrderCustomerById = (organizationId: string, customerId: string) =>
-  supabase
+export const getOrderCustomerById = (organizationId: string, customerId: string, signal?: AbortSignal) => {
+  const request = supabase
     .from("customers")
     .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,gender,addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
-    .eq("id", customerId)
-    .maybeSingle();
+    .eq("id", customerId);
+  return (signal ? request.abortSignal(signal) : request).maybeSingle();
+};
 
 /** Only fill missing verified CPF fields after the order has actually been saved.
  * Conditional updates avoid overwriting concurrent edits or a different CPF. */
