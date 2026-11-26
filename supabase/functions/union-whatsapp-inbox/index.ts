@@ -194,7 +194,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["participant_request_protocol","order_recipients","os_join","contact_join","start","crm_contact_save","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action) && !uuid(conversationId)) ||
-      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","crm_contact_save","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
+      !["participants","participant_add","participant_respond","participant_remove","participant_request_protocol","order_recipients","os_join","contact_join","assume","return_queue","finish","reopen","mark_read","send_text","send_media","sticker_send","sticker_list","sticker_saved_ids","sticker_prepare","sticker_commit","sticker_save","sticker_favorite","sticker_remove","media_view","members","transfer","start","crm_contact_save","check_number","number_verification_status","contact_names_batch","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","order_created_link","presence_subscribe","operator_list","operator_filter_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar","contacts_groups","contacts_groups_avatar","contacts_groups_manage","contacts_crm_match","contacts_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -2151,11 +2151,11 @@ if(action==="contacts_groups_manage") {
         .eq("organization_id",org).eq("conversation_id",thread.id).eq("status","active");
       return json({success:true});
     }
-    if(action==="order_options" || action==="order_link") {
-      if(!permissions.has("orders.details.view"))
+    if(action==="order_options" || action==="order_link" || action==="order_created_link") {
+      const fromCreation=action==="order_created_link";
+      if(fromCreation ? !permissions.has("orders.create") : !permissions.has("orders.details.view"))
         return json({success:false,error:"Sem permissão para visualizar ordens de serviço."},403);
-      if(!(canManage || thread.assigned_to===actorId ||
-        (thread.status==="waiting" && !thread.assigned_to) || isParticipant))
+      if(!(canManage || thread.assigned_to===actorId || inQueue || isParticipant))
         return json({success:false,error:"Conversa não atribuída a você."},403);
       const {data:savedLinks,error:linksError}=await admin.from("union_whatsapp_order_contacts")
         .select("service_order_id,contact_name,created_at")
@@ -2174,7 +2174,19 @@ if(action==="contacts_groups_manage") {
         if(error)throw error;
         linkedOrders=data||[];
       }
+      // Reuse the tenant-scoped CRM lookup: exact matches precede ninth-digit
+      // aliases and additional contacts require provider-confirmed aliases.
+      const contactPhone=String(thread.contact_phone||"").replace(/\D/g,"");
+      const lookupRegisteredCustomer=async()=>{
+        if(!/^[0-9]{10,15}$/.test(contactPhone))return null;
+        const {data,error}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+          p_organization:org,p_phone:contactPhone,
+        });
+        if(error)throw error;
+        return Array.isArray(data)&&data.length===1 ? String(data[0].customer_id) : null;
+      };
       if(action==="order_options"){
+        const registeredCustomerId=await lookupRegisteredCustomer();
         const search=String(body.search||"").trim().slice(0,40);
         let orders:Array<{id:string;os_number:string;created_at:string;customer_id:string}>=[];
         if(search){
@@ -2204,22 +2216,13 @@ if(action==="contacts_groups_manage") {
               orders=data||[];
             }
           }
-        }else{
-          const phone=String(thread.contact_phone||"").replace(/\D/g,"");
-          if(/^[0-9]{10,15}$/.test(phone)){
-            const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
-              p_organization:org,p_phone:phone,
-            });
-            if(matchError)throw matchError;
-            if(Array.isArray(matches)&&matches.length===1){
-              const {data,error}=await admin.from("service_orders")
-                .select("id,os_number,created_at,customer_id")
-                .eq("organization_id",org).eq("customer_id",matches[0].customer_id)
-                .order("created_at",{ascending:false}).limit(30);
-              if(error)throw error;
-              orders=data||[];
-            }
-          }
+        }else if(registeredCustomerId){
+          const {data,error}=await admin.from("service_orders")
+            .select("id,os_number,created_at,customer_id")
+            .eq("organization_id",org).eq("customer_id",registeredCustomerId)
+            .order("created_at",{ascending:false}).limit(30);
+          if(error)throw error;
+          orders=data||[];
         }
         const ids=[...new Set([...orders,...linkedOrders].map(item=>item.customer_id))];
         let customerNames=new Map<string,string>();
@@ -2235,17 +2238,37 @@ if(action==="contacts_groups_manage") {
         const format=(order:{id:string;os_number:string;created_at:string;customer_id:string})=>({
           id:order.id,os_number:order.os_number,created_at:order.created_at,
           customer_name:customerNames.get(order.customer_id)||"Cliente",
+          same_registered_number:registeredCustomerId===order.customer_id,
+          already_linked:linkedIds.includes(order.id),
         });
         return json({success:true,orders:orders.map(format),linked_orders:linkedOrders.map(format),
           service_order_id:thread.service_order_id});
       }
       const target=String(body.service_order_id||"");
       const unlink=body.unlink===true;
+      if(fromCreation && unlink)return json({success:false,error:"Operação de criação não permite desvincular OS."},403);
       if(!uuid(target))return json({success:false,error:"Selecione uma OS válida."},400);
       const {data:order,error:orderError}=await admin.from("service_orders")
-        .select("id").eq("organization_id",org).eq("id",target).maybeSingle();
+        .select("id,customer_id").eq("organization_id",org).eq("id",target).maybeSingle();
       if(orderError)throw orderError;
       if(!order)return json({success:false,error:"OS não encontrada nesta empresa."},404);
+      if(fromCreation){
+        // Creation permission must not grant arbitrary manual links to old orders.
+        // Verify the immutable server audit of this exact insert, by this actor.
+        const {data:creation,error:creationError}=await admin.from("organization_audit_logs")
+          .select("id").eq("organization_id",org).eq("table_name","service_orders")
+          .eq("entity_type","service_orders").eq("entity_id",target)
+          .eq("operation","insert").eq("actor_user_id",actorId)
+          .gte("created_at",new Date(Date.now()-30*60*1000).toISOString()).limit(1).maybeSingle();
+        if(creationError)throw creationError;
+        if(!creation)return json({success:false,error:"Não foi possível confirmar a criação recente desta OS pelo operador."},403);
+        const {data:intake,error:intakeError}=await admin.from("order_intake_requests")
+          .select("conversation_id").eq("organization_id",org).eq("id",target).maybeSingle();
+        if(intakeError)throw intakeError;
+        if(intake && intake.conversation_id!==thread.id)
+          return json({success:false,error:"A Pré-OS pertence a outra conversa."},409);
+      }
+      const sameRegisteredNumber=!unlink && (await lookupRegisteredCustomer())===order.customer_id;
       if(unlink){
         const {error}=await admin.from("union_whatsapp_order_contacts").delete()
           .eq("organization_id",org).eq("channel_id",thread.channel_id)
@@ -2275,7 +2298,7 @@ if(action==="contacts_groups_manage") {
           .eq("id",thread.id).eq("organization_id",org);
         if(updateError)throw updateError;
       }
-      return json({success:true,service_order_id:unlink?(thread.service_order_id===target?null:thread.service_order_id):target});
+      return json({success:true,service_order_id:unlink?(thread.service_order_id===target?null:thread.service_order_id):target,same_registered_number:sameRegisteredNumber});
     }
     // Legacy clients receive an affirmative no-op; no WuzAPI request is made.
     if(action==="presence_subscribe")return json({success:true,presence_disabled:true});
