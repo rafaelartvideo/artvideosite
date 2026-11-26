@@ -507,14 +507,14 @@ test("Vinculação de terceiros à OS não altera os números do cadastro e perm
   // Escolher destinatário é leitura da OS, não permissão para vincular conversas.
   assert.doesNotMatch(edge,/order_recipients:"link_orders"/);
   assert.match(edge,/if\(action==="order_recipients"\)/);
-  assert.match(edge,/if\(action==="order_options" \|\| action==="order_link"\)/);
+  assert.match(edge,/if\(action==="order_options" \|\| action==="order_link" \|\| action==="order_created_link"\)/);
   assert.match(edge,/digits.length===11\|\|digits.length===14/);
   assert.match(edge,/\.eq\("organization_id",org\)\.eq\(column,digits\)/);
   assert.match(edge,/\.eq\("organization_id",org\)\.ilike\("os_number",query\+"%"\)/);
   assert.match(edge,/onConflict:"organization_id,service_order_id,conversation_id"/);
   assert.match(edge,/\.eq\("conversation_id",selectedLinkedConversation\)/);
   assert.match(edge,/Este contato não está vinculado à OS/);
-  assert.doesNotMatch(edge.slice(edge.indexOf('if(action==="order_options" || action==="order_link")'),
+  assert.doesNotMatch(edge.slice(edge.indexOf('if(action==="order_options" || action==="order_link" || action==="order_created_link")'),
     edge.indexOf('// Legacy clients receive')),/\.update\(\{(?:phone|whatsapp):/);
 
   assert.match(repository,/"order_recipients"/);
@@ -1544,4 +1544,52 @@ test("Conciliação automática do SAC mantém nomes válidos, ignora nomes gen�
   const ui=read("src/features/whatsapp-channels/presentation/WhatsAppHistoryImports.tsx");
   assert.match(ui,/job\.state==="completed"&&!automaticAttempted\.current\.has\(job\.id\)/);
   assert.match(ui,/action:"auto_reconcile",id,after/);
+});
+
+test("Nova OS e Pré-OS vinculam a conversa de origem após salvar, sem liberar vínculos manuais ao operador",async()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const repo=read("src/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository.ts");
+  const block=edge.slice(edge.indexOf('if(action==="order_options" || action==="order_link" || action==="order_created_link")'),edge.indexOf('// Legacy clients receive'));
+  assert.ok(block.includes('const fromCreation=action==="order_created_link"'));
+  assert.ok(block.includes('fromCreation ? !permissions.has("orders.create") : !permissions.has("orders.details.view")'));
+  assert.ok(block.includes('fromCreation && unlink'));
+  assert.ok(block.includes('.eq("operation","insert").eq("actor_user_id",actorId)'));
+  assert.ok(block.includes('.eq("entity_id",target)'));
+  assert.ok(block.includes('intake.conversation_id!==thread.id'));
+  assert.ok(block.includes('.eq("organization_id",org).eq("id",target)'));
+  assert.ok(block.includes('onConflict:"organization_id,service_order_id,conversation_id"'));
+  assert.doesNotMatch(block,/\.update\(\{(?:phone|whatsapp):/);
+  assert.ok(edge.includes('order_link:"link_orders"'));
+  assert.ok(repo.includes('"order_created_link"'));
+  assert.ok(inbox.includes('conversationId:prefill.conversationId||intakeContext.conversationId'));
+  assert.ok(inbox.includes('const conversationId=newOrder.conversationId'));
+  assert.ok(modal.includes('conversationId: state.status==="ready" ? state.conversationId : undefined'));
+  for(const ui of [inbox,modal]){
+    assert.ok(ui.includes('"order_created_link",{service_order_id:orderId}'));
+    assert.ok(ui.includes('union:whatsapp-order-linked'));
+    assert.ok(ui.includes('vínculo com a conversa ficou pendente'));
+  }
+  assert.ok(inbox.includes('crmRefreshId!==selectedId'));
+  assert.ok(inbox.includes('delete next[conversationId]'));
+  assert.ok(inbox.includes('setCrmRefreshId(conversationId)'));
+  for(const [name,source] of [["inbox.tsx",inbox],["modal.tsx",modal],["repo.ts",repo],["edge.ts",edge]]){
+    assert.ok((await transformWithEsbuild(source,name,{loader:name.endsWith(".tsx")?"tsx":"ts"})).code);
+  }
+});
+
+test("vincular OS indica o mesmo número e vínculo existente sem adivinhar identidade ambígua",()=>{
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const sql=read("supabase/migrations/20261124120000_union_whatsapp_registration_contact_lookup.sql");
+  assert.ok(edge.includes('const lookupRegisteredCustomer=async()=>'));
+  assert.ok(edge.includes('Array.isArray(data)&&data.length===1 ? String(data[0].customer_id) : null'));
+  assert.ok(edge.includes('same_registered_number:registeredCustomerId===order.customer_id'));
+  assert.ok(edge.includes('already_linked:linkedIds.includes(order.id)'));
+  assert.ok(inbox.includes('Mesmo número da OS'));
+  assert.ok(inbox.includes('Já vinculada'));
+  assert.ok(inbox.includes('disabled={savingOrder||order.already_linked}'));
+  assert.ok(sql.includes("^[1-9][0-9]9[6-9][0-9]{7}$"));
+  assert.ok(sql.includes("^[1-9][0-9][6-9][0-9]{7}$"));
+  assert.ok(sql.includes("where m.preference = (select min(preference) from matches)"));
+  assert.ok(sql.includes("limit 2"));
 });
