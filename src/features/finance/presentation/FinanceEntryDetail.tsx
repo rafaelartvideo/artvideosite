@@ -15,7 +15,7 @@ import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 import { formatFinancialDocument } from "./financeDisplay";
 import { financialDueUrgency } from "../domain/finance-due-urgency.mjs";
-import { getOrderReportedReceipts, getOrderPaymentMethodNames, getInstallmentPaymentPreference, getSettlementInstallmentAllocations } from "../domain/finance-reported-receipts";
+import { getDisplayReportedReceipts, getInstallmentReceiptDisplay, getOrderPaymentMethodNames, getInstallmentPaymentPreference, getSettlementInstallmentAllocations } from "../domain/finance-reported-receipts";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -70,10 +70,14 @@ function EntryDetailContent({
     ? 0
     : detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
   const methods = [...new Set(detail.settlements.filter(item => item.settlement_status !== "reversed").map(item => item.payment_method_name_snapshot).filter(Boolean))];
-  const reportedReceipts = getOrderReportedReceipts(detail.source_details);
+  const reportedReceipts = getDisplayReportedReceipts(detail);
+  const receiptFor = (item: FinancialEntryDetail["installments"][number]) => getInstallmentReceiptDisplay(item, reportedReceipts);
+  const awaitingAmount = detail.installments.reduce((sum, item) => sum + receiptFor(item).awaiting, 0);
+  const receivedAmount = settledAmount + awaitingAmount;
+  const customerRemaining = Math.max(0, remaining - awaitingAmount);
   const plannedMethods = getOrderPaymentMethodNames(detail.source_details, paymentMethods);
   const displayedMethods = detail.origin_type === "service_order" && plannedMethods.length ? plannedMethods : [...new Set([...methods, ...plannedMethods])];
-  const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+  const due = detail.installments.filter(item => receiptFor(item).open > 0.005).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   const dueUrgency = financialDueUrgency(due?.due_date);
   const dueTone = dueUrgency === "today" || dueUrgency === "overdue"
     ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
@@ -119,6 +123,7 @@ function EntryDetailContent({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h3 className="min-w-0 break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
+              {isReceivable && awaitingAmount > 0 && <span role="status" className="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-700 dark:text-blue-300">Aguardando baixa</span>}
               {due && <span role="status" className={`inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-sm font-bold tabular-nums ${dueTone}`}>
                 Próximo vencimento: {formatDate(due.due_date)}{dueMessage}
               </span>}
@@ -146,8 +151,8 @@ function EntryDetailContent({
       </div>
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <div className="px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{warrantyPending ? "A definir" : formatCurrency(detail.original_amount)}</p></div>
-        <div className="bg-emerald-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
-        <div className="bg-amber-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(remaining)}</p></div>
+        <div className="bg-emerald-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(receivedAmount)}</p>{isReceivable && awaitingAmount > 0 && <p className="mt-1 text-xs text-muted-foreground">Baixado: {formatCurrency(settledAmount)}</p>}</div>
+        <div className="bg-amber-500/10 px-5 py-4 text-center"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(customerRemaining)}</p>{isReceivable && awaitingAmount > 0 && <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">Aguardando baixa: {formatCurrency(awaitingAmount)}</p>}</div>
       </div>
     </section>
 
@@ -201,9 +206,7 @@ function EntryDetailContent({
           <table className="min-w-[760px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-left">Formas de pagamento</th><th className="text-right">Valor previsto</th><th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th><th className="text-right">Em aberto</th>{canAdjustForecast && <th className="text-right">Ação</th>}</tr></thead>
             <tbody>{detail.installments.map(item => <Fragment key={item.id}>
               <tr><td className="font-semibold">{item.installment_number}/{item.total_installments}
-                {reportedReceipts.some(receipt => receipt.installment_number === item.installment_number) && <span className="mt-1 block text-[11px] font-semibold text-blue-700 dark:text-blue-300">
-                  {Number(item.settled_amount) + 0.005 >= Number(item.original_amount) ? "Informado na OS · baixa confirmada" : "Informado como recebido na OS · aguardando baixa"}
-                </span>}</td><td>{formatDate(item.due_date)}</td><td className="text-xs">{(() => { const paid = detail.settlements.filter(s => s.settlement_status !== "reversed" && getSettlementInstallmentAllocations(s, detail.events).some(a=>a.installment_id===item.id)).map(s => s.payment_method_name_snapshot); const pref = getInstallmentPaymentPreference(detail.source_details, item.installment_number); const planned = paymentMethods.find(m => m.id === pref.payment_method_id)?.name || pref.payment_method_name_snapshot; const names = detail.origin_type === "service_order" && planned ? [planned] : [...new Set([...paid, ...(planned ? [planned] : [])])]; return <span className="font-semibold">{names.join(", ") || "A definir"}</span>; })()}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(item.settled_amount)}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td>
+                {receiptFor(item).awaiting > 0 && <span className="mt-1 block text-[11px] font-semibold text-blue-700 dark:text-blue-300">Aguardando baixa: {formatCurrency(receiptFor(item).awaiting)}</span>}</td><td>{formatDate(item.due_date)}</td><td className="text-xs">{(() => { const paid = detail.settlements.filter(s => s.settlement_status !== "reversed" && getSettlementInstallmentAllocations(s, detail.events).some(a=>a.installment_id===item.id)).map(s => s.payment_method_name_snapshot); const pref = getInstallmentPaymentPreference(detail.source_details, item.installment_number); const planned = paymentMethods.find(m => m.id === pref.payment_method_id)?.name || pref.payment_method_name_snapshot; const names = detail.origin_type === "service_order" && planned ? [planned] : [...new Set([...paid, ...(planned ? [planned] : [])])]; return <span className="font-semibold">{names.join(", ") || "A definir"}</span>; })()}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(receiptFor(item).received)}{receiptFor(item).awaiting > 0 && <span className="block text-[11px] font-medium text-muted-foreground">Baixado: {formatCurrency(receiptFor(item).confirmed)}</span>}</td><td className={`text-right font-bold tabular-nums ${["cancelled", "reversed"].includes(detail.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(receiptFor(item).open)}</td>
                 {canAdjustForecast && <td className="text-right">{Number(item.original_amount) - Number(item.settled_amount) > 0.005 && <button
                   type="button" disabled={forecastBusy} aria-label={`Ajustar valor da parcela ${item.installment_number}`}
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
