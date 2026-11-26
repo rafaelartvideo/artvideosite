@@ -67,3 +67,67 @@ export function getOrderPaymentMethodNames(sourceDetails: Record<string, unknown
   }
   return [...names];
 }
+
+/** Presentation only: reported receipts never change settlement balances or cash. */
+type ReceiptEntry = {
+  entry_type: string;
+  origin_type: string;
+  approval_status: string;
+  operational_status?: string;
+  original_amount: number;
+  settled_amount?: number;
+  source_details?: Record<string, unknown>;
+};
+
+const receiptCents = (amount: unknown) => {
+  const n = Number(amount);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * 100)) : 0;
+};
+
+export function getDisplayReportedReceipts(entry: ReceiptEntry) {
+  if (entry.entry_type !== "receivable" || entry.origin_type !== "service_order"
+    || ["cancelled", "reversed", "rejected"].includes(entry.approval_status)
+    || entry.operational_status === "cancelled") return new Map<number, number>();
+  const amounts = new Map<number, number>();
+  for (const receipt of getOrderReportedReceipts(entry.source_details)) {
+    // Completion emits one report per installment; duplicates must not inflate receipts.
+    amounts.set(receipt.installment_number, Math.max(amounts.get(receipt.installment_number) || 0, receiptCents(receipt.principal_amount)));
+  }
+  return amounts;
+}
+
+export function getInstallmentReceiptDisplay(
+  installment: { installment_number: number; original_amount: number; settled_amount: number },
+  reports: ReadonlyMap<number, number>,
+) {
+  const total = receiptCents(installment.original_amount);
+  const confirmed = receiptCents(installment.settled_amount);
+  const reported = Math.min(total, reports.get(installment.installment_number) || 0);
+  const awaiting = Math.max(0, reported - confirmed);
+  return {
+    received: (confirmed + awaiting) / 100,
+    confirmed: confirmed / 100,
+    awaiting: awaiting / 100,
+    open: Math.max(0, total - confirmed - awaiting) / 100,
+  };
+}
+
+/** The paginated list has aggregate settlements, not allocations. Never add
+ * aggregate confirmed and reported amounts: they may cover the same installment. */
+export function getEntryReceiptDisplay(entry: ReceiptEntry) {
+  const total = receiptCents(entry.original_amount);
+  const confirmed = receiptCents(entry.settled_amount || 0);
+  const reported = Math.min(total, [...getDisplayReportedReceipts(entry).values()].reduce((sum, amount) => sum + amount, 0));
+  const fullyReported = total > 0 && reported >= total;
+  const ambiguous = reported > 0 && confirmed > 0 && confirmed < total && !fullyReported;
+  const received = Math.max(confirmed, reported);
+  return {
+    received: received / 100,
+    confirmed: confirmed / 100,
+    reported: reported / 100,
+    awaiting: Math.max(0, reported - confirmed) / 100,
+    open: Math.max(0, total - received) / 100,
+    fullyReported,
+    ambiguous,
+  };
+}
