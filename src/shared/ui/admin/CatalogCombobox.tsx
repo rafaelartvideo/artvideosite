@@ -95,7 +95,7 @@ export function CatalogCombobox({
   };
 
   return <div className="min-w-0">
-    {showLabel && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
+    {showLabel && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
       {label}{required && <span className="text-red-600 dark:text-red-400">*</span>}
     </label>}
     <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) { if (nextOpen) setOpen(true); else closeOptions(); } }}>
@@ -133,12 +133,12 @@ export function CatalogCombobox({
               INPUT,
               "h-[42px] pr-9",
               error && "border-red-500 focus:border-red-500 focus:ring-red-500/40",
-              disabled && "disabled:cursor-default disabled:bg-slate-100/60 disabled:text-slate-500 disabled:opacity-70 disabled:focus:ring-0",
+              disabled && "disabled:cursor-default disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-70 disabled:focus:ring-0",
               duplicateOption && "border-amber-400 focus:border-amber-500 focus:ring-amber-400/30",
-              selectedId && !selectionOnly && "border-emerald-300 bg-emerald-50/30",
+              selectedId && !selectionOnly && "border-emerald-500/40 bg-emerald-500/5",
             )}
           />
-          <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6a82] transition-transform", open && "rotate-180")} />
+          <ChevronDown size={15} className={cn("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-transform", open && "rotate-180")} />
         </div>
       </PopoverAnchor>
 
@@ -152,9 +152,9 @@ export function CatalogCombobox({
           const target = event.target as Node | null;
           if (target && anchorRef.current?.contains(target)) event.preventDefault();
         }}
-        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-border bg-white p-0 text-[#0d1b2e] shadow-2xl"
+        className="z-[220] w-[var(--radix-popover-trigger-width)] min-w-[220px] overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
       >
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-semibold text-[#5a6a82]">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-[11px] font-semibold text-muted-foreground">
           <Search size={13} className="shrink-0" />
           <span>{query ? "Resultados encontrados" : selectionOnly ? "Selecionar cadastro" : "Cadastros recentes"}</span>
         </div>
@@ -178,17 +178,17 @@ export function CatalogCombobox({
                 selected && "bg-primary-soft",
               )}
             >
-              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-white" : "border-[#0d1b2e]/15 text-transparent")}><Check size={11} /></span>
+              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-white" : "border-border text-transparent")}><Check size={11} /></span>
               <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-xs font-bold", selected ? "text-primary" : "text-[#0d1b2e]")}>{option.name}</span>
-                {option.meta && <span className="mt-0.5 block truncate text-[10px] text-[#5a6a82]">{option.meta}</span>}
+                <span className={cn("block truncate text-xs font-bold", selected ? "text-[var(--admin-link-text,var(--primary))]" : "text-popover-foreground")}>{option.name}</span>
+                {option.meta && <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{option.meta}</span>}
               </span>
             </button>;
-          }) : <p className="px-2.5 py-3 text-xs text-[#5a6a82]">{emptyText}</p>}
+          }) : <p className="px-2.5 py-3 text-xs text-muted-foreground">{emptyText}</p>}
         </div>
         {!selectionOnly && allowCreate && cleanCatalogValue(value) && !exactOption && (
-          <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-[#5a6a82]">
-            <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
+          <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-muted-foreground">
+            <span className="font-bold text-[var(--admin-link-text,var(--primary))]">{createLabel}:</span> {cleanCatalogValue(value)}
           </div>
         )}
       </PopoverContent>
@@ -196,7 +196,7 @@ export function CatalogCombobox({
 
     {error && <p role="alert" className="mt-1 text-[10px] font-semibold text-red-600 dark:text-red-400">{error}</p>}
     {duplicateOption ? (
-      <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-800">
+      <div className="mt-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 text-[var(--admin-warning-text,#92400e)]">
         <div className="flex min-w-0 items-start gap-1.5 text-[10px] font-semibold leading-4">
           <AlertCircle size={13} className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">“{duplicateOption.name}” já está cadastrado.</span>
@@ -205,15 +205,15 @@ export function CatalogCombobox({
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => selectOption(duplicateOption)}
-          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-primary/20 bg-white px-2 py-1 text-[9px] font-bold leading-none text-primary transition-colors hover:bg-primary-soft"
+          className="mt-1.5 inline-flex min-h-6 items-center rounded-md border border-primary/20 bg-popover px-2 py-1 text-[9px] font-bold leading-none text-primary transition-colors hover:bg-primary-soft"
         >
           Usar cadastro
         </button>
       </div>
     ) : !selectionOnly && selectedId && selectedOption ? (
-      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-700"><Check size={11} /> Cadastro existente selecionado.</p>
+      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-[var(--admin-success-text,#065f46)]"><Check size={11} /> Cadastro existente selecionado.</p>
     ) : helperText ? (
-      <p className="mt-1 text-[10px] leading-relaxed text-[#5a6a82]">{helperText}</p>
+      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{helperText}</p>
     ) : null}
   </div>;
 }

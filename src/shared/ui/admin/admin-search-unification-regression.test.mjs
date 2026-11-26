@@ -201,3 +201,32 @@ test("search preference is global across modules, mounted panels and reloads", a
   assert.equal(restore(false,blocked),false);
   assert.deepEqual([orders,customers],[2,2]);
 });
+
+test("seletor de catálogo respeita tema nos portais e mantém contraste de seleção",async()=>{
+  const shared=read("src/shared/ui/admin/CatalogCombobox.tsx");
+  const css=read("src/styles/index.css");
+  assert.ok((await transformWithEsbuild(shared,"CatalogCombobox.tsx",{loader:"tsx"})).code);
+  assert.match(shared,/bg-popover p-0 text-popover-foreground/);
+  assert.match(shared,/selected \? "text-\[var\(--admin-link-text,var\(--primary\)\)\]" : "text-popover-foreground"/);
+  assert.match(shared,/hover:bg-primary-soft focus-visible:bg-primary-soft/);
+  assert.match(shared,/disabled:bg-muted\/60 disabled:text-muted-foreground/);
+  assert.match(shared,/bg-amber-500\/10/);
+  assert.doesNotMatch(shared,/bg-white|text-\[#0d1b2e\]|bg-emerald-50\/30/);
+  const root=css.slice(css.indexOf('html[data-admin-theme="dark"] {'),css.indexOf(".admin-crm.dark,"));
+  for(const token of ["--popover: #111827","--popover-foreground: #e8edf5","--admin-link-text: #9aaaff","--admin-warning-text: #fcd34d","--admin-success-text: #6ee7b7"])assert.ok(root.includes(token),token);
+});
+
+test("estoque usa cores semânticas na tabela, detalhes e prévia da loja",async()=>{
+  const page=read("src/features/products/presentation/TabProducts.tsx");
+  const details=read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const settings=read("src/features/products/presentation/InventoryCatalogSettingsDialog.tsx");
+  const preview=page.slice(page.indexOf('<Section title="Prévia no site"'),page.indexOf("</TabsContent>",page.indexOf('<Section title="Prévia no site"')));
+  assert.ok(preview.includes("bg-card"));
+  assert.ok(preview.includes("text-foreground"));
+  assert.ok(preview.includes("text-muted-foreground"));
+  assert.doesNotMatch(preview,/bg-white|(?:text|border|bg)-\[#/);
+  assert.ok(details.includes('product.price == null ? "text-foreground" : "text-[var(--admin-success-text)]"'));
+  assert.ok(details.includes('stock <= minimum ? "text-[var(--admin-error-text)]" : "text-foreground"'));
+  assert.ok(settings.includes('text-[var(--admin-success-text)]'));
+  for(const [name,source] of [["TabProducts.tsx",page],["InventoryProductDetailsDialog.tsx",details],["InventoryCatalogSettingsDialog.tsx",settings]])assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
+});

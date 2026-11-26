@@ -161,7 +161,7 @@ export function InventoryCatalogSettingsDialog({
             </div> : <>
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-semibold text-foreground">{item.name}</p>
-                <p className={"text-[11px] " + (item.is_active ? "text-emerald-600" : "text-muted-foreground")}>{item.is_active ? "Ativo" : "Inativo"}</p>
+                <p className={"text-[11px] " + (item.is_active ? "text-[var(--admin-success-text)]" : "text-muted-foreground")}>{item.is_active ? "Ativo" : "Inativo"}</p>
               </div>
               {allowed && <>
                 <button type="button" aria-label={"Editar " + item.name} disabled={saving}

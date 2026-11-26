@@ -1546,7 +1546,7 @@ export function TabProducts({
                                 className="block w-full min-w-0 text-left !text-[13px] font-bold text-foreground hover:text-primary hover:underline"
                                 title={`Ver detalhes de ${product.name}`}><span className="block overflow-hidden whitespace-nowrap" style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</span></button>
                             : <p className="block overflow-hidden whitespace-nowrap text-[13px] font-bold text-foreground" title={product.name} style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</p>}
-                          <p className="mt-0.5 truncate text-[10px] font-semibold text-[#7a8aa0]" title={[product.sku || item?.sku || "Sem SKU",product.barcode].filter(Boolean).join(" · ")}>
+                          <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground" title={[product.sku || item?.sku || "Sem SKU",product.barcode].filter(Boolean).join(" · ")}>
                             {product.sku || item?.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
                           </p>
                           {relatedSearchResults.get(String(product.id))?.relation_type && <span
@@ -1556,8 +1556,8 @@ export function TabProducts({
                         </div>
                       </div>
                     </td>}
-                    {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
-                    {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
+                    {showCategory && <td className="text-xs text-muted-foreground">{product.product_categories?.name || "—"}</td>}
+                    {canViewBrands && <td className="text-xs text-muted-foreground">{product.brands?.name || "—"}</td>}
                     {showPrice && <td className={cn("!text-xs font-bold", product.price == null ? "text-foreground" : "text-green-600 dark:text-green-400")}>{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
                       <div className="text-xs font-bold text-foreground">
@@ -1572,20 +1572,20 @@ export function TabProducts({
                         />
                       </div>
                     </td>
-                    <td className="text-xs text-[#5a6a82]">
+                    <td className="text-xs text-muted-foreground">
                       {[item?.storage_shelf, item?.storage_level, item?.storage_compartment].filter(Boolean).join(" · ") || "—"}
                     </td>
-                    {canViewCosts && <td className="text-xs font-bold text-[#0d1b2e]">
+                    {canViewCosts && <td className="text-xs font-bold text-foreground">
                       {displayUnitCost(item?.average_cost, unit, factor) == null ? "—" : formatCurrency(displayUnitCost(item?.average_cost, unit, factor))}
                     </td>}
                     {showFeatured && <td>
                       {product.show_in_catalog ? (
                         canToggleFeatured
                           ? <AdminIconButton ariaLabel={product.is_featured ? "Remover produto dos destaques" : "Destacar produto"} title={product.is_featured ? "Remover destaque" : "Destacar produto"} variant="ghost" onClick={() => toggleFeatured(product)}>
-                              {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}
+                              {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-muted-foreground" />}
                             </AdminIconButton>
                           : product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span>—</span>
-                      ) : <span className="text-xs text-[#8a96a8]">Fora do catálogo</span>}
+                      ) : <span className="text-xs text-muted-foreground">Fora do catálogo</span>}
                     </td>}
                     {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
                     {showActions && <td>
@@ -2278,9 +2278,9 @@ export function TabProducts({
                   />
                 </div>
 
-                {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">
+                {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-2">
                   {canManageSuppliers && <div>
-                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label>
+                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Fornecedor do saldo inicial</label>
                     <CatalogSearchSelect
                       value={form.initial_supplier_entity_id}
                       onValueChange={value => {
@@ -2297,7 +2297,7 @@ export function TabProducts({
                       ariaLabel="Fornecedor do saldo inicial"
                     />
                     {fieldErrors.initial_supplier_entity_id && <p className="mt-1 text-[10px] font-semibold text-red-600">{fieldErrors.initial_supplier_entity_id}</p>}
-                    {linkedSuppliers.length === 0 && <p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Vincule fornecedores na aba Fornecedores para selecioná-los aqui.</p>}
+                    {linkedSuppliers.length === 0 && <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Vincule fornecedores na aba Fornecedores para selecioná-los aqui.</p>}
                   </div>}
                   <FInput
                     label="Documento / referência do saldo inicial"
@@ -2308,7 +2308,7 @@ export function TabProducts({
                   />
                 </div>}
 
-                <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                   <FInput label="Estante" value={form.storage_shelf} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_shelf: event.target.value }))} placeholder="Ex.: A" />
                   <FInput label="Prateleira" value={form.storage_level} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_level: event.target.value }))} placeholder="Ex.: 2" />
                   <FInput label="Compartimento" value={form.storage_compartment} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_compartment: event.target.value }))} placeholder="Ex.: C3" />
@@ -2321,7 +2321,7 @@ export function TabProducts({
                   factor={form.commercial_unit === "cx" ? Math.max(1, Number(form.conversion_factor || 1)) : 1}
                   unit={form.commercial_unit}
                 />}
-                {editItem && <p className="text-xs leading-5 text-[#5a6a82]">
+                {editItem && <p className="text-xs leading-5 text-muted-foreground">
                   O saldo atual não é alterado pela edição do cadastro. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
                 </p>}
               </div>
@@ -2453,37 +2453,37 @@ export function TabProducts({
             </Section>
 
             <Section title="Prévia no site" description="Prévia aproximada da página pública usando os dados preenchidos acima.">
-              <div className="rounded-2xl border border-border bg-[#f8fbff] p-3 sm:p-5">
-                <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-[#e2e9f2] bg-white shadow-sm">
+              <div className="rounded-2xl border border-border bg-muted/30 p-3 sm:p-5">
+                <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                   <div className="grid md:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]">
-                    <div className="min-h-[280px] border-b border-[#e8edf3] bg-[#f8fbff] p-5 md:border-b-0 md:border-r">
-                      <div className="flex h-full min-h-[240px] items-center justify-center overflow-hidden rounded-lg border border-[#e5ebf3] bg-white p-5">
+                    <div className="min-h-[280px] border-b border-border bg-muted/30 p-5 md:border-b-0 md:border-r">
+                      <div className="flex h-full min-h-[240px] items-center justify-center overflow-hidden rounded-lg border border-border bg-card p-5">
                         {coverPreviewUrl
                           ? <img src={coverPreviewUrl} alt="" className="max-h-[230px] max-w-full object-contain" />
-                          : <div className="text-center text-[#8da2ba]"><ImageIcon size={48} className="mx-auto mb-2" /><p className="text-xs font-semibold">Sem imagem principal</p></div>}
+                          : <div className="text-center text-muted-foreground"><ImageIcon size={48} className="mx-auto mb-2" /><p className="text-xs font-semibold">Sem imagem principal</p></div>}
                       </div>
                     </div>
                     <div className="p-5 sm:p-6">
                       <p className="text-[11px] font-bold text-primary">{previewBrand}</p>
-                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a98aa]">{previewCategory}</p>
-                      <h3 className="mt-2 break-words text-xl font-extrabold leading-tight text-[#0b1d37]">{form.name.trim() || "Nome do produto"}</h3>
-                      {form.sku.trim() && <p className="mt-2 text-[10px] text-[#7c8b9f]">Código: {form.sku.trim()}</p>}
-                      <div className="mt-5 border-t border-[#e7edf4] pt-4">
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{previewCategory}</p>
+                      <h3 className="mt-2 break-words text-xl font-extrabold leading-tight text-foreground">{form.name.trim() || "Nome do produto"}</h3>
+                      {form.sku.trim() && <p className="mt-2 text-[10px] text-muted-foreground">Código: {form.sku.trim()}</p>}
+                      <div className="mt-5 border-t border-border pt-4">
                         {previewCompareAtPrice !== null && previewPrice !== null && previewCompareAtPrice > previewPrice &&
-                          <p className="text-xs text-[#8b98aa] line-through">{formatCurrency(previewCompareAtPrice)}</p>}
+                          <p className="text-xs text-muted-foreground line-through">{formatCurrency(previewCompareAtPrice)}</p>}
                         <p className="text-2xl font-extrabold text-primary">{previewPrice !== null ? formatCurrency(previewPrice) : "Preço indisponível"}</p>
                       </div>
-                      <p className="mt-4 whitespace-pre-line text-[12px] leading-6 text-[#5c6d82]">
+                      <p className="mt-4 whitespace-pre-line text-[12px] leading-6 text-muted-foreground">
                         {form.short_description.trim() || "A descrição curta aparecerá aqui para apresentar rapidamente o produto ao cliente."}
                       </p>
                     </div>
                   </div>
-                  {visibleStoreCharacteristics.length > 0 && <div className="border-t border-[#e8edf3] p-5 sm:p-6">
-                    <p className="mb-3 text-sm font-bold text-[#18344f]">Características do produto</p>
+                  {visibleStoreCharacteristics.length > 0 && <div className="border-t border-border p-5 sm:p-6">
+                    <p className="mb-3 text-sm font-bold text-foreground">Características do produto</p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {visibleStoreCharacteristics.slice(0, 8).map((item, index) => <div key={index} className="flex min-w-0 justify-between gap-3 rounded-lg bg-[#f8fafc] px-3 py-2.5 text-[11px]">
-                        <span className="text-[#64748b]">{item.label}</span>
-                        <strong className="break-words text-right text-[#203b58]">{item.value}</strong>
+                      {visibleStoreCharacteristics.slice(0, 8).map((item, index) => <div key={index} className="flex min-w-0 justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5 text-[11px]">
+                        <span className="text-muted-foreground">{item.label}</span>
+                        <strong className="break-words text-right text-foreground">{item.value}</strong>
                       </div>)}
                     </div>
                   </div>}
