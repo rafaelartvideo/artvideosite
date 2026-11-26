@@ -154,3 +154,64 @@ test("menu de reabrir orçamento alinha com abas sem empurrar a barra para baixo
   assert.match(quote, /<MoreVertical size=\{18\}/);
   assert.match(quote, /Reabrir orçamento/);
 });
+
+test("Nova OS pesquisa o texto atual com debounce curto, cancelamento e campo vazio sem resultados", async () => {
+  const hook=read("src/features/orders/application/useOrderCustomerSelection.ts");
+  const repo=read("src/features/orders/infrastructure/orders-customer.repository.ts");
+  const ui=read("src/features/orders/presentation/OrderCustomerSection.tsx");
+  const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+  for (const [name,source,loader] of [["hook.ts",hook,"ts"],["repository.ts",repo,"ts"],["section.tsx",ui,"tsx"],["editor.tsx",editor,"tsx"]]) {
+    assert.ok((await transformWithEsbuild(source,name,{loader})).code);
+  }
+  for (const token of ['customerSearch.trim()', 'term.length >= 2', 'setDebouncedTerm(term), 180', 'window.clearTimeout(timer)', 'queryKey: ["orders", "customer-search", organizationId, term]', 'enabled: canSearch && debouncedTerm === term', 'searchOrderCustomers(organizationId, term, signal)', 'if (error) throw error', 'const customerResults = canSearch ? customerQuery.data || [] : []', 'retry: false']) assert.ok(hook.includes(token),token);
+  assert.doesNotMatch(hook,/setCustomerResults/);
+  assert.ok(repo.includes('request.abortSignal(signal)'));
+  assert.ok(repo.includes('.eq("organization_id", organizationId)'));
+  assert.ok(repo.includes('.limit(8)'));
+  assert.ok(ui.includes('customerSearch.trim().length >= 2 && customerResults.length > 0'));
+  assert.ok(ui.includes("Buscando clientes..."));
+  assert.ok(ui.includes("Nenhum cliente encontrado."));
+  assert.ok(editor.includes('customerSearchLoading={customerSearchLoading}'));
+});
+
+test("resposta antiga não substitui a busca atual nem reaparece após limpar o campo", async () => {
+  const {QueryClient,QueryObserver}=await import("@tanstack/react-query");
+  const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+  const requests=[];
+  const options=(org,term,enabled=true)=>({
+    queryKey:["orders","customer-search",org,term],
+    enabled,
+    queryFn:({signal})=>new Promise(resolve=>requests.push({org,term,signal,resolve})),
+  });
+  const observer=new QueryObserver(client,options("org-a","ro"));
+  const unsubscribe=observer.subscribe(()=>{});
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));
+  try {
+    await tick();
+    assert.equal(requests.length,1);
+    observer.setOptions(options("org-a","ros"));
+    await tick();
+    assert.equal(requests.length,2);
+    assert.equal(requests[0].signal.aborted,true);
+    requests[1].resolve([{id:"latest"}]);
+    await tick();
+    assert.deepEqual(observer.getCurrentResult().data,[{id:"latest"}]);
+    requests[0].resolve([{id:"old"}]);
+    await tick();
+    assert.deepEqual(observer.getCurrentResult().data,[{id:"latest"}]);
+    observer.setOptions(options("org-a","rosi"));
+    await tick();
+    assert.equal(requests.length,3);
+    observer.setOptions(options("org-a","",false));
+    assert.equal(requests[2].signal.aborted,true);
+    requests[2].resolve([{id:"cleared"}]);
+    await tick();
+    assert.equal(observer.getCurrentResult().data,undefined);
+    assert.equal(requests.length,3);
+    observer.setOptions(options("org-b","ros",false));
+    assert.equal(observer.getCurrentResult().data,undefined);
+  } finally {
+    unsubscribe();
+    client.clear();
+  }
+});
