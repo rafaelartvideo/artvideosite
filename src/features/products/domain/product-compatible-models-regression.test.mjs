@@ -179,3 +179,16 @@ test("detalhes do estoque mostram o autor original sem consultar a lista inteira
   assert.match(creator,/\.eq\("organization_id", organizationId\)\.eq\("profile_id", product.created_by\)/);
   assert.doesNotMatch(creator,/updated_by/);
 });
+
+test("configuração de estoque oferece ações de classificação com exclusão protegida", async () => {
+  const ui=read("src/features/products/presentation/InventoryCatalogSettingsDialog.tsx");
+  const repo=read("src/features/products/infrastructure/inventory-catalog-settings.repository.ts");
+  const page=read("src/features/products/presentation/TabProducts.tsx");
+  const sql=read("supabase/migrations/20261126113300_inventory_catalog_classification_safe_delete.sql");
+  assert.ok((await transformWithEsbuild(ui,"InventoryCatalogSettingsDialog.tsx",{loader:"tsx"})).code);
+  assert.ok((await transformWithEsbuild(repo,"inventory-catalog-settings.repository.ts",{loader:"ts"})).code);
+  for (const token of ["<AdminActiveStateButton", "<Trash2", "<ConfirmDialog", 'canDeleteClassifications &&', 'deleteInventoryCatalogClassification(organizationId, target.kind, target.id)', '(Inativa)']) assert.ok(ui.includes(token),token);
+  assert.ok(page.includes('canDeleteClassifications={hasPermission("inventory.categories.manage")}'));
+  assert.ok(repo.includes('supabase.rpc("delete_inventory_catalog_classification"'));
+  for (const token of ["auth.uid() is null", "inventory.categories.manage", "organization_id=p_organization_id and id=p_id for update", "public.products where category_id=p_id", "public.product_subcategories where category_id=p_id", "public.products where subcategory_id=p_id", "security invoker", "from public, anon, authenticated"]) assert.ok(sql.includes(token),token);
+});
