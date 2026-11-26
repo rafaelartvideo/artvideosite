@@ -1,6 +1,6 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { VerifiedWhatsAppPhoneInput } from "@/features/whatsapp-channels/presentation/WhatsAppNumberVerification";
-import { Link2, MapPin, Pencil, Plus, RefreshCcw, Search } from "lucide-react";
+import { Link2, LoaderCircle, MapPin, Pencil, Plus, RefreshCcw, Search } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { formatZipCode, getAddressMapUrl, type Address } from "@/lib/address";
 import { BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -42,6 +42,9 @@ export function OrderCustomerSection({
   customerResults,
   customerSearchLoading,
   customerSearchError,
+  selectingCustomer,
+  customerSelectionError,
+  cancelSearchSelection,
   retryCustomerSearch,
   hasPermission,
   serviceCustomerAddresses,
@@ -71,6 +74,9 @@ export function OrderCustomerSection({
   customerResults: any[];
   customerSearchLoading: boolean;
   customerSearchError: boolean;
+  selectingCustomer: boolean;
+  customerSelectionError: boolean;
+  cancelSearchSelection: () => void;
   retryCustomerSearch: () => void;
   hasPermission: (permission: string) => boolean;
   serviceCustomerAddresses: Address[];
@@ -86,6 +92,7 @@ export function OrderCustomerSection({
   onClearCustomer: () => void;
   onCreateCustomer: () => void;
 }) {
+  useEffect(() => () => cancelSearchSelection(), [cancelSearchSelection]);
   const editingOS = editingOrder;
   const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const selectedAddress = selectedServiceAddress
@@ -93,7 +100,7 @@ export function OrderCustomerSection({
     || selectedCustomer?.addresses?.[0]
     || customerAddressDraft;
   const mapUrl = hideAddress ? null : getAddressMapUrl(selectedAddress);
-  const setQuickCustomer = (open: boolean) => { if (open) onCreateCustomer(); };
+  const setQuickCustomer = (open: boolean) => { if (open) { cancelSearchSelection(); onCreateCustomer(); } };
   const compactActionClass = "h-11 w-11 shrink-0 justify-center !p-0 sm:h-auto sm:w-auto sm:!px-4 sm:!py-2.5";
   const compactHeaderLinkClass = "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-white p-0 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2";
   const mobileHiddenLabel = "hidden sm:inline";
@@ -193,19 +200,20 @@ export function OrderCustomerSection({
           <div className="flex min-w-0 items-end gap-2">
             <div className="relative min-w-0 flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-              <input disabled={saving} value={customerSearch} onChange={e => searchCustomers(e.target.value)} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9")} />
+              <input disabled={saving} value={customerSearch} onChange={e => searchCustomers(e.target.value)} aria-label="Buscar cliente" aria-busy={customerSearchLoading || selectingCustomer} placeholder="Buscar cliente por nome, CPF ou WhatsApp..." className={cn(INPUT, "min-w-0 pl-9 pr-10")} />
+              {(customerSearchLoading || selectingCustomer) && <span role="status" aria-label="Buscando clientes..." className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-primary"><LoaderCircle size={16} className="animate-spin" /></span>}
             </div>
             {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} disabled={saving} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
           </div>
-          {customerSearch.trim().length >= 2 && <div aria-live="polite" className="text-xs text-muted-foreground">
-            {customerSearchLoading ? "Buscando clientes..." : customerSearchError ? <>
+          {customerSearch.trim().length >= 2 && !customerSearchLoading && !selectingCustomer && (customerSearchError || customerSelectionError || customerResults.length === 0) && <div aria-live="polite" className="text-xs text-muted-foreground">
+            {customerSelectionError ? "Não foi possível carregar o cliente. Selecione-o novamente." : customerSearchError ? <>
               Não foi possível buscar clientes. <button type="button" disabled={saving} onClick={retryCustomerSearch} className="font-semibold text-primary hover:underline">Tentar novamente</button>
             </> : customerResults.length === 0 ? "Nenhum cliente encontrado." : null}
           </div>}
           {customerSearch.trim().length >= 2 && customerResults.length > 0 && (
             <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
               {customerResults.map(c => (
-                <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full border-b border-[#0d1b2e]/5 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-muted disabled:opacity-50">
+                <button type="button" disabled={saving || selectingCustomer} key={c.id} onClick={() => selectCustomer(c)} className="w-full border-b border-[#0d1b2e]/5 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-muted disabled:opacity-50">
                   <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name || c.trade_name || c.legal_name}</p>
                   <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
                 </button>
