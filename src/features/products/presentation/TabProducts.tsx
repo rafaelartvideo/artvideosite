@@ -438,8 +438,8 @@ export function TabProducts({
   const closingEditorRouteRef = useRef(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [editorTab, setEditorTab] = useState<ProductEditorTab>("general");
-  const [identifierKinds, setIdentifierKinds] = useState<ProductIdentifierKind[]>(["barcode"]);
-  const [mobileScanTarget, setMobileScanTarget] = useState<ProductIdentifierKind>("barcode");
+  const [identifierKinds, setIdentifierKinds] = useState<ProductIdentifierKind[]>(["manufacturer_code"]);
+  const [mobileScanTarget, setMobileScanTarget] = useState<ProductIdentifierKind>("manufacturer_code");
   const [variantOptions, setVariantOptions] = useState<VariantOption[]>([]);
   const [variantOptionsLoaded, setVariantOptionsLoaded] = useState(true);
   const [hadSavedVariantOptions, setHadSavedVariantOptions] = useState(false);
@@ -607,8 +607,8 @@ export function TabProducts({
     if (!canCreate) return;
     setFieldErrors({});
     setForm(emptyForm());
-    setIdentifierKinds(["barcode"]);
-    setMobileScanTarget("barcode");
+    setIdentifierKinds(["manufacturer_code"]);
+    setMobileScanTarget("manufacturer_code");
     setRelatedCodesLoaded(true);
     relatedCodesRequestRef.current += 1;
     compatibleModelsRequestRef.current += 1;
@@ -864,8 +864,8 @@ export function TabProducts({
   for (const { value: kind, label } of PRODUCT_IDENTIFIER_OPTIONS) {
     const normalized = normalizeIdentifier(form[kind]);
     if (!normalized || (editItem && normalized === normalizeIdentifier(editItem[kind]))) continue;
-    const conflict = otherProducts.find((product: any) => PRODUCT_IDENTIFIER_OPTIONS.some(option =>
-      normalizeIdentifier(product[option.value]) === normalized));
+    const conflict = otherProducts.find((product: any) => ["barcode", "manufacturer_code", "internal_barcode"].some(key =>
+      normalizeIdentifier(product[key]) === normalized));
     if (conflict) identifierConflicts[kind] = label + " já cadastrado em " + conflict.name + ".";
   }
   // Um modelo pode pertencer a outras categorias/marcas; versões herdam o modelo principal.
@@ -983,9 +983,9 @@ export function TabProducts({
       const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantCandidates);
       const allowedLabels = new Set(expected.map(row => row.label));
       const gtins = variantRows.map(row => normalizeIdentifier(row.barcode)).filter(Boolean);
-      const parentCodes = PRODUCT_IDENTIFIER_OPTIONS.map(option => normalizeIdentifier(form[option.value])).filter(Boolean);
+      const parentCodes = [form.barcode, form.manufacturer_code, form.internal_barcode].map(normalizeIdentifier).filter(Boolean);
       const conflictingVariantCode = gtins.find(code => parentCodes.includes(code) || otherProducts.some((product: any) =>
-        PRODUCT_IDENTIFIER_OPTIONS.some(option => normalizeIdentifier(product[option.value]) === code)));
+        ["barcode", "manufacturer_code", "internal_barcode"].some(key => normalizeIdentifier(product[key]) === code)));
       // A lista selecionada é um subconjunto das combinações geradas, não precisa conter todas.
       const valid = canCreate && canEdit
         && expected.length >= variantCandidates.length
@@ -1668,7 +1668,6 @@ export function TabProducts({
                 <ProductIdentifiersEditor
                   kinds={identifierKinds}
                   values={{
-                    barcode: form.barcode,
                     manufacturer_code: form.manufacturer_code,
                     internal_barcode: form.internal_barcode,
                   }}
@@ -1693,8 +1692,8 @@ export function TabProducts({
                   onRemove={kind => {
                     setForm(current => ({ ...current, [kind]: "" }));
                     const remaining = identifierKinds.filter(item => item !== kind);
-                    setIdentifierKinds(remaining.length ? remaining : ["barcode"]);
-                    setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
+                    setIdentifierKinds(remaining.length ? remaining : ["manufacturer_code"]);
+                    setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "manufacturer_code") : currentTarget);
                   }}
                 />
                 <div className="min-w-0 sm:col-span-2">
