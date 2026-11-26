@@ -1546,7 +1546,7 @@ export function TabProducts({
                                 className="block w-full min-w-0 text-left !text-[13px] font-bold text-foreground hover:text-primary hover:underline"
                                 title={`Ver detalhes de ${product.name}`}><span className="block overflow-hidden whitespace-nowrap" style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</span></button>
                             : <p className="block overflow-hidden whitespace-nowrap text-[13px] font-bold text-foreground" title={product.name} style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</p>}
-                          <p className="mt-0.5 truncate text-[10px] font-semibold text-[#7a8aa0]" title={[product.sku || item?.sku || "Sem SKU",product.barcode].filter(Boolean).join(" · ")}>
+                          <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground" title={[product.sku || item?.sku || "Sem SKU",product.barcode].filter(Boolean).join(" · ")}>
                             {product.sku || item?.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
                           </p>
                           {relatedSearchResults.get(String(product.id))?.relation_type && <span
@@ -1556,8 +1556,8 @@ export function TabProducts({
                         </div>
                       </div>
                     </td>}
-                    {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
-                    {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
+                    {showCategory && <td className="text-xs text-muted-foreground">{product.product_categories?.name || "—"}</td>}
+                    {canViewBrands && <td className="text-xs text-muted-foreground">{product.brands?.name || "—"}</td>}
                     {showPrice && <td className={cn("!text-xs font-bold", product.price == null ? "text-foreground" : "text-green-600 dark:text-green-400")}>{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
                       <div className="text-xs font-bold text-foreground">
@@ -1572,20 +1572,20 @@ export function TabProducts({
                         />
                       </div>
                     </td>
-                    <td className="text-xs text-[#5a6a82]">
+                    <td className="text-xs text-muted-foreground">
                       {[item?.storage_shelf, item?.storage_level, item?.storage_compartment].filter(Boolean).join(" · ") || "—"}
                     </td>
-                    {canViewCosts && <td className="text-xs font-bold text-[#0d1b2e]">
+                    {canViewCosts && <td className="text-xs font-bold text-foreground">
                       {displayUnitCost(item?.average_cost, unit, factor) == null ? "—" : formatCurrency(displayUnitCost(item?.average_cost, unit, factor))}
                     </td>}
                     {showFeatured && <td>
                       {product.show_in_catalog ? (
                         canToggleFeatured
                           ? <AdminIconButton ariaLabel={product.is_featured ? "Remover produto dos destaques" : "Destacar produto"} title={product.is_featured ? "Remover destaque" : "Destacar produto"} variant="ghost" onClick={() => toggleFeatured(product)}>
-                              {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-[#5a6a82]" />}
+                              {product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <Star size={15} className="text-muted-foreground" />}
                             </AdminIconButton>
                           : product.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span>—</span>
-                      ) : <span className="text-xs text-[#8a96a8]">Fora do catálogo</span>}
+                      ) : <span className="text-xs text-muted-foreground">Fora do catálogo</span>}
                     </td>}
                     {showStatus && <td><StatusBadge status={product.is_active ? "Ativo" : "Inativo"} /></td>}
                     {showActions && <td>
@@ -2278,9 +2278,9 @@ export function TabProducts({
                   />
                 </div>
 
-                {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-2">
+                {!editItem && Number(form.initial_quantity || 0) > 0 && <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-2">
                   {canManageSuppliers && <div>
-                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Fornecedor do saldo inicial</label>
+                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Fornecedor do saldo inicial</label>
                     <CatalogSearchSelect
                       value={form.initial_supplier_entity_id}
                       onValueChange={value => {
@@ -2297,7 +2297,7 @@ export function TabProducts({
                       ariaLabel="Fornecedor do saldo inicial"
                     />
                     {fieldErrors.initial_supplier_entity_id && <p className="mt-1 text-[10px] font-semibold text-red-600">{fieldErrors.initial_supplier_entity_id}</p>}
-                    {linkedSuppliers.length === 0 && <p className="mt-1 text-[10px] leading-4 text-[#5a6a82]">Vincule fornecedores na aba Fornecedores para selecioná-los aqui.</p>}
+                    {linkedSuppliers.length === 0 && <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Vincule fornecedores na aba Fornecedores para selecioná-los aqui.</p>}
                   </div>}
                   <FInput
                     label="Documento / referência do saldo inicial"
@@ -2308,7 +2308,7 @@ export function TabProducts({
                   />
                 </div>}
 
-                <div className="grid grid-cols-1 gap-4 border-t border-[#0d1b2e]/8 pt-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                   <FInput label="Estante" value={form.storage_shelf} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_shelf: event.target.value }))} placeholder="Ex.: A" />
                   <FInput label="Prateleira" value={form.storage_level} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_level: event.target.value }))} placeholder="Ex.: 2" />
                   <FInput label="Compartimento" value={form.storage_compartment} disabled={saving} onChange={(event: any) => setForm(current => ({ ...current, storage_compartment: event.target.value }))} placeholder="Ex.: C3" />
@@ -2321,7 +2321,7 @@ export function TabProducts({
                   factor={form.commercial_unit === "cx" ? Math.max(1, Number(form.conversion_factor || 1)) : 1}
                   unit={form.commercial_unit}
                 />}
-                {editItem && <p className="text-xs leading-5 text-[#5a6a82]">
+                {editItem && <p className="text-xs leading-5 text-muted-foreground">
                   O saldo atual não é alterado pela edição do cadastro. Entradas, saídas e ajustes continuam sendo registrados como movimentações de estoque para preservar o histórico.
                 </p>}
               </div>
