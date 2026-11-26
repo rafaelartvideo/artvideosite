@@ -163,13 +163,24 @@ test("Nova OS pesquisa o texto atual com debounce curto, cancelamento e campo va
   for (const [name,source,loader] of [["hook.ts",hook,"ts"],["repository.ts",repo,"ts"],["section.tsx",ui,"tsx"],["editor.tsx",editor,"tsx"]]) {
     assert.ok((await transformWithEsbuild(source,name,{loader})).code);
   }
-  for (const token of ['customerSearch.trim()', 'term.length >= 2', 'setDebouncedTerm(term), 180', 'window.clearTimeout(timer)', 'queryKey: ["orders", "customer-search", organizationId, term]', 'enabled: canSearch && debouncedTerm === term', 'searchOrderCustomers(organizationId, term, signal)', 'if (error) throw error', 'const customerResults = canSearch ? customerQuery.data || [] : []', 'retry: false']) assert.ok(hook.includes(token),token);
+  for (const token of ['customerSearch.trim()', 'term.length >= 2', 'setDebouncedTerm(term), 450', 'window.clearTimeout(timer)', 'queryKey: ["orders", "customer-search", organizationId, term]', 'enabled: canSearch && debouncedTerm === term', 'searchOrderCustomers(organizationId, term, signal)', 'if (error) throw error', 'const customerResults = canSearch ? customerQuery.data || [] : []', 'retry: false']) assert.ok(hook.includes(token),token);
   assert.doesNotMatch(hook,/setCustomerResults/);
   assert.ok(repo.includes('request.abortSignal(signal)'));
   assert.ok(repo.includes('.eq("organization_id", organizationId)'));
   assert.ok(repo.includes('.limit(8)'));
   assert.ok(ui.includes('customerSearch.trim().length >= 2 && customerResults.length > 0'));
   assert.ok(ui.includes("Buscando clientes..."));
+  assert.ok(ui.includes("absolute right-3 top-1/2"));
+  assert.ok(ui.includes("aria-busy={customerSearchLoading || selectingCustomer}"));
+  assert.ok(ui.includes("<LoaderCircle"));
+  assert.ok(hook.includes("staleTime: 60_000"));
+  assert.ok(hook.includes("getOrderCustomerById(organizationId, customerId, controller.signal)"));
+  assert.ok(hook.includes("selectionRequest.current !== controller"));
+  assert.ok(hook.includes("selectionRequest.current?.abort()"));
+  const searchRepo=repo.slice(repo.indexOf("export const searchOrderCustomers"),repo.indexOf("export const getOrderCustomerById"));
+  assert.ok(!searchRepo.includes("addresses:customer_addresses"));
+  assert.ok(repo.slice(repo.indexOf("export const getOrderCustomerById")).includes("addresses:customer_addresses(*)"));
+  assert.ok(editor.includes("selectSearchCustomer(customer.id,onSelectCustomer)"));
   assert.ok(ui.includes("Nenhum cliente encontrado."));
   assert.ok(editor.includes('customerSearchLoading={customerSearchLoading}'));
 });
