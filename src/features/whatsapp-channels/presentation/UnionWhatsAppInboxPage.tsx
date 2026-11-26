@@ -607,7 +607,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [ordersSearched,setOrdersSearched]=useState(false);
   const [orderSearchError,setOrderSearchError]=useState("");
   const ordersRequestRef=useRef(0);
-  const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
+  const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string;same_registered_number?:boolean;already_linked?:boolean}>>([]);
   const [linkedOrders,setLinkedOrders]=useState<Array<{id:string;os_number:string;created_at:string;customer_name?:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
   const [handoffs,setHandoffs] = useState<Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
@@ -721,6 +721,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,CrmConversationContext>>({});
   const [crmDetailsOpen,setCrmDetailsOpen]=useState(false);
+  const [crmRefreshId,setCrmRefreshId]=useState<string|null>(null);
   const [newContact,setNewContact]=useState<{owner:{id:string;name:string}|null;organizationId:string;conversationId:string;loading:boolean;error:string;previewName?:string;launch:number}|null>(null);
   const contactLaunch=useRef(0);
   const contactOpenRef=useRef(false);
@@ -1203,6 +1204,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // a cada troca de conversa, protocolo ou filtro.
   const selectedIdRef=useRef(selectedId);
   selectedIdRef.current=selectedId;
+  // Both embedded and full inboxes receive the confirmed documentary link.
+  useEffect(()=>{
+    const onOrderLinked=(event:Event)=>{
+      const detail=(event as CustomEvent<{organizationId:string;conversationId:string;orderId:string}>).detail;
+      if(!detail || detail.organizationId!==activeOrganizationId)return;
+      const {conversationId,orderId}=detail;
+      conversationPageCacheRef.current.clear();
+      setConversations(old=>old.map(item=>item.id===conversationId?{...item,service_order_id:orderId}:item));
+      setSelectedFallback(old=>old?.id===conversationId?{...old,service_order_id:orderId}:old);
+      setLinkedCustomers(old=>{const next={...old};delete next[conversationId];return next;});
+      setCrmRefreshId(conversationId);
+      void futureQueryClient.invalidateQueries({queryKey:["whatsapp","crm-contact-owner",activeOrganizationId],refetchType:"none"});
+      void futureQueryClient.invalidateQueries({queryKey:["whatsapp","new-order-customer",activeOrganizationId],refetchType:"none"});
+    };
+    window.addEventListener("union:whatsapp-order-linked",onOrderLinked);
+    return()=>window.removeEventListener("union:whatsapp-order-linked",onOrderLinked);
+  },[activeOrganizationId,futureQueryClient]);
   const refreshMessagesRef=useRef(refreshMessages);
   refreshMessagesRef.current=refreshMessages;
   const wasForegroundRef=useRef(embedded || !sharedActivity || sharedActivity.isPageOpen);
@@ -1365,7 +1383,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
    useEffect(() => {
-    if(!crmDetailsOpen || !hasPermission("customers.view") || !selectedId ||
+    if((!crmDetailsOpen && crmRefreshId!==selectedId) || !hasPermission("customers.view") || !selectedId ||
        !activeOrganizationId || channelReady!==true ||
        Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
     let cancelled=false;
@@ -1382,7 +1400,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         customer:null,equipments:[],orders:[],error:true,
       }}));});
     return()=>{cancelled=true;};
-  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen]);
+  },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen,crmRefreshId]);
 
   const startReplyTo=(message:UnionWhatsAppMessage)=>{
     if(message.read_only)return;
@@ -1807,8 +1825,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       });
       if(ordersRequestRef.current!==version||organizationRef.current!==organization||
         selectedIdRef.current!==conversationId)return;
-      setPossibleOrders((result.orders||[]).filter(order=>
-        !(result.linked_orders||[]).some(link=>link.id===order.id)));
+      setPossibleOrders((result.orders||[]).map(order=>({...order,already_linked:order.already_linked||(result.linked_orders||[]).some(link=>link.id===order.id)})));
       setLinkedOrders(result.linked_orders||[]);
     }catch(error){
       if(ordersRequestRef.current!==version)return;
@@ -1827,7 +1844,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!activeOrganizationId || !selected)return;
     setSavingOrder(true);
     try{
-      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{
         service_order_id:id,unlink,
       });
       setConversations(old=>old.map(item=>item.id===selected.id
@@ -1844,7 +1861,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         });
       }
       setOrdersOpen(false);
-      notifyAdmin(unlink?"Vínculo da OS removido.":"Contato WhatsApp vinculado à OS sem alterar o cadastro.","success");
+      if(!unlink)window.dispatchEvent(new CustomEvent("union:whatsapp-order-linked",{detail:{organizationId:activeOrganizationId,conversationId:selected.id,orderId:id}}));
+      notifyAdmin(unlink?"Vínculo da OS removido.":result.same_registered_number?"Mesmo número do cadastro da OS. Vínculo confirmado.":"Contato WhatsApp vinculado à OS sem alterar o cadastro.","success");
     }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível atualizar o vínculo da OS."));}
     finally{setSavingOrder(false);}
   };
@@ -3664,12 +3682,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               Nenhuma OS nova encontrada para esta busca.
             </p>}
           {!ordersLoading&&!orderSearchError&&possibleOrders.map(order=><button key={order.id} type="button"
-            onClick={()=>void linkOrder(order.id)} disabled={savingOrder}
+            onClick={()=>void linkOrder(order.id)} disabled={savingOrder||order.already_linked}
             className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60">
             <span className="min-w-0 truncate"><strong>OS {order.os_number}</strong>
               <span className="block truncate text-[11px] text-muted-foreground">{order.customer_name||"Cliente"}</span>
             </span>
-            <span className="shrink-0 text-xs font-semibold text-primary">Vincular</span>
+            <span className="flex shrink-0 flex-col items-end gap-1 text-xs font-semibold text-primary">{order.same_registered_number&&<span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">Mesmo número da OS</span>}{order.already_linked?"Já vinculada":"Vincular"}</span>
           </button>)}
         </div>}
         <div className="mt-4 flex justify-end">
@@ -3760,7 +3778,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         onEmbeddedCreated={(orderId:string)=>{
           const opportunityId=newOrder.opportunityId;
           const org=newOrder.organizationId;
+          const conversationId=newOrder.conversationId;
           setNewOrder(null);
+          if(conversationId){
+            void operateUnionWhatsAppInbox(org,conversationId,"order_created_link",{service_order_id:orderId})
+              .then(()=>{
+                window.dispatchEvent(new CustomEvent("union:whatsapp-order-linked",{detail:{organizationId:org,conversationId,orderId}}));
+                notifyAdmin("OS criada e vinculada ao atendimento.","success");
+              })
+              .catch(reason=>notifyAdmin("OS criada, mas o vínculo com a conversa ficou pendente: "+systemErrorMessage(reason,"Tente vincular a OS."),"error"));
+          }
           if(newOrder.intake)void futureQueryClient.invalidateQueries({queryKey:["order-intake",org]});
           if(opportunityId){
             void markFutureOpportunityConverted(org,opportunityId,orderId)
@@ -3772,7 +3799,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               .catch(reason=>notifyAdmin(
                 "OS criada, mas não foi possível vincular a oportunidade: "+
                   systemErrorMessage(reason,"Tente vincular manualmente."),"error"));
-          }else notifyAdmin("OS criada com sucesso.","success");
+          }else if(!conversationId)notifyAdmin("OS criada com sucesso.","success");
         }}/>
     </Suspense>}
   </div>;
