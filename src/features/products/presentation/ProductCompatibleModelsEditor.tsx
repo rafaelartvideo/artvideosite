@@ -133,15 +133,26 @@ export function ProductCompatibleModelsEditor({
           </div>
         </div>
         <div className="min-w-0 sm:col-span-2">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Modelos compatíveis</label>
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
-            <textarea rows={2} value={modelInput} disabled={disabled} maxLength={10000}
-              placeholder={"Ex.: UN50AU7700, UN55AU7700\nTambém é possível colar um modelo por linha."}
-              onChange={event => setModelInput(event.target.value)}
-              className="min-h-[76px] min-w-0 flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"/>
-            <AdminButton type="button" variant="secondary" disabled={disabled} onClick={addModels}
-              className="min-h-[42px] shrink-0 justify-center sm:self-start">
-              <Plus size={15}/> Adicionar modelos
+          <div className="flex min-w-0 items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <FInput label="Modelos compatíveis" value={modelInput} disabled={disabled} maxLength={10000}
+                placeholder="Ex.: UN50AU7700, UN55AU7700"
+                onChange={(event: any) => setModelInput(event.target.value)}
+                onKeyDown={(event: any) => { if (event.key === "Enter") { event.preventDefault(); addModels(); } }}
+                onPaste={(event: any) => {
+                  const pasted = event.clipboardData.getData("text");
+                  if (!/[\r\n]/.test(pasted)) return;
+                  event.preventDefault();
+                  const input = event.currentTarget;
+                  const start = input.selectionStart ?? modelInput.length;
+                  const end = input.selectionEnd ?? start;
+                  setModelInput((modelInput.slice(0, start) + pasted.replace(/[\r\n]+/g, ", ") + modelInput.slice(end)).slice(0, 10000));
+                }}
+              />
+            </div>
+            <AdminButton type="button" variant="tertiary" disabled={disabled} onClick={addModels}
+              className="h-[42px] shrink-0 justify-center">
+              <Plus size={15}/> <span className="hidden sm:inline">Adicionar modelos</span><span className="sm:hidden">Adicionar</span>
             </AdminButton>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">Separe os modelos por vírgula, ponto e vírgula ou quebra de linha. Cadastre outras marcas alterando o campo acima.</p>
