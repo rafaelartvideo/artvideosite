@@ -49,3 +49,20 @@ test("Kanban mantém barra superior própria e não recebe barra de tabela", () 
   assert.ok(code.includes("Rolagem horizontal superior do Kanban"));
   assert.ok(!code.includes("<TopTableScrollbar />"));
 });
+
+test("nomes longos não alargam a coluna Item e têm fade sem alterar o nome completo",async()=>{
+  const source=read("src/features/products/presentation/TabProducts.tsx");
+  const table=source.slice(source.indexOf('<table className="w-full min-w-[850px]">'),source.indexOf('</table>',source.indexOf('<table className="w-full min-w-[850px]">')));
+  assert.ok(table.includes('w-[340px] text-left">Item'));
+  assert.ok(table.includes('max-w-[340px]'));
+  assert.ok(table.includes('max-w-[320px] items-center'));
+  assert.ok(table.includes('min-w-0 flex-1'));
+  assert.ok(table.includes('!text-[13px]'));
+  assert.equal((table.match(/maskImage:/g)||[]).length,2);
+  assert.ok(table.includes('linear-gradient(to right, black calc(100% - 20px), transparent)'));
+  assert.ok(table.includes('overflow-hidden whitespace-nowrap'));
+  assert.ok(table.includes('title={product.name}'));
+  assert.ok(table.includes('Ver detalhes de ${product.name}'));
+  assert.ok(table.includes('onClick={() => openDetails(product)}'));
+  assert.ok((await transformWithEsbuild(source,"TabProducts.tsx",{loader:"tsx"})).code);
+});
