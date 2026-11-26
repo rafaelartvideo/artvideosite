@@ -4,13 +4,20 @@ import { readFileSync } from "node:fs";
 import { transformWithEsbuild } from "vite";
 const read = file => readFileSync(file, "utf8");
 
-test("Geral mantém nome e SKU, categoria/marca acima de modelo/condição", async () => {
+test("Geral mantém códigos no início, SKU automático e classificação em ordem", async () => {
   const ui = read("src/features/products/presentation/TabProducts.tsx");
   assert.ok((await transformWithEsbuild(ui, "TabProducts.tsx", { loader: "tsx" })).code);
-  const layout = ui.slice(ui.indexOf('<TabsContent value="general"'), ui.indexOf("<ProductIdentifiersEditor"));
-  const labels = ["Nome do item", "SKU / código interno", "Categoria", "Marca", "Modelo", "Condição do produto"];
+  const generalStart = ui.indexOf('<TabsContent value="general"');
+  const commercialStart = ui.indexOf('<TabsContent value="commercial"');
+  assert.ok(generalStart >= 0 && commercialStart > generalStart);
+  const layout = ui.slice(generalStart, commercialStart);
+  const labels = ["Nome do item", "Categoria", "Subcategoria", "Marca", "Modelo", "Condição do produto"];
   const positions = labels.map(label => layout.indexOf(`label="${label}"`));
   assert.ok(positions.every(index => index >= 0));
+  const codes = layout.indexOf("<ProductIdentifiersEditor");
+  assert.ok(codes >= 0 && codes < positions[0]);
+  assert.ok(!layout.includes('label="SKU / código interno"'));
+  assert.ok(ui.includes('sku: editItem ? form.sku.trim() || null : null'));
   assert.ok(positions.every((position, index) => index === 0 || position > positions[index - 1]));
   assert.ok(layout.includes("grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4"));
   const toolbarStart = ui.indexOf('<AdminStickyToolbar className="z-10 !justify-end md:!justify-start">');
