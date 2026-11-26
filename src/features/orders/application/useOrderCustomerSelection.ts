@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { customerFormFromCustomer, emptyCustomerForm, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { emptyAddress, type Address } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +9,7 @@ export function useOrderCustomerSelection(organizationIdOverride?: string | null
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerResults, setCustomerResults] = useState<any[]>([]);
+  const [debouncedTerm, setDebouncedTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerDraft, setCustomerDraft] = useState<CustomerForm>({
@@ -19,14 +20,39 @@ export function useOrderCustomerSelection(organizationIdOverride?: string | null
   });
   const [addressExpanded, setAddressExpanded] = useState(false);
 
-  const searchCustomers = async (query: string) => {
-    setCustomerSearch(query);
-    if (query.length < 2 || !organizationId) {
-      setCustomerResults([]);
+  const term = customerSearch.trim().replace(/\s+/g, " ");
+  const canSearch = Boolean(organizationId && !selectedCustomer && term.length >= 2);
+  useEffect(() => {
+    if (!canSearch) {
+      setDebouncedTerm("");
       return;
     }
-    const { data } = await searchOrderCustomers(organizationId, query);
-    setCustomerResults(data || []);
+    const timer = window.setTimeout(() => setDebouncedTerm(term), 180);
+    return () => window.clearTimeout(timer);
+  }, [canSearch, term]);
+
+  // Observe the current input key immediately, even during debounce. An older
+  // request can never publish into this key, including after clearing the input.
+  const customerQuery = useQuery({
+    queryKey: ["orders", "customer-search", organizationId, term],
+    enabled: canSearch && debouncedTerm === term,
+    queryFn: async ({ signal }) => {
+      if (!organizationId || term.length < 2) return [];
+      const { data, error } = await searchOrderCustomers(organizationId, term, signal);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 15_000,
+    gcTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const customerResults = canSearch ? customerQuery.data || [] : [];
+  const customerSearchLoading = canSearch && (debouncedTerm !== term || customerQuery.isFetching || customerQuery.isPending);
+  const customerSearchError = canSearch && !customerSearchLoading && customerQuery.isError;
+  const searchCustomers = (query: string) => setCustomerSearch(query);
+  const retryCustomerSearch = () => {
+    if (canSearch && debouncedTerm === term) void customerQuery.refetch();
   };
 
   const hydrateCustomer = (customer: any) => {
@@ -41,7 +67,7 @@ export function useOrderCustomerSelection(organizationIdOverride?: string | null
     setEditingCustomer(false);
     setAddressExpanded(false);
     setCustomerSearch("");
-    setCustomerResults([]);
+    setDebouncedTerm("");
     return address as Address | null;
   };
 
@@ -57,7 +83,7 @@ export function useOrderCustomerSelection(organizationIdOverride?: string | null
     setCustomerDraft({ ...emptyCustomerForm });
     setCustomerAddressDraft({ ...emptyAddress });
     setCustomerSearch("");
-    setCustomerResults([]);
+    setDebouncedTerm("");
   };
 
   return {
@@ -65,7 +91,9 @@ export function useOrderCustomerSelection(organizationIdOverride?: string | null
     customerSearch,
     setCustomerSearch,
     customerResults,
-    setCustomerResults,
+    customerSearchLoading,
+    customerSearchError,
+    retryCustomerSearch,
     selectedCustomer,
     setSelectedCustomer,
     editingCustomer,

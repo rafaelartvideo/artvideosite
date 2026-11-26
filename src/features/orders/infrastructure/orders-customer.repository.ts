@@ -53,7 +53,7 @@ export const saveOrderCustomerAddress = (
     ? supabase.from("customer_addresses").update(payload).eq("organization_id", organizationId).eq("id", addressId)
     : supabase.from("customer_addresses").insert({ ...payload, organization_id: organizationId });
 
-export const searchOrderCustomers = (organizationId: string, query: string) => {
+export const searchOrderCustomers = (organizationId: string, query: string, signal?: AbortSignal) => {
   const term = query.trim();
   const digits = term.replace(/\D/g, "");
   const numericOnly = /^[\d\s./()+-]+$/.test(term);
@@ -80,12 +80,13 @@ export const searchOrderCustomers = (organizationId: string, query: string) => {
   }
   if (!conditions.length) return Promise.resolve({ data: [], error: null });
 
-  return supabase
+  const request = supabase
     .from("customers")
     .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,gender,addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
     .or(conditions.join(","))
     .limit(8);
+  return signal ? request.abortSignal(signal) : request;
 };
 
 

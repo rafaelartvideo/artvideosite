@@ -40,6 +40,9 @@ export function OrderCustomerSection({
   addressExpanded,
   customerSearch,
   customerResults,
+  customerSearchLoading,
+  customerSearchError,
+  retryCustomerSearch,
   hasPermission,
   serviceCustomerAddresses,
   selectedServiceAddress,
@@ -66,6 +69,9 @@ export function OrderCustomerSection({
   addressExpanded: boolean;
   customerSearch: string;
   customerResults: any[];
+  customerSearchLoading: boolean;
+  customerSearchError: boolean;
+  retryCustomerSearch: () => void;
   hasPermission: (permission: string) => boolean;
   serviceCustomerAddresses: Address[];
   selectedServiceAddress: Address | null;
@@ -191,11 +197,16 @@ export function OrderCustomerSection({
             </div>
             {hasPermission("customers.create") && <BtnPrimary onClick={() => setQuickCustomer(true)} disabled={saving} aria-label="Criar cliente" title="Criar cliente" className={compactActionClass}><Plus size={20} className={actionIconClass} /><span className={mobileHiddenLabel}>Criar cliente</span></BtnPrimary>}
           </div>
-          {customerResults.length > 0 && (
+          {customerSearch.trim().length >= 2 && <div aria-live="polite" className="text-xs text-muted-foreground">
+            {customerSearchLoading ? "Buscando clientes..." : customerSearchError ? <>
+              Não foi possível buscar clientes. <button type="button" disabled={saving} onClick={retryCustomerSearch} className="font-semibold text-primary hover:underline">Tentar novamente</button>
+            </> : customerResults.length === 0 ? "Nenhum cliente encontrado." : null}
+          </div>}
+          {customerSearch.trim().length >= 2 && customerResults.length > 0 && (
             <div className="border border-[#0d1b2e]/10 rounded-lg overflow-hidden">
               {customerResults.map(c => (
                 <button type="button" disabled={saving} key={c.id} onClick={() => selectCustomer(c)} className="w-full border-b border-[#0d1b2e]/5 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-muted disabled:opacity-50">
-                  <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name}</p>
+                  <p className="font-semibold text-sm text-[#0d1b2e]">{c.full_name || c.trade_name || c.legal_name}</p>
                   <p className="text-xs text-[#5a6a82]">{c.customer_type === "PJ" ? formatCnpj(c.cnpj || "") : formatCpf(c.document || "")} {c.whatsapp && `· ${formatPhone(c.whatsapp)}`}</p>
                 </button>
               ))}
