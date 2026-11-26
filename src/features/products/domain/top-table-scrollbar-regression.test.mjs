@@ -66,3 +66,18 @@ test("nomes longos não alargam a coluna Item e têm fade sem alterar o nome com
   assert.ok(table.includes('onClick={() => openDetails(product)}'));
   assert.ok((await transformWithEsbuild(source,"TabProducts.tsx",{loader:"tsx"})).code);
 });
+
+test("estoque usa verde apenas para preço definido, saldo neutro e alerta vermelho",async()=>{
+  const source=read("src/features/products/presentation/TabProducts.tsx");
+  const start=source.indexOf('{showPrice && <td');
+  const end=source.indexOf('<InventorySaleWindowBadge',start);
+  assert.ok(start>=0&&end>start);
+  const cells=source.slice(start,end);
+  assert.ok(cells.includes('cn("!text-xs font-bold", product.price == null ? "text-foreground" : "text-green-600 dark:text-green-400")'));
+  assert.ok(cells.includes('product.price == null ? "Consultar" : formatCurrency(product.price)'));
+  assert.ok(cells.includes('className="text-xs font-bold text-foreground"'));
+  assert.ok(cells.includes('lowStock ? "text-red-600 dark:text-red-400" : "text-muted-foreground"'));
+  assert.ok(!cells.includes('text-amber-600'));
+  assert.ok(!cells.includes('text-blue-600'));
+  assert.ok((await transformWithEsbuild(source,"TabProducts.tsx",{loader:"tsx"})).code);
+});
