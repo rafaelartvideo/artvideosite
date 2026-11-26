@@ -120,3 +120,20 @@ export async function updateInventoryCatalogOption(
   if (error) throw error;
   if (!data?.id) throw new Error("Cadastro não encontrado nesta empresa.");
 }
+
+export async function deleteInventoryCatalogClassification(
+  organizationId: string,
+  kind: "category" | "subcategory",
+  id: string,
+) {
+  if (!organizationId || !id) throw new Error("Classificação não encontrada nesta empresa.");
+  const { error } = await supabase.rpc("delete_inventory_catalog_classification", {
+    p_organization_id: organizationId,
+    p_kind: kind,
+    p_id: id,
+  });
+  if (error) {
+    if (error.code === "23503") throw new Error("Este cadastro possui produtos ou subcategorias vinculados. Desative-o em vez de excluir.");
+    throw error;
+  }
+}
