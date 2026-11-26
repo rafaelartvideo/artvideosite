@@ -5,16 +5,19 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("identificação do cadastro é única e não exige GTIN, MPN ou código de barras interno", async () => {
+test("identificação do cadastro oferece apenas MPN e código interno opcionais", async () => {
   const editor = read("src/features/products/presentation/TabProducts.tsx");
   const identifiers = read("src/features/products/presentation/ProductIdentifiersEditor.tsx");
   for (const [name, source] of [["TabProducts.tsx",editor],["ProductIdentifiersEditor.tsx",identifiers]]) {
     assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
   }
   assert.ok(editor.includes("<ProductIdentifiersEditor"));
-  assert.ok(editor.includes('useState<ProductIdentifierKind[]>(["barcode"])'));
+  assert.ok(editor.includes('useState<ProductIdentifierKind[]>(["manufacturer_code"])'));
   assert.ok(editor.includes("visibleProductIdentifierKinds(product)"));
-  assert.ok(identifiers.includes("GTIN / Código de barras"));
+  assert.ok(!identifiers.includes("GTIN / Código de barras"));
+  assert.ok(!identifiers.includes('value: "barcode"'));
+  assert.ok(identifiers.includes('return present.length ? present : ["manufacturer_code"]'));
+  assert.ok(identifiers.includes('title="Adicionar outro código" variant="tertiary"'));
   assert.ok(identifiers.includes("Código do fabricante / MPN"));
   assert.ok(identifiers.includes("Código de barras interno"));
   assert.ok(identifiers.includes("Adicionar outro código"));
@@ -33,7 +36,7 @@ test("trocar tipo, adicionar ou remover código não sobrescreve identificaçõe
   assert.ok(editor.includes("setIdentifierKinds(current => current.map(kind => kind === from ? to : kind))"));
   assert.ok(editor.includes("[to]: current[from]"));
   assert.ok(editor.includes("[from]: \"\""));
-  assert.ok(editor.includes('setIdentifierKinds(["barcode"])'));
+  assert.ok(editor.includes('setIdentifierKinds(["manufacturer_code"])'));
   assert.ok(identifiers.includes('option.value === kind || !kinds.includes(option.value)'));
   assert.ok(identifiers.includes("PRODUCT_IDENTIFIER_OPTIONS.filter"));
   assert.ok(identifiers.includes("values[kind]"));
