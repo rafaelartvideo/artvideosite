@@ -622,7 +622,7 @@ export async function listUnionWhatsAppProtocols(
 }
 
 export type UnionWhatsAppParticipant = { user_id:string; name:string; status:"active"|"requested"; requested_by:string|null; decided_by:string|null; created_at:string; updated_at:string };
-export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "crm_contact_save" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "number_verification_status" | "contact_names_batch" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_filter_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_recipients" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_avatar" | "contacts_groups" | "contacts_groups_avatar" | "contacts_groups_manage" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names" | "contacts_history";
+export type UnionWhatsAppInboxAction = "participants" | "participant_add" | "participant_respond" | "participant_remove" | "participant_request_protocol" | "os_join" | "contact_join" | "crm_contact_save" | "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "sticker_send" | "sticker_list" | "sticker_saved_ids" | "sticker_prepare" | "sticker_commit" | "sticker_save" | "sticker_favorite" | "sticker_remove" | "media_view" | "start" | "check_number" | "number_verification_status" | "contact_names_batch" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_filter_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_recipients" | "order_options" | "order_link" | "order_created_link" | "presence_subscribe" | "contacts_list" | "contacts_avatar" | "contacts_groups" | "contacts_groups_avatar" | "contacts_groups_manage" | "contacts_crm_match" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names" | "contacts_history";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
@@ -637,13 +637,14 @@ export async function operateUnionWhatsAppInbox(
   found?: boolean; can_start?: boolean; first_message_sent?: boolean; participating?: boolean; responsible_name?: string | null;
   queue_settings?: UnionWhatsAppQueueSettings;
   stickers?: UnionWhatsAppSavedSticker[]; saved_message_ids?: string[]; sticker_id?: string; already_saved?: boolean;
-  orders?: Array<{id:string;os_number:string;created_at:string;customer_name?:string}>;
+  orders?: Array<{id:string;os_number:string;created_at:string;customer_name?:string;same_registered_number?:boolean;already_linked?:boolean}>;
   linked_orders?: Array<{id:string;os_number:string;created_at:string;customer_name?:string}>;
   display_names?: Array<{id:string;name:string}>;
   linked_via_order?: boolean;
   recipients?: Array<{kind:"registered"|"linked";name:string;phone:string;
     field?:"whatsapp"|"phone";conversation_id?:string;entity_contact_id?:string}>;
   service_order_id?: string|null;
+  same_registered_number?: boolean;
   entity_contact_id?: string;
   contact_owner?: {id:string;name:string}|null;
   matched_customer_id?: string;
