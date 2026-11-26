@@ -29,7 +29,7 @@ import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
 import { formatFinanceOriginLabel } from "../domain/finance-origin-label.mjs";
 import { FinanceServiceOrderLink } from "./FinanceServiceOrderLink";
-import { getOrderReportedReceipts, getOrderPaymentMethodNames } from "../domain/finance-reported-receipts";
+import { getEntryReceiptDisplay, getOrderPaymentMethodNames } from "../domain/finance-reported-receipts";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
 function formatDate(value?: string | null) {
@@ -40,18 +40,19 @@ function formatDate(value?: string | null) {
 
 const operationLabels: Record<string, string> = { open: "Pendente", overdue: "Vencida", partial: "Parcialmente baixada", settled: "Baixada", cancelled: "Cancelada" };
 
-function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warning" | "danger" | "success" | "blue" }) {
+function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warning" | "danger" | "success" | "blue" | "orange" }) {
   const tones = {
     neutral: STATUS_TONE_CLASSES.neutral.badge,
     warning: STATUS_TONE_CLASSES.pending.badge,
     danger: STATUS_TONE_CLASSES.danger.badge,
     success: STATUS_TONE_CLASSES.success.badge,
     blue: STATUS_TONE_CLASSES.progress.badge,
+    orange: STATUS_TONE_CLASSES.waiting.badge,
   };
   return <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wide ${tones[tone]}`}>{children}</span>;
 }
 
-function operationalTone(status?: string) { return ["overdue","cancelled"].includes(status || "") ? "danger" as const : status === "settled" ? "success" as const : ["partial","open"].includes(status || "") ? "warning" as const : "neutral" as const; }
+function operationalTone(status?: string) { return ["overdue","cancelled"].includes(status || "") ? "danger" as const : status === "settled" ? "success" as const : status === "partial" ? "orange" as const : status === "open" ? "warning" as const : "neutral" as const; }
 
 
 function sourceValue(entry: FinancialEntry, key: string) {
@@ -225,10 +226,21 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const recurringById = useMemo(() => new Map((recurring.rulesQuery.data || []).map(rule => [rule.id, rule])), [recurring.rulesQuery.data]);
   const recurringRuleFor = (entry: FinancialEntry) => recurringById.get(sourceValue(entry, "recurring_rule_id"));
   const isRecurringCancelled = (entry: FinancialEntry) => Boolean(sourceValue(entry, "recurring_cancelled_at")) || Boolean(recurringRuleFor(entry)?.cancelled_at);
-  const receiptBadge = (entry: FinancialEntry) => {
-    if (entry.origin_type !== "service_order" || ["settled", "cancelled"].includes(entry.operational_status || "")) return null;
-    const count = getOrderReportedReceipts(entry.source_details).length;
-    return count ? <Badge tone="blue">{count} parcela{count === 1 ? "" : "s"} informada{count === 1 ? "" : "s"} como recebida{count === 1 ? "" : "s"} na OS</Badge> : null;
+  const receiptValue = (entry: FinancialEntry) => {
+    const receipt = getEntryReceiptDisplay(entry);
+    if (receipt.ambiguous) return <><span className="block">{formatCurrency(receipt.confirmed)}</span><span className="block text-[11px] font-medium text-muted-foreground">OS: {formatCurrency(receipt.reported)}</span></>;
+    return <>{formatCurrency(receipt.received)}{receipt.awaiting > 0 && <span className="block text-[11px] font-medium text-muted-foreground">Baixado: {formatCurrency(receipt.confirmed)}</span>}</>;
+  };
+  const entryStatusBadge = (entry: FinancialEntry) => {
+    const receipt = getEntryReceiptDisplay(entry);
+    const status = entry.operational_status || "open";
+    if (isReceivable && !["cancelled", "reversed", "rejected"].includes(entry.approval_status) && status !== "cancelled") {
+      if (status === "settled") return <Badge tone="success">Recebido</Badge>;
+      if (receipt.fullyReported && receipt.awaiting > 0) return <Badge tone="blue">Aguardando baixa</Badge>;
+      if (receipt.reported > 0 && receipt.received > 0) return <><Badge tone="orange">Parcialmente recebido</Badge>{receipt.awaiting > 0 ? <Badge tone="blue">Aguardando baixa</Badge> : receipt.ambiguous ? <Badge tone="blue">Informado na OS</Badge> : null}</>;
+      if (status === "partial") return <Badge tone="orange">Parcialmente recebido</Badge>;
+    }
+    return <Badge tone={operationalTone(status)}>{operationLabels[status] || status}</Badge>;
   };
   const recurringBadge = (entry: FinancialEntry) => {
     if (entry.origin_type !== "recurring") return null;
@@ -465,11 +477,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
-                <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
-                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
+                <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{receiptValue(entry)}</strong></span>
+                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(isReceivable && !getEntryReceiptDisplay(entry).ambiguous ? getEntryReceiptDisplay(entry).open : entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{receiptBadge(entry)}{recurringBadge(entry)}
+                {entryStatusBadge(entry)}{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{recurringBadge(entry)}
               </div>
             </div>
             <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
@@ -506,9 +518,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td className="text-xs text-muted-foreground">{displayPaymentMethods(entry)}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{warrantyNeedsDetails(entry) ? "A definir" : formatCurrency(entry.original_amount)}</td>
-                <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
+                <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{receiptValue(entry)}</td>
                  {!isReceivable && <td className={`text-right font-semibold tabular-nums ${["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
-                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{receiptBadge(entry)}{recurringBadge(entry)}</div></td>
+                <td><div className="flex flex-wrap gap-1">{entryStatusBadge(entry)}{warrantyNeedsDetails(entry) ? <Badge tone="warning">Dados pendentes</Badge> : sourceValue(entry,"billing_model")==="partner_warranty" ? <Badge tone="blue">Garantia · Fabricante</Badge> : null}{recurringBadge(entry)}</div></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
