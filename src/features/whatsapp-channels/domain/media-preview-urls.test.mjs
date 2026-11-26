@@ -300,3 +300,22 @@ test("cache privado deduplica, respeita prazo e descarta mídia na troca de sess
   assert.equal(await cache.get("file",90000,load),5);
   assert.equal(await cache.get("file",90000,load),6);
 });
+
+test("anexo de documento mantém nome e ações compactos dentro da conversa",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const {transformWithEsbuild}=await import("vite");
+  const source=readFileSync(new URL("../presentation/UnionWhatsAppInboxPage.tsx",import.meta.url),"utf8");
+  const start=source.indexOf('{hasStoredMedia && message.message_type === "file" && <div');
+  const end=source.indexOf('{!mediaUrl && !(hasStoredMedia',start);
+  assert.ok(start>=0 && end>start);
+  const file=source.slice(start,end);
+  assert.ok(file.includes('max-w-full'));
+  assert.ok(file.includes('<FileText size={14} className="shrink-0"/>'));
+  assert.ok(file.includes('min-w-0 break-all text-left !text-xs'));
+  assert.ok(file.includes('shrink-0 !text-xs'));
+  assert.equal((file.match(/!text-xs/g)||[]).length,2);
+  assert.ok(file.includes('actOnDocument("open"'));
+  assert.ok(file.includes('actOnDocument("download"'));
+  assert.ok(file.includes('message.media_name'));
+  assert.ok((await transformWithEsbuild(source,"UnionWhatsAppInboxPage.tsx",{loader:"tsx"})).code);
+});

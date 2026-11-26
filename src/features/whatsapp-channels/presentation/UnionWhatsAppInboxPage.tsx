@@ -386,12 +386,13 @@ export function MessageBody({ message, organizationId, onMediaLoad, onSaveSticke
     </button>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
-    {hasStoredMedia && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
-      <FileText size={17}/>
+    {hasStoredMedia && message.message_type === "file" && <div className="flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border/70 px-2.5 py-2 text-xs">
+      <FileText size={14} className="shrink-0"/>
       <button type="button" disabled={Boolean(documentAction)} onClick={event=>void actOnDocument("open",event.currentTarget.ownerDocument.defaultView||window)}
-        className="font-bold hover:underline disabled:opacity-50">{documentAction==="open"?"Abrindo...":"Abrir "+(message.media_name||"documento")}</button>
+        title={message.media_name||"Abrir documento"}
+        className="min-w-0 break-all text-left !text-xs font-semibold leading-4 hover:underline disabled:opacity-50">{documentAction==="open"?"Abrindo...":"Abrir "+(message.media_name||"documento")}</button>
       <button type="button" disabled={Boolean(documentAction)} onClick={event=>void actOnDocument("download",event.currentTarget.ownerDocument.defaultView||window)}
-        className="font-semibold hover:underline disabled:opacity-50">{documentAction==="download"?"Baixando...":"Baixar"}</button>
+        className="shrink-0 !text-xs font-semibold leading-4 hover:underline disabled:opacity-50">{documentAction==="download"?"Baixando...":"Baixar"}</button>
     </div>}
     {!mediaUrl && !(hasStoredMedia && message.message_type==="file") && (mediaLoading ?
       <div role="status" aria-label="Carregando arquivo" className="flex min-h-9 items-center justify-center">
