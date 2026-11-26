@@ -180,7 +180,7 @@ export function CatalogCombobox({
             >
               <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-white" : "border-border text-transparent")}><Check size={11} /></span>
               <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-xs font-bold", selected ? "text-[var(--primary-light)] font-bold" : "text-popover-foreground")}>{option.name}</span>
+                <span className={cn("block truncate text-xs font-bold", selected ? "text-[var(--admin-link-text,var(--primary))]" : "text-popover-foreground")}>{option.name}</span>
                 {option.meta && <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{option.meta}</span>}
               </span>
             </button>;
@@ -188,7 +188,7 @@ export function CatalogCombobox({
         </div>
         {!selectionOnly && allowCreate && cleanCatalogValue(value) && !exactOption && (
           <div className="border-t border-border bg-muted px-3 py-2 text-[10px] text-muted-foreground">
-            <span className="font-bold text-primary">{createLabel}:</span> {cleanCatalogValue(value)}
+            <span className="font-bold text-[var(--admin-link-text,var(--primary))]">{createLabel}:</span> {cleanCatalogValue(value)}
           </div>
         )}
       </PopoverContent>
@@ -196,7 +196,7 @@ export function CatalogCombobox({
 
     {error && <p role="alert" className="mt-1 text-[10px] font-semibold text-red-600 dark:text-red-400">{error}</p>}
     {duplicateOption ? (
-      <div className="mt-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 text-[var(--admin-warning-text)]">
+      <div className="mt-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 text-[var(--admin-warning-text,#92400e)]">
         <div className="flex min-w-0 items-start gap-1.5 text-[10px] font-semibold leading-4">
           <AlertCircle size={13} className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">“{duplicateOption.name}” já está cadastrado.</span>
@@ -211,7 +211,7 @@ export function CatalogCombobox({
         </button>
       </div>
     ) : !selectionOnly && selectedId && selectedOption ? (
-      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-[var(--admin-success-text)]"><Check size={11} /> Cadastro existente selecionado.</p>
+      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-[var(--admin-success-text,#065f46)]"><Check size={11} /> Cadastro existente selecionado.</p>
     ) : helperText ? (
       <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{helperText}</p>
     ) : null}
