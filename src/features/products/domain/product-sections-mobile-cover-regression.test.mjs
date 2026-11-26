@@ -49,17 +49,33 @@ test("Categoria, Subcategoria, Marca, Modelo e Condição ficam em linhas indivi
   assert.ok(!general.includes('grid min-w-0 grid-cols-2 gap-3 sm:col-span-2 sm:gap-4'));
 });
 
-test("foto de capa mostra Câmera ao lado de Adicionar com o mesmo upload", async () => {
+test("fotos do produto ficam em Geral, com câmera, capa e limite compartilhado com loja", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
-  const media = read("src/shared/ui/admin/AdminMedia.tsx");
-  assert.ok((await transformWithEsbuild(media, "AdminMedia.tsx", { loader: "tsx" })).code);
-  assert.ok(page.includes('removeIconOnly\n                      photoActions\n                      coverFill\n                      label="Foto de capa"'));
-  assert.ok(media.includes('photoActions && <AdminButton'));
-  assert.ok(media.includes('onClick={() => cameraInputRef.current?.click()}'));
-  assert.ok(media.includes('capture="environment"'));
-  assert.ok(media.includes('onChange={handleFile}'));
-  assert.ok(media.includes('uploadMediaFile(bucket, file, organizationId)'));
-  assert.ok(media.includes('<Camera size={14} /> Câmera'));
+  assert.ok((await transformWithEsbuild(page, "TabProducts.tsx", { loader: "tsx" })).code);
+  const general = page.slice(page.indexOf('<TabsContent value="general"'), page.indexOf('<TabsContent value="commercial"'));
+  const store = page.slice(page.indexOf('<TabsContent value="store"'));
+  assert.ok(general.includes('title="Fotos do produto"'));
+  assert.ok(!store.includes('title="Fotos da loja"'));
+  assert.ok(!store.includes('ref={galleryFileInputRef}'));
+  assert.ok(!general.includes('<ImageUpload'));
+  assert.ok(general.includes('galleryCameraInputRef.current?.click()'));
+  assert.ok(general.includes('capture="environment"'));
+  assert.ok(general.includes('onChange={handleGalleryUpload}'));
+  assert.ok(page.includes('uploadMediaFile("product-images", file, activeOrganizationId)'));
+  assert.ok(general.includes('4 - storePhotos.length'));
+  assert.ok(general.includes('form.cover_media_id === image.media_id'));
+  assert.ok(general.includes('cover_media_id: next?.media_id || ""'));
+  assert.ok(page.includes('galleryPhotoCount < 4'));
+  assert.ok(page.includes('gallery_media_ids: Array.from(new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean))).slice(0, 4)'));
+  assert.ok(store.includes('coverPreviewUrl'));
+  assert.ok(page.includes('request !== galleryRequestRef.current'));
+  assert.ok(page.includes('galleryLoadState !== "ready"'));
+  assert.ok(general.includes('Tentar novamente'));
+  const advanced = general.indexOf("Características avançadas (opcional)");
+  assert.ok(advanced > general.indexOf("Códigos relacionados"));
+  assert.ok(advanced > general.indexOf("Modelos de aparelhos compatíveis"));
+  assert.ok(advanced > general.indexOf("Fotos do produto"));
+  assert.ok(general.trimEnd().endsWith("</TabsContent>"));
 });
 
 test("ajuda contextual substitui mensagens redundantes e avisa atributo duplicado sob seu input", async () => {
