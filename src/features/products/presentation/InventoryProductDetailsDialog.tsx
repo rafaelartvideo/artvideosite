@@ -42,7 +42,7 @@ type Props = {
 };
 
 function Detail({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="min-w-0 border-b border-border/60 px-1 py-2.5">
+  return <div className="min-w-0 px-1 py-2.5">
     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
     <div className="mt-1 break-words text-xs font-semibold text-foreground">{value ?? "—"}</div>
   </div>;
@@ -176,7 +176,7 @@ export function InventoryProductDetailsDialog({
       ? <InventoryMovementHistory key={String(inventory.inventory_item_id)} itemId={String(inventory.inventory_item_id)} organizationId={organizationId}
           unit={unit} conversionFactor={factor} canViewCosts={canViewCosts}/>
       : <p className="text-sm text-muted-foreground">Histórico indisponível para este item.</p>)
-    : <>
+    : <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
     <section className="flex min-w-0 flex-col gap-4 items-center sm:flex-row sm:items-center" aria-label="Resumo do item">
       <button type="button" disabled={!(coverUrl || coverIllustration)}
         onClick={() => setExpandedImage({ mediaId: product.cover_media_id, src: coverUrl || coverIllustration, name: product.name, photos, startIndex: 0 })}
@@ -276,7 +276,7 @@ export function InventoryProductDetailsDialog({
       {relatedCodes.isPending ? <p className="py-3 text-center text-xs text-muted-foreground">Carregando códigos...</p>
         : relatedCodes.isError ? <p className="text-xs text-destructive">Não foi possível consultar os códigos.</p>
         : relatedCodes.data?.length ? <div className="grid gap-x-5 sm:grid-cols-2">
-          {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-1 py-2">
+          {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1 py-2">
             <span className="break-all font-mono text-xs font-semibold text-foreground">{code.code}</span>
             <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">{productRelationLabel(code.relation_type)}</span>
           </div>)}
@@ -318,7 +318,7 @@ export function InventoryProductDetailsDialog({
                 {productRelationLabel(other.relation_type)}
               </span>
             </span>
-            <span className="mt-auto flex w-full items-center justify-between gap-2 border-t border-border pt-2">
+            <span className="mt-auto flex w-full items-center justify-between gap-2 pt-2">
               <span className="text-xs font-semibold text-green-600 dark:text-green-400">{other.price == null ? "Sem preço" : formatCurrency(other.price)}</span>
               <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{formatNumber(other.stock)} {other.unit}</span>
             </span>
@@ -335,7 +335,7 @@ export function InventoryProductDetailsDialog({
         </div> : <AdminSectionEmpty compact>Nenhum fornecedor selecionado.</AdminSectionEmpty>}
     </Section>}
 
-    {inventory?.inventory_item_id && product.sale_window_days && <div className="border-t border-border pt-2">
+    {inventory?.inventory_item_id && product.sale_window_days && <div className="min-w-0">
       <InventorySaleBatchesPanel organizationId={organizationId}
         itemId={String(inventory.inventory_item_id)}
         unit={unit} factor={unit === "cx" ? factor : 1}
@@ -344,7 +344,7 @@ export function InventoryProductDetailsDialog({
     {product.internal_notes && <Section title="Observações internas">
       <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{product.internal_notes}</p>
     </Section>}
-    </>}
+    </div>}
   </AdminDialog>
   {expandedImage && <InventoryProductImageLightbox key={expandedImage.mediaId || expandedImage.src || expandedImage.name} {...expandedImage} onClose={() => setExpandedImage(null)} />}
   </>;
