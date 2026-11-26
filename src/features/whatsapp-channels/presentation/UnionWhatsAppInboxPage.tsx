@@ -31,7 +31,7 @@ import { useWhatsAppActivity } from "./UnionWhatsAppActivityProvider";
 import type { UnionWhatsAppSavedSticker } from "../infrastructure/union-whatsapp-inbox.repository";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
-import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import {
   readAttendanceDisplayPreferences, saveAttendanceDisplayPreferences,
@@ -2892,23 +2892,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             })}
           </div>
           {!embedded && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card px-3 py-2.5">
-             <div className="min-w-0 text-[11px] text-muted-foreground" aria-live="polite">
+             <div className="min-w-0 text-xs font-bold leading-relaxed text-foreground" aria-live="polite">
                <span className="block tabular-nums">{conversationPageLoading ? "Consultando..." : `${visible.length} nesta página · ${conversationTotal??0} no total`}</span>
                <span className="block tabular-nums">Página {conversationPage+1} de {conversationTotal===null?"…":Math.max(1,Math.ceil(conversationTotal/50))}</span>
              </div>
-            <div className="flex items-center gap-2">
-              <button type="button" aria-label="Página anterior de conversas"
+            <div className="flex shrink-0 items-center gap-2">
+              <AdminIconButton ariaLabel="Página anterior de conversas"
                 disabled={conversationPage===0||conversationPageLoading}
+                variant={conversationPage===0||conversationPageLoading?"secondary":"tertiary"}
                 onClick={()=>setConversationPage(p=>Math.max(0,p-1))}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
+                className="!h-8 !w-8">
                 <ChevronLeft size={16}/>
-              </button>
-              <button type="button" aria-label="Próxima página de conversas"
+              </AdminIconButton>
+              <AdminIconButton ariaLabel="Próxima página de conversas"
                 disabled={!conversationHasMore||conversationPageLoading}
+                variant={!conversationHasMore||conversationPageLoading?"secondary":"tertiary"}
                 onClick={()=>setConversationPage(p=>p+1)}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
+                className="!h-8 !w-8">
                 <ChevronRight size={16}/>
-              </button>
+              </AdminIconButton>
             </div>
           </div>}
         </aside>
