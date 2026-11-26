@@ -129,3 +129,17 @@ test("SKU sequencial ignora identificadores legados longos sem renumerar itens",
   assert.ok(sql.includes("where c.organization_id=v_org"));
   assert.doesNotMatch(sql,/update public\.(products|inventory_items)/i);
 });
+
+test("detalhes do estoque separam sections com gap real e campos sem linhas horizontais",async()=>{
+  const ui=read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const fields=ui.slice(ui.indexOf("function Detail("),ui.indexOf("export function InventoryProductDetailsDialog"));
+  const body=ui.slice(ui.indexOf(': <div className="flex min-w-0 flex-col gap-4 sm:gap-5">'),ui.indexOf("</AdminDialog>"));
+  assert.ok(body.startsWith(': <div className="flex min-w-0 flex-col gap-4 sm:gap-5">'));
+  assert.ok(body.includes('<Section title="Informações do cadastro"'));
+  assert.ok(body.includes('<Section title="Fotos do produto"'));
+  assert.ok(body.includes('divide-x divide-border'));
+  assert.doesNotMatch(fields,/\bborder-b\b/);
+  assert.doesNotMatch(body,/\bborder-[bt]\b/);
+  assert.ok(body.includes('border border-border'));
+  assert.ok((await transformWithEsbuild(ui,"InventoryProductDetailsDialog.tsx",{loader:"tsx"})).code);
+});
