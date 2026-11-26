@@ -24,7 +24,7 @@ const sections: Array<{ key: InventoryCatalogKind; title: string; placeholder: s
 ];
 
 export function InventoryCatalogSettingsDialog({
-  organizationId, onClose, onChanged, canManageCategories, canManageBrands, canEditItems,
+  organizationId, onClose, onChanged, canManageCategories, canManageBrands, canEditItems, canDeleteClassifications,
 }: {
   organizationId: string;
   onClose: () => void;
@@ -32,6 +32,7 @@ export function InventoryCatalogSettingsDialog({
   canManageCategories: boolean;
   canManageBrands: boolean;
   canEditItems: boolean;
+  canDeleteClassifications: boolean;
 }) {
   const client = useQueryClient();
   const query = useQuery({
@@ -65,7 +66,7 @@ export function InventoryCatalogSettingsDialog({
     ? entries.filter(entry => !parentCategoryId || entry.category_id === parentCategoryId)
     : entries;
   const categories = settings?.categories || [];
-  const canDelete = canManageCategories && (selected === "category" || selected === "subcategory");
+  const canDelete = canDeleteClassifications && (selected === "category" || selected === "subcategory");
   const canAdd = selected !== "subcategory" || categories.some(item => item.id === parentCategoryId && item.is_active);
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: ["inventory", "catalog-settings", organizationId] });
@@ -97,7 +98,7 @@ export function InventoryCatalogSettingsDialog({
   };
 
   const remove = async () => {
-    if (!deleteTarget || !canManageCategories || saving) return;
+    if (!deleteTarget || !canDeleteClassifications || saving) return;
     const target = deleteTarget;
     setSaving(true); setError(""); setDeleteTarget(null);
     try {
