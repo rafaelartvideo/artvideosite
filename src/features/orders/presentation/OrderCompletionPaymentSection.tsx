@@ -276,7 +276,9 @@ export function OrderCompletionPaymentSection({
                     />
 
                     <FSelect
-                      label="Forma de recebimento"
+                      label="Forma de pagamento"
+                      required
+                      error={!completion.financeOptionsLoading && !completion.financeOptionsError && !methods.some(method => method.id === installment.payment_method_id) ? "Selecione a forma de pagamento." : undefined}
                       value={installment.payment_method_id}
                       disabled={saving || completion.financeOptionsLoading}
                       options={[{ value: "", label: "Selecione" }, ...methods.map(item => ({ value: item.id, label: item.name }))]}
