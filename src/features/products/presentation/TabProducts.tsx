@@ -1493,10 +1493,10 @@ export function TabProducts({
           />
         ) : (
           <div className="overflow-x-auto"><TopTableScrollbar />
-            <table className="min-w-[850px]">
+            <table className="w-full min-w-[850px]">
               <thead>
                 <tr>
-                  {showProduct && <th className="text-left">Item</th>}
+                  {showProduct && <th className="w-[340px] text-left">Item</th>}
                   {showCategory && <th className="text-left">Categoria</th>}
                   {canViewBrands && <th className="text-left">Marca</th>}
                   {showPrice && <th className="text-left">Preço</th>}
@@ -1532,21 +1532,21 @@ export function TabProducts({
                     role={canViewDetails ? "button" : undefined}
                     aria-label={canViewDetails ? `Ver detalhes de ${product.name}` : undefined}
                     className={canViewDetails ? "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-primary" : undefined}>
-                    {showProduct && <td>
-                      <div className="flex items-center gap-3">
+                    {showProduct && <td className="max-w-[340px]">
+                      <div className="flex w-full min-w-0 max-w-[320px] items-center gap-3">
                         {(product.cover_media_id || salesHomologationImage(product.sku))
-                          ? <button type="button" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
+                          ? <button type="button" className="shrink-0" title="Ampliar imagem" aria-label={`Ampliar foto de ${product.name}`}
                               onClick={event => { event.stopPropagation(); setExpandedListImage({ mediaId: product.cover_media_id || null, src: product.cover_media_id ? null : salesHomologationImage(product.sku), name: product.name }); }}>
                               <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />
                             </button>
-                          : <ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} />}
-                        <div className="min-w-0">
+                          : <div className="shrink-0"><ProductAdminThumb mediaId={product.cover_media_id} name={product.name} sku={product.sku} /></div>}
+                        <div className="min-w-0 flex-1">
                           {canViewDetails
                             ? <button type="button" onClick={() => openDetails(product)}
-                                className="max-w-full truncate text-left font-bold text-foreground hover:text-primary hover:underline"
-                                title={`Ver detalhes de ${product.name}`}>{product.name}</button>
-                            : <p className="truncate font-bold text-foreground">{product.name}</p>}
-                          <p className="mt-0.5 text-[10px] font-semibold text-[#7a8aa0]">
+                                className="block w-full min-w-0 text-left !text-[13px] font-bold text-foreground hover:text-primary hover:underline"
+                                title={`Ver detalhes de ${product.name}`}><span className="block overflow-hidden whitespace-nowrap" style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</span></button>
+                            : <p className="block overflow-hidden whitespace-nowrap text-[13px] font-bold text-foreground" title={product.name} style={{maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"}}>{product.name}</p>}
+                          <p className="mt-0.5 truncate text-[10px] font-semibold text-[#7a8aa0]" title={[product.sku || item?.sku || "Sem SKU",product.barcode].filter(Boolean).join(" · ")}>
                             {product.sku || item?.sku || "Sem SKU"}{product.barcode ? ` · ${product.barcode}` : ""}
                           </p>
                           {relatedSearchResults.get(String(product.id))?.relation_type && <span
