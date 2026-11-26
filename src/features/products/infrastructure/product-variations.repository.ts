@@ -55,7 +55,6 @@ export async function replaceProductVariations(
 export type NewProductVariation = {
   label: string;
   attributes: Record<string, string>;
-  sku: string;
   barcode: string | null;
   product_condition?: "new" | "used" | "refurbished";
   supplier_mode?: "inherit" | "custom";

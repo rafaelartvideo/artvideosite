@@ -33,7 +33,6 @@ export type VariantOption = { name: string; values: string };
 export type VariantMatrixRow = {
   label: string;
   attributes: Record<string, string>;
-  sku: string;
   barcode: string;
   product_condition: ProductCondition;
   supplier_mode?: "inherit" | "custom";
@@ -75,7 +74,7 @@ export function validVariantOptions(options: VariantOption[]): boolean {
 }
 
 export function buildVariantMatrix(
-  options: VariantOption[], baseSku: string, defaultPrice: string,
+  options: VariantOption[], _baseSku: string, defaultPrice: string,
   previous: VariantMatrixRow[] = [], defaultCondition: ProductCondition = "new",
 ): VariantMatrixRow[] {
   if (!options.length || options.length > MAX_VARIATION_ATTRIBUTES) return [];
@@ -93,12 +92,11 @@ export function buildVariantMatrix(
   }
   const previousByLabel = new Map(previous.map(row => [row.label, row]));
   // A primeira combinação usa o cadastro principal. Não criar estoque duplicado.
-  return combinations.slice(1).map((attributes, index) => {
+  return combinations.slice(1).map(attributes => {
     const label = Object.entries(attributes).map(([key, value]) => key + ": " + value).join(" · ");
     const prior = previousByLabel.get(label);
     return prior || {
       label, attributes,
-      sku: baseSku.trim() ? baseSku.trim() + "-" + String(index + 2).padStart(2, "0") : "",
       barcode: "", product_condition: defaultCondition, supplier_mode: "inherit", supplier_entities: [], price: defaultPrice, quantity: "0",
     };
   });
@@ -182,7 +180,7 @@ export function ProductVariationMatrix({
     if (next.size > availableSlots) return;
     setRows(candidates.filter(row => next.has(row.label)));
   };
-  const updateRow = (label: string, key: "sku" | "barcode" | "product_condition" | "price" | "quantity", value: string) => {
+  const updateRow = (label: string, key: "barcode" | "product_condition" | "price" | "quantity", value: string) => {
     const apply = (row: VariantMatrixRow) => row.label === label ? { ...row, [key]: value } : row;
     setCandidates(candidates.map(apply));
     setRows(rows.map(apply));
@@ -276,7 +274,7 @@ export function ProductVariationMatrix({
     </div>
 
     {firstLabel && <p className="border-t border-border pt-3 text-xs leading-5 text-muted-foreground">
-      <strong className="text-foreground">Produto principal:</strong> {firstLabel}. Seu preço, SKU e estoque são os dados de Geral e Comercial.
+      <strong className="text-foreground">Produto principal:</strong> {firstLabel}. O SKU é gerado ao salvar; preço e estoque são os dados de Comercial.
     </p>}
 
     {candidates.length > 0 && <>
@@ -343,17 +341,13 @@ export function ProductVariationMatrix({
                 <span className="min-w-0 flex-1">
                   <span className="block break-words text-sm font-semibold text-foreground">{row.label}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {row.sku || "Sem SKU"} · {productConditionLabel(row.product_condition)} · R$ {row.price || "—"} · Saldo {row.quantity || "0"}
+                    SKU automático · {productConditionLabel(row.product_condition)} · R$ {row.price || "—"} · Saldo {row.quantity || "0"}
                   </span>
                 </span>
                 {expanded ? <ChevronUp size={17} className="shrink-0 text-muted-foreground"/> : <ChevronDown size={17} className="shrink-0 text-muted-foreground"/>}
               </button>
             </div>
             {expanded && <div className="grid min-w-0 gap-3 border-t border-border bg-muted/20 px-3 py-3 sm:grid-cols-2">
-              <label className="min-w-0 text-xs font-medium text-muted-foreground">SKU da variação
-                <input aria-label={"SKU de " + row.label} value={row.sku} maxLength={100} disabled={disabled}
-                  onChange={event => updateRow(row.label, "sku", event.target.value)} className={inputClass}/>
-              </label>
               <label className="min-w-0 text-xs font-medium text-muted-foreground">GTIN (opcional)
                 <input aria-label={"GTIN de " + row.label} value={row.barcode} disabled={disabled}
                   onChange={event => updateRow(row.label, "barcode", event.target.value)} className={inputClass}/>

@@ -104,7 +104,7 @@ import {
   type ImportedProductImage,
 } from "../infrastructure/product-lookup.repository";
 
-type ProductEditorTab = "general" | "commercial" | "relationships" | "suppliers" | "store";
+type ProductEditorTab = "general" | "commercial" | "suppliers" | "store";
 
 type ProductForm = {
   name: string;
@@ -858,7 +858,34 @@ export function TabProducts({
     onRouteChange?.(null, null);
   }, [routeResourceId, routeSubpage, catalogQuery.isPending, products, canCreateMovements, canViewMovements, onRouteChange]);
 
+  const normalizeIdentifier = (value: unknown) => String(value ?? "").trim().toUpperCase();
+  const otherProducts = products.filter((product: any) => product.id !== editItem?.id);
+  const identifierConflicts: Partial<Record<ProductIdentifierKind, string>> = {};
+  for (const { value: kind, label } of PRODUCT_IDENTIFIER_OPTIONS) {
+    const normalized = normalizeIdentifier(form[kind]);
+    if (!normalized || (editItem && normalized === normalizeIdentifier(editItem[kind]))) continue;
+    const conflict = otherProducts.find((product: any) => PRODUCT_IDENTIFIER_OPTIONS.some(option =>
+      normalizeIdentifier(product[option.value]) === normalized));
+    if (conflict) identifierConflicts[kind] = label + " já cadastrado em " + conflict.name + ".";
+  }
+  // Um modelo pode pertencer a outras categorias/marcas; versões herdam o modelo principal.
+  const modelChanged = !editItem || normalizeIdentifier(form.model) !== normalizeIdentifier(editItem.model)
+    || (form.brand_id || "") !== (editItem.brand_id || "")
+    || (form.category_id || "") !== (editItem.category_id || "")
+    || form.product_condition !== (editItem.product_condition || "new");
+  const matchingModel = modelChanged && normalizeIdentifier(form.model) && otherProducts.find((product: any) =>
+    normalizeIdentifier(product.model) === normalizeIdentifier(form.model)
+    && (product.brand_id || "") === (form.brand_id || "")
+    && (product.category_id || "") === (form.category_id || "")
+    && (product.product_condition || "new") === form.product_condition);
+  const modelConflict = matchingModel ? "Modelo já cadastrado em " + matchingModel.name + ". Use o cadastro existente ou crie uma variação." : undefined;
+
   const validate = () => {
+    if (modelConflict || Object.keys(identifierConflicts).length) {
+      setEditorTab("general");
+      setToast({ msg: modelConflict || Object.values(identifierConflicts)[0] || "Código já cadastrado.", type: "error" });
+      return false;
+    }
     const errors: ProductFieldErrors = {};
     const price = nullableNumber(form.price);
     const compareAtPrice = nullableNumber(form.compare_at_price);
@@ -899,17 +926,17 @@ export function TabProducts({
 
     const codesValidation = validateTypedRelatedCodes(form.related_codes, form.manufacturer_code);
     if (compatibleModelsChanged && !compatibleModelsLoaded) {
-      setEditorTab("relationships");
+      setEditorTab("general");
       setToast({ msg: "Não foi possível confirmar os modelos alterados. Reabra o item antes de salvar essas alterações.", type: "error" });
       return false;
     }
     if (!relatedCodesLoaded) {
-      setEditorTab("relationships");
+      setEditorTab("general");
       setToast({ msg: "Os códigos relacionados ainda não foram carregados. Tente novamente antes de salvar.", type: "error" });
       return false;
     }
     if (codesValidation.error) {
-      setEditorTab("relationships");
+      setEditorTab("general");
       setToast({ msg: codesValidation.error, type: "error" });
       return false;
     }
@@ -924,7 +951,7 @@ export function TabProducts({
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      if (errors.name || errors.barcode || errors.subcategory_id) setEditorTab("general");
+      if (errors.name || errors.subcategory_id) setEditorTab("general");
       else if (errors.price || errors.sale_window_days || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
       else if (errors.compare_at_price) setEditorTab("general");
       else setEditorTab("general");
@@ -938,39 +965,40 @@ export function TabProducts({
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
     if (!variantOptionsLoaded) {
-      setEditorTab("relationships");
+      setEditorTab("general");
       setToast({ msg: "Os atributos das variações não foram carregados. Reabra o produto antes de salvar.", type: "error" });
       return;
     }
     if (!validVariantOptions(variantOptions)) {
-      setEditorTab("relationships");
+      setEditorTab("general");
       setToast({ msg: "Informe até cinco atributos válidos, sem nomes repetidos, com até 200 combinações.", type: "error" });
       return;
     }
     if (variantRows.length) {
       if (!canCreate || !canEdit) {
-        setEditorTab("relationships");
+        setEditorTab("general");
         setToast({ msg: "Para salvar variações, seu acesso precisa permitir criar e editar produtos.", type: "error" });
         return;
       }
       const expected = buildVariantMatrix(variantOptions, form.sku, form.price, variantCandidates);
       const allowedLabels = new Set(expected.map(row => row.label));
-      const skus = variantRows.map(row => row.sku.trim().toUpperCase());
-      const gtins = variantRows.map(row => row.barcode.trim().toUpperCase()).filter(Boolean);
+      const gtins = variantRows.map(row => normalizeIdentifier(row.barcode)).filter(Boolean);
+      const parentCodes = PRODUCT_IDENTIFIER_OPTIONS.map(option => normalizeIdentifier(form[option.value])).filter(Boolean);
+      const conflictingVariantCode = gtins.find(code => parentCodes.includes(code) || otherProducts.some((product: any) =>
+        PRODUCT_IDENTIFIER_OPTIONS.some(option => normalizeIdentifier(product[option.value]) === code)));
       // A lista selecionada é um subconjunto das combinações geradas, não precisa conter todas.
       const valid = canCreate && canEdit
         && expected.length >= variantCandidates.length
         && variantRows.length <= MAX_ADDITIONAL_VARIATIONS
         && variantRows.every(row => allowedLabels.has(row.label)
-          && row.label.length <= 100 && row.sku.trim().length > 0
-          && row.sku.trim().toUpperCase() !== form.sku.trim().toUpperCase()
+          && row.label.length <= 100
           && (row.price.trim() === "" || (nullableNumber(row.price) !== null && nullableNumber(row.price)! >= 0))
           && Number.isInteger(Number(row.quantity)) && Number(row.quantity) >= 0)
-        && new Set(skus).size === skus.length
+        && !conflictingVariantCode
         && new Set(gtins).size === gtins.length;
       if (!valid) {
-        setEditorTab("relationships");
-        setToast({ msg: "Revise as variações: atributos, SKUs exclusivos, códigos de barras, preços e saldos inteiros não negativos.", type: "error" });
+        setEditorTab("general");
+        setToast({ msg: "Revise as variações: atributos, códigos de barras não repetidos, preços e saldos inteiros não negativos.", type: "error" });
         return;
       }
     }
@@ -993,7 +1021,7 @@ export function TabProducts({
       const payload = {
         name: form.name.trim(),
         slug: finalSlug,
-        sku: form.sku.trim() || null,
+        sku: editItem ? form.sku.trim() || null : null,
         barcode: form.barcode.trim() || null,
         product_condition: form.product_condition,
         internal_barcode: form.internal_barcode.trim() || null,
@@ -1099,7 +1127,7 @@ export function TabProducts({
         } catch (compatibilityError) {
           setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
           onRouteChange?.(savedProductId, "edit");
-          setEditorTab("relationships");
+          setEditorTab("general");
           setToast({ msg: "Produto salvo, mas não foi possível registrar os modelos compatíveis: "
             + systemErrorMessage(compatibilityError) + ". Corrija e salve novamente.", type: "error" });
           void refresh();
@@ -1132,7 +1160,7 @@ export function TabProducts({
         } catch (configurationError) {
           setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
           onRouteChange?.(savedProductId, "edit");
-          setEditorTab("relationships");
+          setEditorTab("general");
           setToast({ msg: "Produto salvo, mas não foi possível salvar os atributos das variações: "
             + systemErrorMessage(configurationError) + ". Revise e salve novamente.", type: "error" });
           void refresh();
@@ -1144,7 +1172,7 @@ export function TabProducts({
         try {
           await createProductVariationCombinations(activeOrganizationId, savedProductId,
             variantRows.map(row => ({
-              label: row.label, attributes: row.attributes, sku: row.sku.trim(),
+              label: row.label, attributes: row.attributes,
               barcode: row.barcode.trim() || null, product_condition: row.product_condition, price: nullableNumber(row.price),
               supplier_mode: canManageSuppliers && row.supplier_mode === "custom" ? "custom" : "inherit",
               supplier_links: canManageSuppliers && row.supplier_mode === "custom"
@@ -1162,7 +1190,7 @@ export function TabProducts({
           // O item principal já foi criado: não repetir seu cadastro ao tentar salvar de novo.
           setEditItem(current => current || { id: savedProductId, name: form.name.trim(), slug: finalSlug });
           onRouteChange?.(savedProductId, "edit");
-          setEditorTab("relationships");
+          setEditorTab("general");
           setToast({ msg: "Produto salvo, mas não foi possível registrar as variações: " +
             systemErrorMessage(variantError) + ". Revise e salve novamente.", type: "error" });
           void refresh();
@@ -1608,7 +1636,6 @@ export function TabProducts({
               options={[
                 { value: "general", label: "Geral" },
                 { value: "commercial", label: "Comercial e estoque" },
-                { value: "relationships", label: "Variações e relações" },
                 ...(canViewSuppliers ? [{ value: "suppliers", label: "Fornecedores" }] : []),
                 ...(isArtvideoTenant ? [{ value: "store", label: "Loja" }] : []),
               ]}
@@ -1620,7 +1647,6 @@ export function TabProducts({
             <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
               <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
               <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
-              <EditorTabTrigger value="relationships" icon={ArrowLeftRight}>Variações e relações</EditorTabTrigger>
               {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
               {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
             </TabsList>
@@ -1639,7 +1665,39 @@ export function TabProducts({
           <TabsContent value="general" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Identificação do item">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="min-w-0">
+                <ProductIdentifiersEditor
+                  kinds={identifierKinds}
+                  values={{
+                    barcode: form.barcode,
+                    manufacturer_code: form.manufacturer_code,
+                    internal_barcode: form.internal_barcode,
+                  }}
+                  errors={identifierConflicts}
+                  disabled={saving}
+                  onChange={(kind, value) => { setMobileScanTarget(kind); setForm(current => ({ ...current, [kind]: value })); }}
+                  onSelect={setMobileScanTarget}
+                  onSwitch={(from, to) => {
+                    if (from === to || identifierKinds.includes(to)) return;
+                    setForm(current => ({
+                      ...current,
+                      [to]: current[from],
+                      [from]: "",
+                    }));
+                    setIdentifierKinds(current => current.map(kind => kind === from ? to : kind));
+                    setMobileScanTarget(to);
+                  }}
+                  onAdd={() => {
+                    const next = PRODUCT_IDENTIFIER_OPTIONS.find(option => !identifierKinds.includes(option.value));
+                    if (next) { setIdentifierKinds(current => [...current, next.value]); setMobileScanTarget(next.value); }
+                  }}
+                  onRemove={kind => {
+                    setForm(current => ({ ...current, [kind]: "" }));
+                    const remaining = identifierKinds.filter(item => item !== kind);
+                    setIdentifierKinds(remaining.length ? remaining : ["barcode"]);
+                    setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
+                  }}
+                />
+                <div className="min-w-0 sm:col-span-2">
                   <FInput
                     label="Nome do item"
                     value={form.name}
@@ -1654,13 +1712,7 @@ export function TabProducts({
                   />
                 </div>
 
-                <FInput
-                  label="SKU / código interno"
-                  value={form.sku}
-                  disabled={saving}
-                  onChange={(event: any) => setForm(current => ({ ...current, sku: event.target.value }))}
-                  placeholder="Código interno"
-                />
+
 
                 <div className="grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2 sm:gap-4">
                 <div className="flex min-w-0 items-end gap-2">
@@ -1733,6 +1785,7 @@ export function TabProducts({
                   value={form.model}
                   disabled={saving}
                   onChange={(event: any) => setForm(current => ({ ...current, model: event.target.value }))}
+                  error={modelConflict}
                   placeholder="Modelo comercial"
                 />
                 <InventorySearchSelect
@@ -1743,37 +1796,7 @@ export function TabProducts({
                   onChange={(event: any) => setForm(current => ({ ...current, product_condition: event.target.value as ProductCondition }))}
                 />
                 </div>
-                <ProductIdentifiersEditor
-                  kinds={identifierKinds}
-                  values={{
-                    barcode: form.barcode,
-                    manufacturer_code: form.manufacturer_code,
-                    internal_barcode: form.internal_barcode,
-                  }}
-                  disabled={saving}
-                  onChange={(kind, value) => { setMobileScanTarget(kind); setForm(current => ({ ...current, [kind]: value })); }}
-                  onSelect={setMobileScanTarget}
-                  onSwitch={(from, to) => {
-                    if (from === to || identifierKinds.includes(to)) return;
-                    setForm(current => ({
-                      ...current,
-                      [to]: current[from],
-                      [from]: "",
-                    }));
-                    setIdentifierKinds(current => current.map(kind => kind === from ? to : kind));
-                    setMobileScanTarget(to);
-                  }}
-                  onAdd={() => {
-                    const next = PRODUCT_IDENTIFIER_OPTIONS.find(option => !identifierKinds.includes(option.value));
-                    if (next) { setIdentifierKinds(current => [...current, next.value]); setMobileScanTarget(next.value); }
-                  }}
-                  onRemove={kind => {
-                    setForm(current => ({ ...current, [kind]: "" }));
-                    const remaining = identifierKinds.filter(item => item !== kind);
-                    setIdentifierKinds(remaining.length ? remaining : ["barcode"]);
-                    setMobileScanTarget(currentTarget => currentTarget === kind ? (remaining[0] || "barcode") : currentTarget);
-                  }}
-                />
+
 
                 <div className="sm:col-span-2">
                   <FTextarea
@@ -1782,7 +1805,7 @@ export function TabProducts({
                     disabled={saving}
                     onChange={(event: any) => setForm(current => ({ ...current, description: event.target.value }))}
                     rows={4}
-                    placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
+                    placeholder="Descreva o produto, suas características e demais informações relevantes."
                   />
                 </div>
                 <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,260px)] sm:items-start">
@@ -1793,7 +1816,7 @@ export function TabProducts({
                       disabled={saving}
                       onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
                       rows={6}
-                      placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
+                      placeholder="Informações internas sobre o produto."
                     />
                   </div>
                   <div className="min-w-0 self-start rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
@@ -1870,10 +1893,7 @@ export function TabProducts({
             </Section>
 
             </div></details>
-          </TabsContent>
 
-
-          <TabsContent value="relationships" className="mt-0 w-full min-w-0 space-y-5">
             <Section
               title={<span className="inline-flex min-w-0 items-center gap-1.5">
                 Criar atributos e variações

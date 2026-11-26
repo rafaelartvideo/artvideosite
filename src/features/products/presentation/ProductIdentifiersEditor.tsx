@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 
 export type ProductIdentifierKind = "barcode" | "manufacturer_code" | "internal_barcode";
@@ -24,7 +24,7 @@ export function visibleProductIdentifierKinds(product: {
 /** Interface unificada; os valores continuam em colunas distintas do produto.
  * Não valida formatos, checksum, quantidade de dígitos nem tipo de conteúdo. */
 export function ProductIdentifiersEditor({
-  kinds, values, onChange, onSelect, onSwitch, onAdd, onRemove, disabled = false,
+  kinds, values, onChange, onSelect, onSwitch, onAdd, onRemove, errors = {}, disabled = false,
 }: {
   kinds: ProductIdentifierKind[];
   values: Record<ProductIdentifierKind, string>;
@@ -33,12 +33,13 @@ export function ProductIdentifiersEditor({
   onSwitch: (from: ProductIdentifierKind, to: ProductIdentifierKind) => void;
   onAdd: () => void;
   onRemove: (kind: ProductIdentifierKind) => void;
+  errors?: Partial<Record<ProductIdentifierKind, string>>;
   disabled?: boolean;
 }) {
   return <section className="min-w-0 space-y-2 sm:col-span-2" aria-label="Códigos do produto">
     <div className="min-w-0 divide-y divide-border">
-      {kinds.map((kind, index) => <div key={kind} className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px] items-end gap-2 py-2.5 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)_42px]">
-        <div className="col-span-2 min-w-0 sm:col-span-1">
+      {kinds.map((kind, index) => <div key={kind} className="flex min-w-0 flex-wrap items-end gap-2 py-2.5 sm:flex-nowrap">
+        <div className="w-full min-w-0 sm:w-[220px] sm:shrink-0">
           <FSelect
             label="Tipo de código"
             value={kind}
@@ -49,12 +50,13 @@ export function ProductIdentifiersEditor({
             )}
           />
         </div>
-        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2 sm:row-start-1">
+        <div className="min-w-0 flex-1">
           <FInput
             label={index === 0 ? "Código" : "Código adicional"}
             value={values[kind]}
             disabled={disabled}
             placeholder="Informe o código"
+            error={errors[kind]}
             onFocus={() => onSelect?.(kind)}
             onChange={(event: any) => onChange(kind, event.target.value)}
           />
@@ -63,18 +65,18 @@ export function ProductIdentifiersEditor({
           ariaLabel={"Remover " + PRODUCT_IDENTIFIER_OPTIONS.find(option => option.value === kind)?.label}
           title="Remover código"
           variant="danger"
-          className="col-start-2 row-start-2 !h-[42px] !w-[42px] sm:col-start-3 sm:row-start-1"
+          className="!h-[42px] !w-[42px] shrink-0"
           disabled={disabled}
           onClick={() => onRemove(kind)}
         >
           <Trash2 size={15}/>
         </AdminIconButton>
+        {index === kinds.length - 1 && kinds.length < PRODUCT_IDENTIFIER_OPTIONS.length &&
+          <AdminIconButton ariaLabel="Adicionar outro código" title="Adicionar outro código"
+            className="!h-[42px] !w-[42px] shrink-0" disabled={disabled} onClick={onAdd}>
+            <Plus size={17}/>
+          </AdminIconButton>}
       </div>)}
     </div>
-    {kinds.length < PRODUCT_IDENTIFIER_OPTIONS.length && <AdminButton
-      type="button" size="sm" variant="secondary" className="w-full"
-      disabled={disabled} onClick={onAdd}>
-      <Plus size={15}/> Adicionar outro código
-    </AdminButton>}
   </section>;
 }

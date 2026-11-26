@@ -5,13 +5,14 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("cadastro de produtos inclui modelos de aparelhos na aba Variações e Relações", async () => {
+test("cadastro de produtos inclui modelos de aparelhos na aba Geral", async () => {
   const page = read("src/features/products/presentation/TabProducts.tsx");
   const editor = read("src/features/products/presentation/ProductCompatibleModelsEditor.tsx");
   for (const [name,code] of [["TabProducts.tsx",page],["ProductCompatibleModelsEditor.tsx",editor]]) {
     assert.ok((await transformWithEsbuild(code,name,{loader:"tsx"})).code.length>100,name);
   }
-  assert.match(page, /<TabsContent value="relationships"/);
+  assert.match(page, /<TabsContent value="general"/);
+  assert.doesNotMatch(page, /<TabsContent value="relationships"/);
   assert.match(page, /Modelos de aparelhos compatíveis/);
   assert.match(page, /Ajuda sobre modelos de aparelhos compatíveis/);
   assert.match(page, /<ProductCompatibleModelsEditor/);

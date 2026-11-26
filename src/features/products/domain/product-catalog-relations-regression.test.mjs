@@ -12,7 +12,7 @@ test("cadastro mostra variações e códigos relacionados em uma única seção,
   for (const [name, code] of [["TabProducts.tsx", ui], ["ProductVariationMatrix.tsx", matrix]]) {
     assert.ok((await transformWithEsbuild(code, name, { loader: "tsx" })).code);
   }
-  assert.ok(ui.includes('value="relationships"'));
+  assert.ok(!ui.includes('value="relationships"'));
   assert.ok(ui.includes("<ProductVariationMatrix"));
   assert.ok(ui.includes("Códigos relacionados"));
   assert.ok(labels.includes("Produto similar"));
