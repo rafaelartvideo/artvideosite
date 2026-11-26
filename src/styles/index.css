@@ -42,6 +42,10 @@ body {
 /* Root tokens also reach Radix portals rendered outside the CRM shell. */
 html[data-admin-theme] {
 	--admin-shell-header-height: 4rem;
+	--admin-link-text: #0131cd;
+	--admin-success-text: #065f46;
+	--admin-warning-text: #92400e;
+	--admin-error-text: #b91c1c;
 	--primary: #0131cd;
 	--primary-hover: #002bb5;
 	--primary-active: #00218f;
@@ -197,6 +201,10 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
  */
 html[data-admin-theme="dark"] {
 	color-scheme: dark;
+	--admin-link-text: #9aaaff;
+	--admin-success-text: #6ee7b7;
+	--admin-warning-text: #fcd34d;
+	--admin-error-text: #fca5a5;
 	--background: #0a101c;
 	--foreground: #e8edf5;
 	--secondary: #172136;
