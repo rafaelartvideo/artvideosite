@@ -123,7 +123,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
   const startGateRef = useRef(false);
   // Retain the idempotency key across a retry of the same first message.
   const firstSendIdRef = useRef<{ key: string; id: string } | null>(null);
-  const [newOrder, setNewOrder] = useState<{ customerId: string | null; customerLookup?: Promise<string | null>; key: string } | null>(null);
+  const [newOrder, setNewOrder] = useState<{ customerId: string | null; customerLookup?: Promise<string | null>; key: string; conversationId?: string } | null>(null);
   const newOrderGateRef = useRef(false);
 
   const chooseOrderRecipient=useCallback(async(recipient:Recipient)=>{
@@ -276,7 +276,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       ? operateUnionWhatsAppInbox(organizationId, state.conversationId, "customer_match", {customer_id_only:true})
         .then(found => !found.ambiguous ? found.matched_customer_id || found.customer?.id || null : null).catch(()=>null)
       : undefined;
-    setNewOrder({ customerId, customerLookup, key: crypto.randomUUID() });
+    setNewOrder({ customerId, customerLookup, key: crypto.randomUUID(), conversationId: state.status==="ready" ? state.conversationId : undefined });
     newOrderGateRef.current = false;
   };
 
@@ -444,9 +444,16 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       detailOnly
       embeddedCreate
       onEmbeddedClose={() => setNewOrder(null)}
-      onEmbeddedCreated={() => {
+      onEmbeddedCreated={(orderId:string) => {
+        const conversationId=newOrder.conversationId;
         setNewOrder(null);
-        notifyAdmin("OS criada com sucesso.", "success");
+        if(!conversationId){notifyAdmin("OS criada com sucesso.", "success");return;}
+        void operateUnionWhatsAppInbox(organizationId,conversationId,"order_created_link",{service_order_id:orderId})
+          .then(()=>{
+            window.dispatchEvent(new CustomEvent("union:whatsapp-order-linked",{detail:{organizationId,conversationId,orderId}}));
+            notifyAdmin("OS criada e vinculada ao atendimento.","success");
+          })
+          .catch(reason=>notifyAdmin("OS criada, mas o vínculo com a conversa ficou pendente: "+systemErrorMessage(reason,"Tente vincular a OS."),"error"));
       }}
     />
   </Suspense>}
