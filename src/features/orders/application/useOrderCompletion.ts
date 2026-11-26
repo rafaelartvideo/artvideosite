@@ -270,6 +270,7 @@ export function useOrderCompletion({
     if (receivedWithoutMethod) return "Selecione a forma de recebimento das parcelas marcadas como recebidas.";
     const receivedWithoutDate = installments.find(item => item.received && !item.received_at);
     if (receivedWithoutDate) return "Informe a data de recebimento das parcelas recebidas.";
+    if (installments.some(item => item.received && item.received_at > todayIsoDate())) return "A data de recebimento não pode ser futura. Desmarque Recebido se o cliente ainda não pagou.";
     return "";
   }, [financeOptionsError, financeEnabled, finalTotal, installments, installmentDifference]);
 
