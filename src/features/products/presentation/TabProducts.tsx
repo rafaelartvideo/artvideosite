@@ -1558,12 +1558,12 @@ export function TabProducts({
                     </td>}
                     {showCategory && <td className="text-xs text-[#5a6a82]">{product.product_categories?.name || "—"}</td>}
                     {canViewBrands && <td className="text-xs text-[#5a6a82]">{product.brands?.name || "—"}</td>}
-                    {showPrice && <td className="font-bold text-green-600 dark:text-green-400">{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
+                    {showPrice && <td className={cn("!text-xs font-bold", product.price == null ? "text-foreground" : "text-green-600 dark:text-green-400")}>{product.price == null ? "Consultar" : formatCurrency(product.price)}</td>}
                     <td>
-                      <div className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                      <div className="text-xs font-bold text-foreground">
                         {formatNumber(stock)} {unit}
                       </div>
-                      <div className={cn("text-[10px]", lowStock ? "text-amber-600" : "text-muted-foreground")}>mín. {formatNumber(minStock)} {unit}{lowStock ? " · estoque baixo" : ""}</div>
+                      <div className={cn("text-[10px]", lowStock ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>mín. {formatNumber(minStock)} {unit}{lowStock ? " · estoque baixo" : ""}</div>
                       <div className="mt-1">
                         <InventorySaleWindowBadge
                           summary={saleSummaryByItemId.get(String(item?.inventory_item_id || ""))}
