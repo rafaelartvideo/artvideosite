@@ -2453,37 +2453,37 @@ export function TabProducts({
             </Section>
 
             <Section title="Prévia no site" description="Prévia aproximada da página pública usando os dados preenchidos acima.">
-              <div className="rounded-2xl border border-border bg-[#f8fbff] p-3 sm:p-5">
-                <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-[#e2e9f2] bg-white shadow-sm">
+              <div className="rounded-2xl border border-border bg-muted/30 p-3 sm:p-5">
+                <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                   <div className="grid md:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]">
-                    <div className="min-h-[280px] border-b border-[#e8edf3] bg-[#f8fbff] p-5 md:border-b-0 md:border-r">
-                      <div className="flex h-full min-h-[240px] items-center justify-center overflow-hidden rounded-lg border border-[#e5ebf3] bg-white p-5">
+                    <div className="min-h-[280px] border-b border-border bg-muted/30 p-5 md:border-b-0 md:border-r">
+                      <div className="flex h-full min-h-[240px] items-center justify-center overflow-hidden rounded-lg border border-border bg-card p-5">
                         {coverPreviewUrl
                           ? <img src={coverPreviewUrl} alt="" className="max-h-[230px] max-w-full object-contain" />
-                          : <div className="text-center text-[#8da2ba]"><ImageIcon size={48} className="mx-auto mb-2" /><p className="text-xs font-semibold">Sem imagem principal</p></div>}
+                          : <div className="text-center text-muted-foreground"><ImageIcon size={48} className="mx-auto mb-2" /><p className="text-xs font-semibold">Sem imagem principal</p></div>}
                       </div>
                     </div>
                     <div className="p-5 sm:p-6">
                       <p className="text-[11px] font-bold text-primary">{previewBrand}</p>
-                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a98aa]">{previewCategory}</p>
-                      <h3 className="mt-2 break-words text-xl font-extrabold leading-tight text-[#0b1d37]">{form.name.trim() || "Nome do produto"}</h3>
-                      {form.sku.trim() && <p className="mt-2 text-[10px] text-[#7c8b9f]">Código: {form.sku.trim()}</p>}
-                      <div className="mt-5 border-t border-[#e7edf4] pt-4">
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{previewCategory}</p>
+                      <h3 className="mt-2 break-words text-xl font-extrabold leading-tight text-foreground">{form.name.trim() || "Nome do produto"}</h3>
+                      {form.sku.trim() && <p className="mt-2 text-[10px] text-muted-foreground">Código: {form.sku.trim()}</p>}
+                      <div className="mt-5 border-t border-border pt-4">
                         {previewCompareAtPrice !== null && previewPrice !== null && previewCompareAtPrice > previewPrice &&
-                          <p className="text-xs text-[#8b98aa] line-through">{formatCurrency(previewCompareAtPrice)}</p>}
+                          <p className="text-xs text-muted-foreground line-through">{formatCurrency(previewCompareAtPrice)}</p>}
                         <p className="text-2xl font-extrabold text-primary">{previewPrice !== null ? formatCurrency(previewPrice) : "Preço indisponível"}</p>
                       </div>
-                      <p className="mt-4 whitespace-pre-line text-[12px] leading-6 text-[#5c6d82]">
+                      <p className="mt-4 whitespace-pre-line text-[12px] leading-6 text-muted-foreground">
                         {form.short_description.trim() || "A descrição curta aparecerá aqui para apresentar rapidamente o produto ao cliente."}
                       </p>
                     </div>
                   </div>
-                  {visibleStoreCharacteristics.length > 0 && <div className="border-t border-[#e8edf3] p-5 sm:p-6">
-                    <p className="mb-3 text-sm font-bold text-[#18344f]">Características do produto</p>
+                  {visibleStoreCharacteristics.length > 0 && <div className="border-t border-border p-5 sm:p-6">
+                    <p className="mb-3 text-sm font-bold text-foreground">Características do produto</p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {visibleStoreCharacteristics.slice(0, 8).map((item, index) => <div key={index} className="flex min-w-0 justify-between gap-3 rounded-lg bg-[#f8fafc] px-3 py-2.5 text-[11px]">
-                        <span className="text-[#64748b]">{item.label}</span>
-                        <strong className="break-words text-right text-[#203b58]">{item.value}</strong>
+                      {visibleStoreCharacteristics.slice(0, 8).map((item, index) => <div key={index} className="flex min-w-0 justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5 text-[11px]">
+                        <span className="text-muted-foreground">{item.label}</span>
+                        <strong className="break-words text-right text-foreground">{item.value}</strong>
                       </div>)}
                     </div>
                   </div>}
