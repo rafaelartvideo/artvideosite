@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Pencil, Plus, Settings2, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { CatalogSearchSelect } from "@/shared/ui/admin/CatalogCombobox";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { ConfirmDialog, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   createInventoryCatalogOption,
+  deleteInventoryCatalogClassification,
   listInventoryCatalogSettings,
   updateInventoryCatalogOption,
   type InventoryCatalogKind,
@@ -22,7 +24,7 @@ const sections: Array<{ key: InventoryCatalogKind; title: string; placeholder: s
 ];
 
 export function InventoryCatalogSettingsDialog({
-  organizationId, onClose, onChanged, canManageCategories, canManageBrands, canEditItems,
+  organizationId, onClose, onChanged, canManageCategories, canManageBrands, canEditItems, canDeleteClassifications,
 }: {
   organizationId: string;
   onClose: () => void;
@@ -30,6 +32,7 @@ export function InventoryCatalogSettingsDialog({
   canManageCategories: boolean;
   canManageBrands: boolean;
   canEditItems: boolean;
+  canDeleteClassifications: boolean;
 }) {
   const client = useQueryClient();
   const query = useQuery({
@@ -45,6 +48,7 @@ export function InventoryCatalogSettingsDialog({
   const [editingName, setEditingName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; kind: "category" | "subcategory" } | null>(null);
 
   const settings = query.data;
   const entries = selected === "category" ? settings?.categories || []
@@ -61,14 +65,16 @@ export function InventoryCatalogSettingsDialog({
   const visible = selected === "subcategory"
     ? entries.filter(entry => !parentCategoryId || entry.category_id === parentCategoryId)
     : entries;
-  const categories = (settings?.categories || []).filter(item => item.is_active || item.id === parentCategoryId);
+  const categories = settings?.categories || [];
+  const canDelete = canDeleteClassifications && (selected === "category" || selected === "subcategory");
+  const canAdd = selected !== "subcategory" || categories.some(item => item.id === parentCategoryId && item.is_active);
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: ["inventory", "catalog-settings", organizationId] });
     onChanged();
   };
 
   const add = async () => {
-    if (!allowed || saving || !name.trim()) return;
+    if (!allowed || saving || !name.trim() || !canAdd) return;
     setSaving(true); setError("");
     try {
       await createInventoryCatalogOption(organizationId, selected, name, parentCategoryId || undefined);
@@ -91,7 +97,20 @@ export function InventoryCatalogSettingsDialog({
     } finally { setSaving(false); }
   };
 
-  return <AdminDialog
+  const remove = async () => {
+    if (!deleteTarget || !canDeleteClassifications || saving) return;
+    const target = deleteTarget;
+    setSaving(true); setError(""); setDeleteTarget(null);
+    try {
+      await deleteInventoryCatalogClassification(organizationId, target.kind, target.id);
+      if (target.kind === "category" && parentCategoryId === target.id) setParentCategoryId("");
+      await refresh();
+    } catch (cause) {
+      setError(systemErrorMessage(cause, "Não foi possível excluir o cadastro."));
+    } finally { setSaving(false); }
+  };
+
+  return <><AdminDialog
     open
     preparing={query.isPending}
     preparingText="Preparando configurações do estoque..."
@@ -105,7 +124,7 @@ export function InventoryCatalogSettingsDialog({
     footer={<div className="flex justify-end"><AdminButton variant="secondary" onClick={onClose} disabled={saving}>Fechar</AdminButton></div>}
   >
     <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Tipos de configuração do estoque">
-      {sections.map(item => <button key={item.key} type="button" aria-pressed={selected === item.key}
+      {sections.map(item => <button key={item.key} type="button" disabled={saving} aria-pressed={selected === item.key}
         onClick={() => { setSelected(item.key); setName(""); setEditingId(null); setError(""); }}
         className={"min-h-10 rounded-lg border px-2 py-2 text-xs font-bold transition-colors "
           + (selected === item.key ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground")}>
@@ -117,15 +136,15 @@ export function InventoryCatalogSettingsDialog({
       : <Section title={section.title} contentClassName="space-y-4 !p-3 sm:!p-4">
         {selected === "subcategory" && <div>
           <CatalogSearchSelect label="Categoria principal" value={parentCategoryId}
-            onValueChange={value => { setParentCategoryId(value); setEditingId(null); }}
-            options={[{ value: "", label: "Selecione uma categoria" }, ...categories.map(c => ({ value: c.id, label: c.name }))]} />
+            onValueChange={value => { if (!saving) { setParentCategoryId(value); setEditingId(null); setError(""); } }}
+            options={[{ value: "", label: "Selecione uma categoria" }, ...categories.map(c => ({ value: c.id, label: c.is_active ? c.name : `${c.name} (Inativa)` }))]} />
         </div>}
         {allowed && <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1"><FInput label={"Novo cadastro"} placeholder={section.placeholder}
-            value={name} disabled={saving || (selected === "subcategory" && !parentCategoryId)}
+            value={name} disabled={saving || !canAdd}
             onChange={(event: any) => setName(event.target.value)}
             onKeyDown={(event: any) => { if (event.key === "Enter") { event.preventDefault(); void add(); } }} /></div>
-          <AdminButton ariaLabel={"Adicionar " + section.title.toLowerCase()} disabled={saving || !name.trim() || (selected === "subcategory" && !parentCategoryId)}
+          <AdminButton ariaLabel={"Adicionar " + section.title.toLowerCase()} disabled={saving || !name.trim() || !canAdd}
             className="h-[42px] shrink-0" onClick={() => void add()}><Plus size={16}/> Adicionar</AdminButton>
         </div>}
         <div className="divide-y divide-border rounded-lg border border-border">
@@ -148,10 +167,13 @@ export function InventoryCatalogSettingsDialog({
                 <button type="button" aria-label={"Editar " + item.name} disabled={saving}
                   onClick={() => { setEditingId(item.id); setEditingName(item.name); }}
                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/25 text-primary hover:bg-primary/5"><Pencil size={15}/></button>
-                <AdminButton size="sm" variant={item.is_active ? "quaternary" : "tertiary"} disabled={saving}
-                  onClick={() => void update(item.id, { is_active: !item.is_active })}>
-                  {item.is_active ? "Inativar" : "Ativar"}
-                </AdminButton>
+                <AdminActiveStateButton active={item.is_active} entityLabel={item.name} disabled={saving}
+                  onClick={() => void update(item.id, { is_active: !item.is_active })} />
+                {canDelete && (selected === "category" || selected === "subcategory") && <AdminIconButton
+                  ariaLabel={"Excluir " + item.name} title="Excluir" variant="danger" disabled={saving}
+                  onClick={() => { setError(""); setDeleteTarget({ id: item.id, name: item.name, kind: selected }); }}>
+                  <Trash2 size={15}/>
+                </AdminIconButton>}
               </>}
             </>}
           </div>)}
@@ -159,5 +181,10 @@ export function InventoryCatalogSettingsDialog({
         {error && <p role="alert" className="text-xs font-semibold text-destructive">{error}</p>}
         {!allowed && <p className="text-xs text-muted-foreground">Você pode visualizar os cadastros, mas não tem permissão para alterá-los.</p>}
       </Section>}
-  </AdminDialog>;
+  </AdminDialog>
+  {deleteTarget && <ConfirmDialog
+    message={`Excluir "${deleteTarget.name}"? Cadastros vinculados a produtos ou subcategorias não podem ser excluídos; nesses casos, use a opção de inativar.`}
+    onConfirm={remove}
+    onCancel={() => setDeleteTarget(null)} />}
+  </>;
 }

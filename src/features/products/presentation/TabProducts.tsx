@@ -2493,6 +2493,7 @@ export function TabProducts({
       canManageCategories={canManageCategories}
       canManageBrands={canManageBrands}
       canEditItems={canEdit}
+      canDeleteClassifications={hasPermission("inventory.categories.manage")}
       onChanged={() => { void refresh(); }}
       onClose={() => setInventoryCatalogSettingsOpen(false)}
     />}
