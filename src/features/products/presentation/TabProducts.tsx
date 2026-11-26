@@ -64,7 +64,7 @@ import {
   INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
-import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
+import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { uploadMediaFile } from "@/shared/infrastructure/media.repository";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -479,6 +479,8 @@ export function TabProducts({
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryLoadState, setGalleryLoadState] = useState<"ready" | "loading" | "error">("ready");
+  const galleryRequestRef = useRef(0);
   const [galleryActiveSlot, setGalleryActiveSlot] = useState<number | null>(null);
   const galleryFileInputRef = useRef<HTMLInputElement>(null);
   const galleryCameraInputRef = useRef<HTMLInputElement>(null);
@@ -489,8 +491,24 @@ export function TabProducts({
     ...galleryMedia,
   ];
   const galleryPhotoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
-  const canEditGallery = !saving && !galleryUploading && (editItem ? canEdit : canCreate);
+  const canEditGallery = !saving && !galleryUploading && galleryLoadState === "ready" && (editItem ? canEdit : canCreate);
   const canAddGalleryPhoto = canEditGallery && galleryPhotoCount < 4;
+
+  const loadEditorGallery = (productId: string) => {
+    const request = ++galleryRequestRef.current;
+    setGalleryLoadState("loading");
+    if (!activeOrganizationId) { setGalleryLoadState("error"); return; }
+    void loadProductGallery(activeOrganizationId, productId)
+      .then(images => {
+        if (request !== galleryRequestRef.current) return;
+        setGalleryMedia(images);
+        setGalleryLoadState("ready");
+      })
+      .catch(() => {
+        if (request !== galleryRequestRef.current) return;
+        setGalleryLoadState("error");
+      });
+  };
 
   const handleProductMobileCode = (value: string) => {
     if (!value.trim() || saving) return;
@@ -620,7 +638,10 @@ export function TabProducts({
     setCompatibleModelsParentId(null);
     setEditItem(null);
     setLinkedSuppliers([]);
+    galleryRequestRef.current += 1;
     setGalleryMedia([]);
+    setGalleryActiveSlot(null);
+    setGalleryLoadState("ready");
     setEditorTab("general");
     variantOptionsRequestRef.current += 1;
     setVariantOptions([]);
@@ -766,11 +787,8 @@ export function TabProducts({
           setToast({ msg: `Erro ao carregar fornecedores: ${systemErrorMessage(error)}`, type: "error" });
         });
     }
-    if (activeOrganizationId) {
-      void loadProductGallery(activeOrganizationId, product.id)
-        .then(setGalleryMedia)
-        .catch(() => setGalleryMedia([]));
-    }
+    setGalleryActiveSlot(null);
+    loadEditorGallery(product.id);
     setEditorTab("general");
     const variantOptionsRequest = ++variantOptionsRequestRef.current;
     setVariantOptions([]);
@@ -797,6 +815,7 @@ export function TabProducts({
   const closeEditorRoute = () => {
     closingEditorRouteRef.current = Boolean(onRouteChange);
     pendingEditorRouteRef.current = false;
+    galleryRequestRef.current += 1;
     setDrawerOpen(false);
     onRouteChange?.(null, null);
   };
@@ -963,6 +982,11 @@ export function TabProducts({
 
   const handleSave = async () => {
     if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
+    if (galleryLoadState !== "ready") {
+      setEditorTab("general");
+      setToast({ msg: "Carregue as fotos existentes antes de salvar o produto.", type: "error" });
+      return;
+    }
     if (!validate()) return;
     if (!variantOptionsLoaded) {
       setEditorTab("general");
@@ -1004,7 +1028,7 @@ export function TabProducts({
     }
     const photoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
     if (photoCount > 4) {
-      setEditorTab("store");
+      setEditorTab("general");
       setToast({ msg: "Limite de 4 fotos por produto, incluindo a principal. Remova as fotos excedentes.", type: "error" });
       return;
     }
@@ -1807,91 +1831,161 @@ export function TabProducts({
                     placeholder="Descreva o produto, suas características e demais informações relevantes."
                   />
                 </div>
-                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,260px)] sm:items-start">
-                  <div className="min-w-0 [&>div]:flex [&>div]:h-full [&>div]:flex-col [&_textarea]:min-h-0 [&_textarea]:flex-1">
-                    <FTextarea
-                      label="Observações internas"
-                      value={form.internal_notes}
-                      disabled={saving}
-                      onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
-                      rows={6}
-                      placeholder="Informações internas sobre o produto."
-                    />
-                  </div>
-                  <div className="min-w-0 self-start rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
-                    <ImageUpload
-                      bucket="product-images"
-                      organizationId={activeOrganizationId || undefined}
-                      currentMediaId={form.cover_media_id}
-                      onUpload={mediaId => {
-                        const oldCoverId = form.cover_media_id;
-                        setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId));
-                        setForm(current => ({ ...current, cover_media_id: mediaId }));
-                      }}
-                      onRemove={() => {
-                        const oldCoverId = form.cover_media_id;
-                        setGalleryMedia(current => current.filter(image => image.media_id !== oldCoverId));
-                        setForm(current => ({ ...current, cover_media_id: "" }));
-                      }}
-                      canUpload={!saving && !galleryUploading && (editItem ? canEdit : canCreate)}
-                      removeIconOnly
-                      photoActions
-                      coverFill
-                      label="Foto de capa"
-                    />
-                  </div>
+                <div className="min-w-0 sm:col-span-2">
+                  <FTextarea
+                    label="Observações internas"
+                    value={form.internal_notes}
+                    disabled={saving}
+                    onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
+                    rows={3}
+                    placeholder="Informações internas sobre o produto."
+                  />
                 </div>
               </div>
             </Section>
 
-            <details className="rounded-xl border border-border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold text-foreground">Características avançadas (opcional)</summary><div className="mt-4"><Section title="Características e classificação">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <FInput
-                  label="Código GPC / classificação externa"
-                  value={form.gpc_code}
-                  disabled={saving}
-                  onChange={(event: any) => setForm(current => ({ ...current, gpc_code: event.target.value }))}
-                  placeholder="Quando disponível"
-                />
-                <FDecimalInput
-                  label="Peso bruto (g)"
-                  value={form.gross_weight_grams}
-                  disabled={saving}
-                  decimalPlaces={3}
-                  onChange={(event: any) => setForm(current => ({ ...current, gross_weight_grams: event.target.value }))}
-                />
-                <FDecimalInput
-                  label="Peso líquido (g)"
-                  value={form.net_weight_grams}
-                  disabled={saving}
-                  decimalPlaces={3}
-                  onChange={(event: any) => setForm(current => ({ ...current, net_weight_grams: event.target.value }))}
-                />
-                <FDecimalInput
-                  label="Largura (mm)"
-                  value={form.width_mm}
-                  disabled={saving}
-                  decimalPlaces={3}
-                  onChange={(event: any) => setForm(current => ({ ...current, width_mm: event.target.value }))}
-                />
-                <FDecimalInput
-                  label="Altura (mm)"
-                  value={form.height_mm}
-                  disabled={saving}
-                  decimalPlaces={3}
-                  onChange={(event: any) => setForm(current => ({ ...current, height_mm: event.target.value }))}
-                />
-                <FDecimalInput
-                  label="Comprimento (mm)"
-                  value={form.length_mm}
-                  disabled={saving}
-                  decimalPlaces={3}
-                  onChange={(event: any) => setForm(current => ({ ...current, length_mm: event.target.value }))}
-                />
-              </div>
-            </Section>
 
-            </div></details>
+
+            <Section
+              title="Fotos do produto"
+              description="Até 4 fotos, incluindo a capa. As mesmas imagens são usadas no estoque e na loja."
+              actions={<>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Adicionar imagem à galeria"
+                  title="Adicionar imagem"
+                  disabled={!canAddGalleryPhoto}
+                  onClick={() => galleryFileInputRef.current?.click()}
+                ><Upload size={16} /> <span>Adicionar imagem</span></AdminButton>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Tirar foto com a câmera"
+                  title="Câmera"
+                  disabled={!canAddGalleryPhoto}
+                  onClick={() => galleryCameraInputRef.current?.click()}
+                ><Camera size={16} /> <span>Câmera</span></AdminButton>
+              </>}
+            >
+              <input
+                ref={galleryFileInputRef}
+                type="file"
+                accept="image/*,.jpg,.jpeg,.png,.webp"
+                onChange={handleGalleryUpload}
+                className="hidden"
+                aria-label="Selecionar foto da galeria"
+                tabIndex={-1}
+              />
+              <input
+                ref={galleryCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleGalleryUpload}
+                className="hidden"
+                aria-label="Tirar foto para a galeria"
+                tabIndex={-1}
+              />
+
+              {galleryLoadState === "loading" ? <LoadingState text="Carregando fotos do produto..." /> : galleryLoadState === "error" ?
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role="alert">
+                  Não foi possível carregar as fotos existentes.
+                  {editItem && <AdminButton variant="tertiary" size="sm" onClick={() => loadEditorGallery(editItem.id)}>Tentar novamente</AdminButton>}
+                </div> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {storePhotos.map(image => <div key={image.media_id} className={cn(
+                  "relative min-w-0 overflow-hidden rounded-xl border-2 border-dashed bg-card p-2.5",
+                  form.cover_media_id === image.media_id ? "border-primary/55 bg-primary/[0.025]" : "border-border",
+                )}>
+                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/30">
+                    {image.public_url
+                      ? <img src={image.public_url} alt="Foto do produto" className="h-full w-full object-contain" />
+                      : <div className="flex h-full items-center justify-center"><ImageIcon size={24} className="text-muted-foreground" /></div>}
+                  </div>
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!canEditGallery}
+                      onClick={() => {
+                        if (form.cover_media_id && form.cover_media_id !== image.media_id &&
+                            !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
+                          const previous = { media_id: form.cover_media_id, public_url: coverPreviewUrl || "" };
+                          setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
+                        }
+                        setForm(current => ({ ...current, cover_media_id: image.media_id }));
+                      }}
+                      className={cn(
+                        "flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold transition-colors disabled:opacity-50",
+                        form.cover_media_id === image.media_id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
+                      )}
+                    ><Star size={13} className="shrink-0" fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
+                    <AdminIconButton
+                      ariaLabel="Remover foto da galeria"
+                      title="Remover foto"
+                      variant="danger"
+                      className="!h-9 !w-9 shrink-0"
+                      disabled={!canEditGallery}
+                      onClick={() => {
+                        setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
+                        if (form.cover_media_id === image.media_id) {
+                          const next = storePhotos.find(entry => entry.media_id !== image.media_id);
+                          setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
+                        }
+                      }}
+                    ><Trash2 size={16} /></AdminIconButton>
+                  </div>
+                </div>)}
+
+                {Array.from({ length: Math.max(0, 4 - storePhotos.length) }).map((_, index) =>
+                  <div
+                    key={`empty-gallery-${index}`}
+                    className={cn(
+                      "flex min-h-[180px] min-w-0 flex-col items-center justify-center rounded-xl border-2 border-dashed px-2 py-4 text-center transition-colors sm:min-h-[210px]",
+                      galleryActiveSlot === index ? "border-primary/50 bg-primary/[0.03]" : "border-border bg-transparent",
+                    )}
+                  >
+                    {galleryUploading ? (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <LoaderCircle size={24} className="animate-spin text-primary" />
+                        <span className="text-xs">Enviando foto</span>
+                      </div>
+                    ) : galleryActiveSlot === index ? (
+                      <div className="flex w-full flex-col items-center gap-2 px-1">
+                        <span className="text-xs font-semibold text-foreground">Adicionar foto</span>
+                        <button
+                          type="button"
+                          disabled={!canAddGalleryPhoto}
+                          onClick={() => galleryFileInputRef.current?.click()}
+                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                        ><Upload size={15} /> Imagem</button>
+                        <button
+                          type="button"
+                          disabled={!canAddGalleryPhoto}
+                          onClick={() => galleryCameraInputRef.current?.click()}
+                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                        ><Camera size={15} /> Câmera</button>
+                        <button type="button" onClick={() => setGalleryActiveSlot(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canAddGalleryPhoto}
+                        onClick={() => setGalleryActiveSlot(index)}
+                        className="flex h-full w-full flex-1 flex-col items-center justify-center gap-2 rounded-lg px-2 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
+                        aria-label={`Adicionar foto ao espaço ${index + storePhotos.length + 1}`}
+                      >
+                        <ImageIcon size={25} />
+                        <span className="text-xs font-semibold">Adicionar foto</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>}
+            </Section>
 
             <Section
               title={<span className="inline-flex min-w-0 items-center gap-1.5">
@@ -2016,6 +2110,54 @@ export function TabProducts({
                   </div>)}
               </div>
             </Section>
+            <details className="rounded-xl border border-border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold text-foreground">Características avançadas (opcional)</summary><div className="mt-4"><Section title="Características e classificação">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <FInput
+                  label="Código GPC / classificação externa"
+                  value={form.gpc_code}
+                  disabled={saving}
+                  onChange={(event: any) => setForm(current => ({ ...current, gpc_code: event.target.value }))}
+                  placeholder="Quando disponível"
+                />
+                <FDecimalInput
+                  label="Peso bruto (g)"
+                  value={form.gross_weight_grams}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, gross_weight_grams: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Peso líquido (g)"
+                  value={form.net_weight_grams}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, net_weight_grams: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Largura (mm)"
+                  value={form.width_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, width_mm: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Altura (mm)"
+                  value={form.height_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, height_mm: event.target.value }))}
+                />
+                <FDecimalInput
+                  label="Comprimento (mm)"
+                  value={form.length_mm}
+                  disabled={saving}
+                  decimalPlaces={3}
+                  onChange={(event: any) => setForm(current => ({ ...current, length_mm: event.target.value }))}
+                />
+              </div>
+            </Section>
+
+            </div></details>
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 w-full min-w-0 space-y-5">
@@ -2310,143 +2452,6 @@ export function TabProducts({
               </div>}
             </Section>
 
-            <Section
-              title="Fotos da loja"
-              description="Até 4 fotos. Escolha a principal pela estrela e use os espaços vazios para incluir outras."
-              actions={<>
-                <AdminButton
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  aria-label="Adicionar imagem à galeria"
-                  title="Adicionar imagem"
-                  disabled={!canAddGalleryPhoto}
-                  onClick={() => galleryFileInputRef.current?.click()}
-                ><Upload size={16} /> <span>Adicionar imagem</span></AdminButton>
-                <AdminButton
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  aria-label="Tirar foto com a câmera"
-                  title="Câmera"
-                  disabled={!canAddGalleryPhoto}
-                  onClick={() => galleryCameraInputRef.current?.click()}
-                ><Camera size={16} /> <span>Câmera</span></AdminButton>
-              </>}
-            >
-              <input
-                ref={galleryFileInputRef}
-                type="file"
-                accept="image/*,.jpg,.jpeg,.png,.webp"
-                onChange={handleGalleryUpload}
-                className="hidden"
-                aria-label="Selecionar foto da galeria"
-                tabIndex={-1}
-              />
-              <input
-                ref={galleryCameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleGalleryUpload}
-                className="hidden"
-                aria-label="Tirar foto para a galeria"
-                tabIndex={-1}
-              />
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {storePhotos.map(image => <div key={image.media_id} className={cn(
-                  "relative min-w-0 overflow-hidden rounded-xl border-2 border-dashed bg-card p-2.5",
-                  form.cover_media_id === image.media_id ? "border-primary/55 bg-primary/[0.025]" : "border-border",
-                )}>
-                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/30">
-                    {image.public_url
-                      ? <img src={image.public_url} alt="Foto do produto" className="h-full w-full object-contain" />
-                      : <div className="flex h-full items-center justify-center"><ImageIcon size={24} className="text-muted-foreground" /></div>}
-                  </div>
-                  <div className="mt-2 flex gap-1.5">
-                    <button
-                      type="button"
-                      disabled={!canEditGallery}
-                      onClick={() => {
-                        if (form.cover_media_id && form.cover_media_id !== image.media_id &&
-                            !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
-                          const previous = { media_id: form.cover_media_id, public_url: coverPreviewUrl || "" };
-                          setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
-                        }
-                        setForm(current => ({ ...current, cover_media_id: image.media_id }));
-                      }}
-                      className={cn(
-                        "flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold transition-colors disabled:opacity-50",
-                        form.cover_media_id === image.media_id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
-                      )}
-                    ><Star size={13} className="shrink-0" fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
-                    <AdminIconButton
-                      ariaLabel="Remover foto da galeria"
-                      title="Remover foto"
-                      variant="danger"
-                      className="!h-9 !w-9 shrink-0"
-                      disabled={!canEditGallery}
-                      onClick={() => {
-                        setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
-                        if (form.cover_media_id === image.media_id) {
-                          const next = storePhotos.find(entry => entry.media_id !== image.media_id);
-                          setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
-                        }
-                      }}
-                    ><Trash2 size={16} /></AdminIconButton>
-                  </div>
-                </div>)}
-
-                {Array.from({ length: Math.max(0, 4 - storePhotos.length) }).map((_, index) =>
-                  <div
-                    key={`empty-gallery-${index}`}
-                    className={cn(
-                      "flex min-h-[180px] min-w-0 flex-col items-center justify-center rounded-xl border-2 border-dashed px-2 py-4 text-center transition-colors sm:min-h-[210px]",
-                      galleryActiveSlot === index ? "border-primary/50 bg-primary/[0.03]" : "border-border bg-transparent",
-                    )}
-                  >
-                    {galleryUploading ? (
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <LoaderCircle size={24} className="animate-spin text-primary" />
-                        <span className="text-xs">Enviando foto</span>
-                      </div>
-                    ) : galleryActiveSlot === index ? (
-                      <div className="flex w-full flex-col items-center gap-2 px-1">
-                        <span className="text-xs font-semibold text-foreground">Adicionar foto</span>
-                        <button
-                          type="button"
-                          disabled={!canAddGalleryPhoto}
-                          onClick={() => galleryFileInputRef.current?.click()}
-                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
-                        ><Upload size={15} /> Imagem</button>
-                        <button
-                          type="button"
-                          disabled={!canAddGalleryPhoto}
-                          onClick={() => galleryCameraInputRef.current?.click()}
-                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
-                        ><Camera size={15} /> Câmera</button>
-                        <button type="button" onClick={() => setGalleryActiveSlot(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!canAddGalleryPhoto}
-                        onClick={() => setGalleryActiveSlot(index)}
-                        className="flex h-full w-full flex-1 flex-col items-center justify-center gap-2 rounded-lg px-2 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
-                        aria-label={`Adicionar foto ao espaço ${index + storePhotos.length + 1}`}
-                      >
-                        <ImageIcon size={25} />
-                        <span className="text-xs font-semibold">Adicionar foto</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Section>
-
             <Section title="Prévia no site" description="Prévia aproximada da página pública usando os dados preenchidos acima.">
               <div className="rounded-2xl border border-border bg-[#f8fbff] p-3 sm:p-5">
                 <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-[#e2e9f2] bg-white shadow-sm">
@@ -2492,7 +2497,7 @@ export function TabProducts({
 
       <AdminStickyToolbar className="z-10 !justify-end md:!justify-start">
         <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
-        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading || galleryLoadState !== "ready"} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
         {(editItem ? canEdit : canCreate) && <div className="ml-auto hidden shrink-0 md:flex">
           <DeviceCaptureBridge
             key={`product-capture-${editItem?.id || "new"}`}
