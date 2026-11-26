@@ -31,3 +31,21 @@ test('hidden tabs do not poll and a failed count can retry on the next interval'
   await new Promise(resolve=>setImmediate(resolve));h.tick();assert.equal(h.calls(),2);
   h.cleanup();h.pending[1](0);
 });
+
+test('conversation pagination highlights only enabled arrows and uses bold readable totals',async()=>{
+  const source=readFileSync('src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx','utf8');
+  const footer=source.slice(source.lastIndexOf('{!embedded && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card px-3 py-2.5">'),source.indexOf('</aside>',source.indexOf('nesta página')));
+  assert.ok(footer.includes('text-xs font-bold leading-relaxed text-foreground'));
+  assert.ok(footer.includes('aria-live="polite"'));
+  assert.ok(footer.includes('nesta página'));
+  assert.ok(footer.includes('no total'));
+  assert.ok(footer.includes('Página {conversationPage+1}'));
+  assert.ok(footer.includes('variant={conversationPage===0||conversationPageLoading?"secondary":"tertiary"}'));
+  assert.ok(footer.includes('variant={!conversationHasMore||conversationPageLoading?"secondary":"tertiary"}'));
+  assert.ok(footer.includes('disabled={conversationPage===0||conversationPageLoading}'));
+  assert.ok(footer.includes('disabled={!conversationHasMore||conversationPageLoading}'));
+  assert.ok(footer.includes('setConversationPage(p=>Math.max(0,p-1))'));
+  assert.ok(footer.includes('setConversationPage(p=>p+1)'));
+  assert.equal((footer.match(/<AdminIconButton /g)||[]).length,2);
+  assert.ok((await transform(source,{loader:'tsx'})).code);
+});
