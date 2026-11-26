@@ -1396,9 +1396,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           orders:result.crm_orders||[],ambiguous:result.ambiguous===true,
           linkedViaOrder:result.linked_via_order===true,linkedOrders:result.linked_orders||[],
         }}));
-      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:{
-        customer:null,equipments:[],orders:[],error:true,
-      }}));});
+        setCrmRefreshId(current=>current===selectedId?null:current);
+      }).catch(()=>{if(!cancelled && organizationRef.current===org){
+        setLinkedCustomers(old=>({...old,[selectedId]:{
+          customer:null,equipments:[],orders:[],error:true,
+        }}));
+        setCrmRefreshId(current=>current===selectedId?null:current);
+      }});
     return()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers,crmDetailsOpen,crmRefreshId]);
 
