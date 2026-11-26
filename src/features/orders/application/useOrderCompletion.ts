@@ -266,13 +266,13 @@ export function useOrderCompletion({
     if (installments.some(item => !item.due_date)) return "Informe o vencimento de todas as parcelas.";
     if (installments.some(item => !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0)) return "Todas as parcelas devem ter valor maior que zero.";
     if (Math.abs(installmentDifference) > 0.009) return "A soma das parcelas precisa ser igual ao valor final da OS.";
-    const receivedWithoutMethod = installments.find(item => item.received && !item.payment_method_id);
-    if (receivedWithoutMethod) return "Selecione a forma de recebimento das parcelas marcadas como recebidas.";
+    const missingMethodIndex = installments.findIndex(item => !financeOptions.payment_methods.some(method => method.id === item.payment_method_id));
+    if (missingMethodIndex >= 0) return installments.length === 1 ? "Selecione a forma de pagamento." : `Selecione a forma de pagamento da parcela ${missingMethodIndex + 1}.`;
     const receivedWithoutDate = installments.find(item => item.received && !item.received_at);
     if (receivedWithoutDate) return "Informe a data de recebimento das parcelas recebidas.";
     if (installments.some(item => item.received && item.received_at > todayIsoDate())) return "A data de recebimento não pode ser futura. Desmarque Recebido se o cliente ainda não pagou.";
     return "";
-  }, [financeOptionsError, financeEnabled, finalTotal, installments, installmentDifference]);
+  }, [financeOptionsError, financeEnabled, finalTotal, installments, installmentDifference, financeOptions.payment_methods]);
 
   const loadCommercialItems = async (serviceOrderId: string) => {
     setCommercialItemsLoading(true);
