@@ -97,3 +97,35 @@ test("Estoque mostra atributos reais e permite ampliar fotos sem abrir o item", 
   assert.ok(lightbox.includes('aria-label="Próxima foto"'));
   assert.ok(lightbox.includes("object-contain"));
 });
+
+test("detalhes de estoque usam seções compartilhadas, resumo sem cards e modelos ordenados",async()=>{
+  const ui=read("src/features/products/presentation/InventoryProductDetailsDialog.tsx");
+  const models=read("src/features/products/presentation/CompatibleDeviceModelsList.tsx");
+  for(const [name,source] of [["InventoryProductDetailsDialog.tsx",ui],["CompatibleDeviceModelsList.tsx",models]]) assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code);
+  const summary=ui.slice(ui.indexOf('aria-label="Resumo do item"'),ui.indexOf('<Section title="Informações do cadastro"'));
+  assert.ok(summary.includes('grid grid-cols-3 divide-x divide-border'));
+  assert.ok(summary.includes('>SKU:</strong>'));
+  assert.ok(summary.includes('>MPN:</strong>'));
+  assert.ok(summary.includes('>Código interno:</strong>'));
+  assert.ok(!summary.includes('rounded-lg border border-border p-2.5'));
+  for(const section of ["Informações do cadastro","Fotos do produto","Códigos relacionados","Produtos relacionados","Fornecedores"]) assert.ok(ui.includes('<Section title="'+section+'"'),section);
+  assert.ok(ui.includes('<AdminSectionEmpty compact>Nenhum fornecedor selecionado.'));
+  assert.ok(ui.includes('compatibleModels.data?.length || 0'));
+  assert.ok(ui.includes('models={compatibleModels.data} hideHeading'));
+  assert.ok(models.includes('[...models].sort'));
+  assert.ok(models.includes('a.model.localeCompare(b.model,"pt-BR"'));
+  assert.ok(models.includes('sortedModels.map'));
+  assert.ok(models.includes('rounded-full border border-border'));
+});
+
+test("SKU sequencial ignora identificadores legados longos sem renumerar itens",()=>{
+  const sql=read("supabase/migrations/20261126143212_inventory_repair_sequential_sku_seed.sql");
+  assert.ok(sql.includes("private.next_inventory_sku_v1(p_org uuid)"));
+  assert.ok(sql.includes("^[0-9]{1,6}$"));
+  assert.ok(sql.includes("last_value>999999"));
+  assert.ok(sql.includes("last_value=last_value+1"));
+  assert.ok(sql.includes("pg_advisory_xact_lock"));
+  assert.ok(sql.includes("ltrim(btrim(sku),'0')=v_code"));
+  assert.ok(sql.includes("where c.organization_id=v_org"));
+  assert.doesNotMatch(sql,/update public\.(products|inventory_items)/i);
+});
