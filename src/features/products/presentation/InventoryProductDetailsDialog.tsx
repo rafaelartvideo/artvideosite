@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, ChevronLeft, ChevronRight, Edit2, List, Package } from "lucide-react";
-import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { salesHomologationImage } from "@/shared/domain/catalog-homologation-image";
@@ -177,7 +177,7 @@ export function InventoryProductDetailsDialog({
           unit={unit} conversionFactor={factor} canViewCosts={canViewCosts}/>
       : <p className="text-sm text-muted-foreground">Histórico indisponível para este item.</p>)
     : <>
-    <section className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start" aria-label="Resumo do item">
+    <section className="flex min-w-0 flex-col gap-4 items-center sm:flex-row sm:items-center" aria-label="Resumo do item">
       <button type="button" disabled={!(coverUrl || coverIllustration)}
         onClick={() => setExpandedImage({ mediaId: product.cover_media_id, src: coverUrl || coverIllustration, name: product.name, photos, startIndex: 0 })}
         title="Ampliar foto do produto" aria-label="Ampliar foto do produto"
@@ -195,19 +195,22 @@ export function InventoryProductDetailsDialog({
             factor={unit === "cx" ? factor : 1} unit={unit}/>}
         </div>
         <h3 className="break-words text-lg font-extrabold text-foreground">{product.name}</h3>
-        <p className="break-words text-xs text-muted-foreground">
-          {product.sku || inventory?.sku || "Sem SKU"} · {product.barcode || "Sem GTIN"}
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <div className="rounded-lg border border-border p-2.5">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 break-words text-xs text-muted-foreground">
+          <span><strong className="text-foreground">SKU:</strong> {product.sku || inventory?.sku || "—"}</span>
+          {product.manufacturer_code && <span><strong className="text-foreground">MPN:</strong> {product.manufacturer_code}</span>}
+          {product.internal_barcode && <span><strong className="text-foreground">Código interno:</strong> {product.internal_barcode}</span>}
+          {product.barcode && <span><strong className="text-foreground">GTIN:</strong> {product.barcode}</span>}
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-border">
+          <div className="min-w-0 pr-2">
             <p className="text-[10px] font-semibold text-muted-foreground">Preço de venda</p>
             <p className="mt-1 text-sm font-bold text-green-600 dark:text-green-400">{product.price == null ? "Sem preço" : formatCurrency(product.price)}</p>
           </div>
-          <div className="rounded-lg border border-border p-2.5">
+          <div className="min-w-0 px-2 sm:px-3">
             <p className="text-[10px] font-semibold text-muted-foreground">Saldo disponível</p>
             <p className="mt-1 text-sm font-bold text-blue-600 dark:text-blue-400">{formatNumber(stock)} {unit}</p>
           </div>
-          <div className="col-span-2 rounded-lg border border-border p-2.5 sm:col-span-1">
+          <div className="min-w-0 pl-2 sm:pl-3">
             <p className="text-[10px] font-semibold text-muted-foreground">Estoque mínimo</p>
             <p className="mt-1 text-sm font-bold text-foreground">{formatNumber(minimum)} {unit}</p>
           </div>
@@ -215,8 +218,7 @@ export function InventoryProductDetailsDialog({
       </div>
     </section>
 
-    <section className="space-y-2.5" aria-label="Informações do cadastro">
-      <h4 className="text-sm font-bold text-foreground">Informações do cadastro</h4>
+    <Section title="Informações do cadastro" contentClassName="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Detail label="Marca" value={product.brands?.name || "—"}/>
         <Detail label="Categoria" value={product.product_categories?.name || "—"}/>
@@ -240,10 +242,9 @@ export function InventoryProductDetailsDialog({
         <Detail label="Custo médio" value={inventory?.average_cost == null ? "—" : formatCurrency(Number(inventory.average_cost) * (unit === "cx" ? factor : 1))}/>
         <Detail label="Valor em estoque" value={inventory?.stock_value == null ? "—" : formatCurrency(inventory.stock_value)}/>
       </div>}
-    </section>
+    </Section>
 
-    {(variantOptions.isPending || variationFamily.isPending || variantOptions.isError || variationFamily.isError || attributes.length > 0) && <section className="space-y-2.5 border-t border-border pt-4" aria-label="Atributos do produto">
-      <h4 className="text-sm font-bold text-foreground">Atributos do produto</h4>
+    {(variantOptions.isPending || variationFamily.isPending || variantOptions.isError || variationFamily.isError || attributes.length > 0) && <Section title="Atributos do produto">
       {variantOptions.isPending || variationFamily.isPending
         ? <p className="text-xs text-muted-foreground">Carregando atributos...</p>
         : attributes.length > 0
@@ -257,45 +258,41 @@ export function InventoryProductDetailsDialog({
                 </>} />)}
             </div>
           : <p role="alert" className="text-xs text-destructive">Não foi possível consultar os atributos deste produto.</p>}
-    </section>}
+    </Section>}
 
-    {gallery.data && gallery.data.length > 0 && <section className="space-y-2">
-      <h4 className="text-sm font-bold text-foreground">Fotos do produto</h4>
-      <div className="flex flex-wrap gap-2">
-        {gallery.data.map(image => <button key={image.media_id} type="button"
-          onClick={() => setExpandedImage({ mediaId: image.media_id, src: image.public_url, name: image.alt_text || product.name, photos, startIndex: Math.max(0, photos.findIndex(photo => photo.mediaId === image.media_id)) })}
+    <Section title="Fotos do produto">
+      {photos.length ? <div className="flex flex-wrap gap-2">
+        {photos.map((image,index) => <button key={image.mediaId || image.src || index} type="button"
+          onClick={() => setExpandedImage({ ...image, photos, startIndex: Math.max(0, photos.findIndex(photo => photo === image)) })}
           title="Ampliar foto" aria-label={`Ampliar foto de ${product.name}`}
           className="h-20 w-20 overflow-hidden rounded-lg border border-border bg-muted/20 focus-visible:outline-2 focus-visible:outline-primary">
-          <img src={image.public_url} alt={image.alt_text || product.name} loading="lazy"
+          <img src={image.src || ""} alt={image.name} loading="lazy"
             className="h-full w-full object-contain"/>
         </button>)}
-      </div>
-    </section>}
+      </div> : <AdminSectionEmpty compact>{gallery.isPending ? "Carregando fotos..." : gallery.isError ? "Não foi possível consultar as fotos." : "Nenhuma foto cadastrada."}</AdminSectionEmpty>}
+    </Section>
 
-    <section className="space-y-3 border-t border-border pt-4" aria-label="Códigos relacionados">
-      <h4 className="text-sm font-bold text-foreground">Códigos relacionados</h4>
-      {relatedCodes.isPending ? <p className="text-xs text-muted-foreground">Carregando códigos...</p>
+    <Section title="Códigos relacionados">
+      {relatedCodes.isPending ? <p className="py-3 text-center text-xs text-muted-foreground">Carregando códigos...</p>
         : relatedCodes.isError ? <p className="text-xs text-destructive">Não foi possível consultar os códigos.</p>
         : relatedCodes.data?.length ? <div className="grid gap-x-5 sm:grid-cols-2">
           {relatedCodes.data.map((code,index) => <div key={index} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-1 py-2">
             <span className="break-all font-mono text-xs font-semibold text-foreground">{code.code}</span>
             <span className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">{productRelationLabel(code.relation_type)}</span>
           </div>)}
-        </div> : <p className="text-xs text-muted-foreground">Nenhum código relacionado.</p>}
-    </section>
+        </div> : <AdminSectionEmpty compact>Nenhum código relacionado.</AdminSectionEmpty>}
+    </Section>
 
-    <section className="space-y-3 border-t border-border pt-4" aria-label="Modelos de aparelhos compatíveis">
-      {compatibleModels.isPending ? <p className="text-xs text-muted-foreground">Carregando modelos compatíveis...</p>
-        : compatibleModels.isError ? <p className="text-xs text-destructive">Não foi possível consultar os modelos compatíveis.</p>
-        : compatibleModels.data?.length ? <CompatibleDeviceModelsList models={compatibleModels.data} />
-        : <><h4 className="text-sm font-bold text-foreground">Modelos de aparelhos compatíveis</h4>
-           <p className="text-xs text-muted-foreground">Nenhum modelo de aparelho informado.</p></>}
-    </section>
+    <Section title={<span className="flex flex-wrap items-center gap-2">Modelos de aparelhos compatíveis
+      {!compatibleModels.isPending && !compatibleModels.isError && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold tabular-nums text-primary">{compatibleModels.data?.length || 0}</span>}
+    </span>}>
+      {compatibleModels.isPending ? <AdminSectionEmpty compact>Carregando modelos compatíveis...</AdminSectionEmpty>
+        : compatibleModels.isError ? <p className="text-center text-xs text-destructive">Não foi possível consultar os modelos compatíveis.</p>
+        : compatibleModels.data?.length ? <CompatibleDeviceModelsList models={compatibleModels.data} hideHeading />
+        : <AdminSectionEmpty compact>Nenhum modelo de aparelho informado.</AdminSectionEmpty>}
+    </Section>
 
-    <section className="space-y-3 border-t border-border pt-4" aria-label="Produtos relacionados">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-bold text-foreground">Produtos relacionados</h4>
-        {Boolean(relations.data?.length) && <div className="flex items-center gap-1.5">
+    <Section title="Produtos relacionados" actions={Boolean(relations.data?.length) ? <div className="flex items-center gap-1.5">
           <span className="mr-1 text-xs text-muted-foreground">{relations.data?.length} produtos</span>
           <button type="button" aria-label="Ver produtos anteriores" title="Anterior"
             onClick={() => carouselRef.current?.scrollBy({ left: -260, behavior: "smooth" })}
@@ -303,12 +300,10 @@ export function InventoryProductDetailsDialog({
           <button type="button" aria-label="Ver próximos produtos" title="Próximo"
             onClick={() => carouselRef.current?.scrollBy({ left: 260, behavior: "smooth" })}
             className="rounded-lg border border-border p-1.5 text-foreground hover:bg-muted"><ChevronRight size={16}/></button>
-        </div>}
-      </div>
-      <p className="text-xs text-muted-foreground">Produtos identificados automaticamente por códigos e variações, nos dois sentidos.</p>
-      {relations.isPending ? <p className="text-xs text-muted-foreground">Carregando produtos relacionados...</p>
+        </div> : undefined}>
+      {relations.isPending ? <p className="py-3 text-center text-xs text-muted-foreground">Carregando produtos relacionados...</p>
         : relations.isError ? <p className="text-xs text-destructive">Não foi possível consultar as relações.</p>
-        : !relations.data?.length ? <p className="text-xs text-muted-foreground">Nenhum produto relacionado identificado.</p>
+        : !relations.data?.length ? <AdminSectionEmpty compact>Nenhum produto relacionado identificado.</AdminSectionEmpty>
         : <div ref={carouselRef} className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
           {relations.data.map(other => <button key={other.product_id} type="button" onClick={() => onOpenProduct(other.product_id)}
             className="flex w-[250px] shrink-0 snap-start flex-col gap-2 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30">
@@ -329,17 +324,16 @@ export function InventoryProductDetailsDialog({
             </span>
           </button>)}
         </div>}
-    </section>
+    </Section>
 
-    {canViewSuppliers && <section className="space-y-2" aria-label="Fornecedores do item">
-      <h4 className="text-sm font-bold text-foreground">Fornecedores</h4>
-      {suppliers.isPending ? <p className="text-xs text-muted-foreground">Carregando fornecedores...</p>
+    {canViewSuppliers && <Section title="Fornecedores">
+      {suppliers.isPending ? <p className="py-3 text-center text-xs text-muted-foreground">Carregando fornecedores...</p>
         : suppliers.isError ? <p className="text-xs text-muted-foreground">Não foi possível consultar fornecedores.</p>
         : suppliers.data?.length ? <div className="flex flex-wrap gap-1.5">
           {suppliers.data.map(item => <span key={item.id}
             className="rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-foreground">{item.name}</span>)}
-        </div> : <p className="text-xs text-muted-foreground">Nenhum fornecedor vinculado.</p>}
-    </section>}
+        </div> : <AdminSectionEmpty compact>Nenhum fornecedor selecionado.</AdminSectionEmpty>}
+    </Section>}
 
     {inventory?.inventory_item_id && product.sale_window_days && <div className="border-t border-border pt-2">
       <InventorySaleBatchesPanel organizationId={organizationId}
@@ -347,10 +341,9 @@ export function InventoryProductDetailsDialog({
         unit={unit} factor={unit === "cx" ? factor : 1}
         configuredDays={Number(product.sale_window_days)}/>
     </div>}
-    {product.internal_notes && <section className="space-y-1 rounded-lg border border-border bg-muted/20 p-3">
-      <h4 className="text-xs font-bold text-foreground">Observações internas</h4>
+    {product.internal_notes && <Section title="Observações internas">
       <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{product.internal_notes}</p>
-    </section>}
+    </Section>}
     </>}
   </AdminDialog>
   {expandedImage && <InventoryProductImageLightbox key={expandedImage.mediaId || expandedImage.src || expandedImage.name} {...expandedImage} onClose={() => setExpandedImage(null)} />}
