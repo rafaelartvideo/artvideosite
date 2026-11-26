@@ -356,7 +356,7 @@ export function OrderEquipmentSection({
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">{intakeMode?"Fotos":"Fotos do equipamento"}</p>
 
             <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 md:grid-cols-2">
-              <div className={(rules.photos.label?.mode==="hidden"&&!labelImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-[#0057e7]/30 bg-primary-soft/70 p-3 shadow-sm shadow-[#0057e7]/5"}>
+              <div className={(rules.photos.label?.mode==="hidden"&&!labelImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-dashed border-border bg-primary-soft/70 p-3"}>
                 <div className="mb-3 flex items-start justify-between gap-2 md:min-h-[74px]">
                   <div className="flex min-w-0 items-start gap-2">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
@@ -369,6 +369,7 @@ export function OrderEquipmentSection({
                 </div>
                 <OrderImagesField
                   embedded
+                  equipmentLayout
                   images={labelImages}
                   totalCount={images.length}
                   onAdd={files => onAddImages(files, "label")}
@@ -379,7 +380,7 @@ export function OrderEquipmentSection({
                 />
               </div>
 
-              <div className={(rules.photos.equipment?.mode==="hidden"&&!otherImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-border bg-white p-3"}>
+              <div className={(rules.photos.equipment?.mode==="hidden"&&!otherImages.length?"hidden ":"")+"h-full min-w-0 overflow-hidden rounded-xl border border-dashed border-border bg-card p-3"}>
                 <div className="mb-3 flex items-start justify-between gap-2 md:min-h-[74px]">
                   <div className="min-w-0">
                     <p className="text-sm font-black text-[#0d1b2e]">{intakeMode?"Fotos do defeito":"Fotos do equipamento"}</p>
@@ -389,6 +390,7 @@ export function OrderEquipmentSection({
                 </div>
                 <OrderImagesField
                   embedded
+                  equipmentLayout
                   images={otherImages}
                   totalCount={images.length}
                   onAdd={files => onAddImages(files, "equipment")}
