@@ -2,23 +2,21 @@ import { Plus, Trash2 } from "lucide-react";
 import { AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 
-export type ProductIdentifierKind = "barcode" | "manufacturer_code" | "internal_barcode";
+export type ProductIdentifierKind = "manufacturer_code" | "internal_barcode";
 
 export const PRODUCT_IDENTIFIER_OPTIONS: Array<{ value: ProductIdentifierKind; label: string }> = [
-  { value: "barcode", label: "GTIN / Código de barras" },
   { value: "manufacturer_code", label: "Código do fabricante / MPN" },
   { value: "internal_barcode", label: "Código de barras interno" },
 ];
 
 export function visibleProductIdentifierKinds(product: {
-  barcode?: string | null;
   manufacturer_code?: string | null;
   internal_barcode?: string | null;
 }): ProductIdentifierKind[] {
   const present = PRODUCT_IDENTIFIER_OPTIONS
     .map(option => option.value)
     .filter(kind => Boolean(product[kind]?.trim()));
-  return present.length ? present : ["barcode"];
+  return present.length ? present : ["manufacturer_code"];
 }
 
 /** Interface unificada; os valores continuam em colunas distintas do produto.
@@ -72,7 +70,7 @@ export function ProductIdentifiersEditor({
           <Trash2 size={15}/>
         </AdminIconButton>
         {index === kinds.length - 1 && kinds.length < PRODUCT_IDENTIFIER_OPTIONS.length &&
-          <AdminIconButton ariaLabel="Adicionar outro código" title="Adicionar outro código"
+          <AdminIconButton ariaLabel="Adicionar outro código" title="Adicionar outro código" variant="tertiary"
             className="!h-[42px] !w-[42px] shrink-0" disabled={disabled} onClick={onAdd}>
             <Plus size={17}/>
           </AdminIconButton>}
