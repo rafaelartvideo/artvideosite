@@ -193,3 +193,16 @@ test("configuração de estoque oferece ações de classificação com exclusão
   assert.ok(repo.includes('supabase.rpc("delete_inventory_catalog_classification"'));
   for (const token of ["auth.uid() is null", "inventory.categories.manage", "organization_id=p_organization_id and id=p_id for update", "public.products where category_id=p_id", "public.product_subcategories where category_id=p_id", "public.products where subcategory_id=p_id", "security invoker", "from public, anon, authenticated"]) assert.ok(sql.includes(token),token);
 });
+
+test("modelos compatíveis usam input padrão e botão Estilo 3 alinhados", async () => {
+  const ui = read("src/features/products/presentation/ProductCompatibleModelsEditor.tsx");
+  assert.ok((await transformWithEsbuild(ui, "ProductCompatibleModelsEditor.tsx", { loader: "tsx" })).code);
+  assert.ok(ui.includes('<FInput label="Modelos compatíveis"'));
+  assert.ok(!ui.includes("<textarea"));
+  assert.ok(ui.includes('className="flex min-w-0 items-end gap-2"'));
+  assert.ok(ui.includes('variant="tertiary" disabled={disabled} onClick={addModels}'));
+  assert.ok(ui.includes('className="h-[42px] shrink-0 justify-center"'));
+  assert.ok(ui.includes('onPaste='));
+  assert.ok(ui.includes('event.key === "Enter"'));
+  assert.ok(ui.includes('modelInput.split('));
+});
