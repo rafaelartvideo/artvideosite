@@ -209,3 +209,14 @@ test("devolução tem uma única ação em qualquer fase do orçamento e mantém
   for(const [name,source] of [["actions",actions],["quote",quote],["page",page],["modal",modal],["signature",signature],["documents",documents]])
     assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code.length>100);
 });
+
+test("devolução exige encaminhamento da versão atual do orçamento, mas preserva retomada",()=>{
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const actions=read("src/features/orders/presentation/OrderDetailsActions.tsx");
+  assert.match(page,/const returnQuoteForwarded = !quoteWorkflowEnabled/);
+  assert.match(page,/\["awaiting_approval", "rejected", "approved"\]\.includes/);
+  assert.match(page,/returnQuoteForwarded=\{returnQuoteForwarded\}/);
+  assert.match(page,/!awaitingUnrepairedReturn && !returnQuoteForwarded\)return/);
+  assert.match(actions,/const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal && returnQuoteForwarded/);
+  assert.match(actions,/canTerminalExit && awaitingReturn && <BtnPrimary/);
+});

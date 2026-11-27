@@ -13,7 +13,7 @@ import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderConclusionButton } from "./OrderConclusionButton";
 
-export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onTerminalExit, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
+export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onTerminalExit, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, returnQuoteForwarded = true, quoteFooterHostId }: {
   detail: any;
   statuses?: any[];
   situations: any[];
@@ -30,6 +30,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   cancelling?: boolean;
   quoteMode?: boolean;
   quoteExecutionAllowed?: boolean;
+  returnQuoteForwarded?: boolean;
   quoteFooterHostId?: string;
 }) {
   const queryClient = useQueryClient();
@@ -56,7 +57,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
   const canComplete = !awaitingReturn && !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
   const canTerminalExit = hasPermission("orders.complete") && !detail.completed_at && !cancelled;
-  const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal;
+  const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal && returnQuoteForwarded;
   const canEditOrder = !awaitingReturn && !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !awaitingReturn && !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;

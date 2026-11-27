@@ -293,6 +293,9 @@ export function OrderDetailsPage(props: Props) {
     return () => { active = false; };
   }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible, queryClient]);
   const awaitingUnrepairedReturn = isAwaitingUnrepairedReturn(detail);
+  // Apenas a versão atual encaminhada habilita a devolução.
+  const returnQuoteForwarded = !quoteWorkflowEnabled || Boolean(quoteState?.orderId === detail?.id &&
+    ["awaiting_approval", "rejected", "approved"].includes(quoteState?.status || ""));
   const quoteExecutionAllowed = !quoteWorkflowEnabled ||
     (quoteState?.orderId === detail?.id && quoteState.status === "approved");
   // Solucionar e concluir já pressupõem a aprovação: a tag fica redundante.
@@ -938,6 +941,7 @@ export function OrderDetailsPage(props: Props) {
         onResolve={() => openSolveOrder(detail)}
         onComplete={isDisposal ? () => setTerminalOutcome("disposal_confirmed") : openCompletion}
         onTerminalExit={outcome => {
+           if(outcome==="returned_unrepaired" && !awaitingUnrepairedReturn && !returnQuoteForwarded)return;
            const rejected=outcome==="returned_unrepaired" && quoteState?.orderId===detail.id && quoteState.status==="rejected";
            const quote=queryClient.getQueryData<{rejection_reason?:string}>(["orders","quote",detail.organization_id,detail.id]);
            setTerminalInitialReason(rejected?(quote?.rejection_reason||"Devolução após reprovação do orçamento."):"");
@@ -946,6 +950,7 @@ export function OrderDetailsPage(props: Props) {
         onEdit={() => { void openEdit(detail); }}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
+        returnQuoteForwarded={returnQuoteForwarded}
         quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed ? "os-quote-toolbar-" + detail.id : undefined}
       />}
     </AdminPage>}
