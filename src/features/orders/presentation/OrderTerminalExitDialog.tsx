@@ -77,7 +77,7 @@ export function OrderTerminalExitDialog({
   const returnCategories=["Impossibilidade técnica","Peça indisponível","Orçamento reprovado","Desistência do cliente","Equipamento sem defeito constatado","Reparo economicamente inviável","Outros"];
   const [partnerId,setPartnerId]=useState(String(order.disposal_partner_id||""));
   const [partners,setPartners]=useState<OrderWarrantyPartner[]>([]);
-  const [attachments,setAttachments]=useState<Array<{media_id:string;attachment_type?:{name:string}|null;media?:{file_name?:string}|null}>>([]);
+  const [attachments,setAttachments]=useState<Array<{media_id:string;created_at?:string;attachment_type?:{name:string}|null;media?:{file_name?:string}|null}>>([]);
   const [attachmentTypeId,setAttachmentTypeId]=useState("");
   const [evidenceId,setEvidenceId]=useState("");
   const [evidenceFile,setEvidenceFile]=useState<File|null>(null);
@@ -173,13 +173,13 @@ export function OrderTerminalExitDialog({
     setSignatureId(current=>signedRequests.some(x=>x.id===current)?current:(signedRequests[0]?.id||""));
   },[signedRequests]);
   useEffect(()=>{
-    setEvidenceId(current=>attachments.some(a=>a.media_id===current)?current:
-      (attachments.filter(a=>a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence)
+    setEvidenceId(current=>attachments.some(a=>a.media_id===current&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at))))?current:
+      (attachments.filter(a=>a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at))))
         .at(-1)?.media_id||""));
-  },[attachments,cfg.evidence]);
+  },[attachments,cfg.evidence,isReturn,attempt]);
 
   const evidenceOptions=attachments.filter(a=>
-    a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence
+    a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at)))
   );
   const updateChoice=(id:string,change:Partial<StockChoice>)=>{
     setStockChoices(current=>({...current,[id]:{...(current[id]||INITIAL_CHOICE),...change}}));
@@ -192,7 +192,7 @@ export function OrderTerminalExitDialog({
     return !choice.physical||!Number.isFinite(value)||value<=0||value>item.quantity_outstanding;
   });
   const canFinish=Boolean(!loading&&!submitting&&!uploading&&!error&&template&&signatureId&&evidenceId
-    &&(!isReturn||attempt)&&reason.trim().length>=8&&acknowledged&&!invalidStock
+    &&(!isReturn||(attempt&&evidenceOptions.some(a=>a.media_id===evidenceId)))&&reason.trim().length>=8&&acknowledged&&!invalidStock
     &&(outcome!=="disposal_confirmed"||partnerId));
 
   const canStart=Boolean(!loading&&!submitting&&!error&&category&&(category!=="Outros"||observations.trim().length>=8));
@@ -290,13 +290,13 @@ export function OrderTerminalExitDialog({
       : step==="signature"?"Enviar para assinatura":"Assinatura pronta"}
     description={`OS #${order.os_number||""}`}
     className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
-    transitionKey={step+(initiating?":start":":confirm")}
+    transitionKey={step}
     preparing={(loading||(!initiating&&templatesLoading))&&step==="form"}
     preparingKey={orderId+":"+outcome}
     preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
     footer={step==="form" ? <div className="flex flex-wrap justify-end gap-2">
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
-      {attempt&&<AdminButton variant="secondary" disabled={submitting||uploading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}>Cancelar devolução</AdminButton>}
+      {attempt&&<AdminButton variant="secondary" disabled={submitting||uploading||loading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}>Cancelar devolução</AdminButton>}
       <AdminButton disabled={initiating?!canStart:!canFinish} loading={submitting} onClick={()=>void (initiating?beginReturn():confirm())}>
         <ShieldCheck size={16}/>{initiating?"Iniciar devolução":cfg.button}
       </AdminButton>
@@ -304,7 +304,7 @@ export function OrderTerminalExitDialog({
     {step==="signature" ? <OrderSignatureRequestDialog
       embedded open order={order} templates={templates}
       preferredDocumentType={cfg.docType}
-      existingRequests={requests}
+      existingRequests={isReturn?requests.filter(r=>attempt&&Date.parse(r.created_at)>=Date.parse(attempt.started_at)):requests}
       usedItems={usedItems} partRequests={partRequests} history={history} printedBy={printedBy}
       onBusyChange={setSignatureBusy}
       onClose={()=>setStep(current=>current==="qr"?"qr":"form")}
