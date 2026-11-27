@@ -33,6 +33,7 @@ export function useChatDock(open:boolean,anchors:HTMLElement[],key:string,expand
  const [position,setPosition]=useState<Position>({x:10,y:70});
  const [arrow,setArrow]=useState<{left:number;bottom:boolean}|null>(null);
  const [dragging,setDragging]=useState(false);
+ const [maxHeight,setMaxHeight]=useState<number|undefined>(undefined);
  const live=useRef(position);
  const drag=useRef<{id:number;startX:number;startY:number;origin:Position;moved:boolean}|null>(null);
  const clicked=useRef<HTMLElement|null>(null);
@@ -46,10 +47,15 @@ export function useChatDock(open:boolean,anchors:HTMLElement[],key:string,expand
   function layout(){
    const el=panel.current;if(!el||drag.current)return;
    const w=el.offsetWidth,h=el.offsetHeight,a=activeAnchor()?.getBoundingClientRect();
-   if(saved){place(dockPosition(saved,w,h,innerWidth,innerHeight));pointArrow(null);return;}
-   if(!a){place(constrainChatPosition({x:(innerWidth-w)/2,y:(innerHeight-h)/2},w,h,innerWidth,innerHeight));pointArrow(null);return;}
-   const {p,bottom,arrowLeft}=homePosition(a,w,h,innerWidth,innerHeight);
-   place(p);pointArrow(Math.abs((bottom?p.y+h:p.y)-(bottom?a.top-10:a.bottom+10))<2?{left:Math.max(10,Math.min(w-10,arrowLeft)),bottom}:null);
+   if(saved){setMaxHeight(undefined);place(dockPosition(saved,w,h,innerWidth,innerHeight));pointArrow(null);return;}
+   if(!a){setMaxHeight(undefined);place(constrainChatPosition({x:(innerWidth-w)/2,y:(innerHeight-h)/2},w,h,innerWidth,innerHeight));pointArrow(null);return;}
+   const roomBelow=Math.max(0,innerHeight-margin-a.bottom-10),roomAbove=Math.max(0,a.top-margin-10);
+   const available=Math.max(roomBelow,roomAbove);
+   const cap=available>=100?available:undefined;
+   setMaxHeight(cap);
+   const fittedHeight=cap===undefined?h:Math.min(h,cap);
+   const {p,bottom,arrowLeft}=homePosition(a,w,fittedHeight,innerWidth,innerHeight);
+   place(p);pointArrow(Math.abs((bottom?p.y+fittedHeight:p.y)-(bottom?a.top-10:a.bottom+10))<2?{left:Math.max(10,Math.min(w-10,arrowLeft)),bottom}:null);
   }
   layout();window.addEventListener("resize",layout);window.addEventListener("scroll",layout,true);
   const observer=typeof ResizeObserver==="undefined"?null:new ResizeObserver(layout);observer?.observe(panel.current);anchors.forEach(a=>observer?.observe(a));
@@ -71,5 +77,5 @@ export function useChatDock(open:boolean,anchors:HTMLElement[],key:string,expand
    if(home&&a&&Math.hypot(p.x-home.x,p.y-home.y)<28){const h=homePosition(a,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight);place(h.p);pointArrow({left:Math.max(10,Math.min(el.offsetWidth-10,h.arrowLeft)),bottom:h.bottom});store(null);}else {const next=nearestEdge(p,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight);place(dockPosition(next,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight));store(next);}
   }
  }
- return {panel,position,arrow,dragging,isDocked:!!saved,anchor:(node:HTMLElement)=>{clicked.current=node;},reset:()=>store(null),handlers:{onPointerDown:pointerDown,onPointerMove:pointerMove,onPointerUp:finish,onPointerCancel:finish,onLostPointerCapture:finish}};
+ return {panel,position,arrow,dragging,maxHeight,isDocked:!!saved,anchor:(node:HTMLElement)=>{clicked.current=node;},reset:()=>store(null),handlers:{onPointerDown:pointerDown,onPointerMove:pointerMove,onPointerUp:finish,onPointerCancel:finish,onLostPointerCapture:finish}};
 }
