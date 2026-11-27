@@ -10,6 +10,7 @@ create table public.fiscal_provider_accounts (
   cnpj_limit integer not null check (cnpj_limit > 0),
   is_active boolean not null default false,
   inventory_verified_at timestamptz,
+  session_revision bigint not null default 1 check (session_revision > 0),
   -- Opaque reference to a server-side secret; never the credential itself.
   credential_ref text not null check (credential_ref ~ '^[A-Za-z0-9_-]{1,128}$'),
   created_at timestamptz not null default now(),
