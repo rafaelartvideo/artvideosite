@@ -172,4 +172,65 @@ drop policy internal_chat_files_select on storage.objects;
 create policy internal_chat_files_select on storage.objects for select to authenticated
 using(bucket_id='internal-chat-files' and (private.internal_chat_owns_upload(name,false)
  or exists(select 1 from public.internal_chat_messages m where m.attachment_path=storage.objects.name and m.deleted_at is null)));
+
+-- Settings and preferences propagate to open tabs using existing private topics.
+create function private.internal_chat_notify_settings() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare v_peer uuid;
+begin
+ for v_peer in select m.user_id from public.organization_members m where m.organization_id=new.organization_id and m.status='active' loop
+  perform realtime.send(jsonb_build_object('settings',true),'changed','internal-chat:'||new.organization_id::text||':'||v_peer::text,true);
+ end loop;
+ return new;
+end;
+$$;
+revoke all on function private.internal_chat_notify_settings() from public,anon,authenticated;
+create trigger internal_chat_notify_settings after insert or update on public.internal_chat_settings for each row execute function private.internal_chat_notify_settings();
+
+create function private.internal_chat_notify_preferences() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+ perform realtime.send(jsonb_build_object('preferences',true),'changed','internal-chat:'||new.organization_id::text||':'||new.user_id::text,true);
+ return new;
+end;
+$$;
+revoke all on function private.internal_chat_notify_preferences() from public,anon,authenticated;
+create trigger internal_chat_notify_preferences after insert or update on public.internal_chat_preferences for each row execute function private.internal_chat_notify_preferences();
+
+-- Only metadata is sent on new-message notifications. No body or file URL.
+create or replace function private.internal_chat_notify() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare v_peer uuid; v_payload jsonb;
+begin
+ if tg_op='UPDATE' and new.read_at is not distinct from old.read_at and new.response is not distinct from old.response then return new;end if;
+ v_payload:=jsonb_build_object('id',new.id,'sender_id',new.sender_id,'kind',new.kind,'new_message',tg_op='INSERT');
+ if new.group_id is not null then
+  v_payload:=v_payload||jsonb_build_object('group_id',new.group_id);
+  for v_peer in select m.user_id from public.internal_chat_group_members m
+   join public.organization_members om on om.organization_id=m.organization_id and om.user_id=m.user_id and om.status='active'
+   where m.organization_id=new.organization_id and m.group_id=new.group_id loop
+   perform realtime.send(v_payload,'changed','internal-chat:'||new.organization_id::text||':'||v_peer::text,true);
+  end loop;
+ else
+  perform realtime.send(v_payload,'changed','internal-chat:'||new.organization_id::text||':'||new.sender_id::text,true);
+  perform realtime.send(v_payload,'changed','internal-chat:'||new.organization_id::text||':'||new.recipient_id::text,true);
+ end if;
+ return new;
+end;
+$$;
+
+-- Enforce chat-specific phone switch without changing ordinary PABX access.
+create or replace function private.internal_chat_extension(p_org uuid,p_peer uuid)
+returns integer language sql stable security definer set search_path='' as $$
+ select ext.number from public.pbx_extensions ext
+ join public.employees e on e.id=ext.employee_id and e.organization_id=ext.organization_id
+ join public.organization_members m on m.organization_id=e.organization_id and m.user_id=e.profile_id
+ where ext.organization_id=p_org and e.profile_id=p_peer and e.is_active and m.status='active'
+ and ext.desired_enabled and ext.is_managed and ext.provisioning_status='applied'
+ and private.internal_chat_allowed(p_org,'internal_chat.use')
+ and private.has_effective_organization_permission(p_org,'pbx.view')
+ and private.internal_chat_feature(p_org,'pbx')
+ limit 1;
+$$;
+
 commit;
