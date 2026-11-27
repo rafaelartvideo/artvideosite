@@ -9,7 +9,7 @@ function data(result) {
 }
 // Use only a server-owned service client. Never pass a browser client here.
 // resolveSecret retrieves a token from a reviewed secret store, not the database.
-export function createSupabaseFiscalSync({ admin, resolveSecret }) {
+export function createSupabaseFiscalSync({ admin, resolveSecret, timeoutMs = 15000 }) {
   const resolveScope = async bindingId => {
     const b = data(await admin.from("fiscal_organization_bindings")
       .select("id,organization_id,account_id,cnpj,external_company_id,is_enabled,sync_enabled")
@@ -33,7 +33,7 @@ export function createSupabaseFiscalSync({ admin, resolveSecret }) {
         .eq("provider","fiscontrole").eq("is_active",true).maybeSingle());
       if (!a) return deny();
       const token = await resolveSecret({ accountId, credentialRef: a.credential_ref });
-      return createFiscontroleProvider({token});
+      return createFiscontroleProvider({token, timeoutMs});
     },
     loadCursor: async s => {
       const row = data(await admin.from("fiscal_sync_cursors").select("last_id")
