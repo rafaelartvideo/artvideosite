@@ -5,6 +5,7 @@ import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, 
 import { PageHeader, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
 import { PHONE_CALL_EVENT } from "@/features/orders/domain/order-contact-actions";
+import { CHAT_PBX_PREFILL, publishChatPbxState } from "@/features/internal-chat/application/pbx-chat-bridge";
 import { supabase } from "@/lib/supabase";
 import { UnionPbxAudioDiagnostics } from "./UnionPbxAudioDiagnostics";
 import { UnionPbxCallActions } from "./UnionPbxCallActions";
@@ -123,6 +124,24 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onM
     };
   }, [activeOrganizationId, isPageOpen, registration]);
   const [callState, setCallState] = useState<CallState>("idle");
+  useEffect(()=>{
+    if(!activeOrganizationId)return;
+    publishChatPbxState(activeOrganizationId,callState!=="idle");
+    return()=>publishChatPbxState(activeOrganizationId,false);
+  },[activeOrganizationId,callState]);
+  useEffect(()=>{
+    if(!activeOrganizationId)return;
+    const onChatDial=(event:Event)=>{
+      const detail=(event as CustomEvent<{organizationId:string;number:number}>).detail;
+      if(detail?.organizationId!==activeOrganizationId||!Number.isSafeInteger(detail.number)||detail.number<1)return;
+      if(callState!=="idle"||sessionRef.current||outputPendingRef.current){
+        setNotice("Já existe uma chamada em andamento.");onOpen();event.preventDefault();return;
+      }
+      setDialMode("internal");setDialTarget(String(detail.number));onOpen();event.preventDefault();
+    };
+    window.addEventListener(CHAT_PBX_PREFILL,onChatDial);
+    return()=>window.removeEventListener(CHAT_PBX_PREFILL,onChatDial);
+  },[activeOrganizationId,callState,onOpen]);
   const [callKeypadExpanded, setCallKeypadExpanded] = useState(false);
   useEffect(() => { if (callState !== "active") setCallKeypadExpanded(false); }, [callState]);
   const [remoteParty, setRemoteParty] = useState("");
