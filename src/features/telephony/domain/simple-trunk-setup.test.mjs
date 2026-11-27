@@ -22,9 +22,28 @@ test('custom and conflicting destination rules are preserved and require advance
 test('simple screen renders credentials and authorizations without the nine-step wizard',async()=>{
  const React=await import('react');const {renderToStaticMarkup}=await import('react-dom/server');const m=await model();
  const source=readFileSync('src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','utf8').replace(/^import .*;$/gm,'');const compiled=await transformWithEsbuild(source,'simple-render.tsx',{loader:'tsx',jsx:'transform',jsxFactory:'React.createElement'});
- const make=new Function('React','useRef','useState','AdminButton','FInput','prepareSimpleTrunk','SimpleTrunkSetupError',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
+ const make=new Function('React','useRef','useState','AdminButton','FInput','prepareSimpleTrunk','prepareSimpleTrunkEdit','SimpleTrunkSetupError',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
  const Button=({children,variant,...props})=>React.createElement('button',props,children);const Input=({label,hint,...props})=>React.createElement('label',null,label,React.createElement('input',props));
- const Form=make(React,React.useRef,React.useState,Button,Input,m.prepareSimpleTrunk,m.SimpleTrunkSetupError);
+ const Form=make(React,React.useRef,React.useState,Button,Input,m.prepareSimpleTrunk,m.prepareSimpleTrunkEdit,m.SimpleTrunkSetupError);
  const html=renderToStaticMarkup(React.createElement(Form,{organizationId:org,document:empty(),extensions:[{id:extension,label:'Ramal 301'}],disabled:false,onSave:async()=>true,onAdvanced(){}}));
  for(const text of ['Servidor SIP','Usuário SIP','Senha SIP','Ramal 301','Salvar linha'])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/Etapa 1 de 9|Conferir e ativar/);assert.match(html,/type="password"/);
+});
+
+test('editing SIP credentials preserves routing graph and connection identity',async()=>{
+ const m=await model();const ids=idFactory();const first=m.prepareSimpleTrunk(empty(),org,input(),[extension],ids);
+ const original=m.prepareSimpleTrunk(first.document,org,{...input(),username:'102'},[extension],ids).document;
+ const before=structuredClone(original);
+ const same=m.prepareSimpleTrunkEdit(original,first.connectionId,{...input(),port:5060,transport:'udp'});
+ assert.deepEqual(same.document,original);assert.equal(same.identityChanged,false);
+ const edited=m.prepareSimpleTrunkEdit(original,first.connectionId,{name:'New name',host:'sip.example.com',username:'103',port:5061,transport:'tls'});
+ assert.equal(edited.connectionId,first.connectionId);assert.equal(edited.identityChanged,true);assert.equal(edited.document.connections[0].username,'103');assert.equal(edited.document.connections[0].port,5061);
+ assert.deepEqual(edited.document.connections[1],before.connections[1]);
+ for(const key of ['providers','contracts','trunks','capacity_pools','dids','groups','outbound_routes'])assert.deepEqual(edited.document[key],before[key],key);
+ assert.deepEqual(original,before);
+ assert.throws(()=>m.prepareSimpleTrunkEdit(original,first.connectionId,{...input(),username:'102'}),/outra linha/);
+ assert.throws(()=>m.prepareSimpleTrunkEdit({...original,routing_enabled:true},first.connectionId,input()),/Desative/);
+ assert.throws(()=>m.prepareSimpleTrunkEdit(original,'foreign',input()),/indisponível/);
+ assert.throws(()=>m.prepareSimpleTrunkEdit(original,first.connectionId,{...input(),host:'bad;host'}),/Confira/);
+ const source=readFileSync('src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','utf8');
+ assert.ok(source.includes('Nova senha SIP'));assert.ok(source.includes('password?{[prepared.connectionId]:password}:{}'));assert.ok(source.includes('setPassword(\'\')'));
 });
