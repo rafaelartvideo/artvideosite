@@ -160,3 +160,16 @@ test("notificação abre conversa com rascunho e registra somente envio confirma
   for(const [name,source] of [["dialog",dialog],["page",page],["modal",modal],["inbox",inbox],["draft",draft]])
     assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code.length>100,name);
 });
+
+test("segunda etapa tem dados do cliente, progresso real e anexo automático",async()=>{
+  const dialog=read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  assert.doesNotMatch(dialog,/OS aberta · Equipamento sob responsabilidade da assistência/);
+  assert.doesNotMatch(dialog,/2\. Aguardando retirada sem reparo/);
+  assert.match(dialog,/WhatsAppBrandIcon size=\{16\}/);
+  assert.match(dialog,/customerCompany\?"CNPJ":"CPF"/);
+  assert.match(dialog,/aria-valuenow=\{attempt\?\.notified_at\?1:0\}/);
+  assert.match(dialog,/if\(file\)void upload\(file\)/);
+  assert.match(dialog,/uploadGate\.current=true/);
+  assert.match(dialog,/variant="danger"[^>]*onClick=\{\(\)=>setCancelConfirm\(true\)\}/);
+  assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code.length>100);
+});
