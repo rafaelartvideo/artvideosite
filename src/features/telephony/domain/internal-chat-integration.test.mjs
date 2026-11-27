@@ -46,3 +46,20 @@ test("no continuous polling, one chat mount, voice reuses existing dialer",async
   assert.ok(pbx.includes('setDialMode("internal");setDialTarget(String(detail.number));onOpen()'));
   for(const path of [uiPath,pbxPath,headerPath])assert.ok((await transformWithEsbuild(read(path),path,{loader:"tsx"})).code);
 });
+
+test("chat polish protects reply boundaries, idempotency, deletion and settings",()=>{
+ const polish=read(root+"140400_internal_chat_polish.sql");
+ const reliability=read("src/features/internal-chat/application/chat-reliability.ts");
+ for(const fragment of ["internal_chat_client_token_idx","Resposta fora da conversa","sender_id=auth.uid()","internal_chat_search_idx","enable row level security","internal_chat_guard_features","v_used+v_size>v_quota","internal_chat_notify_preferences","internal_chat_notify_settings"])assert.ok(polish.includes(fragment),fragment);
+ assert.ok(polish.includes("m.deleted_at is null"));
+ assert.ok(!polish.split("\n").some(line=>line.endsWith("as $")||line==="$;"));
+ assert.ok(reliability.includes("client_token:item.token"));
+ assert.ok(reliability.includes("navigator.locks.request"));
+ assert.ok(ui.includes('window.addEventListener("online",online)'));
+ assert.ok(ui.includes("Aguardando envio"));
+ assert.ok(ui.includes("internal_chat_search_v1"));
+ assert.ok(ui.includes("MediaRecorder"));
+ assert.ok(ui.includes("compressChatImage"));
+ assert.ok(ui.includes("internal_chat_settings_save_v1"));
+ assert.ok(ui.includes("notifyOnce"));
+});
