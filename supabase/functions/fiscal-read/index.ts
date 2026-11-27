@@ -73,7 +73,7 @@ Deno.serve(async (request: Request) => {
       if(!permitted("fiscal.sync.manage")||!b.sync_enabled)return denied();
       if(Deno.env.get("FISCAL_SYNC_ENABLED")==="false")return unavailable();
       if(!types.has(body.type))return reply(400,{error:"INVALID_FILTER"});
-      const sync=createSupabaseFiscalSync({admin,resolveSecret:async ({accountId,credentialRef}:{accountId:string;credentialRef:string})=>{
+      const sync=createSupabaseFiscalSync({admin,timeoutMs:body.type==="eventocte"?45000:15000,resolveSecret:async ({accountId,credentialRef}:{accountId:string;credentialRef:string})=>{
         if(/^vault_[0-9a-f-]{36}$/.test(credentialRef)){
           const r=await admin.rpc("fiscal_read_provider_session",{p_account:accountId});
           if(r.error||typeof r.data!=="string")throw new Error("FISCAL_SECRET_UNAVAILABLE");
@@ -86,8 +86,24 @@ Deno.serve(async (request: Request) => {
         throw new Error("FISCAL_SECRET_UNAVAILABLE");
       }});
       // Manual, bounded import only; no automatic scheduler or emissions.
-      const result=await sync({bindingId,type:body.type,limit:5});
-      return reply(200,{data:result});
+      // CT-e events may have a slower provider query. Bound the page to a
+      // single XML to keep the invocation within the request time budget.
+      const started=Date.now();
+      try {
+        const result=await sync({bindingId,type:body.type,limit:body.type==="eventocte"?1:5});
+        return reply(200,{data:result});
+      } catch (error) {
+        // Only fixed codes and numeric HTTP status; no remote response, CNPJ,
+        // credentials, XML, or exception stack in logs.
+        const known=error instanceof Error && error.name==="FiscalProviderError";
+        const remoteStatus=known && Number.isInteger((error as {status?:number}).status)
+          ? (error as {status:number}).status : 0;
+        const allowedCodes=new Set(["FISCAL_CURSOR_INVALID","FISCAL_PAGE_INVALID","FISCAL_PAGE_ITEM_INVALID","FISCAL_CURSOR_INCONSISTENT","FISCAL_XML_INVALID","FISCAL_XML_TOO_LARGE","FISCAL_XML_CHECKSUM_MISMATCH","FISCAL_SCOPE_CHANGED","FISCAL_CURSOR_CONFLICT","FISCAL_STORAGE_UNAVAILABLE","FISCAL_STORAGE_CONFLICT","FISCAL_PERSISTENCE_UNAVAILABLE","FISCAL_SCOPE_UNAVAILABLE","FISCAL_SECRET_UNAVAILABLE","FISCAL_SYNC_DISABLED"]);
+        const code=known?(remoteStatus?"FISCAL_PROVIDER_HTTP":"FISCAL_PROVIDER_COMMUNICATION"):
+          error instanceof Error && allowedCodes.has(error.message)?error.message:"FISCAL_SYNC_FAILED";
+        console.warn(JSON.stringify({event:"fiscal_sync_failure",type:body.type,code,remoteStatus,elapsedMs:Date.now()-started}));
+        return reply(remoteStatus===401||remoteStatus===403?424:remoteStatus===429?429:503,{error:code,...(remoteStatus?{providerStatus:remoteStatus}:{})});
+      }
     }
     if(body.action==="download"){
       if(!permitted("fiscal.documents.download"))return denied();
