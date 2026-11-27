@@ -62,7 +62,7 @@ Deno.serve(async (request: Request) => {
     const bindingId = b.id;
     const [account, inventory] = await Promise.all([
       admin.from("fiscal_provider_accounts").select("provider,is_active,inventory_verified_at").eq("id",b.account_id).eq("is_active",true).maybeSingle(),
-      admin.from("fiscal_account_cnpjs").select("cnpj,verified_at").eq("account_id",b.account_id).eq("cnpj",b.cnpj).eq("external_company_id",b.external_company_id).maybeSingle(),
+      admin.from("fiscal_account_cnpjs").select("cnpj,verified_at").eq("account_id",b.account_id).eq("cnpj",b.cnpj).maybeSingle(),
     ]);
     if (account.error || inventory.error) return unavailable();
     if (!account.data?.inventory_verified_at || !inventory.data?.verified_at) return denied();
