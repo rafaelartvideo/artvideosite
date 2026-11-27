@@ -25,3 +25,17 @@ test("no identity returned does not confirm issuer",()=>{
 test("unknown schema fails closed instead of inventing readiness",()=>{
  assert.throws(()=>summarizeEmissionBootstrap({},cnpj,123),/FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED/);
 });
+
+test("preserves long Portuguese issues and nested message fields, while masking secrets",()=>{
+ const data={...fixture,launch:{diagnosis:{models:{"NFSE":{issues:[
+  "A configuração municipal precisa ser conferida pelo responsável fiscal; valide os parâmetros aplicáveis ao ambiente antes de prosseguir.",
+  {message:"Informe o código municipal de serviço.",token:"do-not-return"},
+  "token: private-token",
+  "Contate suporte@example.com."
+ ]}}}}};
+ const issues=summarizeEmissionBootstrap(data,cnpj,123).models.NFSE.issues;
+ assert.match(issues[0],/parâmetros aplicáveis/);
+ assert.equal(issues[1],"Informe o código municipal de serviço.");
+ assert.equal(issues[2],null);
+ assert.equal(issues[3],"Contate [oculto].");
+});
