@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileSignature, ImagePlus, Info, PackageCheck, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleHelp, FileSignature, ImagePlus, PackageCheck, ShieldCheck } from "lucide-react";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { supabase } from "@/lib/supabase";
@@ -289,13 +289,13 @@ export function OrderTerminalExitDialog({
           <Popover>
       <PopoverTrigger asChild>
         <button type="button" aria-label="Informações sobre o encerramento" title="Informações sobre o encerramento"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
-          <Info size={17}/>
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <CircleHelp size={17} aria-hidden="true" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" className="z-[170] w-[min(22rem,calc(100vw-2rem))] p-4 text-xs leading-relaxed">
         <p className="mb-2 font-bold text-foreground">{isReturn?"Devolução em duas etapas":"Encerramento sem cobrança"}</p>
-        <p>{isReturn?"Iniciar a devolução mantém a OS aberta. Confirme a entrega física para fechar a OS e registrar a perda, quando aplicável.":"A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa."}</p>
+        <p>{isReturn?"A OS ficará aberta até a entrega efetiva do equipamento. Confirme a devolução para fechar a OS e registrar a perda, quando aplicável.":"A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa."}</p>
         <p className="mt-2">Só as peças recuperadas e conferidas fisicamente voltarão ao estoque.</p>
       </PopoverContent>
     </Popover>
@@ -331,8 +331,8 @@ export function OrderTerminalExitDialog({
     /> : step==="qr" ? <SignatureQrDialog embedded link={qrLink}
       onClose={()=>{setQrLink(null);setStep("form");void refreshSignatures();}}/> : <div className="space-y-4">
         {isReturn?<section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-foreground">{initiating?"1. Motivo da devolução":"2. Aguardando retirada sem reparo"}</h3>
+          <div className={`flex items-center gap-2 ${initiating?"justify-end":"justify-between"}`}>
+            {!initiating&&<h3 className="text-sm font-bold text-foreground">2. Aguardando retirada sem reparo</h3>}
             <span className="text-xs text-muted-foreground">{initiating?"Etapa 1 de 2":"Etapa 2 de 2"}</span>
           </div>
           {initiating?<><FSelect label="Motivo da devolução" required value={category}
@@ -340,7 +340,7 @@ export function OrderTerminalExitDialog({
             options={[{value:"",label:"Selecione o motivo"},...returnCategories.map(value=>({value,label:value}))]}/>
           <FTextarea label="Observações" required={category==="Outros"} rows={3} value={observations}
             onChange={(e:any)=>setObservations(e.target.value)} placeholder="Descreva as condições do equipamento..." disabled={submitting}/>
-          <p className="text-xs text-muted-foreground">A OS ficará aberta até a entrega efetiva do equipamento.</p></>:<>
+          </>:<>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div><p className="text-xs text-muted-foreground">Motivo</p><p className="text-sm font-semibold">{attempt?.reason_category}</p></div>
             <div><p className="text-xs text-muted-foreground">Aguardando desde</p><p className="text-sm font-semibold">{attempt&&new Date(attempt.started_at).toLocaleString("pt-BR")}</p></div>
