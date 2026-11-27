@@ -8,6 +8,7 @@ import { useChatDock } from "./useChatDock";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Check, CheckCheck, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck, Smile, ClipboardList, GripHorizontal } from "lucide-react";
+import { PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT } from "@/lib/platform-identifiers";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
@@ -46,8 +47,21 @@ function playNotice() {
 }
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
-  if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canShareOrders={hasPermission("orders.view")} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
+  const qc=useQueryClient();
+  const permissionKey=["internal-chat-permissions",activeOrganizationId,user?.id];
+  const permissions=useQuery({queryKey:permissionKey,enabled:!!activeOrganizationId&&!!user?.id,queryFn:async()=>{
+    const {data,error}=await supabase.rpc("internal_chat_my_permissions_v1",{p_org:activeOrganizationId});
+    if(error)throw error;
+    return (data??[]) as string[];
+  },staleTime:30000,retry:false,refetchOnWindowFocus:true,refetchOnReconnect:true});
+  useEffect(()=>{
+    const refresh=()=>void qc.invalidateQueries({queryKey:["internal-chat-permissions",activeOrganizationId,user?.id]});
+    window.addEventListener(PERMISSIONS_CHANGED_EVENT,refresh);window.addEventListener(LEGACY_PERMISSIONS_CHANGED_EVENT,refresh);
+    return()=>{window.removeEventListener(PERMISSIONS_CHANGED_EVENT,refresh);window.removeEventListener(LEGACY_PERMISSIONS_CHANGED_EVENT,refresh);};
+  },[qc,activeOrganizationId,user?.id]);
+  const hasChatPermission=(key:string)=>!permissions.isError&&!!permissions.data?.includes(key);
+  if(!activeOrganizationId || !user?.id || !hasChatPermission("internal_chat.use")) return null;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canShareOrders={hasPermission("orders.view")} canCall={hasChatPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasChatPermission("internal_chat.groups.create")} canManageGroup={hasChatPermission("internal_chat.groups.manage")} canAttach={hasChatPermission("internal_chat.attachments.send")} canMetrics={hasChatPermission("internal_chat.metrics.view")} canSettings={hasChatPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
 }
 function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings,canViewRoles,canManageRoles}:{org:string;uid:string;canShareOrders:boolean;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean;canViewRoles:boolean;canManageRoles:boolean}) {
   const qc=useQueryClient();
@@ -114,7 +128,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   const [older,setOlder]=useState<ChatRow[]>([]);
   const [more,setMore]=useState(true);
   const [anchors,setAnchors]=useState<HTMLElement[]>([]);
-  const dock=useChatDock(open,anchors,storagePrefix+"dock:v2",expanded);
+  const dock=useChatDock(open,anchors,storagePrefix+"dock:v3",expanded);
   const [availabilityMenu,setAvailabilityMenu]=useState(false);
   const [settingsPage,setSettingsPage]=useState<"menu"|"company"|"roles">("menu");
   const [sound,setSound]=useState(true);
@@ -256,6 +270,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
     const channel=supabase.channel("internal-chat:"+org+":"+uid,{config:{private:true}})
       .on("broadcast",{event:"changed"},event=>{
         const payload=event.payload;
+        if(payload?.chat_permissions){void qc.invalidateQueries({queryKey:["internal-chat-permissions",org,uid]});void qc.invalidateQueries({queryKey:[...key,"directory"]});return;}
         if(payload?.settings){void qc.invalidateQueries({queryKey:[...key,"settings"]});return;}
         if(payload?.preferences){void qc.invalidateQueries({queryKey:[...key,"preferences"]});return;}
         const groupId=payload?.group_id;
@@ -478,7 +493,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   const localStatus=connected?availabilityLabels[advertised]:"Reconectando";
   const localStatusColor=connected?availabilityColors[advertised]:"bg-muted-foreground/60";
   const button=<button type="button" title="Chat interno" aria-label="Chat interno" aria-expanded={open&&expanded}
-    onClick={e=>{dock.anchor(e.currentTarget);if(!open){setOpen(true);setExpanded(true);}else setExpanded(v=>!v);setError("");}}
+    onClick={e=>{dock.anchor(e.currentTarget);if(!open){dock.reset();setOpen(true);setExpanded(true);}else setExpanded(v=>!v);setError("");}}
     className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-primary">
     <MessageSquare size={17}/>
     {(totalUnread>0||calls.length>0)&&<span className="absolute right-0 top-0 rounded-full bg-primary px-1 text-[10px] font-bold text-white">{Math.min(99,Math.max(totalUnread,calls.length))}</span>}
@@ -500,7 +515,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
         {error&&<p role="alert" className="mt-2 text-xs text-red-500">{error}</p>}
       </aside>}
       {preview&&<UnionWhatsAppMediaViewer url={preview.url} type={preview.mime.startsWith("image/")?"image":"audio"} name={preview.name} onClose={closePreview}/>}
-      {open&&<section ref={dock.panel} aria-label="Chat interno" style={{left:dock.position.x,top:dock.position.y}} data-admin-floating-panel="true" data-internal-chat-floating="true" className={"admin-crm fixed z-[110] flex flex-col rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] "+(expanded?"h-[min(530px,calc(100dvh-100px))] w-[min(360px,calc(100vw-20px))]":"h-auto w-[min(320px,calc(100vw-20px))]")}>
+      {open&&<section ref={dock.panel} aria-label="Chat interno" style={{left:dock.position.x,top:dock.position.y,maxHeight:dock.maxHeight}} data-admin-floating-panel="true" data-internal-chat-floating="true" className={"admin-crm fixed z-[110] flex flex-col rounded-2xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] "+(expanded?"h-[min(530px,calc(100dvh-100px))] w-[min(360px,calc(100vw-20px))]":"h-auto w-[min(320px,calc(100vw-20px))]")}>
         {dock.arrow&&<span aria-hidden="true" data-internal-chat-arrow={dock.arrow.bottom?"above":"below"} style={{left:dock.arrow.left-6,borderColor:"inherit"}} className={"pointer-events-none absolute h-3 w-3 rotate-45 bg-card "+(dock.arrow.bottom?"-bottom-[6px] border-b border-r":"-top-[6px] border-l border-t")}/>}
         <header {...dock.handlers} className={"relative flex shrink-0 touch-none select-none items-center gap-1 rounded-t-2xl px-2 "+(expanded?"border-b border-border py-1.5 ":"py-2 ")+(dock.dragging?"cursor-grabbing":"cursor-grab")}>
           {expanded&&(target||groupEdit||metricsOpen||settingsOpen)&&<button title="Voltar" className={iconButton} onClick={()=>{if(metricsOpen){setMetricsOpen(false);setSettingsOpen(true);setSettingsPage("menu");}else if(settingsOpen&&settingsPage!=="menu"){setSettingsPage("menu");}else if(settingsOpen){setSettingsOpen(false);}else selectPeer(null);}}><ChevronLeft size={17}/></button>}

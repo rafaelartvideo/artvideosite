@@ -157,3 +157,19 @@ test("collapsed internal chat matches mini attendance and arrow follows panel th
  assert.ok(ui.includes("h-auto w-[min(320px,calc(100vw-20px))]"));
  assert.ok(!ui.includes('iconButton+" border border-border"} title="Restaurar posição original"'));
 });
+
+test("independent chat roles take precedence without modifying CRM grants",()=>{
+ const sql=read(root+"140700_internal_chat_role_assignments.sql");
+ const roles=read("src/features/internal-chat/presentation/ChatRoleSettings.tsx");
+ assert.ok(sql.includes("when a.role_key is not null then p_key=any(private.internal_chat_template_keys"));
+ assert.ok(sql.includes("private.employee_crm_access_now(p_org)"));
+ assert.ok(sql.includes("private.internal_chat_role_admin(p_org,true)"));
+ assert.ok(sql.includes("alter table private.internal_chat_role_assignments enable row level security"));
+ assert.ok(!sql.includes("insert into public.role_permissions"));
+ assert.ok(ui.includes("internal_chat_my_permissions_v1"));
+ assert.ok(ui.includes("dock.reset();setOpen(true)"));
+ assert.ok(roles.includes("Herdar perfil do CRM"));
+ assert.ok(roles.includes("internal_chat_save_template_v1"));
+ assert.ok(roles.includes("internal_chat_assign_role_v1"));
+ assert.ok(read("src/features/internal-chat/presentation/useChatDock.ts").includes("fittedHeight"));
+});
