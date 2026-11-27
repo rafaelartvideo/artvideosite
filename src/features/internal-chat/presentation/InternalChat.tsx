@@ -13,6 +13,8 @@ const shareableRoute=/^\/admin\/(orders|customers|inventory|products)\/[a-zA-Z0-
 
 type Employee = { user_id: string; full_name: string };
 type Group = {id:string;name:string;created_by:string;unread:number;last_read_at:string};
+type Recent = {peer_id:string;created_at:string;kind:string;body:string;attachment:boolean;unread:number};
+type Metrics = {messages:number;attachments:number;calls:number;answered:number;mean_response_seconds:number|null;pending:number};
 type GroupEdit = {id:string|null;name:string;members:string[]};
 const allowedFileTypes=new Set(["image/jpeg","image/png","image/webp","image/gif","application/pdf","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
 type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
@@ -35,9 +37,9 @@ function playNotice() {
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
   if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} />;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} />;
 }
-function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean}) {
+function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean}) {
   const qc=useQueryClient();
   const location=useLocation();
   const navigate=useNavigate();
@@ -46,6 +48,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const [peer,setPeer]=useState<string|null>(null);
   const [group,setGroup]=useState<string|null>(null);
   const [groupEdit,setGroupEdit]=useState<GroupEdit|null>(null);
+  const [metricsOpen,setMetricsOpen]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
   const [search,setSearch]=useState("");
   const [draft,setDraft]=useState("");
@@ -131,8 +134,19 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     const {data,error}=await supabase.rpc("internal_chat_groups_v1",{p_org:org});
     if(error)throw error;return (data??[]) as Group[];
   },retry:false,staleTime:Infinity});
+  const recent=useQuery({queryKey:[...key,"recent"],enabled:open&&!peer&&!group&&!groupEdit&&!metricsOpen,queryFn:async()=>{
+    const {data,error}=await supabase.rpc("internal_chat_recent_v1",{p_org:org});
+    if(error)throw error;return (data??[]) as Recent[];
+  },retry:false,staleTime:Infinity});
+  const metrics=useQuery({queryKey:[...key,"metrics"],enabled:open&&metricsOpen&&canMetrics,queryFn:async()=>{
+    const start=performance.now();
+    const {data,error}=await supabase.rpc("internal_chat_metrics_v1",{p_org:org});
+    if(error)throw error;
+    return {values:data as Metrics,requestMs:Math.round(performance.now()-start)};
+  },retry:false,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false});
   const currentGroup=groups.data?.find(g=>g.id===group);
   const target=group??peer;
+  useEffect(()=>{if(group&&groups.isSuccess&&!groups.isFetching&&!currentGroup){setGroup(null);setOlder([]);setGroupEdit(null);setDraft("");setError("Você não faz mais parte deste grupo.");}},[group,groups.isSuccess,groups.isFetching,currentGroup]);
   const totalUnread=(unread.data??0)+(groups.data??[]).reduce((n,g)=>n+Number(g.unread),0);
   const thread=useQuery({queryKey:[...key,"thread",target],enabled:open&&!!target,queryFn:async()=>{
     let query=supabase.from("internal_chat_messages").select(fields).eq("organization_id",org);
@@ -150,12 +164,33 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   useEffect(()=>{
     let timer:ReturnType<typeof setTimeout>|undefined;
     let active=true;
+    let dirtyDirect=false,dirtyAll=false;
+    const dirtyGroups=new Set<string>();
     const invalidate=()=>{
-      if(timer)clearTimeout(timer);
-      timer=setTimeout(()=>{if(active)void qc.invalidateQueries({queryKey:key,predicate:q=>q.queryKey[3]!=="directory"});},120);
+      dirtyAll=true;schedule();
     };
+    function schedule(){
+      if(timer)return;
+      timer=setTimeout(()=>{
+        timer=undefined;if(!active)return;
+        const all=dirtyAll,direct=dirtyDirect,groupIds=new Set(dirtyGroups);
+        dirtyAll=false;dirtyDirect=false;dirtyGroups.clear();
+        void qc.invalidateQueries({queryKey:key,predicate:q=>{
+          const type=q.queryKey[3];
+          if(type==="directory"||type==="metrics")return false;
+          if(all)return true;
+          if(type==="groups")return groupIds.size>0;
+          if(type==="thread")return direct||groupIds.has(String(q.queryKey[4]));
+          return direct;
+        }});
+      },120);
+    }
     const channel=supabase.channel("internal-chat:"+org+":"+uid,{config:{private:true}})
-      .on("broadcast",{event:"changed"},invalidate)
+      .on("broadcast",{event:"changed"},event=>{
+        const groupId=event.payload?.group_id;
+        if(typeof groupId==="string")dirtyGroups.add(groupId);else dirtyDirect=true;
+        schedule();
+      })
       .subscribe(status=>{
         if(!active)return;
         setConnected(status==="SUBSCRIBED");
@@ -181,7 +216,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     void supabase.from("internal_chat_messages").update({read_at:new Date().toISOString()})
       .eq("organization_id",org).eq("recipient_id",uid).is("read_at",null).in("id",ids)
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"unread"]});});
-  },[open,peer,thread.data,uid,org,qc,key]);
+  },[open,peer,thread.data,uid,org,qc,key,visibility]);
   useEffect(()=>{
     if(!open||!group||!currentGroup||document.visibilityState!=="visible")return;
     const newest=thread.data?.[0];
@@ -189,8 +224,8 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     void supabase.rpc("internal_chat_group_read_v1",{p_org:org,p_group:group,p_through:newest.created_at})
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"groups"]});});
   },[open,group,currentGroup,thread.data,org,qc,key,visibility]);
-  function selectPeer(id:string|null){if(busy)return;setGroup(null);setGroupEdit(null);setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
-  function selectGroup(id:string){if(busy)return;setPeer(null);setGroup(id);setGroupEdit(null);setOlder([]);setMore(true);setDraft("");setError("");}
+  function selectPeer(id:string|null){if(busy)return;setGroup(null);setGroupEdit(null);setMetricsOpen(false);setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
+  function selectGroup(id:string){if(busy)return;setPeer(null);setGroup(id);setGroupEdit(null);setMetricsOpen(false);setOlder([]);setMore(true);setDraft("");setError("");}
   async function editGroup(){
     if(!currentGroup||busy)return;setBusy(true);setError("");
     try{
@@ -312,8 +347,8 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
       </aside>}
       {open&&<section aria-label="Chat interno" className="fixed bottom-3 right-3 z-[110] flex h-[min(510px,calc(100dvh-100px))] w-[min(370px,calc(100vw-24px))] flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-xl">
         <header className="flex items-center gap-2 border-b border-border p-3">
-          {(target||groupEdit)&&<button title="Voltar" onClick={()=>selectPeer(null)}><ChevronLeft size={18}/></button>}
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{groupEdit?"Grupo":group?currentGroup?.name??"Grupo":peer?name(peer):"Chat interno"}</p>
+          {(target||groupEdit||metricsOpen)&&<button title="Voltar" onClick={()=>selectPeer(null)}><ChevronLeft size={18}/></button>}
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{metricsOpen?"Indicadores":groupEdit?"Grupo":group?currentGroup?.name??"Grupo":peer?name(peer):"Chat interno"}</p>
             <p className="text-[10px] text-muted-foreground">{peer?statusLabel(peer):connected?"Conectado":"Reconectando…"}</p></div>
           {peer&&canCall&&<button className={actionClass} disabled={busy||pendingOut} onClick={()=>void send("call")}><BellRing size={13} className="mr-1 inline"/> {pendingOut?"Chamando":"Chamar"}</button>}
           {currentGroup&&(currentGroup.created_by===uid||canManageGroup)&&!groupEdit&&<button title="Gerenciar grupo" className={actionClass} disabled={busy} onClick={()=>void editGroup()}><Settings2 size={15}/></button>}
@@ -322,7 +357,13 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           <button title="Fechar" onClick={()=>{setOpen(false);selectPeer(null);}}><X size={16}/></button>
         </header>
         {error&&<p role="alert" className="px-3 py-2 text-xs text-red-500">{error}</p>}
-        {groupEdit?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
+        {metricsOpen?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Últimas 24 horas · dados agregados</span><button disabled={metrics.isFetching} className={actionClass} onClick={()=>void metrics.refetch()}>Atualizar</button></div>
+          {metrics.isError&&<p role="alert" className="text-xs text-red-500">Não foi possível consultar indicadores.</p>}
+          {metrics.isPending&&<p className="text-xs text-muted-foreground">Carregando…</p>}
+          {metrics.data&&<div className="grid grid-cols-2 gap-2">{[["Funcionários conectados",Object.keys(presence).length],["Mensagens",metrics.data.values.messages],["Anexos",metrics.data.values.attachments],["Chamadas",metrics.data.values.calls],["Respondidas",metrics.data.values.answered],["Pendentes (total)",metrics.data.values.pending],["Tempo médio de resposta",metrics.data.values.mean_response_seconds==null?"—":metrics.data.values.mean_response_seconds+" s"],["Tempo da consulta",metrics.data.requestMs+" ms"]].map(([label,value])=><div key={label} className="rounded-md border border-border p-2"><p className="text-[11px] text-muted-foreground">{label}</p><p className="font-bold text-base">{value}</p></div>)}</div>}
+          <p className="text-xs text-muted-foreground">Tempo da consulta não representa latência de entrega. CPU, RAM, Disk I/O e franquia Realtime são acompanhados no Supabase.</p>
+        </div>:groupEdit?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
           <input maxLength={100} value={groupEdit.name} onChange={e=>setGroupEdit({...groupEdit,name:e.target.value})} placeholder="Nome do grupo" className="w-full rounded-md border border-border bg-card p-2 text-sm"/>
           <p className="text-xs text-muted-foreground">Participantes · até 50 funcionários, incluindo você</p>
           {employees.map(e=><label key={e.user_id} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={groupEdit.members.includes(e.user_id)} onChange={event=>setGroupEdit({...groupEdit,members:event.target.checked?[...groupEdit.members,e.user_id]:groupEdit.members.filter(id=>id!==e.user_id)})}/>{e.full_name}</label>)}
@@ -333,6 +374,9 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={sound} onChange={e=>setSound(e.target.checked)}/> Som de chamada</label>
           {directory.isPending&&<p className="text-xs text-muted-foreground">Carregando funcionários…</p>}
           {directory.isError&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
+          {canMetrics&&<button className={actionClass+" mb-2"} onClick={()=>setMetricsOpen(true)}>Indicadores do chat</button>}
+          {(recent.data??[]).length>0&&<p className="mb-1 text-xs font-semibold text-muted-foreground">Conversas recentes</p>}
+          {(recent.data??[]).filter(c=>name(c.peer_id).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(c=><button type="button" key={c.peer_id} onClick={()=>selectPeer(c.peer_id)} className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted"><MessageSquare size={16}/><span className="min-w-0 flex-1"><span className="block truncate">{name(c.peer_id)}</span><span className="block truncate text-xs text-muted-foreground">{c.kind==="call"?"Chamada interna":c.attachment?"Anexo":shareableRoute.test(c.body)?"Registro compartilhado":c.body}</span></span>{Number(c.unread)>0&&<span className="rounded-full bg-primary px-1 text-xs text-white">{c.unread}</span>}</button>)}
           {(groups.data??[]).length>0&&<p className="mb-1 text-xs font-semibold text-muted-foreground">Grupos</p>}
           {(groups.data??[]).filter(g=>g.name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(g=><button key={g.id} type="button" onClick={()=>selectGroup(g.id)} className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted"><Users size={17}/><span className="flex-1 truncate">{g.name}</span>{Number(g.unread)>0&&<span className="rounded-full bg-primary px-1 text-xs text-white">{g.unread}</span>}</button>)}
           {canCreateGroup&&<button className={actionClass+" mb-2"} onClick={()=>setGroupEdit({id:null,name:"",members:[]})}>Novo grupo</button>}
@@ -349,7 +393,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
               {m.attachment_path?<button type="button" className="flex items-center gap-2 text-left underline" disabled={busy} onClick={()=>void downloadFile(m)}><Paperclip size={15}/>{m.body}</button>:m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex items-center gap-2 text-left underline" onClick={()=>navigate(m.body)}><Link2 size={15}/>Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap break-words">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
                 {!m.response&&m.sender_id===uid&&<button disabled={busy} className="mt-1 text-xs underline" onClick={()=>void respond(m,"cancelled")}>Cancelar chamada</button>}
               </>}
-              <p className="mt-1 text-right text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}{m.sender_id===uid?(m.read_at?" ✓✓":" ✓"):""}</p>
+              <p className="mt-1 text-right text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}{m.sender_id===uid&&!group?(m.read_at?" ✓✓":" ✓"):""}</p>
             </div>)}
           </div>
           <form onSubmit={e=>{e.preventDefault();void send("text");}} className="flex gap-2 border-t border-border p-3">
