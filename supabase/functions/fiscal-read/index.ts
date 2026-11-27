@@ -22,8 +22,8 @@ const authOptions = { persistSession: false, autoRefreshToken: false };
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST") return reply(405, {error:"METHOD_NOT_ALLOWED"});
-  // Independent deployment kill switch. Nothing is enabled by adding this file.
-  if (Deno.env.get("FISCAL_READ_API_ENABLED") !== "true" || !url || !anon || !service) return unavailable();
+  // Optional emergency kill switch; tenant access still requires verified entitlement and binding.
+  if (Deno.env.get("FISCAL_READ_API_ENABLED") === "false" || !url || !anon || !service) return unavailable();
   const bearer = request.headers.get("Authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1];
   if (!bearer) return reply(401, {error:"UNAUTHENTICATED"});
   try {
@@ -71,7 +71,7 @@ Deno.serve(async (request: Request) => {
     const permitted = (key:string) => permissions.data.some((p:{permission_key:string})=>p.permission_key===key);
     if(body.action==="sync"){
       if(!permitted("fiscal.sync.manage")||!b.sync_enabled)return denied();
-      if(Deno.env.get("FISCAL_SYNC_ENABLED")!=="true")return unavailable();
+      if(Deno.env.get("FISCAL_SYNC_ENABLED")==="false")return unavailable();
       if(!types.has(body.type))return reply(400,{error:"INVALID_FILTER"});
       const sync=createSupabaseFiscalSync({admin,resolveSecret:async ({accountId,credentialRef}:{accountId:string;credentialRef:string})=>{
         if(/^vault_[0-9a-f-]{36}$/.test(credentialRef)){
