@@ -68,7 +68,7 @@ export function useChatDock(open:boolean,anchors:HTMLElement[],key:string,expand
   const d=drag.current,el=panel.current;if(!d||d.id!==e.pointerId)return;drag.current=null;setDragging(false);
   if(d.moved&&el){const a=activeAnchor()?.getBoundingClientRect(),p=live.current;
    const home=a?homePosition(a,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight).p:null;
-   if(home&&Math.hypot(p.x-home.x,p.y-home.y)<28)store(null);else {const next=nearestEdge(p,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight);place(dockPosition(next,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight));store(next);}
+   if(home&&a&&Math.hypot(p.x-home.x,p.y-home.y)<28){const h=homePosition(a,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight);place(h.p);pointArrow({left:Math.max(10,Math.min(el.offsetWidth-10,h.arrowLeft)),bottom:h.bottom});store(null);}else {const next=nearestEdge(p,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight);place(dockPosition(next,el.offsetWidth,el.offsetHeight,innerWidth,innerHeight));store(next);}
   }
  }
  return {panel,position,arrow,dragging,isDocked:!!saved,anchor:(node:HTMLElement)=>{clicked.current=node;},reset:()=>store(null),handlers:{onPointerDown:pointerDown,onPointerMove:pointerMove,onPointerUp:finish,onPointerCancel:finish,onLostPointerCapture:finish}};
