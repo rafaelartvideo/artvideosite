@@ -35,8 +35,8 @@ Deno.serve(async (request:Request)=>{
     if(new TextEncoder().encode(raw).byteLength>4096)return reply(413,{error:"REQUEST_TOO_LARGE"});
     let body;
     try{body=JSON.parse(raw);}catch{return reply(400,{error:"INVALID_REQUEST"});}
-    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test"].includes(body.action)||
-      !Object.keys(body).every(k=>["action","accountId"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
+    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect"].includes(body.action)||
+      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
     if(body.action==="status"){
       const accounts=await admin.from("fiscal_provider_accounts").select("id,provider,label,cnpj_limit,is_active,inventory_verified_at").order("label").limit(100);
       if(accounts.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
@@ -45,14 +45,46 @@ Deno.serve(async (request:Request)=>{
       if(inventory.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
       return reply(200,{data:(accounts.data||[]).map(a=>({...a,used:(inventory.data||[]).filter(i=>i.account_id===a.id).length}))});
     }
+    if(body.action==="connect"){
+      const {accountId=null,label,cnpjLimit,email,password}=body;
+      if((accountId!==null&&(typeof accountId!=="string"||!/^[0-9a-f-]{36}$/i.test(accountId)))||
+        typeof label!=="string"||label.trim().length<1||label.trim().length>120||
+        !Number.isSafeInteger(cnpjLimit)||cnpjLimit<1||cnpjLimit>10000||
+        typeof email!=="string"||email.length>254||!/^\\S+@\\S+\\.\\S+$/.test(email)||
+        typeof password!=="string"||password.length<1||password.length>512)return reply(400,{error:"INVALID_CONFIGURATION"});
+      // SHA-1 is the documented Fiscontrole session protocol, not local
+      // password storage. The password and digest are never persisted.
+      const bytes=new Uint8Array(await crypto.subtle.digest("SHA-1",new TextEncoder().encode(password)));
+      const digest=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+      const login=await fetch("https://www.fiscontrole.com.br/app/api/v1/sessao",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({usuario:email,senha:digest}),redirect:"error",signal:AbortSignal.timeout(15000)
+      });
+      if(!login.ok)return reply(422,{error:"PROVIDER_LOGIN_FAILED"});
+      const session=await login.json();
+      if(typeof session?.token!=="string"||session.token.length<1||session.token.length>8192||/\\s/.test(session.token))return reply(502,{error:"INVALID_PROVIDER_SESSION"});
+      const provider=createFiscontroleProvider({token:session.token});
+      const response=await provider.listCompanies();
+      if(!Array.isArray(response.empresas))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
+      const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\\D/g,""):""}));
+      if(companies.some((c:{cnpj:string})=>!/^\\d{14}$/.test(c.cnpj))||
+         new Set(companies.map((c:{cnpj:string})=>c.cnpj)).size>cnpjLimit)return reply(422,{error:"PROVIDER_INVENTORY_MISMATCH"});
+      const saved=await admin.rpc("fiscal_store_provider_session",{p_account:accountId,p_label:label.trim(),p_limit:cnpjLimit,p_token:session.token,p_actor:auth.data.user.id});
+      if(saved.error||!saved.data)return reply(409,{error:"ACCOUNT_SAVE_FAILED"});
+      return reply(200,{data:{accountId:saved.data,companies,inventoryVerified:false}});
+    }
     if(typeof body.accountId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.accountId))return reply(400,{error:"INVALID_ACCOUNT"});
     const account=await admin.from("fiscal_provider_accounts").select("id,provider,credential_ref").eq("id",body.accountId).eq("provider","fiscontrole").maybeSingle();
     if(account.error||!account.data)return reply(404,{error:"ACCOUNT_NOT_FOUND"});
     // Read token exclusively from a dedicated server-side secret. Do not accept
     // credentials or arbitrary environment-variable names from the browser.
     const ref=account.data.credential_ref;
-    if(typeof ref!=="string"||!/^FISCAL_FISCONTROLE_TOKEN_[A-Z0-9_]{1,64}$/.test(ref))return reply(409,{error:"ACCOUNT_SECRET_NOT_CONFIGURED"});
-    const token=Deno.env.get(ref);
+    let token:string|undefined;
+    if(typeof ref==="string"&&/^vault_[0-9a-f-]{36}$/.test(ref)){
+      const secret=await admin.rpc("fiscal_read_provider_session",{p_account:account.data.id});
+      if(secret.error||typeof secret.data!=="string")return reply(409,{error:"ACCOUNT_SECRET_NOT_CONFIGURED"});
+      token=secret.data;
+    }else if(typeof ref==="string"&&/^FISCAL_FISCONTROLE_TOKEN_[A-Z0-9_]{1,64}$/.test(ref))token=Deno.env.get(ref);
     if(!token)return reply(409,{error:"ACCOUNT_SECRET_NOT_CONFIGURED"});
     const provider=createFiscontroleProvider({token});
     const response=await provider.listCompanies();
