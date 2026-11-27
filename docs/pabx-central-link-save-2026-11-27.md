@@ -27,6 +27,14 @@ Backed up both installed Python modules under `runtime-before-fresh-report` in t
 
 Follow-up native validation: 13 focused tests and all 439 Python agent tests passed on Linux using an isolated candidate directory. The initial broad run lacked non-Python fixture files; after including those fixtures, the full suite passed. Subsequent signed service polls kept the configuration applied with fresh observations. No database validation or freshness window was loosened.
 
+## Activation button cadence correction
+
+The subsequent disabled activation button was reproduced with an applied, prepared configuration: `can_activate` accepted only observations younger than 30 seconds, while unchanged reports are intentionally sent every 60 seconds. A rollback probe confirmed that an otherwise valid 45-second observation was rejected.
+
+Migration `20261127132331_align_pbx_activation_observation_cadence.sql` changes only the activation snapshot age to 90 seconds (60-second reporting cadence plus 30-second margin). Incoming native reports still require samples younger than 30 seconds, and the independent signed-agent admission, capacity, revision, zero-call, legacy coverage and tenant checks remain unchanged. The migration requires exactly one matching predicate in the installed function, retaining its remaining definition and permissions.
+
+Nine database assertions passed in a rolled-back transaction: ages 0, 45 and 89 seconds accepted; age 91 seconds and six seconds in the future rejected; unprepared central, active call, pending revision and unknown capacity rejected. The SQL regression suite includes these activation boundaries and applies the migration before testing. Reversal restores only the same activation predicate to 30 seconds after verifying its single occurrence. No account registration, call or capacity increase is part of this correction.
+
 ## Validation
 
 Focused preflight tests: 9 passed. Telephony: 199 passed. Quality: 8 passed. Full `test:ci`, CRM build and site build completed with exit code 0. Deployment must additionally be confirmed in the HostGator production workflow for the resulting main commit.

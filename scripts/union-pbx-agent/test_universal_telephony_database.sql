@@ -95,6 +95,18 @@ begin
  update private.pbx_legacy_trunk_controls set host='legacy.example.com',username='LegacyA',status='applied',observed_enabled=true where id=f.trunk;
  snap=public.pbx_poll_universal_telephony(f.other_agent);
  perform public.pbx_report_universal_telephony(f.other_agent,2,'applied',obs,repeat('b',64));
+ -- The 60-second report cadence must not intermittently close activation.
+ update private.pbx_universal_configs set observed_at=now()-interval '45 seconds' where organization_id=f.other_org;
+ if not private.pbx_universal_can_activate(f.other_org,d) then raise exception 'Activation closed between reports'; end if;
+ update private.pbx_universal_configs set observed_at=now()-interval '89 seconds' where organization_id=f.other_org;
+ if not private.pbx_universal_can_activate(f.other_org,d) then raise exception 'Activation margin unavailable'; end if;
+ update private.pbx_universal_configs set observed_at=now()-interval '91 seconds' where organization_id=f.other_org;
+ if private.pbx_universal_can_activate(f.other_org,d) then raise exception 'Stale activation observation accepted'; end if;
+ update private.pbx_universal_configs set observed_at=now()+interval '6 seconds' where organization_id=f.other_org;
+ if private.pbx_universal_can_activate(f.other_org,d) then raise exception 'Future activation observation accepted'; end if;
+ update private.pbx_universal_configs set observed_at=now(),observed=jsonb_set(obs,'{ready}','false') where organization_id=f.other_org;
+ if private.pbx_universal_can_activate(f.other_org,d) then raise exception 'Unprepared central admitted'; end if;
+ update private.pbx_universal_configs set observed=obs where organization_id=f.other_org;
  result=public.pbx_save_universal_telephony(f.other_org,2,jsonb_set(d,'{routing_enabled}','true')); rev=3;
  if not exists(select 1 from private.pbx_universal_claims where connection_id=conn and host='universal.example.com' and username='accounta') then raise exception 'Activation did not reserve identity'; end if;
  snap=public.pbx_poll_universal_telephony(f.other_agent);
