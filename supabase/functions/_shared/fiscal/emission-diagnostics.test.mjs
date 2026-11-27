@@ -39,3 +39,21 @@ test("preserves long Portuguese issues and nested message fields, while masking 
  assert.equal(issues[2],null);
  assert.equal(issues[3],"Contate [oculto].");
 });
+
+test("explicit nested issuer confirms identity; conflicting issuer blocks metadata",()=>{
+ const nested={...fixture,company:undefined,launch:{...fixture.launch,issuer:{tax_id:"12345678000199",company_id:123}},catalog:{profiles:[{profile_id:7,profile_version:2,model:"55",catalog_code:"7870",secret:"never-return"}]}};
+ const result=summarizeEmissionBootstrap(nested,cnpj,123);
+ assert.equal(result.identity,"confirmed");
+ assert.equal(result.profiles[0].id,7);
+ assert.equal(result.profiles[0].version,2);
+ assert.equal(result.profiles[0].catalogCode,"7870");
+ assert.equal(JSON.stringify(result).includes("never-return"),false);
+ const conflict=summarizeEmissionBootstrap({...nested,company:{id:123,cnpj:"99999999000199"}},cnpj,123);
+ assert.equal(conflict.identity,"mismatch");
+ assert.deepEqual(conflict.profiles,[]);
+});
+test("unknown issuer exposes field names only, no profile values",()=>{
+ const result=summarizeEmissionBootstrap({...fixture,company:undefined},cnpj,123);
+ assert.deepEqual(result.profiles,[]);
+ assert.equal(result.profileFields.includes("id"),true);
+});
