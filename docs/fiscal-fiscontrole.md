@@ -15,6 +15,16 @@ Contrato de referência: documentação Fiscontrole fornecida em 27/11/2026, inc
 - Não usar credencial de serviço isolada para emissão; login/token e manifestação têm contratos distintos.
 - Não persistir ou registrar segredos em logs, nem retornar respostas brutas contendo dados fiscais sem controle de acesso.
 
+## Conta fiscal compartilhada e liberação multiempresa
+
+A contratação atual informada suporta até seis CNPJs por conta Fiscontrole. Esse valor é configurável por conta, nunca um limite global de empresas da Union World. A Artvideo é a única empresa autorizada para a implantação inicial; nenhuma outra empresa recebe acesso por padrão. Não há ativação real nesta entrega: o ID interno, o CNPJ e o ID externo da Artvideo ainda precisam ser verificados e vinculados em ambiente seguro.
+
+A conta do provedor pertence à administração da plataforma. Cada vínculo fiscal pertence a uma empresa CRM e identifica seu CNPJ e ID externo autorizado. A mesma conta pode atender diversas empresas; credenciais e a lista completa de empresas do provedor não serão expostas aos usuários dos tenants. O inventário de CNPJs cadastrados/reservados no provedor, incluindo os não vinculados ao CRM, deve ser reconciliado antes de admitir novas empresas. Desativar acesso ao módulo não libera automaticamente uma vaga no contrato. A configuração deve permitir outras contas, limites e provedores no futuro.
+
+A política pura server-side `account-policy.mjs` valida capacidade configurada por conta, conflitos de CNPJ/ID externo e acesso por empresa. É apenas uma fundação testável: não substitui autenticação real, RLS, permissões, persistência, locks transacionais ou auditoria. O serviço futuro deverá obter os dados exclusivamente de registros confiáveis, revalidar o inventário e reservar capacidade atomicamente por conta (evitando corrida pela última vaga), verificar titularidade e correspondência do CNPJ com o ID externo antes de vincular, e resolver o escopo em todas as operações, inclusive workers, downloads, filas e sincronização. Não disponibilizar listagem global de empresas do provedor aos tenants. A troca de provedor ou transferência de vínculo exige fluxo explícito, auditado e proteção dos documentos históricos.
+
+A administração central deve poder habilitar/desabilitar o módulo por empresa, separadamente de permissões dos operadores e da autorização de emissão em produção. Empresas sem acesso não visualizam a navegação nem conseguem invocar o backend. O primeiro vínculo será Artvideo; as outras vagas não devem criar empresas fictícias nem autorizar acesso automaticamente.
+
 ## Verificação
 
 `npm run test:fiscal` usa fetch simulado e não realiza chamadas externas. Também foi incluído em test:ci. Não substitui testes de contrato reais nem validações do autorizador.
