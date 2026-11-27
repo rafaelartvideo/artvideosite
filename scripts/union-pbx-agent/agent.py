@@ -156,7 +156,16 @@ def universal_capabilities(capabilities,config):
                 capabilities['universal_revision']=applied['revision']
                 capabilities['universal_hash']=applied['hash']
             if type(pending.get('revision')) is int and pending['revision']>0 and pending.get('status') in ('applied','failed'):
-                if _should_send_report('universal',universal_report_state(pending),60):capabilities['universal_report']=pending
+                if _should_send_report('universal',universal_report_state(pending),60):
+                    try:
+                        refresh=getattr(runtime,'fresh_report',None)
+                        if callable(refresh):
+                            with operation_lock():pending=refresh(runtime_api())
+                        capabilities['universal_report']=pending
+                    except Exception:
+                        # Omit stale observations without losing snapshot/lease
+                        # polling. Never re-date cached registration observations.
+                        pass
         return runtime
     except Exception:return None
 

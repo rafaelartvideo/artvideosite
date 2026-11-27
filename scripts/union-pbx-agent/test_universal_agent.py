@@ -5,6 +5,20 @@ from unittest.mock import Mock,patch
 import agent
 class UniversalAgentTests(unittest.TestCase):
  def setUp(self):agent._SENT_REPORT_STATES.clear()
+ def test_report_refreshes_real_observation_only_when_due_and_failure_keeps_polling(self):
+  from contextlib import nullcontext
+  cached={'revision':3,'status':'applied','hash':'a'*64,'observed':{'connections':[]}}
+  fresh={**cached,'observed':{'ready':True,'connections':[]}}
+  runtime=SimpleNamespace(capability=lambda *a:['universal_telephony_v1'],report=lambda *a:cached,applied_state=lambda *a:{'revision':3,'hash':'a'*64},fresh_report=Mock(return_value=fresh))
+  with patch.object(agent,'universal_support',return_value=runtime),patch.object(agent,'operation_lock',side_effect=nullcontext):
+   cap={'protocol_version':3,'features':[]};agent.universal_capabilities(cap,{'organization_id':'org'})
+   self.assertEqual(cap['universal_report'],fresh);runtime.fresh_report.assert_called_once()
+   agent._mark_report_sent('universal',agent.universal_report_state(cached))
+   agent.universal_capabilities({'protocol_version':3,'features':[]},{'organization_id':'org'})
+   self.assertEqual(runtime.fresh_report.call_count,1)
+   agent._SENT_REPORT_STATES.clear();runtime.fresh_report.side_effect=ValueError('private diagnostic')
+   cap={'protocol_version':3,'features':[]};self.assertIs(agent.universal_capabilities(cap,{'organization_id':'org'}),runtime)
+   self.assertNotIn('universal_report',cap);self.assertEqual(cap['universal_revision'],3);self.assertIn('universal_telephony_v1',cap['features'])
  def test_feature_is_opt_in_and_old_protocol_never_reads_registry(self):
   with patch.object(agent,'universal_support',Mock(),create=True) as support:
    self.assertIsNone(agent.universal_capabilities({'protocol_version':1,'features':[]},{'organization_id':'org'}));support.assert_not_called()

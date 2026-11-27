@@ -64,6 +64,16 @@ def report(agent):
         result['observed']['connections']=[dict(row,checked_at=datetime.now(timezone.utc).isoformat()) for row in result['observed']['connections']]
     return result
 
+def fresh_report(agent):
+    state=load(agent)
+    if state.get('failure') or state.get('status')!='applied':return report(agent)
+    snapshot=state.get('snapshot')
+    if not snapshot or not callable(getattr(agent,'universal_observe',None)):fail()
+    # Reports are sent on the next poll, beyond the database's 30-second
+    # observation window. Sample native state now rather than re-date old data.
+    observed=agent.universal_observe(snapshot['organization_id'],snapshot)
+    return {**{k:state[k] for k in ('revision','status','hash')},'observed':observed}
+
 def record_failure(agent,state,snapshot):
     connections=snapshot['document']['connections']
     previous=state.get('observed',{})

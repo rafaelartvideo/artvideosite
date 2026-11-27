@@ -11,6 +11,19 @@ from universal_telephony_runtime import init,capability,apply_snapshot,RuntimeEr
 from test_universal_telephony import document,ORG,uid
 
 class RuntimeTests(unittest.TestCase):
+    def test_fresh_report_samples_native_state_without_redating_cached_rows(self):
+        from universal_telephony_runtime import fresh_report
+        snapshot={'organization_id':ORG}
+        state={'revision':2,'status':'applied','hash':'a'*64,'snapshot':snapshot,'observed':{'connections':[{'checked_at':'old'}]}}
+        observed={'ready':True,'active_legs':0,'legacy_coverage':True,'connections':[{'checked_at':'actual-sample'}]}
+        self.agent.universal_observe=Mock(return_value=observed)
+        with patch('universal_telephony_runtime.load',return_value=state):
+            result=fresh_report(self.agent)
+        self.assertEqual(result['observed'],observed)
+        self.assertEqual(state['observed']['connections'][0]['checked_at'],'old')
+        self.agent.universal_observe.assert_called_once_with(ORG,snapshot)
+        self.agent.universal_observe.side_effect=RuntimeErrorSafe('unavailable')
+        with patch('universal_telephony_runtime.load',return_value=state),self.assertRaises(RuntimeErrorSafe):fresh_report(self.agent)
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();root=Path(self.tmp.name)
         self.agent=SimpleNamespace(STATE_DIR=root,PROFILE_ID=ORG)
