@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useLocation, useNavigate } from "react-router";
+import { CHAT_PBX_PREFILL, CHAT_PBX_STATE, getChatPbxBusy } from "../application/pbx-chat-bridge";
+import { adminPath } from "@/features/admin-shell/admin-routes";
+type Availability = "available"|"away"|"busy"|"dnd"|"on-call";
+const availabilityLabels:Record<Availability,string>={available:"Disponível",away:"Ausente",busy:"Ocupado",dnd:"Não perturbe","on-call":"Em ligação"};
+const shareableRoute=/^\/admin\/(orders|customers|inventory|products)\/[a-zA-Z0-9-]+$/;
 
 type Employee = { user_id: string; full_name: string };
 type ChatRow = { id:string; sender_id:string; recipient_id:string; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
@@ -26,10 +32,12 @@ function playNotice() {
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
   if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} />;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} />;
 }
-function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) {
+function ChatSession({org,uid,canCall,canPhone}:{org:string;uid:string;canCall:boolean;canPhone:boolean}) {
   const qc=useQueryClient();
+  const location=useLocation();
+  const navigate=useNavigate();
   const key=useMemo(()=>["internal-chat",org,uid] as const,[org,uid]);
   const [open,setOpen]=useState(false);
   const [peer,setPeer]=useState<string|null>(null);
@@ -41,6 +49,52 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
   const [more,setMore]=useState(true);
   const [anchors,setAnchors]=useState<HTMLElement[]>([]);
   const [sound,setSound]=useState(true);
+  const [availability,setAvailability]=useState<Availability>("available");
+  const [pbxBusy,setPbxBusy]=useState(()=>getChatPbxBusy(org));
+  const [presence,setPresence]=useState<Record<string,Availability>>({});
+  const presenceRef=useRef<ReturnType<typeof supabase.channel>|null>(null);
+  const presenceReady=useRef(false);
+  const effectiveAvailability=pbxBusy?"on-call":availability;
+  const stateRef=useRef<Availability>(effectiveAvailability);
+  const [visibility,setVisibility]=useState(document.visibilityState);
+  useEffect(()=>{
+    const update=()=>setPbxBusy(getChatPbxBusy(org));
+    window.addEventListener(CHAT_PBX_STATE,update);
+    update();return()=>window.removeEventListener(CHAT_PBX_STATE,update);
+  },[org]);
+  useEffect(()=>{
+    const update=()=>setVisibility(document.visibilityState);
+    document.addEventListener("visibilitychange",update);
+    return()=>document.removeEventListener("visibilitychange",update);
+  },[]);
+  const advertised=effectiveAvailability==="available"&&visibility==="hidden"?"away":effectiveAvailability;
+  useEffect(()=>{
+    stateRef.current=advertised;
+    if(presenceReady.current)void presenceRef.current?.track({availability:advertised});
+  },[advertised]);
+  useEffect(()=>{
+    let active=true;
+    const channel=supabase.channel("internal-chat-presence:"+org,{config:{private:true,presence:{key:uid}}});
+    presenceRef.current=channel;
+    channel.on("presence",{event:"sync"},()=>{
+      if(!active)return;
+      const next:Record<string,Availability>={};
+      for(const [id,entries] of Object.entries(channel.presenceState<{availability:Availability}>())){
+        const states=entries.map(item=>item.availability).filter(item=>Object.prototype.hasOwnProperty.call(availabilityLabels,item));
+        const status=(["on-call","dnd","busy","available","away"] as Availability[]).find(item=>states.includes(item));
+        if(status)next[id]=status;
+      }
+      setPresence(next);
+    }).subscribe(status=>{
+      if(!active)return;
+      presenceReady.current=status==="SUBSCRIBED";
+      if(presenceReady.current)void channel.track({availability:stateRef.current});
+      else setPresence({});
+    });
+    return()=>{active=false;presenceReady.current=false;presenceRef.current=null;void supabase.removeChannel(channel);};
+  },[org,uid]);
+  const statusLabel=(id:string)=>presence[id]?availabilityLabels[presence[id]]:"Offline";
+  const statusColor=(id:string)=>!presence[id]?"bg-muted-foreground":presence[id]==="available"?"bg-green-500":presence[id]==="away"?"bg-amber-500":"bg-red-500";
   const seenCalls=useRef(new Set<string>());
   const historyRef=useRef<HTMLDivElement>(null);
   const [connected,setConnected]=useState(false);
@@ -104,9 +158,9 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
     if(!incoming)return;
     if(!seenCalls.current.has(incoming.id)){
       seenCalls.current.add(incoming.id);
-      if(sound)playNotice();
+      if(sound&&availability!=="dnd"&&!pbxBusy)playNotice();
     }
-  },[incoming?.id,sound]);
+  },[incoming?.id,sound,availability,pbxBusy]);
   useEffect(()=>{
     if(!open||!peer||document.visibilityState!=="visible")return;
     const ids=(thread.data??[]).filter(m=>m.recipient_id===uid&&!m.read_at).map(m=>m.id);
@@ -116,16 +170,28 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"unread"]});});
   },[open,peer,thread.data,uid,org,qc,key]);
   function selectPeer(id:string|null){if(busy)return;setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
-  async function send(kind:"text"|"call"){
-    if(!peer||busy||(kind==="text"&&!draft.trim()))return;
+  async function send(kind:"text"|"call",shared?:string){
+    if(!peer||busy||(kind==="text"&&!(shared??draft).trim()))return;
     setBusy(true);setError("");
     try{
-      const {error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:peer,kind,body:kind==="text"?draft.trim():""});
+      const {error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:peer,kind,body:kind==="text"?(shared??draft).trim():""});
       if(error){if(error.code==="23505")throw new Error("Já existe uma chamada aguardando resposta.");throw error;}
-      if(kind==="text")setDraft("");
+      if(kind==="text"&&!shared)setDraft("");
       void qc.invalidateQueries({queryKey:[...key,"thread",peer]});
       if(kind==="call")void qc.invalidateQueries({queryKey:[...key,"outgoing"]});
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar. Tente novamente.");}
+    finally{setBusy(false);}
+  }
+  async function dialPeer(){
+    if(!peer||busy||!canPhone)return;
+    setBusy(true);setError("");
+    try{
+      const {data,error}=await supabase.rpc("internal_chat_extension_v1",{p_org:org,p_peer:peer});
+      if(error)throw error;
+      if(!Number.isSafeInteger(data)||Number(data)<1){setError("Este funcionário não possui ramal ativo.");return;}
+      const event=new CustomEvent(CHAT_PBX_PREFILL,{detail:{organizationId:org,number:data},cancelable:true});
+      if(window.dispatchEvent(event)){setError("Abra o PABX para conectar seu ramal e tente novamente.");navigate(adminPath("tools","union-pbx"));}
+    }catch{setError("Não foi possível consultar o ramal.");}
     finally{setBusy(false);}
   }
   async function respond(row:ChatRow,response:ChatRow["response"]){
@@ -178,18 +244,20 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
         <header className="flex items-center gap-2 border-b border-border p-3">
           {peer&&<button title="Voltar" onClick={()=>selectPeer(null)}><ChevronLeft size={18}/></button>}
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{peer?name(peer):"Chat interno"}</p>
-            <p className="text-[10px] text-muted-foreground">{connected?"Conectado":"Reconectando…"}</p></div>
+            <p className="text-[10px] text-muted-foreground">{peer?statusLabel(peer):connected?"Conectado":"Reconectando…"}</p></div>
           {peer&&canCall&&<button className={actionClass} disabled={busy||pendingOut} onClick={()=>void send("call")}><BellRing size={13} className="mr-1 inline"/> {pendingOut?"Chamando":"Chamar"}</button>}
+          {peer&&canPhone&&<button type="button" className={actionClass} title="Ligar pelo PABX" disabled={busy} onClick={()=>void dialPeer()}><Phone size={15}/></button>}
           <button title="Minimizar" onClick={()=>setOpen(false)}><Minus size={16}/></button>
           <button title="Fechar" onClick={()=>{setOpen(false);selectPeer(null);}}><X size={16}/></button>
         </header>
         {error&&<p role="alert" className="px-3 py-2 text-xs text-red-500">{error}</p>}
         {!peer?<div className="min-h-0 flex-1 overflow-y-auto p-3">
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar funcionário" className="mb-2 w-full rounded-md border border-border bg-card p-2 text-sm"/>
+          <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">Disponibilidade<select value={availability} onChange={e=>setAvailability(e.target.value as Availability)} className="rounded-md border border-border bg-card p-1 text-foreground">{(["available","away","busy","dnd"] as Availability[]).map(v=><option key={v} value={v}>{availabilityLabels[v]}</option>)}</select></label>
           <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={sound} onChange={e=>setSound(e.target.checked)}/> Som de chamada</label>
           {directory.isPending&&<p className="text-xs text-muted-foreground">Carregando funcionários…</p>}
           {directory.isError&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
-          {employees.filter(e=>e.full_name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(e=><button type="button" key={e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-3 rounded-md p-2 text-left text-sm hover:bg-muted"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-bold">{e.full_name[0]}</span><span className="truncate">{e.full_name}</span></button>)}
+          {employees.filter(e=>e.full_name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(e=><button type="button" key={e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-3 rounded-md p-2 text-left text-sm hover:bg-muted"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-bold">{e.full_name[0]}</span><span className="min-w-0 flex-1"><span className="block truncate">{e.full_name}</span><span className="flex items-center gap-1 text-xs text-muted-foreground"><span className={"h-2 w-2 rounded-full "+statusColor(e.user_id)}/>{statusLabel(e.user_id)}</span></span></button>)}
         </div>:<>
           {outgoingCall&&<div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs"><BellRing size={14}/><span className="flex-1">Chamando · aguardando resposta</span><button disabled={busy} className="underline" onClick={()=>void respond(outgoingCall,"cancelled")}>Cancelar</button></div>}
           <div ref={historyRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
@@ -197,13 +265,14 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
             {thread.isError&&<button className={actionClass} onClick={()=>void thread.refetch()}>Tentar novamente</button>}
             {more&&(thread.data?.length??0)>=pageSize&&<button className={actionClass} disabled={busy} onClick={()=>void loadOlder()}>Mensagens anteriores</button>}
             {rows.map(m=><div key={m.id} className={"w-fit max-w-[88%] rounded-lg px-3 py-2 text-sm "+(m.sender_id===uid?"ml-auto bg-primary/10":"bg-muted")}>
-              {m.kind==="text"?<p className="whitespace-pre-wrap break-words">{m.body}</p>:<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
+              {m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex items-center gap-2 text-left underline" onClick={()=>navigate(m.body)}><Link2 size={15}/>Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap break-words">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
                 {!m.response&&m.sender_id===uid&&<button disabled={busy} className="mt-1 text-xs underline" onClick={()=>void respond(m,"cancelled")}>Cancelar chamada</button>}
               </>}
               <p className="mt-1 text-right text-[10px] text-muted-foreground">{new Date(m.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}{m.sender_id===uid?(m.read_at?" ✓✓":" ✓"):""}</p>
             </div>)}
           </div>
           <form onSubmit={e=>{e.preventDefault();void send("text");}} className="flex gap-2 border-t border-border p-3">
+            {shareableRoute.test(location.pathname)&&<button type="button" title="Compartilhar registro atual" className={actionClass} disabled={busy} onClick={()=>void send("text",location.pathname)}><Link2 size={16}/></button>}
             <input maxLength={4000} value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Digite uma mensagem" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm"/>
             <button type="submit" disabled={busy||!draft.trim()} title="Enviar mensagem" className="rounded-md bg-primary p-2 text-white disabled:opacity-50"><Send size={17}/></button>
           </form>
