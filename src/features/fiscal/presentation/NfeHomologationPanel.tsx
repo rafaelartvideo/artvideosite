@@ -52,6 +52,14 @@ export function NfeHomologationPanel({accountId,organizationId,emitterId}:{accou
     const data=await call<Operation>(action,{operationId:operation.id,...(confirmation?{confirm:true}:{})});
     setOperation(data);setNotice(labels[data.state]||data.state);
   }
+  async function download(kind:"authorized"|"pdf"){
+    if(!operation)return;
+    const data=await call<{contentBase64:string;mime:string;filename:string}>("nfe_download",{operationId:operation.id,kind});
+    const bytes=Uint8Array.from(atob(data.contentBase64),c=>c.charCodeAt(0));
+    const url=URL.createObjectURL(new Blob([bytes],{type:data.mime}));
+    try{const a=document.createElement("a");a.href=url;a.download=data.filename;a.click();}
+    finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  }
   return <section className="space-y-4 rounded-lg border border-border p-4">
     <div><h4 className="text-sm font-semibold">Piloto de emissão de NF-e</h4><p className="text-xs text-muted-foreground">Homologação · sem validade fiscal. Somente administração da plataforma. Um produto, venda interna de SE, pagamento à vista.</p></div>
     {!status&&<div className="space-y-2">
@@ -76,6 +84,7 @@ export function NfeHomologationPanel({accountId,organizationId,emitterId}:{accou
         <p className="break-all text-xs text-muted-foreground">Operação {operation.id}{operation.remote_id?" · Rascunho "+operation.remote_id:""}</p>
         {operation.protocol&&<p className="text-sm">Protocolo: {operation.protocol}</p>}
         <div className="flex flex-wrap gap-2">
+          {operation.state==="authorized"&&<><AdminButton size="sm" variant="secondary" disabled={busy} onClick={()=>void run(()=>download("pdf"))}>Baixar DANFE de teste</AdminButton><AdminButton size="sm" variant="secondary" disabled={busy} onClick={()=>void run(()=>download("authorized"))}>Baixar XML de teste</AdminButton></>}
           {operation.state==="prepared"&&<AdminButton size="sm" disabled={busy} onClick={()=>void run(()=>step("nfe_create"))}>Criar rascunho no Fiscontrole</AdminButton>}
           {operation.state==="draft"&&<AdminButton size="sm" disabled={busy} onClick={()=>void run(()=>step("nfe_validate"))}>Validar rascunho</AdminButton>}
           {operation.state==="validated"&&<AdminButton size="sm" disabled={busy} onClick={()=>{if(window.confirm("Reservar a emissão desta NF-e de teste em homologação?"))void run(()=>step("nfe_issue",true));}}>Enfileirar emissão de teste</AdminButton>}
