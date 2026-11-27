@@ -31,10 +31,9 @@ Deno.serve(async (request: Request) => {
     let body;
     try { body = JSON.parse(raw); } catch { return reply(400,{error:"INVALID_REQUEST"}); }
     if (!body || typeof body !== "object" || Array.isArray(body) || !uuid.test(body.organizationId || "") ||
-      !uuid.test(body.bindingId || "") || !["status","list"].includes(body.action)) return reply(400,{error:"INVALID_REQUEST"});
-    if (!Object.keys(body).every(k => ["organizationId","bindingId","action","type","page","limit"].includes(k))) return reply(400,{error:"INVALID_REQUEST"});
+      !["status","list"].includes(body.action)) return reply(400,{error:"INVALID_REQUEST"});
+    if (!Object.keys(body).every(k => ["organizationId","action","type","page","limit"].includes(k))) return reply(400,{error:"INVALID_REQUEST"});
     const organizationId: string = body.organizationId;
-    const bindingId: string = body.bindingId;
     const acting = createClient(url, anon, { auth: authOptions, global: {headers:{Authorization:"Bearer "+bearer}} });
     const userResult = await acting.auth.getUser(bearer);
     const user = userResult.data.user;
@@ -42,19 +41,25 @@ Deno.serve(async (request: Request) => {
     const admin = createClient(url,service,{auth:authOptions});
     // Explicit membership is intentionally stricter than platform-wide org viewing.
     // Platform administration will require a dedicated endpoint and authorization.
-    const [membership, profile, organization, module, permissions, binding] = await Promise.all([
+    const [membership, profile, organization, module, permissions] = await Promise.all([
       admin.from("organization_members").select("id").eq("organization_id",organizationId).eq("user_id",user.id).eq("status","active").limit(1).maybeSingle(),
       admin.from("profiles").select("id").eq("id",user.id).eq("is_active",true).maybeSingle(),
       admin.from("organizations").select("id,document").eq("id",organizationId).eq("status","active").maybeSingle(),
       admin.from("organization_modules").select("module_key").eq("organization_id",organizationId).eq("module_key","fiscal").eq("is_enabled",true).maybeSingle(),
       acting.rpc("my_organization_permissions",{p_organization_id:organizationId}),
-      admin.from("fiscal_organization_bindings").select("id,organization_id,account_id,cnpj,external_company_id,is_enabled,sync_enabled,production_enabled").eq("id",bindingId).eq("organization_id",organizationId).eq("is_enabled",true).maybeSingle(),
     ]);
-    if ([membership,profile,organization,module,permissions,binding].some(r=>r.error)) return unavailable();
-    if (!membership.data || !profile.data || !organization.data || !module.data || !binding.data ||
+    if ([membership,profile,organization,module,permissions].some(r=>r.error)) return unavailable();
+    if (!membership.data || !profile.data || !organization.data || !module.data ||
         !Array.isArray(permissions.data) || !permissions.data.some((p: {permission_key:string}) => p.permission_key==="fiscal.documents.view")) return denied();
+    const cnpj = digits(organization.data.document);
+    if (!/^[0-9]{14}$/.test(cnpj)) return denied();
+    const binding = await admin.from("fiscal_organization_bindings")
+      .select("id,organization_id,account_id,cnpj,external_company_id,is_enabled,sync_enabled,production_enabled")
+      .eq("organization_id",organizationId).eq("cnpj",cnpj).eq("is_enabled",true).maybeSingle();
+    if (binding.error) return unavailable();
+    if (!binding.data) return denied();
     const b = binding.data;
-    if (digits(organization.data.document) !== b.cnpj) return denied();
+    const bindingId = b.id;
     const [account, inventory] = await Promise.all([
       admin.from("fiscal_provider_accounts").select("provider,is_active,inventory_verified_at").eq("id",b.account_id).eq("is_active",true).maybeSingle(),
       admin.from("fiscal_account_cnpjs").select("cnpj,verified_at").eq("account_id",b.account_id).eq("cnpj",b.cnpj).eq("external_company_id",b.external_company_id).maybeSingle(),
