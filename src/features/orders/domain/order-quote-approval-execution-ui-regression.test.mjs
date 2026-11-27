@@ -61,3 +61,16 @@ test("cards de execução reproduzem grade e preço do orçamento com progresso 
   assert.match(execution, /Produto registrado na OS · acompanhamento técnico não aplicável/);
   assert.match(execution, /aria-valuenow=\{progress\}/);
 });
+
+
+test("confirmações do orçamento não usam fade nem animação de conteúdo",async()=>{
+  const ui=read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const layout=read("src/shared/ui/admin/AdminLayout.tsx");
+  const css=read("src/styles/index.css");
+  assert.ok((await transformWithEsbuild(ui,"OrderQuoteWorkspace.tsx",{loader:"tsx"})).code);
+  assert.match(ui,/open=\{Boolean\(confirmationAction\)\}\s+disableAnimation/);
+  assert.doesNotMatch(ui,/AnimatePresence|motion\.div|initial=\{\{|animate=\{\{|exit=\{\{/);
+  assert.match(layout,/disableAnimation && "admin-dialog-no-animation"/);
+  assert.match(layout,/overlayClassName=\{disableAnimation \?/);
+  assert.match(css,/\.admin-dialog-no-animation\s*\{\s*animation:\s*none !important;/);
+});

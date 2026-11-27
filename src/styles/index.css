@@ -1396,3 +1396,9 @@ html[data-admin-theme="dark"] [data-admin-dialog-content="true"] :is([data-admin
     display: none !important;
   }
 }
+
+/* Opt-in: janelas que precisam abrir e fechar sem fade ou transição. */
+.admin-dialog-no-animation {
+  animation: none !important;
+  transition: none !important;
+}

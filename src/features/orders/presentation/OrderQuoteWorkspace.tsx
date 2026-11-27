@@ -1,7 +1,6 @@
 import { TopTableScrollbar } from "@/shared/ui/admin/TopTableScrollbar";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, RotateCcw, XCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -445,6 +444,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </AdminDialog>
     <AdminDialog
       open={Boolean(confirmationAction)}
+      disableAnimation
       onClose={closeAction}
       title={confirmationAction ? ACTION_TITLES[confirmationAction] : "Confirmar ação"}
       description={confirmationAction==="submit"
@@ -473,39 +473,31 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           </>}
       </div>}>
       <div className="min-h-[126px] space-y-4">
-        <AnimatePresence mode="wait">
           {busy
-            ? <motion.div key="processing"
-                initial={{opacity:0,y:7}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-7}}
+            ? <div key="processing"
                 className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
                 <div className="flex items-center justify-center text-primary" role="status" aria-label="Processando solicitação">
                   <LoadingSpinner size="md" />
                 </div>
                 {busy && <p className="text-sm font-medium text-muted-foreground">Processando orçamento...</p>}
-              </motion.div>
+              </div>
             : modalFeedback
-              ? <motion.div
+              ? <div
                   key={modalFeedback.type}
-                  initial={{opacity:0,y:12,scale:0.95}}
-                  animate={{opacity:1,y:0,scale:1}}
-                  exit={{opacity:0,y:-8,scale:0.98}}
-                  transition={{type:"spring",stiffness:360,damping:25}}
                   role={modalFeedback.type==="error"?"alert":"status"}
                   className="flex min-h-32 flex-col items-center justify-center gap-3 text-center">
-                  <motion.div initial={{scale:0.4,rotate:-18}} animate={{scale:1,rotate:0}}
-                    transition={{type:"spring",stiffness:280,damping:17}}
+                  <div
                     className={`flex h-14 w-14 items-center justify-center rounded-full border ${modalFeedback.type==="success"
                       ?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       :"border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
                     {modalFeedback.type==="success"?<CheckCircle2 size={29}/>:<AlertCircle size={29}/>}
-                  </motion.div>
+                  </div>
                   <strong className="text-base font-bold text-foreground">
                     {modalFeedback.type==="success"?"Operação realizada com sucesso":"Não foi possível concluir"}
                   </strong>
                   <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{modalFeedback.message}</p>
-                </motion.div>
-              : <motion.div key="confirm"
-                  initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}}
+                </div>
+              : <div key="confirm"
                   className="space-y-3">
                   <p className="text-sm text-foreground">
                     {confirmationAction==="submit" ? "Deseja enviar este orçamento para aprovação?"
@@ -552,8 +544,8 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                         </div>
                         <button id="reject-start-return" type="button" role="switch" aria-checked={startReturnOnReject} aria-label="Iniciar devolução sem reparo" disabled={busy}
                           onClick={()=>setStartReturnOnReject(value=>!value)}
-                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${startReturnOnReject?"bg-primary":"bg-muted-foreground/35"}`}>
-                          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none ${startReturnOnReject?"translate-x-5":"translate-x-0"}`}/>
+                          className={`relative h-6 w-11 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${startReturnOnReject?"bg-primary":"bg-muted-foreground/35"}`}>
+                          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm ${startReturnOnReject?"translate-x-5":"translate-x-0"}`}/>
                         </button>
                       </div>
                       {startReturnOnReject&&<div className="space-y-1 rounded-lg bg-muted/40 p-3">
@@ -597,8 +589,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                           ? "A justificativa ficará no histórico e a nova versão deverá ser encaminhada para aprovação."
                           : "A proposta anterior será preservada no histórico de renegociações."}
                   </p>}
-                </motion.div>}
-        </AnimatePresence>
+                </div>}
       </div>
     </AdminDialog>
   </>;

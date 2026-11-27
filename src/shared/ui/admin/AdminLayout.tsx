@@ -321,6 +321,7 @@ export function AdminDialog({
   preparing = false,
   preparingKey,
   transitionKey,
+  disableAnimation = false,
   preparingText = "Preparando informações...",
   preparingError,
   onRetryPreparing,
@@ -357,6 +358,8 @@ export function AdminDialog({
   preparingKey?: string | number | null;
   /** Identifica uma etapa interna: anima o mesmo modal quando o conteúdo muda. */
   transitionKey?: string | number | null;
+  /** Remove animação de abertura e transições de tamanho apenas nesta janela. */
+  disableAnimation?: boolean;
   preparingText?: string;
   preparingError?: string | null;
   onRetryPreparing?: () => void;
@@ -503,7 +506,7 @@ export function AdminDialog({
   // real; quando os dados ficam prontos, anima até o tamanho final do conteúdo.
   React.useLayoutEffect(() => {
     const node = contentRef.current;
-    if (!open || !node) {
+    if (disableAnimation || !open || !node) {
       resizeAnimationRef.current?.cancel();
       resizeAnimationRef.current = null;
       preparedSizeRef.current = null;
@@ -527,13 +530,13 @@ export function AdminDialog({
       { width: `${before.width}px`, height: `${before.height}px` },
       { width: `${after.width}px`, height: `${after.height}px` },
     ], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
-  }, [open, showPreparation, preparingKey]);
+  }, [open, showPreparation, preparingKey, disableAnimation]);
 
   // Etapas do mesmo modal (formulário, confirmação, QR etc.) não remontam o
   // Dialog. Interpolamos o tamanho real da mesma janela, sem outro overlay.
   React.useLayoutEffect(() => {
     const node=contentRef.current;
-    if (!open || !node || showPreparation) {
+    if (disableAnimation || !open || !node || showPreparation) {
       previousPanelSizeRef.current=null;
       return;
     }
@@ -550,7 +553,7 @@ export function AdminDialog({
       ],{duration:260,easing:"cubic-bezier(0.22, 1, 0.36, 1)"});
     }
     previousPanelSizeRef.current={key:transitionKey,width:bounds.width,height:bounds.height};
-  },[open,showPreparation,transitionKey]);
+  },[open,showPreparation,transitionKey,disableAnimation]);
 
   // Cacheia o tamanho real após consultas e carregamentos internos. Assim a
   // próxima etapa anima a partir da medida atual, e não do skeleton inicial.
@@ -605,7 +608,7 @@ export function AdminDialog({
       minimizable={minimizable}
       minimizedTitle={minimizedTitle}
       minimizedDescription={effectiveMinimizedDescription}
-      overlayClassName="admin-dialog-overlay"
+      overlayClassName={disableAnimation ? "admin-dialog-overlay admin-dialog-no-animation" : "admin-dialog-overlay"}
       onPointerDownOutside={preventAdminDialogOutsideInteraction}
       onInteractOutside={preventAdminDialogOutsideInteraction}
       data-admin-dialog-content="true"
@@ -621,6 +624,7 @@ export function AdminDialog({
       className={cn(
         "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
         showPreparation ? "w-[min(32rem,calc(100vw-1.5rem))] max-w-xl" : className,
+        disableAnimation && "admin-dialog-no-animation",
       )}
     >
       {hideHeader
