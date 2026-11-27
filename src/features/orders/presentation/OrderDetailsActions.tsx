@@ -4,7 +4,7 @@ import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, PackageCheck, PackagePlus, Pencil, Recycle, Wrench, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
-import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
+import { isAwaitingUnrepairedReturn, type OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
 import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -49,15 +49,16 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const cancelled = cancelledLocally || Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
   const returnAwaitingDiagnosis = Boolean(detail.return_root_id && detail.return_classification === "analysis");
   const isDisposal = detail.service_type?.is_disposal === true;
-  const canChangeSituation = !quoteMode && !returnAwaitingDiagnosis && hasPermission("orders.situation.change") && !isOrderSituationLocked(detail);
+  const awaitingReturn = isAwaitingUnrepairedReturn(detail);
+  const canChangeSituation = !awaitingReturn && !quoteMode && !returnAwaitingDiagnosis && hasPermission("orders.situation.change") && !isOrderSituationLocked(detail);
   const canEdit = hasPermission("orders.edit");
-  const canRequestParts = !isDisposal && !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
-  const canResolve = !isDisposal && !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
+  const canRequestParts = !awaitingReturn && !isDisposal && !quoteMode && !returnAwaitingDiagnosis && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
+  const canResolve = !awaitingReturn && !isDisposal && !quoteMode && quoteExecutionAllowed && !returnAwaitingDiagnosis && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
-  const canComplete = !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
+  const canComplete = !awaitingReturn && !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
   const canTerminalExit = hasPermission("orders.complete") && !detail.completed_at && !cancelled;
-  const canEditOrder = !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
-  const canCancel = !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
+  const canEditOrder = !awaitingReturn && !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
+  const canCancel = !awaitingReturn && !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
 
   const confirmCancellation = async (reason: string) => {
@@ -95,7 +96,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canRequestParts && <AdminButton variant="tertiary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
           {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
-          {canTerminalExit && <DropdownMenu modal={false}>
+          {canTerminalExit && awaitingReturn && <BtnPrimary onClick={()=>onTerminalExit("returned_unrepaired")} className="h-10 px-3 text-xs sm:text-sm"><PackageCheck size={16}/> Confirmar devolução</BtnPrimary>}
+          {canTerminalExit && !awaitingReturn && <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               {/* O Radix precisa da referência do elemento DOM para posicionar e abrir o menu.
                   AdminButton é um componente funcional sem forwardRef no React 18. */}
@@ -113,7 +115,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
                 // Radix precisa concluir o fechamento do menu antes de abrir outro diálogo.
                 window.requestAnimationFrame(()=>onTerminalExit("returned_unrepaired"));
               }} className="flex items-center gap-2">
-                <PackageCheck size={15}/> Devolvido sem reparo
+                <PackageCheck size={15}/> Iniciar devolução sem reparo
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={()=>{
                 window.requestAnimationFrame(()=>onTerminalExit("disposal_confirmed"));
