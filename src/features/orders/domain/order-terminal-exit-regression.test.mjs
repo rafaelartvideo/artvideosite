@@ -173,3 +173,19 @@ test("segunda etapa tem dados do cliente, progresso real e anexo automático",as
   assert.match(dialog,/variant="danger"[^>]*onClick=\{\(\)=>setCancelConfirm\(true\)\}/);
   assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code.length>100);
 });
+
+test("início da devolução atualiza rodapé sem recarregar página e protege cache contra leitura antiga",async()=>{
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const details=read("src/features/orders/application/useOrderDetails.ts");
+  const modal=read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  assert.match(modal,/await onReturnChanged\?\.\(saved\)/);
+  assert.match(modal,/await onReturnChanged\?\.\(null,attempt.prior_situation_id\)/);
+  assert.match(page,/await details.syncConfirmedOrderPatch\(detail.id/);
+  assert.match(details,/setDetail\(apply\)/);
+  assert.match(details,/setSelectedOrder\(apply\)/);
+  assert.match(details,/cancelQueries\(\{ queryKey: key, exact: true \}/);
+  assert.match(details,/currentOrder: \{ \.\.\.current.currentOrder, \.\.\.patch \}/);
+  assert.match(details,/void detailQuery.refetch\(\)/);
+  for(const [name,source,loader] of [["page",page,"tsx"],["details",details,"ts"],["modal",modal,"tsx"]])
+    assert.ok((await transformWithEsbuild(source,name+"."+loader,{loader})).code.length>100);
+});
