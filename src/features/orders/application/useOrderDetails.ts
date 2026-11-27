@@ -145,6 +145,25 @@ export function useOrderDetails({
     if (loadPartRequestsEnabled) void loadPartRequests(selectedOrder.id);
   }, [detailQuery.data, selectedOrderBelongsToOrganization, loadPartRequestsEnabled, loadPartRequests]);
 
+  // A alteração já confirmada pelo servidor precisa chegar tanto à tela quanto
+  // ao workspace em cache; uma leitura iniciada antes dela não pode sobrescrevê-la.
+  const syncConfirmedOrderPatch = async (orderId: string, patch: Record<string, unknown>) => {
+    if (!organizationId || selectedOrder?.id !== orderId || !selectedOrderBelongsToOrganization) return;
+    const key = [...queryKeys.orders.detail(orderId), organizationId];
+    const apply = (current: any) => current?.id === orderId && current.organization_id === organizationId
+      ? { ...current, ...patch } : current;
+    setDetail(apply);
+    setSelectedOrder(apply);
+    await queryClient.cancelQueries({ queryKey: key, exact: true }, { revert: false });
+    queryClient.setQueryData<typeof detailQuery.data>(key, current => current
+      ? { ...current, currentOrder: { ...current.currentOrder, ...patch } } : current);
+    setDetail(apply);
+    // Marca os outros consumidores como desatualizados; a consulta abaixo é
+    // a única reconciliação imediata do workspace desta OS.
+    await queryClient.invalidateQueries({ queryKey: queryKeys.orders.all, refetchType: "none" });
+    void detailQuery.refetch();
+  };
+
   const openDetail = (order: any) => {
     if (!organizationId || order?.organization_id !== organizationId) return;
     setHydratedOrderId(null);
@@ -177,6 +196,7 @@ export function useOrderDetails({
     organizationId,
     detail,
     setDetail,
+    syncConfirmedOrderPatch,
     // Usado pelo fluxo Concluir da lista: espera o workspace completo, não só o preview da linha.
     detailReady: selectedOrderBelongsToOrganization && hydratedOrderId === selectedOrder?.id && detailQuery.isSuccess && !detailQuery.isFetching && Boolean(detailQuery.data),
     // Permanece pronto durante refetch em segundo plano; evita remontar a tela e piscar o skeleton.
