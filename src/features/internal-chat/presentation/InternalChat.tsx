@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChatAttachment, loadChatAttachment } from "./ChatAttachment";
 import { ChatOrderPicker } from "./ChatOrderPicker";
 import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
@@ -7,13 +7,13 @@ import { ChatRoleSettings } from "./ChatRoleSettings";
 import { useChatDock } from "./useChatDock";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Check, CheckCheck, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck, Smile, ClipboardList, GripHorizontal } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Check, CheckCheck, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck, Smile, ClipboardList, ArrowDown, Clock, AlertCircle, GripHorizontal } from "lucide-react";
 import { PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT } from "@/lib/platform-identifiers";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
 import { CHAT_PBX_PREFILL, CHAT_PBX_STATE, getChatPbxBusy } from "../application/pbx-chat-bridge";
-import { defaultChatSettings, readSession, writeSession, sendPendingText, notifyOnce, pruneNotices, compressChatImage, type ChatSettings, type PendingText } from "../application/chat-reliability";
+import { defaultChatSettings, readSession, writeSession, sendPendingText, transientChatError, notifyOnce, pruneNotices, compressChatImage, type ChatSettings, type PendingText } from "../application/chat-reliability";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 type Availability = "available"|"away"|"busy"|"dnd"|"on-call";
 const availabilityLabels:Record<Availability,string>={available:"Disponível",away:"Ausente",busy:"Ocupado",dnd:"Não perturbe","on-call":"Em ligação"};
@@ -30,6 +30,19 @@ const allowedFileTypes=new Set(["image/jpeg","image/png","image/webp","image/gif
 type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; attachment_mime:string|null; mentions:string[]; reply_to:string|null; edited_at:string|null; deleted_at:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
 const fields = "id,sender_id,recipient_id,group_id,attachment_path,attachment_mime,mentions,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
 const pageSize = 30;
+const chatDayKey=(value:string|number|Date):string=>{
+ const d=value instanceof Date?value:new Date(value);
+ return Number.isFinite(d.getTime())?[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-"):"";
+};
+const chatDayLabel=(key:string,now=Date.now())=>{
+ if(!key)return "Data indisponível";
+ if(key===chatDayKey(now))return "Hoje";
+ const d=new Date(now);if(key===chatDayKey(new Date(d.getFullYear(),d.getMonth(),d.getDate()-1,12)))return "Ontem";
+ const [y,m,day]=key.split("-").map(Number);return new Date(y,m-1,day,12).toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"});
+};
+const chatClock=(value:string)=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const quoteSummary=(m:ChatRow|undefined)=>!m?"Mensagem anterior":m.deleted_at?"Mensagem excluída":m.attachment_path?(m.attachment_mime?.startsWith("image/")?"Imagem":m.attachment_mime?.startsWith("audio/")?"Áudio":m.body):m.kind==="call"?"Chamada interna":shareableRoute.test(m.body)?"Registro compartilhado":m.body.slice(0,180);
+const retryRead=(count:number,error:unknown)=>count<1&&transientChatError(error);
 const fadeText={maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"};
 const actionClass = "rounded-md border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 const callLabels = { coming:"Já estou indo", busy:"Estou ocupado", cancelled:"Cancelada" };
@@ -85,7 +98,6 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   const [stagedUrl,setStagedUrl]=useState<string|null>(null);
   useEffect(()=>{if(!stagedFile?.type.startsWith("image/")){setStagedUrl(null);return;}const url=URL.createObjectURL(stagedFile);setStagedUrl(url);return()=>URL.revokeObjectURL(url);},[stagedFile]);
   const [reply,setReply]=useState<ChatRow|null>(null);
-  const [editing,setEditing]=useState<ChatRow|null>(null);
   const [historySearch,setHistorySearch]=useState(false);
   const [historyTerm,setHistoryTerm]=useState("");
   const [results,setResults]=useState<ChatRow[]|null>(null);
@@ -93,6 +105,11 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   const [settingsDraft,setSettingsDraft]=useState<ChatSettings>(defaultChatSettings);
   const [pendingTexts,setPendingTexts]=useState<PendingText[]>(()=>readSession(storagePrefix+"pending",[]));
   const outboxRef=useRef(pendingTexts);
+  const [failedTokens,setFailedTokens]=useState<string[]>([]);
+  const followLatest=useRef(true);
+  const previousScroll=useRef<{height:number;top:number}|null>(null);
+  const [awayFromLatest,setAwayFromLatest]=useState(false);
+  const contentRef=useRef<HTMLDivElement>(null);
   const deliveryLock=useRef(false);
   const sessionAlive=useRef(true);
   const [preview,setPreview]=useState<{url:string;mime:string;name:string}|null>(null);
@@ -121,7 +138,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
     sessionAlive.current=true;pruneNotices(storagePrefix+"notice:");
     return()=>{sessionAlive.current=false;cancelRecording.current=true;if(recordTimer.current)clearTimeout(recordTimer.current);if(recorderRef.current?.state==="recording")recorderRef.current.stop();recordStream.current?.getTracks().forEach(t=>t.stop());if(previewRef.current)URL.revokeObjectURL(previewRef.current);};
   },[storagePrefix]);
-  useEffect(()=>{setDraft(draftTarget?readSession(storagePrefix+"draft:"+draftTarget,""):"");setReply(null);setEditing(null);setHistorySearch(false);setHistoryTerm("");setResults(null);},[draftTarget,storagePrefix]);
+  useEffect(()=>{setDraft(draftTarget?readSession(storagePrefix+"draft:"+draftTarget,""):"");setReply(null);setHistorySearch(false);setHistoryTerm("");setResults(null);},[draftTarget,storagePrefix]);
 
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
@@ -234,11 +251,31 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
     query=group?query.eq("group_id",group):query.is("group_id",null).or(`and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})`);
     const {data,error}=await query.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(pageSize);
     if(error) throw error; return data as ChatRow[];
-  },staleTime:Infinity,retry:false});
+  },staleTime:Infinity,retry:retryRead,retryDelay:650});
   const rows=useMemo(()=>Array.from(new Map([...older,...(thread.data??[])].map(m=>[m.id,m])).values())
     .sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)),[older,thread.data]);
   const latestId=thread.data?.[0]?.id;
-  useEffect(()=>{if(open&&expanded&&historyRef.current)historyRef.current.scrollTop=historyRef.current.scrollHeight;},[open,expanded,target,latestId]);
+  function scrollToLatest(){const el=historyRef.current;if(el){el.scrollTop=el.scrollHeight;followLatest.current=true;setAwayFromLatest(false);}}
+  useLayoutEffect(()=>{followLatest.current=true;previousScroll.current=null;setAwayFromLatest(false);if(open&&expanded)scrollToLatest();},[open,expanded,target,settingsOpen,metricsOpen]);
+  useLayoutEffect(()=>{
+    const el=historyRef.current;if(!el||!open||!expanded)return;
+    if(previousScroll.current){const saved=previousScroll.current;previousScroll.current=null;el.scrollTop=saved.top+Math.max(0,el.scrollHeight-saved.height);return;}
+    if(!results&&followLatest.current)scrollToLatest();
+  },[latestId,older,pendingTexts,open,expanded,results,target]);
+  useEffect(()=>{
+    if(!open||!expanded||!contentRef.current||typeof ResizeObserver==="undefined")return;
+    const observer=new ResizeObserver(()=>{if(followLatest.current&&!results)scrollToLatest();});observer.observe(contentRef.current);return()=>observer.disconnect();
+  },[open,expanded,target,results,settingsOpen,metricsOpen]);
+  function onHistoryScroll(){const el=historyRef.current;if(!el)return;const near=el.scrollHeight-el.scrollTop-el.clientHeight<72;followLatest.current=near;setAwayFromLatest(!near);}
+  const missingReplyIds=useMemo(()=>Array.from(new Set((results??rows).map(m=>m.reply_to).filter((id):id is string=>!!id&&!rows.some(m=>m.id===id)))).slice(0,60),[rows,results]);
+  const quotedMessages=useQuery({queryKey:[...key,"quotes",target,missingReplyIds],enabled:open&&expanded&&!!target&&missingReplyIds.length>0,queryFn:async()=>{
+    let q=supabase.from("internal_chat_messages").select(fields).eq("organization_id",org).in("id",missingReplyIds);
+    q=group?q.eq("group_id",group):q.is("group_id",null).or(`and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})`);
+    const {data,error}=await q;if(error)throw error;return (data??[]) as ChatRow[];
+  },staleTime:60000,retry:retryRead,retryDelay:650});
+  const quotedMessage=(id:string|null)=>id?(rows.find(m=>m.id===id)??quotedMessages.data?.find(m=>m.id===id)):undefined;
+  function jumpToQuote(id:string){const el=historyRef.current?.querySelector<HTMLElement>('[data-chat-message-id="'+id+'"]');if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.animate([{outline:"2px solid var(--primary)"},{outline:"2px solid transparent"}],{duration:1200});}}
+
   useEffect(()=>{
     setAnchors(["internal-chat-desktop","internal-chat-mobile"].map(id=>document.getElementById(id)).filter((v):v is HTMLElement=>!!v));
   },[]);
@@ -372,13 +409,19 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
     if(deliveryLock.current||!navigator.onLine||!sessionAlive.current)return;
     deliveryLock.current=true;
     try{
-      for(const item of [...outboxRef.current]){
-        if(!sessionAlive.current)break;
+      // Drain the live queue, including messages added during an in-flight send.
+      while(outboxRef.current.length&&sessionAlive.current){
+        const item=outboxRef.current[0];
+        setFailedTokens(old=>old.filter(t=>t!==item.token));
         try{
-          await sendPendingText(org,uid,item);
+          const confirmed=await sendPendingText<ChatRow>(org,uid,item,fields);
+          if(!sessionAlive.current)break;
+          const threadKey=[...key,"thread",item.group??item.peer];
+          qc.setQueryData<ChatRow[]>(threadKey,old=>[confirmed,...(old??[]).filter(m=>m.id!==confirmed.id)].sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id)).slice(0,pageSize));
           saveOutbox(outboxRef.current.filter(x=>x.token!==item.token));
-          if(sessionAlive.current)void qc.invalidateQueries({queryKey:[...key,"thread",item.group??item.peer]});
-        }catch{if(sessionAlive.current)setError("Mensagem não enviada. Será tentada novamente ao reconectar ou ao clicar em tentar novamente.");break;}
+          void qc.invalidateQueries({queryKey:threadKey});
+          void qc.invalidateQueries({queryKey:[...key,"recent"]});
+        }catch(e){if(sessionAlive.current&&navigator.onLine){setFailedTokens(old=>[...new Set([...old,item.token])]);console.warn("Internal chat send failed",(e as {code?:string})?.code??"network");}break;}
       }
     }finally{deliveryLock.current=false;}
   }
@@ -391,9 +434,8 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
     if(!target||busy||recording||!config.enabled||(kind==="call"&&(!peer||group||!config.calls_enabled))||(kind==="text"&&!(shared??draft).trim()))return;
     setError("");
     if(kind==="text"){
-      if(editing&&!shared){await editMessage(editing);return;}
       if(outboxRef.current.length>=30){setError("Há muitas mensagens aguardando envio. Tente novamente primeiro.");return;}
-      saveOutbox([...outboxRef.current,{token:crypto.randomUUID(),peer,group,body:(shared??draft).trim(),reply:reply?.id??null,mentions:group&&!shared?employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&draft.includes("@"+e.full_name+" ")).slice(0,20).map(e=>e.user_id):[]}]);
+      followLatest.current=true;saveOutbox([...outboxRef.current,{token:crypto.randomUUID(),peer,group,body:(shared??draft).trim(),reply:reply?.id??null,mentions:group&&!shared?employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&draft.includes("@"+e.full_name+" ")).slice(0,20).map(e=>e.user_id):[]}]);
       if(!shared)saveDraft("");setReply(null);void flushOutbox();return;
     }
     setBusy(true);
@@ -403,16 +445,6 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
       void qc.invalidateQueries({queryKey:[...key,"thread",target]});void qc.invalidateQueries({queryKey:[...key,"outgoing"]});
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível chamar. Tente novamente.");}
     finally{setBusy(false);}
-  }
-  async function editMessage(message:ChatRow){
-    if(busy)return;
-    setBusy(true);setError("");
-    try{
-      const {error}=await supabase.rpc("internal_chat_edit_v1",{p_org:org,p_id:message.id,p_body:draft,p_delete:false});
-      if(error)throw error;
-      setOlder(old=>old.map(m=>m.id===message.id?{...m,body:draft.trim(),edited_at:new Date().toISOString()}:m));
-      setEditing(null);saveDraft("");setResults(null);void qc.invalidateQueries({queryKey:[...key,"thread",target]});
-    }catch{setError("Não foi possível alterar a mensagem.");}finally{setBusy(false);}
   }
   async function changePreference(field:"pinned"|"muted"){
     if(!target||busy)return;const type=group?"group":"direct";const current=pref(target,type);
@@ -473,7 +505,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   }
   async function loadOlder(){
     if(!target||busy||!rows.length)return;
-    const first=rows[0];setBusy(true);
+    const first=rows[0];setBusy(true);setError("");
     try{
       let query=supabase.from("internal_chat_messages").select(fields).eq("organization_id",org);
       const cursor=`or(created_at.lt.${first.created_at},and(created_at.eq.${first.created_at},id.lt.${first.id}))`;
@@ -481,6 +513,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
         query.is("group_id",null).or(`and(or(and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})),${cursor})`);
       const {data,error}=await query.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(pageSize);
       if(error)throw error;
+      const el=historyRef.current;if(el)previousScroll.current={height:el.scrollHeight,top:el.scrollTop};followLatest.current=false;
       setOlder(previous=>[...previous,...(data as ChatRow[])]);setMore((data?.length??0)===pageSize);
     }catch{setError("Não foi possível carregar mensagens anteriores.");}
     finally{setBusy(false);}
@@ -488,7 +521,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   const avatar=(id:string)=><span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{name(id).split(/\\s+/).slice(0,2).map(n=>n[0]).join("").toUpperCase()}<span title={statusLabel(id)} className={"absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card "+statusColor(id)}/></span>;
   useEffect(()=>{if(!open||!expanded||target||settingsOpen||metricsOpen||groupEdit)setAvailabilityMenu(false);},[open,expanded,target,settingsOpen,metricsOpen,groupEdit]);
   const currentPref=target?pref(target,group?"group":"direct"):undefined;
-  const visibleRows=results??rows;
+  const visibleRows=results?[...results].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)):rows;
   const miniUnread=Math.max(totalUnread,calls.length);
   const localStatus=connected?availabilityLabels[advertised]:"Reconectando";
   const localStatusColor=connected?availabilityColors[advertised]:"bg-muted-foreground/60";
@@ -555,7 +588,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {directory.isPending&&<div className="flex min-h-48 flex-col items-center justify-center gap-2 text-xs text-muted-foreground" role="status"><Loader2 size={23} className="animate-spin text-primary"/>Carregando funcionários…</div>}
-          {directory.isError&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
+          {directory.isLoadingError&&!directory.isFetching&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
           {((preferences.data??[]).some(p=>p.pinned&&(p.target_type==="direct"?employees.some(e=>e.user_id===p.target_id&&matches(e.full_name,e.function_name,e.role_name)):(groups.data??[]).some(g=>g.id===p.target_id&&matches(g.name)))))&&<p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">Fixados</p>}
           {employees.filter(e=>pref(e.user_id,"direct")?.pinned&&matches(e.full_name,e.function_name,e.role_name)).map(e=><button type="button" key={"pin-"+e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted">{avatar(e.user_id)}<span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{e.full_name}</span><span title={[e.function_name&&"Função: "+e.function_name,e.role_name&&"Perfil: "+e.role_name].filter(Boolean).join(" · ")} className="block truncate text-[11px] text-muted-foreground">{employeeDetails(e.user_id)||statusLabel(e.user_id)}</span></span>{Number(recent.data?.find(c=>c.peer_id===e.user_id)?.unread??0)>0&&<span className="rounded-full bg-primary px-1.5 text-xs text-white">{recent.data?.find(c=>c.peer_id===e.user_id)?.unread}</span>}<Pin size={13} className="text-muted-foreground"/></button>)}
           {(groups.data??[]).filter(g=>pref(g.id,"group")?.pinned&&matches(g.name)).map(g=><button type="button" key={"pin-"+g.id} onClick={()=>selectGroup(g.id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs hover:bg-muted"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted"><Users size={16}/></span><span className="flex-1 truncate font-semibold">{g.name}</span>{Number(g.unread)>0&&<span className="rounded-full bg-primary px-1.5 text-xs text-white">{g.unread}</span>}<Pin size={13}/></button>)}
@@ -570,27 +603,30 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
           <div className="flex shrink-0 items-center gap-1 border-b border-border bg-card px-2 py-1"><button type="button" className={iconButton+" border "+(currentPref?.pinned?"border-primary/30 bg-primary/10 text-primary":"border-transparent")} title={currentPref?.pinned?"Desafixar conversa":"Fixar conversa"} aria-label={currentPref?.pinned?"Desafixar conversa":"Fixar conversa"} aria-pressed={!!currentPref?.pinned} onClick={()=>void changePreference("pinned")}><Pin size={16} className={currentPref?.pinned?"fill-current":""}/></button><button type="button" className={iconButton+" border "+(currentPref?.muted?"border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400":"border-transparent")} title={currentPref?.muted?"Reativar notificações":"Silenciar conversa"} aria-label={currentPref?.muted?"Reativar notificações":"Silenciar conversa"} aria-pressed={!!currentPref?.muted} onClick={()=>void changePreference("muted")}><BellOff size={16}/></button><button type="button" className={iconButton+" border "+(historySearch?"border-primary/30 bg-primary/10 text-primary":"border-transparent")} title="Buscar mensagens" aria-label="Buscar mensagens" aria-pressed={historySearch} onClick={()=>{setHistorySearch(!historySearch);setResults(null);}}><Search size={16}/></button></div>
           {historySearch&&<form onSubmit={e=>{e.preventDefault();void searchHistory();}} className="flex gap-1 p-2"><input maxLength={100} value={historyTerm} onChange={e=>setHistoryTerm(e.target.value)} placeholder="Buscar no histórico" className="min-w-0 flex-1 border rounded bg-card p-1 text-xs"/><button className={actionClass} disabled={busy}>Buscar</button></form>}
           {outgoingCall&&<div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs"><BellRing size={14}/><span className="flex-1">Chamando · aguardando resposta</span><button disabled={busy} className="underline" onClick={()=>void respond(outgoingCall,"cancelled")}>Cancelar</button></div>}
-          <div ref={historyRef} className="min-h-0 min-w-0 flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-2 py-2 [scrollbar-gutter:stable]" style={{backgroundImage:"url('/assets/crm/whatsapp-chat-pattern.svg')",backgroundRepeat:"repeat",backgroundSize:"270px 270px",overflowAnchor:"none"}}>
-            {thread.isPending&&<div role="status" className="flex min-h-32 items-center justify-center"><Loader2 size={22} className="animate-spin text-primary"/></div>}
-            {thread.isError&&<button className={actionClass} onClick={()=>void thread.refetch()}>Tentar novamente</button>}
+          <div ref={historyRef} onScroll={onHistoryScroll} className="min-h-0 min-w-0 flex-1 space-y-1.5 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-2 py-2 [scrollbar-gutter:stable]" style={{backgroundImage:"url('/assets/crm/whatsapp-chat-pattern.svg')",backgroundRepeat:"repeat",backgroundSize:"270px 270px",overflowAnchor:"none"}}>
+            <div ref={contentRef} className="min-w-0 space-y-1.5">
+            {thread.isPending&&!thread.data&&<div role="status" className="flex min-h-32 items-center justify-center"><Loader2 size={22} className="animate-spin text-primary"/></div>}
+            {thread.isLoadingError&&!thread.isFetching&&<button className={actionClass} onClick={()=>void thread.refetch()}>Tentar novamente</button>}
             {more&&(thread.data?.length??0)>=pageSize&&<button className={actionClass} disabled={busy} onClick={()=>void loadOlder()}>Mensagens anteriores</button>}
             {results&&<p className="text-xs text-muted-foreground">{results.length} resultados</p>}
-            {visibleRows.map(m=><div key={m.id} className={"min-w-0 w-fit max-w-[88%] overflow-hidden rounded-lg border border-border/50 px-2 py-1.5 text-xs shadow-sm [overflow-wrap:anywhere] "+(m.sender_id===uid?"ml-auto bg-primary/10 dark:bg-primary/20":"bg-card")}>
+            {visibleRows.map((m,index)=><Fragment key={m.id}>{(index===0||chatDayKey(visibleRows[index-1].created_at)!==chatDayKey(m.created_at))&&<div className="flex justify-center py-1"><span className="rounded-md border border-border bg-card/95 px-2 py-1 text-[10px] font-semibold text-muted-foreground shadow-sm">{chatDayLabel(chatDayKey(m.created_at))}</span></div>}<div data-chat-message-id={m.id} className={"min-w-0 w-fit max-w-[88%] overflow-hidden rounded-lg border border-border/50 px-2 py-1.5 text-xs shadow-sm [overflow-wrap:anywhere] "+(m.sender_id===uid?"ml-auto bg-primary/10 dark:bg-primary/20":"bg-card")}>
               {group&&m.sender_id!==uid&&<p className="text-xs font-semibold text-primary">{name(m.sender_id)}</p>}
               {m.mentions?.includes(uid)&&!m.deleted_at&&<p className="mb-1 text-xs font-semibold text-primary">Mencionou você</p>}
-              {m.reply_to&&<p className="mb-1 border-l-2 border-primary pl-2 text-xs text-muted-foreground truncate">{rows.find(x=>x.id===m.reply_to)?.body??"Mensagem anterior"}</p>}
+              {m.reply_to&&<button type="button" title="Ir para mensagem original" disabled={!rows.some(x=>x.id===m.reply_to)} onClick={()=>jumpToQuote(m.reply_to!)} className="mb-1 flex w-full min-w-0 flex-col gap-0.5 rounded-md border-l-[3px] border-primary bg-background/60 px-2 py-1.5 text-left"><span className="truncate text-[10px] font-bold text-primary">{quotedMessage(m.reply_to)?.sender_id===uid?"Você":quotedMessage(m.reply_to)?name(quotedMessage(m.reply_to)!.sender_id):"Mensagem original"}</span><span className="max-w-full truncate text-xs text-foreground/80">{quoteSummary(quotedMessage(m.reply_to))}</span></button>}
               {m.deleted_at?<p className="italic text-muted-foreground">Mensagem excluída</p>:m.attachment_path?<ChatAttachment key={m.id+":"+m.attachment_path} org={org} uid={uid} message={m} onPreview={(_url,mime,name)=>void openChatImage(mime,name,m.attachment_path)} onDownload={()=>void downloadFile(m)}/>:m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex max-w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-2 text-left font-semibold text-primary hover:bg-muted" disabled={m.body.includes("/orders/")&&!canShareOrders} onClick={()=>navigate(m.body)}>{m.body.includes("/orders/")?<ClipboardList size={17} className="shrink-0"/>:<Link2 size={15} className="shrink-0"/>}Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
                 {!m.response&&m.sender_id===uid&&<button disabled={busy} className="mt-1 text-xs underline" onClick={()=>void respond(m,"cancelled")}>Cancelar chamada</button>}
               </>}
               <div className="mt-1 flex min-w-0 flex-wrap items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                {!m.deleted_at&&m.kind==="text"&&<><button type="button" title="Responder" aria-label="Responder" className="rounded p-0.5 hover:bg-muted" onClick={()=>{setEditing(null);setReply(m);}}><Reply size={12}/></button>{m.sender_id===uid&&!m.attachment_path&&<button type="button" title="Editar" aria-label="Editar" className="rounded p-0.5 hover:bg-muted" onClick={()=>{setReply(null);setEditing(m);saveDraft(m.body);}}><Pencil size={12}/></button>}</>}
-                <span>{m.edited_at&&!m.deleted_at?"Editada · ":""}{new Date(m.created_at).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+                {!m.deleted_at&&m.kind==="text"&&<button type="button" title="Responder mensagem" aria-label="Responder mensagem" className="mr-1 inline-flex min-h-6 items-center gap-1 rounded px-0.5 text-[10px] font-semibold text-primary hover:underline" onClick={()=>{setReply(m);composerRef.current?.focus();}}><Reply size={12}/>Responder</button>}
+                <span>{m.edited_at&&!m.deleted_at?"Editada · ":""}{chatClock(m.created_at)}</span>
                 {m.sender_id===uid&&!group&&(m.read_at?<CheckCheck size={13} className="shrink-0 text-sky-600 dark:text-sky-400" aria-label="Visualizada"/>:<Check size={13} className="shrink-0" aria-label="Enviada"/>)}
               </div>
-            </div>)}
+            </div></Fragment>)}
+            {!results&&pendingTexts.filter(x=>(x.group??x.peer)===target).map(x=><div key={x.token} className="ml-auto w-fit max-w-[88%] rounded-lg border border-border/50 bg-primary/10 px-2 py-1.5 text-xs [overflow-wrap:anywhere]"><p className="whitespace-pre-wrap">{x.body}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">{failedTokens.includes(x.token)?<><AlertCircle size={12} className="text-destructive"/><button type="button" className="text-destructive underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button type="button" className="underline" onClick={()=>{if(!deliveryLock.current){saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));setFailedTokens(old=>old.filter(t=>t!==x.token));void flushOutbox();}}}>Descartar</button></>:<><Clock size={12}/>Aguardando envio</>}</div></div>)}
+            </div>
           </div>
-          {pendingTexts.filter(x=>(x.group??x.peer)===target).map(x=><div key={x.token} className="border-t border-border p-2 text-xs"><span className="text-muted-foreground">{x.body} · Aguardando envio</span><button className="ml-2 underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button className="ml-2 underline" onClick={()=>{if(!deliveryLock.current)saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));}}>Descartar</button></div>)}
-          {(reply||editing)&&<div className="flex items-center justify-between gap-2 border-t border-border p-2 text-xs"><span className="truncate">{editing?"Editando: ":"Respondendo: "}{(editing??reply)?.body}</span><button title="Cancelar" onClick={()=>{if(editing)saveDraft("");setEditing(null);setReply(null);}}><X size={14}/></button></div>}
+          {awayFromLatest&&!results&&<div className="relative h-0"><button type="button" title="Ir para mensagens recentes" className="absolute bottom-2 right-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-primary shadow-md" onClick={scrollToLatest}><ArrowDown size={17}/></button></div>}
+          {reply&&<div className="mx-2 my-1 flex items-center gap-2 rounded-lg border-l-[3px] border-primary bg-muted/50 px-3 py-2 text-xs"><Reply size={17} className="shrink-0 text-primary"/><div className="min-w-0 flex-1"><p className="font-bold text-primary">{reply.sender_id===uid?"Respondendo à sua mensagem":"Respondendo a "+name(reply.sender_id)}</p><p className="truncate text-muted-foreground">{quoteSummary(reply)}</p></div><button type="button" aria-label="Cancelar resposta" title="Cancelar resposta" className="rounded p-1 text-muted-foreground hover:bg-background" onClick={()=>setReply(null)}><X size={18}/></button></div>}
           {group&&draft.includes("@")&&!draft.endsWith(" ")&&<div className="max-h-20 overflow-auto px-2">{employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&e.full_name.toLowerCase().includes(draft.slice(draft.lastIndexOf("@")+1).toLowerCase())).slice(0,5).map(e=><button key={e.user_id} type="button" className="block text-xs p-1" onClick={()=>saveDraft(draft.slice(0,draft.lastIndexOf("@"))+"@"+e.full_name+" ")}>@{e.full_name}</button>)}</div>}
           {recording&&<div className="flex items-center justify-between border-t border-border p-2 text-xs text-red-500"><span>Gravando áudio · até 2 minutos</span><button className="underline" onClick={()=>{cancelRecording.current=true;recorderRef.current?.stop();}}>Cancelar gravação</button></div>}
           {stagedFile&&<div className="flex min-w-0 items-center gap-2 border-t border-border bg-card px-2 py-2">{stagedUrl?<img src={stagedUrl} alt="Prévia do anexo" className="h-12 w-12 shrink-0 rounded object-cover"/>:<Paperclip size={18}/>}<span className="min-w-0 flex-1 truncate text-xs" title={stagedFile.name}>{stagedFile.name}</span><button type="button" title="Remover anexo pendente" disabled={busy} className={iconButton} onClick={()=>setStagedFile(null)}><X size={16}/></button></div>}
@@ -599,9 +635,9 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
               {composerMenu==="emoji"?<div className="h-[min(320px,42dvh)]"><EmojiPicker embedded recentEmojis={recentEmojis} onSelect={emoji=>{const input=composerRef.current;const start=input?.selectionStart??draft.length,end=input?.selectionEnd??start;saveDraft((draft.slice(0,start)+emoji+draft.slice(end)).slice(0,4000));setRecentEmojis(old=>[emoji,...old.filter(x=>x!==emoji)].slice(0,16));setComposerMenu(null);requestAnimationFrame(()=>{input?.focus();input?.setSelectionRange(start+emoji.length,start+emoji.length);});}}/></div>:composerMenu==="orders"&&canShareOrders?<ChatOrderPicker org={org} onBack={()=>setComposerMenu("actions")} onSelect={path=>{setComposerMenu(null);void send("text",path);}}/>:<div className="space-y-1"><p className="px-2 py-1 text-xs font-semibold text-muted-foreground">Opções da conversa</p>{canShareOrders&&<button type="button" className="flex w-full items-center gap-2 rounded-md p-2 text-left text-xs hover:bg-muted" onClick={()=>setComposerMenu("orders")}><ClipboardList size={16}/>Enviar ordem de serviço</button>}{shareableRoute.test(location.pathname)&&(!location.pathname.startsWith("/admin/orders/")||canShareOrders)&&<button type="button" className="flex w-full items-center gap-2 rounded-md p-2 text-left text-xs hover:bg-muted" onClick={()=>{setComposerMenu(null);void send("text",location.pathname);}}><Link2 size={16}/>Compartilhar registro atual</button>}</div>}
             </div>}
             <div className="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
-              {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file){setComposerMenu(null);setStagedFile(file);}}}/><button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" className="flex h-9 w-8 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40" disabled={busy||recording||!!editing} onClick={()=>fileRef.current?.click()}><Paperclip size={17}/></button></>}
+              {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file){setComposerMenu(null);setStagedFile(file);}}}/><button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" className="flex h-9 w-8 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40" disabled={busy||recording} onClick={()=>fileRef.current?.click()}><Paperclip size={17}/></button></>}
               <button type="button" title="Emojis" aria-label="Emojis" aria-expanded={composerMenu==="emoji"} disabled={recording||!!stagedFile||!config.enabled} className={"flex h-9 w-8 shrink-0 items-center justify-center border-r border-border hover:bg-muted "+(composerMenu==="emoji"?"bg-primary/10 text-primary":"text-foreground")} onClick={()=>setComposerMenu(v=>v==="emoji"?null:"emoji")}><Smile size={17}/></button>
-              {(canShareOrders||(shareableRoute.test(location.pathname)&&!location.pathname.startsWith("/admin/orders/")))&&<button type="button" title="Mais opções" aria-label="Mais opções" aria-expanded={composerMenu==="actions"||composerMenu==="orders"} disabled={busy||recording||!!editing||!!stagedFile||!config.enabled} className={"flex h-9 w-7 shrink-0 items-center justify-center border-r border-border hover:bg-muted "+(composerMenu==="actions"||composerMenu==="orders"?"bg-primary/10 text-primary":"text-foreground")} onClick={()=>setComposerMenu(v=>v==="actions"||v==="orders"?null:"actions")}><ChevronUp size={17}/></button>}
+              {(canShareOrders||(shareableRoute.test(location.pathname)&&!location.pathname.startsWith("/admin/orders/")))&&<button type="button" title="Mais opções" aria-label="Mais opções" aria-expanded={composerMenu==="actions"||composerMenu==="orders"} disabled={busy||recording||!!stagedFile||!config.enabled} className={"flex h-9 w-7 shrink-0 items-center justify-center border-r border-border hover:bg-muted "+(composerMenu==="actions"||composerMenu==="orders"?"bg-primary/10 text-primary":"text-foreground")} onClick={()=>setComposerMenu(v=>v==="actions"||v==="orders"?null:"actions")}><ChevronUp size={17}/></button>}
               <input ref={composerRef} maxLength={4000} value={draft} disabled={!config.enabled||!!stagedFile} onChange={e=>saveDraft(e.target.value)} onFocus={()=>setComposerMenu(null)} placeholder={stagedFile?"Arquivo pronto":"Digite uma mensagem"} className="h-9 min-w-0 flex-1 bg-transparent px-2 text-xs outline-none"/>
               {!draft.trim()&&!stagedFile&&canAttach&&config.enabled&&config.audio_enabled&&config.attachments_enabled&&<button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"} title={recording?"Parar gravação":"Gravar áudio"} className={"flex h-9 w-8 shrink-0 items-center justify-center border-l border-border hover:bg-muted "+(recording?"text-red-600":"text-foreground")} onClick={()=>recording?recorderRef.current?.stop():void startRecording()}>{recording?<Square size={16}/>:<Mic size={17}/>}</button>}
               <button type="submit" disabled={busy||(!draft.trim()&&!stagedFile)||!config.enabled||recording} title="Enviar mensagem" aria-label="Enviar mensagem" className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary text-primary-foreground disabled:opacity-45"><Send size={16}/></button>
