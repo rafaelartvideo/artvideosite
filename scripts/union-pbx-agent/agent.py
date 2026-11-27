@@ -185,6 +185,11 @@ def universal_observe(org,snapshot=None):
     return observe(runtime_api(),org,snapshot)
 
 
+def universal_observe_operational(org,snapshot):
+    from universal_runtime_adapter import observe
+    return observe(runtime_api(),org,snapshot,operational=True)
+
+
 def universal_context_bindings(snapshot):
     from universal_runtime_adapter import context_bindings
     return context_bindings(runtime_api(),snapshot)

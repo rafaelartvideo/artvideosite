@@ -104,6 +104,22 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual((result['revision'],result['status']),(2,'applied'))
         self.assertNotIn('failure',load(self.agent))
         self.assertEqual(applied_state(self.agent)['revision'],2)
+    def test_operational_revision_never_reloads_native_sip(self):
+        init(self.agent,ORG);self.native();apply_snapshot(self.agent,self.snapshot(),ORG)
+        self.agent.universal_apply_bundle.reset_mock()
+        self.agent.universal_observe_operational=Mock(return_value=self.agent.universal_observe.return_value)
+        snap=self.snapshot(2)
+        snap['document']['groups'][0]['extension_ids'].append(uid(9))
+        snap['document']['groups'][0]['strategy']='round_robin'
+        snap['extensions'].append({'id':uid(9),'enabled':True})
+        result=apply_snapshot(self.agent,snap,ORG)
+        self.assertEqual(result['revision'],2)
+        self.agent.universal_apply_bundle.assert_not_called()
+        self.agent.universal_observe_operational.assert_called_once_with(ORG,snap)
+        changed=self.snapshot(3);changed['document']['capacity_pools'][0]['shared_limit']=3
+        apply_snapshot(self.agent,changed,ORG)
+        self.agent.universal_apply_bundle.assert_called_once()
+
     def test_busy_is_quiet_and_preserves_state(self):
         class Busy(Exception):pass
         init(self.agent,ORG);self.native();self.agent.Busy=Busy

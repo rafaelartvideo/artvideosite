@@ -408,6 +408,8 @@ def verify_empty(agent, org):
 
 def apply_bundle(agent, bundle, snapshot):
     org = snapshot['organization_id']; own(agent, org)
+    # Resolve owned destinations before altering admission state.
+    bindings=context_bindings(agent,snapshot) if snapshot['document']['routing_enabled'] else {}
     quota = ledger(agent); quota.block(org)
     sip, dial, manifest = paths(agent, org)
     if manifest.exists():
@@ -553,7 +555,7 @@ def prepared_ready(agent, org):
     return True
 
 
-def observe(agent, org, snapshot=None):
+def observe(agent, org, snapshot=None, *, operational=False):
     own(agent, org)
     if snapshot is None:
         snapshot = runtime.load(agent)['snapshot']
@@ -591,11 +593,11 @@ def observe(agent, org, snapshot=None):
         if not coverage:
             fail()
         quota.admit(org, snapshot['revision'], channels['boot'], snapshot['expires_at'],
-                    snapshot['document']['capacity_pools'], complete=True)
+                    snapshot['document']['capacity_pools'], complete=True, operational=operational)
     public = copy.deepcopy(snapshot); public.pop('credentials', None)
     value = {'snapshot': public, 'boot': channels['boot'], 'lease_until': snapshot['expires_at'],
              'ready': bool(enabled and ready), 'legacy_coverage': coverage,
-             'destinations': context_bindings(agent, snapshot) if enabled else {},
+             'destinations': bindings,
              'connections': {row['connection_id']: row for row in observations}}
     manifest_write(agent, org, value)
     reports = [{**row, 'checked_at': datetime.fromtimestamp(row['checked_at'], timezone.utc).isoformat()} for row in observations]

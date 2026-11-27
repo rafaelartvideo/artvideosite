@@ -78,6 +78,15 @@ class UniversalCapacityTests(unittest.TestCase):
         self.reserve('leg')
         with self.assertRaises(CapacityError): self.ledger.admit('org',2,'boot',200,[dict(self.pools[0],shared_limit=1)],complete=True)
 
+    def test_operational_revision_retains_active_legs_and_enforces_same_capacity(self):
+        self.reserve('leg');self.ledger.bind('org','leg','boot','unique-1')
+        self.ledger.admit('org',2,'boot',200,self.pools,complete=True,operational=True)
+        self.assertEqual(self.ledger.legs('org')[0]['token'],'leg')
+        with self.assertRaises(CapacityError):self.ledger.reserve('org',2,'boot','over','account','outbound',('company','account'),100)
+        with self.assertRaises(CapacityError):self.ledger.admit('org',3,'boot',200,[dict(self.pools[0],shared_limit=10)],complete=True,operational=True)
+        self.assertTrue(self.ledger.finish('org','leg','boot','unique-1'))
+        self.ledger.reserve('org',2,'boot','next','account','outbound',('company','account'),100)
+
     def test_round_robin_selection_and_capacity_are_one_transaction(self):
         pools=[dict(self.pools[0],shared_limit=10)]
         self.ledger.admit('org',2,'boot',200,pools,complete=True)

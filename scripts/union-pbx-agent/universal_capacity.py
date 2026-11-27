@@ -65,14 +65,16 @@ class Ledger:
             raise
         finally: db.close()
 
-    def admit(self,org,revision,boot,lease_until,pools,*,complete=False):
+    def admit(self,org,revision,boot,lease_until,pools,*,complete=False,operational=False):
         finite(lease_until)
         if not complete or type(revision) is not int or revision<1 or not boot: fail('reconciliation_required')
         raw=pools_json(pools)
         with self.transaction() as db:
             old=db.execute('SELECT * FROM universal_state WHERE org=?',(org,)).fetchone()
             if old and revision<old['revision']: fail('revision_stale')
-            if old and db.execute('SELECT 1 FROM universal_legs WHERE org=? LIMIT 1',(org,)).fetchone() and (old['pools']!=raw or old['revision']!=revision or old['boot']!=boot): fail('active_legs')
+            if old and db.execute('SELECT 1 FROM universal_legs WHERE org=? LIMIT 1',(org,)).fetchone():
+                if old['pools']!=raw or old['boot']!=boot or (old['revision']!=revision and not operational):fail('active_legs')
+            if operational and (not old or old['pools']!=raw or old['boot']!=boot):fail('operational_catalog_changed')
             db.execute('INSERT INTO universal_state VALUES (?,?,?,?,1,?) ON CONFLICT(org) DO UPDATE SET revision=excluded.revision,boot=excluded.boot,lease=excluded.lease,ready=1,pools=excluded.pools',(org,revision,boot,lease_until,raw))
 
     def block(self,org):

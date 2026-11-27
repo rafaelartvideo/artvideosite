@@ -50,7 +50,7 @@ def capability(agent,org):
         own(agent,org)
         if load(agent)['organization_id']!=org:return []
     except Exception:return []
-    return ['universal_telephony_v1']
+    return ['universal_telephony_v1']+(['universal_hot_groups_v1'] if callable(getattr(agent,'universal_observe_operational',None)) else [])
 def applied_state(agent):
     value=load(agent)
     return {'revision':value['revision'],'hash':value['hash']} if value['status']=='applied' else {'revision':0,'hash':None}
@@ -118,6 +118,23 @@ def envelope(snapshot,org):
         if type(snapshot[k]) not in (int,float):fail()
     if not now-100<=snapshot['issued_at']<=now+5 or not now<snapshot['expires_at']<=now+100 or not 0<snapshot['expires_at']-snapshot['issued_at']<=100:fail()
     if set(snapshot)==short and snapshot['unchanged'] is not True:fail()
+def operational_document(document):
+    # Only admission policy (membership, strategy and priority) may change.
+    value=json.loads(json.dumps(document))
+    for group in value['groups']:
+        group.pop('extension_ids')
+        group.pop('strategy')
+        for member in group['members']:member.pop('priority')
+    return value
+
+def is_operational_update(state,snapshot,compiled_hash):
+    old=state.get('snapshot')
+    return bool(old and state['status']=='applied' and old['document']['routing_enabled']
+        and snapshot['document']['routing_enabled'] and snapshot['revision']>state['revision']
+        and old['credentials']==snapshot['credentials']
+        and state['compiled_hash']==compiled_hash
+        and operational_document(old['document'])==operational_document(snapshot['document']))
+
 def apply_snapshot(agent,snapshot,org):
     own(agent,org)
     envelope(snapshot,org);state=load(agent)
@@ -154,9 +171,15 @@ def apply_snapshot(agent,snapshot,org):
             bundle=compile_document(snapshot['document'],org,snapshot['extensions'],snapshot['credentials'],agent.universal_transports(),legacy_coverage=coverage,claimed_identities=agent.universal_claimed_identities(org),claimed_networks=networks)
             # Adapter validates native syntax, drains before changes, writes with
             # rollback and verifies loaded contexts/endpoints/registration.
-            agent.universal_apply_bundle(bundle,snapshot)
-            agent.universal_verify_bundle(bundle,snapshot)
-            observed=agent.universal_observe(org,snapshot)
+            digest=hashlib.sha256(bundle.pjsip+b'\0'+bundle.routes).hexdigest()
+            if is_operational_update(state,snapshot,digest) and callable(getattr(agent,'universal_observe_operational',None)):
+                # Existing native configuration must match byte for byte.
+                agent.universal_verify_bundle(bundle,snapshot)
+                observed=agent.universal_observe_operational(org,snapshot)
+            else:
+                agent.universal_apply_bundle(bundle,snapshot)
+                agent.universal_verify_bundle(bundle,snapshot)
+                observed=agent.universal_observe(org,snapshot)
             if not isinstance(observed,dict) or not isinstance(observed.get('ready'),bool):fail()
         else:
             # Disabling an already active configuration must drain/remove through
