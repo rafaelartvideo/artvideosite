@@ -420,11 +420,13 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, onChangeRecipient, detachedWindow = false, orderDocumentOptions, onPrepareOrderDocument }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, embeddedFullControls = false, initialConversationId, onEmbeddedReady, onChangeRecipient, detachedWindow = false, orderDocumentOptions, onPrepareOrderDocument, initialMessage, onNotificationSent }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; embeddedFullControls?: boolean; initialConversationId?: string | null;
   onEmbeddedReady?: (ready: boolean) => void;
   onChangeRecipient?: () => void;
+  initialMessage?:string;
+  onNotificationSent?:(conversationId:string,providerMessageId:string)=>void;
   /** The detached browser window uses a desktop composer at tablet widths. */
   detachedWindow?: boolean;
   orderDocumentOptions?: Array<{id:string;label:string}>;
@@ -546,6 +548,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[]);
 
   const [draft, setDraft] = useState("");
+  const notificationDraftLoaded=useRef(false);
   const [replyTarget,setReplyTarget] = useState<UnionWhatsAppMessage|null>(null);
   const swipeReplyRef=useRef<{id:string;x:number;y:number}|null>(null);
   const [highlightQuotedId,setHighlightQuotedId]=useState<string|null>(null);
@@ -1891,6 +1894,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
      accountIdentity,selected?.id,conversationOpening,conversationOpeningError]);
   const canReply = Boolean(selected && !conversationOpening && !protocolFilter && canSend && selected.status === "in_att" &&
     (isMine || canManage || isActiveCollaborator));
+  useEffect(()=>{
+    if(!embedded||!initialMessage||notificationDraftLoaded.current||!selected||selected.id!==initialConversationId||conversationOpening)return;
+    if(selected.status==="finished"&&canAction("start")){
+      notificationDraftLoaded.current=true;setFinishedFirstMessage(initialMessage);setDraftingFinished(true);
+    }else if(canReply){
+      notificationDraftLoaded.current=true;setDraft(current=>current||initialMessage);
+    }
+  },[embedded,initialMessage,initialConversationId,selected,conversationOpening,canReply,canAction]);
   // Focus once when a new conversation has finished preparing the composer.
   // Realtime updates must not steal the cursor while the operator types.
   const lastFocusedConversationRef=useRef<string|null>(null);
@@ -2071,7 +2082,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setFinishedStartError("");
     try {
       const conversationId=await startUnionWhatsAppWithFirstMessage(
-        activeOrganizationId,selected.contact_phone,selected.contact_name,finishedFirstMessage,
+        activeOrganizationId,selected.contact_phone,selected.contact_name,finishedFirstMessage,crypto.randomUUID(),onNotificationSent,
       );
       if(conversationId!==selected.id)
         throw new Error("A identidade da conversa mudou. Atualize o atendimento.");
@@ -2464,6 +2475,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setPending(current=>current.map(item=>item.id===requestId
           ? {...item,status:"sent",providerMessageId:result.provider_message_id||undefined,error:undefined}
           : item));
+        if(!file&&result.provider_message_id&&threadId===initialConversationId)onNotificationSent?.(threadId,result.provider_message_id);
         void Promise.allSettled([refreshMessages(threadId, true), refresh(true)]);
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
