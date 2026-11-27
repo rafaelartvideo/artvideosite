@@ -22,9 +22,9 @@ test('custom and conflicting destination rules are preserved and require advance
 test('simple screen renders credentials and authorizations without the nine-step wizard',async()=>{
  const React=await import('react');const {renderToStaticMarkup}=await import('react-dom/server');const m=await model();
  const source=readFileSync('src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','utf8').replace(/^import .*;$/gm,'');const compiled=await transformWithEsbuild(source,'simple-render.tsx',{loader:'tsx',jsx:'transform',jsxFactory:'React.createElement'});
- const make=new Function('React','useRef','useState','Eye','EyeOff','AdminButton','FInput','prepareSimpleTrunk','prepareSimpleTrunkEdit','SimpleTrunkSetupError',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
+ const make=new Function('React','useRef','useState','Eye','EyeOff','AdminButton','FInput','prepareSimpleTrunk','prepareSimpleTrunkEdit','SimpleTrunkSetupError','configureSimpleInbound','simpleInboundTemplate',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
  const Button=({children,variant,...props})=>React.createElement('button',props,children);const Input=({label,hint,...props})=>React.createElement('label',null,label,React.createElement('input',props));
- const Form=make(React,React.useRef,React.useState,()=>React.createElement('svg'),()=>React.createElement('svg'),Button,Input,m.prepareSimpleTrunk,m.prepareSimpleTrunkEdit,m.SimpleTrunkSetupError);
+ const Form=make(React,React.useRef,React.useState,()=>React.createElement('svg'),()=>React.createElement('svg'),Button,Input,m.prepareSimpleTrunk,m.prepareSimpleTrunkEdit,m.SimpleTrunkSetupError,m.configureSimpleInbound,m.simpleInboundTemplate);
  const html=renderToStaticMarkup(React.createElement(Form,{organizationId:org,document:empty(),extensions:[{id:extension,label:'Ramal 301'}],disabled:false,onSave:async()=>true,onAdvanced(){}}));
  for(const text of ['Servidor SIP','Usuário SIP','Senha SIP','Ramal 301','Salvar linha'])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/Etapa 1 de 9|Conferir e ativar/);assert.match(html,/type="password"/);
 });
@@ -67,4 +67,23 @@ test('provider-issued short SIP passwords are supported without weakening config
  assert.match(source,/SIP credential format unsupported/);
  const ui=readFileSync('src/features/telephony/presentation/UnionPbxUniversalTelephony.tsx','utf8');
  assert.match(ui,/failure.code==='invalid_credential'\)\{lock.current=false;\}/);
+});
+
+test('simple inbound configuration shares exact DID and destination across the same contract only',async()=>{
+ const m=await model(),ids=idFactory();
+ const a=m.prepareSimpleTrunk(empty(),org,input(),[extension],ids);
+ const b=m.prepareSimpleTrunk(a.document,org,{...input(),username:'102'},[extension],ids);
+ const previous=structuredClone(b.document),queue={id:'44444444-4444-4444-8444-444444444444',kind:'queue',label:'Atendimento'};
+ const settings={enabled:true,numbers:'(79) 3142-2005, +557931422005',networks:'192.0.2.10, 2001:db8::/64',destinationKind:'queue',destinationId:queue.id,source:'to_header',applyToContract:true};
+ const next=m.configureSimpleInbound(b.document,a.connectionId,settings,[queue],ids);
+ assert.deepEqual(b.document,previous);
+ assert.equal(next.dids.length,4);assert.ok(next.connections.every(row=>row.inbound_enabled&&row.outbound_enabled));
+ assert.ok(next.dids.every(row=>row.destination_id===queue.id));
+ assert.deepEqual(next.connections[0].inbound_cidrs,['192.0.2.10/32','2001:db8::/64']);
+ assert.deepEqual(next.capacity_pools,previous.capacity_pools);assert.deepEqual(next.outbound_routes,previous.outbound_routes);
+ assert.equal(m.simpleInboundTemplate(next,'sip.example.com').source,'to_header');
+ assert.throws(()=>m.configureSimpleInbound(b.document,a.connectionId,{...settings,networks:'0.0.0.0/0'},[queue],ids),/IPs/);
+ assert.throws(()=>m.configureSimpleInbound(b.document,a.connectionId,{...settings,destinationId:'foreign'},[queue],ids),/destino/);
+ assert.throws(()=>m.configureSimpleInbound({...next,routing_enabled:true},a.connectionId,settings,[queue],ids),/Desative/);
+ const result=spawnSync(process.platform==='win32'?'python':'python3',['-c',"import sys,json;sys.path.insert(0,'scripts/union-pbx-agent');from universal_telephony import validate_document;v=json.load(sys.stdin);validate_document(v['document'],v['org'])"],{input:JSON.stringify({org,document:next}),encoding:'utf8'});assert.equal(result.status,0,result.stderr);
 });
