@@ -48,7 +48,7 @@ export function fieldTrackingStatus(unit: FieldTrackingUnit, now = Date.now()): 
 
 export function fieldTrackingStatusLabel(status: FieldTrackingStatus) {
   if (status === "online") return "Ao vivo";
-  if (status === "stationary") return "Parado";
+  if (status === "stationary") return "Sinal atrasado";
   if (status === "lost") return "Sem sinal";
   if (status === "paused") return "Pausado";
   return "Sem posição";

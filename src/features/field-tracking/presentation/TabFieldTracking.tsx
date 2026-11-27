@@ -20,10 +20,14 @@ import {
   CircleMarker,
   MapContainer,
   Popup,
+  Polyline,
   TileLayer,
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { FleetWorkspace } from "./FleetWorkspace";
+import { LogisticsJobsWorkspace } from "./LogisticsJobsWorkspace";
+import { RoutesWorkspace } from "./RoutesWorkspace";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
@@ -37,7 +41,9 @@ import {
   type FieldTrackingUnit,
   type FieldTrackingUnitType,
 } from "../domain/field-tracking";
+import { currentSpeedKmh, summarizeFieldTrip } from "../domain/field-trip.mjs";
 import {
+  listRecentFieldTrackingPoints,
   createTraccarFieldTrackingUnit,
   getTraccarForwardIntegration,
   listFieldTrackingUnits,
@@ -81,7 +87,7 @@ const IDENTIFIER_OPTIONS = [
 const STATUS_OPTIONS = [
   { value: "", label: "Todos os status" },
   { value: "online", label: "Ao vivo" },
-  { value: "stationary", label: "Parados" },
+  { value: "stationary", label: "Sinal atrasado" },
   { value: "lost", label: "Sem sinal" },
   { value: "paused", label: "Pausados" },
   { value: "unknown", label: "Sem posição" },
@@ -120,7 +126,7 @@ function formatLastSeen(value?: string | null, now = Date.now()) {
 
 function formatStatusTime(status: FieldTrackingStatus, value?: string | null, now = Date.now()) {
   const elapsed = formatLastSeen(value, now);
-  if (status === "stationary") return `Parado ${elapsed}`;
+  if (status === "stationary") return `Último sinal ${elapsed}`;
   return elapsed;
 }
 
@@ -184,9 +190,14 @@ export function TabFieldTracking() {
   const canShare = hasPermission("field_tracking.share") || locationRequired;
   const canManage = hasPermission("field_tracking.manage");
   const [now, setNow] = useState(Date.now());
+  const [workspace,setWorkspace] = useState<"map"|"fleet"|"jobs"|"routes">("map");
+  useEffect(() => { setWorkspace("map"); }, [activeOrganizationId, canView, canManage]);
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyHours, setHistoryHours] = useState<1 | 6 | 24>(6);
+  useEffect(() => { setSelectedId(null); setHistoryOpen(false); }, [activeOrganizationId]);
   const [trackingEnabled, setTrackingEnabledState] = useState(false);
   const [trackingBusy, setTrackingBusy] = useState(false);
   const [trackerDialogOpen, setTrackerDialogOpen] = useState(false);
@@ -223,9 +234,15 @@ export function TabFieldTracking() {
 
   useEffect(() => {
     if (!activeOrganizationId || !canView) return;
-    return subscribeFieldTracking(activeOrganizationId, () => {
-      void queryClient.invalidateQueries({ queryKey: ["field-tracking-units", activeOrganizationId] });
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeFieldTracking(activeOrganizationId, () => {
+      if (pending !== undefined) return;
+      pending = setTimeout(() => {
+        pending = undefined;
+        void queryClient.invalidateQueries({ queryKey: ["field-tracking-units", activeOrganizationId] });
+      }, 1500);
     });
+    return () => { if (pending !== undefined) clearTimeout(pending); unsubscribe(); };
   }, [activeOrganizationId, canView, queryClient]);
 
   const units = unitsQuery.data || [];
@@ -243,6 +260,18 @@ export function TabFieldTracking() {
   const lost = enriched.filter(unit => unit.trackingStatus === "lost").length;
   const technicians = enriched.filter(unit => unit.unit_type === "technician").length;
   const vehicles = enriched.filter(unit => unit.unit_type === "vehicle").length;
+  const selectedUnit = visibleUnits.find(unit => unit.id === selectedId && unit.organization_id === activeOrganizationId);
+  const historyQuery = useQuery({
+    queryKey: ["field-trip-history", activeOrganizationId, selectedUnit?.id, historyHours],
+    enabled: Boolean(workspace === "map" && canView && activeOrganizationId && selectedUnit && historyOpen),
+    queryFn: () => listRecentFieldTrackingPoints(activeOrganizationId!, selectedUnit!.id, historyHours),
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+  const trip = useMemo(() => historyQuery.data ? summarizeFieldTrip(historyQuery.data.points) : null, [historyQuery.data]);
+  const moving = enriched.filter(unit => unit.unit_type === "vehicle" && (currentSpeedKmh(unit, now) ?? 0) >= 3).length;
 
   const enableTracking = () => {
     if (!activeOrganizationId || !user?.id || !canShare) return;
@@ -459,7 +488,13 @@ export function TabFieldTracking() {
       </div> : undefined}
     />
 
-    {!canView ? (
+    {canView && canManage && <div className="flex flex-wrap gap-2" role="group" aria-label="Seções do Mapa de Campo">
+      <AdminButton variant={workspace==="map"?"primary":"secondary"} onClick={()=>setWorkspace("map")}>Mapa de Campo</AdminButton>
+      <AdminButton variant={workspace==="fleet"?"primary":"secondary"} onClick={()=>setWorkspace("fleet")}>Frota e jornadas</AdminButton>
+      <AdminButton variant={workspace==="jobs"?"primary":"secondary"} onClick={()=>setWorkspace("jobs")}>Coletas e entregas</AdminButton>
+      <AdminButton variant={workspace==="routes"?"primary":"secondary"} onClick={()=>setWorkspace("routes")}>Rotas</AdminButton>
+    </div>}
+    {workspace==="routes" && canView && canManage && activeOrganizationId ? <RoutesWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : workspace==="jobs" && canView && canManage && activeOrganizationId ? <LogisticsJobsWorkspace key={activeOrganizationId} organizationId={activeOrganizationId}/> : workspace==="fleet" && canView && canManage && activeOrganizationId ? <FleetWorkspace key={activeOrganizationId} organizationId={activeOrganizationId} units={units}/> : !canView ? (
       <AdminCard className="p-8 text-center">
         <Navigation className="mx-auto text-primary" size={28} />
         <h2 className="mt-3 text-base font-black text-foreground">Rastreamento do dispositivo</h2>
@@ -469,13 +504,44 @@ export function TabFieldTracking() {
       </AdminCard>
     ) : unitsQuery.isPending ? <LoadingState text="Carregando mapa de campo..." /> : (
       <>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Metric label="Ao vivo" value={online} icon={Wifi} />
           <Metric label="Sem sinal" value={lost} icon={WifiOff} />
           <Metric label="Técnicos" value={technicians} icon={UserRound} />
+          <Metric label="Veículos em movimento" value={moving} icon={Navigation} />
           <Metric label="Veículos" value={vehicles} icon={CarFront} />
         </div>
 
+        {selectedUnit && <AdminCard className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-foreground">{selectedUnit.name}</p>
+              <p className="text-xs text-muted-foreground">Velocidade atual: {currentSpeedKmh(selectedUnit, now) == null ? "Não disponível" : currentSpeedKmh(selectedUnit, now) + " km/h"}</p>
+            </div>
+            <AdminButton variant="secondary" onClick={() => setHistoryOpen(value => !value)}>
+              {historyOpen ? "Ocultar percurso" : "Consultar percurso"}
+            </AdminButton>
+          </div>
+          {historyOpen && <div className="space-y-3 border-t border-border pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <AdminSelect value={String(historyHours)} onValueChange={value => setHistoryHours(Number(value) as 1 | 6 | 24)}
+                options={[{ value: "1", label: "Última hora" }, { value: "6", label: "Últimas 6 horas" }, { value: "24", label: "Últimas 24 horas" }]}
+                ariaLabel="Período do percurso" />
+              <AdminButton variant="secondary" loading={historyQuery.isFetching} onClick={() => void historyQuery.refetch()}>Atualizar</AdminButton>
+            </div>
+            {historyQuery.isPending ? <p className="text-xs text-muted-foreground">Consultando percurso...</p> :
+              historyQuery.isError ? <p role="alert" className="text-sm text-red-600">Não foi possível consultar o percurso. Tente atualizar.</p> :
+              trip && historyQuery.data && <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div><p className="text-xs text-muted-foreground">Distância GPS estimada</p><strong className="text-xl text-foreground">{trip.segments.length ? trip.distanceKm.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + " km" : "—"}</strong></div>
+                  <div><p className="text-xs text-muted-foreground">Pontos recebidos</p><strong className="text-xl text-foreground">{historyQuery.data.points.length}</strong></div>
+                  <div><p className="text-xs text-muted-foreground">Lacunas / pontos rejeitados</p><strong className="text-xl text-foreground">{trip.gaps + trip.rejected}</strong></div>
+                </div>
+                <p className="text-xs text-muted-foreground">Percurso observado, não odômetro. Trechos sem sinal e saltos são ignorados. A distância pode estar incompleta. {historyQuery.data.limited ? "Limite de 1.000 pontos atingido: reduza o período para consultar um trecho mais completo." : ""}</p>
+                {!trip.segments.length && <p className="text-xs text-muted-foreground">Não há deslocamento mensurável com os pontos disponíveis.</p>}
+              </>}
+          </div>}
+        </AdminCard>}
         <AdminCard className="relative isolate z-0 overflow-hidden p-0">
           <div className="relative z-20 flex flex-col gap-3 border-b border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-black text-foreground">Posições em tempo real</p>
@@ -514,6 +580,7 @@ export function TabFieldTracking() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapViewport units={mappedUnits} selectedId={selectedId} />
+                {historyOpen && selectedUnit && !historyQuery.isError && trip && <Polyline positions={trip.segments as [number, number][][]} pathOptions={{ color: "#0131CD", weight: 4, opacity: 0.85 }} />}
                 {mappedUnits.map(unit => {
                   const status = unit.trackingStatus;
                   const color = statusColor(status);
@@ -535,6 +602,7 @@ export function TabFieldTracking() {
                           <strong>{unit.name}</strong>
                           <div>{status === "stationary" ? formatStatusTime(status, unit.last_seen_at, now) : `${fieldTrackingStatusLabel(status)} · ${formatLastSeen(unit.last_seen_at, now)}`}</div>
                           <div>{unit.tracking_provider === "traccar_client" ? "Traccar Client" : unit.tracking_provider === "traccar_server" ? "Traccar Server" : "Navegador"}</div>
+                          {currentSpeedKmh(unit, now) != null && <div>Velocidade: {currentSpeedKmh(unit, now)} km/h</div>}
                           {unit.battery_level != null && <div>Bateria: {Math.round(Number(unit.battery_level))}%{unit.charging ? " · carregando" : ""}</div>}
                           {unit.accuracy_m != null && <div>Precisão: ~{Math.round(Number(unit.accuracy_m))} m</div>}
                         </div>
@@ -594,6 +662,7 @@ export function TabFieldTracking() {
                             {fieldTrackingStatusLabel(status)}
                           </span>
                           <span className="text-[9px] font-semibold text-muted-foreground">{status === "stationary" ? formatStatusTime(status, unit.last_seen_at, now) : formatLastSeen(unit.last_seen_at, now)}</span>
+                          {currentSpeedKmh(unit, now) != null && <span className="text-[9px] font-semibold text-muted-foreground">{currentSpeedKmh(unit, now)} km/h</span>}
                           {unit.battery_level != null && <span className="text-[9px] font-semibold text-muted-foreground">{Math.round(Number(unit.battery_level))}% bateria</span>}
                         </span>
                       </span>
@@ -628,12 +697,13 @@ export function TabFieldTracking() {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-[#f59e0b]" aria-hidden="true" />
-              Parado
+              Sinal atrasado
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-[#dc2626]" aria-hidden="true" />
               Sem sinal há mais de 15 min
             </span>
+            {historyOpen && selectedUnit && <span className="inline-flex items-center gap-1.5"><span className="h-1 w-4 rounded bg-[#0131CD]" aria-hidden="true" />Percurso observado</span>}
           </div>
         </AdminCard>
 
