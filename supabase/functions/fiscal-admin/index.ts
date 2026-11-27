@@ -10,7 +10,7 @@ const reply=(status:number,body:unknown)=>new Response(JSON.stringify(body),{sta
 Deno.serve(async (request:Request)=>{
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers});
   if(request.method!=="POST")return reply(405,{error:"METHOD_NOT_ALLOWED"});
-  if(Deno.env.get("FISCAL_ADMIN_API_ENABLED")!=="true"||!url||!anon||!service)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
+  if(Deno.env.get("FISCAL_ADMIN_API_ENABLED")==="false"||!url||!anon||!service)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
   const bearer=request.headers.get("Authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1];
   if(!bearer)return reply(401,{error:"UNAUTHENTICATED"});
   try{
