@@ -4,14 +4,23 @@ export const defaultChatSettings:ChatSettings={enabled:true,calls_enabled:true,g
 export type PendingText={token:string;peer:string|null;group:string|null;body:string;reply:string|null;mentions?:string[]};
 export function readSession<T>(key:string,fallback:T):T{try{return JSON.parse(sessionStorage.getItem(key)??"null")??fallback;}catch{return fallback;}}
 export function writeSession(key:string,value:unknown){try{sessionStorage.setItem(key,JSON.stringify(value));}catch{/* Storage disabled. */}}
-export async function sendPendingText(org:string,uid:string,item:PendingText){
- const {error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:item.group?null:item.peer,group_id:item.group,kind:"text",body:item.body,client_token:item.token,reply_to:item.reply,mentions:item.mentions??[]});
- if(!error)return;
- if(error.code==="23505"){
-   const {data,error:lookupError}=await supabase.from("internal_chat_messages").select("id").eq("organization_id",org).eq("sender_id",uid).eq("client_token",item.token).maybeSingle();
-   if(!lookupError&&data)return;
- }
- throw error;
+export function transientChatError(error:unknown):boolean{
+ const e=error as {code?:string;message?:string;status?:number}|null;
+ return !e?.code||["57014","40001","40P01","53300","57P01","PGRST000","PGRST001","PGRST002","PGRST003"].includes(e.code)||/fetch|network|timeout|temporarily|connection|gateway/i.test(e.message??"");
+}
+export async function retryChatRequest<T>(run:()=>Promise<T>):Promise<T>{
+ try{return await run();}catch(e){if(!transientChatError(e)||!navigator.onLine)throw e;await new Promise(resolve=>setTimeout(resolve,650));return run();}
+}
+export async function sendPendingText<T>(org:string,uid:string,item:PendingText,fields:string):Promise<T>{
+ return retryChatRequest(async()=>{
+  const {data,error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:item.group?null:item.peer,group_id:item.group,kind:"text",body:item.body,client_token:item.token,reply_to:item.reply,mentions:item.mentions??[]}).select(fields).single();
+  if(!error&&data)return data as unknown as T;
+  if(error&&(error.code==="23505"||transientChatError(error))){
+   const existing=await supabase.from("internal_chat_messages").select(fields).eq("organization_id",org).eq("sender_id",uid).eq("client_token",item.token).maybeSingle();
+   if(!existing.error&&existing.data)return existing.data as unknown as T;
+  }
+  throw error??new Error("Mensagem não confirmada.");
+ });
 }
 export async function notifyOnce(key:string,callback:()=>void){
  const run=()=>{try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{/* Browser storage may be unavailable. */}callback();};
