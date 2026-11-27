@@ -11,9 +11,12 @@ end;$$;
 do $$
 declare f private.pbx_legacy_test_fixture%rowtype; d jsonb; bad jsonb; result jsonb; snap jsonb; obs jsonb;
  provider uuid:=gen_random_uuid(); contract uuid:=gen_random_uuid(); conn uuid:=gen_random_uuid(); trunk uuid:=gen_random_uuid(); grp uuid:=gen_random_uuid(); route uuid:=gen_random_uuid();
- qid uuid:=gen_random_uuid(); pool jsonb:='[]'; scope text; sid uuid; rev bigint; ts timestamptz; lease numeric; secret_count integer;
+ qid uuid:=gen_random_uuid(); pool jsonb:='[]'; scope text; sid uuid; rev bigint; ts timestamptz; lease numeric; secret_count integer; assigned_employee uuid;
 begin
  select * into strict f from private.pbx_legacy_test_fixture;
+ insert into public.employees(organization_id,profile_id,full_name,cpf,function_name,is_active)
+ values(f.other_org,f.actor,'Universal assigned fixture','00000000000','fixture',true) returning id into assigned_employee;
+ update public.pbx_extensions set employee_id=assigned_employee where id=f.ext;
  perform set_config('request.jwt.claim.sub',f.actor::text,true);
  foreach scope in array array['organization','provider','contract','connection','trunk','group'] loop
   sid=case scope when 'organization' then f.other_org when 'provider' then provider when 'contract' then contract when 'connection' then conn when 'trunk' then trunk else grp end;
@@ -112,6 +115,12 @@ begin
  snap=public.pbx_poll_universal_telephony(f.other_agent);
  if snap->'credentials'->0->>'password'<>'SYNTHETIC-universal-123' then raise exception 'Admitted credential missing'; end if;
  perform public.pbx_report_universal_telephony(f.other_agent,3,'applied',jsonb_set(obs,'{connections,0,state}','"available"'),repeat('c',64));
+ if not public.pbx_can_dial_external(f.other_org,(select endpoint_name from public.pbx_extensions where id=f.ext)) then raise exception 'Universal assigned external dialer blocked'; end if;
+ if public.pbx_can_dial_external(f.other_org,'uw-'||replace(gen_random_uuid()::text,'-','')) then raise exception 'Foreign endpoint external dialer admitted'; end if;
+ if public.pbx_can_dial_external(f.org,(select endpoint_name from public.pbx_extensions where id=f.ext)) then raise exception 'Foreign company external dialer admitted'; end if;
+ update private.pbx_universal_configs set observed_at=now()-interval '91 seconds' where organization_id=f.other_org;
+ if public.pbx_can_dial_external(f.other_org,(select endpoint_name from public.pbx_extensions where id=f.ext)) then raise exception 'Stale universal external dialer admitted'; end if;
+ update private.pbx_universal_configs set observed_at=now() where organization_id=f.other_org;
  begin perform private.pbx_claim_sip_account('managed',gen_random_uuid(),'UNIVERSAL.example.com','AccountA'); raise exception 'Legacy API bypassed universal claim'; exception when check_violation then null; end;
  begin update public.pbx_extensions set number=number+1 where id=f.ext; raise exception 'Active destination identity changed'; exception when check_violation then null; end;
  perform pg_temp.universal_reject(f.other_org,3,jsonb_set(jsonb_set(d,'{routing_enabled}','true'),'{connections,0,host}','"other.example.com"'));

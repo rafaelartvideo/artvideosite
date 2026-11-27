@@ -12,3 +12,9 @@ test('external permission is bound to both company and authenticated assigned en
  assert.equal(allowed(true,true,'platform','union-301',null),true);
  assert.equal(allowed(false,true,'platform','union-301',grant),false);
 });
+
+test('partner line label reflects the scoped external grant',()=>{
+ const source=readFileSync('src/features/telephony/presentation/UnionPbxToolPage.tsx','utf8');
+ assert.match(source,/lineLabel=\{isPlatformOperatorOrganization \? "\(11\) 4290-1575 · Union World" : canUseExternal \? "Telefonia interna e externa" : "Telefonia interna"\}/);
+ assert.match(source,/showIdleDialer && canUseExternal && <div role="group" aria-label="Tipo de ligação"/);
+});

@@ -965,7 +965,7 @@ setTestFlowError('');
     <div className={isPageOpen ? "min-w-0" : "hidden"} aria-hidden={!isPageOpen}>
       <UnionPbxOperatorWorkspace
         isActive={isPageOpen}
-        lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : "Telefonia interna"}
+        lineLabel={isPlatformOperatorOrganization ? "(11) 4290-1575 · Union World" : canUseExternal ? "Telefonia interna e externa" : "Telefonia interna"}
         extensionLabel={ownNumber ? `Ramal ${ownNumber}` : registration === "registered" ? "Ramal conectado" : "Ramal não conectado"}
         connectionStatus={registration} callState={callState} remoteParty={remoteParty} callerCard={currentCallerCard} completedCall={completedCall}
         directory={directory} queues={testQueues} directoryLoading={directoryLoading}

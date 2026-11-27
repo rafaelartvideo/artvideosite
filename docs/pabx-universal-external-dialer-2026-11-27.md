@@ -1,0 +1,9 @@
+# External dialer for universal trunks
+
+The CRM's `pbx_can_dial_external` RPC only recognized the legacy managed SIP trunk registry. An assigned partner extension therefore remained internal-only even after its universal connections were registered and its outbound route was applied.
+
+Migration `20261127145434_allow_universal_trunk_external_dialer.sql` preserves the existing legacy branch and adds an organization-scoped universal branch. It requires the authenticated user's assigned managed extension, applied provisioning, permitted desired/applied external call mode, applied current routing, fresh signed agent admission, known capacity, fresh prepared observations, and an enabled outbound route/group authorizing that extension. It remains a UI hint: actual call permissions, routing and atomic channel admission are enforced locally by Asterisk.
+
+The UI continues to bind grants to organization and endpoint. Its partner line label now reflects an authorized external connection. The existing Interna/Externa selector is unchanged; the internal destination list continues to list only internal destinations.
+
+Validation: before the migration the actual assigned user's authenticated public RPC returned false. The candidate passed 11 rollback assertions covering the assigned user, foreign endpoint/organization, disabled routing/route, unauthorized group, pending configuration, stale readiness, unknown capacity, unassigned user and anonymous caller. After deployment the authenticated public RPC returned true for the assigned 301. Two focused UI tests, full CI, quality and both builds passed locally. SQL fixture coverage and its disposable harness were updated. Production migration was applied separately through Supabase; no SIP accounts, passwords, capacity or production routing document were changed.
