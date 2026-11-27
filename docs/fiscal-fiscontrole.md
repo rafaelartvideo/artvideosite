@@ -40,3 +40,19 @@ A administração central deve poder habilitar/desabilitar o módulo por empresa
 7. Validar em homologação por empresa e modelo, incluindo timeout, rejeição e autorização/cancelamento/CC-e. Não emitir em produção sem aprovação específica, auditoria e liberação por empresa.
 
 Rollback desta fundação: reverter seus commits. Não há mudanças no banco nem deployment nesta etapa.
+
+## Reaproveitamento da NFS-e existente
+
+A auditoria da main encontrou `src/features/nfse`, `docs/nfse-stage1.md` e as quatro tabelas existentes `fiscal_company_settings`, `fiscal_service_mappings`, `fiscal_documents`, `fiscal_document_items` no CRM. O módulo legado usa chave `nfse` e possui rascunhos de OS; as constraints bloqueiam emissão real. A navegação já contém uma regra que oculta a rota nfse. Não remover ou duplicar a estrutura de rascunhos; estender as tabelas existentes mediante migrations revisadas. Não relaxar constraints até que o fluxo de emissão seja homologado. Antes da liberação, revisar acesso a rotas/RPCs legadas e migrar permissões sem conceder acesso a empresas não autorizadas.
+
+`fiscal_captured_documents` é um índice técnico de arquivos originais capturados, não uma segunda entidade de faturamento. O mesmo documento autorizado deve ser reconciliado com `fiscal_documents` antes de participar de indicadores ou gerar vínculos comerciais. A NFS-e capturada pode usar identificador interno; não igualar IDs de captura com UUIDs de emissão.
+
+## Captura incremental e API de leitura
+
+- `sync-worker.mjs`: página limitada, cursores independentes por filtros, verificação SHA-256, gravação original antes da persistência, revalidação de escopo e detecção de conflitos.
+- `supabase-sync.mjs`: adaptador para o cliente privilegiado do Supabase, storage privado e RPC transacional. Não há agendamento nem função de worker publicada.
+- `fiscal-read/index.ts`: endpoint autenticado de status e consulta paginada de metadados capturados; exige usuário ativo, vínculo ativo, módulo explícito `fiscal`, permissão `fiscal.documents.view`, CNPJ do cadastro da organização, inventário verificado e conta ativa. O vínculo é resolvido pelo servidor. Não retorna credenciais, inventário global nem caminhos de storage. Não realiza emissão.
+- A função fica bloqueada por padrão via `FISCAL_READ_API_ENABLED`. O cadastro do módulo e permissões e o fluxo administrativo ainda não foram publicados.
+- SQL em `docs/fiscal/sql` é uma proposta, não migrations registradas: executar em banco descartável/staging e revisar antes de transformar em migration. Inclui conta/vagas/vínculos, captura e commit transacional, bucket privado com políticas restritivas. Nenhum desses scripts foi aplicado.
+
+A captura pode deixar objetos privados órfãos se a transação falhar; a repetição usa caminho determinístico e verifica bytes existentes. Criar política de reconciliação/retenção antes de qualquer limpeza. Não usar exclusão automática de arquivos fiscais.
