@@ -30,7 +30,7 @@ create table public.fiscal_account_cnpjs (
   unique (account_id, cnpj, external_company_id),
   foreign key (account_id, account_limit)
     references public.fiscal_provider_accounts(id, cnpj_limit) on update cascade on delete restrict,
-  check (verified_at is null or external_company_id is not null)
+  check (external_company_id is null or external_company_id > 0)
 );
 -- Slots enforce capacity under concurrent transactions with unique constraints,
 -- rather than a count-then-insert check. Account limit changes cascade and may
@@ -42,7 +42,7 @@ create table public.fiscal_organization_bindings (
   organization_id uuid not null references public.organizations(id) on delete restrict,
   account_id uuid not null,
   cnpj text not null check (cnpj ~ '^[0-9]{14}$'),
-  external_company_id bigint not null check (external_company_id > 0),
+  external_company_id bigint check (external_company_id > 0),
   is_enabled boolean not null default false,
   sync_enabled boolean not null default false,
   -- Production remains disabled; later release needs a reviewed migration.
@@ -51,6 +51,7 @@ create table public.fiscal_organization_bindings (
   unique (cnpj),
   unique (account_id, external_company_id),
   unique (id, organization_id, account_id, cnpj),
+  foreign key (account_id, cnpj) references public.fiscal_account_cnpjs(account_id, cnpj) on delete restrict,
   foreign key (account_id, cnpj, external_company_id)
     references public.fiscal_account_cnpjs(account_id, cnpj, external_company_id) on delete restrict,
   check (not sync_enabled or is_enabled)
