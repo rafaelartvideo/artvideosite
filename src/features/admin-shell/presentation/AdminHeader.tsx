@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { InternalChat } from "@/features/internal-chat/presentation/InternalChat";
 import { useNavigate } from "react-router";
 import {
   ArrowLeft,
@@ -530,6 +531,7 @@ export function AdminHeader({
               </HeaderDropdown>}
             </div>
 
+            <span id="internal-chat-desktop" className="inline-flex shrink-0" />
             <div className="relative">
               <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
                 <Bell size={17} strokeWidth={2} />
@@ -604,6 +606,7 @@ export function AdminHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-0">
+            <span id="internal-chat-mobile" className="inline-flex shrink-0" />
             <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
               <Bell size={16} />
               <NotificationBadge count={notifications.unreadCount} />
@@ -658,6 +661,7 @@ export function AdminHeader({
         </header>
       )}
 
+      <InternalChat />
       <WorkItemsHeaderDialog controller={workItemsHeader} />
 
       <AdminDialog open={Boolean(viewingTerm)} onClose={() => setViewingTerm(null)}
