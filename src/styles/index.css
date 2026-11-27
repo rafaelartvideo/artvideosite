@@ -484,6 +484,11 @@ html[data-admin-theme="dark"] {
 	border-color: var(--primary-light) !important;
 }
 
+/* A seta do chat interno herda o contorno efetivo do painel, inclusive no tema escuro. */
+.admin-crm[data-internal-chat-floating="true"] > [data-internal-chat-arrow] {
+  border-color: inherit !important;
+}
+
 /* Notificação do mini-Atendimentos e sua seta usam o MESMO contorno do painel,
  * inclusive no tema escuro. A seta é um losango girado; as classes Tailwind
  * definem quais duas arestas ficam visíveis em cada orientação. */

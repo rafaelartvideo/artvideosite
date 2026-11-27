@@ -144,3 +144,16 @@ test("internal chat renders private media inline and reuses WhatsApp viewer and 
  assert.ok(picker.includes('adminPath("orders",o.id)'));
  for(const p of [mediaPath,pickerPath])assert.ok((await transformWithEsbuild(read(p),p,{loader:"tsx"})).code);
 });
+
+test("collapsed internal chat matches mini attendance and arrow follows panel theme",()=>{
+ const css=read("src/styles/index.css");
+ assert.ok(ui.includes("data-internal-chat-arrow"));
+ assert.ok(ui.includes('borderColor:"inherit"'));
+ assert.ok(css.includes('.admin-crm[data-internal-chat-floating="true"] > [data-internal-chat-arrow]'));
+ assert.ok(ui.includes("GripHorizontal size={16}"));
+ assert.ok(ui.includes("localStatusColor"));
+ assert.ok(ui.includes("availabilityColors[advertised]"));
+ assert.ok(ui.includes('miniUnread>99?"99+":miniUnread'));
+ assert.ok(ui.includes("h-auto w-[min(320px,calc(100vw-20px))]"));
+ assert.ok(!ui.includes('iconButton+" border border-border"} title="Restaurar posição original"'));
+});
