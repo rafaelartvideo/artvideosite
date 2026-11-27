@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NfeHomologationPanel } from "./NfeHomologationPanel";
 import { useQuery } from "@tanstack/react-query";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { supabase } from "@/lib/supabase";
@@ -115,6 +116,7 @@ export function FiscalIntegrationPanel({organizationId,targetCompany,onActivated
           {!!emission.result.profileFields?.length&&<details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Campos técnicos dos perfis</summary><p className="mt-2 break-words">{emission.result.profileFields.join(", ")}</p></details>}
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-xs">{JSON.stringify(emission.result.models,null,2)}</pre>
           <p className="text-xs text-muted-foreground">A consulta não cria rascunhos, não habilita produção e não transmite notas.</p>
+          <NfeHomologationPanel key={a.id+":"+targetCompany.id+":"+emission.result.emitterId} accountId={a.id} organizationId={targetCompany.id} emitterId={emission.result.emitterId}/>
         </div>}
       </div>}
       <p className="text-xs text-muted-foreground">{a.inventory_verified_at?"Inventário verificado em "+new Date(a.inventory_verified_at).toLocaleString("pt-BR"):"Inventário ainda não verificado"}</p>

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import { createFiscontroleProvider } from "../_shared/fiscal/fiscontrole-provider.mjs";
 import { summarizeEmissionBootstrap } from "../_shared/fiscal/emission-diagnostics.mjs";
+import { handleNfeAdmin } from "../_shared/fiscal/nfe-admin-service.mjs";
 const url=Deno.env.get("SUPABASE_URL")||"";
 const anon=Deno.env.get("SUPABASE_ANON_KEY")||"";
 const service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
@@ -33,11 +34,11 @@ Deno.serve(async (request:Request)=>{
       !Array.isArray(permissions.data)||!permissions.data.some((p:{permission_key:string})=>p.permission_key==="platform.management.manage")||
       !permissions.data.some((p:{permission_key:string})=>p.permission_key==="organizations.modules.manage"))return reply(403,{error:"FISCAL_ADMIN_DENIED"});
     const raw=await request.text();
-    if(new TextEncoder().encode(raw).byteLength>4096)return reply(413,{error:"REQUEST_TOO_LARGE"});
+    if(new TextEncoder().encode(raw).byteLength>16384)return reply(413,{error:"REQUEST_TOO_LARGE"});
     let body;
     try{body=JSON.parse(raw);}catch{return reply(400,{error:"INVALID_REQUEST"});}
-    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read","emission_diagnosis"].includes(body.action)||
-      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm","emitterId"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
+    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read","emission_diagnosis","nfe_bind","nfe_status","nfe_prepare","nfe_create","nfe_validate","nfe_issue","nfe_process","nfe_detail","nfe_download"].includes(body.action)||
+      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm","emitterId","confirmedCnpj","requestKey","profileId","profileVersion","series","commercial","operationId","kind"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
     if(body.action==="status"){
       const accounts=await admin.from("fiscal_provider_accounts").select("id,provider,label,cnpj_limit,is_active,inventory_verified_at").order("label").limit(100);
       if(accounts.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
@@ -92,6 +93,19 @@ Deno.serve(async (request:Request)=>{
     if(!Array.isArray(response.empresas))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
     const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\D/g,""):""}));
     if(companies.some((c:{cnpj:string})=>!/^\d{14}$/.test(c.cnpj)))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
+    if(body.action.startsWith("nfe_")){
+      // Dedicated switch: this pilot is never enabled by a read-only binding.
+      if(Deno.env.get("FISCAL_NFE_HOMOLOGATION_ENABLED")!=="true")return reply(503,{error:"NFE_HOMOLOGATION_DISABLED"});
+      try{
+        const result=await handleNfeAdmin({admin,provider:createFiscontroleProvider({token,timeoutMs:30000,allowHomologationWrites:true}),account:account.data,companies,body,actorId:auth.data.user.id});
+        return reply(200,{data:result});
+      }catch(error){
+        const allowed=new Set(["INVALID_ORGANIZATION","FISCAL_PERSISTENCE_FAILED","FISCAL_BINDING_REQUIRED","ACCOUNT_NOT_VERIFIED","CNPJ_NOT_AUTHORIZED_BY_PROVIDER","EMITTER_ID_MISMATCH","EMITTER_IDENTITY_UNVERIFIED","EMITTER_CONFIRMATION_REQUIRED","EMITTER_CHANGE_REQUIRES_REVIEW","EMITTER_BINDING_CONFLICT","EMITTER_BINDING_REQUIRED","MODEL_NOT_READY","PROFILE_OR_SERIES_UNVERIFIED","INVALID_REQUEST_KEY","INVALID_OPERATION","OPERATION_NOT_AVAILABLE","INVALID_ACTION","INVALID_FIELD","INVALID_AMOUNT","INVALID_PROFILE","INVALID_SERIES","PILOT_ONLY_INTRASTATE_SE","DRAFT_RESPONSE_UNRECOGNIZED","ISSUER_NOT_VERIFIED","OPERATION_CONFLICT","OPERATION_PERSISTENCE_FAILED","CONFIRMATION_REQUIRED","INVALID_OPERATION_ID","DOCUMENT_NOT_AUTHORIZED","INVALID_FILE_KIND","FILE_RESPONSE_UNRECOGNIZED","FILE_CHECKSUM_MISMATCH"]);
+        const code=error instanceof Error&&allowed.has(error.message)?error.message:"NFE_PROVIDER_OR_PERSISTENCE_UNCERTAIN";
+        console.warn(JSON.stringify({event:"nfe_homologation_failure",action:body.action,code}));
+        return reply(code==="NFE_PROVIDER_OR_PERSISTENCE_UNCERTAIN"?503:409,{error:code});
+      }
+    }
     if(body.action==="emission_diagnosis"){
       if(typeof body.organizationId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.organizationId))return reply(400,{error:"INVALID_ORGANIZATION"});
       const binding=await admin.from("fiscal_organization_bindings")
