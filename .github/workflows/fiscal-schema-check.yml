@@ -37,5 +37,5 @@ jobs:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           set -euo pipefail
-          cat scripts/fiscal/ci-postgres-setup.sql docs/fiscal/sql/0[1-6]-*.candidate.sql scripts/fiscal/ci-postgres-verify.sql \
+          cat scripts/fiscal/ci-postgres-setup.sql docs/fiscal/sql/0[1-6]-*.candidate.sql scripts/fiscal/ci-postgres-verify.sql docs/fiscal/sql/07-*.candidate.sql scripts/fiscal/ci-homologation-verify.sql \
             | docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1
