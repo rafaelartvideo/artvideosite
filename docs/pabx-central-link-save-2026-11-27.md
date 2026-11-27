@@ -35,6 +35,16 @@ Migration `20261127132331_align_pbx_activation_observation_cadence.sql` changes 
 
 Nine database assertions passed in a rolled-back transaction: ages 0, 45 and 89 seconds accepted; age 91 seconds and six seconds in the future rejected; unprepared central, active call, pending revision and unknown capacity rejected. The SQL regression suite includes these activation boundaries and applies the migration before testing. Reversal restores only the same activation predicate to 30 seconds after verifying its single occurrence. No account registration, call or capacity increase is part of this correction.
 
+## Actual activation validation
+
+After the user requested activation (revision 3), native validation exposed two compatibility defects. The foreign-account resolver treated every included PJSIP file as a separate reference namespace, so the legacy endpoint could not resolve its authentication object in another included file. References are now resolved across the trusted included sources, with separate AOR/auth namespaces and conflicting definitions rejected. The legacy account files were not edited.
+
+Asterisk 22 also abbreviates long endpoint labels in exact CLI lookups (51 characters observed). Verification ignores table headers and requires a matching label prefix of at least 50 characters plus the complete account-specific inbound context. Missing objects, shorter labels and incorrect contexts remain rejected. Targeted tests reproduced these failures before the fixes.
+
+Initialized Teste's missing call-mode prerequisite from the authoritative revision-1 catalog for its existing 301, preserving both internal and external directions. Native changes used the existing idle-call and transactional backup checks. Each adapter patch was backed up in the onboarding directory and only Teste's agent was restarted; unrelated installed code and legacy accounts were preserved. Operational SIP registration must be confirmed separately from these test results.
+
+After native activation, the isolated-admission checker rejected the profile's own new universal include, causing protocol downgrade and preventing cloud reports. It now accepts that exact generated profile context when the trusted universal attachment is active; complete file comparisons and loaded-context checks still reject foreign includes. The regression exercises both cases. All 443 Python tests passed on Linux and independent review approved the final changes. Both FVX account registrations were then directly confirmed as Registered in Asterisk; this does not by itself validate real call audio or inbound routing.
+
 ## Validation
 
 Focused preflight tests: 9 passed. Telephony: 199 passed. Quality: 8 passed. Full `test:ci`, CRM build and site build completed with exit code 0. Deployment must additionally be confirmed in the HostGator production workflow for the resulting main commit.

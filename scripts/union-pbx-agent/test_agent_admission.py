@@ -95,6 +95,7 @@ class RuntimeAdmissionTests(unittest.TestCase):
             self.assertEqual(a.runtime_capability(2),{'protocol_version':3,'profile_id':org,'profile_context':a.DIALPLAN_CONTEXT})
             original=a.MASTER_FILE.read_bytes();a.MASTER_FILE.write_bytes(original+b'; external edit\n')
             self.assertEqual(a.runtime_capability(2),{'protocol_version':1})
+
             a.MASTER_FILE.write_bytes(original)
             for command,suffix in (
                 ('dialplan show '+a.DIALPLAN_CONTEXT," Include => 'union-internal' [pbx_config]\n"),
@@ -104,6 +105,19 @@ class RuntimeAdmissionTests(unittest.TestCase):
                 self.assertEqual(a.runtime_capability(2),{'protocol_version':1})
                 outputs[command]=before
             command='pjsip show endpoint '+endpoint;outputs[command]=outputs[command].replace('context : '+a.DIALPLAN_CONTEXT,'context : union-internal')
+            self.assertEqual(a.runtime_capability(2),{'protocol_version':1})
+
+    def test_active_universal_routes_preserve_isolated_admission(self):
+        from universal_telephony import context
+        with tempfile.TemporaryDirectory() as folder,ExitStack() as stack:
+            org,outputs,endpoint=self.fixture(Path(folder),stack);a=self.agent
+            own_context=context(org)
+            stack.enter_context(patch('universal_runtime_adapter.internal_attachment',return_value='include => '+own_context+'\n'))
+            a.DIALPLAN_MANAGED.write_bytes(a.render_internal_routes()[0])
+            command='dialplan show '+a.DIALPLAN_CONTEXT
+            outputs[command]+=" Include => '"+own_context+"' [pbx_config]\n"
+            self.assertEqual(a.runtime_capability(2)['protocol_version'],3)
+            outputs[command]+=" Include => 'uwu-foreign-out' [pbx_config]\n"
             self.assertEqual(a.runtime_capability(2),{'protocol_version':1})
 
     def test_reserved_extension_numbers_are_rejected_before_writes(self):

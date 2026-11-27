@@ -1308,6 +1308,11 @@ def _verify_profile_runtime_locked():
         if any(path.exists() or path.is_symlink() for path in trunk_paths[:3]):
             if trunk_file.is_file():includes.append(trunk_context)
             trunk_runtime.verify(runtime_api(),PROFILE_ID)
+    if universal_support() is not None:
+        from universal_runtime_adapter import internal_attachment
+        if internal_attachment(runtime_api()):
+            from universal_telephony import context as universal_context
+            includes.append(universal_context(PROFILE_ID))
     _verify_loaded_context(DIALPLAN_CONTEXT,internal,numbers+[900],includes)
     if flow_file is not None and flow_file.is_file():flow_runtime.verify(runtime_api(),PROFILE_ID)
     _verify_loaded_context(QUEUE_TEST_CONTEXT,routes,sorted(queue_numbers),[])

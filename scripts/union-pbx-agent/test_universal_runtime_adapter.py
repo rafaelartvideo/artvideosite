@@ -131,6 +131,29 @@ class AdapterTests(unittest.TestCase):
         path.write_text('[auth]\ntype=auth\nusername=account-2\n[aor]\ntype=aor\ncontact=sip:carrier.example:5060\n[ep]\ntype=endpoint\naors=aor\noutbound_auth=auth\n')
         self.assertIn(('carrier.example','account-2'),adapter.claimed_identities(self.agent,ORG))
 
+    def test_claim_references_resolve_across_included_files_and_object_types(self):
+        self.agent.PJSIP_FILE.write_text('[shared]\ntype=auth\nusername=account-2\n')
+        (self.agent.SIP_DIR/'aor.conf').write_text('[shared]\ntype=aor\ncontact=sip:carrier.example:5060\n')
+        (self.agent.SIP_DIR/'endpoint.conf').write_text('[shared]\ntype=endpoint\naors=shared\noutbound_auth=shared\n')
+        self.assertIn(('carrier.example','account-2'),adapter.claimed_identities(self.agent,ORG))
+        self.agent.PJSIP_FILE.write_text('')
+        with self.assertRaises(adapter.runtime.RuntimeErrorSafe):adapter.claimed_identities(self.agent,ORG)
+
+    def test_conflicting_foreign_auth_definitions_fail_closed(self):
+        self.agent.PJSIP_FILE.write_text('[auth]\ntype=auth\nusername=first\n')
+        (self.agent.SIP_DIR/'duplicate.conf').write_text('[auth]\ntype=auth\nusername=second\n')
+        with self.assertRaises(adapter.runtime.RuntimeErrorSafe):adapter.claimed_identities(self.agent,ORG)
+
+    def test_native_endpoint_uses_exact_context_when_cli_label_is_truncated(self):
+        endpoint='uwu-'+ORG.replace('-','')+'-'+OTHER.replace('-','')+'-ep'
+        inbound=endpoint[:-3]+'-in'
+        for label in (endpoint,endpoint[:50],endpoint[:51]):
+            detail=' Endpoint:  <Endpoint/CID......................................> <State>\n Endpoint:  '+label+'  Not in use  0 of inf\n context : '+inbound+'\n'
+            self.assertTrue(adapter.native_endpoint_matches(detail,endpoint,inbound))
+            self.assertFalse(adapter.native_endpoint_matches(detail.replace(inbound,inbound+'-other'),endpoint,inbound))
+        self.assertFalse(adapter.native_endpoint_matches('Unable to find object '+endpoint,endpoint,inbound))
+        self.assertFalse(adapter.native_endpoint_matches(' Endpoint: '+endpoint[:20]+'\n context : '+inbound+'\n',endpoint,inbound))
+
     def test_empty_verification_rejects_loaded_objects_and_cli_errors(self):
         for target in adapter.paths(self.agent,ORG)[:2]:target.write_bytes(b'')
         adapter.verify_empty(self.agent,ORG)

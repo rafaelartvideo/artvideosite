@@ -194,41 +194,46 @@ def foreign_snapshots(agent, org):
 def claimed_identities(agent, org):
     own(agent, org)
     claims = set()
-    for text in foreign_snapshots(agent, org):
-        blocks = re.split(r'(?m)^\[', text)
-        auth = {}
-        objects = {block.split(']', 1)[0]: block for block in blocks}
-        for block in blocks:
-            name = block.split(']', 1)[0]
-            user = re.search(r'(?m)^username\s*=\s*([^\s;]+)\s*$', block)
-            if user:
-                auth[name] = user[1].lower()
-        for block in blocks:
-            # Digest-only endpoints reference both auth and AOR; the username
-            # does not appear in that AOR's contact URI.
-            aors = re.search(r'(?m)^aors\s*=\s*([^\s;]+)', block)
-            reference = re.search(r'(?m)^outbound_auth\s*=\s*([^\s;]+)', block)
-            if aors and reference:
-                if reference[1] not in auth:
+    # Asterisk resolves references across included files. Object namespaces are
+    # typed: an endpoint, auth and AOR may legitimately share the same name.
+    blocks = [block for text in foreign_snapshots(agent, org)
+              for block in re.split(r'(?m)^\[', text)[1:]]
+    auth = {}; objects = {}
+    for block in blocks:
+        name = block.split(']', 1)[0]
+        user = re.search(r'(?m)^username\s*=\s*([^\s;]+)\s*$', block)
+        if user:
+            if name in auth and auth[name] != user[1].lower():fail()
+            auth[name] = user[1].lower()
+        if re.search(r'(?m)^type\s*=\s*aor\s*$', block):
+            if name in objects and objects[name] != block:fail()
+            objects[name] = block
+    for block in blocks:
+        # Digest-only endpoints reference both auth and AOR; the username
+        # does not appear in that AOR's contact URI.
+        aors = re.search(r'(?m)^aors\s*=\s*([^\s;]+)', block)
+        reference = re.search(r'(?m)^outbound_auth\s*=\s*([^\s;]+)', block)
+        if aors and reference:
+            if reference[1] not in auth:
+                fail()
+            for aor in aors[1].split(','):
+                contact = re.search(r'(?m)^contact\s*=\s*sips?:([^\s;]+)', objects.get(aor, ''))
+                if not contact:
                     fail()
-                for aor in aors[1].split(','):
-                    contact = re.search(r'(?m)^contact\s*=\s*sips?:([^\s;]+)', objects.get(aor, ''))
-                    if not contact:
-                        fail()
-                    authority = contact[1].split('@')[-1].split(':')[0].lower()
-                    claims.add((authority, auth[reference[1]]))
-            host = re.search(r'(?m)^(?:server_uri|contact)\s*=\s*sips?:([^\s;]+)', block)
-            if not host:
-                continue
-            uri = host[1]; authority = uri.split('@')[-1].split(':')[0].lower()
-            reference = re.search(r'(?m)^outbound_auth\s*=\s*([^\s;]+)', block)
-            if reference and reference[1] in auth:
+                authority = contact[1].split('@')[-1].split(':')[0].lower()
                 claims.add((authority, auth[reference[1]]))
-            elif '@' in uri:
-                claims.add((authority, uri.split('@')[0].lower()))
-            else:
-                # An IP-auth trunk cannot be identified by a username.
-                claims.add((authority, ''))
+        host = re.search(r'(?m)^(?:server_uri|contact)\s*=\s*sips?:([^\s;]+)', block)
+        if not host:
+            continue
+        uri = host[1]; authority = uri.split('@')[-1].split(':')[0].lower()
+        reference = re.search(r'(?m)^outbound_auth\s*=\s*([^\s;]+)', block)
+        if reference and reference[1] in auth:
+            claims.add((authority, auth[reference[1]]))
+        elif '@' in uri:
+            claims.add((authority, uri.split('@')[0].lower()))
+        else:
+            # An IP-auth trunk cannot be identified by a username.
+            claims.add((authority, ''))
     return frozenset(claims)
 
 
@@ -318,6 +323,14 @@ def verify_routes(agent, raw):
         agent._verify_loaded_context(match[1], ('[' + match[1] + ']\n' + block).encode(), extensions, [])
 
 
+def native_endpoint_matches(detail, endpoint, inbound):
+    # Asterisk 22 abbreviates long endpoint labels even in an exact lookup.
+    # The complete account-specific context remains available in its fields.
+    label = re.search(r'(?m)^\s*Endpoint:\s+([A-Za-z0-9_-]+)(?=[/\s]|$)', detail)
+    return bool(label and len(label[1]) >= min(50,len(endpoint)) and endpoint.startswith(label[1]) and
+                re.search(r'(?m)^\s*context\s*:\s*' + re.escape(inbound) + r'\s*$', detail))
+
+
 def verify_bundle(agent, bundle, snapshot):
     org = snapshot['organization_id']; own(agent, org)
     if bundle is None:
@@ -342,9 +355,7 @@ def verify_bundle(agent, bundle, snapshot):
     verify_root_bridge(agent, org, active=True)
     for cid, endpoint in bundle.endpoints:
         detail = cli(agent, 'pjsip show endpoint ' + endpoint)
-        if not re.search(r'(?m)^\s*Endpoint:\s+' + re.escape(endpoint) + r'(?:[/\s]|$)', detail):
-            fail()
-        if not re.search(r'(?m)^\s*context\s*:\s*' + re.escape(names(org, cid)['inbound']) + r'\s*$', detail):
+        if not native_endpoint_matches(detail, endpoint, names(org, cid)['inbound']):
             fail()
         connection = next(c for c in snapshot['document']['connections'] if c['id'] == cid)
         if connection['auth_mode'] == 'registration':
