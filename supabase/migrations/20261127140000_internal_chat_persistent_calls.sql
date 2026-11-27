@@ -17,11 +17,11 @@ revoke all on function private.internal_chat_allowed(uuid,text) from public,anon
 grant execute on function private.internal_chat_allowed(uuid,text) to authenticated;
 
 create function private.internal_chat_recipient_active(p_org uuid,p_user uuid)
-returns boolean language sql stable security definer set search_path = '' as $
+returns boolean language sql stable security definer set search_path = '' as $$
  select private.internal_chat_allowed(p_org,'internal_chat.use')
  and exists(select 1 from public.organization_members m
  where m.organization_id=p_org and m.user_id=p_user and m.status='active');
-$;
+$$;
 revoke all on function private.internal_chat_recipient_active(uuid,uuid) from public,anon;
 grant execute on function private.internal_chat_recipient_active(uuid,uuid) to authenticated;
 
@@ -67,7 +67,7 @@ create unique index internal_chat_one_pending_pair on public.internal_chat_messa
 
 create index internal_chat_call_rate_idx on public.internal_chat_messages(organization_id,sender_id,created_at desc) where kind='call';
 create function private.internal_chat_guard_insert() returns trigger
-language plpgsql security invoker set search_path = '' as $
+language plpgsql security invoker set search_path = '' as $$
 begin
  if new.kind='call' then
    if new.sender_id<>auth.uid() or not private.internal_chat_allowed(new.organization_id,'internal_chat.call') then
@@ -81,7 +81,7 @@ begin
  end if;
  return new;
 end;
-$;
+$$;
 revoke all on function private.internal_chat_guard_insert() from public,anon,authenticated;
 create trigger internal_chat_guard_insert before insert on public.internal_chat_messages
 for each row execute function private.internal_chat_guard_insert();
