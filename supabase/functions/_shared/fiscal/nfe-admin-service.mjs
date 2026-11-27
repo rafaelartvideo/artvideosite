@@ -86,6 +86,23 @@ export async function handleNfeAdmin({admin,provider,account,companies,body,acto
   const existing=result(await scoped(table().select("*")).eq("id",body.operationId).maybeSingle());
   if(!existing||existing.session_revision!==a.session_revision)reject("OPERATION_NOT_AVAILABLE");
   const data=await bootstrap(id,issuer.identity_source);
+  if(body.action==="nfe_download"){
+    if(existing.state!=="authorized"||!existing.remote_id||!existing.protocol)reject("DOCUMENT_NOT_AUTHORIZED");
+    const kind=body.kind;
+    if(!["authorized","pdf"].includes(kind))reject("INVALID_FILE_KIND");
+    const file=await provider.emission({operation:"download",company:id,environment:2,payload:{id:existing.remote_id,kind}});
+    const mime=kind==="pdf"?"application/pdf":file?.mime;
+    if(typeof file?.content_base64!=="string"||file.content_base64.length>14*1024*1024||typeof file?.checksum!=="string"||
+       !/^[a-f0-9]{64}$/i.test(file.checksum)||!["application/pdf","application/xml","text/xml"].includes(mime)||
+       (kind==="pdf"&&file.mime!=="application/pdf")||(kind==="authorized"&&!["application/xml","text/xml"].includes(file.mime)))reject("FILE_RESPONSE_UNRECOGNIZED");
+    let bytes;
+    try{bytes=Uint8Array.from(atob(file.content_base64),c=>c.charCodeAt(0));}catch{reject("FILE_RESPONSE_UNRECOGNIZED");}
+    if(!bytes?.length||bytes.length>10*1024*1024)reject("FILE_RESPONSE_UNRECOGNIZED");
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)),b=>b.toString(16).padStart(2,"0")).join("");
+    if(digest!==file.checksum.toLowerCase())reject("FILE_CHECKSUM_MISMATCH");
+    if(kind==="pdf"&&String.fromCharCode(...bytes.slice(0,5))!=="%PDF-")reject("FILE_RESPONSE_UNRECOGNIZED");
+    return {contentBase64:file.content_base64,mime,filename:"nfe-homologacao-"+existing.remote_id+(kind==="pdf"?".pdf":".xml")};
+  }
   if(["nfe_create","nfe_validate","nfe_issue"].includes(body.action)){
     if(!data.ready||!data.series.includes(existing.payload.series)||!data.profiles.some(p=>p.id===existing.profile_id&&p.version===existing.profile_version&&String(p.catalogCode)===existing.payload.commercial.items[0].catalog_code))reject("PROFILE_OR_SERIES_UNVERIFIED");
   }
