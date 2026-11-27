@@ -114,7 +114,7 @@ Deno.serve(async (request:Request)=>{
         const data=await createFiscontroleProvider({token,timeoutMs:30000}).emission({operation:"bootstrap",company:companyId,environment:2});
         const diagnosis=summarizeEmissionBootstrap(data,binding.data.cnpj,companyId);
         if(diagnosis.identity==="mismatch")return reply(409,{error:"EMITTER_ID_MISMATCH"});
-        return reply(200,{data:{emitterId:companyId,environment:2,identity:diagnosis.identity,models:diagnosis.models,profileCount:diagnosis.profileCount,productionEnabled:false}});
+        return reply(200,{data:{emitterId:companyId,environment:2,identity:diagnosis.identity,models:diagnosis.models,profileCount:diagnosis.profileCount,profiles:diagnosis.profiles,profileFields:diagnosis.profileFields,productionEnabled:false}});
       }catch(error){
         const status=error instanceof Error&&error.name==="FiscalProviderError"?(error as {status?:number}).status:undefined;
         const code=error instanceof Error&&error.message==="FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED"?"FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED":"EMISSION_DIAGNOSIS_FAILED";
