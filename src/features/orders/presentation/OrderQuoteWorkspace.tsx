@@ -180,7 +180,8 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setConfirmationAction(action);
     if(action==="reject"){setReason("");setStartReturnOnReject(canStartReturn);}
     if(action==="approve") {
-      // O conteúdo e as ações de aprovação ficam ocultos até terminar a consulta.
+      // Confere a execução em paralelo, mantendo o resumo da proposta visível.
+      // A confirmação fica bloqueada até a validação terminar.
       const requestId=++approvalLookupId.current;
       setExecutionItems([]);setExecutionItemsError("");setExecutionItemsLoading(true);
       void listOrderCommercialItems(orderId)
@@ -446,7 +447,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       open={Boolean(confirmationAction)}
       onClose={closeAction}
       title={confirmationAction ? ACTION_TITLES[confirmationAction] : "Confirmar ação"}
-      description={confirmationAction==="approve" && executionItemsLoading ? undefined : confirmationAction==="submit"
+      description={confirmationAction==="submit"
         ? "Confira a proposta antes de encaminhá-la para aprovação."
         : confirmationAction==="approve"
           ? revisingApprovedQuote
@@ -457,7 +458,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
             : confirmationAction==="reopen"
               ? "Informe o motivo da reabertura. A proposta volta à edição e precisará de nova aprovação."
               : "Será iniciada uma nova versão, preservando o histórico anterior."}
-      footer={confirmationAction==="approve" && executionItemsLoading ? undefined : <div className="flex w-full flex-wrap justify-end gap-2">
+      footer={<div className="flex w-full flex-wrap justify-end gap-2">
         {modalFeedback?.type==="success"
           ? <BtnPrimary onClick={closeAction}>Concluir</BtnPrimary>
           : <>
@@ -473,7 +474,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       </div>}>
       <div className="min-h-[126px] space-y-4">
         <AnimatePresence mode="wait">
-          {(busy || (confirmationAction==="approve" && executionItemsLoading))
+          {busy
             ? <motion.div key="processing"
                 initial={{opacity:0,y:7}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-7}}
                 className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
@@ -513,8 +514,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                       : confirmationAction==="reopen" ? "Deseja reabrir o orçamento aprovado e enviá-lo novamente para aprovação?"
                       : "Deseja reabrir a negociação e elaborar uma nova versão?"}
                   </p>
-                  {confirmationAction==="approve" && <div className="space-y-3">
-
+                  {confirmationAction==="approve" && !executionItemsLoading && (executionItemsError || executionItems.length>0) && <div className="space-y-3">
                     {executionItemsError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{executionItemsError}</p>}
                     {!executionItemsLoading && !executionItemsError && executionItems.length>0 && <>
                       <div className="rounded-lg border border-border p-3">
@@ -577,7 +577,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                         <strong className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
                       </div>
                     </div>
-                    {confirmationAction==="submit" && <div className="divide-y divide-border px-4">
+                    {(confirmationAction==="submit" || confirmationAction==="approve") && <div className="divide-y divide-border px-4">
                       <div className="space-y-1.5 py-3">
                         <h4 className="text-xs font-semibold text-muted-foreground">Diagnóstico</h4>
                         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{draft.diagnosis.trim()||"Não informado"}</p>

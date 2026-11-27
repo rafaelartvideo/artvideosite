@@ -90,7 +90,7 @@ test("confirmação de envio apresenta diagnóstico e solução proposta do rasc
   const quote = source("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
   assert.ok((await transformWithEsbuild(quote, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
   const summary = quote.slice(quote.indexOf('<section aria-label="Resumo da proposta"'));
-  assert.match(summary, /confirmationAction==="submit" && <div/);
+  assert.match(summary, /\(confirmationAction==="submit" \|\| confirmationAction==="approve"\) && <div/);
   assert.match(summary, /draft\.diagnosis\.trim\(\)/);
   assert.match(summary, /draft\.proposed_solution\.trim\(\)/);
   assert.match(summary, /Valor total/);

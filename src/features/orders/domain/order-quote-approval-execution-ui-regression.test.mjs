@@ -5,16 +5,19 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("modal de aprovação mostra somente carregamento central até consultar os itens", async () => {
+test("modal de aprovação abre imediatamente e mantém a validação dos itens antes de confirmar", async () => {
   const ui = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
   assert.ok((await transformWithEsbuild(ui, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
   assert.match(ui, /approve: "Confirmar"/);
   assert.doesNotMatch(ui, /approve: "Confirmar aprovação"/);
   assert.match(ui, /const requestId=\+\+approvalLookupId\.current/);
   assert.match(ui, /if\(approvalLookupId\.current===requestId\)setExecutionItemsLoading\(false\)/);
-  assert.match(ui, /description=\{confirmationAction==="approve" && executionItemsLoading \? undefined/);
-  assert.match(ui, /footer=\{confirmationAction==="approve" && executionItemsLoading \? undefined/);
-  assert.match(ui, /\(busy \|\| \(confirmationAction==="approve" && executionItemsLoading\)\)/);
+  assert.doesNotMatch(ui, /description=\{confirmationAction==="approve" && executionItemsLoading \? undefined/);
+  assert.doesNotMatch(ui, /footer=\{confirmationAction==="approve" && executionItemsLoading \? undefined/);
+  assert.doesNotMatch(ui, /\(busy \|\| \(confirmationAction==="approve" && executionItemsLoading\)\)/);
+  assert.match(ui, /if\(action==="approve" && \(executionItemsLoading \|\| executionItemsError/);
+  assert.match(ui, /confirmationAction==="approve" && \(executionItemsLoading \|\| Boolean\(executionItemsError\)/);
+  assert.match(ui, /\(confirmationAction==="submit" \|\| confirmationAction==="approve"\) && <div/);
   assert.doesNotMatch(ui, /Consultando itens da execução/);
 });
 
