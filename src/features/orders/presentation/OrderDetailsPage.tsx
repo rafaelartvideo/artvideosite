@@ -702,13 +702,17 @@ export function OrderDetailsPage(props: Props) {
         }});
       }:undefined}
       onClose={()=>setTerminalOutcome(null)}
-      onReturnChanged={attempt=>{
-        details.setDetail((current:any)=>current?.id===detail.id
-          ? {...current,situation_id:attempt?.waiting_situation_id||current.situation_id,
-            ...(attempt?{situation:{id:attempt.waiting_situation_id,name:"Aguardando retirada sem reparo",slug:"aguardando-retirada-sem-reparo",color:"#d97706"}}:{})}
-          :current);
-        void queryClient.invalidateQueries({queryKey:["orders"]});
-        void details.retryDetailLoad();
+      onReturnChanged={async(attempt,previousSituationId)=>{
+        const situationId=attempt?.waiting_situation_id||previousSituationId;
+        if(!situationId){void details.retryDetailLoad();return;}
+        const situation=attempt
+          ? {id:situationId,name:"Aguardando retirada sem reparo",slug:"aguardando-retirada-sem-reparo",color:"#d97706"}
+          : getSituationsForType(detail.service_type_id,situationId,undefined).find((item:any)=>item.id===situationId);
+        await details.syncConfirmedOrderPatch(detail.id,{
+          situation_id:situationId,
+          situation:situation||null,
+          situation_started_at:attempt?.started_at||new Date().toISOString(),
+        });
       }}
       onDone={result=>{
         setTerminalOutcome(null);
