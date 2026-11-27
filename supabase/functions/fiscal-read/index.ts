@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
+import { createSupabaseFiscalSync } from "../_shared/fiscal/supabase-sync.mjs";
 
 const url = Deno.env.get("SUPABASE_URL") || "";
 const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -31,8 +32,8 @@ Deno.serve(async (request: Request) => {
     let body;
     try { body = JSON.parse(raw); } catch { return reply(400,{error:"INVALID_REQUEST"}); }
     if (!body || typeof body !== "object" || Array.isArray(body) || !uuid.test(body.organizationId || "") ||
-      !["status","list"].includes(body.action)) return reply(400,{error:"INVALID_REQUEST"});
-    if (!Object.keys(body).every(k => ["organizationId","action","type","page","limit"].includes(k))) return reply(400,{error:"INVALID_REQUEST"});
+      !["status","list","sync","download"].includes(body.action)) return reply(400,{error:"INVALID_REQUEST"});
+    if (!Object.keys(body).every(k => ["organizationId","action","type","page","limit","documentId"].includes(k))) return reply(400,{error:"INVALID_REQUEST"});
     const organizationId: string = body.organizationId;
     const acting = createClient(url, anon, { auth: authOptions, global: {headers:{Authorization:"Bearer "+bearer}} });
     const userResult = await acting.auth.getUser(bearer);
@@ -67,6 +68,40 @@ Deno.serve(async (request: Request) => {
     if (account.error || inventory.error) return unavailable();
     if (!account.data?.inventory_verified_at || !inventory.data?.verified_at) return denied();
     if (body.action==="status") return reply(200,{data:{provider:account.data.provider,cnpj:b.cnpj,syncEnabled:b.sync_enabled,productionEnabled:false}});
+    const permitted = (key:string) => permissions.data.some((p:{permission_key:string})=>p.permission_key===key);
+    if(body.action==="sync"){
+      if(!permitted("fiscal.sync.manage")||!b.sync_enabled)return denied();
+      if(Deno.env.get("FISCAL_SYNC_ENABLED")!=="true")return unavailable();
+      if(!types.has(body.type))return reply(400,{error:"INVALID_FILTER"});
+      const sync=createSupabaseFiscalSync({admin,resolveSecret:async ({accountId,credentialRef}:{accountId:string;credentialRef:string})=>{
+        if(/^vault_[0-9a-f-]{36}$/.test(credentialRef)){
+          const r=await admin.rpc("fiscal_read_provider_session",{p_account:accountId});
+          if(r.error||typeof r.data!=="string")throw new Error("FISCAL_SECRET_UNAVAILABLE");
+          return r.data;
+        }
+        if(/^FISCAL_FISCONTROLE_TOKEN_[A-Z0-9_]{1,64}$/.test(credentialRef)){
+          const token=Deno.env.get(credentialRef);
+          if(token)return token;
+        }
+        throw new Error("FISCAL_SECRET_UNAVAILABLE");
+      }});
+      // Manual, bounded import only; no automatic scheduler or emissions.
+      const result=await sync({bindingId,type:body.type,limit:5});
+      return reply(200,{data:result});
+    }
+    if(body.action==="download"){
+      if(!permitted("fiscal.documents.download"))return denied();
+      if(typeof body.documentId!=="string"||!uuid.test(body.documentId))return reply(400,{error:"INVALID_DOCUMENT"});
+      const row=await admin.from("fiscal_captured_documents").select("storage_key,document_type,provider_id")
+        .eq("id",body.documentId).eq("organization_id",organizationId).eq("binding_id",bindingId)
+        .eq("account_id",b.account_id).eq("cnpj",b.cnpj).maybeSingle();
+      if(row.error)return unavailable();
+      if(!row.data)return reply(404,{error:"DOCUMENT_NOT_FOUND"});
+      const result=await admin.storage.from("fiscal-originals").createSignedUrl(row.data.storage_key,60,
+        {download:row.data.document_type+"-"+row.data.provider_id+".xml"});
+      if(result.error||!result.data?.signedUrl)return unavailable();
+      return reply(200,{data:{url:result.data.signedUrl}});
+    }
     const page = body.page ?? 1, limit = body.limit ?? 25;
     if (!Number.isSafeInteger(page) || page<1 || page>4000 || !Number.isSafeInteger(limit) || limit<1 || limit>100 ||
       (page-1)*limit>100000 || (body.type!==undefined && !types.has(body.type))) return reply(400,{error:"INVALID_FILTER"});
