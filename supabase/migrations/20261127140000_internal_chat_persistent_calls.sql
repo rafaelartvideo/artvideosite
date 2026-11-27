@@ -16,6 +16,15 @@ $$;
 revoke all on function private.internal_chat_allowed(uuid,text) from public,anon;
 grant execute on function private.internal_chat_allowed(uuid,text) to authenticated;
 
+create function private.internal_chat_recipient_active(p_org uuid,p_user uuid)
+returns boolean language sql stable security definer set search_path = '' as $
+ select private.internal_chat_allowed(p_org,'internal_chat.use')
+ and exists(select 1 from public.organization_members m
+ where m.organization_id=p_org and m.user_id=p_user and m.status='active');
+$;
+revoke all on function private.internal_chat_recipient_active(uuid,uuid) from public,anon;
+grant execute on function private.internal_chat_recipient_active(uuid,uuid) to authenticated;
+
 create function private.internal_chat_directory(p_org uuid)
 returns table(user_id uuid,full_name text)
 language sql stable security definer set search_path = '' as $$
@@ -56,6 +65,27 @@ create index internal_chat_unread_idx on public.internal_chat_messages(organizat
 create index internal_chat_pending_in_idx on public.internal_chat_messages(organization_id,recipient_id,created_at) where kind='call' and response is null;
 create unique index internal_chat_one_pending_pair on public.internal_chat_messages(organization_id,sender_id,recipient_id) where kind='call' and response is null;
 
+create index internal_chat_call_rate_idx on public.internal_chat_messages(organization_id,sender_id,created_at desc) where kind='call';
+create function private.internal_chat_guard_insert() returns trigger
+language plpgsql security invoker set search_path = '' as $
+begin
+ if new.kind='call' then
+   if new.sender_id<>auth.uid() or not private.internal_chat_allowed(new.organization_id,'internal_chat.call') then
+      raise exception 'Sem permissão para chamar' using errcode='42501';
+   end if;
+   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('internal-chat:'||new.organization_id::text||':'||new.sender_id::text,0));
+   if (select count(*) from public.internal_chat_messages m where m.organization_id=new.organization_id
+       and m.sender_id=new.sender_id and m.kind='call' and m.created_at>now()-interval '1 minute')>=5 then
+     raise exception 'Muitas chamadas recentes. Aguarde antes de iniciar outra.' using errcode='P0001';
+   end if;
+ end if;
+ return new;
+end;
+$;
+revoke all on function private.internal_chat_guard_insert() from public,anon,authenticated;
+create trigger internal_chat_guard_insert before insert on public.internal_chat_messages
+for each row execute function private.internal_chat_guard_insert();
+
 alter table public.internal_chat_messages enable row level security;
 revoke all on public.internal_chat_messages from public,anon,authenticated;
 grant select on public.internal_chat_messages to authenticated;
@@ -67,7 +97,7 @@ using ((sender_id=(select auth.uid()) or recipient_id=(select auth.uid()))
 create policy internal_chat_insert on public.internal_chat_messages for insert to authenticated
 with check (sender_id=(select auth.uid()) and private.internal_chat_allowed(organization_id,'internal_chat.use')
  and (kind='text' or private.internal_chat_allowed(organization_id,'internal_chat.call'))
- and exists(select 1 from private.internal_chat_directory(organization_id) d where d.user_id=recipient_id));
+ and private.internal_chat_recipient_active(organization_id,recipient_id));
 create policy internal_chat_update on public.internal_chat_messages for update to authenticated
 using ((sender_id=(select auth.uid()) or recipient_id=(select auth.uid()))
  and private.internal_chat_allowed(organization_id,'internal_chat.use'))
