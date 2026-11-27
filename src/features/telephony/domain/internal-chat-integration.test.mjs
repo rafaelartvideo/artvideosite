@@ -63,3 +63,25 @@ test("chat polish protects reply boundaries, idempotency, deletion and settings"
  assert.ok(ui.includes("internal_chat_settings_save_v1"));
  assert.ok(ui.includes("notifyOnce"));
 });
+
+test("chat docking clamps to viewport, snaps and resets to header",async()=>{
+ const dockPath="src/features/internal-chat/presentation/useChatDock.ts";
+ const dock=read(dockPath);
+ const sql=read(root+"140500_internal_chat_directory_profiles.sql");
+ assert.ok(dock.includes("setPointerCapture"));
+ assert.ok(dock.includes("localStorage.setItem"));
+ assert.ok(dock.includes("ResizeObserver"));
+ assert.ok(ui.includes("dock.arrow"));
+ assert.ok(ui.includes("Restaurar posição original"));
+ assert.ok(ui.includes("internal_chat_directory_v2"));
+ assert.ok(sql.includes("private.internal_chat_directory(p_org)"));
+ assert.ok(sql.includes("emp.organization_id=p_org"));
+ assert.ok(sql.includes("m.organization_id=p_org"));
+ assert.ok((await transformWithEsbuild(dock,dockPath,{loader:"ts"})).code);
+ const geometry=dock.slice(dock.indexOf("type Position="),dock.indexOf("function load("));
+ const {code}=await transformWithEsbuild(geometry,"geometry.ts",{loader:"ts",format:"esm"});
+ const {constrainChatPosition}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+ assert.deepEqual(constrainChatPosition({x:-100,y:999},360,530,1000,800),{x:10,y:260});
+ assert.deepEqual(constrainChatPosition({x:20,y:245},360,530,1000,800,true),{x:10,y:260});
+ assert.deepEqual(constrainChatPosition({x:200,y:100},360,530,1000,800,true),{x:200,y:100});
+});
