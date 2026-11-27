@@ -382,7 +382,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         <AdminButton variant="quaternary" disabled={busy} onClick={()=>openAction("reject")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <XCircle size={15} className="hidden shrink-0 sm:block"/> Rejeitar</AdminButton>
         <BtnPrimary disabled={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
-          <CheckCircle2 size={15} className="hidden shrink-0 sm:block"/> Aprovar</BtnPrimary>
+          Aprovar <CheckCircle2 size={15} className="hidden shrink-0 sm:block"/></BtnPrimary>
       </>}
       {proposal?.status==="rejected" && !order.completed_at && !order.cancelled_at && <>
         {canEdit && <BtnSecondary disabled={busy} onClick={()=>openAction("renegotiate")}
