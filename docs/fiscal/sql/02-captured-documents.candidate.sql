@@ -50,6 +50,7 @@ begin
       and b.account_id = p_account_id and b.cnpj = p_cnpj
       and b.is_enabled and b.sync_enabled and a.is_active and a.inventory_verified_at is not null
       and c.verified_at is not null and o.status = 'active' and m.is_enabled
+      and regexp_replace(coalesce(o.document,''),'[^0-9]','','g') = b.cnpj
     for update of b, a, c, o, m;
   if not found then raise exception 'fiscal scope unavailable'; end if;
   insert into public.fiscal_sync_cursors(binding_id, organization_id, account_id, cnpj, document_type, filter_key)
