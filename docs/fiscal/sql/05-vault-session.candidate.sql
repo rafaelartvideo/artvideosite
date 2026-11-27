@@ -38,7 +38,7 @@ begin
    -- Revalidation/activation is explicit and belongs to a later reviewed flow.
    perform vault.update_secret(sid,p_token);
    update public.fiscal_provider_accounts set label=btrim(p_label),cnpj_limit=p_limit,
-     inventory_verified_at=null,is_active=false where id=aid;
+     inventory_verified_at=null,is_active=false,session_revision=session_revision+1 where id=aid;
  end if;
  return aid;
 end;
