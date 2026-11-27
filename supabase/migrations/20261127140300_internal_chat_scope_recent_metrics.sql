@@ -28,6 +28,33 @@ returns boolean language sql stable security definer set search_path='' as $$
  where m.organization_id=p_org and m.user_id=(select auth.uid()) and m.status='active' and p.is_active)
  and private.has_effective_organization_permission(p_org,p_key);
 $$;
+-- Directory and direct send targets require the recipient's explicit role grant
+-- (or allow override) and reject explicit denials and disabled profiles.
+create or replace function private.internal_chat_recipient_active(p_org uuid,p_user uuid)
+returns boolean language sql stable security definer set search_path='' as $$
+ select private.internal_chat_allowed(p_org,'internal_chat.use')
+ and exists(
+  select 1 from public.organization_members m
+  join public.profiles profile on profile.id=m.user_id
+  join public.permissions permission on permission.key='internal_chat.use'
+  where m.organization_id=p_org and m.user_id=p_user and m.status='active' and profile.is_active
+  and not exists(select 1 from public.user_permission_overrides denied where denied.organization_id=p_org
+   and denied.user_id=p_user and denied.permission_id=permission.id and not denied.is_allowed)
+  and (exists(select 1 from public.role_permissions rp where rp.role_id=m.role_id and rp.permission_id=permission.id)
+   or exists(select 1 from public.user_permission_overrides allowed where allowed.organization_id=p_org
+    and allowed.user_id=p_user and allowed.permission_id=permission.id and allowed.is_allowed))
+ );
+$$;
+create or replace function private.internal_chat_directory(p_org uuid)
+returns table(user_id uuid,full_name text)
+language sql stable security definer set search_path='' as $$
+ select m.user_id,coalesce(nullif(p.full_name,''),'Funcionário')
+ from public.organization_members m join public.profiles p on p.id=m.user_id
+ where m.organization_id=p_org and m.status='active' and m.user_id<>(select auth.uid())
+ and private.internal_chat_recipient_active(p_org,m.user_id)
+ order by 2,1;
+$$;
+
 create index internal_chat_recent_sent_idx on public.internal_chat_messages(organization_id,sender_id,created_at desc,id desc) where group_id is null;
 create index internal_chat_recent_received_idx on public.internal_chat_messages(organization_id,recipient_id,created_at desc,id desc) where group_id is null;
 create index internal_chat_usage_idx on public.internal_chat_messages(organization_id,created_at desc);
