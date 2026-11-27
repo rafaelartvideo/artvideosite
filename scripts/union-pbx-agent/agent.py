@@ -681,8 +681,8 @@ def render_queue_configs(overrides=None, recording_override=None):
             queue_lines.append("member => PJSIP/"+member["endpoint_name"]+
                                ",0,Ramal "+str(member["number"])+"\n")
         dial_lines.extend([
-            "exten => "+str(test_number)+",1,Answer()\n",
-            " same => n,Queue("+name+",,,,"
+            "exten => "+str(test_number)+",1,NoOp(Aguardando atendimento)\n",
+            " same => n,Queue("+name+",r,,,"
                +str(state["max_wait_seconds"])+")\n",
             " same => n,Hangup()\n",
         ])
