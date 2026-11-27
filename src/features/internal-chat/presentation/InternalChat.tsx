@@ -3,7 +3,7 @@ import { ChatRoleSettings } from "./ChatRoleSettings";
 import { useChatDock } from "./useChatDock";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
@@ -42,7 +42,7 @@ function playNotice() {
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
   if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&hasPermission("roles.details.view")} canManageRoles={hasPermission("roles.permissions.manage")} />;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
 }
 function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings,canViewRoles,canManageRoles}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean;canViewRoles:boolean;canManageRoles:boolean}) {
   const qc=useQueryClient();
@@ -168,7 +168,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
       .eq("organization_id",org).eq("recipient_id",uid).is("read_at",null);
     if(error) throw error; return count??0;
   },retry:false,staleTime:Infinity,refetchOnWindowFocus:true});
-  const outgoing=useQuery({queryKey:[...key,"outgoing"],enabled:open,queryFn:async()=>{
+  const outgoing=useQuery({queryKey:[...key,"outgoing"],enabled:open&&expanded,queryFn:async()=>{
     const {data,error}=await supabase.from("internal_chat_messages").select(fields).eq("organization_id",org)
       .eq("sender_id",uid).eq("kind","call").is("response",null).order("created_at").limit(100);
     if(error)throw error;return data as ChatRow[];
@@ -490,7 +490,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
             <p className="text-[10px] text-muted-foreground">{!expanded?<span className="truncate">{totalUnread?totalUnread+" não lidas":connected?"Conectado":"Reconectando…"}</span>:peer?<span className="flex min-w-0 items-center gap-1"><span className={"h-2 w-2 shrink-0 rounded-full "+statusColor(peer)}/><span className="truncate">{statusLabel(peer)}{employeeDetails(peer)&&" · "+employeeDetails(peer)}</span></span>:connected?<span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500"/>Conectado</span>:"Reconectando…"}</p></div>
           {expanded&&!settingsOpen&&!metricsOpen&&peer&&canCall&&config.enabled&&config.calls_enabled&&<button title={pendingOut?"Aguardando resposta":"Chamar funcionário"} className={iconButton} disabled={busy||pendingOut} onClick={()=>void send("call")}><BellRing size={16} className={pendingOut?"text-primary":""}/></button>}
           {expanded&&!settingsOpen&&!metricsOpen&&currentGroup&&(currentGroup.created_by===uid||canManageGroup)&&!groupEdit&&<button title="Gerenciar grupo" className={iconButton} disabled={busy} onClick={()=>void editGroup()}><Settings2 size={15}/></button>}
-          {!settingsOpen&&!metricsOpen&&peer&&canPhone&&config.enabled&&config.pbx_enabled&&<button type="button" className={iconButton} title="Ligar pelo PABX" disabled={busy} onClick={()=>void dialPeer()}><Phone size={15}/></button>}
+          {expanded&&!settingsOpen&&!metricsOpen&&peer&&canPhone&&config.enabled&&config.pbx_enabled&&<button type="button" className={iconButton} title="Ligar pelo PABX" disabled={busy} onClick={()=>void dialPeer()}><Phone size={15}/></button>}
           {expanded&&<button type="button" title="Configurações" aria-label="Configurações" className={iconButton} onClick={()=>{setMetricsOpen(false);setSettingsPage("menu");setSettingsOpen(v=>!v);setSettingsDraft(config);}}><Settings size={16}/></button>}
           <button type="button" className={iconButton+" border border-border"} title="Restaurar posição original" aria-label="Restaurar posição original" onClick={dock.reset}><CornerDownRight size={16}/></button>
           <button type="button" className={iconButton+" text-primary hover:bg-primary/10"} title={expanded?"Minimizar":"Expandir"} aria-label={expanded?"Minimizar chat":"Expandir chat"} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?<ChevronDown size={18}/>:<ChevronUp size={18}/>}</button>
