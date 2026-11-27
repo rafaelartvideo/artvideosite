@@ -49,6 +49,7 @@ revoke all on function public.internal_chat_settings_save_v1(uuid,jsonb) from pu
 grant execute on function public.internal_chat_settings_save_v1(uuid,jsonb) to authenticated;
 
 alter table public.internal_chat_messages add column client_token uuid;
+alter table public.internal_chat_messages add column mentions uuid[] not null default '{}' check(cardinality(mentions)<=20);
 alter table public.internal_chat_messages add column reply_to uuid references public.internal_chat_messages(id);
 alter table public.internal_chat_messages add column edited_at timestamptz;
 alter table public.internal_chat_messages add column deleted_at timestamptz;
@@ -57,7 +58,7 @@ alter table public.internal_chat_messages add column attachment_mime text;
 create unique index internal_chat_client_token_idx on public.internal_chat_messages(organization_id,sender_id,client_token) where client_token is not null;
 create index internal_chat_attachment_usage_idx on public.internal_chat_messages(organization_id) include(attachment_bytes) where attachment_path is not null;
 create index internal_chat_search_idx on public.internal_chat_messages using gin(to_tsvector('simple'::regconfig,body)) where kind='text' and deleted_at is null;
-grant insert(client_token,reply_to) on public.internal_chat_messages to authenticated;
+grant insert(client_token,reply_to,mentions) on public.internal_chat_messages to authenticated;
 
 -- Run after the existing caller guard. No edits can change the target of a message.
 create function private.internal_chat_guard_features() returns trigger
@@ -69,6 +70,10 @@ begin
  if new.reply_to is not null and not exists(select 1 from public.internal_chat_messages m where m.id=new.reply_to and m.organization_id=new.organization_id and
    ((new.group_id is not null and m.group_id=new.group_id) or (new.group_id is null and m.group_id is null and
     ((m.sender_id=new.sender_id and m.recipient_id=new.recipient_id) or (m.sender_id=new.recipient_id and m.recipient_id=new.sender_id))))) then raise exception 'Resposta fora da conversa' using errcode='42501'; end if;
+ if cardinality(new.mentions)>0 and (new.group_id is null or new.kind<>'text' or exists(
+  select 1 from unnest(new.mentions) u where u is null or not exists(
+   select 1 from public.internal_chat_group_members gm where gm.organization_id=new.organization_id and gm.group_id=new.group_id and gm.user_id=u
+  ))) then raise exception 'Menção fora do grupo' using errcode='42501';end if;
  if new.attachment_path is not null then
   if not private.internal_chat_allowed(new.organization_id,'internal_chat.attachments.send') or not private.internal_chat_feature(new.organization_id,'attachment') then raise exception 'Anexos desabilitados' using errcode='42501';end if;
   select (o.metadata->>'size')::bigint,o.metadata->>'mimetype' into v_size,v_mime from storage.objects o
@@ -106,9 +111,9 @@ begin
  select * into m from public.internal_chat_messages where id=p_id and organization_id=p_org and sender_id=auth.uid() for update;
  if not found or m.kind<>'text' or m.deleted_at is not null or (m.group_id is not null and not private.internal_chat_group_member(p_org,m.group_id)) then raise exception 'Mensagem indisponível' using errcode='42501';end if;
  if p_delete then
-   update public.internal_chat_messages set body='Mensagem excluída',deleted_at=now() where id=p_id;
+   update public.internal_chat_messages set body='Mensagem excluída',deleted_at=now(),mentions='{}' where id=p_id;
  elsif m.attachment_path is null and char_length(btrim(coalesce(p_body,''))) between 1 and 4000 then
-   update public.internal_chat_messages set body=btrim(p_body),edited_at=now() where id=p_id;
+   update public.internal_chat_messages set body=btrim(p_body),edited_at=now(),mentions='{}' where id=p_id;
  else raise exception 'Mensagem inválida' using errcode='22023';end if;
 end;
 $$;
@@ -168,6 +173,11 @@ revoke all on function public.internal_chat_search_v1(uuid,uuid,uuid,text) from 
 grant execute on function public.internal_chat_search_v1(uuid,uuid,uuid,text) to authenticated;
 
 update storage.buckets set allowed_mime_types=allowed_mime_types||array['audio/webm','audio/ogg','audio/mp4','audio/mpeg','audio/wav'] where id='internal-chat-files';
+drop policy internal_chat_files_insert on storage.objects;
+create policy internal_chat_files_insert on storage.objects for insert to authenticated
+with check(bucket_id='internal-chat-files' and private.internal_chat_owns_upload(name,true)
+ and exists(select 1 from public.organization_members m where m.user_id=(select auth.uid()) and m.status='active'
+ and m.organization_id::text=split_part(name,'/',1) and private.internal_chat_feature(m.organization_id,'attachment')));
 drop policy internal_chat_files_select on storage.objects;
 create policy internal_chat_files_select on storage.objects for select to authenticated
 using(bucket_id='internal-chat-files' and (private.internal_chat_owns_upload(name,false)
@@ -203,7 +213,7 @@ language plpgsql security definer set search_path='' as $$
 declare v_peer uuid; v_payload jsonb;
 begin
  if tg_op='UPDATE' and new.read_at is not distinct from old.read_at and new.response is not distinct from old.response then return new;end if;
- v_payload:=jsonb_build_object('id',new.id,'sender_id',new.sender_id,'kind',new.kind,'new_message',tg_op='INSERT');
+ v_payload:=jsonb_build_object('id',new.id,'sender_id',new.sender_id,'kind',new.kind,'new_message',tg_op='INSERT','mentions',to_jsonb(new.mentions));
  if new.group_id is not null then
   v_payload:=v_payload||jsonb_build_object('group_id',new.group_id);
   for v_peer in select m.user_id from public.internal_chat_group_members m
