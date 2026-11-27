@@ -65,6 +65,8 @@ export type WhatsAppModalContext = {
         customerId?: string;
         phone: string;
         customerName: string;
+        initialMessage?:string;
+        onNotificationSent?:(conversationId:string,providerMessageId:string)=>Promise<void>;
         documentOptions?: Array<{id:string;label:string}>;
         prepareDocument?: (templateId:string)=>Promise<File>;
         preferredRecipient?: {kind:"registered"|"linked";phone:string;field?:"whatsapp"|"phone";conversation_id?:string;entity_contact_id?:string};
@@ -90,6 +92,15 @@ type Props = {
 
 export function WhatsAppConversationModal({ open, onClose, context, detached=false, onDetach, onReintegrate }: Props) {
   const { organizationId, source } = context;
+  const [notificationSent,setNotificationSent]=useState(false);
+  const notificationGate=useRef(false);
+  const confirmNotification=(conversationId:string,providerMessageId:string)=>{
+    if(source.kind!=="order"||!source.onNotificationSent||notificationGate.current)return;
+    notificationGate.current=true;setNotificationSent(true);
+    void source.onNotificationSent(conversationId,providerMessageId).catch(error=>{
+      notifyAdmin(systemErrorMessage(error,"Mensagem enviada, mas não foi possível registrar a notificação na OS."),"error");
+    });
+  };
   const phone = source.kind==="conversation" ? "" : source.phone;
   const customerName = source.kind==="conversation" ? "" : source.customerName;
   // Depender do objeto source reinicializava o modal quando o painel flutuante
@@ -298,7 +309,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       // an attendance/protocol after it confirms the first message delivery.
       const conversationId=await startUnionWhatsAppWithFirstMessage(
         organizationId,number,(state.contactName||chosenRecipient?.name||customerName).trim(),
-        message,firstSendIdRef.current.id,
+        message,firstSendIdRef.current.id,confirmNotification,
       );
       firstSendIdRef.current=null;
       setEmbeddedReady(false);
@@ -311,7 +322,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
     }
   };
 
-  const canDetach=source.kind==="order" && !detached && Boolean(onDetach)
+  const canDetach=source.kind==="order" && !source.onNotificationSent && !detached && Boolean(onDetach)
     && organizationId===activeOrganizationId && canViewInbox;
   const detachOrder=()=>{
     if(!canDetach || source.kind!=="order")return;
@@ -400,6 +411,8 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
             embeddedFullControls
             detachedWindow={detached}
             initialConversationId={state.conversationId}
+            initialMessage={source.kind==="order"&&!notificationSent?source.initialMessage:undefined}
+            onNotificationSent={source.kind==="order"&&source.onNotificationSent&&!notificationSent?confirmNotification:undefined}
             onEmbeddedReady={setEmbeddedReady}
             onChangeRecipient={source.kind==="order" && orderRecipients.length>1
               ? ()=>{setEmbeddedReady(false);setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}
@@ -422,6 +435,7 @@ export function WhatsAppConversationModal({ open, onClose, context, detached=fal
       starting={starting}
       error={startError}
       onEditMessage={()=>setStartError("")}
+      initialMessage={source.kind==="order"&&!notificationSent?source.initialMessage:undefined}
       onSend={sendFirstMessage}
       onChangeRecipient={source.kind==="order" && orderRecipients.length>1
         ? ()=>{firstSendIdRef.current=null;setChosenRecipient(null);setState({status:"choosing",recipients:orderRecipients});}
@@ -495,7 +509,7 @@ export function useWhatsAppConversationModal() {
   const openWhatsAppConversation=useCallback((next:WhatsAppModalContext)=>{
     // If the detached popup is alive, the OS toolbar always routes its
     // WhatsApp button to that same popup, even across OS route unmounts.
-    if(next.source.kind==="order" && reuseDetachedWhatsAppWindow(next)){
+    if(next.source.kind==="order" && !next.source.onNotificationSent && reuseDetachedWhatsAppWindow(next)){
       setContext(null);
       return;
     }

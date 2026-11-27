@@ -17,7 +17,7 @@ import {
 } from "../infrastructure/order-documents.repository";
 import { listOrderWarrantyPartners, type OrderWarrantyPartner } from "../infrastructure/order-finance.repository";
 import {
-  completeOrderTerminalExit, getOrderTerminalStock,
+  completeOrderTerminalExit, getOrderTerminalStock, getUnrepairedReturn, startUnrepairedReturn, cancelUnrepairedReturn, markUnrepairedReturnNotified, type UnrepairedReturnAttempt,
   type OrderTerminalOutcome,type OrderTerminalStockItem,type OrderTerminalStockDecision,
 } from "../infrastructure/order-terminal-exit.repository";
 
@@ -49,7 +49,7 @@ const STOCK_OPTIONS=[
 ];
 
 export function OrderTerminalExitDialog({
-  order,outcome,initialReason,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,
+  order,outcome,initialReason,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,onReturnChanged,onNotifyCustomer,notificationConversationOpen=false,
 }:{
   order:any;
   outcome:OrderTerminalOutcome;
@@ -61,15 +61,25 @@ export function OrderTerminalExitDialog({
   history:any[];
   printedBy?:string|null;
   onClose:()=>void;
+  onReturnChanged?:(attempt:UnrepairedReturnAttempt|null)=>void;
+  onNotifyCustomer?:(message:string,onSent:(conversationId:string,providerMessageId:string)=>Promise<void>)=>void;
+  notificationConversationOpen?:boolean;
   onDone:(result:{id:string;outcome:OrderTerminalOutcome;completed_at:string;returned_to_stock:number})=>void;
 }){
   const cfg=TERMINAL_CONFIG[outcome];
   const org=String(order.organization_id||"");
   const orderId=String(order.id||"");
+  const isReturn=outcome==="returned_unrepaired";
+  const [attempt,setAttempt]=useState<UnrepairedReturnAttempt|null>(null);
+  const [category,setCategory]=useState(initialReason?"Orçamento reprovado":"");
+  const [observations,setObservations]=useState(initialReason||"");
+  const [cancelConfirm,setCancelConfirm]=useState(false);
   const [reason,setReason]=useState(initialReason||"");
+  const initiating=isReturn&&!attempt;
+  const returnCategories=["Impossibilidade técnica","Peça indisponível","Orçamento reprovado","Desistência do cliente","Equipamento sem defeito constatado","Reparo economicamente inviável","Outros"];
   const [partnerId,setPartnerId]=useState(String(order.disposal_partner_id||""));
   const [partners,setPartners]=useState<OrderWarrantyPartner[]>([]);
-  const [attachments,setAttachments]=useState<Array<{media_id:string;attachment_type?:{name:string}|null;media?:{file_name?:string}|null}>>([]);
+  const [attachments,setAttachments]=useState<Array<{media_id:string;created_at?:string;attachment_type?:{name:string}|null;media?:{file_name?:string}|null}>>([]);
   const [attachmentTypeId,setAttachmentTypeId]=useState("");
   const [evidenceId,setEvidenceId]=useState("");
   const [evidenceFile,setEvidenceFile]=useState<File|null>(null);
@@ -100,8 +110,8 @@ export function OrderTerminalExitDialog({
     return()=>window.clearTimeout(timer);
   },[loading,templatesLoading,template?.id]);
   const signedRequests=useMemo(()=>requests.filter(r=>
-    r.print_template_id===template?.id&&r.status==="signed"&&Boolean(r.signed_at)
-  ).sort((a,b)=>Date.parse(b.signed_at||"")-Date.parse(a.signed_at||"")),[requests,template?.id]);
+    r.print_template_id===template?.id&&r.status==="signed"&&Boolean(r.signed_at)&&(!isReturn||(attempt&&Date.parse(r.created_at)>=Date.parse(attempt.started_at)&&Date.parse(r.signed_at||"")>=Date.parse(attempt.started_at)))
+  ).sort((a,b)=>Date.parse(b.signed_at||"")-Date.parse(a.signed_at||"")),[requests,template?.id,isReturn,attempt]);
 
   useEffect(()=>{
     let alive=true;
@@ -112,10 +122,13 @@ export function OrderTerminalExitDialog({
       listOrderSituationDocuments(orderId,org),
       getOrderTerminalStock(org,orderId),
       outcome==="disposal_confirmed"?listOrderWarrantyPartners(org):Promise.resolve([]),
-    ]).then(([loadedRequests,attachmentResult,documents,stockRows,partnerRows])=>{
+      isReturn?getUnrepairedReturn(org,orderId):Promise.resolve(null),
+    ]).then(([loadedRequests,attachmentResult,documents,stockRows,partnerRows,loadedAttempt])=>{
       if(!alive)return;
       if(attachmentResult.error)throw attachmentResult.error;
       if(documents.error)throw documents.error;
+      setAttempt(loadedAttempt);
+      if(loadedAttempt){setReason(loadedAttempt.reason);setCategory(loadedAttempt.reason_category);setObservations(loadedAttempt.observations);}
       setRequests(loadedRequests);
       setAttachments((documents.data||[]) as any[]);
       setStock(stockRows);
@@ -126,7 +139,7 @@ export function OrderTerminalExitDialog({
       if(alive)setError(systemErrorMessage(e,"Não foi possível consultar os requisitos do encerramento."));
     }).finally(()=>{if(alive)setLoading(false)});
     return()=>{alive=false};
-  },[org,orderId,outcome,refresh,cfg.evidence]);
+  },[org,orderId,outcome,refresh,cfg.evidence,isReturn]);
 
   // O estado da assinatura é atualizado por evento e, enquanto aguarda,
   // por fallback leve de 15s somente com a OS aberta e aba visível.
@@ -138,7 +151,7 @@ export function OrderTerminalExitDialog({
     finally {signatureRefreshInFlight.current=false;}
   },[org,orderId]);
   useEffect(()=>{
-    if(!org||!orderId)return;
+    if(!org||!orderId||initiating)return;
     const channel=supabase.channel("order-terminal-signatures:"+orderId)
       .on("postgres_changes",{
         event:"*",schema:"public",table:"document_signature_requests",
@@ -156,19 +169,19 @@ export function OrderTerminalExitDialog({
       document.removeEventListener("visibilitychange",onVisibility);
       void supabase.removeChannel(channel);
     };
-  },[org,orderId,refreshSignatures,step,signedRequests.length]);
+  },[org,orderId,refreshSignatures,step,signedRequests.length,initiating]);
 
   useEffect(()=>{
     setSignatureId(current=>signedRequests.some(x=>x.id===current)?current:(signedRequests[0]?.id||""));
   },[signedRequests]);
   useEffect(()=>{
-    setEvidenceId(current=>attachments.some(a=>a.media_id===current)?current:
-      (attachments.filter(a=>a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence)
+    setEvidenceId(current=>attachments.some(a=>a.media_id===current&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at))))?current:
+      (attachments.filter(a=>a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at))))
         .at(-1)?.media_id||""));
-  },[attachments,cfg.evidence]);
+  },[attachments,cfg.evidence,isReturn,attempt]);
 
   const evidenceOptions=attachments.filter(a=>
-    a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence
+    a.attachment_type?.name?.trim().toLocaleLowerCase("pt-BR")===cfg.evidence&&(!isReturn||(attempt&&Date.parse(a.created_at||"")>=Date.parse(attempt.started_at)))
   );
   const updateChoice=(id:string,change:Partial<StockChoice>)=>{
     setStockChoices(current=>({...current,[id]:{...(current[id]||INITIAL_CHOICE),...change}}));
@@ -181,8 +194,44 @@ export function OrderTerminalExitDialog({
     return !choice.physical||!Number.isFinite(value)||value<=0||value>item.quantity_outstanding;
   });
   const canFinish=Boolean(!loading&&!submitting&&!uploading&&!error&&template&&signatureId&&evidenceId
-    &&reason.trim().length>=8&&acknowledged&&!invalidStock
+    &&(!isReturn||(attempt&&evidenceOptions.some(a=>a.media_id===evidenceId)))&&reason.trim().length>=8&&acknowledged&&!invalidStock
     &&(outcome!=="disposal_confirmed"||partnerId));
+
+  const canStart=Boolean(!loading&&!submitting&&!error&&category&&(category!=="Outros"||observations.trim().length>=8));
+  const beginReturn=async()=>{
+    if(!canStart)return;
+    setSubmitting(true);setError("");
+    try{
+      const saved=await startUnrepairedReturn(org,orderId,category,observations);
+      setAttempt(saved);setReason(saved.reason);setAcknowledged(false);
+      setSignatureId("");setEvidenceId("");setStockChoices({});
+      onReturnChanged?.(saved);
+      notifyAdmin("Devolução iniciada. A OS permanece aberta aguardando retirada.","success");
+    }catch(e){setError(systemErrorMessage(e,"Não foi possível iniciar a devolução."));}
+    finally{setSubmitting(false);}
+  };
+  const notifyCustomer=()=>{
+    if(!attempt||!onNotifyCustomer||notificationConversationOpen)return;
+    const currentAttemptId=attempt.id;
+    const publicReason=attempt.reason_category==="Outros"?"Conforme avaliação realizada":attempt.reason_category;
+    const message="Olá! Sobre a OS #"+order.os_number+", informamos que o equipamento está disponível para retirada sem reparo.\n\nMotivo: "+publicReason+".\n\nPedimos que entre em contato para combinar a retirada. Estamos à disposição para esclarecer qualquer dúvida.";
+    onNotifyCustomer(message,async(conversationId,providerMessageId)=>{
+      const saved=await markUnrepairedReturnNotified(org,orderId,currentAttemptId,conversationId,providerMessageId);
+      setAttempt(current=>current?.id===saved.id?saved:current);
+      notifyAdmin("Cliente notificado. Envio registrado na devolução.","success");
+    });
+  };
+  const cancelReturn=async()=>{
+    if(!attempt||submitting)return;
+    setSubmitting(true);setError("");
+    try{
+      await cancelUnrepairedReturn(org,orderId);
+      onReturnChanged?.(null);
+      notifyAdmin("Devolução cancelada. Situação anterior restaurada.","success");
+      onClose();
+    }catch(e){setError(systemErrorMessage(e,"Não foi possível cancelar a devolução."));}
+    finally{setSubmitting(false);setCancelConfirm(false);}
+  };
 
   const upload=async()=>{
     if(!evidenceFile||uploading||!attachmentTypeId)return;
@@ -233,10 +282,10 @@ export function OrderTerminalExitDialog({
     finally{setSubmitting(false)}
   };
 
-  return <AdminDialog open minimizable={false}
+  return <AdminDialog open={!notificationConversationOpen} minimizable={false}
     onClose={()=>{if(submitting||uploading||signatureBusy)return;if(step==="form")onClose();else setStep("form");}}
     title={step==="form"
-      ? <span className="inline-flex items-center gap-2">{cfg.title}
+      ? <span className="inline-flex items-center gap-2">{isReturn?(initiating?"Iniciar devolução sem reparo":"Confirmar devolução"):cfg.title}
           <Popover>
       <PopoverTrigger asChild>
         <button type="button" aria-label="Informações sobre o encerramento" title="Informações sobre o encerramento"
@@ -245,8 +294,8 @@ export function OrderTerminalExitDialog({
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" className="z-[170] w-[min(22rem,calc(100vw-2rem))] p-4 text-xs leading-relaxed">
-        <p className="mb-2 font-bold text-foreground">Encerramento sem cobrança</p>
-        <p>A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa.</p>
+        <p className="mb-2 font-bold text-foreground">{isReturn?"Devolução em duas etapas":"Encerramento sem cobrança"}</p>
+        <p>{isReturn?"Iniciar a devolução mantém a OS aberta. Confirme a entrega física para fechar a OS e registrar a perda, quando aplicável.":"A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa."}</p>
         <p className="mt-2">Só as peças recuperadas e conferidas fisicamente voltarão ao estoque.</p>
       </PopoverContent>
     </Popover>
@@ -255,19 +304,20 @@ export function OrderTerminalExitDialog({
     description={`OS #${order.os_number||""}`}
     className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
     transitionKey={step}
-    preparing={(loading||templatesLoading)&&step==="form"}
+    preparing={(loading||(!initiating&&templatesLoading))&&step==="form"}
     preparingKey={orderId+":"+outcome}
     preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
     footer={step==="form" ? <div className="flex flex-wrap justify-end gap-2">
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
-      <AdminButton disabled={!canFinish} loading={submitting} onClick={()=>void confirm()}>
-        <ShieldCheck size={16}/>{cfg.button}
+      {attempt&&<AdminButton variant="secondary" disabled={submitting||uploading||loading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}>Cancelar devolução</AdminButton>}
+      <AdminButton disabled={initiating?!canStart:!canFinish} loading={submitting} onClick={()=>void (initiating?beginReturn():confirm())}>
+        <ShieldCheck size={16}/>{initiating?"Iniciar devolução":cfg.button}
       </AdminButton>
     </div> : null}>
     {step==="signature" ? <OrderSignatureRequestDialog
       embedded open order={order} templates={templates}
       preferredDocumentType={cfg.docType}
-      existingRequests={requests}
+      existingRequests={isReturn?requests.filter(r=>attempt&&Date.parse(r.created_at)>=Date.parse(attempt.started_at)):requests}
       usedItems={usedItems} partRequests={partRequests} history={history} printedBy={printedBy}
       onBusyChange={setSignatureBusy}
       onClose={()=>setStep(current=>current==="qr"?"qr":"form")}
@@ -280,7 +330,35 @@ export function OrderTerminalExitDialog({
       }}
     /> : step==="qr" ? <SignatureQrDialog embedded link={qrLink}
       onClose={()=>{setQrLink(null);setStep("form");void refreshSignatures();}}/> : <div className="space-y-4">
-        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+        {isReturn?<section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-foreground">{initiating?"1. Motivo da devolução":"2. Aguardando retirada sem reparo"}</h3>
+            <span className="text-xs text-muted-foreground">{initiating?"Etapa 1 de 2":"Etapa 2 de 2"}</span>
+          </div>
+          {initiating?<><FSelect label="Motivo da devolução" required value={category}
+            onChange={(e:any)=>setCategory(e.target.value)} disabled={submitting}
+            options={[{value:"",label:"Selecione o motivo"},...returnCategories.map(value=>({value,label:value}))]}/>
+          <FTextarea label="Observações" required={category==="Outros"} rows={3} value={observations}
+            onChange={(e:any)=>setObservations(e.target.value)} placeholder="Descreva as condições do equipamento..." disabled={submitting}/>
+          <p className="text-xs text-muted-foreground">A OS ficará aberta até a entrega efetiva do equipamento.</p></>:<>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div><p className="text-xs text-muted-foreground">Motivo</p><p className="text-sm font-semibold">{attempt?.reason_category}</p></div>
+            <div><p className="text-xs text-muted-foreground">Aguardando desde</p><p className="text-sm font-semibold">{attempt&&new Date(attempt.started_at).toLocaleString("pt-BR")}</p></div>
+          </div>
+          {attempt?.observations&&<p className="whitespace-pre-wrap text-sm">{attempt.observations}</p>}
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">OS aberta · Equipamento sob responsabilidade da assistência</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+            <div className="min-w-0">
+              {attempt?.notified_at?<><p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16}/> Cliente notificado</p><p className="text-xs text-muted-foreground">{new Date(attempt.notified_at).toLocaleString("pt-BR")}</p></>:<p className="text-sm text-muted-foreground">Cliente ainda não notificado</p>}
+            </div>
+            {onNotifyCustomer&&<AdminButton variant="secondary" disabled={submitting||loading||notificationConversationOpen} onClick={notifyCustomer}>{attempt?.notified_at?"Notificar novamente":"Notificar cliente"}</AdminButton>}
+          </div>
+          {cancelConfirm&&<div className="space-y-2 rounded-lg border border-border p-3">
+            <p className="text-sm">Cancelar a devolução e restaurar a situação anterior da OS?</p>
+            <div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={submitting} onClick={()=>setCancelConfirm(false)}>Voltar</AdminButton><AdminButton disabled={submitting} loading={submitting} onClick={()=>void cancelReturn()}>Confirmar cancelamento</AdminButton></div>
+          </div>}
+          </>}
+        </section>:<section className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-bold text-foreground">{outcome==="disposal_confirmed"?"Motivo e instituição":"Motivo da devolução"}</h3>
           <FTextarea label={outcome==="disposal_confirmed"?"Motivo do descarte":"Motivo da devolução"} required
             rows={2} value={reason} onChange={(e:any)=>setReason(e.target.value)}
@@ -290,9 +368,11 @@ export function OrderTerminalExitDialog({
             disabled={submitting}
             options={[{value:"",label:"Selecione uma instituição parceira"},
               ...partners.map(item=>({value:item.id,label:item.name}))]}/>}
-        </section>
-        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+        </section>}
+        {!initiating&&<>
+        <section className={isReturn?"space-y-3 border-t border-border pt-4":"space-y-3 rounded-xl border border-border bg-card p-4"}>
           <h3 className="text-sm font-bold text-foreground">Termo e assinaturas</h3>
+          {isReturn&&<p className="text-xs text-muted-foreground">Solicite a assinatura do recebimento somente na entrega física.</p>}
           <p className="text-xs text-muted-foreground">{template?.name||"Termo de encerramento"}</p>
           {signedRequests.length>0?<div className="space-y-2">
             <FSelect label="Termo assinado" value={signatureId} onChange={(e:any)=>setSignatureId(e.target.value)}
@@ -308,7 +388,7 @@ export function OrderTerminalExitDialog({
           </AdminButton>
           {!template&&<p className="text-xs text-destructive">Modelo não carregado. Verifique os modelos no módulo Documentos.</p>}
         </section>
-        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <section className={isReturn?"space-y-3 border-t border-border pt-4":"space-y-3 rounded-xl border border-border bg-card p-4"}>
           <h3 className="text-sm font-bold text-foreground">Evidência de {outcome==="disposal_confirmed"?"descarte":"devolução"}</h3>
           <p className="text-xs text-muted-foreground">Anexe uma foto ou PDF para registrar a {outcome==="disposal_confirmed"?"destinação":"entrega"}.</p>
           {evidenceOptions.length>0&&<FSelect label="Evidência anexada" value={evidenceId}
@@ -317,8 +397,8 @@ export function OrderTerminalExitDialog({
               value:a.media_id,label:a.media?.file_name||`Evidência ${i+1}`
             }))}/>}
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
-              <ImagePlus size={16}/> Selecionar foto ou PDF
+            <label className={isReturn?"flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-5 text-xs font-semibold hover:bg-muted":"inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted"}>
+              <ImagePlus size={16}/> {isReturn?(evidenceFile||evidenceId?"Trocar":"Adicionar"):"Selecionar foto ou PDF"}
               <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf"
                 onChange={e=>setEvidenceFile(e.currentTarget.files?.[0]||null)} disabled={submitting||uploading}/>
             </label>
@@ -372,6 +452,7 @@ export function OrderTerminalExitDialog({
             onChange={e=>setAcknowledged(e.target.checked)}/>
           Confirmo que conferi o equipamento, o termo, a evidência e as peças antes de encerrar a OS.
         </label>
+        </>}
       {error&&<p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
         <AlertTriangle size={15} className="shrink-0"/>{error}
         <button type="button" className="ml-auto underline" onClick={()=>{setError("");setRefresh(x=>x+1)}}>Tentar novamente</button>

@@ -681,6 +681,7 @@ export async function operateUnionWhatsAppInbox(
 export async function startUnionWhatsAppWithFirstMessage(
   organizationId:string,phone:string,contactName:string,message:string,
   clientMessageId:string=crypto.randomUUID(),
+  onConfirmed?:(conversationId:string,providerMessageId:string)=>void,
 ):Promise<string>{
   const text=message.trim();
   if(!text)throw new Error("Digite a primeira mensagem antes de iniciar o atendimento.");
@@ -692,5 +693,6 @@ export async function startUnionWhatsAppWithFirstMessage(
   });
   if(!sent.conversation_id || !sent.first_message_sent)
     throw new Error("Não foi possível confirmar o envio da primeira mensagem.");
+  if(sent.provider_message_id)onConfirmed?.(sent.conversation_id,sent.provider_message_id);
   return sent.conversation_id;
 }
