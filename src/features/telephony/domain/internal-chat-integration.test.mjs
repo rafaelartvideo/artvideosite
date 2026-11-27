@@ -85,3 +85,27 @@ test("chat docking clamps to viewport, snaps and resets to header",async()=>{
  assert.deepEqual(constrainChatPosition({x:20,y:245},360,530,1000,800,true),{x:10,y:260});
  assert.deepEqual(constrainChatPosition({x:200,y:100},360,530,1000,800,true),{x:200,y:100});
 });
+
+test("chat opens centered under clicked header icon, collapses and preserves permission boundaries",async()=>{
+ const dockPath="src/features/internal-chat/presentation/useChatDock.ts";
+ const rolesPath="src/features/internal-chat/presentation/ChatRoleSettings.tsx";
+ const dock=read(dockPath),roleUi=read(rolesPath);
+ assert.ok(ui.includes("dock.anchor(e.currentTarget)"));
+ assert.ok(ui.includes("setExpanded(v=>!v)"));
+ assert.ok(ui.includes("expanded&&<>"));
+ assert.ok(ui.includes("Restaurar posição original"));
+ assert.ok(ui.includes("Perfis e permissões"));
+ assert.ok(ui.includes("Carregando funcionários"));
+ assert.ok(ui.includes("canManage={canManageRoles}"));
+ assert.ok(roleUi.includes('x.key.startsWith("internal_chat.")'));
+ assert.ok(roleUi.includes("saveRolePermissions(role.id,selected.filter(id=>visible.includes(id)),visible)"));
+ assert.ok((await transformWithEsbuild(roleUi,rolesPath,{loader:"tsx"})).code);
+ const geom=dock.slice(dock.indexOf("type Position="),dock.indexOf("export function useChatDock("));
+ const compiled=await transformWithEsbuild(geom+"\nexport {homePosition,nearestEdge,dockPosition};","dock-geometry.ts",{loader:"ts",format:"esm"});
+ const {homePosition,nearestEdge,dockPosition}=await import("data:text/javascript;base64,"+Buffer.from(compiled.code).toString("base64"));
+ const a={left:480,right:516,top:10,bottom:46,width:36,height:36};
+ assert.deepEqual(homePosition(a,360,530,1000,800),{p:{x:318,y:56},bottom:false,arrowLeft:180});
+ const d=nearestEdge({x:620,y:200},360,530,1000,800);
+ assert.equal(d.side,"right");
+ assert.equal(dockPosition(d,360,48,1000,800).x,630);
+});
