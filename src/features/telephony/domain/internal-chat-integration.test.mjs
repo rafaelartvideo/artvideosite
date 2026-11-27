@@ -115,7 +115,7 @@ test("internal chat shares CRM texture, bounds long filenames and preserves publ
  assert.ok(ui.includes("whatsapp-chat-pattern.svg"));
  assert.ok(ui.includes('maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"'));
  assert.ok(ui.includes("overflow-x-hidden overflow-y-auto"));
- assert.ok(ui.includes("min-w-0 break-all text-xs"));
+ assert.ok(read("src/features/internal-chat/presentation/ChatAttachment.tsx").includes("min-w-0 break-all text-xs"));
  assert.ok(ui.includes('m.read_at?<CheckCheck'));
  assert.ok(ui.includes("text-sky-600 dark:text-sky-400"));
  assert.ok(!ui.includes("editMessage(m,true)"));
@@ -124,4 +124,23 @@ test("internal chat shares CRM texture, bounds long filenames and preserves publ
  assert.ok(preserve.includes("if p_delete is distinct from false then raise exception"));
  assert.ok(preserve.includes("revoke delete on public.internal_chat_messages"));
  assert.ok(!preserve.includes("set body='Mensagem excluída'"));
+});
+
+test("internal chat renders private media inline and reuses WhatsApp viewer and composer",async()=>{
+ const mediaPath="src/features/internal-chat/presentation/ChatAttachment.tsx";
+ const pickerPath="src/features/internal-chat/presentation/ChatOrderPicker.tsx";
+ const media=read(mediaPath),picker=read(pickerPath);
+ assert.ok(ui.includes("<UnionWhatsAppMediaViewer url={preview.url}"));
+ assert.ok(ui.includes("<EmojiPicker embedded"));
+ assert.ok(ui.includes("<ChatOrderPicker org={org}"));
+ assert.ok(ui.includes('hasPermission("orders.view")'));
+ assert.ok(ui.includes("setStagedFile(file)"));
+ assert.ok(media.includes("IntersectionObserver"));
+ assert.ok(media.includes('privateMediaKey("internal-chat",org,uid,path)'));
+ assert.ok(media.includes('from("internal-chat-files").download(path)'));
+ assert.ok(media.includes("URL.revokeObjectURL"));
+ assert.ok(picker.includes('.eq("organization_id",org)'));
+ assert.ok(picker.includes(".limit(20)"));
+ assert.ok(picker.includes('adminPath("orders",o.id)'));
+ for(const p of [mediaPath,pickerPath])assert.ok((await transformWithEsbuild(read(p),p,{loader:"tsx"})).code);
 });
