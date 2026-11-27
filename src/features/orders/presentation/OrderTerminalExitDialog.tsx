@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, CircleHelp, FileSignature, ImagePlus, PackageCheck, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, CircleHelp, FileSignature, ImagePlus, LoaderCircle, PackageCheck, ShieldCheck } from "lucide-react";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
+import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { supabase } from "@/lib/supabase";
@@ -70,6 +72,11 @@ export function OrderTerminalExitDialog({
   const org=String(order.organization_id||"");
   const orderId=String(order.id||"");
   const isReturn=outcome==="returned_unrepaired";
+  const customer=order.customer;
+  const customerCompany=customer?.customer_type==="PJ";
+  const customerName=customer?.full_name||customer?.trade_name||customer?.legal_name||"—";
+  const customerDocument=(customerCompany?formatCnpj(customer?.cnpj||customer?.document||""):formatCpf(customer?.document||""))||"—";
+  const customerPhone=formatPhone(customer?.whatsapp||customer?.phone||"")||"—";
   const [attempt,setAttempt]=useState<UnrepairedReturnAttempt|null>(null);
   const [category,setCategory]=useState(initialReason?"Orçamento reprovado":"");
   const [observations,setObservations]=useState(initialReason||"");
@@ -84,6 +91,7 @@ export function OrderTerminalExitDialog({
   const [evidenceId,setEvidenceId]=useState("");
   const [evidenceFile,setEvidenceFile]=useState<File|null>(null);
   const [uploading,setUploading]=useState(false);
+  const uploadGate=useRef(false);
   const [stock,setStock]=useState<OrderTerminalStockItem[]>([]);
   const [stockChoices,setStockChoices]=useState<Record<string,StockChoice>>({});
   const [requests,setRequests]=useState<DocumentSignatureRequestSummary[]>([]);
@@ -233,20 +241,20 @@ export function OrderTerminalExitDialog({
     finally{setSubmitting(false);setCancelConfirm(false);}
   };
 
-  const upload=async()=>{
-    if(!evidenceFile||uploading||!attachmentTypeId)return;
-    if(evidenceFile.size<=0||evidenceFile.size>25*1024*1024){
+  const upload=async(file:File|null=evidenceFile)=>{
+    if(!file||uploadGate.current||uploading||submitting||!attachmentTypeId)return;
+    if(file.size<=0||file.size>25*1024*1024){
       setError("O arquivo deve ter até 25 MB e não pode estar vazio.");return;
     }
     const supported=["image/jpeg","image/png","image/webp","application/pdf"];
-    if(!supported.includes(evidenceFile.type)){
+    if(!supported.includes(file.type)){
       setError("Selecione uma imagem JPG, PNG, WebP ou PDF.");return;
     }
-    setUploading(true);setError("");
+    uploadGate.current=true;setUploading(true);setError("");
     try{
       const mediaId=await attachOrderSituationDocument({
         organizationId:org,serviceOrderId:orderId,
-        attachmentTypeId,file:evidenceFile,optimizePhoto:true,
+        attachmentTypeId,file,optimizePhoto:true,
       });
       setEvidenceFile(null);setEvidenceId(mediaId);
       // Não recarregar estoque, parceiros e todas as assinaturas após um anexo.
@@ -255,7 +263,7 @@ export function OrderTerminalExitDialog({
       setAttachments((updatedDocuments.data||[]) as any[]);
       notifyAdmin("Evidência anexada aos documentos da OS.","success");
     }catch(e){setError(systemErrorMessage(e,"Não foi possível anexar a evidência."))}
-    finally{setUploading(false)}
+    finally{uploadGate.current=false;setUploading(false)}
   };
 
   const confirm=async()=>{
@@ -295,7 +303,7 @@ export function OrderTerminalExitDialog({
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" className="z-[170] w-[min(22rem,calc(100vw-2rem))] p-4 text-xs leading-relaxed">
         <p className="mb-2 font-bold text-foreground">{isReturn?"Devolução em duas etapas":"Encerramento sem cobrança"}</p>
-        <p>{isReturn?"A OS ficará aberta até a entrega efetiva do equipamento. Confirme a devolução para fechar a OS e registrar a perda, quando aplicável.":"A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa."}</p>
+        <p>{isReturn?"A OS ficará aberta até a entrega efetiva do equipamento. Confirme a devolução para fechar a OS e registrar a perda, quando aplicável. Solicite a assinatura do recebimento somente na entrega física.":"A OS será fechada na situação correspondente. O registro ficará em Financeiro → Perdas, sem pagamento nem baixa de caixa."}</p>
         <p className="mt-2">Só as peças recuperadas e conferidas fisicamente voltarão ao estoque.</p>
       </PopoverContent>
     </Popover>
@@ -309,7 +317,7 @@ export function OrderTerminalExitDialog({
     preparingText={outcome==="disposal_confirmed"?"Preparando descarte...":"Preparando devolução..."}
     footer={step==="form" ? <div className="flex flex-wrap justify-end gap-2">
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
-      {attempt&&<AdminButton variant="secondary" disabled={submitting||uploading||loading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}>Cancelar devolução</AdminButton>}
+      {attempt&&<AdminButton variant="danger" disabled={submitting||uploading||loading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}><Ban size={16}/> Cancelar devolução</AdminButton>}
       <AdminButton disabled={initiating?!canStart:!canFinish} loading={submitting} onClick={()=>void (initiating?beginReturn():confirm())}>
         <ShieldCheck size={16}/>{initiating?"Iniciar devolução":cfg.button}
       </AdminButton>
@@ -332,7 +340,7 @@ export function OrderTerminalExitDialog({
       onClose={()=>{setQrLink(null);setStep("form");void refreshSignatures();}}/> : <div className="space-y-4">
         {isReturn?<section className="space-y-3">
           <div className={`flex items-center gap-2 ${initiating?"justify-end":"justify-between"}`}>
-            {!initiating&&<h3 className="text-sm font-bold text-foreground">2. Aguardando retirada sem reparo</h3>}
+            {!initiating&&<span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">Aguardando retirada sem reparo</span>}
             <span className="text-xs text-muted-foreground">{initiating?"Etapa 1 de 2":"Etapa 2 de 2"}</span>
           </div>
           {initiating?<><FSelect label="Motivo da devolução" required value={category}
@@ -346,16 +354,31 @@ export function OrderTerminalExitDialog({
             <div><p className="text-xs text-muted-foreground">Aguardando desde</p><p className="text-sm font-semibold">{attempt&&new Date(attempt.started_at).toLocaleString("pt-BR")}</p></div>
           </div>
           {attempt?.observations&&<p className="whitespace-pre-wrap text-sm">{attempt.observations}</p>}
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">OS aberta · Equipamento sob responsabilidade da assistência</p>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-            <div className="min-w-0">
-              {attempt?.notified_at?<><p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16}/> Cliente notificado</p><p className="text-xs text-muted-foreground">{new Date(attempt.notified_at).toLocaleString("pt-BR")}</p></>:<p className="text-sm text-muted-foreground">Cliente ainda não notificado</p>}
+          <div className="space-y-3 border-t border-border pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
+                <div className="min-w-0"><p className="text-xs text-muted-foreground">Cliente</p><p className="break-words text-sm font-semibold">{customerName}</p></div>
+                <div><p className="text-xs text-muted-foreground">{customerCompany?"CNPJ":"CPF"}</p><p className="text-sm font-semibold tabular-nums">{customerDocument}</p></div>
+                <div><p className="text-xs text-muted-foreground">Telefone</p><p className="text-sm font-semibold tabular-nums">{customerPhone}</p></div>
+              </div>
+              {onNotifyCustomer&&<AdminButton variant="secondary" className="shrink-0 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300" disabled={submitting||loading||uploading||notificationConversationOpen} onClick={notifyCustomer}><WhatsAppBrandIcon size={16}/> {attempt?.notified_at?"Notificar novamente":"Notificar cliente"}</AdminButton>}
             </div>
-            {onNotifyCustomer&&<AdminButton variant="secondary" disabled={submitting||loading||notificationConversationOpen} onClick={notifyCustomer}>{attempt?.notified_at?"Notificar novamente":"Notificar cliente"}</AdminButton>}
+            <div className="space-y-1.5" aria-live="polite">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <p className={`flex items-center gap-1.5 text-xs font-semibold ${attempt?.notified_at?"text-emerald-700 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}`}>
+                  {attempt?.notified_at?<><CheckCircle2 size={14}/> Cliente notificado</>:<><span className="h-2 w-2 rounded-full bg-amber-500 motion-safe:animate-pulse"/> Cliente ainda não notificado</>}
+                </p>
+                {attempt?.notified_at&&<span className="text-xs text-muted-foreground">{new Date(attempt.notified_at).toLocaleString("pt-BR")}</span>}
+              </div>
+              <div role="progressbar" aria-label="Notificação do cliente" aria-valuemin={0} aria-valuemax={1} aria-valuenow={attempt?.notified_at?1:0} className={`relative h-1.5 overflow-hidden rounded-full ${attempt?.notified_at?"bg-emerald-500/15":"bg-amber-500/15"}`}>
+                <div className={`h-full rounded-full bg-emerald-500 transition-[width] duration-500 motion-reduce:transition-none ${attempt?.notified_at?"w-full":"w-0"}`}/>
+                {!attempt?.notified_at&&<div aria-hidden="true" className="absolute inset-0 bg-amber-500/15 motion-safe:animate-pulse"/>}
+              </div>
+            </div>
           </div>
           {cancelConfirm&&<div className="space-y-2 rounded-lg border border-border p-3">
             <p className="text-sm">Cancelar a devolução e restaurar a situação anterior da OS?</p>
-            <div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={submitting} onClick={()=>setCancelConfirm(false)}>Voltar</AdminButton><AdminButton disabled={submitting} loading={submitting} onClick={()=>void cancelReturn()}>Confirmar cancelamento</AdminButton></div>
+            <div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={submitting} onClick={()=>setCancelConfirm(false)}>Voltar</AdminButton><AdminButton variant="danger" disabled={submitting} loading={submitting} onClick={()=>void cancelReturn()}><Ban size={15}/> Confirmar cancelamento</AdminButton></div>
           </div>}
           </>}
         </section>:<section className="space-y-3 rounded-xl border border-border bg-card p-4">
@@ -370,9 +393,35 @@ export function OrderTerminalExitDialog({
               ...partners.map(item=>({value:item.id,label:item.name}))]}/>}
         </section>}
         {!initiating&&<>
-        <section className={isReturn?"space-y-3 border-t border-border pt-4":"space-y-3 rounded-xl border border-border bg-card p-4"}>
+        {isReturn?<><section className="space-y-2 border-t border-border pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="text-sm font-bold text-foreground">Termo e assinaturas</h3>
+              <p className="text-xs text-muted-foreground">{template?.name||"Termo de devolução"}</p>
+              {signedRequests.length>0?<p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={14}/> Assinatura registrada</p>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Aguardando assinatura do termo</p>}
+            </div>
+            <AdminButton variant="secondary" className="shrink-0" onClick={()=>setStep("signature")} disabled={!template||submitting||uploading}><FileSignature size={16}/> {signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}</AdminButton>
+          </div>
+          {signedRequests.length>1&&<FSelect label="Termo assinado" value={signatureId} onChange={(e:any)=>setSignatureId(e.target.value)} options={signedRequests.map(r=>({value:r.id,label:`Assinado em ${new Date(r.signed_at||r.created_at).toLocaleString("pt-BR")} · ${r.external_signer_name||"Cliente"}`}))}/>}
+          {!template&&<p className="text-xs text-destructive">Modelo não carregado. Verifique os modelos no módulo Documentos.</p>}
+        </section>
+        <section className="space-y-2 border-t border-border pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="text-sm font-bold text-foreground">Evidência de devolução <span className="text-destructive">*</span></h3>
+              {evidenceId?<p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={14} className="shrink-0"/><span className="truncate">{evidenceOptions.find(a=>a.media_id===evidenceId)?.media?.file_name||"Evidência anexada"}</span></p>:<p className="text-xs text-muted-foreground">Foto ou PDF que comprova a entrega.</p>}
+            </div>
+            <label className={`inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-dashed border-border px-5 py-2 text-sm font-semibold ${submitting||uploading||!attachmentTypeId?"cursor-not-allowed opacity-50":"cursor-pointer hover:bg-muted"}`}>
+              {uploading?<LoaderCircle size={16} className="animate-spin"/>:<ImagePlus size={16}/>} {uploading?"Anexando...":evidenceId?"Trocar":"Adicionar"}
+              <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value="";if(file)void upload(file);}} disabled={submitting||uploading||!attachmentTypeId}/>
+            </label>
+          </div>
+          {evidenceOptions.length>1&&<FSelect label="Evidência anexada" value={evidenceId} onChange={(e:any)=>setEvidenceId(e.target.value)} options={evidenceOptions.map((item,i)=>({value:item.media_id,label:item.media?.file_name||`Evidência ${i+1}`}))}/>}
+          {!attachmentTypeId&&<p role="alert" className="text-xs text-destructive">O tipo de evidência não está disponível nesta empresa.</p>}
+        </section></>:<>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-bold text-foreground">Termo e assinaturas</h3>
-          {isReturn&&<p className="text-xs text-muted-foreground">Solicite a assinatura do recebimento somente na entrega física.</p>}
           <p className="text-xs text-muted-foreground">{template?.name||"Termo de encerramento"}</p>
           {signedRequests.length>0?<div className="space-y-2">
             <FSelect label="Termo assinado" value={signatureId} onChange={(e:any)=>setSignatureId(e.target.value)}
@@ -388,7 +437,7 @@ export function OrderTerminalExitDialog({
           </AdminButton>
           {!template&&<p className="text-xs text-destructive">Modelo não carregado. Verifique os modelos no módulo Documentos.</p>}
         </section>
-        <section className={isReturn?"space-y-3 border-t border-border pt-4":"space-y-3 rounded-xl border border-border bg-card p-4"}>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-bold text-foreground">Evidência de {outcome==="disposal_confirmed"?"descarte":"devolução"}</h3>
           <p className="text-xs text-muted-foreground">Anexe uma foto ou PDF para registrar a {outcome==="disposal_confirmed"?"destinação":"entrega"}.</p>
           {evidenceOptions.length>0&&<FSelect label="Evidência anexada" value={evidenceId}
@@ -397,8 +446,8 @@ export function OrderTerminalExitDialog({
               value:a.media_id,label:a.media?.file_name||`Evidência ${i+1}`
             }))}/>}
           <div className="flex flex-wrap items-center gap-3">
-            <label className={isReturn?"flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-5 text-xs font-semibold hover:bg-muted":"inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted"}>
-              <ImagePlus size={16}/> {isReturn?(evidenceFile||evidenceId?"Trocar":"Adicionar"):"Selecionar foto ou PDF"}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
+              <ImagePlus size={16}/> Selecionar foto ou PDF
               <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf"
                 onChange={e=>setEvidenceFile(e.currentTarget.files?.[0]||null)} disabled={submitting||uploading}/>
             </label>
@@ -410,6 +459,7 @@ export function OrderTerminalExitDialog({
             O tipo de evidência não está disponível nesta empresa.
           </p>}
         </section>
+        </>}
         {stock.length>0 && <section className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
             <PackageCheck size={17}/> Conferência das peças
