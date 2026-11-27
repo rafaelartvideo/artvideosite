@@ -170,7 +170,7 @@ test("segunda etapa tem dados do cliente, progresso real e anexo automático",as
   assert.match(dialog,/aria-valuenow=\{attempt\?\.notified_at\?1:0\}/);
   assert.match(dialog,/if\(file\)void upload\(file\)/);
   assert.match(dialog,/uploadGate\.current=true/);
-  assert.match(dialog,/variant="danger"[^>]*onClick=\{\(\)=>setCancelConfirm\(true\)\}/);
+  assert.match(dialog,/<AdminButton variant="danger" disabled=\{submitting\|\|uploading\|\|loading\|\|signedRequests\.length>0\} onClick=\{\(\)=>setCancelConfirm\(true\)\}><Ban size=\{16\}\/> Cancelar devolução<\/AdminButton>/);
   assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code.length>100);
 });
 
