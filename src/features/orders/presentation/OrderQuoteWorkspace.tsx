@@ -530,24 +530,40 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                   {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
                     required maxLength={2000} value={reason} disabled={busy}
                     onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>}
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>Proposta · Versão {proposal?.version||1}</span>
-                      <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
+                  <section aria-label="Resumo da proposta" className="overflow-hidden rounded-xl border border-border bg-card">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-bold text-foreground">Proposta</h3>
+                          <span className="rounded-md border border-border bg-background px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">Versão {proposal?.version||1}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{draft.items.length} {draft.items.length===1?"item":"itens"} no orçamento</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Valor total</p>
+                        <strong className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{draft.items.length} item(ns) no orçamento</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {confirmationAction==="submit"
-                      ? "Enviar para aprovação não aprova o orçamento automaticamente."
-                      : confirmationAction==="approve"
-                        ? "Após a confirmação, os itens serão aplicados à mesma OS."
-                        : confirmationAction==="reject"
-                          ? "O motivo da rejeição ficará registrado."
-                          : confirmationAction==="reopen"
-                            ? "A justificativa ficará no histórico e a nova versão deverá ser encaminhada para aprovação."
-                            : "A proposta anterior será preservada no histórico de renegociações."}
-                  </p>
+                    {confirmationAction==="submit" && <div className="divide-y divide-border px-4">
+                      <div className="space-y-1.5 py-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground">Diagnóstico</h4>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{draft.diagnosis.trim()||"Não informado"}</p>
+                      </div>
+                      <div className="space-y-1.5 py-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground">Solução proposta</h4>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{draft.proposed_solution.trim()||"Não informada"}</p>
+                      </div>
+                    </div>}
+                  </section>
+                  {confirmationAction!=="submit" && <p className="text-xs text-muted-foreground">
+                    {confirmationAction==="approve"
+                      ? "Após a confirmação, os itens serão aplicados à mesma OS."
+                      : confirmationAction==="reject"
+                        ? "O motivo da rejeição ficará registrado."
+                        : confirmationAction==="reopen"
+                          ? "A justificativa ficará no histórico e a nova versão deverá ser encaminhada para aprovação."
+                          : "A proposta anterior será preservada no histórico de renegociações."}
+                  </p>}
                 </motion.div>}
         </AnimatePresence>
       </div>

@@ -84,3 +84,16 @@ test("alternar a OS e abrir Orçamento não executa setter removido de retorno",
   assert.match(actions, /canStartReturn && <AdminButton/);
   assert.match(actions, /onTerminalExit\("returned_unrepaired"\)/);
 });
+
+
+test("confirmação de envio apresenta diagnóstico e solução proposta do rascunho atual", async () => {
+  const quote = source("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  assert.ok((await transformWithEsbuild(quote, "OrderQuoteWorkspace.tsx", { loader: "tsx" })).code);
+  const summary = quote.slice(quote.indexOf('<section aria-label="Resumo da proposta"'));
+  assert.match(summary, /confirmationAction==="submit" && <div/);
+  assert.match(summary, /draft\.diagnosis\.trim\(\)/);
+  assert.match(summary, /draft\.proposed_solution\.trim\(\)/);
+  assert.match(summary, /Valor total/);
+  assert.match(summary, /versionPricing\(draft as Record<string,any>\)\.total/);
+  assert.doesNotMatch(quote, /Enviar para aprovação não aprova o orçamento automaticamente/);
+});
