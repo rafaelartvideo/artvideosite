@@ -152,7 +152,7 @@ revoke all on function public.get_order_unrepaired_return_v1(uuid,uuid),public.s
 grant execute on function public.get_order_unrepaired_return_v1(uuid,uuid),public.start_order_unrepaired_return_v1(uuid,uuid,text,text),public.cancel_order_unrepaired_return_v1(uuid,uuid) to authenticated;
 -- Confirma apenas mensagem de saída persistida pelo WhatsApp, do operador e cliente desta OS.
 create function public.mark_order_unrepaired_return_notified_v1(p_organization_id uuid,p_order_id uuid,p_attempt_id uuid,p_conversation_id uuid,p_provider_message_id text)
-returns jsonb language plpgsql security definer set search_path='' as $
+returns jsonb language plpgsql security definer set search_path='' as $$
 declare a private.order_unrepaired_return_attempts%rowtype; o public.service_orders%rowtype; m public.union_whatsapp_messages%rowtype; phone text;
 begin
  if auth.uid() is null or not private.is_organization_member(p_organization_id)
@@ -173,7 +173,7 @@ begin
  select regexp_replace(coalesce(c.contact_phone,''),'[^0-9]','','g') into phone
  from public.union_whatsapp_conversations c where c.organization_id=p_organization_id and c.id=p_conversation_id
  and c.channel_id=m.channel_id and c.account_phone=m.account_phone;
- if not found or phone !~ '^55[1-9][0-9]{9,10}
+ if not found or phone !~ '^55[1-9][0-9]{9,10}$' then raise exception 'Conversa não encontrada ou telefone inválido.'; end if;
  if not (
   exists(select 1 from public.customers c cross join lateral unnest(array[c.phone,c.whatsapp]) n(value)
    where c.organization_id=p_organization_id and c.id=o.customer_id
@@ -190,29 +190,7 @@ begin
   update private.order_unrepaired_return_attempts set notified_at=m.sent_at,notified_by=auth.uid(),notification_message_id=m.id where id=a.id returning * into a;
  end if;
  return to_jsonb(a);
-end; $;
-revoke all on function public.mark_order_unrepaired_return_notified_v1(uuid,uuid,uuid,uuid,text) from public,anon;
-grant execute on function public.mark_order_unrepaired_return_notified_v1(uuid,uuid,uuid,uuid,text) to authenticated;
-
-commit;
- then raise exception 'Conversa não encontrada ou telefone inválido.'; end if;
- if not (
-  exists(select 1 from public.customers c cross join lateral unnest(array[c.phone,c.whatsapp]) n(value)
-   where c.organization_id=p_organization_id and c.id=o.customer_id
-   and regexp_replace(coalesce(n.value,''),'[^0-9]','','g') in (phone,substring(phone from 3)))
-  or exists(select 1 from public.union_whatsapp_order_contacts l where l.organization_id=p_organization_id and l.service_order_id=p_order_id and l.conversation_id=p_conversation_id and l.channel_id=m.channel_id and l.account_phone=m.account_phone)
-  or ((private.has_effective_organization_permission(p_organization_id,'registrations.contacts.view') or private.has_effective_organization_permission(p_organization_id,'registrations.contacts.manage'))
-   and exists(select 1 from public.entities e join public.entity_contacts ec on ec.entity_id=e.id and ec.organization_id=e.organization_id
-    cross join lateral unnest(array[ec.phone,ec.whatsapp]) n(value)
-    where e.organization_id=p_organization_id and e.legacy_customer_id=o.customer_id and ec.is_active
-    and regexp_replace(coalesce(n.value,''),'[^0-9]','','g') in (phone,substring(phone from 3))))
- ) then raise exception 'Mensagem não pertence a um contato desta OS.' using errcode='42501'; end if;
- -- Mantém a primeira notificação confirmada; abrir ou reenviar não apaga o registro.
- if a.notified_at is null then
-  update private.order_unrepaired_return_attempts set notified_at=m.sent_at,notified_by=auth.uid(),notification_message_id=m.id where id=a.id returning * into a;
- end if;
- return to_jsonb(a);
-end; $;
+end; $$;
 revoke all on function public.mark_order_unrepaired_return_notified_v1(uuid,uuid,uuid,uuid,text) from public,anon;
 grant execute on function public.mark_order_unrepaired_return_notified_v1(uuid,uuid,uuid,uuid,text) to authenticated;
 
