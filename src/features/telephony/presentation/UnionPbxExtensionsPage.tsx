@@ -61,6 +61,25 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
   const [groupDrafts,setGroupDrafts]=useState<Record<string,string[]>>({});
   const [strategyDrafts,setStrategyDrafts]=useState<Record<string,OutboundGroup>>({});
   const [groupError,setGroupError]=useState('');
+  const [queueSettings,setQueueSettings]=useState<{id:string;name:string;status:string;extension_ids:string[]}[]>([]);
+  const [queueDrafts,setQueueDrafts]=useState<Record<string,string[]>>({});
+  const [queueError,setQueueError]=useState('');
+  useEffect(()=>{
+    const controller=new AbortController();setQueueSettings([]);setQueueDrafts({});setQueueError('');
+    if(canManage&&activeOrganizationId)void pbxRequest(signal=>supabase.rpc('pbx_extension_queue_settings',{p_org:activeOrganizationId}).abortSignal(signal),'Filas do ramal',{signal:controller.signal}).then(result=>{if(controller.signal.aborted)return;if(result.error||!Array.isArray(result.data))throw new Error('Filas indisponíveis.');setQueueSettings(result.data);}).catch(()=>{if(!controller.signal.aborted)setQueueError('Não foi possível consultar as filas. Atualize os dados.');});
+    return()=>controller.abort();
+  },[activeOrganizationId,canManage,reloadKey]);
+  function extensionQueues(id:string){return queueSettings.filter(q=>q.extension_ids.includes(id)).map(q=>q.id);}
+  async function saveQueues(item:Extension){
+    if(!activeOrganizationId||!canManage||saving||!queueDrafts[item.id])return;
+    const signal=requestScope.current.signal;setSaving(true);setError('');setMessage('');
+    try{
+      const result=await pbxRequest(abort=>supabase.rpc('pbx_set_extension_queues',{p_org:activeOrganizationId,p_extension:item.id,p_expected:extensionQueues(item.id),p_selected:queueDrafts[item.id]}).abortSignal(abort),'Filas do ramal',{signal});
+      if(result.error)throw new Error('Não foi possível alterar as filas. Confira os participantes e atualize a lista.');
+      if(!signal.aborted)setMessage('Filas atualizadas. A central aplicará a alteração no próximo ciclo seguro.');
+    }catch(error){if(!signal.aborted)setError(error instanceof Error?error.message:'Filas indisponíveis.');}
+    finally{if(!signal.aborted){setSaving(false);setReloadKey(key=>key+1);}}
+  }
   const [defaultDraft,setDefaultDraft]=useState('');
   const editableGroups=groupSettings?.groups.filter(g=>g.enabled)??[];
   const canEditGroups=!!groupSettings&&groupSettings.status==='applied'&&(!groupSettings.active||groupSettings.hot_ready);
@@ -267,6 +286,7 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     {message && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{message}</p>}
 
+    {canManage&&queueError&&<p className="text-sm text-destructive">{queueError}</p>}
     {canManage&&groupError&&<p className="text-sm text-destructive">{groupError}</p>}
     {canManage&&groupSettings&&groupSettings.groups.length>0&&<section className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div><h2 className="font-semibold">Grupos de saída</h2><p className="text-xs text-muted-foreground">Gerencie os ramais e a distribuição sem desativar as linhas SIP. Alterações técnicas permanecem em Troncos SIP.</p></div>
@@ -352,6 +372,11 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
                   {groupSettings.pending_assignments.some(p=>p.extension_id===item.id)&&<p className="text-xs text-muted-foreground">Vínculo solicitado no cadastro; aguardando provisionamento.</p>}
                   {editableGroups.map(group=>{const chosen=groupDrafts[item.id]||memberGroups(item.id);return <label key={group.id} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={chosen.includes(group.id)} disabled={saving||!canEditGroups||!item.desired_enabled||!['applied','manual'].includes(item.provisioning_status)||groupSettings.pending_assignments.some(p=>p.extension_id===item.id)} onChange={event=>setGroupDrafts(current=>({...current,[item.id]:event.target.checked?[...chosen,group.id]:chosen.filter(id=>id!==group.id)}))}/>{group.name}</label>;})}
                   <AdminButton type="button" variant="secondary" size="sm" disabled={saving||!canEditGroups||!groupDrafts[item.id]||groupSettings.pending_assignments.some(p=>p.extension_id===item.id)} onClick={()=>void saveGroups(groupSettings.groups.map(group=>!group.enabled?group:{...group,extension_ids:[...group.extension_ids.filter(id=>id!==item.id),...(groupDrafts[item.id].includes(group.id)?[item.id]:[])]}))}>Salvar grupos</AdminButton>
+                </div>}
+                {canManage&&queueSettings.length>0&&<div className="border-t border-border pt-3 space-y-2">
+                  <p className="text-xs font-semibold">Filas de atendimento</p>
+                  {queueSettings.map(queue=>{const chosen=queueDrafts[item.id]||extensionQueues(item.id);return <label key={queue.id} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={chosen.includes(queue.id)} disabled={saving||!item.desired_enabled||!['applied','manual'].includes(item.provisioning_status)} onChange={event=>setQueueDrafts(current=>({...current,[item.id]:event.target.checked?[...chosen,queue.id]:chosen.filter(id=>id!==queue.id)}))}/>{queue.name}{queue.status==='pending'?' · Aguardando central':''}</label>;})}
+                  <AdminButton type="button" variant="secondary" size="sm" disabled={saving||!queueDrafts[item.id]} onClick={()=>void saveQueues(item)}>Salvar filas</AdminButton>
                 </div>}
               </div>;
             })()}
