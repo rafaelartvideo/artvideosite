@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChatAttachment, loadChatAttachment } from "./ChatAttachment";
+import { ChatOrderPicker } from "./ChatOrderPicker";
+import { EmojiPicker } from "@/shared/ui/whatsapp/EmojiPicker";
+import { UnionWhatsAppMediaViewer } from "@/features/whatsapp-channels/presentation/UnionWhatsAppMediaViewer";
 import { ChatRoleSettings } from "./ChatRoleSettings";
 import { useChatDock } from "./useChatDock";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Check, CheckCheck, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Check, CheckCheck, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck, Smile, ClipboardList } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
@@ -26,7 +30,6 @@ type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id
 const fields = "id,sender_id,recipient_id,group_id,attachment_path,attachment_mime,mentions,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
 const pageSize = 30;
 const fadeText={maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"};
-const composerButton="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted disabled:opacity-50";
 const actionClass = "rounded-md border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 const callLabels = { coming:"Já estou indo", busy:"Estou ocupado", cancelled:"Cancelada" };
 function playNotice() {
@@ -44,9 +47,9 @@ function playNotice() {
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
   if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canShareOrders={hasPermission("orders.view")} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
 }
-function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings,canViewRoles,canManageRoles}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean;canViewRoles:boolean;canManageRoles:boolean}) {
+function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings,canViewRoles,canManageRoles}:{org:string;uid:string;canShareOrders:boolean;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean;canViewRoles:boolean;canManageRoles:boolean}) {
   const qc=useQueryClient();
   const location=useLocation();
   const navigate=useNavigate();
@@ -61,6 +64,12 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const [search,setSearch]=useState("");
   const storagePrefix="union-chat:"+org+":"+uid+":";
   const [draft,setDraft]=useState("");
+  const [composerMenu,setComposerMenu]=useState<"emoji"|"actions"|"orders"|null>(null);
+  const [recentEmojis,setRecentEmojis]=useState<string[]>([]);
+  const composerRef=useRef<HTMLInputElement>(null);
+  const [stagedFile,setStagedFile]=useState<File|null>(null);
+  const [stagedUrl,setStagedUrl]=useState<string|null>(null);
+  useEffect(()=>{if(!stagedFile?.type.startsWith("image/")){setStagedUrl(null);return;}const url=URL.createObjectURL(stagedFile);setStagedUrl(url);return()=>URL.revokeObjectURL(url);},[stagedFile]);
   const [reply,setReply]=useState<ChatRow|null>(null);
   const [editing,setEditing]=useState<ChatRow|null>(null);
   const [historySearch,setHistorySearch]=useState(false);
@@ -202,6 +211,8 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const currentGroup=groups.data?.find(g=>g.id===group);
   const groupParticipants=useQuery({queryKey:[...key,"participants",group],enabled:open&&expanded&&!!group,queryFn:async()=>{const {data,error}=await supabase.from("internal_chat_group_members").select("user_id").eq("organization_id",org).eq("group_id",group);if(error)throw error;return (data??[]).map(x=>x.user_id) as string[];},staleTime:300000,retry:false});
   const target=group??peer;
+  useEffect(()=>{setComposerMenu(null);setStagedFile(null);},[target]);
+  useEffect(()=>{if(!open||!expanded||settingsOpen||metricsOpen||groupEdit)setComposerMenu(null);},[open,expanded,settingsOpen,metricsOpen,groupEdit]);
   useEffect(()=>{if(group&&groups.isSuccess&&!groups.isFetching&&!currentGroup){setGroup(null);setOlder([]);setGroupEdit(null);setDraft("");setError("Você não faz mais parte deste grupo.");}},[group,groups.isSuccess,groups.isFetching,currentGroup]);
   const totalUnread=(unread.data??0)+(groups.data??[]).reduce((n,g)=>n+Number(g.unread),0);
   const thread=useQuery({queryKey:[...key,"thread",target],enabled:open&&expanded&&!!target,queryFn:async()=>{
@@ -326,7 +337,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
       if(error)throw error;uploaded=true;
       const {error:insertError}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:group?null:peer,group_id:group,kind:"text",body:file.name.slice(0,500)||"Arquivo",attachment_path:path,reply_to:reply?.id??null});
       if(insertError)throw insertError;
-      setReply(null);
+      setReply(null);setStagedFile(null);
       void qc.invalidateQueries({queryKey:[...key,"thread",target]});
     }catch{if(uploaded)await supabase.storage.from("internal-chat-files").remove([path]);setError("Não foi possível enviar o arquivo.");}
     finally{setBusy(false);}
@@ -335,8 +346,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     if(!message.attachment_path||busy)return;
     setBusy(true);setError("");
     try{
-      const {data,error}=await supabase.storage.from("internal-chat-files").download(message.attachment_path);
-      if(error||!data)throw error;
+      const data=await loadChatAttachment(org,uid,message.attachment_path);
       const url=URL.createObjectURL(data);
       if(view){if(previewRef.current)URL.revokeObjectURL(previewRef.current);previewRef.current=url;setPreview({url,mime:data.type,name:message.body});return;}
       const a=document.createElement("a");a.href=url;a.download=message.body;a.click();
@@ -401,6 +411,10 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   }
   async function saveSettings(){
     setBusy(true);setError("");try{const {error}=await supabase.rpc("internal_chat_settings_save_v1",{p_org:org,p_value:settingsDraft});if(error)throw error;await settings.refetch();setSettingsOpen(false);}catch{setError("Não foi possível salvar as configurações.");}finally{setBusy(false);}
+  }
+  async function openChatImage(_thumbnailUrl:string,mime:string,name:string,path:string|null){
+    if(!path)return;
+    try{const blob=await loadChatAttachment(org,uid,path);if(!sessionAlive.current)return;const url=URL.createObjectURL(blob);if(previewRef.current)URL.revokeObjectURL(previewRef.current);previewRef.current=url;setPreview({url,mime,name});}catch{setError("Não foi possível abrir a imagem.");}
   }
   function closePreview(){if(previewRef.current)URL.revokeObjectURL(previewRef.current);previewRef.current=null;setPreview(null);}
   async function startRecording(){
@@ -483,7 +497,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
         </div>
         {error&&<p role="alert" className="mt-2 text-xs text-red-500">{error}</p>}
       </aside>}
-      {preview&&<aside role="dialog" aria-label="Pré-visualização" className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4"><div className="max-h-[85vh] max-w-[90vw] rounded-lg bg-card p-3"><div className="mb-2 flex justify-between gap-3"><span className="text-sm">{preview.name}</span><button title="Fechar" onClick={closePreview}><X size={18}/></button></div>{preview.mime.startsWith("image/")?<img src={preview.url} alt={preview.name} className="max-h-[70vh] max-w-full object-contain"/>:<audio controls src={preview.url}/>}</div></aside>}
+      {preview&&<UnionWhatsAppMediaViewer url={preview.url} type={preview.mime.startsWith("image/")?"image":"audio"} name={preview.name} onClose={closePreview}/>}
       {open&&<section ref={dock.panel} aria-label="Chat interno" style={{left:dock.position.x,top:dock.position.y}} data-admin-floating-panel="true" className={"admin-crm fixed z-[110] flex w-[min(360px,calc(100vw-20px))] flex-col rounded-xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] "+(expanded?"h-[min(530px,calc(100dvh-100px))]":"h-auto")}>
         {dock.arrow&&<span aria-hidden="true" style={{left:dock.arrow.left-6}} className={"pointer-events-none absolute h-3 w-3 rotate-45 border-border bg-card "+(dock.arrow.bottom?"-bottom-[7px] border-b border-r":"-top-[7px] border-l border-t")}/>}
         <header {...dock.handlers} className={"relative flex touch-none select-none items-center gap-1.5 rounded-t-xl px-2 py-1.5 "+(expanded?"border-b border-border ":"")+(dock.dragging?"cursor-grabbing":"cursor-grab")}>
@@ -544,7 +558,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
               {group&&m.sender_id!==uid&&<p className="text-xs font-semibold text-primary">{name(m.sender_id)}</p>}
               {m.mentions?.includes(uid)&&!m.deleted_at&&<p className="mb-1 text-xs font-semibold text-primary">Mencionou você</p>}
               {m.reply_to&&<p className="mb-1 border-l-2 border-primary pl-2 text-xs text-muted-foreground truncate">{rows.find(x=>x.id===m.reply_to)?.body??"Mensagem anterior"}</p>}
-              {m.deleted_at?<p className="italic text-muted-foreground">Mensagem excluída</p>:m.attachment_path?<><button type="button" className="flex max-w-full min-w-0 items-center gap-1.5 text-left underline" title={m.body} disabled={busy} onClick={()=>void downloadFile(m)}><Paperclip size={13} className="shrink-0"/><span className="min-w-0 break-all text-xs">{m.body}</span></button>{(m.attachment_mime?.startsWith("image/")||m.attachment_mime?.startsWith("audio/"))&&<button title="Pré-visualizar" className="text-xs underline" onClick={()=>void downloadFile(m,true)}>{m.attachment_mime.startsWith("audio/")?"Ouvir":"Visualizar"}</button>}</>:m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex items-center gap-2 text-left underline" onClick={()=>navigate(m.body)}><Link2 size={15}/>Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
+              {m.deleted_at?<p className="italic text-muted-foreground">Mensagem excluída</p>:m.attachment_path?<ChatAttachment key={m.id+":"+m.attachment_path} org={org} uid={uid} message={m} onPreview={(url,mime,name)=>void openChatImage(url,mime,name,m.attachment_path)} onDownload={()=>void downloadFile(m)}/>:m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex max-w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-2 text-left font-semibold text-primary hover:bg-muted" onClick={()=>navigate(m.body)}>{m.body.includes("/orders/")?<ClipboardList size={17} className="shrink-0"/>:<Link2 size={15} className="shrink-0"/>}Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
                 {!m.response&&m.sender_id===uid&&<button disabled={busy} className="mt-1 text-xs underline" onClick={()=>void respond(m,"cancelled")}>Cancelar chamada</button>}
               </>}
               <div className="mt-1 flex min-w-0 flex-wrap items-center justify-end gap-1 text-[10px] text-muted-foreground">
@@ -558,12 +572,19 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           {(reply||editing)&&<div className="flex items-center justify-between gap-2 border-t border-border p-2 text-xs"><span className="truncate">{editing?"Editando: ":"Respondendo: "}{(editing??reply)?.body}</span><button title="Cancelar" onClick={()=>{if(editing)saveDraft("");setEditing(null);setReply(null);}}><X size={14}/></button></div>}
           {group&&draft.includes("@")&&!draft.endsWith(" ")&&<div className="max-h-20 overflow-auto px-2">{employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&e.full_name.toLowerCase().includes(draft.slice(draft.lastIndexOf("@")+1).toLowerCase())).slice(0,5).map(e=><button key={e.user_id} type="button" className="block text-xs p-1" onClick={()=>saveDraft(draft.slice(0,draft.lastIndexOf("@"))+"@"+e.full_name+" ")}>@{e.full_name}</button>)}</div>}
           {recording&&<div className="flex items-center justify-between border-t border-border p-2 text-xs text-red-500"><span>Gravando áudio · até 2 minutos</span><button className="underline" onClick={()=>{cancelRecording.current=true;recorderRef.current?.stop();}}>Cancelar gravação</button></div>}
-          <form onSubmit={e=>{e.preventDefault();void send("text");}} className="flex shrink-0 items-center gap-1.5 border-t border-border bg-card p-2">
-            {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendFile(file);}}/><button type="button" title="Adicionar anexo" className={composerButton} disabled={busy||recording} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/></button></>}
-            {shareableRoute.test(location.pathname)&&<button type="button" title="Compartilhar registro atual" className={composerButton} disabled={busy} onClick={()=>void send("text",location.pathname)}><Link2 size={16}/></button>}
-            {canAttach&&config.enabled&&config.audio_enabled&&config.attachments_enabled&&<button type="button" title={recording?"Parar e enviar áudio":"Gravar áudio"} className={composerButton} onClick={()=>recording?recorderRef.current?.stop():void startRecording()}>{recording?<Square size={15}/>:<Mic size={15}/>}</button>}
-            <input maxLength={4000} value={draft} disabled={!config.enabled} onChange={e=>saveDraft(e.target.value)} placeholder="Digite uma mensagem" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-xs"/>
-            <button type="submit" disabled={busy||!draft.trim()||!config.enabled||recording} title="Enviar mensagem" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground disabled:opacity-50"><Send size={15}/></button>
+          {stagedFile&&<div className="flex min-w-0 items-center gap-2 border-t border-border bg-card px-2 py-2">{stagedUrl?<img src={stagedUrl} alt="Prévia do anexo" className="h-12 w-12 shrink-0 rounded object-cover"/>:<Paperclip size={18}/>}<span className="min-w-0 flex-1 truncate text-xs" title={stagedFile.name}>{stagedFile.name}</span><button type="button" title="Remover anexo pendente" disabled={busy} className={iconButton} onClick={()=>setStagedFile(null)}><X size={16}/></button></div>}
+          <form onSubmit={e=>{e.preventDefault();setComposerMenu(null);if(stagedFile)void sendFile(stagedFile);else void send("text");}} className="relative shrink-0 border-t border-border bg-card p-2">
+            {composerMenu&&<div className="absolute inset-x-2 bottom-full z-40 mb-1 rounded-xl border border-border bg-card p-2 shadow-xl">
+              {composerMenu==="emoji"?<div className="h-[min(320px,42dvh)]"><EmojiPicker embedded recentEmojis={recentEmojis} onSelect={emoji=>{const input=composerRef.current;const start=input?.selectionStart??draft.length,end=input?.selectionEnd??start;saveDraft((draft.slice(0,start)+emoji+draft.slice(end)).slice(0,4000));setRecentEmojis(old=>[emoji,...old.filter(x=>x!==emoji)].slice(0,16));setComposerMenu(null);requestAnimationFrame(()=>{input?.focus();input?.setSelectionRange(start+emoji.length,start+emoji.length);});}}/></div>:composerMenu==="orders"&&canShareOrders?<ChatOrderPicker org={org} onBack={()=>setComposerMenu("actions")} onSelect={path=>{setComposerMenu(null);void send("text",path);}}/>:<div className="space-y-1"><p className="px-2 py-1 text-xs font-semibold text-muted-foreground">Opções da conversa</p>{canShareOrders&&<button type="button" className="flex w-full items-center gap-2 rounded-md p-2 text-left text-xs hover:bg-muted" onClick={()=>setComposerMenu("orders")}><ClipboardList size={16}/>Enviar ordem de serviço</button>}{shareableRoute.test(location.pathname)&&(!location.pathname.startsWith("/admin/orders/")||canShareOrders)&&<button type="button" className="flex w-full items-center gap-2 rounded-md p-2 text-left text-xs hover:bg-muted" onClick={()=>{setComposerMenu(null);void send("text",location.pathname);}}><Link2 size={16}/>Compartilhar registro atual</button>}</div>}
+            </div>}
+            <div className="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
+              {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file){setComposerMenu(null);setStagedFile(file);}}}/><button type="button" aria-label="Anexar arquivo" title="Anexar arquivo" className="flex h-9 w-8 shrink-0 items-center justify-center border-r border-border text-foreground hover:bg-muted disabled:opacity-40" disabled={busy||recording} onClick={()=>fileRef.current?.click()}><Paperclip size={17}/></button></>}
+              <button type="button" title="Emojis" aria-label="Emojis" aria-expanded={composerMenu==="emoji"} className={"flex h-9 w-8 shrink-0 items-center justify-center border-r border-border hover:bg-muted "+(composerMenu==="emoji"?"bg-primary/10 text-primary":"text-foreground")} onClick={()=>setComposerMenu(v=>v==="emoji"?null:"emoji")}><Smile size={17}/></button>
+              {(canShareOrders||shareableRoute.test(location.pathname))&&<button type="button" title="Mais opções" aria-label="Mais opções" aria-expanded={composerMenu==="actions"||composerMenu==="orders"} className={"flex h-9 w-7 shrink-0 items-center justify-center border-r border-border hover:bg-muted "+(composerMenu==="actions"||composerMenu==="orders"?"bg-primary/10 text-primary":"text-foreground")} onClick={()=>setComposerMenu(v=>v==="actions"||v==="orders"?null:"actions")}><ChevronUp size={17}/></button>}
+              <input ref={composerRef} maxLength={4000} value={draft} disabled={!config.enabled||!!stagedFile} onChange={e=>saveDraft(e.target.value)} onFocus={()=>setComposerMenu(null)} placeholder={stagedFile?"Arquivo pronto":"Digite uma mensagem"} className="h-9 min-w-0 flex-1 bg-transparent px-2 text-xs outline-none"/>
+              {!draft.trim()&&!stagedFile&&canAttach&&config.enabled&&config.audio_enabled&&config.attachments_enabled&&<button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"} title={recording?"Parar gravação":"Gravar áudio"} className={"flex h-9 w-8 shrink-0 items-center justify-center border-l border-border hover:bg-muted "+(recording?"text-red-600":"text-foreground")} onClick={()=>recording?recorderRef.current?.stop():void startRecording()}>{recording?<Square size={16}/>:<Mic size={17}/>}</button>}
+              <button type="submit" disabled={busy||(!draft.trim()&&!stagedFile)||!config.enabled||recording} title="Enviar mensagem" aria-label="Enviar mensagem" className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary text-primary-foreground disabled:opacity-45"><Send size={16}/></button>
+            </div>
           </form>
         </>}
         </>}
