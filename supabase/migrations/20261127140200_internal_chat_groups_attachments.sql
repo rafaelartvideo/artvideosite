@@ -203,7 +203,13 @@ with check(bucket_id='internal-chat-files' and private.internal_chat_owns_upload
 create policy internal_chat_files_select on storage.objects for select to authenticated
 using(bucket_id='internal-chat-files' and (private.internal_chat_owns_upload(name,false)
  or exists(select 1 from public.internal_chat_messages m where m.attachment_path=storage.objects.name)));
+create function private.internal_chat_can_remove_upload(p_path text)
+returns boolean language sql stable security definer set search_path='' as $$
+ select private.internal_chat_owns_upload(p_path,false)
+ and not exists(select 1 from public.internal_chat_messages m where m.attachment_path=p_path);
+$$;
+revoke all on function private.internal_chat_can_remove_upload(text) from public,anon;
+grant execute on function private.internal_chat_can_remove_upload(text) to authenticated;
 create policy internal_chat_files_delete on storage.objects for delete to authenticated
-using(bucket_id='internal-chat-files' and private.internal_chat_owns_upload(name,false)
- and not exists(select 1 from public.internal_chat_messages m where m.attachment_path=storage.objects.name));
+using(bucket_id='internal-chat-files' and private.internal_chat_can_remove_upload(name));
 commit;
