@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, PackageCheck, RotateCcw, XCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, RotateCcw, XCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -22,6 +22,7 @@ import { OrderQuotePhotosSection } from "./OrderQuotePhotosSection";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
+import { isAwaitingUnrepairedReturn } from "../infrastructure/order-terminal-exit.repository";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 
 type QuoteAction = "submit" | "approve" | "reject" | "renegotiate" | "reopen";
@@ -44,7 +45,7 @@ const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
 const ACTION_SUCCESS: Record<QuoteAction,string> = {
   submit: "Orçamento enviado para aprovação. A proposta permanece aguardando uma decisão.",
   approve: "Orçamento aprovado. Os serviços existentes foram preservados e vinculados à proposta, sem duplicação.",
-  reject: "Orçamento rejeitado e registrado em Financeiro > Perdas. Renegocie ou finalize a devolução após entregar o equipamento.",
+  reject: "Orçamento rejeitado e registrado em Financeiro > Perdas. Renegocie ou inicie a devolução do equipamento.",
   renegotiate: "Negociação reaberta. Uma nova versão da proposta está pronta para edição.",
   reopen: "Orçamento reaberto com justificativa no histórico. Atualize os itens e envie novamente para aprovação.",
 };
@@ -89,14 +90,12 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange,canCompleteReturn=false,onRequestReturn}:{
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
   onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
   footerHostId:string;
   actionsHostId?:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
-  canCompleteReturn?: boolean;
-  onRequestReturn?: (reason: string) => void;
 }) {
   const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
@@ -169,10 +168,11 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     .sort((a,b)=>Number(b.version)-Number(a.version));
   const canReuseExecution = canReuseQuoteExecution(executionItems, proposal?.items || []);
   const revisingApprovedQuote = Boolean(proposal?.applied_at);
-  const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
+  const awaitingReturn=isAwaitingUnrepairedReturn(order);
+  const editable=canEdit&&!awaitingReturn&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const openAction = (action: QuoteAction) => {
-    if(busy || submissionLocked.current)return;
+    if(busy || submissionLocked.current || awaitingReturn)return;
     setModalFeedback(null);
     setConfirmationAction(action);
     if(action==="approve") {
@@ -359,7 +359,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>,actionsHost)}
-    {footerHost && proposal?.status!=="approved" && createPortal(<>
+    {footerHost && !awaitingReturn && proposal?.status!=="approved" && createPortal(<>
       {editable && <BtnPrimary disabled={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
         onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
@@ -375,9 +375,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           className="min-w-0 flex-1 text-xs md:flex-none md:text-sm">
           <RotateCcw size={15} className="hidden shrink-0 sm:block" /> Renegociar
         </BtnSecondary>}
-        {canCompleteReturn && !order.is_solved && <BtnPrimary disabled={busy}
-          className="min-w-0 flex-1 whitespace-nowrap text-xs md:flex-none md:text-sm"
-          onClick={()=>onRequestReturn?.(proposal.rejection_reason || "Devolução após reprovação do orçamento.")}><PackageCheck size={15} className="hidden shrink-0 sm:block" /> Finalizar devolução</BtnPrimary>}
+
       </>}
 
     </>,footerHost)}

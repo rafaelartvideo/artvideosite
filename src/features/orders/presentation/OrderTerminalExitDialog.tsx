@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/
 import { supabase } from "@/lib/supabase";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 import { SignatureQrDialog } from "./SignatureQrDialog";
+import { isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
 import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -117,6 +118,7 @@ export function OrderTerminalExitDialog({
     const timer=window.setTimeout(()=>{void import("html2pdf.js").catch(()=>undefined);},800);
     return()=>window.clearTimeout(timer);
   },[loading,templatesLoading,template?.id]);
+  const activeTermRequest=requests.find(r=>r.print_template_id===template?.id&&isActiveSignatureStatus(r.status)&&Date.parse(r.expires_at)>Date.now());
   const signedRequests=useMemo(()=>requests.filter(r=>
     r.print_template_id===template?.id&&r.status==="signed"&&Boolean(r.signed_at)&&(!isReturn||(attempt&&Date.parse(r.created_at)>=Date.parse(attempt.started_at)&&Date.parse(r.signed_at||"")>=Date.parse(attempt.started_at)))
   ).sort((a,b)=>Date.parse(b.signed_at||"")-Date.parse(a.signed_at||"")),[requests,template?.id,isReturn,attempt]);
@@ -325,13 +327,15 @@ export function OrderTerminalExitDialog({
     {step==="signature" ? <OrderSignatureRequestDialog
       embedded open order={order} templates={templates}
       preferredDocumentType={cfg.docType}
-      existingRequests={isReturn?requests.filter(r=>attempt&&Date.parse(r.created_at)>=Date.parse(attempt.started_at)):requests}
+      existingRequests={requests}
+      returnAttemptStartedAt={isReturn?attempt?.started_at:undefined}
+      onRefreshRequests={()=>void refreshSignatures()}
       usedItems={usedItems} partRequests={partRequests} history={history} printedBy={printedBy}
       onBusyChange={setSignatureBusy}
       onClose={()=>setStep(current=>current==="qr"?"qr":"form")}
       onCreated={result=>{
         const feedback=signatureRequestCreationFeedback(result);
-        notifyAdmin(feedback.message,feedback.type);
+        if(!result.reused||feedback.type==="error")notifyAdmin(feedback.message,feedback.type);
         void refreshSignatures();
         if(result.link){setQrLink(result.link);setStep("qr");}
         else setStep("form");
@@ -400,7 +404,7 @@ export function OrderTerminalExitDialog({
               <p className="text-xs text-muted-foreground">{template?.name||"Termo de devolução"}</p>
               {signedRequests.length>0?<p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={14}/> Assinatura registrada</p>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Aguardando assinatura do termo</p>}
             </div>
-            <AdminButton variant="secondary" className="shrink-0" onClick={()=>setStep("signature")} disabled={!template||submitting||uploading}><FileSignature size={16}/> {signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}</AdminButton>
+            <AdminButton variant="secondary" className="shrink-0" onClick={()=>setStep("signature")} disabled={!template||submitting||uploading}><FileSignature size={16}/> {activeTermRequest?"Consultar assinatura":signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}</AdminButton>
           </div>
           {signedRequests.length>1&&<FSelect label="Termo assinado" value={signatureId} onChange={(e:any)=>setSignatureId(e.target.value)} options={signedRequests.map(r=>({value:r.id,label:`Assinado em ${new Date(r.signed_at||r.created_at).toLocaleString("pt-BR")} · ${r.external_signer_name||"Cliente"}`}))}/>}
           {!template&&<p className="text-xs text-destructive">Modelo não carregado. Verifique os modelos no módulo Documentos.</p>}

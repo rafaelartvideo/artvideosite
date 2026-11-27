@@ -27,7 +27,7 @@ import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
 import { OrderTerminalExitDialog } from "./OrderTerminalExitDialog";
-import type { OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
+import { isAwaitingUnrepairedReturn, type OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
 import { isLegacyRejectedQuoteReturn, isOrderTerminalDocumentVisible } from "../domain/order-terminal-document-visibility";
 import { getSignedSignatureDocument, listOrderSignatureRequests } from "@/features/documents/infrastructure/document-signatures.repository";
 import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
@@ -292,6 +292,7 @@ export function OrderDetailsPage(props: Props) {
       });
     return () => { active = false; };
   }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible, queryClient]);
+  const awaitingUnrepairedReturn = isAwaitingUnrepairedReturn(detail);
   const quoteExecutionAllowed = !quoteWorkflowEnabled ||
     (quoteState?.orderId === detail?.id && quoteState.status === "approved");
   // Solucionar e concluir já pressupõem a aprovação: a tag fica redundante.
@@ -871,7 +872,7 @@ export function OrderDetailsPage(props: Props) {
 
         {detailSection === "products-services" && !isDisposal && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
-          canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+          canEdit={!monitorView && !awaitingUnrepairedReturn && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           canManagePhotos={!monitorView && hasPermission("orders.section.images")}
           canRemovePhotos={!monitorView && hasPermission("orders.documents.remove")}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
@@ -879,8 +880,7 @@ export function OrderDetailsPage(props: Props) {
           footerHostId={"os-quote-toolbar-" + detail.id}
           actionsHostId={"os-quote-actions-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
-           canCompleteReturn={!monitorView && hasPermission("orders.complete")}
-           onRequestReturn={reason => { setTerminalInitialReason(reason); setTerminalOutcome("returned_unrepaired"); }}
+
         /> : detailSection === "products-services" && !isDisposal ? <OrderProductsServicesSection
           order={detail}
           canEdit={!monitorView && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
@@ -937,7 +937,12 @@ export function OrderDetailsPage(props: Props) {
         onRequestParts={openPartRequestModal}
         onResolve={() => openSolveOrder(detail)}
         onComplete={isDisposal ? () => setTerminalOutcome("disposal_confirmed") : openCompletion}
-        onTerminalExit={outcome => {setTerminalInitialReason("");setTerminalOutcome(outcome);}}
+        onTerminalExit={outcome => {
+           const rejected=outcome==="returned_unrepaired" && quoteState?.orderId===detail.id && quoteState.status==="rejected";
+           const quote=queryClient.getQueryData<{rejection_reason?:string}>(["orders","quote",detail.organization_id,detail.id]);
+           setTerminalInitialReason(rejected?(quote?.rejection_reason||"Devolução após reprovação do orçamento."):"");
+           setTerminalOutcome(outcome);
+         }}
         onEdit={() => { void openEdit(detail); }}
         quoteMode={quoteWorkflowEnabled && detailSection === "products-services" && !quoteExecutionAllowed}
         quoteExecutionAllowed={quoteExecutionAllowed}
