@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import { createFiscontroleProvider } from "../_shared/fiscal/fiscontrole-provider.mjs";
+import { summarizeEmissionBootstrap } from "../_shared/fiscal/emission-diagnostics.mjs";
 const url=Deno.env.get("SUPABASE_URL")||"";
 const anon=Deno.env.get("SUPABASE_ANON_KEY")||"";
 const service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
@@ -35,8 +36,8 @@ Deno.serve(async (request:Request)=>{
     if(new TextEncoder().encode(raw).byteLength>4096)return reply(413,{error:"REQUEST_TOO_LARGE"});
     let body;
     try{body=JSON.parse(raw);}catch{return reply(400,{error:"INVALID_REQUEST"});}
-    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read"].includes(body.action)||
-      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
+    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read","emission_diagnosis"].includes(body.action)||
+      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm","emitterId"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
     if(body.action==="status"){
       const accounts=await admin.from("fiscal_provider_accounts").select("id,provider,label,cnpj_limit,is_active,inventory_verified_at").order("label").limit(100);
       if(accounts.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
@@ -91,6 +92,36 @@ Deno.serve(async (request:Request)=>{
     if(!Array.isArray(response.empresas))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
     const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\D/g,""):""}));
     if(companies.some((c:{cnpj:string})=>!/^\d{14}$/.test(c.cnpj)))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
+    if(body.action==="emission_diagnosis"){
+      if(typeof body.organizationId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.organizationId))return reply(400,{error:"INVALID_ORGANIZATION"});
+      const binding=await admin.from("fiscal_organization_bindings")
+        .select("cnpj,external_company_id").eq("organization_id",body.organizationId).eq("account_id",account.data.id).eq("is_enabled",true).maybeSingle();
+      const org=await admin.from("organizations").select("document").eq("id",body.organizationId).eq("status","active").maybeSingle();
+      if(binding.error||org.error||!binding.data||!org.data||typeof org.data.document!=="string"||org.data.document.replace(/\D/g,"")!==binding.data.cnpj)return reply(403,{error:"FISCAL_BINDING_REQUIRED"});
+      const matched=response.empresas.filter((item:Record<string,unknown>)=>typeof item.cnpj==="string"&&item.cnpj.replace(/\D/g,"")===binding.data.cnpj);
+      if(matched.length!==1)return reply(409,{error:"CNPJ_NOT_AUTHORIZED_BY_PROVIDER"});
+      const listedId=Number(matched[0].id);
+      const listed=Number.isSafeInteger(listedId)&&listedId>0?listedId:null;
+      const configured=binding.data.external_company_id;
+      const requested=body.emitterId;
+      if(requested!==undefined&&(!Number.isSafeInteger(requested)||requested<1))return reply(400,{error:"INVALID_EMITTER_ID"});
+      const companyId=requested??configured??listed;
+      if(!companyId)return reply(409,{error:"EMITTER_ID_REQUIRED"});
+      if((configured&&configured!==companyId)||(listed&&listed!==companyId))return reply(409,{error:"EMITTER_ID_MISMATCH"});
+      // Read-only bootstrap, fixed homologation environment; no writes, no
+      // binding changes and no fiscal transmissions are possible here.
+      try{
+        const data=await createFiscontroleProvider({token,timeoutMs:30000}).emission({operation:"bootstrap",company:companyId,environment:2});
+        const diagnosis=summarizeEmissionBootstrap(data,binding.data.cnpj,companyId);
+        if(diagnosis.identity==="mismatch")return reply(409,{error:"EMITTER_ID_MISMATCH"});
+        return reply(200,{data:{emitterId:companyId,environment:2,identity:diagnosis.identity,models:diagnosis.models,profileCount:diagnosis.profileCount,productionEnabled:false}});
+      }catch(error){
+        const status=error instanceof Error&&error.name==="FiscalProviderError"?(error as {status?:number}).status:undefined;
+        const code=error instanceof Error&&error.message==="FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED"?"FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED":"EMISSION_DIAGNOSIS_FAILED";
+        console.warn(JSON.stringify({event:"fiscal_emission_diagnosis",code,providerStatus:status??0}));
+        return reply(424,{error:code,...(status?{providerStatus:status}:{})});
+      }
+    }
     if(body.action==="bind_read"){
       if(body.confirm!==true||typeof body.organizationId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.organizationId))return reply(400,{error:"BINDING_CONFIRMATION_REQUIRED"});
       const org=await admin.from("organizations").select("id,document").eq("id",body.organizationId).eq("status","active").maybeSingle();
