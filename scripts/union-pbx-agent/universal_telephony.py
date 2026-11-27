@@ -12,6 +12,15 @@ def uuid(value):
 def token(value,pattern=r'[A-Za-z0-9_.+-]{1,128}'):
     if not isinstance(value,str) or not re.fullmatch(pattern,value):fail()
     return value
+def credential(value):
+    if not isinstance(value,str) or not 1<=len(value)<=256 or re.search(r'[\s\x00-\x1f\x7f-\x9f\ufeff]',value):fail('invalid_credential')
+    return value
+
+def credential_config_value(value):
+    # Asterisk strips the backslash immediately preceding a semicolon.
+    # Prevent the leading '>' from turning the assignment into '=>'.
+    return (' ' if value.startswith('>') else '')+value.replace(';',r'\;')
+
 def fields(row,keys):
     if not isinstance(row,dict) or set(row)!=set(keys.split()):fail()
 def names(org,cid):
@@ -169,7 +178,7 @@ def compile_document(d,org,extensions,credentials,transports,*,legacy_coverage=F
     for item in credentials:
         fields(item,'connection_id password')
         if item['connection_id'] in creds or item['connection_id'] not in maps['connections']:fail()
-        creds[item['connection_id']]=token(item['password'],r'[A-Za-z0-9_!@%+.,:/?&*(){}~-]{1,256}')
+        creds[item['connection_id']]=credential(item['password'])
     extids={uuid(e['id']) for e in extensions if e['enabled']}
     if any(e not in extids for g in d['groups'] if g['enabled'] for e in g['extension_ids']):fail('extension_binding_required')
     sip=[];routes=[];eps=[]
@@ -194,7 +203,7 @@ def compile_document(d,org,extensions,credentials,transports,*,legacy_coverage=F
             if k in options:ep+=k+'='+('yes' if options[k] is True else 'no' if options[k] is False else options[k])+'\n'
         if c['auth_mode']!='ip':
             if c['id'] not in creds:fail('credential_required')
-            sip.append('['+n['auth']+']\ntype=auth\nauth_type=userpass\nusername='+c['username']+'\npassword='+creds[c['id']]+'\nrealm='+c['realm']+'\n')
+            sip.append('['+n['auth']+']\ntype=auth\nauth_type=userpass\nusername='+c['username']+'\npassword='+credential_config_value(creds[c['id']])+'\nrealm='+c['realm']+'\n')
             ep+='outbound_auth='+n['auth']+'\n'
         sip.extend([ep,'['+n['aor']+']\ntype=aor\ncontact='+uri+'\n'])
         if c['auth_mode']=='registration':sip.append('['+n['registration']+']\ntype=registration\ntransport='+transport+'\noutbound_auth='+n['auth']+'\nserver_uri='+uri+'\nclient_uri=sip:'+c['username']+'@'+c['host']+':'+str(c['port'])+'\ncontact_user='+n['endpoint']+'\nline=yes\nendpoint='+n['endpoint']+'\n')

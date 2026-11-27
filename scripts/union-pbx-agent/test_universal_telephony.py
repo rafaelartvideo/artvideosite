@@ -50,6 +50,16 @@ class UniversalTelephonyTests(unittest.TestCase):
         self.assertEqual(b.routes.count(b'Dial('),1)
         self.assertNotIn(b'password',b.routes)
 
+    def test_carrier_password_special_characters_remain_literal(self):
+        d=document();d['routing_enabled']=True
+        for raw,encoded in [('Test|<x}Z^7/4','Test|<x}Z^7/4'),('>abc',' >abc'),('a;--b;c',r'a\;--b\;c'),('a\\;b',r'a\\;b'),('x','x'),('a"#$[]`','a"#$[]`')]:
+            b=compile_document(d,ORG,[{'id':uid(7),'enabled':True}],[{'connection_id':uid(3),'password':raw}],{'transport-udp':'udp'},legacy_coverage=True)
+            self.assertIn(('password='+encoded+'\nrealm=*').encode(),b.pjsip)
+            self.assertNotIn(raw.encode(),b.routes) if len(raw)>4 else None
+        for raw in ('','bad pass','x\n[other]','x\rpass','x\tpass','x\x00pass','x\u2028pass','a'*257):
+            with self.assertRaises(TelephonyError):
+                compile_document(d,ORG,[{'id':uid(7),'enabled':True}],[{'connection_id':uid(3),'password':raw}],{'transport-udp':'udp'},legacy_coverage=True)
+
     def test_registration_inbound_requires_and_emits_source_acl(self):
         d=document();d['routing_enabled']=True;d['connections'][0]['inbound_enabled']=True
         with self.assertRaises(TelephonyError):validate_document(d,ORG)

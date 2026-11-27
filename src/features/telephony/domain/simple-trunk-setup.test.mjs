@@ -63,7 +63,7 @@ test('SIP password visibility is local, masked by default and reset after editin
 test('provider-issued short SIP passwords are supported without weakening config safety',()=>{
  const source=readFileSync('src/features/telephony/application/universal-telephony.ts','utf8');
  assert.match(source,/invalid_credential/);
- assert.match(source,/\{1,256\}/);
+ assert.match(source,/Array\.from\(value\)\.length>256/);
  assert.match(source,/SIP credential format unsupported/);
  const ui=readFileSync('src/features/telephony/presentation/UnionPbxUniversalTelephony.tsx','utf8');
  assert.match(ui,/failure.code==='invalid_credential'\)\{lock.current=false;\}/);
