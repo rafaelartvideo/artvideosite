@@ -12,7 +12,7 @@ import { formatWhatsAppPhone, WhatsAppContactAvatar } from "./WhatsAppInboxVisua
  * start + provider-confirmation flow as the normal WhatsApp inbox.
  */
 export function WhatsAppDraftConversation({
-  organizationId, name, phone, starting, error, onSend, onChangeRecipient, onEditMessage,
+  organizationId, name, phone, starting, error, onSend, onChangeRecipient, onEditMessage, initialMessage="",
 }: {
   organizationId: string;
   name: string;
@@ -22,9 +22,10 @@ export function WhatsAppDraftConversation({
   onSend: (message: string) => Promise<void>;
   onChangeRecipient?: () => void;
   onEditMessage: () => void;
+  initialMessage?:string;
 }) {
   const { profile } = useAuth();
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickLoading, setQuickLoading] = useState(false);
