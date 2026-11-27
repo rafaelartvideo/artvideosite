@@ -50,7 +50,7 @@ Deno.serve(async (request:Request)=>{
       if((accountId!==null&&(typeof accountId!=="string"||!/^[0-9a-f-]{36}$/i.test(accountId)))||
         typeof label!=="string"||label.trim().length<1||label.trim().length>120||
         !Number.isSafeInteger(cnpjLimit)||cnpjLimit<1||cnpjLimit>10000||
-        typeof email!=="string"||email.length>254||!/^\\S+@\\S+\\.\\S+$/.test(email)||
+        typeof email!=="string"||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||
         typeof password!=="string"||password.length<1||password.length>512)return reply(400,{error:"INVALID_CONFIGURATION"});
       // SHA-1 is the documented Fiscontrole session protocol, not local
       // password storage. The password and digest are never persisted.
@@ -62,12 +62,12 @@ Deno.serve(async (request:Request)=>{
       });
       if(!login.ok)return reply(422,{error:"PROVIDER_LOGIN_FAILED"});
       const session=await login.json();
-      if(typeof session?.token!=="string"||session.token.length<1||session.token.length>8192||/\\s/.test(session.token))return reply(502,{error:"INVALID_PROVIDER_SESSION"});
+      if(typeof session?.token!=="string"||session.token.length<1||session.token.length>8192||/\s/.test(session.token))return reply(502,{error:"INVALID_PROVIDER_SESSION"});
       const provider=createFiscontroleProvider({token:session.token});
       const response=await provider.listCompanies();
       if(!Array.isArray(response.empresas))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
-      const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\\D/g,""):""}));
-      if(companies.some((c:{cnpj:string})=>!/^\\d{14}$/.test(c.cnpj))||
+      const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\D/g,""):""}));
+      if(companies.some((c:{cnpj:string})=>!/^\d{14}$/.test(c.cnpj))||
          new Set(companies.map((c:{cnpj:string})=>c.cnpj)).size>cnpjLimit)return reply(422,{error:"PROVIDER_INVENTORY_MISMATCH"});
       const saved=await admin.rpc("fiscal_store_provider_session",{p_account:accountId,p_label:label.trim(),p_limit:cnpjLimit,p_token:session.token,p_actor:auth.data.user.id});
       if(saved.error||!saved.data)return reply(409,{error:"ACCOUNT_SAVE_FAILED"});
@@ -95,7 +95,7 @@ Deno.serve(async (request:Request)=>{
       if(body.confirm!==true||typeof body.organizationId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.organizationId))return reply(400,{error:"BINDING_CONFIRMATION_REQUIRED"});
       const org=await admin.from("organizations").select("id,document").eq("id",body.organizationId).eq("status","active").maybeSingle();
       if(org.error||!org.data)return reply(404,{error:"ORGANIZATION_NOT_FOUND"});
-      const cnpj=typeof org.data.document==="string"?org.data.document.replace(/\\D/g,""):"";
+      const cnpj=typeof org.data.document==="string"?org.data.document.replace(/\D/g,""):"";
       if(!companies.some((c:{cnpj:string})=>c.cnpj===cnpj))return reply(409,{error:"CNPJ_NOT_AUTHORIZED_BY_PROVIDER"});
       const activated=await admin.rpc("fiscal_enable_read_binding",{
         p_account:account.data.id,p_org:org.data.id,p_actor:auth.data.user.id,
