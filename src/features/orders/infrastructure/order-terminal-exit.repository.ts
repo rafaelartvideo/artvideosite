@@ -60,7 +60,7 @@ export async function completeOrderTerminalExit({
 
 export type UnrepairedReturnAttempt = {
   id:string; reason:string; reason_category:string; observations:string;
-  started_at:string; started_by:string; waiting_situation_id:string; prior_situation_id:string;
+  started_at:string; started_by:string; notified_at?:string|null; notified_by?:string|null; notification_message_id?:string|null; waiting_situation_id:string; prior_situation_id:string;
 };
 
 export async function getUnrepairedReturn(organizationId:string,orderId:string):Promise<UnrepairedReturnAttempt|null>{
@@ -90,4 +90,13 @@ export async function cancelUnrepairedReturn(organizationId:string,orderId:strin
 export function isAwaitingUnrepairedReturn(order:any):boolean{
   return order?.situation?.slug==="aguardando-retirada-sem-reparo"||
     String(order?.situation?.name||"").trim().toLowerCase()==="aguardando retirada sem reparo";
+}
+
+export async function markUnrepairedReturnNotified(organizationId:string,orderId:string,attemptId:string,conversationId:string,providerMessageId:string):Promise<UnrepairedReturnAttempt>{
+  const {data,error}=await (supabase as any).rpc("mark_order_unrepaired_return_notified_v1",{
+    p_organization_id:organizationId,p_order_id:orderId,p_attempt_id:attemptId,p_conversation_id:conversationId,p_provider_message_id:providerMessageId,
+  });
+  if(error)throw error;
+  if(!data?.notified_at)throw new Error("Registro da notificação não confirmado.");
+  return data;
 }
