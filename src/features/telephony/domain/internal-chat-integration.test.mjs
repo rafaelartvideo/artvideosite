@@ -120,7 +120,7 @@ test("internal chat shares CRM texture, bounds long filenames and preserves publ
  assert.ok(ui.includes("text-sky-600 dark:text-sky-400"));
  assert.ok(!ui.includes("editMessage(m,true)"));
  assert.ok(!ui.includes("Trash2"));
- assert.ok(ui.includes("p_delete:false"));
+ assert.ok(!ui.includes("internal_chat_edit_v1"));
  assert.ok(preserve.includes("if p_delete is distinct from false then raise exception"));
  assert.ok(preserve.includes("revoke delete on public.internal_chat_messages"));
  assert.ok(!preserve.includes("set body='Mensagem excluída'"));
@@ -172,4 +172,30 @@ test("independent chat roles take precedence without modifying CRM grants",()=>{
  assert.ok(roles.includes("internal_chat_save_template_v1"));
  assert.ok(roles.includes("internal_chat_assign_role_v1"));
  assert.ok(read("src/features/internal-chat/presentation/useChatDock.ts").includes("fittedHeight"));
+});
+
+test("conversation date grouping, quoted replies, reliable outbox and immutable messages",async()=>{
+ const immutable=read(root+"140800_internal_chat_immutable_messages.sql");
+ const reliability=read("src/features/internal-chat/application/chat-reliability.ts");
+ assert.ok(immutable.includes("revoke all on function public.internal_chat_edit_v1"));
+ assert.ok(immutable.includes("revoke update(body,edited_at,deleted_at,mentions)"));
+ assert.ok(!ui.includes("internal_chat_edit_v1"));
+ assert.ok(ui.includes('while(outboxRef.current.length&&sessionAlive.current)'));
+ assert.ok(ui.includes("setFailedTokens"));
+ assert.ok(ui.includes("thread.isLoadingError&&!thread.isFetching"));
+ assert.ok(ui.includes("m.client_token===x.token"));
+ assert.ok(ui.includes("previousScroll.current"));
+ assert.ok(ui.includes("followLatest.current"));
+ assert.ok(ui.includes("chatDayLabel(chatDayKey(m.created_at))"));
+ assert.ok(ui.includes("border-l-[3px] border-primary"));
+ assert.ok(ui.includes("quotedMessages"));
+ assert.ok(reliability.includes("retryChatRequest"));
+ assert.ok(reliability.includes('.eq("client_token",item.token)'));
+ const dateSource=ui.slice(ui.indexOf("const chatDayKey="),ui.indexOf("const quoteSummary="));
+ const {code}=await transformWithEsbuild(dateSource+"\nexport {chatDayKey,chatDayLabel};","chat-dates.ts",{loader:"ts",format:"esm"});
+ const {chatDayKey,chatDayLabel}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+ const now=new Date(2026,10,27,12).getTime();
+ assert.equal(chatDayLabel(chatDayKey(now),now),"Hoje");
+ assert.equal(chatDayLabel("2026-11-26",now),"Ontem");
+ assert.equal(chatDayLabel("2026-11-24",now),"24 de novembro de 2026");
 });
