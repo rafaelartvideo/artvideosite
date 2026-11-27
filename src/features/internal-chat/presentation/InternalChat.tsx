@@ -42,6 +42,7 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
   const [anchors,setAnchors]=useState<HTMLElement[]>([]);
   const [sound,setSound]=useState(true);
   const seenCalls=useRef(new Set<string>());
+  const historyRef=useRef<HTMLDivElement>(null);
   const [connected,setConnected]=useState(false);
   const pending=useQuery({queryKey:[...key,"pending"],queryFn:async()=>{
     const {data,error}=await supabase.from("internal_chat_messages").select(fields).eq("organization_id",org)
@@ -53,6 +54,11 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
       .eq("organization_id",org).eq("recipient_id",uid).is("read_at",null);
     if(error) throw error; return count??0;
   },retry:false,staleTime:Infinity,refetchOnWindowFocus:true});
+  const outgoing=useQuery({queryKey:[...key,"outgoing"],enabled:open,queryFn:async()=>{
+    const {data,error}=await supabase.from("internal_chat_messages").select(fields).eq("organization_id",org)
+      .eq("sender_id",uid).eq("kind","call").is("response",null).order("created_at").limit(100);
+    if(error)throw error;return data as ChatRow[];
+  },retry:false,staleTime:Infinity});
   const calls=pending.data??[];
   const incoming=calls[0];
   const directory=useQuery({queryKey:[...key,"directory"],enabled:open||!!incoming,queryFn:async()=>{
@@ -69,6 +75,8 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
   },staleTime:Infinity,retry:false});
   const rows=useMemo(()=>Array.from(new Map([...older,...(thread.data??[])].map(m=>[m.id,m])).values())
     .sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)),[older,thread.data]);
+  const latestId=thread.data?.[0]?.id;
+  useEffect(()=>{if(open&&historyRef.current)historyRef.current.scrollTop=historyRef.current.scrollHeight;},[open,peer,latestId]);
   useEffect(()=>{
     setAnchors(["internal-chat-desktop","internal-chat-mobile"].map(id=>document.getElementById(id)).filter((v):v is HTMLElement=>!!v));
   },[]);
@@ -107,7 +115,7 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
       .eq("organization_id",org).eq("recipient_id",uid).is("read_at",null).in("id",ids)
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"unread"]});});
   },[open,peer,thread.data,uid,org,qc,key]);
-  function selectPeer(id:string|null){setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
+  function selectPeer(id:string|null){if(busy)return;setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
   async function send(kind:"text"|"call"){
     if(!peer||busy||(kind==="text"&&!draft.trim()))return;
     setBusy(true);setError("");
@@ -116,6 +124,7 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
       if(error){if(error.code==="23505")throw new Error("Já existe uma chamada aguardando resposta.");throw error;}
       if(kind==="text")setDraft("");
       void qc.invalidateQueries({queryKey:[...key,"thread",peer]});
+      if(kind==="call")void qc.invalidateQueries({queryKey:[...key,"outgoing"]});
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível enviar. Tente novamente.");}
     finally{setBusy(false);}
   }
@@ -136,8 +145,7 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
     const first=rows[0];setBusy(true);
     try{
       const {data,error}=await supabase.from("internal_chat_messages").select(fields).eq("organization_id",org)
-        .or(`and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})`)
-        .or(`created_at.lt.${first.created_at},and(created_at.eq.${first.created_at},id.lt.${first.id})`)
+        .or(`and(or(and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})),or(created_at.lt.${first.created_at},and(created_at.eq.${first.created_at},id.lt.${first.id})))`)
         .order("created_at",{ascending:false}).order("id",{ascending:false}).limit(pageSize);
       if(error)throw error;
       setOlder(previous=>[...previous,...(data as ChatRow[])]);setMore((data?.length??0)===pageSize);
@@ -150,7 +158,8 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
     <MessageSquare size={17}/>
     {((unread.data??0)>0||calls.length>0)&&<span className="absolute right-0 top-0 rounded-full bg-primary px-1 text-[10px] font-bold text-white">{Math.min(99,Math.max(unread.data??0,calls.length))}</span>}
   </button>;
-  const pendingOut=rows.some(m=>m.kind==="call"&&m.sender_id===uid&&!m.response);
+  const outgoingCall=outgoing.data?.find(m=>m.recipient_id===peer);
+  const pendingOut=!!outgoingCall||rows.some(m=>m.kind==="call"&&m.sender_id===uid&&!m.response);
   return <>
     {anchors.map(a=>createPortal(button,a,a.id))}
     {createPortal(<>
@@ -182,7 +191,8 @@ function ChatSession({org,uid,canCall}:{org:string;uid:string;canCall:boolean}) 
           {directory.isError&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
           {employees.filter(e=>e.full_name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(e=><button type="button" key={e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-3 rounded-md p-2 text-left text-sm hover:bg-muted"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-bold">{e.full_name[0]}</span><span className="truncate">{e.full_name}</span></button>)}
         </div>:<>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+          {outgoingCall&&<div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs"><BellRing size={14}/><span className="flex-1">Chamando · aguardando resposta</span><button disabled={busy} className="underline" onClick={()=>void respond(outgoingCall,"cancelled")}>Cancelar</button></div>}
+          <div ref={historyRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
             {thread.isPending&&<p className="text-xs text-muted-foreground">Carregando conversa…</p>}
             {thread.isError&&<button className={actionClass} onClick={()=>void thread.refetch()}>Tentar novamente</button>}
             {more&&(thread.data?.length??0)>=pageSize&&<button className={actionClass} disabled={busy} onClick={()=>void loadOlder()}>Mensagens anteriores</button>}
