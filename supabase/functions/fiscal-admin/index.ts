@@ -37,8 +37,8 @@ Deno.serve(async (request:Request)=>{
     if(new TextEncoder().encode(raw).byteLength>16384)return reply(413,{error:"REQUEST_TOO_LARGE"});
     let body;
     try{body=JSON.parse(raw);}catch{return reply(400,{error:"INVALID_REQUEST"});}
-    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read","emission_diagnosis","nfe_bind","nfe_status","nfe_prepare","nfe_create","nfe_validate","nfe_issue","nfe_process","nfe_detail"].includes(body.action)||
-      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm","emitterId","confirmedCnpj","requestKey","profileId","profileVersion","series","commercial","operationId"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
+    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read","emission_diagnosis","nfe_bind","nfe_status","nfe_prepare","nfe_create","nfe_validate","nfe_issue","nfe_process","nfe_detail","nfe_download"].includes(body.action)||
+      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm","emitterId","confirmedCnpj","requestKey","profileId","profileVersion","series","commercial","operationId","kind"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
     if(body.action==="status"){
       const accounts=await admin.from("fiscal_provider_accounts").select("id,provider,label,cnpj_limit,is_active,inventory_verified_at").order("label").limit(100);
       if(accounts.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
@@ -100,7 +100,7 @@ Deno.serve(async (request:Request)=>{
         const result=await handleNfeAdmin({admin,provider:createFiscontroleProvider({token,timeoutMs:30000,allowHomologationWrites:true}),account:account.data,companies,body,actorId:auth.data.user.id});
         return reply(200,{data:result});
       }catch(error){
-        const allowed=new Set(["INVALID_ORGANIZATION","FISCAL_PERSISTENCE_FAILED","FISCAL_BINDING_REQUIRED","ACCOUNT_NOT_VERIFIED","CNPJ_NOT_AUTHORIZED_BY_PROVIDER","EMITTER_ID_MISMATCH","EMITTER_IDENTITY_UNVERIFIED","EMITTER_CONFIRMATION_REQUIRED","EMITTER_CHANGE_REQUIRES_REVIEW","EMITTER_BINDING_CONFLICT","EMITTER_BINDING_REQUIRED","MODEL_NOT_READY","PROFILE_OR_SERIES_UNVERIFIED","INVALID_REQUEST_KEY","INVALID_OPERATION","OPERATION_NOT_AVAILABLE","INVALID_ACTION","INVALID_FIELD","INVALID_AMOUNT","INVALID_PROFILE","INVALID_SERIES","PILOT_ONLY_INTRASTATE_SE","DRAFT_RESPONSE_UNRECOGNIZED","ISSUER_NOT_VERIFIED","OPERATION_CONFLICT","OPERATION_PERSISTENCE_FAILED","CONFIRMATION_REQUIRED","INVALID_OPERATION_ID"]);
+        const allowed=new Set(["INVALID_ORGANIZATION","FISCAL_PERSISTENCE_FAILED","FISCAL_BINDING_REQUIRED","ACCOUNT_NOT_VERIFIED","CNPJ_NOT_AUTHORIZED_BY_PROVIDER","EMITTER_ID_MISMATCH","EMITTER_IDENTITY_UNVERIFIED","EMITTER_CONFIRMATION_REQUIRED","EMITTER_CHANGE_REQUIRES_REVIEW","EMITTER_BINDING_CONFLICT","EMITTER_BINDING_REQUIRED","MODEL_NOT_READY","PROFILE_OR_SERIES_UNVERIFIED","INVALID_REQUEST_KEY","INVALID_OPERATION","OPERATION_NOT_AVAILABLE","INVALID_ACTION","INVALID_FIELD","INVALID_AMOUNT","INVALID_PROFILE","INVALID_SERIES","PILOT_ONLY_INTRASTATE_SE","DRAFT_RESPONSE_UNRECOGNIZED","ISSUER_NOT_VERIFIED","OPERATION_CONFLICT","OPERATION_PERSISTENCE_FAILED","CONFIRMATION_REQUIRED","INVALID_OPERATION_ID","DOCUMENT_NOT_AUTHORIZED","INVALID_FILE_KIND","FILE_RESPONSE_UNRECOGNIZED","FILE_CHECKSUM_MISMATCH"]);
         const code=error instanceof Error&&allowed.has(error.message)?error.message:"NFE_PROVIDER_OR_PERSISTENCE_UNCERTAIN";
         console.warn(JSON.stringify({event:"nfe_homologation_failure",action:body.action,code}));
         return reply(code==="NFE_PROVIDER_OR_PERSISTENCE_UNCERTAIN"?503:409,{error:code});
