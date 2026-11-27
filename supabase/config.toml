@@ -78,3 +78,9 @@ verify_jwt = false
 # Pré-OS: valida token temporário em ações públicas e JWT/permissões nas ações internas.
 [functions.order-intake]
 verify_jwt = false
+
+# Fiscal archive and platform administration: authenticated JWT + explicit server ACLs.
+[functions.fiscal-read]
+verify_jwt = true
+[functions.fiscal-admin]
+verify_jwt = true
