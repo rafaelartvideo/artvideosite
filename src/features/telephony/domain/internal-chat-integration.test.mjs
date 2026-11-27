@@ -1,0 +1,48 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {transformWithEsbuild} from "vite";
+const read=path=>readFileSync(path,"utf8");
+const root="supabase/migrations/20261127";
+const base=read(root+"140000_internal_chat_persistent_calls.sql");
+const presence=read(root+"140100_internal_chat_presence_pbx.sql");
+const groups=read(root+"140200_internal_chat_groups_attachments.sql");
+const metrics=read(root+"140300_internal_chat_scope_recent_metrics.sql");
+const uiPath="src/features/internal-chat/presentation/InternalChat.tsx";
+const pbxPath="src/features/telephony/presentation/UnionPbxToolPage.tsx";
+const headerPath="src/features/admin-shell/presentation/AdminHeader.tsx";
+const ui=read(uiPath);
+test("persistent calls remain pending until response or sender cancellation",()=>{
+  assert.ok(!base.includes("expires_at"));
+  assert.ok(base.includes("where kind='call' and response is null"));
+  assert.ok(base.includes("new.response='cancelled' and old.sender_id<>auth.uid()"));
+  assert.ok(base.includes("pg_advisory_xact_lock"));
+  assert.ok(ui.includes('.is("response",null)'));
+  assert.ok(ui.includes('status==="SUBSCRIBED")invalidate()'));
+});
+test("chat uses isolated recipients, group membership and private storage",()=>{
+  assert.ok(groups.includes("private.internal_chat_group_member(organization_id,group_id)"));
+  assert.ok(groups.includes("group_id is not null and recipient_id is null and kind='text'"));
+  assert.ok(groups.includes("internal_chat_can_remove_upload"));
+  assert.ok(groups.includes("'internal-chat-files','internal-chat-files',false,10485760"));
+  assert.ok(groups.includes("not exists(select 1 from public.internal_chat_messages m where m.attachment_path=p_path)"));
+  assert.ok(presence.includes("extension='presence'"));
+  assert.ok(metrics.includes("not denied.is_allowed"));
+  assert.ok(metrics.includes("internal_chat.metrics.view"));
+  for(const sql of [base,presence,groups,metrics]){
+    assert.ok(!sql.split("\n").some(line=>line.endsWith("as $")||line==="$;"));
+    assert.ok(sql.trim().endsWith("commit;"));
+  }
+});
+test("no continuous polling, one chat mount, voice reuses existing dialer",async()=>{
+  assert.ok(!ui.includes("setInterval("));
+  assert.ok(!ui.includes("refetchInterval"));
+  assert.ok(ui.includes("config:{private:true}"));
+  assert.ok(ui.includes("const pageSize = 30"));
+  assert.equal(read(headerPath).split("<InternalChat />").length-1,1);
+  assert.ok(ui.includes("CHAT_PBX_PREFILL"));
+  const pbx=read(pbxPath);
+  assert.ok(pbx.includes("window.addEventListener(CHAT_PBX_PREFILL,onChatDial)"));
+  assert.ok(pbx.includes('setDialMode("internal");setDialTarget(String(detail.number));onOpen()'));
+  for(const path of [uiPath,pbxPath,headerPath])assert.ok((await transformWithEsbuild(read(path),path,{loader:"tsx"})).code);
+});
