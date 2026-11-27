@@ -45,6 +45,14 @@ Initialized Teste's missing call-mode prerequisite from the authoritative revisi
 
 After native activation, the isolated-admission checker rejected the profile's own new universal include, causing protocol downgrade and preventing cloud reports. It now accepts that exact generated profile context when the trusted universal attachment is active; complete file comparisons and loaded-context checks still reject foreign includes. The regression exercises both cases. All 443 Python tests passed on Linux and independent review approved the final changes. Both FVX account registrations were then directly confirmed as Registered in Asterisk; this does not by itself validate real call audio or inbound routing.
 
+## Recurring confirmation loss
+
+The user subsequently reproduced Registered alternating with Awaiting confirmation. A multi-cycle native trace located rejection at the lease-renewal readiness guard. The separate observer was repeatedly blocking the manifest after its strict channel parser failed, despite the same collector succeeding from the operator shell.
+
+A read-only transient unit with the observer's exact restrictions reproduced the cause: under `RestrictAddressFamilies=AF_UNIX`, Asterisk's CLI emits the leading notice `Unable to open socket for seeding global EID. You will have to set it manually.` before the otherwise valid response. Boot identity and channel count were valid, but the concise list parser correctly rejected the extra line.
+
+The snapshot collector now removes exactly one occurrence of that exact leading notice for both native and injected command adapters. It normalizes once at collection; the parsers remain strict. Duplicate notices, unknown diagnostics, malformed lists, missing rows, changing snapshots and command failures still fail closed. No address family, network access, admission, capacity, lease or tenant restriction was widened. Tests cover empty and populated channel lists through both collection paths plus unexpected output. Five focused tests and all 444 Python tests passed on Linux, with independent review approval. Backed up the original observer module in the existing onboarding directory and restarted only the observer to load the correction; Asterisk was not restarted.
+
 ## Validation
 
 Focused preflight tests: 9 passed. Telephony: 199 passed. Quality: 8 passed. Full `test:ci`, CRM build and site build completed with exit code 0. Deployment must additionally be confirmed in the HostGator production workflow for the resulting main commit.

@@ -1,7 +1,18 @@
 import unittest
-from unittest.mock import Mock
-from universal_observer import ObserverError,parse_channels,parse_count,stable_snapshot
+from unittest.mock import Mock,patch
+from universal_observer import ObserverError,parse_channels,parse_count,stable_snapshot,native_command
 class ObserverTests(unittest.TestCase):
+ def test_unix_only_cli_eid_notice_preserves_strict_channel_validation(self):
+  notice='Unable to open socket for seeding global EID. You will have to set it manually.\n'
+  line='PJSIP/a!ctx!301!1!Up!Dial!x!x!!!3!5!bridge!123.1\n'
+  for raw,count in [('',0),(line,1)]:
+   def run(command):return notice+(str(count)+' active channels\n' if command.endswith('count') else raw)
+   self.assertEqual(len(stable_snapshot(run,lambda:'epoch')['channels']),count)
+   with patch('universal_observer.subprocess.run',side_effect=lambda args,**kwargs:Mock(stdout=run(args[-1]))):
+    self.assertEqual(len(stable_snapshot(epoch=lambda:'epoch')['channels']),count)
+  for raw in (notice+notice,'Unexpected socket failure\n',notice+'No such command\n'):
+   with self.assertRaises(ObserverError):
+    stable_snapshot(lambda cmd:('0 active channels\n' if cmd.endswith('count') else raw),lambda:'epoch')
  def test_parser_keeps_only_identity_and_state(self):
   line='PJSIP/uw-abc-00000001!own!5511999999999!1!Up!Dial!private-data!private-caller!!!3!5!bridge!1234.1\n'
   rows=parse_channels(line,1)

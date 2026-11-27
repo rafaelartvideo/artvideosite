@@ -54,13 +54,22 @@ def boot_epoch(pid_file=Path('/run/asterisk/asterisk.pid'),proc=Path('/proc')):
   return hashlib.sha256((boot+':'+pid+':'+start).encode()).hexdigest()
  except (OSError,ValueError,IndexError):raise ObserverError('asterisk_epoch_unavailable') from None
 
+def cli_response(raw):
+ # Native and injected CLI adapters both need this exact startup notice
+ # handling. Normalize once at collection, never in the strict parsers.
+ notice='Unable to open socket for seeding global EID. You will have to set it manually.'
+ if isinstance(raw,str):
+  lines=raw.splitlines()
+  if lines and lines[0]==notice:return '\n'.join(lines[1:])
+ return raw
+
 def stable_snapshot(command=native_command,epoch=boot_epoch):
  try:
   before=epoch(); snapshots=[]
   for _ in range(2):
-   count_before=parse_count(command('core show channels count'))
-   rows=parse_channels(command('core show channels concise'),count_before)
-   count_after=parse_count(command('core show channels count'))
+   count_before=parse_count(cli_response(command('core show channels count')))
+   rows=parse_channels(cli_response(command('core show channels concise')),count_before)
+   count_after=parse_count(cli_response(command('core show channels count')))
    if count_before!=count_after:raise ObserverError('channel_snapshot_changing')
    snapshots.append(rows)
   if before!=epoch() or snapshots[0]!=snapshots[1]:raise ObserverError('channel_snapshot_changing')
