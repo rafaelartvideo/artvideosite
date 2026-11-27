@@ -883,7 +883,7 @@ export function OrderDetailsPage(props: Props) {
 
         /> : detailSection === "products-services" && !isDisposal ? <OrderProductsServicesSection
           order={detail}
-          canEdit={!monitorView && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+          canEdit={!monitorView && !awaitingUnrepairedReturn && !detail.completed_at && !detail.cancelled_at && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           onOverviewChange={handleItemsOverviewChange}

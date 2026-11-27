@@ -14,17 +14,15 @@ test("Encerramentos especiais exigem documentos, termo assinado, evidência e de
 
   assert.match(actions,/onTerminalExit\("disposal_confirmed"\)/);
   assert.match(actions,/onTerminalExit\("returned_unrepaired"\)/);
-  assert.match(actions,/<DropdownMenu modal=\{false\}>/);
-  // Gatilho Radix precisa receber ref diretamente no button (React 18).
-  assert.match(actions,/<DropdownMenuTrigger asChild>[\s\S]*?<button[\s\S]*?aria-label="Encerrar sem reparo"/);
-  assert.doesNotMatch(actions,/<DropdownMenuTrigger asChild>\s*<AdminButton/);
-  assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("returned_unrepaired"\)\)/);
-  assert.match(actions,/requestAnimationFrame\(\(\)=>onTerminalExit\("disposal_confirmed"\)\)/);
+  assert.doesNotMatch(actions,/Encerrar sem reparo/);
+  assert.match(actions,/canStartReturn && <AdminButton/);
+  assert.match(actions,/canTerminalExit && awaitingReturn && <BtnPrimary/);
+  assert.match(actions,/onTerminalExit\("disposal_confirmed"\)/);
   assert.match(actions,/const canTerminalExit = hasPermission\("orders.complete"\)/);
   assert.match(page,/OrderTerminalExitDialog/);
   assert.match(page,/is_solved:result\.outcome==="disposal_confirmed"/);
   assert.match(page,/returned_unrepaired","disposal_confirmed/);
-  assert.match(page,/onTerminalExit=\{outcome => \{setTerminalInitialReason\(""\);setTerminalOutcome\(outcome\);\}\}/);
+  assert.match(page,/onTerminalExit=\{outcome => \{[\s\S]*?setTerminalInitialReason\(rejected\?[\s\S]*?setTerminalOutcome\(outcome\)/);
   assert.doesNotMatch(page,/supabase\.rpc\("complete_disposal_service_order"/);
   assert.match(signature,/preferredDocumentType/);
   assert.match(dialog,/listOrderSignatureRequests/);
@@ -188,4 +186,26 @@ test("início da devolução atualiza rodapé sem recarregar página e protege c
   assert.match(details,/void detailQuery.refetch\(\)/);
   for(const [name,source,loader] of [["page",page,"tsx"],["details",details,"ts"],["modal",modal,"tsx"]])
     assert.ok((await transformWithEsbuild(source,name+"."+loader,{loader})).code.length>100);
+});
+
+test("devolução tem uma única ação em qualquer fase do orçamento e mantém histórico de assinaturas",async()=>{
+  const actions=read("src/features/orders/presentation/OrderDetailsActions.tsx");
+  const quote=read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const modal=read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  const signature=read("src/features/orders/presentation/OrderSignatureRequestDialog.tsx");
+  const documents=read("src/features/orders/presentation/OrderSignatureRequestsSection.tsx");
+  assert.doesNotMatch(quote,/Finalizar devolução|onRequestReturn|canCompleteReturn/);
+  assert.match(quote,/footerHost && !awaitingReturn && proposal/);
+  assert.match(actions,/const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal/);
+  assert.match(page,/quoteState\.status==="rejected"/);
+  assert.match(documents,/const visibleRequests = requests;/);
+  assert.match(modal,/existingRequests=\{requests\}/);
+  assert.match(modal,/onRefreshRequests=\{refreshSignatures\}/);
+  assert.match(modal,/if\(!result\.reused\|\|feedback\.type==="error"\)/);
+  assert.match(signature,/previousAttemptRequest/);
+  assert.match(signature,/cancelPreviousAttemptRequest/);
+  assert.match(signature,/reused: true/);
+  for(const [name,source] of [["actions",actions],["quote",quote],["page",page],["modal",modal],["signature",signature],["documents",documents]])
+    assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code.length>100);
 });
