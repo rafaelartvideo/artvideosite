@@ -694,6 +694,14 @@ export function OrderDetailsPage(props: Props) {
       history={details.detailHistory}
       printedBy={profileName}
       onClose={()=>setTerminalOutcome(null)}
+      onReturnChanged={attempt=>{
+        details.setDetail((current:any)=>current?.id===detail.id
+          ? {...current,situation_id:attempt?.waiting_situation_id||current.situation_id,
+            ...(attempt?{situation:{id:attempt.waiting_situation_id,name:"Aguardando retirada sem reparo",slug:"aguardando-retirada-sem-reparo",color:"#d97706"}}:{})}
+          :current);
+        void queryClient.invalidateQueries({queryKey:["orders"]});
+        void details.retryDetailLoad();
+      }}
       onDone={result=>{
         setTerminalOutcome(null);
         details.setDetail((current:any)=>current?.id===detail.id
