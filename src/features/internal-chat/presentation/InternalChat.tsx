@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square, Image } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
@@ -18,8 +18,8 @@ type Recent = {peer_id:string;created_at:string;kind:string;body:string;attachme
 type Metrics = {messages:number;attachments:number;calls:number;answered:number;mean_response_seconds:number|null;pending:number};
 type GroupEdit = {id:string|null;name:string;members:string[]};
 const allowedFileTypes=new Set(["image/jpeg","image/png","image/webp","image/gif","application/pdf","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","audio/webm","audio/ogg","audio/mp4","audio/mpeg","audio/wav"]);
-type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; attachment_mime:string|null; reply_to:string|null; edited_at:string|null; deleted_at:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
-const fields = "id,sender_id,recipient_id,group_id,attachment_path,attachment_mime,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
+type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; attachment_mime:string|null; mentions:string[]; reply_to:string|null; edited_at:string|null; deleted_at:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
+const fields = "id,sender_id,recipient_id,group_id,attachment_path,attachment_mime,mentions,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
 const pageSize = 30;
 const actionClass = "rounded-md border border-border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50";
 const callLabels = { coming:"Já estou indo", busy:"Estou ocupado", cancelled:"Cancelada" };
@@ -241,7 +241,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           const n=notificationState.current;
           const muted=n.preferences?.some(p=>p.target_type===(groupId?"group":"direct")&&p.target_id===(groupId||payload.sender_id)&&p.muted);
           if(document.hidden&&n.preferences&&n.config.desktop_notifications&&n.desktopAllowed&&!muted&&n.availability!=="dnd"){
-            void notifyOnce(storagePrefix+"notice:"+payload.id,()=>{try{new Notification("Chat interno",{body:"Você recebeu uma mensagem."});}catch{/* Browser restriction. */}});
+            void notifyOnce(storagePrefix+"notice:"+payload.id,()=>{try{new Notification("Chat interno",{body:Array.isArray(payload.mentions)&&payload.mentions.includes(uid)?"Você foi mencionado em um grupo.":"Você recebeu uma mensagem."});}catch{/* Browser restriction. */}});
           }
         }
         schedule();
@@ -357,7 +357,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     if(kind==="text"){
       if(editing&&!shared){await editMessage(editing,false);return;}
       if(outboxRef.current.length>=30){setError("Há muitas mensagens aguardando envio. Tente novamente primeiro.");return;}
-      saveOutbox([...outboxRef.current,{token:crypto.randomUUID(),peer,group,body:(shared??draft).trim(),reply:reply?.id??null}]);
+      saveOutbox([...outboxRef.current,{token:crypto.randomUUID(),peer,group,body:(shared??draft).trim(),reply:reply?.id??null,mentions:group&&!shared?employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&draft.includes("@"+e.full_name+" ")).slice(0,20).map(e=>e.user_id):[]}]);
       if(!shared)saveDraft("");setReply(null);void flushOutbox();return;
     }
     setBusy(true);
@@ -520,6 +520,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
             {results&&<p className="text-xs text-muted-foreground">{results.length} resultados</p>}
             {visibleRows.map(m=><div key={m.id} className={"w-fit max-w-[88%] rounded-lg px-3 py-2 text-sm "+(m.sender_id===uid?"ml-auto bg-primary/10":"bg-muted")}>
               {group&&m.sender_id!==uid&&<p className="text-xs font-semibold text-primary">{name(m.sender_id)}</p>}
+              {m.mentions?.includes(uid)&&!m.deleted_at&&<p className="mb-1 text-xs font-semibold text-primary">Mencionou você</p>}
               {m.reply_to&&<p className="mb-1 border-l-2 border-primary pl-2 text-xs text-muted-foreground truncate">{rows.find(x=>x.id===m.reply_to)?.body??"Mensagem anterior"}</p>}
               {m.deleted_at?<p className="italic text-muted-foreground">Mensagem excluída</p>:m.attachment_path?<><button type="button" className="flex items-center gap-2 text-left underline" disabled={busy} onClick={()=>void downloadFile(m)}><Paperclip size={15}/>{m.body}</button>{(m.attachment_mime?.startsWith("image/")||m.attachment_mime?.startsWith("audio/"))&&<button title="Pré-visualizar" className="text-xs underline" onClick={()=>void downloadFile(m,true)}>{m.attachment_mime.startsWith("audio/")?"Ouvir":"Visualizar"}</button>}</>:m.kind==="text"?(shareableRoute.test(m.body)?<button type="button" className="flex items-center gap-2 text-left underline" onClick={()=>navigate(m.body)}><Link2 size={15}/>Abrir {m.body.includes("/orders/")?"ordem de serviço":m.body.includes("/customers/")?"cadastro":"produto"}</button>:<p className="whitespace-pre-wrap break-words">{m.body}</p>):<><p className="font-semibold"><BellRing className="mr-1 inline" size={14}/> {m.response?callLabels[m.response]:"Chamada aguardando resposta"}</p>
                 {!m.response&&m.sender_id===uid&&<button disabled={busy} className="mt-1 text-xs underline" onClick={()=>void respond(m,"cancelled")}>Cancelar chamada</button>}
@@ -531,6 +532,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           {pendingTexts.filter(x=>(x.group??x.peer)===target).map(x=><div key={x.token} className="border-t border-border p-2 text-xs"><span className="text-muted-foreground">{x.body} · Aguardando envio</span><button className="ml-2 underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button className="ml-2 underline" onClick={()=>{if(!deliveryLock.current)saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));}}>Descartar</button></div>)}
           {(reply||editing)&&<div className="flex items-center justify-between gap-2 border-t border-border p-2 text-xs"><span className="truncate">{editing?"Editando: ":"Respondendo: "}{(editing??reply)?.body}</span><button title="Cancelar" onClick={()=>{if(editing)saveDraft("");setEditing(null);setReply(null);}}><X size={14}/></button></div>}
           {group&&draft.includes("@")&&!draft.endsWith(" ")&&<div className="max-h-20 overflow-auto px-2">{employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&e.full_name.toLowerCase().includes(draft.slice(draft.lastIndexOf("@")+1).toLowerCase())).slice(0,5).map(e=><button key={e.user_id} type="button" className="block text-xs p-1" onClick={()=>saveDraft(draft.slice(0,draft.lastIndexOf("@"))+"@"+e.full_name+" ")}>@{e.full_name}</button>)}</div>}
+          {recording&&<div className="flex items-center justify-between border-t border-border p-2 text-xs text-red-500"><span>Gravando áudio · até 2 minutos</span><button className="underline" onClick={()=>{cancelRecording.current=true;recorderRef.current?.stop();}}>Cancelar gravação</button></div>}
           <form onSubmit={e=>{e.preventDefault();void send("text");}} className="flex gap-2 border-t border-border p-3">
             {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendFile(file);}}/><button type="button" title="Adicionar anexo" className={actionClass} disabled={busy||recording} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/></button></>}
             {shareableRoute.test(location.pathname)&&<button type="button" title="Compartilhar registro atual" className={actionClass} disabled={busy} onClick={()=>void send("text",location.pathname)}><Link2 size={16}/></button>}
