@@ -127,8 +127,9 @@ begin
     and current_setting('app.special_order_exit',true)='true' then
    if not exists(select 1 from public.service_order_terminal_closures c join public.document_signature_requests r on r.id=c.signature_request_id
    where c.service_order_id=old.id and c.organization_id=old.organization_id and c.outcome='returned_unrepaired'
-   and c.reason=a.reason and r.created_at>=a.started_at and r.signed_at>=a.started_at)
-   then raise exception 'Confirme o termo da devolução atual.'; end if;
+   and c.reason=a.reason and r.created_at>=a.started_at and r.signed_at>=a.started_at
+   and exists(select 1 from public.service_order_situation_media m where m.organization_id=old.organization_id and m.service_order_id=old.id and m.media_id=c.evidence_media_id and m.created_at>=a.started_at))
+   then raise exception 'Confirme o termo e a evidência da devolução atual.'; end if;
    update private.order_unrepaired_return_attempts set completed_at=new.completed_at where id=a.id;
    return new;
   end if;
