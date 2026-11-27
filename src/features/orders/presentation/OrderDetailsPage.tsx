@@ -293,9 +293,8 @@ export function OrderDetailsPage(props: Props) {
     return () => { active = false; };
   }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible, queryClient]);
   const awaitingUnrepairedReturn = isAwaitingUnrepairedReturn(detail);
-  // Apenas a versão atual encaminhada habilita a devolução.
-  const returnQuoteForwarded = !quoteWorkflowEnabled || Boolean(quoteState?.orderId === detail?.id &&
-    ["awaiting_approval", "rejected", "approved"].includes(quoteState?.status || ""));
+  // A devolução em OS com orçamento começa pela rejeição da versão atual.
+  const returnQuoteForwarded = !quoteWorkflowEnabled || Boolean(quoteState?.orderId === detail?.id && quoteState.status === "rejected");
   const quoteExecutionAllowed = !quoteWorkflowEnabled ||
     (quoteState?.orderId === detail?.id && quoteState.status === "approved");
   // Solucionar e concluir já pressupõem a aprovação: a tag fica redundante.
@@ -883,6 +882,17 @@ export function OrderDetailsPage(props: Props) {
           footerHostId={"os-quote-toolbar-" + detail.id}
           actionsHostId={"os-quote-actions-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
+           canStartReturn={!monitorView && hasPermission("orders.complete") && !detail.completed_at && !detail.cancelled_at}
+           onReturnStarted={attempt=>{
+             if(terminalOrderIdRef.current!==detail.id)return;
+             setTerminalInitialReason(attempt.observations);
+             setTerminalOutcome("returned_unrepaired");
+             void details.syncConfirmedOrderPatch(detail.id,{
+               situation_id:attempt.waiting_situation_id,
+               situation:{id:attempt.waiting_situation_id,name:"Aguardando retirada sem reparo",slug:"aguardando-retirada-sem-reparo",color:"#d97706"},
+               situation_started_at:attempt.started_at,
+             });
+           }}
 
         /> : detailSection === "products-services" && !isDisposal ? <OrderProductsServicesSection
           order={detail}

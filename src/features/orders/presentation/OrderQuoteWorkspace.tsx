@@ -6,14 +6,14 @@ import { createPortal } from "react-dom";
 import { AlertCircle, ArrowRight, CheckCircle2, History, MoreVertical, RotateCcw, XCircle } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
-import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { OrderQuoteSkeleton } from "./OrdersSkeletons";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
-  readOrderQuote, reopenApprovedOrderQuote,
+  readOrderQuote, reopenApprovedOrderQuote, rejectQuoteAndStartReturn,
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
@@ -22,7 +22,7 @@ import { OrderQuotePhotosSection } from "./OrderQuotePhotosSection";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
-import { isAwaitingUnrepairedReturn } from "../infrastructure/order-terminal-exit.repository";
+import { isAwaitingUnrepairedReturn, type UnrepairedReturnAttempt } from "../infrastructure/order-terminal-exit.repository";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 
 type QuoteAction = "submit" | "approve" | "reject" | "renegotiate" | "reopen";
@@ -90,12 +90,14 @@ function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: Orde
   }
   return matched.size === execution.length;
 }
-export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange}:{
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,onOverviewChange,footerHostId,actionsHostId,onStatusChange,canStartReturn=false,onReturnStarted}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;
   onOverviewChange?: (overview:{total:number;pending:number;inProgress:number;completed:number})=>void;
   footerHostId:string;
   actionsHostId?:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
+  canStartReturn?:boolean;
+  onReturnStarted?:(attempt:UnrepairedReturnAttempt)=>void;
 }) {
   const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
@@ -108,6 +110,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     return cached ? snapshot(cached) : emptyOrderQuoteDraft();
   });
   const [reason,setReason]=useState("");
+  const [startReturnOnReject,setStartReturnOnReject]=useState(false);
   const [loading,setLoading]=useState(() =>
     !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
   const [busy,setBusy]=useState(false);
@@ -175,6 +178,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     if(busy || submissionLocked.current || awaitingReturn)return;
     setModalFeedback(null);
     setConfirmationAction(action);
+    if(action==="reject"){setReason("");setStartReturnOnReject(canStartReturn);}
     if(action==="approve") {
       // O conteúdo e as ações de aprovação ficam ocultos até terminar a consulta.
       const requestId=++approvalLookupId.current;
@@ -200,7 +204,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setModalFeedback(null);
   };
   const act=async(action:QuoteAction)=>{
-    if(busy || submissionLocked.current || !canEdit || confirmationAction!==action ||
+    if(busy || submissionLocked.current || !canEdit || awaitingReturn || confirmationAction!==action ||
       modalFeedback?.type==="success")return;
     if(action==="submit"){
       const missing: string[] = [];
@@ -234,11 +238,16 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setModalFeedback(null);
     try {
       let result:OrderQuoteProposal;
+      let startedReturn:UnrepairedReturnAttempt|null=null;
       if(action==="submit"){
         await changeOrderQuote(org,orderId,"save",draft as unknown as Record<string,unknown>);
         result=await changeOrderQuote(org,orderId,"submit");
       }else if(action==="reopen"){
         result=await reopenApprovedOrderQuote(org,orderId,reason);
+      }else if(action==="reject" && startReturnOnReject && canStartReturn){
+        if(!proposal?.version)throw new Error("Atualize o orçamento antes de confirmar.");
+        const combined=await rejectQuoteAndStartReturn(org,orderId,proposal.version,reason);
+        result=combined.quote;startedReturn=combined.attempt;
       }else result=await changeOrderQuote(org,orderId,action,
         action==="reject"?{reason}:
         action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,
@@ -257,6 +266,13 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         }
       }
       if(action==="reject" || action==="reopen")setReason("");
+      if(startedReturn){
+        setConfirmationAction(null);
+        setModalFeedback(null);
+        setStartReturnOnReject(false);
+        onReturnStarted?.(startedReturn);
+        return;
+      }
       setModalFeedback({type:"success",message:action==="approve" && executionItems.length===0 ? "Orçamento aprovado. Os itens foram adicionados à execução da OS." : action==="approve" && revisingApprovedQuote ? "Nova versão aprovada. Os itens anteriores foram substituídos e o histórico preservado." : ACTION_SUCCESS[action]});
     }catch(err){
       setModalFeedback({type:"error",message:systemErrorMessage(err)});
@@ -362,9 +378,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     {footerHost && !awaitingReturn && proposal?.status!=="approved" && createPortal(<>
       {editable && <BtnPrimary disabled={busy} className="w-auto min-w-0 shrink-0 whitespace-nowrap !px-3 text-xs md:!px-4 md:text-sm"
         onClick={() => openAction("submit")}>Encaminhar <ArrowRight size={15} className="ml-1 inline-block shrink-0 align-middle"/></BtnPrimary>}
-      {proposal?.status==="awaiting_approval" && <>
-        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
-          <RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</AdminButton>
+      {proposal?.status==="awaiting_approval" && canEdit && !order.completed_at && !order.cancelled_at && <>
         <AdminButton variant="quaternary" disabled={busy} onClick={()=>openAction("reject")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
           <XCircle size={15} className="hidden shrink-0 sm:block"/> Rejeitar</AdminButton>
         <BtnPrimary disabled={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
@@ -453,7 +467,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
-              {confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
+              {confirmationAction==="reject" && startReturnOnReject && canStartReturn ? <>Rejeitar e iniciar devolução <ArrowRight size={15} className="ml-1 shrink-0"/></> : confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
             </BtnPrimary>}
           </>}
       </div>}>
@@ -527,9 +541,28 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                   </div>}
                   {confirmationAction==="reopen" && <FTextarea label="Justificativa para reabrir o orçamento" required rows={4} maxLength={2000} value={reason} disabled={busy}
                     onChange={(e:any)=>setReason(e.target.value)} placeholder="Descreva por que os itens ou valores precisam de nova aprovação."/>}
-                  {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
-                    required maxLength={2000} value={reason} disabled={busy}
-                    onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>}
+                  {confirmationAction==="reject" && <>
+                    <FTextarea label="Motivo da rejeição" required rows={3} maxLength={2000} value={reason} disabled={busy}
+                      onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>
+                    {canStartReturn && <div className="space-y-3 border-y border-border py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <label htmlFor="reject-start-return" className="text-sm font-semibold text-foreground">Iniciar devolução sem reparo</label>
+                          <p className="mt-1 text-xs text-muted-foreground">Coloca o equipamento em aguardando retirada.</p>
+                        </div>
+                        <button id="reject-start-return" type="button" role="switch" aria-checked={startReturnOnReject} aria-label="Iniciar devolução sem reparo" disabled={busy}
+                          onClick={()=>setStartReturnOnReject(value=>!value)}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${startReturnOnReject?"bg-primary":"bg-muted-foreground/35"}`}>
+                          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none ${startReturnOnReject?"translate-x-5":"translate-x-0"}`}/>
+                        </button>
+                      </div>
+                      {startReturnOnReject&&<div className="space-y-1 rounded-lg bg-muted/40 p-3">
+                        <p className="text-xs text-muted-foreground">Motivo da devolução</p>
+                        <p className="text-sm font-semibold">Orçamento reprovado</p>
+                        <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{reason.trim()||"As observações serão preenchidas com o motivo da rejeição."}</p>
+                      </div>}
+                    </div>}
+                  </>}
                   <section aria-label="Resumo da proposta" className="overflow-hidden rounded-xl border border-border bg-card">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-3">
                       <div className="min-w-0 space-y-1">
@@ -559,7 +592,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                     {confirmationAction==="approve"
                       ? "Após a confirmação, os itens serão aplicados à mesma OS."
                       : confirmationAction==="reject"
-                        ? "O motivo da rejeição ficará registrado."
+                        ? (startReturnOnReject&&canStartReturn?"A OS continuará aberta até a entrega do equipamento.":"O motivo da rejeição ficará registrado.")
                         : confirmationAction==="reopen"
                           ? "A justificativa ficará no histórico e a nova versão deverá ser encaminhada para aprovação."
                           : "A proposta anterior será preservada no histórico de renegociações."}

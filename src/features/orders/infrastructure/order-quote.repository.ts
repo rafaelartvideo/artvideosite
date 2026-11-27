@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { UnrepairedReturnAttempt } from "./order-terminal-exit.repository";
 import { createMediaRecord } from "@/shared/infrastructure/media.repository";
 import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
@@ -67,6 +68,14 @@ export async function changeOrderQuote(
   });
   if (error) throw error;
   return data as OrderQuoteProposal;
+}
+export async function rejectQuoteAndStartReturn(organizationId:string, serviceOrderId:string, version:number, reason:string):Promise<{quote:OrderQuoteProposal;attempt:UnrepairedReturnAttempt}> {
+  const {data,error}=await (supabase as any).rpc("reject_quote_and_start_unrepaired_return_v1",{
+    p_organization_id:organizationId,p_order_id:serviceOrderId,p_version:version,p_reason:reason.trim(),
+  });
+  if(error)throw error;
+  if(data?.quote?.status!=="rejected"||!data?.attempt?.id)throw new Error("Não foi possível confirmar a rejeição e a devolução.");
+  return data;
 }
 /** Reabre orçamento aprovado com justificativa e cria nova versão pendente de revisão. */
 export async function reopenApprovedOrderQuote(organizationId: string, serviceOrderId: string, reason: string): Promise<OrderQuoteProposal> {

@@ -214,9 +214,27 @@ test("devolução exige encaminhamento da versão atual do orçamento, mas prese
   const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
   const actions=read("src/features/orders/presentation/OrderDetailsActions.tsx");
   assert.match(page,/const returnQuoteForwarded = !quoteWorkflowEnabled/);
-  assert.match(page,/\["awaiting_approval", "rejected", "approved"\]\.includes/);
+  assert.match(page,/const returnQuoteForwarded = !quoteWorkflowEnabled \|\| Boolean\(quoteState\?\.orderId === detail\?\.id && quoteState\.status === "rejected"\)/);
   assert.match(page,/returnQuoteForwarded=\{returnQuoteForwarded\}/);
   assert.match(page,/!awaitingUnrepairedReturn && !returnQuoteForwarded\)return/);
   assert.match(actions,/const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal && returnQuoteForwarded/);
   assert.match(actions,/canTerminalExit && awaitingReturn && <BtnPrimary/);
+});
+
+test("rejeição com devolução usa operação única e abre a segunda etapa",async()=>{
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const quote=read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const repo=read("src/features/orders/infrastructure/order-quote.repository.ts");
+  const sql=read("supabase/migrations/20261127130707_atomic_quote_rejection_and_return.sql");
+  assert.match(quote,/setStartReturnOnReject\(canStartReturn\)/);
+  assert.match(quote,/role="switch" aria-checked=\{startReturnOnReject\}/);
+  assert.match(quote,/await rejectQuoteAndStartReturn\(org,orderId,proposal.version,reason\)/);
+  assert.match(quote,/onReturnStarted\?\.\(startedReturn\)/);
+  assert.match(page,/onReturnStarted=\{attempt=>\{/);
+  assert.match(repo,/rpc\("reject_quote_and_start_unrepaired_return_v1"/);
+  assert.match(sql,/public\.manage_service_order_quote_v1/);
+  assert.match(sql,/public\.start_order_unrepaired_return_v1/);
+  assert.match(sql,/guard_quote_during_unrepaired_return/);
+  assert.match(sql,/Rejeite o orçamento antes de iniciar a devolução/);
+  assert.ok((await transformWithEsbuild(quote,"OrderQuoteWorkspace.tsx",{loader:"tsx"})).code.length>100);
 });
