@@ -109,3 +109,19 @@ test("chat opens centered under clicked header icon, collapses and preserves per
  assert.equal(d.side,"right");
  assert.equal(dockPosition(d,360,48,1000,800).x,630);
 });
+
+test("internal chat shares CRM texture, bounds long filenames and preserves published messages",()=>{
+ const preserve=read(root+"140600_internal_chat_preserve_messages.sql");
+ assert.ok(ui.includes("whatsapp-chat-pattern.svg"));
+ assert.ok(ui.includes('maskImage:"linear-gradient(to right, black calc(100% - 20px), transparent)"'));
+ assert.ok(ui.includes("overflow-x-hidden overflow-y-auto"));
+ assert.ok(ui.includes("min-w-0 break-all text-xs"));
+ assert.ok(ui.includes('m.read_at?<CheckCheck'));
+ assert.ok(ui.includes("text-sky-600 dark:text-sky-400"));
+ assert.ok(!ui.includes("editMessage(m,true)"));
+ assert.ok(!ui.includes("Trash2"));
+ assert.ok(ui.includes("p_delete:false"));
+ assert.ok(preserve.includes("if p_delete is distinct from false then raise exception"));
+ assert.ok(preserve.includes("revoke delete on public.internal_chat_messages"));
+ assert.ok(!preserve.includes("set body='Mensagem excluída'"));
+});
