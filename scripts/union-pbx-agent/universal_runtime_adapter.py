@@ -408,8 +408,6 @@ def verify_empty(agent, org):
 
 def apply_bundle(agent, bundle, snapshot):
     org = snapshot['organization_id']; own(agent, org)
-    # Resolve owned destinations before altering admission state.
-    bindings=context_bindings(agent,snapshot) if snapshot['document']['routing_enabled'] else {}
     quota = ledger(agent); quota.block(org)
     sip, dial, manifest = paths(agent, org)
     if manifest.exists():
@@ -561,6 +559,8 @@ def observe(agent, org, snapshot=None, *, operational=False):
         snapshot = runtime.load(agent)['snapshot']
     if not snapshot:
         return {'ready': False, 'active_legs': 0, 'legacy_coverage': legacy_coverage(agent, org), 'connections': []}
+    # Resolve owned destinations before altering admission state.
+    bindings=context_bindings(agent,snapshot) if snapshot['document']['routing_enabled'] else {}
     quota = ledger(agent); quota.block(org)
     _, _, path = paths(agent, org)
     if path.exists():
