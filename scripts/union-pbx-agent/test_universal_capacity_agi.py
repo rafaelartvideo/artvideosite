@@ -46,6 +46,15 @@ class AdmissionTests(unittest.TestCase):
         for request,header in [(contact,'<sip:+5511999999999@evil.example.com>'),(contact,'<sip:+5511888888888@sip.example.com>'),('foreign-contact','<sip:+5511999999999@sip.example.com>'),(contact,'<sip:+5511999999999@sip.example.com>,<sip:123@sip.example.com>'),(contact,'<sip:${SHELL(x)}@sip.example.com>'),(contact,'<sip:+5511999999999@sip.example.com>\r\nX: evil')]:
             with self.subTest(header=header),self.assertRaises(AdmissionError):resolve_inbound(value,c,request,header)
 
+    def test_registered_account_matches_exact_long_username_contact_and_trusted_domain(self):
+        value,_=self.fixture('unused');d=value['snapshot']['document'];c=d['connections'][0];contact=names(ORG,uid(3))['endpoint']
+        d['providers'][0]['options']['did_source']='registered_account';c['username']='1234567890123456789'
+        self.assertEqual(resolve_inbound(value,c,contact,'<sip:1234567890123456789@sip.example.com>')['id'],uid(20))
+        for request,header in [(contact,'<sip:1234567890123456788@sip.example.com>'),(contact,'<sip:1234567890123456789@evil.example.com>'),('foreign-contact','<sip:1234567890123456789@sip.example.com>')]:
+            with self.assertRaises(AdmissionError):resolve_inbound(value,c,request,header)
+        d['dids'].append(dict(d['dids'][0],id=uid(21),number='7931422006'))
+        with self.assertRaises(AdmissionError):resolve_inbound(value,c,contact,'<sip:1234567890123456789@sip.example.com>')
+
     def test_real_admission_sets_authorized_caller_id_and_inbound_external_scope(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'ledger.sqlite';ledger=Ledger(path);path.chmod(0o660)

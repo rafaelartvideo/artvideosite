@@ -60,6 +60,17 @@ class UniversalTelephonyTests(unittest.TestCase):
             with self.assertRaises(TelephonyError):
                 compile_document(d,ORG,[{'id':uid(7),'enabled':True}],[{'connection_id':uid(3),'password':raw}],{'transport-udp':'udp'},legacy_coverage=True)
 
+    def test_registered_account_routes_only_its_contact_with_one_did(self):
+        from universal_telephony import names
+        d=document();d['routing_enabled']=True;d['connections'][0].update(inbound_enabled=True,inbound_cidrs=['192.0.2.10/32'])
+        d['providers'][0]['options']['did_source']='registered_account'
+        with self.assertRaises(TelephonyError):validate_document(d,ORG)
+        d['dids']=[dict(id=uid(20),connection_id=uid(3),number='7931422005',destination_kind='extension',destination_id=uid(7),enabled=True)]
+        b=compile_document(d,ORG,[{'id':uid(7),'enabled':True}],[{'connection_id':uid(3),'password':'safe-pass'}],{'transport-udp':'udp'},legacy_coverage=True)
+        self.assertIn(('exten => '+names(ORG,uid(3))['endpoint']+',1,AGI(').encode(),b.routes)
+        d['dids'].append(dict(d['dids'][0],id=uid(21),number='7931422006'))
+        with self.assertRaises(TelephonyError):validate_document(d,ORG)
+
     def test_registration_inbound_requires_and_emits_source_acl(self):
         d=document();d['routing_enabled']=True;d['connections'][0]['inbound_enabled']=True
         with self.assertRaises(TelephonyError):validate_document(d,ORG)

@@ -94,16 +94,21 @@ def resolve_inbound(value,connection,request_uri,to_header):
     source=provider['options'].get('did_source','request_uri')
     if source=='request_uri':number=request_uri
     else:
+        if source=='registered_account' and (connection['auth_mode']!='registration' or request_uri!=names(snap['organization_id'],cid)['endpoint'] or len(dids)!=1):fail()
         if request_uri not in {names(snap['organization_id'],cid)['endpoint'],*(did['number'] for did in dids)}:fail()
         if not isinstance(to_header,str) or not 1<=len(to_header)<=512 or any(ord(c)<32 or ord(c)>126 for c in to_header):fail()
         # No escaped users, URI headers, comma lists, password/userinfo tricks or
         # URI interpolation. A single optional display-name and tag are allowed.
         match=re.fullmatch(r'(?:(?:"[A-Za-z0-9 ._+-]{0,80}"|[A-Za-z0-9 ._+-]{1,80})\s*)?<(?P<uri>sips?:[^<>]+)>(?:;tag=[A-Za-z0-9_.!~*+\-]{1,128})?',to_header)
         uri=match['uri'] if match else to_header
-        parsed=re.fullmatch(r'sips?:(\+?[0-9]{3,15})@([A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?)(?::([0-9]{1,5}))?(?:;user=phone)?',uri)
+        user_pattern=r'[A-Za-z0-9_.+-]{1,128}' if source=='registered_account' else r'\+?[0-9]{3,15}'
+        parsed=re.fullmatch(r'sips?:('+user_pattern+r')@([A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?)(?::([0-9]{1,5}))?(?:;user=phone)?',uri)
         if parsed is None or parsed[3] is not None and not 1<=int(parsed[3])<=65535:fail()
         hosts={connection['host'].lower(),*(str(host).lower() for host in value.get('inbound_uri_hosts',{}).get(cid,[]))}
         if parsed[2].lower() not in hosts:fail()
+        if source=='registered_account':
+            if parsed[1]!=connection['username']:fail()
+            return dids[0]
         number=parsed[1]
     did=next((did for did in dids if did['number']==number),None)
     if did is None:fail()
@@ -164,7 +169,7 @@ def run(arguments,env,agi):
         check_peer(c,agi)
         provider=next(p for p in d['providers'] if p['id']==c['provider_id'])
         header=''
-        if provider['options'].get('did_source','request_uri')=='to_header':
+        if provider['options'].get('did_source','request_uri') in ('to_header','registered_account'):
             if agi.request('GET FULL VARIABLE "${PJSIP_HEADER(read,To,2)}"')[1]:fail()
             header=agi.request('GET FULL VARIABLE "${PJSIP_HEADER(read,To)}"')[1]
         did=resolve_inbound(value,c,number,header)

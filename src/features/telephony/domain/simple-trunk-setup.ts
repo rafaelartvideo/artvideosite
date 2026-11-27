@@ -52,7 +52,7 @@ export function prepareSimpleTrunkEdit(current:UniversalDocument,connectionId:st
 }
 
 export type SimpleDestination={id:string;kind:string;label:string};
-export type SimpleInboundInput={enabled:boolean;numbers:string;networks:string;destinationId:string;destinationKind:string;source:'request_uri'|'to_header';applyToContract?:boolean};
+export type SimpleInboundInput={enabled:boolean;numbers:string;networks:string;destinationId:string;destinationKind:string;source:'request_uri'|'to_header'|'registered_account';applyToContract?:boolean};
 /** Only exact numbers and explicit trusted provider networks. Never guess public IPs from DNS. */
 export function simpleInboundTemplate(document:UniversalDocument,host:string,referenceId?:string){
  const matching=document.connections.filter(row=>row.host.toLowerCase()===host.trim().toLowerCase()&&row.auth_mode==='registration'&&row.inbound_enabled);
@@ -60,7 +60,7 @@ export function simpleInboundTemplate(document:UniversalDocument,host:string,ref
  if(!reference)return null;
  const dids=document.dids.filter(row=>row.connection_id===reference.id&&row.enabled);
  if(!dids.length||new Set(dids.map(row=>row.destination_kind+':'+row.destination_id)).size!==1)return null;
- return {numbers:dids.map(row=>row.number).join(', '),networks:reference.inbound_cidrs.join(', '),destinationKind:dids[0].destination_kind as string,destinationId:dids[0].destination_id as string,source:(document.providers.find(row=>row.id===reference.provider_id)?.options?.did_source==='to_header'?'to_header':'request_uri') as 'to_header'|'request_uri'};
+ return {numbers:dids.map(row=>row.number).join(', '),networks:reference.inbound_cidrs.join(', '),destinationKind:dids[0].destination_kind as string,destinationId:dids[0].destination_id as string,source:(document.providers.find(row=>row.id===reference.provider_id)?.options?.did_source||'request_uri') as 'to_header'|'request_uri'};
 }
 export function configureSimpleInbound(current:UniversalDocument,connectionId:string,input:SimpleInboundInput,destinations:SimpleDestination[],makeId=()=>crypto.randomUUID()):UniversalDocument{
  if(current.routing_enabled)throw new SimpleTrunkSetupError('Desative as rotas e aguarde a confirmação da central.');
@@ -69,9 +69,10 @@ export function configureSimpleInbound(current:UniversalDocument,connectionId:st
  if(!input.enabled){connection.inbound_enabled=false;return document;}
  const provider=document.providers.find(row=>row.id===connection.provider_id);
  if(!provider)throw new SimpleTrunkSetupError('Operadora indisponível.');
- if(!['request_uri','to_header'].includes(input.source))throw new SimpleTrunkSetupError('Selecione o formato de identificação enviado pela operadora.');
+ if(!['request_uri','to_header','registered_account'].includes(input.source))throw new SimpleTrunkSetupError('Selecione o formato de identificação enviado pela operadora.');
  const numbers=[...new Set(input.numbers.split(/[,;\n]+/).map(value=>value.trim().replace(/[() .-]/g,'')).filter(Boolean))];
  if(!numbers.length||numbers.length>20||numbers.some(value=>!/^\+?[0-9]{3,15}$/.test(value)))throw new SimpleTrunkSetupError('Informe os números exatos enviados pela operadora, separados por vírgulas.');
+ if(input.source==='registered_account'&&numbers.length!==1)throw new SimpleTrunkSetupError('Para recebimento pela conta SIP, vincule um único número público por conta.');
  const networks=[...new Set(input.networks.split(/[,;\s]+/).filter(Boolean).map(value=>value.includes('/')?value:value.includes(':')?value+'/128':value+'/32'))];
  if(!networks.length||networks.length>32||networks.some(value=>! /^(?:[0-9.]+|[0-9a-fA-F:]+)\/[0-9]{1,3}$/.test(value)||Number(value.split('/')[1])<1||Number(value.split('/')[1])>(value.includes(':')?128:32)))throw new SimpleTrunkSetupError('Informe os IPs ou redes CIDR de sinalização de entrada confirmados pela operadora. Não use redes abertas.');
  if(!['extension','queue','flow'].includes(input.destinationKind)||!destinations.some(row=>row.id===input.destinationId&&row.kind===input.destinationKind))throw new SimpleTrunkSetupError('Selecione um destino disponível desta empresa.');

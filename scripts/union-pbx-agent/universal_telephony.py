@@ -53,7 +53,7 @@ def validate_document(d,org):
             elif key=='dtmf_mode':
                 if value not in ('rfc4733','info','auto'):fail()
             elif key=='did_source':
-                if value not in ('request_uri','to_header'):fail()
+                if value not in ('request_uri','to_header','registered_account'):fail()
             elif key=='cost_unit':token(value,r'[A-Za-z][A-Za-z0-9_]{0,31}')
             elif key=='destination_rates':
                 if not isinstance(value,list) or len(value)>1000 or not p['options'].get('cost_unit'):fail()
@@ -123,6 +123,10 @@ def validate_document(d,org):
         pair=(did['connection_id'],did['number'])
         if pair in seen_dids:fail()
         seen_dids.add(pair)
+    for c in d['connections']:
+        provider=maps['providers'][c['provider_id']]
+        if c['enabled'] and c['inbound_enabled'] and provider['options'].get('did_source')=='registered_account':
+            if c['auth_mode']!='registration' or len([did for did in d['dids'] if did['connection_id']==c['id'] and did['enabled']])!=1:fail('registered_account_requires_one_did')
     for r in d['outbound_routes']:
         fields(r,'id name group_id priority destination_pattern prefix caller_id max_cost options enabled')
         if r['group_id'] not in maps['groups'] or type(r['priority']) is not int or not 1<=r['priority']<=10000 or r['destination_pattern'] not in ('br_national','e164_prefix') or r['options']!={}:fail()
@@ -213,7 +217,7 @@ def compile_document(d,org,extensions,credentials,transports,*,legacy_coverage=F
         did_source=options.get('did_source','request_uri')
         # To-header routing admits only the exact private registration contact
         # token or a configured DID as Request-URI; never a catch-all context.
-        if c['inbound_enabled'] and did_source=='to_header':
+        if c['inbound_enabled'] and did_source in ('to_header','registered_account'):
             lines+=['exten => '+n['endpoint']+',1,AGI(/opt/union-pbx-agent/universal_capacity_agi.py,inbound,'+org+','+c['id']+',${EXTEN})',' same => n,GotoIf($["${UWUT_ALLOWED}"="1"]?allowed:denied)',' same => n(allowed),Set(__UWCM_EXTERNAL=1)',' same => n,Goto(${UWUT_DEST_CONTEXT},${UWUT_DEST_EXTEN},1)',' same => n(denied),Hangup(21)']
         for did in d['dids']:
             if c['inbound_enabled'] and did['enabled'] and did['connection_id']==c['id']:

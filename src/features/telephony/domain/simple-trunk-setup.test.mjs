@@ -87,3 +87,13 @@ test('simple inbound configuration shares exact DID and destination across the s
  assert.throws(()=>m.configureSimpleInbound({...next,routing_enabled:true},a.connectionId,settings,[queue],ids),/Desative/);
  const result=spawnSync(process.platform==='win32'?'python':'python3',['-c',"import sys,json;sys.path.insert(0,'scripts/union-pbx-agent');from universal_telephony import validate_document;v=json.load(sys.stdin);validate_document(v['document'],v['org'])"],{input:JSON.stringify({org,document:next}),encoding:'utf8'});assert.equal(result.status,0,result.stderr);
 });
+
+test('registered account mode stores one public DID rather than the long SIP username',async()=>{
+ const m=await model(),ids=idFactory(),a=m.prepareSimpleTrunk(empty(),org,input(),[extension],ids);
+ const queue={id:extension,kind:'extension',label:'Ramal'};
+ const settings={enabled:true,numbers:'7931422005',networks:'192.0.2.10',destinationKind:'extension',destinationId:extension,source:'registered_account'};
+ const next=m.configureSimpleInbound(a.document,a.connectionId,settings,[queue],ids);
+ assert.equal(next.providers[0].options.did_source,'registered_account');assert.equal(next.dids[0].number,'7931422005');
+ assert.equal(m.simpleInboundTemplate(next,'sip.example.com').source,'registered_account');
+ assert.throws(()=>m.configureSimpleInbound(a.document,a.connectionId,{...settings,numbers:'7931422005,7931422006'},[queue],ids),/único/);
+});
