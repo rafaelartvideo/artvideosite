@@ -35,8 +35,8 @@ Deno.serve(async (request:Request)=>{
     if(new TextEncoder().encode(raw).byteLength>4096)return reply(413,{error:"REQUEST_TOO_LARGE"});
     let body;
     try{body=JSON.parse(raw);}catch{return reply(400,{error:"INVALID_REQUEST"});}
-    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect"].includes(body.action)||
-      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
+    if(!body||Array.isArray(body)||typeof body!=="object"||!["status","test","connect","bind_read"].includes(body.action)||
+      !Object.keys(body).every(k=>["action","accountId","label","cnpjLimit","email","password","organizationId","confirm"].includes(k)))return reply(400,{error:"INVALID_REQUEST"});
     if(body.action==="status"){
       const accounts=await admin.from("fiscal_provider_accounts").select("id,provider,label,cnpj_limit,is_active,inventory_verified_at").order("label").limit(100);
       if(accounts.error)return reply(503,{error:"FISCAL_ADMIN_UNAVAILABLE"});
@@ -74,7 +74,7 @@ Deno.serve(async (request:Request)=>{
       return reply(200,{data:{accountId:saved.data,companies,inventoryVerified:false}});
     }
     if(typeof body.accountId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.accountId))return reply(400,{error:"INVALID_ACCOUNT"});
-    const account=await admin.from("fiscal_provider_accounts").select("id,provider,credential_ref").eq("id",body.accountId).eq("provider","fiscontrole").maybeSingle();
+    const account=await admin.from("fiscal_provider_accounts").select("id,provider,credential_ref,session_revision").eq("id",body.accountId).eq("provider","fiscontrole").maybeSingle();
     if(account.error||!account.data)return reply(404,{error:"ACCOUNT_NOT_FOUND"});
     // Read token exclusively from a dedicated server-side secret. Do not accept
     // credentials or arbitrary environment-variable names from the browser.
@@ -91,6 +91,19 @@ Deno.serve(async (request:Request)=>{
     if(!Array.isArray(response.empresas))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
     const companies=response.empresas.map((c:Record<string,unknown>)=>({name:typeof c.nome==="string"?c.nome.slice(0,200):"",cnpj:typeof c.cnpj==="string"?c.cnpj.replace(/\D/g,""):""}));
     if(companies.some((c:{cnpj:string})=>!/^\d{14}$/.test(c.cnpj)))return reply(502,{error:"INVALID_PROVIDER_RESPONSE"});
+    if(body.action==="bind_read"){
+      if(body.confirm!==true||typeof body.organizationId!=="string"||!/^[0-9a-f-]{36}$/i.test(body.organizationId))return reply(400,{error:"BINDING_CONFIRMATION_REQUIRED"});
+      const org=await admin.from("organizations").select("id,document").eq("id",body.organizationId).eq("status","active").maybeSingle();
+      if(org.error||!org.data)return reply(404,{error:"ORGANIZATION_NOT_FOUND"});
+      const cnpj=typeof org.data.document==="string"?org.data.document.replace(/\\D/g,""):"";
+      if(!companies.some((c:{cnpj:string})=>c.cnpj===cnpj))return reply(409,{error:"CNPJ_NOT_AUTHORIZED_BY_PROVIDER"});
+      const activated=await admin.rpc("fiscal_enable_read_binding",{
+        p_account:account.data.id,p_org:org.data.id,p_actor:auth.data.user.id,
+        p_expected_revision:account.data.session_revision,p_visible_cnpjs:companies.map((c:{cnpj:string})=>c.cnpj)
+      });
+      if(activated.error||!activated.data)return reply(409,{error:"FISCAL_BINDING_NOT_ACTIVATED"});
+      return reply(200,{data:{bindingId:activated.data,cnpj,readEnabled:true,productionEnabled:false}});
+    }
     // This is a diagnostic only. The documented list does not contain numeric
     // emission company IDs; do not guess bindings or mark inventory verified.
     return reply(200,{data:{companies,inventoryVerified:false}});
