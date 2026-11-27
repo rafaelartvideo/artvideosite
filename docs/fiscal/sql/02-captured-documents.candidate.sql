@@ -43,7 +43,7 @@ begin
   perform 1 from public.fiscal_organization_bindings b
     join public.fiscal_provider_accounts a on a.id = b.account_id
     join public.fiscal_account_cnpjs c on c.account_id = b.account_id and c.cnpj = b.cnpj
-       and c.external_company_id = b.external_company_id
+       and c.external_company_id is not distinct from b.external_company_id
     join public.organizations o on o.id = b.organization_id
     join public.organization_modules m on m.organization_id = o.id and m.module_key = 'fiscal'
     where b.id = p_binding_id and b.organization_id = p_organization_id
