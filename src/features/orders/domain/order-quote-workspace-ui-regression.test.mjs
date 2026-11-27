@@ -79,5 +79,8 @@ test("alternar a OS e abrir Orçamento não executa setter removido de retorno",
   assert.doesNotMatch(quote, /\bsetReturnOpen\s*\(/);
   assert.match(quote, /setConfirmationAction\(null\);\s*setModalFeedback\(null\);/);
   assert.match(quote, /const \[confirmationAction,setConfirmationAction\]=useState/);
-  assert.match(quote, /onRequestReturn\?\.\(/);
+  const actions=source("src/features/orders/presentation/OrderDetailsActions.tsx");
+  assert.doesNotMatch(quote, /onRequestReturn|setReturnOpen/);
+  assert.match(actions, /canStartReturn && <AdminButton/);
+  assert.match(actions, /onTerminalExit\("returned_unrepaired"\)/);
 });
