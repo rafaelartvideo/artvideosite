@@ -4,7 +4,8 @@ import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { supabase } from "@/lib/supabase";
 type Account={id:string;provider:string;label:string;cnpj_limit:number;is_active:boolean;inventory_verified_at:string|null;used:number};
 type Company={name:string;cnpj:string};
-type EmissionDiagnosis={emitterId:number;environment:2;identity:"confirmed"|"unverified";models:unknown;profileCount:number|null;productionEnabled:false};
+type ProfileSummary={id:string|number|null;version:string|number|null;model:string|number|null;catalogCode:string|number|null;status:string|number|null;fields:string[]};
+type EmissionDiagnosis={emitterId:number;environment:2;identity:"confirmed"|"unverified";models:unknown;profileCount:number|null;profiles?:ProfileSummary[];profileFields?:string[];productionEnabled:false};
 export function FiscalIntegrationPanel({organizationId,targetCompany,onActivated}:{organizationId:string;targetCompany:{id:string;name:string}|null;onActivated:(id:string)=>void}){
   const [busy,setBusy]=useState<string|null>(null);
   const [editing,setEditing]=useState<string|null>(null);
@@ -107,6 +108,11 @@ export function FiscalIntegrationPanel({organizationId,targetCompany,onActivated
           <p role="status" className="text-sm font-medium">Diagnóstico recebido · ID {emission.result.emitterId}</p>
           <p className="text-xs text-muted-foreground">{emission.result.identity==="confirmed"?"Identidade retornada pelo provedor confirmada.":"O retorno não confirmou explicitamente a identidade fiscal; o vínculo de emissão permanece pendente."}</p>
           {emission.result.profileCount!==null&&<p className="text-sm">Perfis retornados: {emission.result.profileCount}</p>}
+          {!!emission.result.profiles?.length&&<div className="space-y-2">
+            <h4 className="text-sm font-medium">Perfis fiscais retornados</h4>
+            <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-border text-muted-foreground"><tr><th className="p-2">Perfil</th><th className="p-2">Versão</th><th className="p-2">Modelo</th><th className="p-2">Código de catálogo</th><th className="p-2">Situação</th></tr></thead><tbody className="divide-y divide-border">{emission.result.profiles.map((p,i)=><tr key={String(p.id)+":"+i}><td className="p-2">{p.id??"—"}</td><td className="p-2">{p.version??"—"}</td><td className="p-2">{p.model??"—"}</td><td className="p-2">{p.catalogCode??"—"}</td><td className="p-2">{p.status??"—"}</td></tr>)}</tbody></table></div>
+          </div>}
+          {!!emission.result.profileFields?.length&&<details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Campos técnicos dos perfis</summary><p className="mt-2 break-words">{emission.result.profileFields.join(", ")}</p></details>}
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/30 p-3 text-xs">{JSON.stringify(emission.result.models,null,2)}</pre>
           <p className="text-xs text-muted-foreground">A consulta não cria rascunhos, não habilita produção e não transmite notas.</p>
         </div>}
