@@ -57,3 +57,37 @@ export async function completeOrderTerminalExit({
   if(!data?.id)throw new Error("Encerramento não confirmado pelo servidor.");
   return data as {id:string;order_id:string;outcome:OrderTerminalOutcome;completed_at:string;returned_to_stock:number};
 }
+
+export type UnrepairedReturnAttempt = {
+  id:string; reason:string; reason_category:string; observations:string;
+  started_at:string; started_by:string; waiting_situation_id:string; prior_situation_id:string;
+};
+
+export async function getUnrepairedReturn(organizationId:string,orderId:string):Promise<UnrepairedReturnAttempt|null>{
+  const {data,error}=await (supabase as any).rpc("get_order_unrepaired_return_v1",{
+    p_organization_id:organizationId,p_order_id:orderId,
+  });
+  if(error)throw error;
+  return data||null;
+}
+
+export async function startUnrepairedReturn(organizationId:string,orderId:string,category:string,observations:string):Promise<UnrepairedReturnAttempt>{
+  const {data,error}=await (supabase as any).rpc("start_order_unrepaired_return_v1",{
+    p_organization_id:organizationId,p_order_id:orderId,p_category:category,p_observations:observations,
+  });
+  if(error)throw error;
+  if(!data?.id)throw new Error("Início da devolução não confirmado.");
+  return data;
+}
+
+export async function cancelUnrepairedReturn(organizationId:string,orderId:string):Promise<void>{
+  const {error}=await (supabase as any).rpc("cancel_order_unrepaired_return_v1",{
+    p_organization_id:organizationId,p_order_id:orderId,
+  });
+  if(error)throw error;
+}
+
+export function isAwaitingUnrepairedReturn(order:any):boolean{
+  return order?.situation?.slug==="aguardando-retirada-sem-reparo"||
+    String(order?.situation?.name||"").trim().toLowerCase()==="aguardando retirada sem reparo";
+}
