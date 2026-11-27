@@ -17,7 +17,7 @@ export function ChatAttachment({org,uid,message,onPreview,onDownload}:{org:strin
  const [url,setUrl]=useState<string|null>(null);
  const [failed,setFailed]=useState(false);
  const [retry,setRetry]=useState(0);
- const mime=message.attachment_mime??"";
+ const mime=message.attachment_mime??(/\.(jpe?g|png|webp|gif)$/i.test(message.body)?"image/legacy":/\.(webm|ogg|mp3|wav|m4a)$/i.test(message.body)?"audio/legacy":"");
  const isImage=mime.startsWith("image/"),isAudio=mime.startsWith("audio/");
  const path=message.attachment_path;
  useEffect(()=>{
@@ -28,9 +28,9 @@ export function ChatAttachment({org,uid,message,onPreview,onDownload}:{org:strin
  },[path,isImage,isAudio]);
  useEffect(()=>{
   if(!visible||!path||(!isImage&&!isAudio))return;
-  let alive=true,objectUrl:string|null=null;setFailed(false);
+  let alive=true,objectUrl:string|null=null;setFailed(false);setUrl(null);
   loadChatAttachment(org,uid,path).then(blob=>{
-   if(!alive)return;objectUrl=URL.createObjectURL(blob);setUrl(objectUrl);
+   if(!alive)return;if(isImage&&!/^image\/(jpeg|png|gif|webp)$/i.test(blob.type)&&blob.type!=="application/octet-stream")throw Error("Formato de imagem inválido.");objectUrl=URL.createObjectURL(blob);setUrl(objectUrl);
   }).catch(()=>{if(alive)setFailed(true);});
   return()=>{alive=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};
  },[org,uid,path,visible,isImage,isAudio,retry]);
