@@ -1,11 +1,11 @@
 import { supabase } from "@/lib/supabase";
 export type ChatSettings={enabled:boolean;calls_enabled:boolean;groups_enabled:boolean;attachments_enabled:boolean;audio_enabled:boolean;pbx_enabled:boolean;desktop_notifications:boolean;max_file_bytes:number;quota_bytes:number};
 export const defaultChatSettings:ChatSettings={enabled:true,calls_enabled:true,groups_enabled:true,attachments_enabled:true,audio_enabled:true,pbx_enabled:true,desktop_notifications:false,max_file_bytes:10485760,quota_bytes:1073741824};
-export type PendingText={token:string;peer:string|null;group:string|null;body:string;reply:string|null};
+export type PendingText={token:string;peer:string|null;group:string|null;body:string;reply:string|null;mentions?:string[]};
 export function readSession<T>(key:string,fallback:T):T{try{return JSON.parse(sessionStorage.getItem(key)??"null")??fallback;}catch{return fallback;}}
 export function writeSession(key:string,value:unknown){try{sessionStorage.setItem(key,JSON.stringify(value));}catch{/* Storage disabled. */}}
 export async function sendPendingText(org:string,uid:string,item:PendingText){
- const {error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:item.group?null:item.peer,group_id:item.group,kind:"text",body:item.body,client_token:item.token,reply_to:item.reply});
+ const {error}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:item.group?null:item.peer,group_id:item.group,kind:"text",body:item.body,client_token:item.token,reply_to:item.reply,mentions:item.mentions??[]});
  if(!error)return;
  if(error.code==="23505"){
    const {data,error:lookupError}=await supabase.from("internal_chat_messages").select("id").eq("organization_id",org).eq("sender_id",uid).eq("client_token",item.token).maybeSingle();
