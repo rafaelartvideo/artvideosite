@@ -1,15 +1,17 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, FileText, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { setOrganizationModuleEnabled } from "@/features/partner-companies/infrastructure/partner-companies.repository";
 import { UnionPbxAgentPanel } from "@/features/telephony/presentation/UnionPbxAgentPanel";
 import { OlxIntegrationPage } from "./OlxIntegrationPage";
+import { FiscalIntegrationPanel } from "@/features/fiscal/presentation/FiscalIntegrationPanel";
 
 const UnionWhatsAppEnginePage = lazy(() => import("@/features/management/presentation/UnionWhatsAppEnginePage").then(module => ({ default: module.UnionWhatsAppEnginePage })));
 
 const INTEGRATIONS = [
+  { key: "fiscal", title: "Fiscal · Fiscontrole", category: "Documentos fiscais", description: "Contas fiscais, CNPJs e distribuição por empresa.", icon: FileText, ready: false },
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
   { key: "whatsapp", title: "WhatsApp · WuzAPI", category: "Comunicação", description: "Motor de mensagens da Union; cada empresa utiliza uma sessão isolada.", icon: MessageCircle, ready: true },
   { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Ramais e filas de telefonia interna com isolamento por empresa.", icon: Phone, ready: true },
@@ -29,12 +31,15 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
   const isPlatformOperatorOrganization = organizations.find(item => item.organization_id === activeOrganizationId)?.is_platform_operator === true;
   const canAdministerPbx = isPlatformOperatorOrganization && hasPermission("platform.management.manage");
   const [pbxCompany, setPbxCompany] = useState<PartnerRow | null>(null);
+  const [fiscalCompany,setFiscalCompany]=useState<PartnerRow|null>(null);
+  const fiscalPanel=useRef<HTMLElement>(null);
+  useEffect(()=>{if(fiscalCompany)fiscalPanel.current?.scrollIntoView({behavior:"smooth",block:"start"});},[fiscalCompany]);
   const pbxPanel = useRef<HTMLElement>(null);
   useEffect(() => { if (pbxCompany) pbxPanel.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [pbxCompany]);
 
   const canManage = hasPermission("organizations.modules.manage");
   const [selected, setSelected] = useState<IntegrationKey>("olx");
-  useEffect(() => { setPbxCompany(null); }, [activeOrganizationId, selected]);
+  useEffect(() => { setPbxCompany(null);setFiscalCompany(null); }, [activeOrganizationId, selected]);
   const [showOlxGuide, setShowOlxGuide] = useState(false);
   const [showEngine, setShowEngine] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -49,6 +54,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
   const [confirmDisable, setConfirmDisable] = useState<PartnerRow | null>(null);
   const [error, setError] = useState("");
 
+  const canAdministerFiscal = isPlatformOperatorOrganization && canManage && hasPermission("platform.management.manage");
   const provider = INTEGRATIONS.find(item => item.key === selected)!;
   const relatedTool: IntegrationTool | null = selected === "pbx" ? "union-pbx" : selected === "queue" ? "union-senhas"
     : selected === "ai" ? "union-ia" : selected === "whatsapp" ? "union-whatsapp" : null;
@@ -97,7 +103,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
   }, [selected, page, search, activeOrganizationId, user?.id]);
 
   async function updateCompany(company: PartnerRow, enabled: boolean) {
-    if (!canManage || savingId || !availableKeys.includes(selected)) return;
+    if (!canManage || savingId || !availableKeys.includes(selected) || (selected === "fiscal" && enabled)) return;
     setSavingId(company.id);
     setConfirmDisable(null);
     setError("");
@@ -154,6 +160,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
           {relatedTool && canOpenRelatedTool && <AdminButton variant="secondary" onClick={() => onOpenTool(relatedTool)}>{selected === "whatsapp" ? "Atendimentos da Union" : "Abrir módulo"}</AdminButton>}
         </div>
       </div>
+      {selected === "fiscal" && <p className="mt-3 text-xs text-muted-foreground">A habilitação fiscal exige vínculo verificado com a conta do provedor. Selecione a empresa e vincule seu CNPJ abaixo; a emissão permanece desabilitada.</p>}
       {selected === "whatsapp" && <p className="mt-3 text-xs leading-5 text-muted-foreground">A Union administra o motor WuzAPI e libera o módulo por empresa. Cada organização, inclusive a Union, gerencia apenas suas próprias conexões, filas, departamentos e operadores em Canais de Atendimento.</p>}
       {selected === "olx" && <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
         <CircleAlert size={17} className="mt-0.5 shrink-0"/>
@@ -177,7 +184,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
           : companies.length === 0 ? <p className="p-5 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
           : companies.map(company => {
             const enabled = assigned[company.id] === true;
-            const disabled = !canManage || !availableKeys.includes(selected) || savingId !== null || company.status !== "active";
+            const disabled = !canManage || !availableKeys.includes(selected) || savingId !== null || company.status !== "active" || (selected === "fiscal" && !enabled);
             return <div key={company.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 sm:px-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{company.name}</p>
@@ -185,6 +192,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
               </div>
               <div className="flex flex-wrap gap-2">
               {selected === "pbx" && canAdministerPbx && <AdminButton variant="secondary" onClick={() => setPbxCompany(company)}>Gerenciar central</AdminButton>}
+              {selected === "fiscal" && canAdministerFiscal && company.status==="active" && <AdminButton variant="secondary" onClick={()=>setFiscalCompany(company)}>Configurar vínculo</AdminButton>}
               <button type="button" role="switch" aria-checked={enabled} aria-label={(enabled ? "Desativar " : "Disponibilizar ") + provider.title + " para " + company.name}
                 disabled={disabled}
                 onClick={() => enabled ? setConfirmDisable(company) : void updateCompany(company, true)}
@@ -203,6 +211,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
       </div>}
       {!canManage && <p className="mt-3 text-xs text-muted-foreground">Seu perfil permite consultar integrações, mas não alterar a disponibilidade por empresa.</p>}
     </section>
+    {selected === "fiscal" && canAdministerFiscal && activeOrganizationId && <section ref={fiscalPanel} className="scroll-mt-4"><FiscalIntegrationPanel key={activeOrganizationId+":"+(fiscalCompany?.id||"none")} organizationId={activeOrganizationId} targetCompany={fiscalCompany} onActivated={id=>setAssigned(previous=>({...previous,[id]:true}))}/></section>}
     {selected === "pbx" && canAdministerPbx && pbxCompany && <section ref={pbxPanel} className="scroll-mt-4 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Administração da central PABX">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Central de {pbxCompany.name}</h2><AdminButton variant="ghost" onClick={() => setPbxCompany(null)}>Fechar central</AdminButton></div>
       <p className="text-sm text-muted-foreground">Vincule o perfil exclusivo desta empresa à VPS compartilhada. A preparação na VPS é feita pelo administrador técnico; o módulo liberado, sozinho, não conclui essa implantação.</p>

@@ -45,6 +45,7 @@ const PlatformProvidersPage = lazy(() => import("@/features/platform-providers/p
 const TabAuditLog = lazy(() => import("@/features/audit/presentation/TabAuditLog").then(({ TabAuditLog }) => ({ default: TabAuditLog })));
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
+const FiscalPage = lazy(() => import("@/features/fiscal/presentation/FiscalPage").then(({ FiscalPage }) => ({ default: FiscalPage })));
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
 const UnionPlatformFinance = lazy(() => import("@/features/platform-billing/presentation/UnionPlatformFinance").then(({ UnionPlatformFinance }) => ({ default: UnionPlatformFinance })));
 const TabFieldTracking = lazy(() => import("@/features/field-tracking/presentation/TabFieldTracking").then(({ TabFieldTracking }) => ({ default: TabFieldTracking })));
@@ -188,6 +189,7 @@ export function AdminDashboard({
       if (!isArtVideoOrganization) return false;
     }
     if (tab === "nfse") return false;
+    if (tab === "fiscal") return !isPlatformOperatorOrganization && hasModule("fiscal") && hasPermission("fiscal.documents.view");
     if ((tab === "siteDelivery" || tab === "sitePayments" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
     // A visualização no modal permanece independente da navegação direta.
@@ -677,6 +679,7 @@ export function AdminDashboard({
             <Route path="sales/*" element={<TabSales key={(activeOrganizationId || "none") + ":" + (user?.id || "none")} />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
+            <Route path="fiscal/*" element={canAccessTab("fiscal") ? <FiscalPage key={activeOrganizationId || "none"} /> : <Navigate to="/admin" replace />} />
             <Route path="nfse/*" element={<Navigate to="/admin" replace />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
             <Route path="plan-usage" element={<PlanUsagePage />} />

@@ -1,0 +1,41 @@
+name: Fiscal Schema Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/fiscal/sql/**'
+      - 'scripts/fiscal/**'
+      - '.github/workflows/fiscal-schema-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fiscal-schema-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate fiscal SQL candidates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_PASSWORD: disposable-ci-only
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise migrations and access rules in disposable PostgreSQL
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          cat scripts/fiscal/ci-postgres-setup.sql docs/fiscal/sql/0[1-6]-*.candidate.sql scripts/fiscal/ci-postgres-verify.sql \
+            | docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1

@@ -47,6 +47,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "sales", label: "Vendas", icon: ShoppingBag },
   { id: "pdv", label: "PDV", icon: ShoppingCart },
   { id: "finance", label: "Financeiro", icon: Landmark },
+  { id: "fiscal", label: "Fiscal", icon: FileText },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "serviceProviders", label: "Prestadores de Serviços", icon: HardHat },
 
@@ -105,6 +106,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   serviceTypes: "service_types.view",
   inventory: "inventory.view",
   finance: "finance.view",
+  fiscal: "fiscal.documents.view",
   nfse: "nfse.view",
   documents: "documents.view",
   situations: "situations.view",
@@ -144,6 +146,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   fieldTracking: "field_tracking",
   inventory: "inventory",
   finance: "finance",
+  fiscal: "fiscal",
   nfse: "nfse",
   equipment: "equipment",
   checklists: "checklists",
