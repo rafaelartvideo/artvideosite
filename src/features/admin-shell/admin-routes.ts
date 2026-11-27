@@ -23,6 +23,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   customers: "/admin/customers",
   inventory: "/admin/inventory",
   finance: "/admin/finance",
+  fiscal: "/admin/fiscal",
   nfse: "/admin/nfse",
   documents: "/admin/operation/documents",
   partnerCompanies: "/admin/partner-companies",
