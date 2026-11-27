@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChatRoleSettings } from "./ChatRoleSettings";
 import { useChatDock } from "./useChatDock";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2 } from "lucide-react";
+import { BellRing, ChevronLeft, MessageSquare, Minus, Send, X, Phone, Link2, Paperclip, Users, Settings2, Reply, Pencil, Trash2, Pin, BellOff, Search, Mic, Square, Settings, ChevronDown, ChevronRight, Plus, BarChart3, LocateFixed, Volume2, CornerDownRight, ChevronUp, Loader2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useLocation, useNavigate } from "react-router";
@@ -41,14 +42,15 @@ function playNotice() {
 export function InternalChat() {
   const {activeOrganizationId,user,hasPermission}=useAuth();
   if(!activeOrganizationId || !user?.id || !hasPermission("internal_chat.use")) return null;
-  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} />;
+  return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canCall={hasPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasPermission("internal_chat.groups.create")} canManageGroup={hasPermission("internal_chat.groups.manage")} canAttach={hasPermission("internal_chat.attachments.send")} canMetrics={hasPermission("internal_chat.metrics.view")} canSettings={hasPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&hasPermission("roles.details.view")} canManageRoles={hasPermission("roles.permissions.manage")} />;
 }
-function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean}) {
+function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,canAttach,canMetrics,canSettings,canViewRoles,canManageRoles}:{org:string;uid:string;canCall:boolean;canPhone:boolean;canCreateGroup:boolean;canManageGroup:boolean;canAttach:boolean;canMetrics:boolean;canSettings:boolean;canViewRoles:boolean;canManageRoles:boolean}) {
   const qc=useQueryClient();
   const location=useLocation();
   const navigate=useNavigate();
   const key=useMemo(()=>["internal-chat",org,uid] as const,[org,uid]);
   const [open,setOpen]=useState(false);
+  const [expanded,setExpanded]=useState(true);
   const [peer,setPeer]=useState<string|null>(null);
   const [group,setGroup]=useState<string|null>(null);
   const [groupEdit,setGroupEdit]=useState<GroupEdit|null>(null);
@@ -101,9 +103,9 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const [older,setOlder]=useState<ChatRow[]>([]);
   const [more,setMore]=useState(true);
   const [anchors,setAnchors]=useState<HTMLElement[]>([]);
-  const dock=useChatDock(open,anchors,storagePrefix+"dock");
+  const dock=useChatDock(open,anchors,storagePrefix+"dock:v2",expanded);
   const [availabilityMenu,setAvailabilityMenu]=useState(false);
-  const [settingsPage,setSettingsPage]=useState<"menu"|"company">("menu");
+  const [settingsPage,setSettingsPage]=useState<"menu"|"company"|"roles">("menu");
   const [sound,setSound]=useState(true);
   const [availability,setAvailability]=useState<Availability>("available");
   const [pbxBusy,setPbxBusy]=useState(()=>getChatPbxBusy(org));
@@ -173,7 +175,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   },retry:false,staleTime:Infinity});
   const calls=pending.data??[];
   const incoming=calls[0];
-  const directory=useQuery({queryKey:[...key,"directory"],enabled:open||!!incoming,queryFn:async()=>{
+  const directory=useQuery({queryKey:[...key,"directory"],enabled:(open&&expanded)||!!incoming,queryFn:async()=>{
     const {data,error}=await supabase.rpc("internal_chat_directory_v2",{p_org:org});
     if(error) throw error; return (data??[]) as Employee[];
   },staleTime:300000,retry:false});
@@ -185,22 +187,22 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     const {data,error}=await supabase.rpc("internal_chat_groups_v1",{p_org:org});
     if(error)throw error;return (data??[]) as Group[];
   },retry:false,staleTime:Infinity});
-  const recent=useQuery({queryKey:[...key,"recent"],enabled:open&&!peer&&!group&&!groupEdit&&!metricsOpen&&!settingsOpen,queryFn:async()=>{
+  const recent=useQuery({queryKey:[...key,"recent"],enabled:open&&expanded&&!peer&&!group&&!groupEdit&&!metricsOpen&&!settingsOpen,queryFn:async()=>{
     const {data,error}=await supabase.rpc("internal_chat_recent_v1",{p_org:org});
     if(error)throw error;return (data??[]) as Recent[];
   },retry:false,staleTime:Infinity});
-  const metrics=useQuery({queryKey:[...key,"metrics"],enabled:open&&metricsOpen&&canMetrics,queryFn:async()=>{
+  const metrics=useQuery({queryKey:[...key,"metrics"],enabled:open&&expanded&&metricsOpen&&canMetrics,queryFn:async()=>{
     const start=performance.now();
     const {data,error}=await supabase.rpc("internal_chat_metrics_v1",{p_org:org});
     if(error)throw error;
     return {values:data as Metrics,requestMs:Math.round(performance.now()-start)};
   },retry:false,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false});
   const currentGroup=groups.data?.find(g=>g.id===group);
-  const groupParticipants=useQuery({queryKey:[...key,"participants",group],enabled:open&&!!group,queryFn:async()=>{const {data,error}=await supabase.from("internal_chat_group_members").select("user_id").eq("organization_id",org).eq("group_id",group);if(error)throw error;return (data??[]).map(x=>x.user_id) as string[];},staleTime:300000,retry:false});
+  const groupParticipants=useQuery({queryKey:[...key,"participants",group],enabled:open&&expanded&&!!group,queryFn:async()=>{const {data,error}=await supabase.from("internal_chat_group_members").select("user_id").eq("organization_id",org).eq("group_id",group);if(error)throw error;return (data??[]).map(x=>x.user_id) as string[];},staleTime:300000,retry:false});
   const target=group??peer;
   useEffect(()=>{if(group&&groups.isSuccess&&!groups.isFetching&&!currentGroup){setGroup(null);setOlder([]);setGroupEdit(null);setDraft("");setError("Você não faz mais parte deste grupo.");}},[group,groups.isSuccess,groups.isFetching,currentGroup]);
   const totalUnread=(unread.data??0)+(groups.data??[]).reduce((n,g)=>n+Number(g.unread),0);
-  const thread=useQuery({queryKey:[...key,"thread",target],enabled:open&&!!target,queryFn:async()=>{
+  const thread=useQuery({queryKey:[...key,"thread",target],enabled:open&&expanded&&!!target,queryFn:async()=>{
     let query=supabase.from("internal_chat_messages").select(fields).eq("organization_id",org);
     query=group?query.eq("group_id",group):query.is("group_id",null).or(`and(sender_id.eq.${uid},recipient_id.eq.${peer}),and(sender_id.eq.${peer},recipient_id.eq.${uid})`);
     const {data,error}=await query.order("created_at",{ascending:false}).order("id",{ascending:false}).limit(pageSize);
@@ -209,7 +211,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const rows=useMemo(()=>Array.from(new Map([...older,...(thread.data??[])].map(m=>[m.id,m])).values())
     .sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)),[older,thread.data]);
   const latestId=thread.data?.[0]?.id;
-  useEffect(()=>{if(open&&historyRef.current)historyRef.current.scrollTop=historyRef.current.scrollHeight;},[open,target,latestId]);
+  useEffect(()=>{if(open&&expanded&&historyRef.current)historyRef.current.scrollTop=historyRef.current.scrollHeight;},[open,expanded,target,latestId]);
   useEffect(()=>{
     setAnchors(["internal-chat-desktop","internal-chat-mobile"].map(id=>document.getElementById(id)).filter((v):v is HTMLElement=>!!v));
   },[]);
@@ -273,20 +275,20 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     }
   },[incoming?.id,sound,availability,pbxBusy,preferences.isSuccess,settings.isSuccess,config.desktop_notifications,desktopAllowed]);
   useEffect(()=>{
-    if(!open||!peer||document.visibilityState!=="visible")return;
+    if(!open||!expanded||!peer||settingsOpen||metricsOpen||document.visibilityState!=="visible")return;
     const ids=(thread.data??[]).filter(m=>m.recipient_id===uid&&!m.read_at).map(m=>m.id);
     if(!ids.length)return;
     void supabase.from("internal_chat_messages").update({read_at:new Date().toISOString()})
       .eq("organization_id",org).eq("recipient_id",uid).is("read_at",null).in("id",ids)
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"unread"]});});
-  },[open,peer,thread.data,uid,org,qc,key,visibility]);
+  },[open,expanded,peer,settingsOpen,metricsOpen,thread.data,uid,org,qc,key,visibility]);
   useEffect(()=>{
-    if(!open||!group||!currentGroup||document.visibilityState!=="visible")return;
+    if(!open||!expanded||!group||settingsOpen||metricsOpen||!currentGroup||document.visibilityState!=="visible")return;
     const newest=thread.data?.[0];
     if(!newest||newest.created_at<=currentGroup.last_read_at)return;
     void supabase.rpc("internal_chat_group_read_v1",{p_org:org,p_group:group,p_through:newest.created_at})
       .then(({error})=>{if(!error)void qc.invalidateQueries({queryKey:[...key,"groups"]});});
-  },[open,group,currentGroup,thread.data,org,qc,key,visibility]);
+  },[open,expanded,group,settingsOpen,metricsOpen,currentGroup,thread.data,org,qc,key,visibility]);
   function selectPeer(id:string|null){if(busy||recording)return;setSettingsOpen(false);setGroup(null);setGroupEdit(null);setMetricsOpen(false);setPeer(id);setOlder([]);setMore(true);setDraft("");setError("");}
   function selectGroup(id:string){if(busy||recording)return;setSettingsOpen(false);setPeer(null);setGroup(id);setGroupEdit(null);setMetricsOpen(false);setOlder([]);setMore(true);setDraft("");setError("");}
   async function editGroup(){
@@ -454,11 +456,11 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     finally{setBusy(false);}
   }
   const avatar=(id:string)=><span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{name(id).split(/\\s+/).slice(0,2).map(n=>n[0]).join("").toUpperCase()}<span title={statusLabel(id)} className={"absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card "+statusColor(id)}/></span>;
-  useEffect(()=>{if(!open||target||settingsOpen||metricsOpen||groupEdit)setAvailabilityMenu(false);},[open,target,settingsOpen,metricsOpen,groupEdit]);
+  useEffect(()=>{if(!open||!expanded||target||settingsOpen||metricsOpen||groupEdit)setAvailabilityMenu(false);},[open,expanded,target,settingsOpen,metricsOpen,groupEdit]);
   const currentPref=target?pref(target,group?"group":"direct"):undefined;
   const visibleRows=results??rows;
-  const button=<button type="button" title="Chat interno" aria-label="Chat interno" aria-expanded={open}
-    onClick={()=>{setOpen(v=>!v);setError("");}}
+  const button=<button type="button" title="Chat interno" aria-label="Chat interno" aria-expanded={open&&expanded}
+    onClick={e=>{dock.anchor(e.currentTarget);if(!open){setOpen(true);setExpanded(true);}else setExpanded(v=>!v);setError("");}}
     className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-primary">
     <MessageSquare size={17}/>
     {(totalUnread>0||calls.length>0)&&<span className="absolute right-0 top-0 rounded-full bg-primary px-1 text-[10px] font-bold text-white">{Math.min(99,Math.max(totalUnread,calls.length))}</span>}
@@ -475,26 +477,28 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
         <div className="flex flex-wrap gap-2">
           <button className={actionClass} disabled={busy} onClick={()=>void respond(incoming,"busy")}>Estou ocupado</button>
           <button className="rounded-md bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-50" disabled={busy} onClick={()=>void respond(incoming,"coming")}>Já estou indo</button>
-          <button className={actionClass} onClick={()=>{selectPeer(incoming.sender_id);setOpen(true);}}>Abrir conversa</button>
+          <button className={actionClass} onClick={()=>{selectPeer(incoming.sender_id);setOpen(true);setExpanded(true);}}>Abrir conversa</button>
         </div>
         {error&&<p role="alert" className="mt-2 text-xs text-red-500">{error}</p>}
       </aside>}
       {preview&&<aside role="dialog" aria-label="Pré-visualização" className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4"><div className="max-h-[85vh] max-w-[90vw] rounded-lg bg-card p-3"><div className="mb-2 flex justify-between gap-3"><span className="text-sm">{preview.name}</span><button title="Fechar" onClick={closePreview}><X size={18}/></button></div>{preview.mime.startsWith("image/")?<img src={preview.url} alt={preview.name} className="max-h-[70vh] max-w-full object-contain"/>:<audio controls src={preview.url}/>}</div></aside>}
-      {open&&<section ref={dock.panel} aria-label="Chat interno" style={{left:dock.position.x,top:dock.position.y}} className="fixed z-[110] flex h-[min(530px,calc(100dvh-100px))] w-[min(360px,calc(100vw-20px))] flex-col rounded-xl border border-border bg-card text-foreground shadow-xl">
+      {open&&<section ref={dock.panel} aria-label="Chat interno" style={{left:dock.position.x,top:dock.position.y}} data-admin-floating-panel="true" className={"admin-crm fixed z-[110] flex w-[min(360px,calc(100vw-20px))] flex-col rounded-xl border border-border bg-card text-foreground shadow-[0_16px_52px_rgba(0,0,0,0.19)] "+(expanded?"h-[min(530px,calc(100dvh-100px))]":"h-auto")}>
         {dock.arrow&&<span aria-hidden="true" style={{left:dock.arrow.left-6}} className={"pointer-events-none absolute h-3 w-3 rotate-45 border-border bg-card "+(dock.arrow.bottom?"-bottom-[7px] border-b border-r":"-top-[7px] border-l border-t")}/>}
-        <header {...dock.handlers} className={"relative flex touch-none select-none items-center gap-1.5 rounded-t-xl border-b border-border px-3 py-2.5 "+(dock.dragging?"cursor-grabbing":"cursor-grab")}>
-          {(target||groupEdit||metricsOpen||settingsOpen)&&<button title="Voltar" className={iconButton} onClick={()=>{if(metricsOpen){setMetricsOpen(false);setSettingsOpen(true);setSettingsPage("menu");}else if(settingsOpen&&settingsPage==="company"){setSettingsPage("menu");}else if(settingsOpen){setSettingsOpen(false);}else selectPeer(null);}}><ChevronLeft size={18}/></button>}
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{settingsOpen?"Configurações":metricsOpen?"Indicadores":groupEdit?"Grupo":group?currentGroup?.name??"Grupo":peer?name(peer):"Chat interno"}</p>
-            <p className="text-[10px] text-muted-foreground">{peer?<span className="flex min-w-0 items-center gap-1"><span className={"h-2 w-2 shrink-0 rounded-full "+statusColor(peer)}/><span className="truncate">{statusLabel(peer)}{employeeDetails(peer)&&" · "+employeeDetails(peer)}</span></span>:connected?<span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500"/>Conectado</span>:"Reconectando…"}</p></div>
-          {!settingsOpen&&!metricsOpen&&peer&&canCall&&config.enabled&&config.calls_enabled&&<button title={pendingOut?"Aguardando resposta":"Chamar funcionário"} className={iconButton} disabled={busy||pendingOut} onClick={()=>void send("call")}><BellRing size={16} className={pendingOut?"text-primary":""}/></button>}
-          {!settingsOpen&&!metricsOpen&&currentGroup&&(currentGroup.created_by===uid||canManageGroup)&&!groupEdit&&<button title="Gerenciar grupo" className={iconButton} disabled={busy} onClick={()=>void editGroup()}><Settings2 size={15}/></button>}
+        <header {...dock.handlers} className={"relative flex touch-none select-none items-center gap-1.5 rounded-t-xl px-2 py-2 "+(expanded?"border-b border-border ":"")+(dock.dragging?"cursor-grabbing":"cursor-grab")}>
+          {expanded&&(target||groupEdit||metricsOpen||settingsOpen)&&<button title="Voltar" className={iconButton} onClick={()=>{if(metricsOpen){setMetricsOpen(false);setSettingsOpen(true);setSettingsPage("menu");}else if(settingsOpen&&settingsPage!=="menu"){setSettingsPage("menu");}else if(settingsOpen){setSettingsOpen(false);}else selectPeer(null);}}><ChevronLeft size={18}/></button>}
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{!expanded?"Chat interno":settingsOpen?"Configurações":metricsOpen?"Indicadores":groupEdit?"Grupo":group?currentGroup?.name??"Grupo":peer?name(peer):"Chat interno"}</p>
+            <p className="text-[10px] text-muted-foreground">{!expanded?<span className="truncate">{totalUnread?totalUnread+" não lidas":connected?"Conectado":"Reconectando…"}</span>:peer?<span className="flex min-w-0 items-center gap-1"><span className={"h-2 w-2 shrink-0 rounded-full "+statusColor(peer)}/><span className="truncate">{statusLabel(peer)}{employeeDetails(peer)&&" · "+employeeDetails(peer)}</span></span>:connected?<span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500"/>Conectado</span>:"Reconectando…"}</p></div>
+          {expanded&&!settingsOpen&&!metricsOpen&&peer&&canCall&&config.enabled&&config.calls_enabled&&<button title={pendingOut?"Aguardando resposta":"Chamar funcionário"} className={iconButton} disabled={busy||pendingOut} onClick={()=>void send("call")}><BellRing size={16} className={pendingOut?"text-primary":""}/></button>}
+          {expanded&&!settingsOpen&&!metricsOpen&&currentGroup&&(currentGroup.created_by===uid||canManageGroup)&&!groupEdit&&<button title="Gerenciar grupo" className={iconButton} disabled={busy} onClick={()=>void editGroup()}><Settings2 size={15}/></button>}
           {!settingsOpen&&!metricsOpen&&peer&&canPhone&&config.enabled&&config.pbx_enabled&&<button type="button" className={iconButton} title="Ligar pelo PABX" disabled={busy} onClick={()=>void dialPeer()}><Phone size={15}/></button>}
-          <button type="button" title="Configurações" aria-label="Configurações" className={iconButton} onClick={()=>{setMetricsOpen(false);setSettingsPage("menu");setSettingsOpen(v=>!v);setSettingsDraft(config);}}><Settings size={16}/></button>
-          <button className={iconButton} title="Minimizar" onClick={()=>setOpen(false)}><Minus size={16}/></button>
+          {expanded&&<button type="button" title="Configurações" aria-label="Configurações" className={iconButton} onClick={()=>{setMetricsOpen(false);setSettingsPage("menu");setSettingsOpen(v=>!v);setSettingsDraft(config);}}><Settings size={16}/></button>}
+          <button type="button" className={iconButton+" border border-border"} title="Restaurar posição original" aria-label="Restaurar posição original" onClick={dock.reset}><CornerDownRight size={16}/></button>
+          <button type="button" className={iconButton+" text-primary hover:bg-primary/10"} title={expanded?"Minimizar":"Expandir"} aria-label={expanded?"Minimizar chat":"Expandir chat"} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?<ChevronDown size={18}/>:<ChevronUp size={18}/>}</button>
           <button className={iconButton} title="Fechar" onClick={()=>{if(recording){cancelRecording.current=true;recorderRef.current?.stop();}setOpen(false);selectPeer(null);}}><X size={16}/></button>
         </header>
+        {expanded&&<>
         {error&&<p role="alert" className="px-3 py-2 text-xs text-red-500">{error}</p>}
-        {settingsOpen&&settingsPage==="menu"?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2"><label className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted"><Volume2 size={16}/><span className="flex-1">Som de chamada</span><input type="checkbox" checked={sound} onChange={e=>setSound(e.target.checked)}/></label>{config.desktop_notifications&&typeof Notification!=="undefined"&&!desktopAllowed&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>void Notification.requestPermission().then(p=>setDesktopAllowed(p==="granted"))}><BellRing size={16}/>Ativar notificações</button>}{canSettings&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>{setSettingsDraft(config);setSettingsPage("company");}}><Settings2 size={16}/><span className="flex-1">Configurações da empresa</span><ChevronRight size={15}/></button>}{canMetrics&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>{setSettingsOpen(false);setMetricsOpen(true);}}><BarChart3 size={16}/><span className="flex-1">Indicadores do chat</span><ChevronRight size={15}/></button>}<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={dock.reset}><LocateFixed size={16}/>Restaurar posição original</button></div>:settingsOpen&&settingsPage==="company"&&canSettings?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">{([["enabled","Habilitar chat"],["calls_enabled","Permitir chamadas de atenção"],["groups_enabled","Permitir grupos"],["attachments_enabled","Permitir anexos"],["audio_enabled","Permitir áudio"],["pbx_enabled","Integração com PABX"],["desktop_notifications","Notificações do navegador"]] as const).map(([field,label])=><label key={field} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={settingsDraft[field]} onChange={e=>setSettingsDraft({...settingsDraft,[field]:e.target.checked})}/>{label}</label>)}<label className="block text-sm">Limite por arquivo<select className="ml-2 border rounded bg-card" value={settingsDraft.max_file_bytes} onChange={e=>setSettingsDraft({...settingsDraft,max_file_bytes:Number(e.target.value)})}>{[1,5,10].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><label className="block text-sm">Armazenamento<select className="ml-2 border rounded bg-card" value={settingsDraft.quota_bytes} onChange={e=>setSettingsDraft({...settingsDraft,quota_bytes:Number(e.target.value)})}>{[100,500,1024,5120,10240].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><p className="text-xs text-muted-foreground">Chamadas sem expiração. Desativar impede novos envios, preservando histórico e respostas pendentes.</p><button className={actionClass} disabled={busy} onClick={()=>void saveSettings()}>Salvar</button></div>:metricsOpen?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
+        {settingsOpen&&settingsPage==="menu"?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2"><label className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted"><Volume2 size={16}/><span className="flex-1">Som de chamada</span><input type="checkbox" checked={sound} onChange={e=>setSound(e.target.checked)}/></label>{config.desktop_notifications&&typeof Notification!=="undefined"&&!desktopAllowed&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>void Notification.requestPermission().then(p=>setDesktopAllowed(p==="granted"))}><BellRing size={16}/>Ativar notificações</button>}{canSettings&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>{setSettingsDraft(config);setSettingsPage("company");}}><Settings2 size={16}/><span className="flex-1">Configurações da empresa</span><ChevronRight size={15}/></button>}{canViewRoles&&<button type="button" className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>setSettingsPage("roles")}><ShieldCheck size={16}/><span className="flex-1">Perfis e permissões</span><ChevronRight size={15}/></button>}{canMetrics&&<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={()=>{setSettingsOpen(false);setMetricsOpen(true);}}><BarChart3 size={16}/><span className="flex-1">Indicadores do chat</span><ChevronRight size={15}/></button>}<button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-muted" onClick={dock.reset}><LocateFixed size={16}/>Restaurar posição original</button></div>:settingsOpen&&settingsPage==="roles"&&canViewRoles?<ChatRoleSettings org={org} canManage={canManageRoles} onBack={()=>setSettingsPage("menu")} onOpenFull={()=>{setExpanded(false);navigate(adminPath("roles"));}}/>:settingsOpen&&settingsPage==="company"&&canSettings?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">{([["enabled","Habilitar chat"],["calls_enabled","Permitir chamadas de atenção"],["groups_enabled","Permitir grupos"],["attachments_enabled","Permitir anexos"],["audio_enabled","Permitir áudio"],["pbx_enabled","Integração com PABX"],["desktop_notifications","Notificações do navegador"]] as const).map(([field,label])=><label key={field} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={settingsDraft[field]} onChange={e=>setSettingsDraft({...settingsDraft,[field]:e.target.checked})}/>{label}</label>)}<label className="block text-sm">Limite por arquivo<select className="ml-2 border rounded bg-card" value={settingsDraft.max_file_bytes} onChange={e=>setSettingsDraft({...settingsDraft,max_file_bytes:Number(e.target.value)})}>{[1,5,10].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><label className="block text-sm">Armazenamento<select className="ml-2 border rounded bg-card" value={settingsDraft.quota_bytes} onChange={e=>setSettingsDraft({...settingsDraft,quota_bytes:Number(e.target.value)})}>{[100,500,1024,5120,10240].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><p className="text-xs text-muted-foreground">Chamadas sem expiração. Desativar impede novos envios, preservando histórico e respostas pendentes.</p><button className={actionClass} disabled={busy} onClick={()=>void saveSettings()}>Salvar</button></div>:metricsOpen?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground"><span>Últimas 24 horas · dados agregados</span><button disabled={metrics.isFetching} className={actionClass} onClick={()=>void metrics.refetch()}>Atualizar</button></div>
           {metrics.isError&&<p role="alert" className="text-xs text-red-500">Não foi possível consultar indicadores.</p>}
           {metrics.isPending&&<p className="text-xs text-muted-foreground">Carregando…</p>}
@@ -513,7 +517,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
             {canCreateGroup&&config.enabled&&config.groups_enabled&&<button title="Novo grupo" className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground" onClick={()=>setGroupEdit({id:null,name:"",members:[]})}><Plus size={14}/>Grupo</button>}</div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          {directory.isPending&&<p className="px-2 text-xs text-muted-foreground">Carregando funcionários…</p>}
+          {directory.isPending&&<div className="flex min-h-48 flex-col items-center justify-center gap-2 text-xs text-muted-foreground" role="status"><Loader2 size={23} className="animate-spin text-primary"/>Carregando funcionários…</div>}
           {directory.isError&&<button className={actionClass} onClick={()=>void directory.refetch()}>Tentar carregar novamente</button>}
           {((preferences.data??[]).some(p=>p.pinned&&(p.target_type==="direct"?employees.some(e=>e.user_id===p.target_id&&matches(e.full_name,e.function_name,e.role_name)):(groups.data??[]).some(g=>g.id===p.target_id&&matches(g.name)))))&&<p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">Fixados</p>}
           {employees.filter(e=>pref(e.user_id,"direct")?.pinned&&matches(e.full_name,e.function_name,e.role_name)).map(e=><button type="button" key={"pin-"+e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted">{avatar(e.user_id)}<span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{e.full_name}</span><span title={[e.function_name&&"Função: "+e.function_name,e.role_name&&"Perfil: "+e.role_name].filter(Boolean).join(" · ")} className="block truncate text-[11px] text-muted-foreground">{employeeDetails(e.user_id)||statusLabel(e.user_id)}</span></span>{Number(recent.data?.find(c=>c.peer_id===e.user_id)?.unread??0)>0&&<span className="rounded-full bg-primary px-1.5 text-xs text-white">{recent.data?.find(c=>c.peer_id===e.user_id)?.unread}</span>}<Pin size={13} className="text-muted-foreground"/></button>)}
@@ -522,15 +526,15 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           {(recent.data??[]).filter(c=>!pref(c.peer_id,"direct")?.pinned&&matches(name(c.peer_id),employeeDetails(c.peer_id))).map(c=><button type="button" key={c.peer_id} onClick={()=>selectPeer(c.peer_id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted">{avatar(c.peer_id)}<span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{name(c.peer_id)}</span>{employeeDetails(c.peer_id)&&<span className="block truncate text-[11px] text-muted-foreground">{employeeDetails(c.peer_id)}</span>}<span className="block truncate text-[11px] text-muted-foreground">{c.kind==="call"?"Chamada interna":c.attachment?"Anexo":shareableRoute.test(c.body)?"Registro compartilhado":c.body}</span></span>{Number(c.unread)>0&&<span className="rounded-full bg-primary px-1.5 text-xs text-white">{c.unread}</span>}</button>)}
           {(groups.data??[]).some(g=>!pref(g.id,"group")?.pinned&&matches(g.name))&&<p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">Grupos</p>}
           {(groups.data??[]).filter(g=>!pref(g.id,"group")?.pinned&&matches(g.name)).map(g=><button type="button" key={g.id} onClick={()=>selectGroup(g.id)} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs hover:bg-muted"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted"><Users size={16}/></span><span className="flex-1 truncate font-semibold">{g.name}</span>{Number(g.unread)>0&&<span className="rounded-full bg-primary px-1.5 text-xs text-white">{g.unread}</span>}</button>)}
-          <p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">Funcionários</p>
+          {!directory.isPending&&<p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">Funcionários</p>}
           {[...employees].filter(e=>!pref(e.user_id,"direct")?.pinned&&matches(e.full_name,e.function_name,e.role_name)).sort((a,b)=>Number(!!presence[b.user_id])-Number(!!presence[a.user_id])||a.full_name.localeCompare(b.full_name,"pt-BR")).map(e=><button type="button" key={e.user_id} onClick={()=>selectPeer(e.user_id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-muted">{avatar(e.user_id)}<span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{e.full_name}</span>{employeeDetails(e.user_id)&&<span title={[e.function_name&&"Função: "+e.function_name,e.role_name&&"Perfil: "+e.role_name].filter(Boolean).join(" · ")} className="block truncate text-[11px] text-muted-foreground">{employeeDetails(e.user_id)}</span>}<span className="flex items-center gap-1 text-[10px] text-muted-foreground">{statusLabel(e.user_id)}</span></span></button>)}
           </div>
         </div>:<>
-          <div className="flex items-center gap-2 border-b border-border px-3 py-1"><button className={actionClass} title="Fixar conversa" aria-pressed={!!currentPref?.pinned} onClick={()=>void changePreference("pinned")}><Pin size={14}/> {currentPref?.pinned?"Fixada":"Fixar"}</button><button className={actionClass} title="Silenciar conversa" aria-pressed={!!currentPref?.muted} onClick={()=>void changePreference("muted")}><BellOff size={14}/>{currentPref?.muted?"Silenciada":"Silenciar"}</button><button className={actionClass} title="Buscar mensagens" onClick={()=>{setHistorySearch(!historySearch);setResults(null);}}><Search size={14}/></button></div>
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-2 py-1.5"><button type="button" className={iconButton+" border "+(currentPref?.pinned?"border-primary/30 bg-primary/10 text-primary":"border-transparent")} title={currentPref?.pinned?"Desafixar conversa":"Fixar conversa"} aria-label={currentPref?.pinned?"Desafixar conversa":"Fixar conversa"} aria-pressed={!!currentPref?.pinned} onClick={()=>void changePreference("pinned")}><Pin size={16} className={currentPref?.pinned?"fill-current":""}/></button><button type="button" className={iconButton+" border "+(currentPref?.muted?"border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400":"border-transparent")} title={currentPref?.muted?"Reativar notificações":"Silenciar conversa"} aria-label={currentPref?.muted?"Reativar notificações":"Silenciar conversa"} aria-pressed={!!currentPref?.muted} onClick={()=>void changePreference("muted")}><BellOff size={16}/></button><button type="button" className={iconButton+" border "+(historySearch?"border-primary/30 bg-primary/10 text-primary":"border-transparent")} title="Buscar mensagens" aria-label="Buscar mensagens" aria-pressed={historySearch} onClick={()=>{setHistorySearch(!historySearch);setResults(null);}}><Search size={16}/></button></div>
           {historySearch&&<form onSubmit={e=>{e.preventDefault();void searchHistory();}} className="flex gap-1 p-2"><input maxLength={100} value={historyTerm} onChange={e=>setHistoryTerm(e.target.value)} placeholder="Buscar no histórico" className="min-w-0 flex-1 border rounded bg-card p-1 text-xs"/><button className={actionClass} disabled={busy}>Buscar</button></form>}
           {outgoingCall&&<div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs"><BellRing size={14}/><span className="flex-1">Chamando · aguardando resposta</span><button disabled={busy} className="underline" onClick={()=>void respond(outgoingCall,"cancelled")}>Cancelar</button></div>}
           <div ref={historyRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-            {thread.isPending&&<p className="text-xs text-muted-foreground">Carregando conversa…</p>}
+            {thread.isPending&&<div role="status" className="flex min-h-32 items-center justify-center"><Loader2 size={22} className="animate-spin text-primary"/></div>}
             {thread.isError&&<button className={actionClass} onClick={()=>void thread.refetch()}>Tentar novamente</button>}
             {more&&(thread.data?.length??0)>=pageSize&&<button className={actionClass} disabled={busy} onClick={()=>void loadOlder()}>Mensagens anteriores</button>}
             {results&&<p className="text-xs text-muted-foreground">{results.length} resultados</p>}
@@ -556,6 +560,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
             <input maxLength={4000} value={draft} disabled={!config.enabled} onChange={e=>saveDraft(e.target.value)} placeholder="Digite uma mensagem" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm"/>
             <button type="submit" disabled={busy||!draft.trim()||!config.enabled||recording} title="Enviar mensagem" className="rounded-md bg-primary p-2 text-white disabled:opacity-50"><Send size={17}/></button>
           </form>
+        </>}
         </>}
       </section>}
     </>,document.body)}
