@@ -329,7 +329,7 @@ export function OrderTerminalExitDialog({
       preferredDocumentType={cfg.docType}
       existingRequests={requests}
       returnAttemptStartedAt={isReturn?attempt?.started_at:undefined}
-      onRefreshRequests={()=>void refreshSignatures()}
+      onRefreshRequests={refreshSignatures}
       usedItems={usedItems} partRequests={partRequests} history={history} printedBy={printedBy}
       onBusyChange={setSignatureBusy}
       onClose={()=>setStep(current=>current==="qr"?"qr":"form")}
@@ -402,7 +402,7 @@ export function OrderTerminalExitDialog({
             <div className="min-w-0 flex-1 space-y-1">
               <h3 className="text-sm font-bold text-foreground">Termo e assinaturas</h3>
               <p className="text-xs text-muted-foreground">{template?.name||"Termo de devolução"}</p>
-              {signedRequests.length>0?<p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={14}/> Assinatura registrada</p>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Aguardando assinatura do termo</p>}
+              {signedRequests.length>0?<p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={14}/> Assinatura registrada</p>:<p className="text-xs font-semibold text-amber-700 dark:text-amber-300">{activeTermRequest?"Assinatura pendente":"Aguardando assinatura do termo"}</p>}
             </div>
             <AdminButton variant="secondary" className="shrink-0" onClick={()=>setStep("signature")} disabled={!template||submitting||uploading}><FileSignature size={16}/> {activeTermRequest?"Consultar assinatura":signedRequests.length?"Solicitar outro termo":"Solicitar assinatura do termo"}</AdminButton>
           </div>
