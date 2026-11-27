@@ -219,7 +219,7 @@ export function OrderDetailsPage(props: Props) {
             : null
     : null;
 
-  const { openWhatsAppConversation, closeWhatsAppConversation, whatsAppModal } = useWhatsAppConversationModal();
+  const { openWhatsAppConversation, closeWhatsAppConversation, whatsAppModal, isWhatsAppModalOpen } = useWhatsAppConversationModal();
   // Mantém compatibilidade com a permissão legada do atalho externo.
   const canOpenExternalWhatsApp = hasPermission("sac_digital.messages.send");
   const canUseWhatsAppModal = !monitorView && Boolean(detail?.organization_id) && hasPermission("whatsapp.inbox.view");
@@ -681,7 +681,6 @@ export function OrderDetailsPage(props: Props) {
 
 
   return <>
-    {whatsAppModal}
     {detail && !monitorView && terminalOutcome && <OrderTerminalExitDialog
       key={detail.id+"-"+terminalOutcome}
       order={detail}
@@ -693,6 +692,15 @@ export function OrderDetailsPage(props: Props) {
       partRequests={detailPartRequests}
       history={details.detailHistory}
       printedBy={profileName}
+      notificationConversationOpen={isWhatsAppModalOpen}
+      onNotifyCustomer={canUseWhatsAppModal && hasPermission("whatsapp.inbox.send") ? (message,onSent)=>{
+        openWhatsAppConversation({organizationId:detail.organization_id,source:{
+          kind:"order",orderId:detail.id,customerId:detail.customer_id||undefined,
+          phone:String((detail.customer as any)?.whatsapp||(detail.customer as any)?.phone||""),
+          customerName:String((detail.customer as any)?.full_name||(detail.customer as any)?.trade_name||(detail.customer as any)?.legal_name||""),
+          initialMessage:message,onNotificationSent:onSent,
+        }});
+      }:undefined}
       onClose={()=>setTerminalOutcome(null)}
       onReturnChanged={attempt=>{
         details.setDetail((current:any)=>current?.id===detail.id
@@ -718,6 +726,7 @@ export function OrderDetailsPage(props: Props) {
         void details.retryDetailLoad();
       }}
     />}
+    {whatsAppModal}
     {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
