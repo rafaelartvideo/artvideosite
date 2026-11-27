@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Ban, CheckCircle2, CircleHelp, FileSignature, ImagePlus, LoaderCircle, PackageCheck, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Ban, CheckCircle2, CircleHelp, FileSignature, ImagePlus, LoaderCircle, PackageCheck, ShieldCheck } from "lucide-react";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -312,6 +312,7 @@ export function OrderTerminalExitDialog({
         </span>
       : step==="signature"?"Enviar para assinatura":"Assinatura pronta"}
     description={`OS #${order.os_number||""}`}
+    headerActions={isReturn&&step==="form"?<span className="mr-2 whitespace-nowrap text-xs text-muted-foreground">{initiating?"Etapa 1 de 2":"Etapa 2 de 2"}</span>:undefined}
     className={step==="form"?"w-[calc(100vw-1.5rem)] max-w-3xl":"w-[calc(100vw-1.5rem)] max-w-xl"}
     transitionKey={step}
     preparing={(loading||(!initiating&&templatesLoading))&&step==="form"}
@@ -321,7 +322,7 @@ export function OrderTerminalExitDialog({
       <AdminButton variant="secondary" disabled={submitting||uploading} onClick={onClose}>Voltar</AdminButton>
       {attempt&&<AdminButton variant="danger" disabled={submitting||uploading||loading||signedRequests.length>0} onClick={()=>setCancelConfirm(true)}><Ban size={16}/> Cancelar devolução</AdminButton>}
       <AdminButton disabled={initiating?!canStart:!canFinish} loading={submitting} onClick={()=>void (initiating?beginReturn():confirm())}>
-        <ShieldCheck size={16}/>{initiating?"Iniciar devolução":cfg.button}
+        {initiating?<>Confirmar <ArrowRight size={16}/></>:<><ShieldCheck size={16}/>{cfg.button}</>}
       </AdminButton>
     </div> : null}>
     {step==="signature" ? <OrderSignatureRequestDialog
@@ -343,10 +344,7 @@ export function OrderTerminalExitDialog({
     /> : step==="qr" ? <SignatureQrDialog embedded link={qrLink}
       onClose={()=>{setQrLink(null);setStep("form");void refreshSignatures();}}/> : <div className="space-y-4">
         {isReturn?<section className="space-y-3">
-          <div className={`flex items-center gap-2 ${initiating?"justify-end":"justify-between"}`}>
-            {!initiating&&<span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">Aguardando retirada sem reparo</span>}
-            <span className="text-xs text-muted-foreground">{initiating?"Etapa 1 de 2":"Etapa 2 de 2"}</span>
-          </div>
+          {!initiating&&<div className="flex items-center"><span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">Aguardando retirada sem reparo</span></div>}
           {initiating?<><FSelect label="Motivo da devolução" required value={category}
             onChange={(e:any)=>setCategory(e.target.value)} disabled={submitting}
             options={[{value:"",label:"Selecione o motivo"},...returnCategories.map(value=>({value,label:value}))]}/>
