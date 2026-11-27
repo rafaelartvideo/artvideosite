@@ -63,7 +63,7 @@ export function OrderTerminalExitDialog({
   history:any[];
   printedBy?:string|null;
   onClose:()=>void;
-  onReturnChanged?:(attempt:UnrepairedReturnAttempt|null)=>void;
+  onReturnChanged?:(attempt:UnrepairedReturnAttempt|null,previousSituationId?:string)=>void|Promise<void>;
   onNotifyCustomer?:(message:string,onSent:(conversationId:string,providerMessageId:string)=>Promise<void>)=>void;
   notificationConversationOpen?:boolean;
   onDone:(result:{id:string;outcome:OrderTerminalOutcome;completed_at:string;returned_to_stock:number})=>void;
@@ -213,7 +213,7 @@ export function OrderTerminalExitDialog({
       const saved=await startUnrepairedReturn(org,orderId,category,observations);
       setAttempt(saved);setReason(saved.reason);setAcknowledged(false);
       setSignatureId("");setEvidenceId("");setStockChoices({});
-      onReturnChanged?.(saved);
+      await onReturnChanged?.(saved);
       notifyAdmin("Devolução iniciada. A OS permanece aberta aguardando retirada.","success");
     }catch(e){setError(systemErrorMessage(e,"Não foi possível iniciar a devolução."));}
     finally{setSubmitting(false);}
@@ -234,7 +234,7 @@ export function OrderTerminalExitDialog({
     setSubmitting(true);setError("");
     try{
       await cancelUnrepairedReturn(org,orderId);
-      onReturnChanged?.(null);
+      await onReturnChanged?.(null,attempt.prior_situation_id);
       notifyAdmin("Devolução cancelada. Situação anterior restaurada.","success");
       onClose();
     }catch(e){setError(systemErrorMessage(e,"Não foi possível cancelar a devolução."));}
