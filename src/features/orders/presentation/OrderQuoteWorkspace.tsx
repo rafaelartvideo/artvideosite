@@ -177,7 +177,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     if(busy || submissionLocked.current || awaitingReturn)return;
     setModalFeedback(null);
     setConfirmationAction(action);
-    if(action==="reject"){setReason("");setStartReturnOnReject(canStartReturn);}
+    if(action==="reject"){setReason("");setStartReturnOnReject(false);}
     if(action==="approve") {
       // Confere a execução em paralelo, mantendo o resumo da proposta visível.
       // A confirmação fica bloqueada até a validação terminar.

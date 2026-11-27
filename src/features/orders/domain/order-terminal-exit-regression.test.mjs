@@ -226,7 +226,8 @@ test("rejeição com devolução usa operação única e abre a segunda etapa",a
   const quote=read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
   const repo=read("src/features/orders/infrastructure/order-quote.repository.ts");
   const sql=read("supabase/migrations/20261127130707_atomic_quote_rejection_and_return.sql");
-  assert.match(quote,/setStartReturnOnReject\(canStartReturn\)/);
+  assert.match(quote,/if\(action==="reject"\)\{setReason\(""\);setStartReturnOnReject\(false\);\}/);
+  assert.doesNotMatch(quote,/setStartReturnOnReject\(canStartReturn\)/);
   assert.match(quote,/role="switch" aria-checked=\{startReturnOnReject\}/);
   assert.match(quote,/await rejectQuoteAndStartReturn\(org,orderId,proposal.version,reason\)/);
   assert.match(quote,/onReturnStarted\?\.\(startedReturn\)/);
