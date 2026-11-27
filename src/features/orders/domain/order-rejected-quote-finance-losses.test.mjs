@@ -28,10 +28,10 @@ test("orçamento reprovado permite devolução documentada sem execução de rep
   assert.ok((await transformWithEsbuild(quote,"OrderQuoteWorkspace.tsx",{loader:"tsx"})).code);
   assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code);
   assert.ok((await transformWithEsbuild(page,"OrderDetailsPage.tsx",{loader:"tsx"})).code);
-  assert.match(quote, /Finalizar devolução/);
+  assert.doesNotMatch(quote, /Finalizar devolução/);
   assert.match(quote, /proposal\?\.status==="rejected" && !order\.completed_at/);
-  assert.match(quote, /onRequestReturn\?\.\(/);
-  assert.match(page, /setTerminalOutcome\("returned_unrepaired"\)/);
+  assert.doesNotMatch(quote, /onRequestReturn/);
+  assert.match(page, /setTerminalOutcome\(outcome\)/);
   assert.match(dialog, /completeOrderTerminalExit/);
   assert.match(dialog, /signedRequests/);
   assert.match(dialog, /attachOrderSituationDocument/);

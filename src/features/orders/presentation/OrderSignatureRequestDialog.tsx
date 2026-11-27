@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { buildOrderDocumentSignatureSnapshot } from "@/features/documents/domain/document-signature";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
@@ -46,6 +47,7 @@ export function OrderSignatureRequestDialog({
   history,
   printedBy,
   existingRequests,
+  returnAttemptStartedAt,
   requestsLoading,
   requestsError,
   onRefreshRequests,
@@ -67,9 +69,10 @@ export function OrderSignatureRequestDialog({
   // The documents panel supplies its loaded list. The OS details shortcut
   // opens independently, so it must load the list itself when these are absent.
   existingRequests?: DocumentSignatureRequestSummary[];
+  returnAttemptStartedAt?: string;
   requestsLoading?: boolean;
   requestsError?: string;
-  onRefreshRequests?: () => void;
+  onRefreshRequests?: () => void | Promise<void>;
   onClose: () => void;
   onCreated: (result: {
     link?: string | null;
@@ -81,6 +84,8 @@ export function OrderSignatureRequestDialog({
     request?: { id?: string; status?: string } | null;
   }) => void;
 }) {
+  const {hasPermission}=useAuth();
+  const [cancelledRequestId,setCancelledRequestId]=useState<string|null>(null);
   const onlineTemplates = useMemo(
     () => templates.filter(template =>
       template.is_active !== false
@@ -123,16 +128,17 @@ export function OrderSignatureRequestDialog({
   const checkingRequests = providedRequests ? requestsLoading === true : directRequestsLoading;
   const currentRequestsError = providedRequests ? (requestsError || "") : directRequestsError;
   const refreshRequests = () => {
-    if (providedRequests) onRefreshRequests?.();
+    if (providedRequests) return onRefreshRequests?.();
     else setRequestsRefreshNonce(value => value + 1);
   };
   const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || onlineTemplates[0] || null;
   const customer = order?.customer || {};
   const activeRequest = currentRequests.find(item =>
-    item.print_template_id === selectedTemplate?.id
+    item.id!==cancelledRequestId && item.print_template_id === selectedTemplate?.id
     && isActiveSignatureStatus(item.status)
     && Date.parse(item.expires_at) > Date.now()
   ) || null;
+  const previousAttemptRequest=Boolean(activeRequest && returnAttemptStartedAt && Date.parse(activeRequest.created_at)<Date.parse(returnAttemptStartedAt));
   const selectedSignerEmail = String(signerType === "customer" ? customer.email || "" : contactEmail).trim().toLowerCase();
   const selectedSignerPhone = normalizeDigits(signerType === "customer" ? customer.whatsapp || customer.phone : contactPhone);
   const existingMatchesSigner = Boolean(activeRequest
@@ -180,7 +186,7 @@ export function OrderSignatureRequestDialog({
   if (!open) return null;
 
   const reuseExisting = async () => {
-    if (!activeRequest || saving) return;
+    if (!activeRequest || saving || previousAttemptRequest) return;
     // Never send a personal signature link to a new/different recipient.
     const canSendInvite = existingMatchesSigner && Boolean(activeRequest.external_signer_phone)
       && unionEnabled !== null && !channelStatusError;
@@ -230,6 +236,18 @@ export function OrderSignatureRequestDialog({
     } finally {
       setSaving(false);
     }
+  };
+
+  const cancelPreviousAttemptRequest=async()=>{
+    if(!activeRequest||!previousAttemptRequest||saving||!hasPermission("documents.signatures.cancel"))return;
+    setSaving(true);
+    try{
+      await cancelSignatureRequest(order.organization_id,activeRequest.id);
+      setCancelledRequestId(activeRequest.id);
+      await refreshRequests();
+      notifyAdmin("Solicitação anterior cancelada.","success");
+    }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível cancelar a assinatura anterior."),"error");}
+    finally{setSaving(false);}
   };
 
   const submit = async () => {
@@ -377,11 +395,11 @@ export function OrderSignatureRequestDialog({
   const formFooter = preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>{embedded ? "Voltar" : "Cancelar"}</BtnSecondary>
       <BtnPrimary
-        onClick={() => void (activeRequest ? reuseExisting() : submit())}
+        onClick={() => void (previousAttemptRequest ? cancelPreviousAttemptRequest() : activeRequest ? reuseExisting() : submit())}
         loading={saving}
         loadingText="Enviando..."
-        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || saving}
-      >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
+        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || saving || (previousAttemptRequest&&!hasPermission("documents.signatures.cancel"))}
+      >{previousAttemptRequest?"Cancelar assinatura anterior":activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>;
   const formContent = <>
     {preparing ? (
@@ -394,7 +412,7 @@ export function OrderSignatureRequestDialog({
         {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
           <p className="mt-1">Assinante: {activeRequest.external_signer_name || "não informado"}. O link é válido até {new Date(activeRequest.expires_at).toLocaleString("pt-BR")}.</p>
-          <p className="mt-1">{existingMatchesSigner
+          <p className="mt-1">{previousAttemptRequest ? "Esta solicitação pertence a uma tentativa anterior. Cancele-a antes de solicitar o termo da devolução atual." : existingMatchesSigner
             ? "Reenvie o link existente, sem gerar outro documento."
             : "O link pertence ao assinante acima e não será enviado ao contato selecionado. Para gerar outro documento, cancele a solicitação anterior em Documentos → Assinaturas eletrônicas."}</p>
         </div>}

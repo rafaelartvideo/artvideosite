@@ -1,3 +1,4 @@
+import { supabase } from "@/lib/supabase";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -130,10 +131,9 @@ export function OrderSignatureRequestsSection({
     template.is_active !== false && template.allow_online_signature === true
       && isOrderTerminalSignatureEligible(template.document_type,order)
   ), [templates,order?.completed_at,order?.closure_outcome]);
-  const visibleRequests = requests.filter(request => {
-    const template=templates.find(item=>item.id===request.print_template_id);
-    return !template || isOrderTerminalSignatureEligible(template.document_type,order);
-  });
+  // O histórico de solicitações é independente da disponibilidade do modelo
+  // para novas assinaturas ou impressão; inclui termos antes do fechamento.
+  const visibleRequests = requests;
 
   const load = useCallback(async () => {
     if (!canView || !order?.organization_id || !order?.id) return;
@@ -151,6 +151,12 @@ export function OrderSignatureRequestsSection({
   }, [canView, order?.organization_id, order?.id]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(()=>{
+    if(!canView||!order?.id)return;
+    const channel=supabase.channel("os-document-signatures:"+order.id)
+      .on("postgres_changes",{event:"*",schema:"public",table:"document_signature_requests",filter:"service_order_id=eq."+order.id},()=>{void load();}).subscribe();
+    return()=>{void supabase.removeChannel(channel);};
+  },[canView,order?.id,load]);
 
   useEffect(() => {
     if (!sendRequestNonce || !canSend || onlineTemplates.length === 0) return;

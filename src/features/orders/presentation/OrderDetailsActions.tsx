@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import type React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, PackageCheck, PackagePlus, Pencil, Recycle, Wrench, X } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { isAwaitingUnrepairedReturn, type OrderTerminalOutcome } from "../infrastructure/order-terminal-exit.repository";
 import { AdminButton, AdminIconButton, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
@@ -57,6 +56,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   const returnReady = !detail.return_root_id || (detail.return_classification && detail.return_classification !== "analysis");
   const canComplete = !awaitingReturn && !quoteMode && hasPermission("orders.complete") && quoteExecutionAllowed && !returnAwaitingDiagnosis && (isDisposal || detail.is_solved) && returnReady && !detail.completed_at && !cancelled;
   const canTerminalExit = hasPermission("orders.complete") && !detail.completed_at && !cancelled;
+  const canStartReturn = canTerminalExit && !awaitingReturn && !isDisposal;
   const canEditOrder = !awaitingReturn && !quoteMode && !detail.return_root_id && !returnAwaitingDiagnosis && canEdit && !detail.is_solved && !detail.completed_at && !cancelled;
   const canCancel = !awaitingReturn && !quoteMode && hasPermission("orders.cancel") && !detail.completed_at && !cancelled;
   const busyCancelling = cancelling || localCancelling;
@@ -97,33 +97,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
           {canResolve && <BtnPrimary onClick={onResolve} aria-label="Solucionar OS" title="Solucionar OS" className="h-10 w-10 min-w-0 shrink-0 !px-0 md:w-auto md:!px-4 md:text-sm"><Wrench className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Solucionar</span></BtnPrimary>}
           {canComplete && (isDisposal ? <BtnPrimary onClick={onComplete} className="h-10 px-3 text-xs sm:text-sm">Finalizar descarte</BtnPrimary> : <OrderConclusionButton onClick={() => onComplete()} mobileIconOnly aria-label="Concluir OS" />)}
           {canTerminalExit && awaitingReturn && <BtnPrimary onClick={()=>onTerminalExit("returned_unrepaired")} className="h-10 px-3 text-xs sm:text-sm"><PackageCheck size={16}/> Confirmar devolução</BtnPrimary>}
-          {canTerminalExit && !awaitingReturn && <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              {/* O Radix precisa da referência do elemento DOM para posicionar e abrir o menu.
-                  AdminButton é um componente funcional sem forwardRef no React 18. */}
-              <button
-                type="button"
-                className="inline-flex h-10 min-w-0 max-w-full shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-card px-3 text-xs font-bold text-card-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-                aria-label="Encerrar sem reparo"
-                title="Descarte ou devolução sem reparo"
-              >
-                <PackageCheck size={16}/><span className="hidden md:inline">Encerrar sem reparo</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" sideOffset={8} className="z-[160] min-w-[230px]">
-              <DropdownMenuItem onSelect={()=>{
-                // Radix precisa concluir o fechamento do menu antes de abrir outro diálogo.
-                window.requestAnimationFrame(()=>onTerminalExit("returned_unrepaired"));
-              }} className="flex items-center gap-2">
-                <PackageCheck size={15}/> Iniciar devolução sem reparo
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={()=>{
-                window.requestAnimationFrame(()=>onTerminalExit("disposal_confirmed"));
-              }} className="flex items-center gap-2">
-                <Recycle size={15}/> Confirmar descarte
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>}
+          {canStartReturn && <AdminButton variant="secondary" onClick={()=>onTerminalExit("returned_unrepaired")} className="h-10 shrink-0 px-3 text-xs sm:text-sm"><PackageCheck size={16}/> Iniciar devolução</AdminButton>}
+          {canTerminalExit && !awaitingReturn && !isDisposal && quoteExecutionAllowed && <AdminButton variant="secondary" onClick={()=>onTerminalExit("disposal_confirmed")} aria-label="Confirmar descarte" title="Confirmar descarte" className="h-10 shrink-0 px-3 text-xs"><Recycle size={16}/><span className="hidden md:inline">Descarte</span></AdminButton>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
           {canCancel && <AdminButton variant="quaternary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 !px-0 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
           {returnAwaitingDiagnosis && <div id={"os-return-diagnosis-toolbar-" + detail.id}
