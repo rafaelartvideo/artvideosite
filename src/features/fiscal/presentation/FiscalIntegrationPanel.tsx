@@ -4,7 +4,7 @@ import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { supabase } from "@/lib/supabase";
 type Account={id:string;provider:string;label:string;cnpj_limit:number;is_active:boolean;inventory_verified_at:string|null;used:number};
 type Company={name:string;cnpj:string};
-export function FiscalIntegrationPanel({organizationId}:{organizationId:string}){
+export function FiscalIntegrationPanel({organizationId,targetCompany,onActivated}:{organizationId:string;targetCompany:{id:string;name:string}|null;onActivated:(id:string)=>void}){
   const [busy,setBusy]=useState<string|null>(null);
   const [editing,setEditing]=useState<string|null>(null);
   const [label,setLabel]=useState("");
@@ -13,6 +13,8 @@ export function FiscalIntegrationPanel({organizationId}:{organizationId:string})
   const [password,setPassword]=useState("");
   const [diagnostic,setDiagnostic]=useState<{accountId:string;companies:Company[]}|null>(null);
   const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [confirmAccount,setConfirmAccount]=useState<string|null>(null);
   const accounts=useQuery({queryKey:["fiscal-admin-accounts",organizationId],queryFn:async()=>{
     const r=await supabase.functions.invoke("fiscal-admin",{body:{action:"status"}});
     if(r.error||!Array.isArray(r.data?.data))throw new Error("Integração indisponível.");
@@ -31,6 +33,16 @@ export function FiscalIntegrationPanel({organizationId}:{organizationId:string})
     }catch{setError("Não foi possível conectar e salvar a conta. Confira os dados, a disponibilidade do servidor e o limite contratado.");}
     finally{setPassword("");setBusy(null);}
   }
+  async function bind(accountId:string){
+    if(!targetCompany||busy||confirmAccount!==accountId)return;
+    setBusy(accountId);setError("");setNotice("");
+    try{
+      const r=await supabase.functions.invoke("fiscal-admin",{body:{action:"bind_read",accountId,organizationId:targetCompany.id,confirm:true}});
+      if(r.error||r.data?.data?.readEnabled!==true)throw new Error("Vínculo não confirmado.");
+      onActivated(targetCompany.id);setNotice("Consulta fiscal habilitada para "+targetCompany.name+". Nenhuma emissão foi autorizada.");void accounts.refetch();
+    }catch{setError("Não foi possível habilitar a empresa. Confira o CNPJ, a conta do provedor e as vagas contratadas.");}
+    finally{setConfirmAccount(null);setBusy(null);}
+  }
   async function test(accountId:string){
     setBusy(accountId);setDiagnostic(null);setError("");
     try{
@@ -42,6 +54,7 @@ export function FiscalIntegrationPanel({organizationId}:{organizationId:string})
   }
   return <section className="space-y-3 rounded-lg border border-border bg-card p-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Contas fiscais</h2><p className="text-xs text-muted-foreground">Contas compartilhadas, CNPJs e diagnóstico de conexão.</p></div><div className="flex gap-2"><AdminButton variant="secondary" size="sm" disabled={accounts.isFetching} onClick={()=>void accounts.refetch()}>Atualizar</AdminButton><AdminButton size="sm" disabled={!accounts.isSuccess||busy!==null} onClick={()=>startConnect()}>Nova conta</AdminButton></div></div>
+    {targetCompany&&<p className="rounded-lg border border-border bg-muted/20 p-3 text-sm">Empresa selecionada: <strong>{targetCompany.name}</strong>. O servidor verificará o CNPJ antes de habilitar a leitura.</p>}
     {editing!==null&&<form onSubmit={e=>{e.preventDefault();void connect();}} className="space-y-3 rounded-lg border border-border p-3">
       <h3 className="font-semibold text-sm">{editing==="new"?"Conectar Fiscontrole":"Renovar sessão"}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -55,10 +68,12 @@ export function FiscalIntegrationPanel({organizationId}:{organizationId:string})
     </form>}
     {accounts.isPending?<p className="text-sm text-muted-foreground">Consultando contas…</p>:accounts.isError?<p role="alert" className="text-sm text-muted-foreground">A administração fiscal ainda não está disponível no servidor.</p>:accounts.data.length===0?<p className="text-sm text-muted-foreground">Nenhuma conta fiscal configurada.</p>:accounts.data.map(a=><div key={a.id} className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-sm font-semibold">{a.label}</div><div className="text-xs text-muted-foreground">{a.provider} · {a.used} de {a.cnpj_limit} vagas registradas · {a.is_active?"Ativa":"Inativa"}</div></div>
-      {a.provider==="fiscontrole"&&<div className="flex gap-2"><AdminButton variant="secondary" size="sm" disabled={busy!==null} onClick={()=>startConnect(a)}>Renovar sessão</AdminButton><AdminButton variant="secondary" size="sm" disabled={busy!==null} onClick={()=>void test(a.id)}>{busy===a.id?"Consultando…":"Testar conexão"}</AdminButton></div>}</div>
+      {a.provider==="fiscontrole"&&<div className="flex gap-2"><AdminButton variant="secondary" size="sm" disabled={busy!==null} onClick={()=>startConnect(a)}>Renovar sessão</AdminButton><AdminButton variant="secondary" size="sm" disabled={busy!==null} onClick={()=>void test(a.id)}>{busy===a.id?"Consultando…":"Testar conexão"}</AdminButton>{targetCompany&&<AdminButton size="sm" disabled={busy!==null} onClick={()=>setConfirmAccount(a.id)}>Vincular empresa</AdminButton>}</div>}</div>
+      {confirmAccount===a.id&&targetCompany&&<div className="space-y-2 rounded-lg border border-border p-3"><p className="text-sm">Habilitar consulta e captura fiscal para <strong>{targetCompany.name}</strong> nesta conta? Nenhuma nota será emitida.</p><div className="flex justify-end gap-2"><AdminButton variant="secondary" size="sm" disabled={busy!==null} onClick={()=>setConfirmAccount(null)}>Cancelar</AdminButton><AdminButton size="sm" disabled={busy!==null} onClick={()=>void bind(a.id)}>Confirmar vínculo</AdminButton></div></div>}
       <p className="text-xs text-muted-foreground">{a.inventory_verified_at?"Inventário verificado em "+new Date(a.inventory_verified_at).toLocaleString("pt-BR"):"Inventário ainda não verificado"}</p>
       {diagnostic?.accountId===a.id&&<div className="space-y-2 border-t border-border pt-2"><p className="text-sm font-medium">CNPJs acessíveis no provedor</p>{diagnostic.companies.length===0?<p className="text-xs text-muted-foreground">Nenhuma empresa retornada.</p>:diagnostic.companies.map((c,i)=><div key={c.cnpj+":"+i} className="flex flex-wrap justify-between gap-2 text-sm"><span>{c.name||"Empresa sem nome"}</span><span className="text-muted-foreground">{c.cnpj}</span></div>)}<p className="text-xs text-muted-foreground">A consulta não cria vínculos, não confirma capacidade de emissão e não modifica o inventário.</p></div>}
     </div>)}
+    {notice&&<p role="status" className="text-sm text-foreground">{notice}</p>}
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     <p className="text-xs text-muted-foreground">O token permanece no servidor. A vinculação e ativação de CNPJs dependem da confirmação do cadastro no provedor.</p>
   </section>;
