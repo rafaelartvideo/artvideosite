@@ -27,12 +27,13 @@ create function private.ensure_unrepaired_waiting_situation(p_org uuid) returns 
 language plpgsql security definer set search_path='' as $$
 declare sid uuid;
 begin
- insert into public.os_situations(organization_id,name,slug,color,sort_order,is_active)
- values(p_org,'Aguardando retirada sem reparo','aguardando-retirada-sem-reparo','#d97706',
+ insert into public.os_situations(organization_id,name,slug,color,hours,sort_order,is_active)
+ values(p_org,'Aguardando retirada sem reparo','aguardando-retirada-sem-reparo','#d97706',168,
  coalesce((select max(sort_order)+1 from public.os_situations where organization_id=p_org),100),true)
  on conflict(organization_id,slug) do nothing;
  select id into sid from public.os_situations where organization_id=p_org and slug='aguardando-retirada-sem-reparo' and is_active;
  if sid is null then raise exception 'Ative a situação Aguardando retirada sem reparo.'; end if;
+ update public.os_situations set hours=168 where id=sid and (hours is null or hours<=0);
  insert into public.service_type_situations(organization_id,service_type_id,situation_id,use_default_hours,sla_hours,sort_order)
  select st.organization_id,st.id,sid,true,null,
  coalesce((select max(sort_order)+1 from public.service_type_situations ss where ss.service_type_id=st.id),100)
