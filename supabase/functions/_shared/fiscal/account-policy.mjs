@@ -3,7 +3,7 @@ const validId = v => typeof v === "string" && v.trim().length > 0 && v.trim() ==
 const validCnpj = v => typeof v === "string" && /^\d{14}$/.test(v);
 const validExternalId = v => Number.isSafeInteger(v) && v > 0;
 const deny = code => ({ allowed: false, code });
-const validBinding = b => b && validId(b.tenantId) && validId(b.accountId) && validCnpj(b.cnpj) && validExternalId(b.externalCompanyId);
+const validBinding = b => b && validId(b.tenantId) && validId(b.accountId) && validCnpj(b.cnpj) && (b.externalCompanyId === null || validExternalId(b.externalCompanyId));
 
 // Quota is per contracted provider account. Count distinct CNPJs reserved or linked,
 // including disabled tenants: turning off UI access does not release a provider slot.
@@ -33,8 +33,8 @@ export function checkFiscalBinding({ account, bindings, inventory, candidate }) 
   for (const b of bindings) {
     const sameTenant = b.tenantId === candidate.tenantId;
     const sameCnpj = b.cnpj === candidate.cnpj;
-    const sameExternal = b.accountId === candidate.accountId && b.externalCompanyId === candidate.externalCompanyId;
-    const identical = sameTenant && sameCnpj && sameExternal;
+    const sameExternal = validExternalId(b.externalCompanyId) && b.accountId === candidate.accountId && b.externalCompanyId === candidate.externalCompanyId;
+    const identical = sameTenant && sameCnpj && b.accountId === candidate.accountId && b.externalCompanyId === candidate.externalCompanyId;
     if (!identical && (sameCnpj || sameExternal)) return deny("BINDING_CONFLICT");
   }
   return checkFiscalAccountCapacity({ account, inventory, candidateCnpj: candidate.cnpj });
