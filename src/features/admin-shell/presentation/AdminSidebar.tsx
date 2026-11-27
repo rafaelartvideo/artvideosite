@@ -112,7 +112,7 @@ export function AdminSidebar({
     && !(isPlatformOperatorOrganization && ["technicianPanel", "customerRequests"].includes(item.id)),
   );
   const commercialItems = visibleMainItems.filter(item =>
-    !isPlatformOperatorOrganization && ["inventory", "sales", "pdv", "finance"].includes(item.id),
+    !isPlatformOperatorOrganization && ["inventory", "sales", "pdv", "finance", "fiscal"].includes(item.id),
   );
   const administrationItems = visibleMainItems.filter(item =>
     isPlatformOperatorOrganization
