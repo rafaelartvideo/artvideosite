@@ -468,7 +468,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
-              {confirmationAction==="reject" && startReturnOnReject && canStartReturn ? <>Rejeitar e iniciar devolução <ArrowRight size={15} className="ml-1 shrink-0"/></> : confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
+              {confirmationAction==="reject" && startReturnOnReject && canStartReturn ? <>Confirmar <ArrowRight size={15} className="ml-1 shrink-0"/></> : confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
             </BtnPrimary>}
           </>}
       </div>}>
