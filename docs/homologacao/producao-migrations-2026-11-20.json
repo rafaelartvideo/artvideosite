@@ -1,0 +1,3253 @@
+{
+  "source": "Supabase CRM migration metadata",
+  "captured_date": "2026-11-20",
+  "project_ref": "wmjmtcjpunmzvonlkjcu",
+  "read_only": true,
+  "warning": "Snapshot de metadados; NUNCA comprova equivalência do SQL, nem repara histórico.",
+  "migrations": [
+    {
+      "version": "20260825212201",
+      "name": "create_kv_table_529bf66c"
+    },
+    {
+      "version": "20260912023950",
+      "name": "global_visual_text_normalization"
+    },
+    {
+      "version": "20260912024331",
+      "name": "exclude_model_from_visual_normalization"
+    },
+    {
+      "version": "20260914113801",
+      "name": "unified_registrations_tables"
+    },
+    {
+      "version": "20260914113812",
+      "name": "unified_registrations_backfill"
+    },
+    {
+      "version": "20260914113828",
+      "name": "unified_registrations_rls"
+    },
+    {
+      "version": "20260914113841",
+      "name": "unified_registrations_role_permissions"
+    },
+    {
+      "version": "20260914113913",
+      "name": "unified_registrations_save_rpc"
+    },
+    {
+      "version": "20260914114153",
+      "name": "unified_registrations_inactive_role_policy"
+    },
+    {
+      "version": "20260914120235",
+      "name": "decouple_registration_from_user_access"
+    },
+    {
+      "version": "20260914120727",
+      "name": "registration_invoker_legacy_employee_rls"
+    },
+    {
+      "version": "20260914131521",
+      "name": "user_permission_overrides"
+    },
+    {
+      "version": "20260914131532",
+      "name": "unique_registration_documents"
+    },
+    {
+      "version": "20260914131859",
+      "name": "fix_set_user_permission_overrides_invoker"
+    },
+    {
+      "version": "20260914135213",
+      "name": "registration_addresses_supplier_items"
+    },
+    {
+      "version": "20260914135347",
+      "name": "save_registration_municipal_registration"
+    },
+    {
+      "version": "20260914140900",
+      "name": "registration_address_tenant_guard"
+    },
+    {
+      "version": "20260914141509",
+      "name": "fix_entity_addresses_postgrest_relationship"
+    },
+    {
+      "version": "20260914153419",
+      "name": "fix_save_registration_invoker_permission_check"
+    },
+    {
+      "version": "20260914154847",
+      "name": "fix_registration_address_delete_order"
+    },
+    {
+      "version": "20260914155559",
+      "name": "grant_registration_address_delete"
+    },
+    {
+      "version": "20260914182059",
+      "name": "employee_active_state_transaction"
+    },
+    {
+      "version": "20260914182350",
+      "name": "employee_active_state_authenticated_rpc"
+    },
+    {
+      "version": "20260914182909",
+      "name": "inventory_supplier_costing_core"
+    },
+    {
+      "version": "20260914183020",
+      "name": "record_inventory_movement_rpc"
+    },
+    {
+      "version": "20260914183320",
+      "name": "fix_inventory_movement_without_service_order"
+    },
+    {
+      "version": "20260914183422",
+      "name": "inventory_supplier_sync_and_create"
+    },
+    {
+      "version": "20260914183515",
+      "name": "inventory_supplier_entity_lookup"
+    },
+    {
+      "version": "20260914185453",
+      "name": "allow_existing_inactive_inventory_suppliers"
+    },
+    {
+      "version": "20260914190757",
+      "name": "remove_physical_delete_permissions_users_inventory"
+    },
+    {
+      "version": "20260914191112",
+      "name": "enrich_service_order_inventory_movement_snapshots"
+    },
+    {
+      "version": "20260914191345",
+      "name": "lock_inventory_movements_to_transactional_functions"
+    },
+    {
+      "version": "20260914192813",
+      "name": "fix_entity_roles_rls_recursion"
+    },
+    {
+      "version": "20260915104751",
+      "name": "registration_contacts_records"
+    },
+    {
+      "version": "20260915105629",
+      "name": "registration_contacts_records_fk_indexes"
+    },
+    {
+      "version": "20260915124141",
+      "name": "equipment_order_checklists"
+    },
+    {
+      "version": "20260915130456",
+      "name": "checklist_equipment_profile_read_policy"
+    },
+    {
+      "version": "20260915130809",
+      "name": "harden_equipment_order_checklists"
+    },
+    {
+      "version": "20260915132259",
+      "name": "enable_checklist_realtime"
+    },
+    {
+      "version": "20260915144753",
+      "name": "registration_record_attachments"
+    },
+    {
+      "version": "20260915145552",
+      "name": "registration_record_attachment_created_by_index"
+    },
+    {
+      "version": "20260915152645",
+      "name": "enforce_checklist_stage_sequence"
+    },
+    {
+      "version": "20260915153100",
+      "name": "device_capture_entry_checklist_events"
+    },
+    {
+      "version": "20260915162819",
+      "name": "device_capture_checklist_photos"
+    },
+    {
+      "version": "20260915165257",
+      "name": "order_table_os_external_os_permissions"
+    },
+    {
+      "version": "20260915171146",
+      "name": "keep_checklist_media_scoped"
+    },
+    {
+      "version": "20260915175232",
+      "name": "fix_registration_file_storage_policies"
+    },
+    {
+      "version": "20260915183226",
+      "name": "global_username_auth"
+    },
+    {
+      "version": "20260915183830",
+      "name": "profile_username_insert_fallback"
+    },
+    {
+      "version": "20260915184202",
+      "name": "sync_username_from_auth_email"
+    },
+    {
+      "version": "20260915184246",
+      "name": "username_hash_registry"
+    },
+    {
+      "version": "20260916105323",
+      "name": "trusted_ip_access"
+    },
+    {
+      "version": "20260916110944",
+      "name": "sync_quick_customers_with_registrations"
+    },
+    {
+      "version": "20260916125517",
+      "name": "inventory_movement_units_optional_supplier"
+    },
+    {
+      "version": "20260916133502",
+      "name": "service_order_solution_attempts_and_undo"
+    },
+    {
+      "version": "20260916154033",
+      "name": "online_document_signatures_phase_1"
+    },
+    {
+      "version": "20260916155930",
+      "name": "online_document_signatures_phase_2"
+    },
+    {
+      "version": "20260916155956",
+      "name": "document_signature_scope_guards"
+    },
+    {
+      "version": "20260916160104",
+      "name": "document_signature_admin_permission_rpc"
+    },
+    {
+      "version": "20260916181217",
+      "name": "document_signature_employee_candidates"
+    },
+    {
+      "version": "20260916200812",
+      "name": "document_signature_final_artifact_invariants"
+    },
+    {
+      "version": "20260917095433",
+      "name": "document_signature_cpf_validation"
+    },
+    {
+      "version": "20260917110021",
+      "name": "document_signature_canonical_base_pdf"
+    },
+    {
+      "version": "20260917113139",
+      "name": "allow_document_print_permission_rpc"
+    },
+    {
+      "version": "20260917113718",
+      "name": "rollback_canonical_signature_pdf"
+    },
+    {
+      "version": "20260917113755",
+      "name": "noop_verify_rollback_state"
+    },
+    {
+      "version": "20260917113803",
+      "name": "verify_signature_permission_rpc_rollback"
+    },
+    {
+      "version": "20260917115143",
+      "name": "signature_frozen_print_pdf"
+    },
+    {
+      "version": "20260917130855",
+      "name": "device_capture_order_edit_sessions"
+    },
+    {
+      "version": "20260917144109",
+      "name": "fix_service_order_storage_permissions"
+    },
+    {
+      "version": "20260917152820",
+      "name": "finance_foundation"
+    },
+    {
+      "version": "20260917173554",
+      "name": "finance_titles_installments"
+    },
+    {
+      "version": "20260917174053",
+      "name": "finance_titles_role_permissions"
+    },
+    {
+      "version": "20260917174746",
+      "name": "finance_titles_hardening"
+    },
+    {
+      "version": "20260917175419",
+      "name": "finance_approvals"
+    },
+    {
+      "version": "20260917192450",
+      "name": "finance_approval_cycle_resubmission"
+    },
+    {
+      "version": "20260917193752",
+      "name": "finance_settlements_movements"
+    },
+    {
+      "version": "20260917193910",
+      "name": "finance_settlements_role_permissions"
+    },
+    {
+      "version": "20260917201847",
+      "name": "finance_source_integrations"
+    },
+    {
+      "version": "20260917201916",
+      "name": "finance_source_default_categories_fix"
+    },
+    {
+      "version": "20260917202115",
+      "name": "service_order_finance_integration"
+    },
+    {
+      "version": "20260917202628",
+      "name": "inventory_purchase_finance_integration"
+    },
+    {
+      "version": "20260917203608",
+      "name": "finance_integration_module_guard"
+    },
+    {
+      "version": "20260918105106",
+      "name": "finance_cash_sessions"
+    },
+    {
+      "version": "20260918105242",
+      "name": "scope_employee_cpf_unique_by_organization_v2"
+    },
+    {
+      "version": "20260918105308",
+      "name": "finance_recurring_rules"
+    },
+    {
+      "version": "20260918105412",
+      "name": "finance_documents"
+    },
+    {
+      "version": "20260918105451",
+      "name": "finance_collections"
+    },
+    {
+      "version": "20260918110015",
+      "name": "finance_recurring_cron"
+    },
+    {
+      "version": "20260918110200",
+      "name": "finance_documents_orphan_cleanup"
+    },
+    {
+      "version": "20260918110244",
+      "name": "tenant_scoped_partner_default_roles"
+    },
+    {
+      "version": "20260918110422",
+      "name": "partner_role_provision_only_on_transition"
+    },
+    {
+      "version": "20260918111003",
+      "name": "finance_advanced_hardening"
+    },
+    {
+      "version": "20260918111728",
+      "name": "partner_company_settings_lock_and_menu_logo"
+    },
+    {
+      "version": "20260918112639",
+      "name": "allow_partner_self_branding_updates"
+    },
+    {
+      "version": "20260918112724",
+      "name": "sync_partner_self_branding_to_organization"
+    },
+    {
+      "version": "20260918114923",
+      "name": "finance_management_reports"
+    },
+    {
+      "version": "20260918121116",
+      "name": "multi_tenant_operational_hardening"
+    },
+    {
+      "version": "20260918121532",
+      "name": "multi_tenant_site_catalog_hardening"
+    },
+    {
+      "version": "20260918122617",
+      "name": "multi_tenant_media_storage_hardening"
+    },
+    {
+      "version": "20260918123600",
+      "name": "lock_public_site_to_artvideo"
+    },
+    {
+      "version": "20260918123755",
+      "name": "scope_used_items_to_service_order_tenant"
+    },
+    {
+      "version": "20260918124001",
+      "name": "remove_tenant_defaults_and_block_site_permissions"
+    },
+    {
+      "version": "20260918124246",
+      "name": "scope_situation_permissions_and_provision_order_statuses"
+    },
+    {
+      "version": "20260918124752",
+      "name": "disable_legacy_employee_record_rpc"
+    },
+    {
+      "version": "20260918124842",
+      "name": "early_service_order_tenant_write_guard"
+    },
+    {
+      "version": "20260918125001",
+      "name": "guard_service_order_rpcs_by_tenant"
+    },
+    {
+      "version": "20260918125347",
+      "name": "harden_function_execution_privileges"
+    },
+    {
+      "version": "20260918125350",
+      "name": "share_artvideo_equipment_catalog"
+    },
+    {
+      "version": "20260918125531",
+      "name": "block_partner_site_permission_overrides"
+    },
+    {
+      "version": "20260918130222",
+      "name": "finance_dashboard_permission_scoping"
+    },
+    {
+      "version": "20260918130552",
+      "name": "finance_cash_flow_allocation_filters"
+    },
+    {
+      "version": "20260918135456",
+      "name": "editable_artvideo_equipment_copies"
+    },
+    {
+      "version": "20260918140242",
+      "name": "secure_public_quote_and_tracking_rpcs"
+    },
+    {
+      "version": "20260918140325",
+      "name": "fix_public_tracking_history_columns"
+    },
+    {
+      "version": "20260918140648",
+      "name": "prevent_duplicate_equipment_catalog_names"
+    },
+    {
+      "version": "20260918140750",
+      "name": "remove_legacy_public_quote_rpc_overloads"
+    },
+    {
+      "version": "20260918141339",
+      "name": "lock_internal_edge_tables"
+    },
+    {
+      "version": "20260918141549",
+      "name": "allow_partner_admin_company_settings"
+    },
+    {
+      "version": "20260918141811",
+      "name": "harden_profiles_against_direct_mutation"
+    },
+    {
+      "version": "20260918141937",
+      "name": "reserve_platform_permissions_for_artvideo"
+    },
+    {
+      "version": "20260918142300",
+      "name": "restore_partner_company_settings_restrictions"
+    },
+    {
+      "version": "20260918142428",
+      "name": "require_direct_membership_for_operational_writes"
+    },
+    {
+      "version": "20260918143610",
+      "name": "tenant_service_order_numbering"
+    },
+    {
+      "version": "20260918143749",
+      "name": "harden_legacy_global_tables_and_dynamic_permissions"
+    },
+    {
+      "version": "20260918144115",
+      "name": "fix_storage_policy_helper_execute_grants"
+    },
+    {
+      "version": "20260918144154",
+      "name": "deny_client_access_username_registry"
+    },
+    {
+      "version": "20260918145644",
+      "name": "reuse_existing_employee_in_save_registration"
+    },
+    {
+      "version": "20260918152235",
+      "name": "sync_partner_employees_to_registrations"
+    },
+    {
+      "version": "20260924194124",
+      "name": "cleanup_removed_service_order_media"
+    },
+    {
+      "version": "20260924194836",
+      "name": "allow_external_os_number_update"
+    },
+    {
+      "version": "20260924203456",
+      "name": "media_storage_maintenance"
+    },
+    {
+      "version": "20260928115303",
+      "name": "unionworld_platform_artvideo_tenant_markers"
+    },
+    {
+      "version": "20260928115532",
+      "name": "separate_unionworld_and_artvideo_permission_scopes"
+    },
+    {
+      "version": "20260928115717",
+      "name": "resolve_unionworld_and_artvideo_ids_by_role"
+    },
+    {
+      "version": "20260928120300",
+      "name": "organization_access_identity_roles"
+    },
+    {
+      "version": "20260928122010",
+      "name": "remove_legacy_root_id_from_rls_and_constraints"
+    },
+    {
+      "version": "20260928122100",
+      "name": "replace_legacy_artvideo_organization_defaults"
+    },
+    {
+      "version": "20260928122936",
+      "name": "split_unionworld_platform_from_artvideo_tenant"
+    },
+    {
+      "version": "20260928123024",
+      "name": "remove_platform_permissions_from_artvideo_roles"
+    },
+    {
+      "version": "20260928123743",
+      "name": "fix_access_rpcs_private_schema_execution"
+    },
+    {
+      "version": "20260928124610",
+      "name": "enable_unionworld_employee_management"
+    },
+    {
+      "version": "20260928124932",
+      "name": "sync_existing_unionworld_members_to_employees"
+    },
+    {
+      "version": "20260928142941",
+      "name": "align_platform_access_with_target_rls"
+    },
+    {
+      "version": "20260928221545",
+      "name": "order_checklist_mobile_sessions"
+    },
+    {
+      "version": "20260928223500",
+      "name": "universal_crm_audit_log"
+    },
+    {
+      "version": "20260928223714",
+      "name": "organization_audit_logs_actor_index"
+    },
+    {
+      "version": "20260928224219",
+      "name": "extend_universal_audit_event_tables"
+    },
+    {
+      "version": "20260928225434",
+      "name": "tenant_scoped_audit_permission"
+    },
+    {
+      "version": "20260928231054",
+      "name": "audit_human_readable_values"
+    },
+    {
+      "version": "20260928231151",
+      "name": "harden_audit_display_resolution"
+    },
+    {
+      "version": "20260929123145",
+      "name": "optimize_multitenant_query_indexes"
+    },
+    {
+      "version": "20260929124710",
+      "name": "add_service_order_rls_helpers"
+    },
+    {
+      "version": "20260929124726",
+      "name": "optimize_service_order_rls_policy"
+    },
+    {
+      "version": "20260929124821",
+      "name": "consolidate_permissive_select_policies"
+    },
+    {
+      "version": "20260929125239",
+      "name": "publish_order_reference_tables_for_realtime"
+    },
+    {
+      "version": "20260929125957",
+      "name": "server_side_service_order_filtering"
+    },
+    {
+      "version": "20260929130632",
+      "name": "optimize_service_order_filter_access"
+    },
+    {
+      "version": "20260929131616",
+      "name": "server_side_service_order_location_filters"
+    },
+    {
+      "version": "20260929132533",
+      "name": "server_side_registration_filtering"
+    },
+    {
+      "version": "20260929133554",
+      "name": "optimize_agenda_scheduled_orders"
+    },
+    {
+      "version": "20260929164446",
+      "name": "server_side_financial_entry_filtering"
+    },
+    {
+      "version": "20260929164713",
+      "name": "paginate_pending_financial_approvals"
+    },
+    {
+      "version": "20260929165036",
+      "name": "server_side_financial_movement_filtering"
+    },
+    {
+      "version": "20260929175208",
+      "name": "paginate_scheduled_financial_settlements"
+    },
+    {
+      "version": "20260929175211",
+      "name": "search_financial_counterparties"
+    },
+    {
+      "version": "20260929175455",
+      "name": "server_side_inventory_item_filtering"
+    },
+    {
+      "version": "20260929175653",
+      "name": "paginate_inventory_item_history"
+    },
+    {
+      "version": "20260929175841",
+      "name": "server_side_inventory_supplier_search"
+    },
+    {
+      "version": "20260929180903",
+      "name": "optimize_organization_audit_log_queries"
+    },
+    {
+      "version": "20260929181646",
+      "name": "compact_uniq_webhook_events"
+    },
+    {
+      "version": "20260929181649",
+      "name": "compact_uniq_call_payloads"
+    },
+    {
+      "version": "20260929182145",
+      "name": "reduce_realtime_publication"
+    },
+    {
+      "version": "20260929183050",
+      "name": "optimize_organization_permission_checks"
+    },
+    {
+      "version": "20260929183053",
+      "name": "load_equipment_catalog_rpc"
+    },
+    {
+      "version": "20260929183232",
+      "name": "load_service_types_configuration_rpc"
+    },
+    {
+      "version": "20260929192935",
+      "name": "load_orders_reference_data_rpc"
+    },
+    {
+      "version": "20260929193733",
+      "name": "optimize_service_order_search_v3"
+    },
+    {
+      "version": "20260929205013",
+      "name": "load_orders_reference_data_rpc"
+    },
+    {
+      "version": "20260929205202",
+      "name": "search_service_order_page_rpc"
+    },
+    {
+      "version": "20261001141335",
+      "name": "artvideo_in_partner_companies"
+    },
+    {
+      "version": "20261001150820",
+      "name": "product_stock_fiscal_foundation"
+    },
+    {
+      "version": "20261001151017",
+      "name": "harden_product_inventory_helpers"
+    },
+    {
+      "version": "20261001152709",
+      "name": "pdv_foundation"
+    },
+    {
+      "version": "20261001153425",
+      "name": "pdv_cash_permissions"
+    },
+    {
+      "version": "20261001153811",
+      "name": "pdv_settings_fk_indexes"
+    },
+    {
+      "version": "20261001154934",
+      "name": "os_quick_actions_and_terms"
+    },
+    {
+      "version": "20261002144856",
+      "name": "service_order_products_services"
+    },
+    {
+      "version": "20261002170435",
+      "name": "lock_service_price_and_stock_guard"
+    },
+    {
+      "version": "20261002170935",
+      "name": "service_warranty_terms"
+    },
+    {
+      "version": "20261002171456",
+      "name": "audit_linked_service_order_number"
+    },
+    {
+      "version": "20261002173503",
+      "name": "field_tracking_foundation"
+    },
+    {
+      "version": "20261002173649",
+      "name": "field_tracking_fk_indexes"
+    },
+    {
+      "version": "20261002174326",
+      "name": "field_tracking_pairing"
+    },
+    {
+      "version": "20261002174423",
+      "name": "field_tracking_device_internal_rpc"
+    },
+    {
+      "version": "20261002175205",
+      "name": "fix_field_tracking_internal_rpc"
+    },
+    {
+      "version": "20261002175252",
+      "name": "harden_field_tracking_pairings"
+    },
+    {
+      "version": "20261002192309",
+      "name": "field_tracking_retention"
+    },
+    {
+      "version": "20261002193411",
+      "name": "employee_field_tracking_login_prompt"
+    },
+    {
+      "version": "20261002193949",
+      "name": "enforce_required_field_tracking"
+    },
+    {
+      "version": "20261002230216",
+      "name": "organization_notifications_foundation"
+    },
+    {
+      "version": "20261002230247",
+      "name": "organization_notifications_unread_helpers"
+    },
+    {
+      "version": "20261002231040",
+      "name": "expand_notification_module_coverage"
+    },
+    {
+      "version": "20261002231313",
+      "name": "index_notification_actor"
+    },
+    {
+      "version": "20261004094347",
+      "name": "fix_queue_claim_schema_access"
+    },
+    {
+      "version": "20261004101706",
+      "name": "service_order_workspace_bootstrap"
+    },
+    {
+      "version": "20261004102631",
+      "name": "reference_data_realtime"
+    },
+    {
+      "version": "20261004103240",
+      "name": "auth_access_bootstrap"
+    },
+    {
+      "version": "20261004103525",
+      "name": "catalog_bootstrap_rpcs"
+    },
+    {
+      "version": "20261004103617",
+      "name": "product_reference_realtime"
+    },
+    {
+      "version": "20261004104102",
+      "name": "finance_foundation_bootstrap"
+    },
+    {
+      "version": "20261004104249",
+      "name": "dashboard_bootstrap"
+    },
+    {
+      "version": "20261004104616",
+      "name": "finance_pdv_realtime"
+    },
+    {
+      "version": "20261004105046",
+      "name": "notifications_bootstrap"
+    },
+    {
+      "version": "20261004105224",
+      "name": "registration_page_bootstrap"
+    },
+    {
+      "version": "20261004105258",
+      "name": "queue_settings_realtime"
+    },
+    {
+      "version": "20261004105552",
+      "name": "company_settings_bootstrap"
+    },
+    {
+      "version": "20261004105828",
+      "name": "auth_terms_bootstrap"
+    },
+    {
+      "version": "20261004124918",
+      "name": "union_monitor_read_only_experience"
+    },
+    {
+      "version": "20261004131335",
+      "name": "union_platform_billing"
+    },
+    {
+      "version": "20261004131859",
+      "name": "union_platform_billing_hardening"
+    },
+    {
+      "version": "20261004132256",
+      "name": "union_platform_effective_overdue"
+    },
+    {
+      "version": "20261004133948",
+      "name": "union_monitored_order_full_detail"
+    },
+    {
+      "version": "20261004151519",
+      "name": "platform_home_announcements"
+    },
+    {
+      "version": "20261004152215",
+      "name": "platform_announcements_rpc_only"
+    },
+    {
+      "version": "20261004153948",
+      "name": "notification_dismiss_realtime"
+    },
+    {
+      "version": "20261004225628",
+      "name": "subscription_usage_measurement"
+    },
+    {
+      "version": "20261004225959",
+      "name": "subscription_database_usage_snapshot"
+    },
+    {
+      "version": "20261004230808",
+      "name": "queue_usage_sync"
+    },
+    {
+      "version": "20261004231021",
+      "name": "pdv_terminal_measurement"
+    },
+    {
+      "version": "20261004231300",
+      "name": "external_usage_measurement"
+    },
+    {
+      "version": "20261006133512",
+      "name": "dashboard_orders_server_pagination"
+    },
+    {
+      "version": "20261006160149",
+      "name": "role_tool_permissions"
+    },
+    {
+      "version": "20261006173856",
+      "name": "scope_permissions_by_enabled_modules"
+    },
+    {
+      "version": "20261006174020",
+      "name": "harden_platform_permission_scope"
+    },
+    {
+      "version": "20261006174705",
+      "name": "queue_manage_permission"
+    },
+    {
+      "version": "20261006185447",
+      "name": "dashboard_order_sla_distribution"
+    },
+    {
+      "version": "20261006194226",
+      "name": "sac_digital_module_foundation"
+    },
+    {
+      "version": "20261006194920",
+      "name": "sac_digital_data_model"
+    },
+    {
+      "version": "20261006195036",
+      "name": "sac_digital_core_tables"
+    },
+    {
+      "version": "20261006195059",
+      "name": "sac_digital_messages_rls"
+    },
+    {
+      "version": "20261006195122",
+      "name": "sac_digital_read_rpcs"
+    },
+    {
+      "version": "20261006195155",
+      "name": "sac_digital_secure_config_rpcs"
+    },
+    {
+      "version": "20261006195418",
+      "name": "sac_digital_integration_indexes"
+    },
+    {
+      "version": "20261006200922",
+      "name": "sac_digital_client_credentials"
+    },
+    {
+      "version": "20261006202709",
+      "name": "sac_digital_event_projection"
+    },
+    {
+      "version": "20261006202758",
+      "name": "sac_digital_webhook_projection_rpc"
+    },
+    {
+      "version": "20261006204608",
+      "name": "sac_digital_protocol_enrichment"
+    },
+    {
+      "version": "20261006204635",
+      "name": "sac_digital_service_credentials_status"
+    },
+    {
+      "version": "20261006204918",
+      "name": "sac_digital_action_authorization"
+    },
+    {
+      "version": "20261006205442",
+      "name": "remove_legacy_sac_digital_api_key_rpc"
+    },
+    {
+      "version": "20261007015703",
+      "name": "sac_digital_outbound_pending"
+    },
+    {
+      "version": "20261007020750",
+      "name": "sac_digital_unique_customer_phone"
+    },
+    {
+      "version": "20261007025028",
+      "name": "sac_digital_webhook_payload_retention"
+    },
+    {
+      "version": "20261007142347",
+      "name": "sac_digital_delivery_sessions"
+    },
+    {
+      "version": "20261007142348",
+      "name": "sac_digital_jobs_projection"
+    },
+    {
+      "version": "20261007142349",
+      "name": "sac_digital_menus"
+    },
+    {
+      "version": "20261007142350",
+      "name": "sac_digital_worker_schedule"
+    },
+    {
+      "version": "20261007142352",
+      "name": "sac_digital_media_retention_reconciliation"
+    },
+    {
+      "version": "20261007160632",
+      "name": "sac_digital_read_performance"
+    },
+    {
+      "version": "20261007191200",
+      "name": "sac_digital_order_message_presets"
+    },
+    {
+      "version": "20261007194941",
+      "name": "sac_digital_waiting_protocol_state"
+    },
+    {
+      "version": "20261007201755",
+      "name": "block_config_delete_with_linked_orders"
+    },
+    {
+      "version": "20261007201836",
+      "name": "harden_config_delete_trigger"
+    },
+    {
+      "version": "20261009123632",
+      "name": "sac_operator_oauth"
+    },
+    {
+      "version": "20261009140850",
+      "name": "sac_protocol_state_reconciliation"
+    },
+    {
+      "version": "20261009145036",
+      "name": "sac_client_session_cache"
+    },
+    {
+      "version": "20261009150357",
+      "name": "uppercase_equipment_models"
+    },
+    {
+      "version": "20261009152352",
+      "name": "require_service_order_situation"
+    },
+    {
+      "version": "20261009161627",
+      "name": "sac_contact_pagination_and_cached_photos"
+    },
+    {
+      "version": "20261009165138",
+      "name": "sac_contacts_paged_search"
+    },
+    {
+      "version": "20261009170347",
+      "name": "employee_weekly_work_schedules"
+    },
+    {
+      "version": "20261009170438",
+      "name": "sac_contacts_unique_search_rpc"
+    },
+    {
+      "version": "20261009173201",
+      "name": "employee_schedule_intervals_and_order_end"
+    },
+    {
+      "version": "20261012133938",
+      "name": "nfse_stage1_foundation"
+    },
+    {
+      "version": "20261013115041",
+      "name": "sac_contact_dedupe_avatar"
+    },
+    {
+      "version": "20261013115620",
+      "name": "union_database_capacity_daily"
+    },
+    {
+      "version": "20261013120744",
+      "name": "company_segments_catalog_foundation_20261013"
+    },
+    {
+      "version": "20261013121559",
+      "name": "union_catalog_admin_permissions_rpcs_20261013"
+    },
+    {
+      "version": "20261013121815",
+      "name": "sac_default_avatar_recovery_manifest"
+    },
+    {
+      "version": "20261013122156",
+      "name": "sac_shared_default_avatar_normalization"
+    },
+    {
+      "version": "20261013122847",
+      "name": "company_catalog_selective_adoption_20261013"
+    },
+    {
+      "version": "20261013123018",
+      "name": "sac_custom_avatar_promotion_rollback"
+    },
+    {
+      "version": "20261013123206",
+      "name": "union_catalog_canonical_equipment_names_20261013"
+    },
+    {
+      "version": "20261013125225",
+      "name": "union_catalog_controlled_updates_and_templates_20261013"
+    },
+    {
+      "version": "20261013125758",
+      "name": "union_catalog_opt_in_checklist_templates_20261013"
+    },
+    {
+      "version": "20261013125921",
+      "name": "sac_reconciliation_private_checkpoints"
+    },
+    {
+      "version": "20261013130013",
+      "name": "sac_hot_tables_autovacuum_tuning"
+    },
+    {
+      "version": "20261013130529",
+      "name": "union_catalog_auto_sync_names_no_approval_20261013"
+    },
+    {
+      "version": "20261013130919",
+      "name": "union_cron_execution_logs_retention"
+    },
+    {
+      "version": "20261013131739",
+      "name": "union_catalog_publication_revision_20261013"
+    },
+    {
+      "version": "20261013131937",
+      "name": "union_catalog_republish_sync_20261013"
+    },
+    {
+      "version": "20261013132909",
+      "name": "union_catalog_auto_distribution_by_segment_20261013"
+    },
+    {
+      "version": "20261013133151",
+      "name": "union_catalog_seed_39_equipment_61_brands_20261013"
+    },
+    {
+      "version": "20261013140321",
+      "name": "union_automatic_fields_triggers_20261013"
+    },
+    {
+      "version": "20261013140609",
+      "name": "quick_equipment_optional_serial_extra_fields_20261013"
+    },
+    {
+      "version": "20261013140903",
+      "name": "union_catalog_fields_seed_114_20261013"
+    },
+    {
+      "version": "20261013141157",
+      "name": "backfill_existing_local_equipment_standard_fields_20261013"
+    },
+    {
+      "version": "20261013141308",
+      "name": "quick_equipment_serial_union_operator_permissions_20261013"
+    },
+    {
+      "version": "20261013141817",
+      "name": "serial_field_conditional_equipment_templates_20261013"
+    },
+    {
+      "version": "20261013142055",
+      "name": "fix_backfill_serial_links_for_existing_equipment_20261013"
+    },
+    {
+      "version": "20261013143059",
+      "name": "silent_union_catalog_sync_no_user_audit_notifications_20261013"
+    },
+    {
+      "version": "20261013143609",
+      "name": "cleanup_artvideo_test_catalog_and_automatic_notifications_20261013"
+    },
+    {
+      "version": "20261013143816",
+      "name": "clear_auto_catalog_links_authenticated_actor_20261013"
+    },
+    {
+      "version": "20261013144020",
+      "name": "remove_prior_automated_equipment_field_audit_events_20261013"
+    },
+    {
+      "version": "20261013144118",
+      "name": "remove_unused_extra_field_key_column_permission_20261013"
+    },
+    {
+      "version": "20261013144257",
+      "name": "delete_redundant_artvideo_tv85_after_model_migration_20261013"
+    },
+    {
+      "version": "20261013144804",
+      "name": "disable_unrestricted_artvideo_catalog_replication_20261013"
+    },
+    {
+      "version": "20261013145417",
+      "name": "prune_artvideo_test_catalog_restore_protection_20261013"
+    },
+    {
+      "version": "20261013150752",
+      "name": "fix_equipment_technical_field_delete_grants"
+    },
+    {
+      "version": "20261013174747",
+      "name": "mark_legacy_order_client_echo_messages_20261013"
+    },
+    {
+      "version": "20261013190013",
+      "name": "pause_nfse_module_without_removing_data_20261013"
+    },
+    {
+      "version": "20261013201300",
+      "name": "fix_agenda_insert_returning_rls"
+    },
+    {
+      "version": "20261013201707",
+      "name": "gestor_new_permission_defaults"
+    },
+    {
+      "version": "20261013203311",
+      "name": "prevent_segment_equipment_duplication_20261013"
+    },
+    {
+      "version": "20261013203516",
+      "name": "reconcile_catalog_common_equipment_aliases_20261013"
+    },
+    {
+      "version": "20261013204544",
+      "name": "purge_inactive_generated_equipment_copies_20261013"
+    },
+    {
+      "version": "20261013221437",
+      "name": "equipment_general_service_links"
+    },
+    {
+      "version": "20261013221458",
+      "name": "equipment_shared_brand_directory"
+    },
+    {
+      "version": "20261014123802",
+      "name": "fix_service_order_item_tasks_storage_read_permissions"
+    },
+    {
+      "version": "20261014130413",
+      "name": "centralize_role_permission_catalog_20261014"
+    },
+    {
+      "version": "20261014130928",
+      "name": "atomic_role_permission_save_20261014"
+    },
+    {
+      "version": "20261014131247",
+      "name": "permission_catalog_labels_cleanup_20261014"
+    },
+    {
+      "version": "20261014131350",
+      "name": "auth_permissions_module_scope_alignment_20261014"
+    },
+    {
+      "version": "20261014141032",
+      "name": "technician_panel_orders_scope_and_role_defaults_20261014"
+    },
+    {
+      "version": "20261014141331",
+      "name": "technician_panel_gestor_default_permissions_20261014"
+    },
+    {
+      "version": "20261014143924",
+      "name": "technician_order_address_problem_scope_20261014"
+    },
+    {
+      "version": "20261014144759",
+      "name": "technician_default_photo_permissions_20261014"
+    },
+    {
+      "version": "20261014145839",
+      "name": "technician_order_secure_details_actions_20261014"
+    },
+    {
+      "version": "20261014150008",
+      "name": "marketplace_union_phase1"
+    },
+    {
+      "version": "20261014152106",
+      "name": "technician_order_catalog_and_history_20261014"
+    },
+    {
+      "version": "20261014152623",
+      "name": "technician_commercial_recalc_guard_20261014"
+    },
+    {
+      "version": "20261014153025",
+      "name": "technician_order_problem_internal_notes_20261014"
+    },
+    {
+      "version": "20261014154041",
+      "name": "technician_strict_action_type_validation_20261014"
+    },
+    {
+      "version": "20261014190946",
+      "name": "individual_service_schedule"
+    },
+    {
+      "version": "20261014191329",
+      "name": "guard_scheduled_service_team"
+    },
+    {
+      "version": "20261014191917",
+      "name": "visible_service_schedules_rpc"
+    },
+    {
+      "version": "20261014192329",
+      "name": "marketplace_buyer_requests_phase2"
+    },
+    {
+      "version": "20261014192718",
+      "name": "marketplace_buyer_separate_from_crm_profile"
+    },
+    {
+      "version": "20261014192829",
+      "name": "marketplace_request_cancel_after_listing_unpublish"
+    },
+    {
+      "version": "20261014201838",
+      "name": "service_item_scheduled_creation_v1_20261014"
+    },
+    {
+      "version": "20261014202124",
+      "name": "lock_scheduled_service_technician_20261014"
+    },
+    {
+      "version": "20261014202336",
+      "name": "harden_service_schedule_creation_20261014"
+    },
+    {
+      "version": "20261014203353",
+      "name": "technician_assignment_schedule_notifications"
+    },
+    {
+      "version": "20261014203558",
+      "name": "technician_assignment_audit_linked_order"
+    },
+    {
+      "version": "20261014210220",
+      "name": "marketplace_union_mediated_requests_and_proposals"
+    },
+    {
+      "version": "20261014210238",
+      "name": "marketplace_union_buyer_contact_visibility"
+    },
+    {
+      "version": "20261014210700",
+      "name": "marketplace_proposal_org_policy_and_unique_acceptance"
+    },
+    {
+      "version": "20261016131939",
+      "name": "enable_work_items_realtime_publication"
+    },
+    {
+      "version": "20261016132812",
+      "name": "sac_abandoned_ownership_rls"
+    },
+    {
+      "version": "20261016134741",
+      "name": "work_items_immutable_after_finalization"
+    },
+    {
+      "version": "20261016145356",
+      "name": "sac_hide_verified_os_message_duplicates"
+    },
+    {
+      "version": "20261016151446",
+      "name": "spread_high_frequency_recovery_jobs"
+    },
+    {
+      "version": "20261016170508",
+      "name": "work_items_team_execution_permission"
+    },
+    {
+      "version": "20261016170955",
+      "name": "work_items_team_execution_explicit_opt_in"
+    },
+    {
+      "version": "20261016174942",
+      "name": "work_item_reminders_every_minute"
+    },
+    {
+      "version": "20261016182041",
+      "name": "artvideo_public_product_storefront"
+    },
+    {
+      "version": "20261016182051",
+      "name": "artvideo_store_checkout_orders"
+    },
+    {
+      "version": "20261016183455",
+      "name": "artvideo_shipping_postal_zones"
+    },
+    {
+      "version": "20261016200739",
+      "name": "artvideo_store_multi_item_orders"
+    },
+    {
+      "version": "20261016201824",
+      "name": "artvideo_order_fulfillment"
+    },
+    {
+      "version": "20261016202903",
+      "name": "artvideo_store_pickup_and_catalog_filters"
+    },
+    {
+      "version": "20261016205823",
+      "name": "artvideo_store_tracking_notifications"
+    },
+    {
+      "version": "20261016211352",
+      "name": "artvideo_store_post_sale_cases"
+    },
+    {
+      "version": "20261016211824",
+      "name": "artvideo_block_delivery_pending_cancellation"
+    },
+    {
+      "version": "20261016212750",
+      "name": "artvideo_store_returns_refunds"
+    },
+    {
+      "version": "20261017122255",
+      "name": "align_brand_media_storage_authorization"
+    },
+    {
+      "version": "20261017145204",
+      "name": "artvideo_store_available_after_reservations"
+    },
+    {
+      "version": "20261017150456",
+      "name": "artvideo_payment_gateway_registry"
+    },
+    {
+      "version": "20261017151327",
+      "name": "artvideo_payment_provider_history"
+    },
+    {
+      "version": "20261017151347",
+      "name": "artvideo_refund_provider_neutral_default"
+    },
+    {
+      "version": "20261019120234",
+      "name": "artvideo_service_booking"
+    },
+    {
+      "version": "20261019120357",
+      "name": "service_quote_private_wrapper"
+    },
+    {
+      "version": "20261019120736",
+      "name": "service_quote_retry_and_customer_type"
+    },
+    {
+      "version": "20261019141341",
+      "name": "site_service_weekday_slots"
+    },
+    {
+      "version": "20261019144705",
+      "name": "quote_address_sac_templates"
+    },
+    {
+      "version": "20261019145909",
+      "name": "pdv_manual_items_condition_and_sale_receipts"
+    },
+    {
+      "version": "20261019150423",
+      "name": "pdv_sale_receipt_issuer_identity"
+    },
+    {
+      "version": "20261019150902",
+      "name": "pdv_adhoc_buyer_receipt_identity"
+    },
+    {
+      "version": "20261020113436",
+      "name": "individual_permission_denials"
+    },
+    {
+      "version": "20261020113716",
+      "name": "finance_direct_settlement_filters_payment_plan"
+    },
+    {
+      "version": "20261020114414",
+      "name": "general_financial_receipts"
+    },
+    {
+      "version": "20261020115211",
+      "name": "permission_override_authorization_hardening"
+    },
+    {
+      "version": "20261020115242",
+      "name": "receipt_service_order_snapshot"
+    },
+    {
+      "version": "20261020121115",
+      "name": "receipts_simplified_customer_os_details"
+    },
+    {
+      "version": "20261020131746",
+      "name": "service_order_warranty_certificates"
+    },
+    {
+      "version": "20261020135630",
+      "name": "finance_entry_paginated_sort"
+    },
+    {
+      "version": "20261020135756",
+      "name": "whatsapp_channels_foundation"
+    },
+    {
+      "version": "20261020140418",
+      "name": "inventory_item_paginated_sort"
+    },
+    {
+      "version": "20261020140634",
+      "name": "crm_paginated_search_sort"
+    },
+    {
+      "version": "20261020150001",
+      "name": "warranty_city_fallback"
+    },
+    {
+      "version": "20261020152841",
+      "name": "union_whatsapp_inbox_stage1"
+    },
+    {
+      "version": "20261020153052",
+      "name": "union_whatsapp_webhook_ready"
+    },
+    {
+      "version": "20261020153716",
+      "name": "union_whatsapp_realtime"
+    },
+    {
+      "version": "20261020154210",
+      "name": "union_whatsapp_operator_scope"
+    },
+    {
+      "version": "20261020165950",
+      "name": "union_whatsapp_send_idempotency"
+    },
+    {
+      "version": "20261020170445",
+      "name": "finance_direct_posting_employee_filter_cleanup"
+    },
+    {
+      "version": "20261020171036",
+      "name": "warranty_certificate_template_remove_service_terms"
+    },
+    {
+      "version": "20261020172524",
+      "name": "whatsapp_delivery_receipts"
+    },
+    {
+      "version": "20261020172736",
+      "name": "union_whatsapp_private_media"
+    },
+    {
+      "version": "20261020173252",
+      "name": "os_serial_equipment_combined_search"
+    },
+    {
+      "version": "20261020173400",
+      "name": "union_whatsapp_incoming_media"
+    },
+    {
+      "version": "20261020175725",
+      "name": "whatsapp_attachment_capacity"
+    },
+    {
+      "version": "20261020181417",
+      "name": "whatsapp_receipt_trust_reset"
+    },
+    {
+      "version": "20261020183000",
+      "name": "union_whatsapp_customer_lookup"
+    },
+    {
+      "version": "20261020183044",
+      "name": "union_whatsapp_customer_normalized_ddd"
+    },
+    {
+      "version": "20261020183757",
+      "name": "union_whatsapp_departments"
+    },
+    {
+      "version": "20261020184435",
+      "name": "union_whatsapp_order_links"
+    },
+    {
+      "version": "20261020184639",
+      "name": "union_whatsapp_presence"
+    },
+    {
+      "version": "20261020191744",
+      "name": "union_whatsapp_operator_queues"
+    },
+    {
+      "version": "20261020191754",
+      "name": "union_whatsapp_contacts"
+    },
+    {
+      "version": "20261020192019",
+      "name": "union_whatsapp_apply_contact_names"
+    },
+    {
+      "version": "20261020192103",
+      "name": "union_whatsapp_default_queue_trigger"
+    },
+    {
+      "version": "20261020192657",
+      "name": "union_whatsapp_device_contact_names"
+    },
+    {
+      "version": "20261020194144",
+      "name": "consolidate_equipment_order_notifications"
+    },
+    {
+      "version": "20261020194237",
+      "name": "archive_quote_records_without_breaking_history"
+    },
+    {
+      "version": "20261020194551",
+      "name": "inventory_archive_hide_old_stock_items"
+    },
+    {
+      "version": "20261020195217",
+      "name": "union_whatsapp_seed_verified_phone_alias"
+    },
+    {
+      "version": "20261020201444",
+      "name": "union_whatsapp_verified_saved_contacts"
+    },
+    {
+      "version": "20261020201726",
+      "name": "union_whatsapp_apply_verified_names_only"
+    },
+    {
+      "version": "20261020210459",
+      "name": "union_whatsapp_atomic_bulk_contact_import"
+    },
+    {
+      "version": "20261020211235",
+      "name": "union_whatsapp_active_channel_query_index"
+    },
+    {
+      "version": "20261020213005",
+      "name": "union_whatsapp_accounts_by_phone"
+    },
+    {
+      "version": "20261020213226",
+      "name": "union_whatsapp_operator_active_account_rls"
+    },
+    {
+      "version": "20261020213413",
+      "name": "union_whatsapp_deprecate_unsafe_contact_seed"
+    },
+    {
+      "version": "20261021113226",
+      "name": "union_whatsapp_staff_roles"
+    },
+    {
+      "version": "20261021113258",
+      "name": "union_whatsapp_cleanup_contacts_and_duplicate_threads"
+    },
+    {
+      "version": "20261021113518",
+      "name": "union_whatsapp_three_saved_connections"
+    },
+    {
+      "version": "20261021114107",
+      "name": "union_whatsapp_sticker_message_type"
+    },
+    {
+      "version": "20261021114645",
+      "name": "union_whatsapp_role_permission_matrix"
+    },
+    {
+      "version": "20261021125600",
+      "name": "union_whatsapp_protocols"
+    },
+    {
+      "version": "20261021133249",
+      "name": "union_whatsapp_queue_wait_times"
+    },
+    {
+      "version": "20261021141032",
+      "name": "union_whatsapp_forwarding_and_queue_preferences"
+    },
+    {
+      "version": "20261021150921",
+      "name": "union_whatsapp_inbox_pagination"
+    },
+    {
+      "version": "20261021164308",
+      "name": "union_whatsapp_verified_identity_sync"
+    },
+    {
+      "version": "20261021170830",
+      "name": "internal_quotes_and_comments"
+    },
+    {
+      "version": "20261021171028",
+      "name": "save_internal_quote_atomic"
+    },
+    {
+      "version": "20261021174032",
+      "name": "reuse_quote_equipment_fields_and_form"
+    },
+    {
+      "version": "20261021174121",
+      "name": "quote_equipment_images"
+    },
+    {
+      "version": "20261021174654",
+      "name": "union_whatsapp_transfer_receiver_scope"
+    },
+    {
+      "version": "20261021181427",
+      "name": "order_based_quotes_schema"
+    },
+    {
+      "version": "20261021181450",
+      "name": "expose_quote_type_config_in_rpcs"
+    },
+    {
+      "version": "20261021181541",
+      "name": "manage_order_quote_versions"
+    },
+    {
+      "version": "20261021182552",
+      "name": "apply_approved_quote_to_existing_order"
+    },
+    {
+      "version": "20261021182700",
+      "name": "retire_standalone_internal_quote_flow"
+    },
+    {
+      "version": "20261021183217",
+      "name": "quote_override_only_on_initial_execution_copy"
+    },
+    {
+      "version": "20261021190641",
+      "name": "require_quote_approval_before_os_execution"
+    },
+    {
+      "version": "20261021190823",
+      "name": "enforce_order_quote_catalog_prices_stock"
+    },
+    {
+      "version": "20261021193529",
+      "name": "create_order_quote_print_models"
+    },
+    {
+      "version": "20261021200531",
+      "name": "reorder_quote_print_fields_and_dynamic_equipment"
+    },
+    {
+      "version": "20261021200838",
+      "name": "enable_equipment_accessories_condition_in_quote_models"
+    },
+    {
+      "version": "20261021202425",
+      "name": "quotation_problem_description_first_readonly_field"
+    },
+    {
+      "version": "20261021205628",
+      "name": "confirm_approval_quote_version"
+    },
+    {
+      "version": "20261021210644",
+      "name": "limit_quote_technical_text_400_characters"
+    },
+    {
+      "version": "20261022121112",
+      "name": "record_union_test_seed_runs_for_safe_cleanup"
+    },
+    {
+      "version": "20261022123026",
+      "name": "union_only_term_writes"
+    },
+    {
+      "version": "20261022123620",
+      "name": "track_union_test_seed_side_effects_for_cleanup"
+    },
+    {
+      "version": "20261022124545",
+      "name": "union_ai_usage_and_effective_quotas_20261022"
+    },
+    {
+      "version": "20261022124627",
+      "name": "union_ai_invoker_for_service_role_restriction"
+    },
+    {
+      "version": "20261022131020",
+      "name": "artvideo_sequential_public_quote_protocol"
+    },
+    {
+      "version": "20261022132232",
+      "name": "artvideo_quote_protocol_unbounded_digits"
+    },
+    {
+      "version": "20261022132810",
+      "name": "artvideo_quote_protocol_without_padding"
+    },
+    {
+      "version": "20261022143045",
+      "name": "track_service_order_catalog_details"
+    },
+    {
+      "version": "20261022145141",
+      "name": "general_services_description_quote_print"
+    },
+    {
+      "version": "20261022151336",
+      "name": "artvideo_public_product_spec_columns"
+    },
+    {
+      "version": "20261023120601",
+      "name": "site_product_category_icon"
+    },
+    {
+      "version": "20261023130238",
+      "name": "artvideo_mercado_pago_checkout_pro"
+    },
+    {
+      "version": "20261023130715",
+      "name": "artvideo_mercado_pago_sandbox_homologation"
+    },
+    {
+      "version": "20261023133659",
+      "name": "artvideo_checkout_pro_isolated_lab"
+    },
+    {
+      "version": "20261023150953",
+      "name": "artvideo_mercado_pago_signed_webhook_diagnostics"
+    },
+    {
+      "version": "20261023160531",
+      "name": "artvideo_mercado_pago_isolated_live_payment_check"
+    },
+    {
+      "version": "20261023160849",
+      "name": "artvideo_mercado_pago_live_payment_checkout_resume"
+    },
+    {
+      "version": "20261023161242",
+      "name": "artvideo_mercado_pago_live_checkout_url_allowlist_fix"
+    },
+    {
+      "version": "20261023165622",
+      "name": "artvideo_mercado_pago_legacy_ipn_audit"
+    },
+    {
+      "version": "20261023172724",
+      "name": "artvideo_store_payment_dispute_safe_review"
+    },
+    {
+      "version": "20261023172955",
+      "name": "artvideo_store_single_payment_dispute_safe_review"
+    },
+    {
+      "version": "20261023174045",
+      "name": "artvideo_store_private_homologation_invites"
+    },
+    {
+      "version": "20261023181312",
+      "name": "user_login_session_audit"
+    },
+    {
+      "version": "20261023182511",
+      "name": "artvideo_store_mp_checkout_live_homologation_ready"
+    },
+    {
+      "version": "20261023184311",
+      "name": "artvideo_store_payment_brick_single_attempts"
+    },
+    {
+      "version": "20261023184626",
+      "name": "user_login_summary_recent_50"
+    },
+    {
+      "version": "20261023184915",
+      "name": "artvideo_store_mercado_pago_bricks_public_key"
+    },
+    {
+      "version": "20261026103823",
+      "name": "channel_connection_delete_permission"
+    },
+    {
+      "version": "20261026103936",
+      "name": "artvideo_store_order_number_realtime"
+    },
+    {
+      "version": "20261026104858",
+      "name": "artvideo_store_pickup_pin"
+    },
+    {
+      "version": "20261026105035",
+      "name": "artvideo_pickup_attempt_counter_fix"
+    },
+    {
+      "version": "20261026124147",
+      "name": "artvideo_order_stock_address_lookup"
+    },
+    {
+      "version": "20261026130500",
+      "name": "artvideo_site_quote_workflows"
+    },
+    {
+      "version": "20261026130931",
+      "name": "artvideo_site_quote_edit_offer"
+    },
+    {
+      "version": "20261026130952",
+      "name": "artvideo_store_pickup_tracking_code"
+    },
+    {
+      "version": "20261026131338",
+      "name": "unique_service_order_for_quote"
+    },
+    {
+      "version": "20261026131550",
+      "name": "auto_route_repair_quote_intake"
+    },
+    {
+      "version": "20261026131632",
+      "name": "scope_repair_intake_to_artvideo"
+    },
+    {
+      "version": "20261026131817",
+      "name": "reopen_site_service_proposal"
+    },
+    {
+      "version": "20261026132250",
+      "name": "artvideo_store_pickup_lookup_secure"
+    },
+    {
+      "version": "20261026132316",
+      "name": "artvideo_store_pickup_lookup_rpc"
+    },
+    {
+      "version": "20261026132925",
+      "name": "artvideo_store_pickup_lookup_retry_window"
+    },
+    {
+      "version": "20261026133055",
+      "name": "artvideo_store_pickup_lookup_service_boundary"
+    },
+    {
+      "version": "20261026133806",
+      "name": "artvideo_store_pin_only_tracking"
+    },
+    {
+      "version": "20261026135318",
+      "name": "artvideo_staff_pickup_pin_lookup_lifecycle"
+    },
+    {
+      "version": "20261026135405",
+      "name": "artvideo_staff_pickup_lookup_uuid_compat"
+    },
+    {
+      "version": "20261026135628",
+      "name": "artvideo_pickup_attempts_daily_cleanup"
+    },
+    {
+      "version": "20261026144956",
+      "name": "unify_public_service_intake"
+    },
+    {
+      "version": "20261026145136",
+      "name": "site_quote_location_photos"
+    },
+    {
+      "version": "20261026145817",
+      "name": "site_quote_convert_standard_os"
+    },
+    {
+      "version": "20261026151210",
+      "name": "service_onsite_preferred_schedule"
+    },
+    {
+      "version": "20261026173218",
+      "name": "artvideo_customer_portal_foundation"
+    },
+    {
+      "version": "20261026174341",
+      "name": "artvideo_customer_portal_buyer_email_fix"
+    },
+    {
+      "version": "20261026174557",
+      "name": "artvideo_customer_activate_uuid_aggregate"
+    },
+    {
+      "version": "20261026174641",
+      "name": "registration_pagination_origin"
+    },
+    {
+      "version": "20261026220145",
+      "name": "artvideo_site_account_without_crm_link"
+    },
+    {
+      "version": "20261026221147",
+      "name": "site_customer_cpf_first_name_schema"
+    },
+    {
+      "version": "20261026221155",
+      "name": "site_customer_cpf_first_name_helpers"
+    },
+    {
+      "version": "20261026221203",
+      "name": "site_customer_cpf_first_name_activation"
+    },
+    {
+      "version": "20261026221224",
+      "name": "site_customer_cpf_first_name_status"
+    },
+    {
+      "version": "20261026221225",
+      "name": "site_customer_cpf_first_name_review_list"
+    },
+    {
+      "version": "20261026221227",
+      "name": "site_customer_cpf_first_name_review_decision"
+    },
+    {
+      "version": "20261026221229",
+      "name": "site_customer_cpf_first_name_grants"
+    },
+    {
+      "version": "20261026221303",
+      "name": "site_customer_cpf_validators_fix"
+    },
+    {
+      "version": "20261026222348",
+      "name": "site_customer_match_cpf_first_name_only"
+    },
+    {
+      "version": "20261027123837",
+      "name": "union_whatsapp_collaboration"
+    },
+    {
+      "version": "20261027124710",
+      "name": "artvideo_customer_addresses_favorites_profile"
+    },
+    {
+      "version": "20261027130804",
+      "name": "artvideo_public_catalog_authenticated_select"
+    },
+    {
+      "version": "20261027174049",
+      "name": "fix_audit_actor_for_authenticated_site_customers"
+    },
+    {
+      "version": "20261027174536",
+      "name": "log_safe_details_for_public_quote_submissions"
+    },
+    {
+      "version": "20261027174716",
+      "name": "fix_site_customer_entity_creator_without_crm_profile"
+    },
+    {
+      "version": "20261028111633",
+      "name": "artvideo_customer_whatsapp_invites"
+    },
+    {
+      "version": "20261028111831",
+      "name": "artvideo_customer_portal_visibility"
+    },
+    {
+      "version": "20261028112342",
+      "name": "artvideo_customer_portal_verified_identity"
+    },
+    {
+      "version": "20261028112412",
+      "name": "artvideo_customer_shared_whatsapp_guard"
+    },
+    {
+      "version": "20261028113924",
+      "name": "union_central_gestao"
+    },
+    {
+      "version": "20261028120342",
+      "name": "artvideo_customer_orphan_link_repair"
+    },
+    {
+      "version": "20261028122132",
+      "name": "customer_unique_whatsapp_per_company"
+    },
+    {
+      "version": "20261028123213",
+      "name": "customer_gender_cpf_lookup"
+    },
+    {
+      "version": "20261028124442",
+      "name": "technician_customer_document_permission"
+    },
+    {
+      "version": "20261028131352",
+      "name": "store_order_registration_links"
+    },
+    {
+      "version": "20261028144905",
+      "name": "artvideo_site_registration_otp"
+    },
+    {
+      "version": "20261028151952",
+      "name": "artvideo_customer_orders_signatures_center"
+    },
+    {
+      "version": "20261028152756",
+      "name": "customer_custom_service_items"
+    },
+    {
+      "version": "20261028162534",
+      "name": "customer_order_situations_timeline"
+    },
+    {
+      "version": "20261028175431",
+      "name": "union_central_gestao_extended"
+    },
+    {
+      "version": "20261028175615",
+      "name": "union_management_domain_reminders"
+    },
+    {
+      "version": "20261028180000",
+      "name": "union_management_audit_trigger_fix"
+    },
+    {
+      "version": "20261028180050",
+      "name": "union_management_trash_preserve_individual"
+    },
+    {
+      "version": "20261028191633",
+      "name": "union_management_trash_seven_day_purge"
+    },
+    {
+      "version": "20261028192044",
+      "name": "union_management_service_role_claim_fix"
+    },
+    {
+      "version": "20261028195110",
+      "name": "artvideo_customer_registration_link_retry"
+    },
+    {
+      "version": "20261028195206",
+      "name": "artvideo_customer_self_verify_phone"
+    },
+    {
+      "version": "20261028195251",
+      "name": "artvideo_customer_verified_crm_history_access"
+    },
+    {
+      "version": "20261028195422",
+      "name": "artvideo_customer_registration_without_email"
+    },
+    {
+      "version": "20261028195634",
+      "name": "customer_account_orders_situation_equipment"
+    },
+    {
+      "version": "20261028195716",
+      "name": "artvideo_customer_avoid_duplicate_dos"
+    },
+    {
+      "version": "20261028201201",
+      "name": "customer_os_invoice_documents"
+    },
+    {
+      "version": "20261028202036",
+      "name": "artvideo_site_and_quotes_only"
+    },
+    {
+      "version": "20261029142917",
+      "name": "optimize_technician_photo_rls_lookup"
+    },
+    {
+      "version": "20261029143920",
+      "name": "cache_auth_uid_in_hot_policies"
+    },
+    {
+      "version": "20261029163040",
+      "name": "order_quote_photos"
+    },
+    {
+      "version": "20261030114452",
+      "name": "cadastros_filtros_autor_data_paginados"
+    },
+    {
+      "version": "20261030131730",
+      "name": "artvideo_site_cpf_full_name_verification"
+    },
+    {
+      "version": "20261030132415",
+      "name": "union_management_safe_move_items"
+    },
+    {
+      "version": "20261030132435",
+      "name": "artvideo_site_cpf_ticket_user_index"
+    },
+    {
+      "version": "20261030132541",
+      "name": "union_management_safe_move_audit_fix"
+    },
+    {
+      "version": "20261030133343",
+      "name": "artvideo_site_cpf_cache_7_days"
+    },
+    {
+      "version": "20261030134806",
+      "name": "product_site_characteristics"
+    },
+    {
+      "version": "20261030145416",
+      "name": "finance_recurring_inline_cancellation"
+    },
+    {
+      "version": "20261030151204",
+      "name": "optimize_notification_read_snapshot"
+    },
+    {
+      "version": "20261101172843",
+      "name": "quote_item_reconciliation_history"
+    },
+    {
+      "version": "20261101173216",
+      "name": "quote_reconciliation_history_order_index"
+    },
+    {
+      "version": "20261101173406",
+      "name": "quote_reconciliation_order_history_note"
+    },
+    {
+      "version": "20261101204329",
+      "name": "block_closed_os_situation_changes"
+    },
+    {
+      "version": "20261101213818",
+      "name": "reuse_existing_quote_execution_items"
+    },
+    {
+      "version": "20261101214154",
+      "name": "fix_quote_reuse_uuid_aggregation"
+    },
+    {
+      "version": "20261103105418",
+      "name": "os_multiselect_exact_search"
+    },
+    {
+      "version": "20261103112230",
+      "name": "registration_service_provider_services"
+    },
+    {
+      "version": "20261103114246",
+      "name": "ensure_payment_receipt_attachment_types"
+    },
+    {
+      "version": "20261103115943",
+      "name": "require_order_payment_proof_per_company"
+    },
+    {
+      "version": "20261103120404",
+      "name": "ensure_payment_receipt_type_when_required"
+    },
+    {
+      "version": "20261103121537",
+      "name": "link_order_payment_proofs_financial_documents"
+    },
+    {
+      "version": "20261103125451",
+      "name": "order_neighborhood_multiselect_filter"
+    },
+    {
+      "version": "20261103125840",
+      "name": "order_neighborhood_state_aliases"
+    },
+    {
+      "version": "20261103152225",
+      "name": "union_platform_service_provider_directory"
+    },
+    {
+      "version": "20261103152339",
+      "name": "union_platform_provider_directory_search"
+    },
+    {
+      "version": "20261103153226",
+      "name": "union_provider_relationship_indexes"
+    },
+    {
+      "version": "20261103154215",
+      "name": "union_provider_criminal_certificate_checks"
+    },
+    {
+      "version": "20261103155402",
+      "name": "union_provider_crm_form_fields"
+    },
+    {
+      "version": "20261103160256",
+      "name": "union_provider_checks_fk_indexes"
+    },
+    {
+      "version": "20261103162346",
+      "name": "union_provider_instagram_profile"
+    },
+    {
+      "version": "20261103164652",
+      "name": "fix_union_provider_attachment_storage_policy"
+    },
+    {
+      "version": "20261103164747",
+      "name": "union_provider_multiselect_filters_v4"
+    },
+    {
+      "version": "20261103170142",
+      "name": "order_mobile_payment_proof_capture_context"
+    },
+    {
+      "version": "20261103212128",
+      "name": "union_provider_service_equipment_hierarchy"
+    },
+    {
+      "version": "20261103214943",
+      "name": "union_provider_equipment_multiselect_filter_v5"
+    },
+    {
+      "version": "20261104022003",
+      "name": "pbx_extension_registry_foundation"
+    },
+    {
+      "version": "20261104022025",
+      "name": "pbx_extension_trigger_ownership_fix"
+    },
+    {
+      "version": "20261104111730",
+      "name": "pbx_signed_agent_enrollment"
+    },
+    {
+      "version": "20261104114539",
+      "name": "union_provider_profession_equipment_service"
+    },
+    {
+      "version": "20261104114833",
+      "name": "pbx_browser_one_time_credential_handoff"
+    },
+    {
+      "version": "20261104120826",
+      "name": "union_platform_olx_integration_catalog"
+    },
+    {
+      "version": "20261104125015",
+      "name": "pbx_queue_configuration_and_member_acl"
+    },
+    {
+      "version": "20261104125815",
+      "name": "pbx_queue_employee_test_directory"
+    },
+    {
+      "version": "20261104133948",
+      "name": "pbx_queue_live_status_snapshots"
+    },
+    {
+      "version": "20261104141218",
+      "name": "pbx_inbound_route_plan_inert"
+    },
+    {
+      "version": "20261105141339",
+      "name": "service_order_device_unlock"
+    },
+    {
+      "version": "20261105142042",
+      "name": "discard_unlock_on_equipment_change"
+    },
+    {
+      "version": "20261105174930",
+      "name": "union_catalog_models_curated_opt_in_20261105"
+    },
+    {
+      "version": "20261105175030",
+      "name": "union_catalog_models_list_by_local_equipment_20261105"
+    },
+    {
+      "version": "20261105175352",
+      "name": "union_auto_distribute_models_with_selected_segments_20261105"
+    },
+    {
+      "version": "20261105181219",
+      "name": "union_segment_initial_os_and_equipment_checklist_seeds_20261105"
+    },
+    {
+      "version": "20261105181332",
+      "name": "union_initial_os_seed_valid_sla_20261105"
+    },
+    {
+      "version": "20261105193726",
+      "name": "remove_service_order_unlock_manual_consent_v1"
+    },
+    {
+      "version": "20261105201423",
+      "name": "union_segment_document_templates_online_signature"
+    },
+    {
+      "version": "20261105202518",
+      "name": "limit_union_segment_documents_to_order_and_quote_refresh_test"
+    },
+    {
+      "version": "20261105204442",
+      "name": "signature_notifications_only_on_signed_exclude_self"
+    },
+    {
+      "version": "20261106002236",
+      "name": "fix_registration_save_after_union_provider_split"
+    },
+    {
+      "version": "20261106004358",
+      "name": "order_rules_schema_v1"
+    },
+    {
+      "version": "20261106005437",
+      "name": "effective_order_rules_v1"
+    },
+    {
+      "version": "20261106005633",
+      "name": "validate_order_rules_v1"
+    },
+    {
+      "version": "20261106005721",
+      "name": "atomic_order_rules_capture"
+    },
+    {
+      "version": "20261106025221",
+      "name": "enforce_order_rules_on_start_finish"
+    },
+    {
+      "version": "20261106025409",
+      "name": "enforce_order_rules_stages_and_custom_fields"
+    },
+    {
+      "version": "20261106025549",
+      "name": "configurable_resolution_requirements"
+    },
+    {
+      "version": "20261106030519",
+      "name": "harden_order_rule_attachments_and_snapshot"
+    },
+    {
+      "version": "20261106122445",
+      "name": "order_quote_social_comments"
+    },
+    {
+      "version": "20261106130241",
+      "name": "order_quote_comment_audio"
+    },
+    {
+      "version": "20261106132057",
+      "name": "disable_quote_comment_audio_uploads"
+    },
+    {
+      "version": "20261106133136",
+      "name": "artvideo_public_products_anon_columns_20261106"
+    },
+    {
+      "version": "20261106140447",
+      "name": "finance_movement_period_search_v2_20261106"
+    },
+    {
+      "version": "20261106140456",
+      "name": "finance_bulk_settlement_forecast_adjustment_20261106"
+    },
+    {
+      "version": "20261106140524",
+      "name": "product_related_codes_search_20261106"
+    },
+    {
+      "version": "20261106141647",
+      "name": "os_external_partial_search"
+    },
+    {
+      "version": "20261106143238",
+      "name": "approved_order_quote_reopen_with_reason_and_lock"
+    },
+    {
+      "version": "20261106143713",
+      "name": "lock_approved_quote_discount"
+    },
+    {
+      "version": "20261106143911",
+      "name": "disable_new_unsolvable_os"
+    },
+    {
+      "version": "20261106144341",
+      "name": "fix_atomic_order_rules_auth_exec_20261106"
+    },
+    {
+      "version": "20261106144519",
+      "name": "approved_quote_history_audit_helper"
+    },
+    {
+      "version": "20261106145648",
+      "name": "order_item_pin_persistence_and_quote_inheritance"
+    },
+    {
+      "version": "20261106154320",
+      "name": "inventory_sale_window_batch_tracking"
+    },
+    {
+      "version": "20261106154654",
+      "name": "inventory_sale_batch_summaries"
+    },
+    {
+      "version": "20261106155417",
+      "name": "inventory_sale_batch_read_permitted_views"
+    },
+    {
+      "version": "20261106184044",
+      "name": "finance_order_service_titles_snapshot_20261106"
+    },
+    {
+      "version": "20261106190209",
+      "name": "product_compatibility_links_and_pdv_20261106"
+    },
+    {
+      "version": "20261106193737",
+      "name": "automatic_compatibility_from_related_codes"
+    },
+    {
+      "version": "20261106195317",
+      "name": "product_variation_groups_and_inventory_details"
+    },
+    {
+      "version": "20261106202309",
+      "name": "product_compatibility_inventory_permissions_20261106"
+    },
+    {
+      "version": "20261107100704",
+      "name": "product_similars_separate"
+    },
+    {
+      "version": "20261107100706",
+      "name": "product_variation_matrix_create"
+    },
+    {
+      "version": "20261107100708",
+      "name": "product_similars_pdv_service_orders"
+    },
+    {
+      "version": "20261107100710",
+      "name": "compatibility_verified_only"
+    },
+    {
+      "version": "20261107100711",
+      "name": "product_related_codes_classification"
+    },
+    {
+      "version": "20261107102500",
+      "name": "product_relations_bidirectional_unified"
+    },
+    {
+      "version": "20261107103036",
+      "name": "inventory_search_related_products"
+    },
+    {
+      "version": "20261107103932",
+      "name": "deprecate_compatible_related_code"
+    },
+    {
+      "version": "20261107115544",
+      "name": "product_identifiers_free_input"
+    },
+    {
+      "version": "20261107120021",
+      "name": "variations_free_barcode_format"
+    },
+    {
+      "version": "20261107120640",
+      "name": "product_commercial_condition"
+    },
+    {
+      "version": "20261107121207",
+      "name": "product_mobile_capture_context"
+    },
+    {
+      "version": "20261107124410",
+      "name": "variation_suppliers_per_sku"
+    },
+    {
+      "version": "20261107132735",
+      "name": "product_main_variation_options"
+    },
+    {
+      "version": "20261107144127",
+      "name": "product_device_capture_photo_sync"
+    },
+    {
+      "version": "20261107233435",
+      "name": "notifications_meaningful_events_and_permissions_20261107"
+    },
+    {
+      "version": "20261107235324",
+      "name": "fix_notification_catalog_for_tenants_20261107"
+    },
+    {
+      "version": "20261108002449",
+      "name": "union_sales_commercial_checkout"
+    },
+    {
+      "version": "20261108002545",
+      "name": "union_sales_checkout_readiness"
+    },
+    {
+      "version": "20261108141939",
+      "name": "product_device_compatible_models"
+    },
+    {
+      "version": "20261108142319",
+      "name": "sales_product_details_v1"
+    },
+    {
+      "version": "20261108143015",
+      "name": "device_model_index_and_search_guard"
+    },
+    {
+      "version": "20261108144425",
+      "name": "grant_public_product_condition_to_storefront"
+    },
+    {
+      "version": "20261108152820",
+      "name": "union_sales_orders_management"
+    },
+    {
+      "version": "20261108153647",
+      "name": "union_sales_order_list_payment_alias"
+    },
+    {
+      "version": "20261108154006",
+      "name": "union_sales_order_fk_indexes"
+    },
+    {
+      "version": "20261108193624",
+      "name": "sales_checkout_mixed_payments_installments"
+    },
+    {
+      "version": "20261108193944",
+      "name": "optimize_notification_scope_delivery"
+    },
+    {
+      "version": "20261108194001",
+      "name": "sales_order_installments_detail"
+    },
+    {
+      "version": "20261108194640",
+      "name": "sales_order_items_lookup_indexes"
+    },
+    {
+      "version": "20261108201143",
+      "name": "union_sales_proposals_core"
+    },
+    {
+      "version": "20261108201220",
+      "name": "sales_proposal_conversion"
+    },
+    {
+      "version": "20261108201749",
+      "name": "sales_proposal_expired_renegotiation"
+    },
+    {
+      "version": "20261108202147",
+      "name": "sales_proposal_reopen_after_approval"
+    },
+    {
+      "version": "20261108202254",
+      "name": "sales_proposal_converted_order_fk_index"
+    },
+    {
+      "version": "20261108202404",
+      "name": "sales_proposal_expected_price_guard"
+    },
+    {
+      "version": "20261108202535",
+      "name": "sales_proposal_product_price_lock"
+    },
+    {
+      "version": "20261108204046",
+      "name": "sales_operations_foundation"
+    },
+    {
+      "version": "20261108204243",
+      "name": "sales_reservations_delivery_rpcs"
+    },
+    {
+      "version": "20261108204351",
+      "name": "sales_reserved_conversion_and_delivery_guard"
+    },
+    {
+      "version": "20261108204606",
+      "name": "sales_return_workflow"
+    },
+    {
+      "version": "20261108204827",
+      "name": "sales_commercial_conveniences"
+    },
+    {
+      "version": "20261108204933",
+      "name": "sales_management_metrics_and_goals"
+    },
+    {
+      "version": "20261108205048",
+      "name": "sales_delivery_reservation_reads"
+    },
+    {
+      "version": "20261108205615",
+      "name": "sales_proposal_public_approval"
+    },
+    {
+      "version": "20261108205845",
+      "name": "sales_proposal_detail_customer_channel"
+    },
+    {
+      "version": "20261108210242",
+      "name": "sales_quick_customer_document_checksums"
+    },
+    {
+      "version": "20261108210924",
+      "name": "sales_reserved_stock_available_search"
+    },
+    {
+      "version": "20261108211113",
+      "name": "sales_commission_approvals_finance"
+    },
+    {
+      "version": "20261108211435",
+      "name": "sales_reserved_stock_available_search"
+    },
+    {
+      "version": "20261108212206",
+      "name": "sales_return_receivable_credit_reconciliation"
+    },
+    {
+      "version": "20261108212403",
+      "name": "sales_order_net_due_after_returns"
+    },
+    {
+      "version": "20261108212841",
+      "name": "sales_approval_link_attempt_limit"
+    },
+    {
+      "version": "20261108213410",
+      "name": "sales_exchange_inventory_fulfillment"
+    },
+    {
+      "version": "20261108213458",
+      "name": "sales_return_exchange_items_read"
+    },
+    {
+      "version": "20261108213718",
+      "name": "sales_return_credit_deferred_until_ledger"
+    },
+    {
+      "version": "20261108214033",
+      "name": "sales_exchange_unit_cost_normalization"
+    },
+    {
+      "version": "20261108214330",
+      "name": "sales_margin_returns_exchanges_accurate"
+    },
+    {
+      "version": "20261108214401",
+      "name": "sales_commission_refund_only_adjustments"
+    },
+    {
+      "version": "20261108225531",
+      "name": "sales_catalog_details_categories_locations"
+    },
+    {
+      "version": "20261108230342",
+      "name": "sales_test_40_homologation_products"
+    },
+    {
+      "version": "20261108230453",
+      "name": "sales_test_stock_locations_after_product_sync"
+    },
+    {
+      "version": "20261109001401",
+      "name": "sales_orders_proposals_realtime"
+    },
+    {
+      "version": "20261109120218",
+      "name": "finance_initial_defaults_for_every_company"
+    },
+    {
+      "version": "20261109135701",
+      "name": "fix_legacy_order_assignee_blocking_completion"
+    },
+    {
+      "version": "20261110011428",
+      "name": "pbx_signed_call_history_foundation"
+    },
+    {
+      "version": "20261110020222",
+      "name": "pbx_queue_member_availability_controls"
+    },
+    {
+      "version": "20261110021349",
+      "name": "pbx_queue_control_generation_order"
+    },
+    {
+      "version": "20261110112752",
+      "name": "pbx_call_history_reports"
+    },
+    {
+      "version": "20261110120623",
+      "name": "service_order_returns_r1"
+    },
+    {
+      "version": "20261110121110",
+      "name": "service_order_return_completion_guard"
+    },
+    {
+      "version": "20261110121636",
+      "name": "inventory_movement_easy_ncm_and_sale_window"
+    },
+    {
+      "version": "20261110122224",
+      "name": "inventory_movement_legacy_items_compatibility"
+    },
+    {
+      "version": "20261110125532",
+      "name": "force_return_urgent_priority"
+    },
+    {
+      "version": "20261110131931",
+      "name": "service_order_returns_warranty_completion_v2"
+    },
+    {
+      "version": "20261110134933",
+      "name": "return_warranty_quote_guards_v1"
+    },
+    {
+      "version": "20261110135124",
+      "name": "return_eligibility_diagnosis_and_new_os_v1"
+    },
+    {
+      "version": "20261110135709",
+      "name": "return_quote_permissions_and_execution_guard_v1"
+    },
+    {
+      "version": "20261110140028",
+      "name": "guard_return_situation_before_diagnosis_v1"
+    },
+    {
+      "version": "20261110140045",
+      "name": "pbx_tenant_runtime_admission"
+    },
+    {
+      "version": "20261110143748",
+      "name": "inventory_catalog_taxonomy_20261110"
+    },
+    {
+      "version": "20261110144944",
+      "name": "inventory_catalog_taxonomy_access_20261110"
+    },
+    {
+      "version": "20261110155646",
+      "name": "fix_return_diagnosis_manager_permissions_v1"
+    },
+    {
+      "version": "20261110165015",
+      "name": "pbx_agent_private_schema_usage"
+    },
+    {
+      "version": "20261110170334",
+      "name": "service_type_warranty_and_reopen_os_v1"
+    },
+    {
+      "version": "20261110170531",
+      "name": "expose_service_type_warranty_in_orders_reference_v1"
+    },
+    {
+      "version": "20261110171109",
+      "name": "quote_audit_without_automatic_team_note"
+    },
+    {
+      "version": "20261110192234",
+      "name": "reopen_os_requires_reason_v1"
+    },
+    {
+      "version": "20261110202521",
+      "name": "pbx_private_prompts_and_call_flows"
+    },
+    {
+      "version": "20261110205920",
+      "name": "employee_crm_access_hours_20261110"
+    },
+    {
+      "version": "20261110211302",
+      "name": "employee_crm_hours_unified_entities_20261110"
+    },
+    {
+      "version": "20261110211506",
+      "name": "employee_crm_schedule_platform_operator_access_20261110"
+    },
+    {
+      "version": "20261111101756",
+      "name": "pbx_sip_trunk_registry"
+    },
+    {
+      "version": "20261111154743",
+      "name": "optimize_auth_access_single_organization_scan"
+    },
+    {
+      "version": "20261111163048",
+      "name": "pbx_managed_sip_history"
+    },
+    {
+      "version": "20261111174408",
+      "name": "pbx_automatic_recordings"
+    },
+    {
+      "version": "20261111180057",
+      "name": "union_whatsapp_quick_replies_20261111"
+    },
+    {
+      "version": "20261111233237",
+      "name": "bundle_auth_access_window"
+    },
+    {
+      "version": "20261112011418",
+      "name": "retire_uniq_runtime"
+    },
+    {
+      "version": "20261112012709",
+      "name": "purge_uniq_legacy_database"
+    },
+    {
+      "version": "20261112113141",
+      "name": "union_whatsapp_private_caches"
+    },
+    {
+      "version": "20261112130227",
+      "name": "pbx_operator_realtime_changes"
+    },
+    {
+      "version": "20261112132333",
+      "name": "pbx_cached_contact_cards_by_phone_v1"
+    },
+    {
+      "version": "20261112132512",
+      "name": "pbx_contact_access_v1"
+    },
+    {
+      "version": "20261112134639",
+      "name": "pbx_contacts_independent_directory_and_priority_v2"
+    },
+    {
+      "version": "20261113113611",
+      "name": "order_completion_evidence_by_type_20261113"
+    },
+    {
+      "version": "20261113120110",
+      "name": "link_order_delivery_evidence_to_finance_20261113"
+    },
+    {
+      "version": "20261113124416",
+      "name": "pbx_legacy_trunk_controls"
+    },
+    {
+      "version": "20261113133131",
+      "name": "pbx_extension_call_modes"
+    },
+    {
+      "version": "20261113144405",
+      "name": "pbx_separate_internal_external_call_modes"
+    },
+    {
+      "version": "20261113194302",
+      "name": "union_whatsapp_customer_ninth_digit_alias_v1"
+    },
+    {
+      "version": "20261115130810",
+      "name": "union_media_recompression_single_worker_lease"
+    },
+    {
+      "version": "20261115134626",
+      "name": "media_cleanup_financial_reference_recovery_snapshot"
+    },
+    {
+      "version": "20261116225835",
+      "name": "union_whatsapp_quoted_replies"
+    },
+    {
+      "version": "20261117133700",
+      "name": "finance_losses_quote_rejections"
+    },
+    {
+      "version": "20261117133803",
+      "name": "close_rejected_quote_return"
+    },
+    {
+      "version": "20261117133926",
+      "name": "finance_losses_summary"
+    },
+    {
+      "version": "20261117134421",
+      "name": "service_order_workspace_return_outcome"
+    },
+    {
+      "version": "20261117134905",
+      "name": "finance_losses_prevent_recovery_double_count"
+    },
+    {
+      "version": "20261117135016",
+      "name": "prevent_warranty_on_rejected_quote_return"
+    },
+    {
+      "version": "20261117150445",
+      "name": "add_disposal_service_type_and_partner_role"
+    },
+    {
+      "version": "20261117151238",
+      "name": "work_item_activity_actor_and_field_changes"
+    },
+    {
+      "version": "20261117151728",
+      "name": "add_disposal_completion_without_financial_movements"
+    },
+    {
+      "version": "20261117152155",
+      "name": "include_disposal_partner_in_order_workspace_bootstrap"
+    },
+    {
+      "version": "20261117155934",
+      "name": "union_whatsapp_order_contacts_v1_20261117"
+    },
+    {
+      "version": "20261117181832",
+      "name": "dashboard_orders_charts_aggregates"
+    },
+    {
+      "version": "20261117181900",
+      "name": "dashboard_widget_preferences_per_user"
+    },
+    {
+      "version": "20261117182006",
+      "name": "partner_warranty_receivable_on_completion"
+    },
+    {
+      "version": "20261117184523",
+      "name": "defer_warranty_receivable_details_to_finance"
+    },
+    {
+      "version": "20261117185439",
+      "name": "dashboard_orders_rpc_acl_cost_optimization"
+    },
+    {
+      "version": "20261117193057",
+      "name": "order_exit_terms_situations_custody"
+    },
+    {
+      "version": "20261117193153",
+      "name": "allow_verified_terminal_closure_transition"
+    },
+    {
+      "version": "20261117194237",
+      "name": "guard_special_terminal_situations"
+    },
+    {
+      "version": "20261117194247",
+      "name": "financial_losses_signed_terminal_outcomes"
+    },
+    {
+      "version": "20261117194255",
+      "name": "service_order_terminal_exit_secure_rpc"
+    },
+    {
+      "version": "20261117194506",
+      "name": "terminal_loss_permission_hardening"
+    },
+    {
+      "version": "20261118010522",
+      "name": "union_whatsapp_contact_audit_history"
+    },
+    {
+      "version": "20261118133411",
+      "name": "union_whatsapp_contact_action_permissions"
+    },
+    {
+      "version": "20261118135739",
+      "name": "whatsapp_independent_combined_role"
+    },
+    {
+      "version": "20261118140618",
+      "name": "whatsapp_crm_number_verification"
+    },
+    {
+      "version": "20261118140755",
+      "name": "whatsapp_crm_verified_numbers_backfill"
+    },
+    {
+      "version": "20261118142215",
+      "name": "union_whatsapp_crm_name_priority"
+    },
+    {
+      "version": "20261118225700",
+      "name": "customers_exact_filtered_page"
+    },
+    {
+      "version": "20261119105303",
+      "name": "union_whatsapp_unanswered_priority"
+    },
+    {
+      "version": "20261119105926",
+      "name": "union_whatsapp_manage_groups"
+    },
+    {
+      "version": "20261119131755",
+      "name": "union_whatsapp_preserve_queue_cycle"
+    },
+    {
+      "version": "20261119145645",
+      "name": "union_whatsapp_document_download_limit"
+    },
+    {
+      "version": "20261119195908",
+      "name": "dashboard_attendances_aggregates_v1"
+    },
+    {
+      "version": "20261119200916",
+      "name": "dashboard_attendances_manager_rls"
+    },
+    {
+      "version": "20261119201133",
+      "name": "dashboard_attendances_private_optimized"
+    },
+    {
+      "version": "20261119201316",
+      "name": "dashboard_attendances_closed_period"
+    },
+    {
+      "version": "20261119201530",
+      "name": "dashboard_attendances_unanswered_filter"
+    },
+    {
+      "version": "20261119201957",
+      "name": "dashboard_attendances_view_all_acl"
+    },
+    {
+      "version": "20261119202900",
+      "name": "dashboard_attendances_recurrent_closed"
+    },
+    {
+      "version": "20261119203015",
+      "name": "dashboard_attendances_finished_snapshot"
+    },
+    {
+      "version": "20261119204929",
+      "name": "union_whatsapp_business_calendars"
+    },
+    {
+      "version": "20261119204950",
+      "name": "union_wa_calendar_helper_exec"
+    },
+    {
+      "version": "20261119205126",
+      "name": "union_wa_business_minutes_and_sender"
+    },
+    {
+      "version": "20261119205317",
+      "name": "dashboard_attendance_business_time"
+    },
+    {
+      "version": "20261119205339",
+      "name": "dashboard_attendance_business_duration_fix"
+    },
+    {
+      "version": "20261119205933",
+      "name": "dashboard_attendance_timezone_operator_schedule"
+    },
+    {
+      "version": "20261119210013",
+      "name": "union_wa_business_clock"
+    },
+    {
+      "version": "20261119210335",
+      "name": "union_whatsapp_calendar_confirm_history"
+    },
+    {
+      "version": "20261119210555",
+      "name": "dashboard_attendance_followups"
+    },
+    {
+      "version": "20261119210752",
+      "name": "dashboard_attendance_queue_elapsed_useful"
+    },
+    {
+      "version": "20261119211024",
+      "name": "dashboard_operator_schedule_coverage"
+    },
+    {
+      "version": "20261120151014",
+      "name": "enable_document_signature_realtime_for_terminal_exit"
+    }
+  ]
+}

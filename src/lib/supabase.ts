@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { performanceFetch } from "@/infrastructure/query/local-performance-runtime";
-import { projectId, publicAnonKey } from "../../utils/supabase/info";
+import { projectId, publicAnonKey } from "@/shared/config/supabase-backend";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 
