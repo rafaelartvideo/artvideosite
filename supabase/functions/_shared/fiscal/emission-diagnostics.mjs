@@ -32,16 +32,47 @@ function project(value,depth=0){
   }
   return null;
 }
+// Discover explicit issuer objects only. Never search arbitrary nested documents,
+// customers or profiles for matching CNPJs.
+function issuerIdentity(data,expectedCnpj,companyId){
+  const candidates=[data?.company,data?.issuer,data?.emitente,data?.empresa,
+    data?.launch?.company,data?.launch?.issuer,data?.launch?.empresa,
+    data?.catalog?.company,data?.context?.company];
+  let confirmed=false;
+  for(const item of candidates){
+    if(!item||typeof item!=="object"||Array.isArray(item))continue;
+    const rawCnpj=item.cnpj??item.tax_id??item.taxId;
+    const rawId=item.id??item.company_id??item.companyId;
+    const cnpj=typeof rawCnpj==="string"?rawCnpj.replace(/\D/g,""):"";
+    const id=Number(rawId);
+    const hasId=Number.isSafeInteger(id)&&id>0;
+    const hasCnpj=/^\d{14}$/.test(cnpj);
+    if((hasCnpj&&cnpj!==expectedCnpj)||(hasId&&id!==companyId))return "mismatch";
+    if(hasCnpj&&hasId)confirmed=true;
+  }
+  return confirmed?"confirmed":"unverified";
+}
+const shortIdentifier=value=>typeof value==="number"&&Number.isSafeInteger(value)&&value>=0?value:
+  typeof value==="string"&&/^[a-zA-Z0-9_.-]{1,80}$/.test(value)?value:null;
+function profileSummary(profile){
+  if(!profile||typeof profile!=="object"||Array.isArray(profile))return null;
+  const id=shortIdentifier(profile.id??profile.profile_id);
+  const version=shortIdentifier(profile.version??profile.profile_version);
+  const model=shortIdentifier(profile.model??profile.modelo);
+  const catalogCode=shortIdentifier(profile.catalog_code);
+  return {id,version,model,catalogCode,
+    status:shortIdentifier(profile.status),
+    // Key names help recognize the actual provider schema without returning
+    // arbitrary profile payloads, tax values, credentials or personal data.
+    fields:Object.keys(profile).filter(k=>/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(k)).slice(0,40)};
+}
 export function summarizeEmissionBootstrap(data,expectedCnpj,companyId){
   const models=data?.launch?.diagnosis?.models;
   if(!models||typeof models!=="object")throw new Error("FISCAL_BOOTSTRAP_SCHEMA_UNRECOGNIZED");
-  const company=data?.company;
-  // Only an explicit company object can corroborate identity; never infer it
-  // from the requested ID or any unrelated document/profile fields.
-  const reported=typeof company?.cnpj==="string"?company.cnpj.replace(/\D/g,""):"";
-  const reportedId=Number(company?.id);
-  const identity=reported && reported!==expectedCnpj || Number.isSafeInteger(reportedId)&&reportedId>0&&reportedId!==companyId
-    ?"mismatch":reported===expectedCnpj&&reportedId===companyId?"confirmed":"unverified";
+  const identity=issuerIdentity(data,expectedCnpj,companyId);
   const profiles=data?.catalog?.profiles;
-  return {identity,models:identity==="mismatch"?null:project(models),profileCount:Array.isArray(profiles)?profiles.length:null};
+  return {identity,models:identity==="mismatch"?null:project(models),
+    profileCount:Array.isArray(profiles)?profiles.length:null,
+    profiles:identity==="confirmed"&&Array.isArray(profiles)?profiles.slice(0,100).map(profileSummary).filter(Boolean):[],
+    profileFields:identity!=="mismatch"&&Array.isArray(profiles)?[...new Set(profiles.slice(0,10).flatMap(p=>profileSummary(p)?.fields??[]))].slice(0,60):[]};
 }
