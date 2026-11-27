@@ -138,3 +138,25 @@ test("devolução pendente permanece aberta e retoma o mesmo modal",async()=>{
   assert.match(migration,/orders.complete/);
   assert.ok((await transformWithEsbuild(dialog,"OrderTerminalExitDialog.tsx",{loader:"tsx"})).code.length>100);
 });
+
+test("notificação abre conversa com rascunho e registra somente envio confirmado",async()=>{
+  const dialog=read("src/features/orders/presentation/OrderTerminalExitDialog.tsx");
+  const page=read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const modal=read("src/features/whatsapp-channels/presentation/WhatsAppConversationModal.tsx");
+  const inbox=read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
+  const draft=read("src/features/whatsapp-channels/presentation/WhatsAppDraftConversation.tsx");
+  const sql=read("supabase/migrations/20261127111200_order_unrepaired_return_stages.sql");
+  assert.match(dialog,/Cliente notificado/);
+  assert.match(dialog,/markUnrepairedReturnNotified/);
+  assert.match(dialog,/open=\{!notificationConversationOpen\}/);
+  assert.match(page,/initialMessage:message,onNotificationSent:onSent/);
+  assert.match(modal,/firstSendIdRef.current.id,confirmNotification/);
+  assert.match(inbox,/result.provider_message_id&&threadId===initialConversationId/);
+  assert.match(inbox,/setFinishedFirstMessage\(initialMessage\)/);
+  assert.match(draft,/useState\(initialMessage\)/);
+  assert.match(sql,/msg.sender_user_id=auth.uid\(\)/);
+  assert.match(sql,/msg.delivery_status in \('sent','delivered','read'\)/);
+  assert.match(sql,/notification_message_id=m.id/);
+  for(const [name,source] of [["dialog",dialog],["page",page],["modal",modal],["inbox",inbox],["draft",draft]])
+    assert.ok((await transformWithEsbuild(source,name+".tsx",{loader:"tsx"})).code.length>100,name);
+});
