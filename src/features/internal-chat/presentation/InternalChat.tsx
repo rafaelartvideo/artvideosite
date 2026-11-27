@@ -27,8 +27,8 @@ type Recent = {peer_id:string;created_at:string;kind:string;body:string;attachme
 type Metrics = {messages:number;attachments:number;calls:number;answered:number;mean_response_seconds:number|null;pending:number};
 type GroupEdit = {id:string|null;name:string;members:string[]};
 const allowedFileTypes=new Set(["image/jpeg","image/png","image/webp","image/gif","application/pdf","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","audio/webm","audio/ogg","audio/mp4","audio/mpeg","audio/wav"]);
-type ChatRow = { id:string; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; attachment_mime:string|null; mentions:string[]; reply_to:string|null; edited_at:string|null; deleted_at:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
-const fields = "id,sender_id,recipient_id,group_id,attachment_path,attachment_mime,mentions,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
+type ChatRow = { id:string; client_token?:string|null; sender_id:string; recipient_id:string|null; group_id:string|null; attachment_path:string|null; attachment_mime:string|null; mentions:string[]; reply_to:string|null; edited_at:string|null; deleted_at:string|null; kind:"text"|"call"; body:string; created_at:string; read_at:string|null; response:"coming"|"busy"|"cancelled"|null };
+const fields = "id,client_token,sender_id,recipient_id,group_id,attachment_path,attachment_mime,mentions,reply_to,edited_at,deleted_at,kind,body,created_at,read_at,response";
 const pageSize = 30;
 const chatDayKey=(value:string|number|Date):string=>{
  const d=value instanceof Date?value:new Date(value);
@@ -66,13 +66,13 @@ export function InternalChat() {
     const {data,error}=await supabase.rpc("internal_chat_my_permissions_v1",{p_org:activeOrganizationId});
     if(error)throw error;
     return (data??[]) as string[];
-  },staleTime:30000,retry:false,refetchOnWindowFocus:true,refetchOnReconnect:true});
+  },staleTime:30000,retry:retryRead,retryDelay:650,refetchOnWindowFocus:true,refetchOnReconnect:true});
   useEffect(()=>{
     const refresh=()=>void qc.invalidateQueries({queryKey:["internal-chat-permissions",activeOrganizationId,user?.id]});
     window.addEventListener(PERMISSIONS_CHANGED_EVENT,refresh);window.addEventListener(LEGACY_PERMISSIONS_CHANGED_EVENT,refresh);
     return()=>{window.removeEventListener(PERMISSIONS_CHANGED_EVENT,refresh);window.removeEventListener(LEGACY_PERMISSIONS_CHANGED_EVENT,refresh);};
   },[qc,activeOrganizationId,user?.id]);
-  const hasChatPermission=(key:string)=>!permissions.isError&&!!permissions.data?.includes(key);
+  const hasChatPermission=(key:string)=>(!permissions.isError||transientChatError(permissions.error))&&!!permissions.data?.includes(key);
   if(!activeOrganizationId || !user?.id || !hasChatPermission("internal_chat.use")) return null;
   return <ChatSession key={activeOrganizationId+":"+user.id} org={activeOrganizationId} uid={user.id} canShareOrders={hasPermission("orders.view")} canCall={hasChatPermission("internal_chat.call")} canPhone={hasPermission("pbx.view")} canCreateGroup={hasChatPermission("internal_chat.groups.create")} canManageGroup={hasChatPermission("internal_chat.groups.manage")} canAttach={hasChatPermission("internal_chat.attachments.send")} canMetrics={hasChatPermission("internal_chat.metrics.view")} canSettings={hasChatPermission("internal_chat.settings.manage")} canViewRoles={hasPermission("roles.view")&&(hasPermission("roles.details.view")||hasPermission("roles.permissions.manage"))} canManageRoles={hasPermission("roles.permissions.manage")} />;
 }
@@ -389,7 +389,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
       if(error)throw error;uploaded=true;
       const {error:insertError}=await supabase.from("internal_chat_messages").insert({organization_id:org,sender_id:uid,recipient_id:group?null:peer,group_id:group,kind:"text",body:file.name.slice(0,500)||"Arquivo",attachment_path:path,reply_to:reply?.id??null});
       if(insertError)throw insertError;
-      setReply(null);setStagedFile(null);
+      followLatest.current=true;setReply(null);setStagedFile(null);
       void qc.invalidateQueries({queryKey:[...key,"thread",target]});
     }catch{if(uploaded)await supabase.storage.from("internal-chat-files").remove([path]);setError("Não foi possível enviar o arquivo.");}
     finally{setBusy(false);}
@@ -417,6 +417,8 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
           const confirmed=await sendPendingText<ChatRow>(org,uid,item,fields);
           if(!sessionAlive.current)break;
           const threadKey=[...key,"thread",item.group??item.peer];
+          await qc.cancelQueries({queryKey:threadKey,exact:true});
+          if(!sessionAlive.current)break;
           qc.setQueryData<ChatRow[]>(threadKey,old=>[confirmed,...(old??[]).filter(m=>m.id!==confirmed.id)].sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.id.localeCompare(a.id)).slice(0,pageSize));
           saveOutbox(outboxRef.current.filter(x=>x.token!==item.token));
           void qc.invalidateQueries({queryKey:threadKey});
@@ -449,7 +451,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
   async function changePreference(field:"pinned"|"muted"){
     if(!target||busy)return;const type=group?"group":"direct";const current=pref(target,type);
     const {error}=await supabase.from("internal_chat_preferences").upsert({organization_id:org,user_id:uid,target_id:target,target_type:type,pinned:current?.pinned??false,muted:current?.muted??false,[field]:!current?.[field]},{onConflict:"organization_id,user_id,target_type,target_id"});
-    if(error)setError("Não foi possível salvar a preferência.");else void preferences.refetch();
+    if(error)setError("Não foi possível salvar a preferência.");else{setError("");void preferences.refetch();}
   }
   async function searchHistory(){
     if(!target||historyTerm.trim().length<2||busy)return;setBusy(true);setError("");
@@ -622,7 +624,7 @@ function ChatSession({org,uid,canShareOrders,canCall,canPhone,canCreateGroup,can
                 {m.sender_id===uid&&!group&&(m.read_at?<CheckCheck size={13} className="shrink-0 text-sky-600 dark:text-sky-400" aria-label="Visualizada"/>:<Check size={13} className="shrink-0" aria-label="Enviada"/>)}
               </div>
             </div></Fragment>)}
-            {!results&&pendingTexts.filter(x=>(x.group??x.peer)===target).map(x=><div key={x.token} className="ml-auto w-fit max-w-[88%] rounded-lg border border-border/50 bg-primary/10 px-2 py-1.5 text-xs [overflow-wrap:anywhere]"><p className="whitespace-pre-wrap">{x.body}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">{failedTokens.includes(x.token)?<><AlertCircle size={12} className="text-destructive"/><button type="button" className="text-destructive underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button type="button" className="underline" onClick={()=>{if(!deliveryLock.current){saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));setFailedTokens(old=>old.filter(t=>t!==x.token));void flushOutbox();}}}>Descartar</button></>:<><Clock size={12}/>Aguardando envio</>}</div></div>)}
+            {!results&&pendingTexts.filter(x=>(x.group??x.peer)===target&&!rows.some(m=>m.client_token===x.token)).map(x=><div key={x.token} className="ml-auto w-fit max-w-[88%] rounded-lg border border-border/50 bg-primary/10 px-2 py-1.5 text-xs [overflow-wrap:anywhere]"><p className="whitespace-pre-wrap">{x.body}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">{failedTokens.includes(x.token)?<><AlertCircle size={12} className="text-destructive"/><button type="button" className="text-destructive underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button type="button" className="underline" onClick={()=>{if(!deliveryLock.current){saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));setFailedTokens(old=>old.filter(t=>t!==x.token));void flushOutbox();}}}>Descartar</button></>:<><Clock size={12}/>Aguardando envio</>}</div></div>)}
             </div>
           </div>
           {awayFromLatest&&!results&&<div className="relative h-0"><button type="button" title="Ir para mensagens recentes" className="absolute bottom-2 right-3 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-primary shadow-md" onClick={scrollToLatest}><ArrowDown size={17}/></button></div>}
