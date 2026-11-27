@@ -8,7 +8,7 @@ export function OrderFinancialSummary({ detail, formatCurrency }: { detail: any;
     <InfoRow label="Valor do serviço" value={formatCurrency(Number(detail.service_price || 0))} />
     <InfoRow label="Valor das peças" value={formatCurrency(Number(detail.parts_total || 0))} />
     <InfoRow label="Subtotal" value={formatCurrency(Number(detail.subtotal ?? Number(detail.service_price || 0) + Number(detail.parts_total || 0)))} />
-    <InfoRow label="Desconto aplicado" value={`${formatNumber(detail.discount_percentage || 0, { maximumFractionDigits: 2 }, "0")}% (- ${formatCurrency(Number(detail.discount_amount || 0))})`} />
+    <InfoRow label={detail.return_root_id && ["covered","courtesy"].includes(detail.return_classification) ? "Cobertura em garantia / cortesia" : detail.service_type?.charge_customer === false ? "Cobertura pelo fabricante" : "Desconto aplicado"} value={`${formatNumber(detail.discount_percentage || 0, { maximumFractionDigits: 2 }, "0")}% (- ${formatCurrency(Number(detail.discount_amount || 0))})`} />
     <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"><p className="text-[10px] font-bold uppercase text-emerald-700">Valor final</p><p className="mt-1 text-xl font-black text-emerald-700">{formatCurrency(Number(detail.final_total || 0))}</p></div>
   </div></Section>;
 }

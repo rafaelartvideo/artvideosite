@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
 import { assertOrderRulesForStage } from "../infrastructure/order-rules-validation.repository";
@@ -153,6 +154,7 @@ export function useOrderCompletion({
   const [deliveryEvidenceAttachmentTypeId, setDeliveryEvidenceAttachmentTypeId] = useState("");
   const [deliveryEvidenceAlreadyOnOrder, setDeliveryEvidenceAlreadyOnOrder] = useState(false);
   const [deliveryEvidenceAttached, setDeliveryEvidenceAttached] = useState(false);
+  const [deliveryEvidencePendingMediaId, setDeliveryEvidencePendingMediaId] = useState<string | null>(null);
   const [paymentProofRequirementLoading, setPaymentProofRequirementLoading] = useState(false);
   const [paymentProofRequirementError, setPaymentProofRequirementError] = useState("");
   const [paymentProofAlreadyOnOrder, setPaymentProofAlreadyOnOrder] = useState(false);
@@ -161,6 +163,7 @@ export function useOrderCompletion({
   const [paymentProofTypeLoading, setPaymentProofTypeLoading] = useState(false);
   const [paymentProofTypeError, setPaymentProofTypeError] = useState("");
   const [paymentProofAttached, setPaymentProofAttached] = useState(false);
+  const [paymentProofPendingMediaId, setPaymentProofPendingMediaId] = useState<string | null>(null);
   const [discount, setDiscount] = useState("0");
   const [discountMode, setDiscountModeState] = useState<OrderCompletionDiscountMode>("percentage");
   const [servicePriceInput, setServicePriceInput] = useState("");
@@ -497,6 +500,7 @@ export function useOrderCompletion({
     setDeliveryEvidenceRequired(false);
     setDeliveryEvidenceAlreadyOnOrder(false);
     setDeliveryEvidenceAttached(false);
+    setDeliveryEvidencePendingMediaId(null);
     setDeliveryEvidenceFile(null);
     setDeliveryEvidenceAttachmentTypeId("");
     setPaymentProofRequirementLoading(true);
@@ -507,6 +511,7 @@ export function useOrderCompletion({
     setPaymentProofTypeError("");
     setPaymentProofTypeLoading(false);
     setPaymentProofAttached(false);
+    setPaymentProofPendingMediaId(null);
     setCompletedSuccessfully(false);
     setIssuedCertificate(null);
     setCertificateError("");
@@ -683,11 +688,13 @@ export function useOrderCompletion({
     setSaving(true);
     let attachingPaymentProof = Boolean(paymentProofFile && !paymentProofAttached);
     let attachingDeliveryEvidence = Boolean(deliveryEvidenceFile && !deliveryEvidenceAttached);
+    let paymentMediaToMark = paymentProofPendingMediaId;
+    let deliveryMediaToMark = deliveryEvidencePendingMediaId;
     try {
       await assertOrderRulesForStage(String(detail.organization_id),String(detail.id),"finish");
       if (attachingPaymentProof && paymentProofFile) {
         if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
-        await attachOrderSituationDocument({
+        const paymentMediaId = await attachOrderSituationDocument({
           organizationId: String(detail.organization_id),
           serviceOrderId: String(detail.id),
           attachmentTypeId: paymentProofAttachmentTypeId,
@@ -696,6 +703,8 @@ export function useOrderCompletion({
         });
         // O anexo permanece vinculado mesmo se a operação financeira precisar ser repetida.
         // Limpar o arquivo evita enviar a mesma foto duas vezes em uma nova tentativa.
+        paymentMediaToMark = paymentMediaId;
+        setPaymentProofPendingMediaId(paymentMediaId);
         setPaymentProofFile(null);
         setPaymentProofAttached(true);
         attachingPaymentProof = false;
@@ -706,13 +715,15 @@ export function useOrderCompletion({
 
       if (attachingDeliveryEvidence && deliveryEvidenceFile) {
         if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
-        await attachOrderSituationDocument({
+        const deliveryMediaId = await attachOrderSituationDocument({
           organizationId: String(detail.organization_id),
           serviceOrderId: String(detail.id),
           attachmentTypeId: deliveryEvidenceAttachmentTypeId,
           file: deliveryEvidenceFile,
           optimizePhoto: true,
         });
+        deliveryMediaToMark = deliveryMediaId;
+        setDeliveryEvidencePendingMediaId(deliveryMediaId);
         setDeliveryEvidenceFile(null);
         setDeliveryEvidenceAttached(true);
         attachingDeliveryEvidence = false;
@@ -721,6 +732,21 @@ export function useOrderCompletion({
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
       }
 
+      // Vínculo semântico estável mesmo que o nome do tipo de anexo mude.
+      // Falha permite repetir a identificação sem enviar o arquivo de novo.
+      if (paymentMediaToMark || deliveryMediaToMark) {
+        const { error: classificationError } = await (supabase as any).rpc("mark_order_completion_evidence_v1", {
+          p_organization_id: String(detail.organization_id),
+          p_service_order_id: String(detail.id),
+          p_payment_media_id: paymentMediaToMark,
+          p_delivery_media_id: deliveryMediaToMark,
+        });
+        if (classificationError) throw new Error(
+          "Arquivos anexados, mas vínculo com o Financeiro não confirmado: " + formatError(classificationError),
+        );
+        setPaymentProofPendingMediaId(null);
+        setDeliveryEvidencePendingMediaId(null);
+      }
       const priceOverride = commercialPricing ? null : priceAtCompletion ? (coverageFree ? 0 : servicePrice) : null;
       const response = (financeEnabled || noCustomerCharge)
         ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
@@ -740,7 +766,16 @@ export function useOrderCompletion({
           );
           setIssuedCertificate(certificate);
         } catch (certificateFailure) {
-          setCertificateError(formatError(certificateFailure));
+          // RPC de emissão é idempotente (um certificado por OS): uma única
+          // tentativa extra recupera falhas transitórias sem emitir duplicatas.
+          try {
+            const recovered = await issueWarrantyCertificate(
+              String(detail.organization_id), String(detail.id), warrantyOptionId || null,
+            );
+            setIssuedCertificate(recovered);
+          } catch (retryFailure) {
+            setCertificateError(formatError(retryFailure || certificateFailure));
+          }
         } finally { setCertificateBusy(false); }
       }
       void reloadOrders().catch(error => {
