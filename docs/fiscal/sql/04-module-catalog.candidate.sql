@@ -6,7 +6,8 @@ values('fiscal','Fiscal','Documentos fiscais e integração por empresa','manage
 on conflict(key) do nothing;
 insert into public.permissions(key,label,description,module_name,sort_order) values
  ('fiscal.documents.view','Consultar documentos fiscais','Consultar documentos fiscais da empresa','Fiscal',5300),
- ('fiscal.documents.download','Baixar documentos fiscais','Baixar documentos fiscais originais da empresa','Fiscal',5301)
+ ('fiscal.documents.download','Baixar documentos fiscais','Baixar documentos fiscais originais da empresa','Fiscal',5301),
+ ('fiscal.sync.manage','Sincronizar documentos fiscais','Sincronizar documentos fiscais da empresa','Fiscal',5302)
 on conflict(key) do nothing;
 -- Current permission_required_module_keys maps unknown prefixes to the
 -- prefix (fiscal.* -> fiscal). Existing Gestor provisioning triggers may
