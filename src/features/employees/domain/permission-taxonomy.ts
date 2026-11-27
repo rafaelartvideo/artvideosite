@@ -11,6 +11,7 @@ export type PermissionSectionGroup = { name: string; permissions: PermissionReco
 export type PermissionModuleGroup = { name: string; sections: PermissionSectionGroup[]; permissions: PermissionRecord[] };
 
 const MODULE_LABELS: Record<string, string> = {
+  internal_chat: "Chat interno",
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço", technician_panel: "Painel do Técnico",
   customers: "Cadastros", customer_requests: "Pedidos Avulsos", registrations: "Cadastros", agenda: "Agenda", work_items: "Compromissos e Tarefas", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", sales: "Vendas", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
@@ -113,6 +114,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
   if (key === "agenda.menu.view" || key === "whatsapp.inbox.menu.view" || key === "customers.menu.view" || key === "customers.module.create") return "Navegação";
+  if (module === "internal_chat") return key === "internal_chat.use" ? "Acesso" : key.includes(".settings.") || key.includes(".metrics.") ? "Administração" : "Ações";
   if (module === "tools") {
     if (key === "tools.sac_digital.use") return "SAC Digital";
     return "Acesso geral";
@@ -349,6 +351,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
 };
 
 export function permissionDependencies(key: string) {
+  if (key.startsWith("internal_chat.")) return key === "internal_chat.use" ? [] : ["internal_chat.use"];
   // WhatsApp não possui chave whatsapp.view: exige a leitura da caixa de entrada.
   if (key === "whatsapp.inbox.menu.view") return ["whatsapp.inbox.view"];
   if (key === "customers.menu.view") return ["customers.view"];
@@ -402,6 +405,7 @@ export type PermissionPresentationKind = "visual" | "actions";
 // editar/excluir. TODAS as colunas pertencem a Visualização > [Módulo] > Tabela.
 export function permissionPresentationKind(permission: PermissionRecord): PermissionPresentationKind {
   const key = String(permission.key || "");
+  if (key === "internal_chat.use") return "visual";
   if (key.includes(".table.") || key.includes(".column.")) return "visual";
   if (key.endsWith(".view") || key.endsWith(".view_all") || key.endsWith(".view_others")
     || key.endsWith(".read") || key.startsWith("orders.section.")
