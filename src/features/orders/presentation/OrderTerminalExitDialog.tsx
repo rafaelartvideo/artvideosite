@@ -17,7 +17,7 @@ import {
 } from "../infrastructure/order-documents.repository";
 import { listOrderWarrantyPartners, type OrderWarrantyPartner } from "../infrastructure/order-finance.repository";
 import {
-  completeOrderTerminalExit, getOrderTerminalStock, getUnrepairedReturn, startUnrepairedReturn, cancelUnrepairedReturn, type UnrepairedReturnAttempt,
+  completeOrderTerminalExit, getOrderTerminalStock, getUnrepairedReturn, startUnrepairedReturn, cancelUnrepairedReturn, markUnrepairedReturnNotified, type UnrepairedReturnAttempt,
   type OrderTerminalOutcome,type OrderTerminalStockItem,type OrderTerminalStockDecision,
 } from "../infrastructure/order-terminal-exit.repository";
 
@@ -49,7 +49,7 @@ const STOCK_OPTIONS=[
 ];
 
 export function OrderTerminalExitDialog({
-  order,outcome,initialReason,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,onReturnChanged,
+  order,outcome,initialReason,templates,templatesLoading=false,usedItems,partRequests,history,printedBy,onClose,onDone,onReturnChanged,onNotifyCustomer,notificationConversationOpen=false,
 }:{
   order:any;
   outcome:OrderTerminalOutcome;
@@ -62,6 +62,8 @@ export function OrderTerminalExitDialog({
   printedBy?:string|null;
   onClose:()=>void;
   onReturnChanged?:(attempt:UnrepairedReturnAttempt|null)=>void;
+  onNotifyCustomer?:(message:string,onSent:(conversationId:string,providerMessageId:string)=>Promise<void>)=>void;
+  notificationConversationOpen?:boolean;
   onDone:(result:{id:string;outcome:OrderTerminalOutcome;completed_at:string;returned_to_stock:number})=>void;
 }){
   const cfg=TERMINAL_CONFIG[outcome];
@@ -208,6 +210,17 @@ export function OrderTerminalExitDialog({
     }catch(e){setError(systemErrorMessage(e,"Não foi possível iniciar a devolução."));}
     finally{setSubmitting(false);}
   };
+  const notifyCustomer=()=>{
+    if(!attempt||!onNotifyCustomer||notificationConversationOpen)return;
+    const currentAttemptId=attempt.id;
+    const publicReason=attempt.reason_category==="Outros"?"Conforme avaliação realizada":attempt.reason_category;
+    const message="Olá! Sobre a OS #"+order.os_number+", informamos que o equipamento está disponível para retirada sem reparo.\n\nMotivo: "+publicReason+".\n\nPedimos que entre em contato para combinar a retirada. Estamos à disposição para esclarecer qualquer dúvida.";
+    onNotifyCustomer(message,async(conversationId,providerMessageId)=>{
+      const saved=await markUnrepairedReturnNotified(org,orderId,currentAttemptId,conversationId,providerMessageId);
+      setAttempt(current=>current?.id===saved.id?saved:current);
+      notifyAdmin("Cliente notificado. Envio registrado na devolução.","success");
+    });
+  };
   const cancelReturn=async()=>{
     if(!attempt||submitting)return;
     setSubmitting(true);setError("");
@@ -269,7 +282,7 @@ export function OrderTerminalExitDialog({
     finally{setSubmitting(false)}
   };
 
-  return <AdminDialog open minimizable={false}
+  return <AdminDialog open={!notificationConversationOpen} minimizable={false}
     onClose={()=>{if(submitting||uploading||signatureBusy)return;if(step==="form")onClose();else setStep("form");}}
     title={step==="form"
       ? <span className="inline-flex items-center gap-2">{isReturn?(initiating?"Iniciar devolução sem reparo":"Confirmar devolução"):cfg.title}
@@ -334,6 +347,12 @@ export function OrderTerminalExitDialog({
           </div>
           {attempt?.observations&&<p className="whitespace-pre-wrap text-sm">{attempt.observations}</p>}
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">OS aberta · Equipamento sob responsabilidade da assistência</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+            <div className="min-w-0">
+              {attempt?.notified_at?<><p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16}/> Cliente notificado</p><p className="text-xs text-muted-foreground">{new Date(attempt.notified_at).toLocaleString("pt-BR")}</p></>:<p className="text-sm text-muted-foreground">Cliente ainda não notificado</p>}
+            </div>
+            {onNotifyCustomer&&<AdminButton variant="secondary" disabled={submitting||loading||notificationConversationOpen} onClick={notifyCustomer}>{attempt?.notified_at?"Notificar novamente":"Notificar cliente"}</AdminButton>}
+          </div>
           {cancelConfirm&&<div className="space-y-2 rounded-lg border border-border p-3">
             <p className="text-sm">Cancelar a devolução e restaurar a situação anterior da OS?</p>
             <div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={submitting} onClick={()=>setCancelConfirm(false)}>Voltar</AdminButton><AdminButton disabled={submitting} loading={submitting} onClick={()=>void cancelReturn()}>Confirmar cancelamento</AdminButton></div>
