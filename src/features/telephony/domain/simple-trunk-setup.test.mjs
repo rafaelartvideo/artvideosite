@@ -22,9 +22,9 @@ test('custom and conflicting destination rules are preserved and require advance
 test('simple screen renders credentials and authorizations without the nine-step wizard',async()=>{
  const React=await import('react');const {renderToStaticMarkup}=await import('react-dom/server');const m=await model();
  const source=readFileSync('src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','utf8').replace(/^import .*;$/gm,'');const compiled=await transformWithEsbuild(source,'simple-render.tsx',{loader:'tsx',jsx:'transform',jsxFactory:'React.createElement'});
- const make=new Function('React','useRef','useState','AdminButton','FInput','prepareSimpleTrunk','prepareSimpleTrunkEdit','SimpleTrunkSetupError',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
+ const make=new Function('React','useRef','useState','Eye','EyeOff','AdminButton','FInput','prepareSimpleTrunk','prepareSimpleTrunkEdit','SimpleTrunkSetupError',compiled.code.replace(/^export /gm,'')+'\nreturn UnionPbxSimpleTrunkSetup;');
  const Button=({children,variant,...props})=>React.createElement('button',props,children);const Input=({label,hint,...props})=>React.createElement('label',null,label,React.createElement('input',props));
- const Form=make(React,React.useRef,React.useState,Button,Input,m.prepareSimpleTrunk,m.prepareSimpleTrunkEdit,m.SimpleTrunkSetupError);
+ const Form=make(React,React.useRef,React.useState,()=>React.createElement('svg'),()=>React.createElement('svg'),Button,Input,m.prepareSimpleTrunk,m.prepareSimpleTrunkEdit,m.SimpleTrunkSetupError);
  const html=renderToStaticMarkup(React.createElement(Form,{organizationId:org,document:empty(),extensions:[{id:extension,label:'Ramal 301'}],disabled:false,onSave:async()=>true,onAdvanced(){}}));
  for(const text of ['Servidor SIP','Usuário SIP','Senha SIP','Ramal 301','Salvar linha'])assert.ok(html.includes(text),text);assert.doesNotMatch(html,/Etapa 1 de 9|Conferir e ativar/);assert.match(html,/type="password"/);
 });
@@ -46,4 +46,16 @@ test('editing SIP credentials preserves routing graph and connection identity',a
  assert.throws(()=>m.prepareSimpleTrunkEdit(original,first.connectionId,{...input(),host:'bad;host'}),/Confira/);
  const source=readFileSync('src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','utf8');
  assert.ok(source.includes('Nova senha SIP'));assert.ok(source.includes('password?{[prepared.connectionId]:password}:{}'));assert.ok(source.includes('setPassword(\'\')'));
+});
+
+test('SIP password visibility is local, masked by default and reset after editing',async()=>{
+ for(const path of ['src/features/telephony/presentation/UnionPbxSimpleTrunkSetup.tsx','src/features/telephony/presentation/UnionPbxUniversalTelephony.tsx']){
+  const source=readFileSync(path,'utf8');
+  assert.match(source,/const \[showPassword,setShowPassword\]=useState\(false\)/);
+  assert.match(source,/type=\{showPassword\?"text":"password"\}/);
+  assert.match(source,/onClick=\{\(\)=>setShowPassword\(value=>!value\)\}/);
+  assert.match(source,/setPassword\(''\);setShowPassword\(false\)/);
+  assert.match(source,/aria-label=\{showPassword\?"Ocultar senha":"Mostrar senha"\}/);
+  assert.ok((await transformWithEsbuild(source,path,{loader:'tsx',jsx:'automatic'})).code);
+ }
 });
