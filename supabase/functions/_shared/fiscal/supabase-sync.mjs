@@ -19,7 +19,7 @@ export function createSupabaseFiscalSync({ admin, resolveSecret }) {
       admin.from("organizations").select("document").eq("id",b.organization_id).eq("status","active").maybeSingle(),
       admin.from("organization_modules").select("module_key").eq("organization_id",b.organization_id).eq("module_key","fiscal").eq("is_enabled",true).maybeSingle(),
       admin.from("fiscal_provider_accounts").select("id,provider,inventory_verified_at").eq("id",b.account_id).eq("is_active",true).maybeSingle(),
-      admin.from("fiscal_account_cnpjs").select("verified_at").eq("account_id",b.account_id).eq("cnpj",b.cnpj).eq("external_company_id",b.external_company_id).maybeSingle()
+      admin.from("fiscal_account_cnpjs").select("verified_at").eq("account_id",b.account_id).eq("cnpj",b.cnpj).maybeSingle()
     ]);
     if (typeof data(org)?.document !== "string" || org.data.document.replace(/\D/g,"") !== b.cnpj ||
         !data(module) || data(account)?.provider !== "fiscontrole" || !account.data.inventory_verified_at ||
@@ -32,7 +32,7 @@ export function createSupabaseFiscalSync({ admin, resolveSecret }) {
       const a = data(await admin.from("fiscal_provider_accounts").select("credential_ref").eq("id",accountId)
         .eq("provider","fiscontrole").eq("is_active",true).maybeSingle());
       if (!a) return deny();
-      const token = await resolveSecret(a.credential_ref);
+      const token = await resolveSecret({ accountId, credentialRef: a.credential_ref });
       return createFiscontroleProvider({token});
     },
     loadCursor: async s => {
