@@ -146,6 +146,8 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
   const statusLabel=(id:string)=>presence[id]?availabilityLabels[presence[id]]:"Offline";
   const statusColor=(id:string)=>!presence[id]?"bg-muted-foreground":presence[id]==="available"?"bg-green-500":presence[id]==="away"?"bg-amber-500":"bg-red-500";
   const seenCalls=useRef(new Set<string>());
+  const notificationState=useRef({sound,availability,pbxBusy,config,desktopAllowed,preferences:preferences.data});
+  notificationState.current={sound,availability,pbxBusy,config,desktopAllowed,preferences:preferences.data};
   const historyRef=useRef<HTMLDivElement>(null);
   const [connected,setConnected]=useState(false);
   const pending=useQuery({queryKey:[...key,"pending"],queryFn:async()=>{
@@ -186,6 +188,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     return {values:data as Metrics,requestMs:Math.round(performance.now()-start)};
   },retry:false,staleTime:Infinity,refetchOnWindowFocus:false,refetchOnReconnect:false});
   const currentGroup=groups.data?.find(g=>g.id===group);
+  const groupParticipants=useQuery({queryKey:[...key,"participants",group],enabled:open&&!!group,queryFn:async()=>{const {data,error}=await supabase.from("internal_chat_group_members").select("user_id").eq("organization_id",org).eq("group_id",group);if(error)throw error;return (data??[]).map(x=>x.user_id) as string[];},staleTime:300000,retry:false});
   const target=group??peer;
   useEffect(()=>{if(group&&groups.isSuccess&&!groups.isFetching&&!currentGroup){setGroup(null);setOlder([]);setGroupEdit(null);setDraft("");setError("Você não faz mais parte deste grupo.");}},[group,groups.isSuccess,groups.isFetching,currentGroup]);
   const totalUnread=(unread.data??0)+(groups.data??[]).reduce((n,g)=>n+Number(g.unread),0);
@@ -218,7 +221,8 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
         dirtyAll=false;dirtyDirect=false;dirtyGroups.clear();
         void qc.invalidateQueries({queryKey:key,predicate:q=>{
           const type=q.queryKey[3];
-          if(type==="directory"||type==="metrics")return false;
+          if(type==="directory"||type==="metrics"||type==="settings"||type==="preferences")return false;
+          if(type==="participants")return all||groupIds.has(String(q.queryKey[4]));
           if(all)return true;
           if(type==="groups")return groupIds.size>0;
           if(type==="thread")return direct||groupIds.has(String(q.queryKey[4]));
@@ -228,8 +232,18 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     }
     const channel=supabase.channel("internal-chat:"+org+":"+uid,{config:{private:true}})
       .on("broadcast",{event:"changed"},event=>{
-        const groupId=event.payload?.group_id;
+        const payload=event.payload;
+        if(payload?.settings){void qc.invalidateQueries({queryKey:[...key,"settings"]});return;}
+        if(payload?.preferences){void qc.invalidateQueries({queryKey:[...key,"preferences"]});return;}
+        const groupId=payload?.group_id;
         if(typeof groupId==="string")dirtyGroups.add(groupId);else dirtyDirect=true;
+        if(payload?.new_message===true&&payload.kind==="text"&&payload.sender_id!==uid&&typeof payload.id==="string"){
+          const n=notificationState.current;
+          const muted=n.preferences?.some(p=>p.target_type===(groupId?"group":"direct")&&p.target_id===(groupId||payload.sender_id)&&p.muted);
+          if(document.hidden&&n.preferences&&n.config.desktop_notifications&&n.desktopAllowed&&!muted&&n.availability!=="dnd"){
+            void notifyOnce(storagePrefix+"notice:"+payload.id,()=>{try{new Notification("Chat interno",{body:"Você recebeu uma mensagem."});}catch{/* Browser restriction. */}});
+          }
+        }
         schedule();
       })
       .subscribe(status=>{
@@ -237,7 +251,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
         setConnected(status==="SUBSCRIBED");
         if(status==="SUBSCRIBED")invalidate();
       });
-    const recover=()=>{if(document.visibilityState==="visible")invalidate();};
+    const recover=()=>{if(document.visibilityState==="visible"){invalidate();void qc.invalidateQueries({queryKey:[...key,"settings"]});void qc.invalidateQueries({queryKey:[...key,"preferences"]});}};
     document.addEventListener("visibilitychange",recover);
     window.addEventListener("online",invalidate);
     return ()=>{active=false;if(timer)clearTimeout(timer);document.removeEventListener("visibilitychange",recover);
@@ -247,7 +261,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     if(!incoming||!preferences.isSuccess||!settings.isSuccess)return;
     if(!seenCalls.current.has(incoming.id)){
       seenCalls.current.add(incoming.id);
-      if(sound&&availability!=="dnd"&&!pbxBusy&&!pref(incoming.sender_id,"direct")?.muted)void notifyOnce(storagePrefix+"notice:"+incoming.id,()=>{playNotice();if(config.desktop_notifications&&desktopAllowed&&document.hidden)new Notification("Chamada interna",{body:"Você tem uma chamada de atenção pendente."});});
+      if(availability!=="dnd"&&!pref(incoming.sender_id,"direct")?.muted)void notifyOnce(storagePrefix+"notice:"+incoming.id,()=>{if(sound&&!pbxBusy)playNotice();if(config.desktop_notifications&&desktopAllowed&&document.hidden)try{new Notification("Chamada interna",{body:"Você tem uma chamada de atenção pendente."});}catch{/* Browser restriction. */}});
     }
   },[incoming?.id,sound,availability,pbxBusy,preferences.isSuccess,settings.isSuccess,config.desktop_notifications,desktopAllowed]);
   useEffect(()=>{
@@ -288,7 +302,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     finally{setBusy(false);}
   }
   async function sendFile(file:File){
-    if(!target||busy||!canAttach||!config.attachments_enabled||!config.enabled)return;
+    if(!target||busy||!canAttach||!config.attachments_enabled||!config.enabled||(file.type.startsWith("audio/")&&!config.audio_enabled))return;
     if(!allowedFileTypes.has(file.type)||!file.size){setError("Tipo de arquivo não permitido.");return;}
     setBusy(true);setError("");
     const path=org+"/"+uid+"/"+crypto.randomUUID();
@@ -338,7 +352,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     window.addEventListener("online",online);return()=>window.removeEventListener("online",online);
   },[connected,org,uid]);
   async function send(kind:"text"|"call",shared?:string){
-    if(!target||busy||!config.enabled||(kind==="call"&&(!peer||group||!config.calls_enabled))||(kind==="text"&&!(shared??draft).trim()))return;
+    if(!target||busy||recording||!config.enabled||(kind==="call"&&(!peer||group||!config.calls_enabled))||(kind==="text"&&!(shared??draft).trim()))return;
     setError("");
     if(kind==="text"){
       if(editing&&!shared){await editMessage(editing,false);return;}
@@ -439,7 +453,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
     <MessageSquare size={17}/>
     {(totalUnread>0||calls.length>0)&&<span className="absolute right-0 top-0 rounded-full bg-primary px-1 text-[10px] font-bold text-white">{Math.min(99,Math.max(totalUnread,calls.length))}</span>}
   </button>;
-  const outgoingCall=outgoing.data?.find(m=>m.recipient_id===peer);
+  const outgoingCall=peer?outgoing.data?.find(m=>m.recipient_id===peer):undefined;
   const pendingOut=!!outgoingCall||rows.some(m=>m.kind==="call"&&m.sender_id===uid&&!m.response);
   return <>
     {anchors.map(a=>createPortal(button,a,a.id))}
@@ -465,7 +479,7 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           {currentGroup&&(currentGroup.created_by===uid||canManageGroup)&&!groupEdit&&<button title="Gerenciar grupo" className={actionClass} disabled={busy} onClick={()=>void editGroup()}><Settings2 size={15}/></button>}
           {peer&&canPhone&&config.enabled&&config.pbx_enabled&&<button type="button" className={actionClass} title="Ligar pelo PABX" disabled={busy} onClick={()=>void dialPeer()}><Phone size={15}/></button>}
           <button title="Minimizar" onClick={()=>setOpen(false)}><Minus size={16}/></button>
-          <button title="Fechar" onClick={()=>{setOpen(false);selectPeer(null);}}><X size={16}/></button>
+          <button title="Fechar" onClick={()=>{if(recording){cancelRecording.current=true;recorderRef.current?.stop();}setOpen(false);selectPeer(null);}}><X size={16}/></button>
         </header>
         {error&&<p role="alert" className="px-3 py-2 text-xs text-red-500">{error}</p>}
         {settingsOpen?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">{([["enabled","Habilitar chat"],["calls_enabled","Permitir chamadas de atenção"],["groups_enabled","Permitir grupos"],["attachments_enabled","Permitir anexos"],["audio_enabled","Permitir áudio"],["pbx_enabled","Integração com PABX"],["desktop_notifications","Notificações do navegador"]] as const).map(([field,label])=><label key={field} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={settingsDraft[field]} onChange={e=>setSettingsDraft({...settingsDraft,[field]:e.target.checked})}/>{label}</label>)}<label className="block text-sm">Limite por arquivo<select className="ml-2 border rounded bg-card" value={settingsDraft.max_file_bytes} onChange={e=>setSettingsDraft({...settingsDraft,max_file_bytes:Number(e.target.value)})}>{[1,5,10].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><label className="block text-sm">Armazenamento<select className="ml-2 border rounded bg-card" value={settingsDraft.quota_bytes} onChange={e=>setSettingsDraft({...settingsDraft,quota_bytes:Number(e.target.value)})}>{[100,500,1024,5120,10240].map(n=><option key={n} value={n*1048576}>{n} MB</option>)}</select></label><p className="text-xs text-muted-foreground">Chamadas sem expiração. Desativar impede novos envios, preservando histórico e respostas pendentes.</p><button className={actionClass} disabled={busy} onClick={()=>void saveSettings()}>Salvar</button></div>:metricsOpen?<div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
@@ -516,9 +530,9 @@ function ChatSession({org,uid,canCall,canPhone,canCreateGroup,canManageGroup,can
           </div>
           {pendingTexts.filter(x=>(x.group??x.peer)===target).map(x=><div key={x.token} className="border-t border-border p-2 text-xs"><span className="text-muted-foreground">{x.body} · Aguardando envio</span><button className="ml-2 underline" onClick={()=>void flushOutbox()}>Tentar novamente</button><button className="ml-2 underline" onClick={()=>{if(!deliveryLock.current)saveOutbox(outboxRef.current.filter(y=>y.token!==x.token));}}>Descartar</button></div>)}
           {(reply||editing)&&<div className="flex items-center justify-between gap-2 border-t border-border p-2 text-xs"><span className="truncate">{editing?"Editando: ":"Respondendo: "}{(editing??reply)?.body}</span><button title="Cancelar" onClick={()=>{if(editing)saveDraft("");setEditing(null);setReply(null);}}><X size={14}/></button></div>}
-          {group&&draft.includes("@")&&<div className="max-h-20 overflow-auto px-2">{employees.filter(e=>e.full_name.toLowerCase().includes(draft.slice(draft.lastIndexOf("@")+1).toLowerCase())).slice(0,5).map(e=><button key={e.user_id} type="button" className="block text-xs p-1" onClick={()=>saveDraft(draft.slice(0,draft.lastIndexOf("@"))+"@"+e.full_name+" ")}>@{e.full_name}</button>)}</div>}
+          {group&&draft.includes("@")&&!draft.endsWith(" ")&&<div className="max-h-20 overflow-auto px-2">{employees.filter(e=>groupParticipants.data?.includes(e.user_id)&&e.full_name.toLowerCase().includes(draft.slice(draft.lastIndexOf("@")+1).toLowerCase())).slice(0,5).map(e=><button key={e.user_id} type="button" className="block text-xs p-1" onClick={()=>saveDraft(draft.slice(0,draft.lastIndexOf("@"))+"@"+e.full_name+" ")}>@{e.full_name}</button>)}</div>}
           <form onSubmit={e=>{e.preventDefault();void send("text");}} className="flex gap-2 border-t border-border p-3">
-            {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendFile(file);}}/><button type="button" title="Adicionar anexo" className={actionClass} disabled={busy} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/></button></>}
+            {canAttach&&config.enabled&&config.attachments_enabled&&<><input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx,.xls,.xlsx,.webm,.ogg,.mp4,.mp3,.wav" className="hidden" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void sendFile(file);}}/><button type="button" title="Adicionar anexo" className={actionClass} disabled={busy||recording} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/></button></>}
             {shareableRoute.test(location.pathname)&&<button type="button" title="Compartilhar registro atual" className={actionClass} disabled={busy} onClick={()=>void send("text",location.pathname)}><Link2 size={16}/></button>}
             {canAttach&&config.enabled&&config.audio_enabled&&config.attachments_enabled&&<button type="button" title={recording?"Parar e enviar áudio":"Gravar áudio"} className={actionClass} onClick={()=>recording?recorderRef.current?.stop():void startRecording()}>{recording?<Square size={15}/>:<Mic size={15}/>}</button>}
             <input maxLength={4000} value={draft} disabled={!config.enabled} onChange={e=>saveDraft(e.target.value)} placeholder="Digite uma mensagem" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm"/>
