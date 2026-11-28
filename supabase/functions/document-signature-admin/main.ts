@@ -380,7 +380,7 @@ async function resolveExternalSigner(adminClient: any, organizationId: string, o
       type: "customer",
       name: text(customer.full_name || customer.trade_name || customer.legal_name, 220),
       document: normalizeDocument(customer.cnpj || customer.document),
-      email: text(customer.email, 320).toLowerCase(),
+      email: EMAIL_PATTERN.test(text(customer.email, 320)) ? text(customer.email, 320).toLowerCase() : "",
       phone: text(customer.whatsapp || customer.phone, 80) || null,
     };
   }
@@ -421,7 +421,7 @@ async function resolveExternalSigner(adminClient: any, organizationId: string, o
 function validateExternalSigner(signer: any) {
   if (!signer?.name) throw new Error("Informe o nome do assinante.");
   if (![11, 14].includes(String(signer.document || "").length)) throw new Error("Informe um CPF ou CNPJ válido para confirmação da assinatura.");
-  if (!EMAIL_PATTERN.test(String(signer.email || ""))) throw new Error("Informe um e-mail válido para o assinante.");
+  if (signer.email && !EMAIL_PATTERN.test(String(signer.email))) throw new Error("Informe um e-mail válido para o assinante.");
 }
 
 async function sendInviteEmail({ recipient, signerName, documentName, orderNumber, expiresAt, link, companyName }: any) {
@@ -442,7 +442,7 @@ async function sendInviteEmail({ recipient, signerName, documentName, orderNumbe
       from: emailFrom,
       to: [recipient],
       subject: `${safeDocument} — assinatura eletrônica — OS ${safeOrder}`,
-      html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2 style="margin:0 0 12px">${safeCompany}</h2><p>Olá, ${safeSigner}.</p><p>Você recebeu o documento <strong>${safeDocument}</strong>, referente à OS <strong>${safeOrder}</strong>, para assinatura eletrônica.</p><p><a href="${link}" style="display:inline-block;background:#0057e7;color:white;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Abrir documento para assinatura</a></p><p style="font-size:12px;color:#526174">Este link expira em ${expiration}. Para sua segurança, o documento só será exibido após confirmação de identidade e código enviado por e-mail.</p></div>`,
+      html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2 style="margin:0 0 12px">${safeCompany}</h2><p>Olá, ${safeSigner}.</p><p>Você recebeu o documento <strong>${safeDocument}</strong>, referente à OS <strong>${safeOrder}</strong>, para assinatura eletrônica.</p><p><a href="${link}" style="display:inline-block;background:#0057e7;color:white;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Abrir documento para assinatura</a></p><p style="font-size:12px;color:#526174">Este link expira em ${expiration}. Para sua segurança, o documento só será exibido após confirmação de identidade por CPF ou CNPJ.</p></div>`,
     }),
   });
   const result = await response.json().catch(() => ({}));
@@ -757,7 +757,7 @@ async function createAction(context: any) {
         emailWarning = "A URL pública da assinatura não está configurada. Configure SIGNATURE_PUBLIC_BASE_URL.";
       } else {
         link = `${baseUrl}/assinatura/${encodeURIComponent(token)}`;
-        try {
+        if (externalSigner.email) try {
           await sendInviteEmail({
             recipient: externalSigner.email,
             signerName: externalSigner.name,

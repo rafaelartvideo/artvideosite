@@ -139,11 +139,12 @@ export function OrderSignatureRequestDialog({
     && Date.parse(item.expires_at) > Date.now()
   ) || null;
   const previousAttemptRequest=Boolean(activeRequest && returnAttemptStartedAt && Date.parse(activeRequest.created_at)<Date.parse(returnAttemptStartedAt));
-  const selectedSignerEmail = String(signerType === "customer" ? customer.email || "" : contactEmail).trim().toLowerCase();
+  const rawSignerEmail = String(signerType === "customer" ? customer.email || "" : contactEmail).trim().toLowerCase();
+  const selectedSignerEmail = isValidEmail(rawSignerEmail) ? rawSignerEmail : "";
   const selectedSignerPhone = normalizeDigits(signerType === "customer" ? customer.whatsapp || customer.phone : contactPhone);
   const existingMatchesSigner = Boolean(activeRequest
     && activeRequest.external_signer_type === signerType
-    && activeRequest.external_signer_email?.trim().toLowerCase() === selectedSignerEmail
+    && String(activeRequest.external_signer_email || "").trim().toLowerCase() === selectedSignerEmail
     && normalizeDigits(activeRequest.external_signer_phone) === selectedSignerPhone);
 
   useEffect(() => {
@@ -258,12 +259,11 @@ export function OrderSignatureRequestDialog({
       if (signerType === "customer") {
         if (!customerName(customer)) nextErrors.customer = "O cliente da OS não possui nome para assinatura.";
         else if (![11, 14].includes(normalizeDigits(customerDocument(customer)).length)) nextErrors.customer = "O cliente precisa ter CPF/CNPJ cadastrado para assinatura online.";
-        else if (!String(customer.email || "").trim() || !isValidEmail(String(customer.email || ""))) nextErrors.customer = "O cliente precisa ter um e-mail válido cadastrado para receber o convite de assinatura.";
         else if (normalizeDigits(customer.whatsapp || customer.phone).length < 10) nextErrors.customer = "O cliente precisa ter WhatsApp/telefone cadastrado para receber o link de assinatura.";
       } else {
         if (!contactName.trim()) nextErrors.contactName = "Informe o nome do responsável/contato.";
         if (![11, 14].includes(normalizeDigits(contactDocument).length)) nextErrors.contactDocument = "Informe um CPF/CNPJ válido do responsável/contato.";
-        if (!contactEmail.trim() || !isValidEmail(contactEmail)) nextErrors.contactEmail = "Informe um e-mail válido do responsável/contato.";
+        if (contactEmail.trim() && !isValidEmail(contactEmail.trim())) nextErrors.contactEmail = "Informe um e-mail válido do responsável/contato.";
         if (normalizeDigits(contactPhone).length < 10) nextErrors.contactPhone = "Informe o WhatsApp/telefone do responsável/contato.";
       }
     }
@@ -318,7 +318,7 @@ export function OrderSignatureRequestDialog({
               type: "customer" as const,
               name: customerName(customer),
               document: customerDocument(customer),
-              email: String(customer.email || ""),
+              email: selectedSignerEmail,
               phone: String(customer.whatsapp || customer.phone || "") || null,
             }
           : {
@@ -435,14 +435,14 @@ export function OrderSignatureRequestDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <Info label="Nome" value={customerName(customer) || "Não informado"} />
                 <Info label="CPF/CNPJ" value={customerDocument(customer) || "Não informado"} />
-                <Info label="E-mail" value={String(customer.email || "Não informado")} />
+                {selectedSignerEmail && <Info label="E-mail" value={selectedSignerEmail} />}
                 <Info label="WhatsApp / telefone" value={String(customer.whatsapp || customer.phone || "Não informado")} />
               </div>
               {fieldErrors.customer && <p className="mt-3 text-xs font-semibold leading-relaxed text-red-600">{fieldErrors.customer}</p>}
             </div> : <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Nome" error={fieldErrors.contactName}><input className={INPUT} value={contactName} onChange={event => { setFieldErrors(current => ({ ...current, contactName: undefined })); setContactName(event.target.value); }} /></Field>
               <Field label="CPF/CNPJ" error={fieldErrors.contactDocument}><input className={INPUT} value={contactDocument} onChange={event => { setFieldErrors(current => ({ ...current, contactDocument: undefined })); setContactDocument(event.target.value); }} inputMode="numeric" /></Field>
-              <Field label="E-mail" error={fieldErrors.contactEmail}><input className={INPUT} value={contactEmail} onChange={event => { setFieldErrors(current => ({ ...current, contactEmail: undefined })); setContactEmail(event.target.value); }} type="email" /></Field>
+              <Field label="E-mail (opcional)" error={fieldErrors.contactEmail}><input className={INPUT} value={contactEmail} onChange={event => { setFieldErrors(current => ({ ...current, contactEmail: undefined })); setContactEmail(event.target.value); }} type="email" /></Field>
               <Field label="WhatsApp / telefone" error={fieldErrors.contactPhone}><input className={INPUT} value={contactPhone} onChange={event => { setFieldErrors(current => ({ ...current, contactPhone: undefined })); setContactPhone(event.target.value); }} inputMode="tel" /></Field>
             </div>}
           </section>}

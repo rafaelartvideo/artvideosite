@@ -332,7 +332,7 @@ export function OrderSignatureRequestsSection({
                 <AdminIconButton ariaLabel="Abrir link de assinatura" title="Abrir link" disabled={busy} onClick={() => void openLink(request)}><ExternalLink size={15} /></AdminIconButton>
                 <AdminIconButton ariaLabel="Copiar link de assinatura" title="Copiar link" disabled={busy} onClick={() => void copyLink(request)}><Clipboard size={15} /></AdminIconButton>
                 <AdminIconButton ariaLabel="Enviar ou abrir convite de assinatura no WhatsApp" title="WhatsApp" disabled={busy || !request.external_signer_phone} onClick={() => void openWhatsApp(request)}><WhatsAppBrandIcon size={15} /></AdminIconButton>
-                {canResend && <AdminIconButton ariaLabel="Reenviar convite por e-mail" title="Reenviar e-mail" disabled={busy} onClick={() => void resend(request)}><Mail size={15} /></AdminIconButton>}
+                {canResend && request.external_signer_email && <AdminIconButton ariaLabel="Reenviar convite por e-mail" title="Reenviar e-mail" disabled={busy} onClick={() => void resend(request)}><Mail size={15} /></AdminIconButton>}
               </>}
               {canAudit && <AdminIconButton ariaLabel="Ver auditoria da assinatura" title="Auditoria" disabled={busy} onClick={() => openAudit(request)}><History size={15} /></AdminIconButton>}
               {active && canCancel && <AdminIconButton ariaLabel="Cancelar solicitação de assinatura" title="Cancelar solicitação" disabled={busy} className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => cancel(request)}><Ban size={15} /></AdminIconButton>}
